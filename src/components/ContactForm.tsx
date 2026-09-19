@@ -1,26 +1,58 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import { siteConfig } from "@/content/site";
+
+type Status = "idle" | "sending" | "success" | "error";
 
 export function ContactForm() {
-  const [status, setStatus] = useState<"idle" | "success">("idle");
+  const endpoint = process.env.NEXT_PUBLIC_CONTACT_FORM_ENDPOINT?.trim() || "";
+  const [status, setStatus] = useState<Status>("idle");
+  const [error, setError] = useState("");
 
-  function handleSubmit(e: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    setError("");
+    const form = e.currentTarget;
+    const fd = new FormData(form);
+    const name = String(fd.get("name") || "").trim();
+    const email = String(fd.get("email") || "").trim();
+    const message = String(fd.get("message") || "").trim();
+    if (!name || !email || !message) return;
+
+    if (endpoint) {
+      setStatus("sending");
+      try {
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers: { Accept: "application/json", "Content-Type": "application/json" },
+          body: JSON.stringify({ name, email, message }),
+        });
+        if (!res.ok) throw new Error(`Form endpoint returned ${res.status}`);
+        setStatus("success");
+        form.reset();
+      } catch (err) {
+        setStatus("error");
+        setError(err instanceof Error ? err.message : "Send failed");
+      }
+      return;
+    }
+
+    const subject = encodeURIComponent(`Learning site message from ${name}`);
+    const body = encodeURIComponent(`Name: ${name}\nEmail: ${email}\n\n${message}`);
+    window.location.href = `mailto:${siteConfig.email}?subject=${subject}&body=${body}`;
     setStatus("success");
-    e.currentTarget.reset();
+    form.reset();
   }
 
   if (status === "success") {
     return (
-      <div
-        role="status"
-        className="rounded-2xl border border-primary/30 bg-accent-soft p-8 text-center"
-      >
-        <p className="text-lg font-semibold text-foreground">Message sent</p>
+      <div role="status" className="rounded-2xl border border-primary/30 bg-accent-soft p-8 text-center">
+        <p className="text-lg font-semibold text-foreground">Thank you</p>
         <p className="mt-2 text-sm text-muted">
-          Thank you for getting in touch. This is a demonstration form — no
-          message was transmitted. Please email us directly for urgent enquiries.
+          {endpoint
+            ? "Your message was sent. We will reply soon, inshaAllah."
+            : "Your email app should open with the message ready to send. If it did not, email us directly."}
         </p>
         <button
           type="button"
@@ -61,18 +93,6 @@ export function ContactForm() {
         />
       </div>
       <div>
-        <label htmlFor="contact-phone" className="block text-sm font-medium">
-          Phone
-        </label>
-        <input
-          id="contact-phone"
-          name="phone"
-          type="tel"
-          autoComplete="tel"
-          className="mt-1 w-full rounded-lg border border-card-border bg-background px-3 py-2 text-sm"
-        />
-      </div>
-      <div>
         <label htmlFor="contact-message" className="block text-sm font-medium">
           Message
         </label>
@@ -84,14 +104,25 @@ export function ContactForm() {
           className="mt-1 w-full rounded-lg border border-card-border bg-background px-3 py-2 text-sm"
         />
       </div>
+      {status === "error" && (
+        <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300">
+          {error || "Could not send. Try email instead."}{" "}
+          <a className="underline" href={`mailto:${siteConfig.email}`}>
+            {siteConfig.email}
+          </a>
+        </p>
+      )}
       <button
         type="submit"
-        className="w-full rounded-full bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition hover:opacity-90"
+        disabled={status === "sending"}
+        className="w-full rounded-full bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:opacity-60"
       >
-        Send message
+        {status === "sending" ? "Sending…" : endpoint ? "Send message" : "Open email to send"}
       </button>
       <p className="text-xs text-muted">
-        This form shows a client-side success state only. For real correspondence use the email addresses listed on this page.
+        {endpoint
+          ? "Messages go to the configured form endpoint (e.g. Formspree)."
+          : `Static site fallback: opens mailto:${siteConfig.email}. Set NEXT_PUBLIC_CONTACT_FORM_ENDPOINT for Formspree.`}
       </p>
     </form>
   );

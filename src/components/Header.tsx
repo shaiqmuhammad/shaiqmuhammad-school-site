@@ -3,12 +3,17 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { navLinks, siteConfig } from "@/content/site";
+import { encyclopediaLinks, navLinks, siteConfig } from "@/content/site";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { HadithScrollIcon, QuranBookIcon } from "@/components/EncyclopediaIcons";
 
 export function Header() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+
+  if (pathname.startsWith("/admin")) {
+    return null;
+  }
 
   return (
     <header className="sticky top-0 z-50 border-b border-card-border bg-header backdrop-blur-md">
@@ -22,7 +27,7 @@ export function Header() {
               {siteConfig.name}
             </span>
             <span className="hidden text-xs text-muted sm:block">
-              Dubai · Independent school
+              Student learning platform
             </span>
           </span>
         </Link>
@@ -56,6 +61,13 @@ export function Header() {
             className="hidden rounded-full bg-primary px-3.5 py-1.5 text-sm font-medium text-primary-foreground shadow-sm transition hover:opacity-90 sm:inline-flex"
           >
             Login
+          </Link>
+          <Link
+            href="/admin/login"
+            className="hidden rounded-full border border-card-border px-3 py-1.5 text-xs font-medium text-muted transition hover:border-primary hover:text-primary md:inline-flex"
+            title="Admin CMS"
+          >
+            Admin
           </Link>
           <button
             type="button"
@@ -94,13 +106,43 @@ export function Header() {
                 </Link>
               </li>
             ))}
+            <li className="mt-2 border-t border-card-border pt-2">
+              <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-muted">
+                Learning libraries
+              </p>
+            </li>
+            {encyclopediaLinks.map((item) => (
+              <li key={item.id}>
+                <Link
+                  href={item.href}
+                  onClick={() => setOpen(false)}
+                  className="flex items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-gold-soft hover:text-primary"
+                >
+                  {item.id === "quran" ? (
+                    <QuranBookIcon className="h-4 w-4" />
+                  ) : (
+                    <HadithScrollIcon className="h-4 w-4" />
+                  )}
+                  {item.label}
+                </Link>
+              </li>
+            ))}
             <li>
               <Link
                 href="/login"
                 onClick={() => setOpen(false)}
-                className="mt-1 block rounded-md bg-primary px-3 py-2 text-center text-sm font-medium text-primary-foreground"
+                className="mt-2 block rounded-md bg-primary px-3 py-2 text-center text-sm font-medium text-primary-foreground"
               >
                 Login Portal
+              </Link>
+            </li>
+            <li>
+              <Link
+                href="/admin/login"
+                onClick={() => setOpen(false)}
+                className="block rounded-md px-3 py-2 text-center text-sm text-muted hover:text-primary"
+              >
+                Admin
               </Link>
             </li>
           </ul>
