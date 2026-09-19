@@ -25,27 +25,27 @@ export const eligibility = [
   "Applicants must meet the age criteria for the requested year group by 31 August of the entry year.",
   "Previous school reports (where applicable) and a brief parent statement are required.",
   "English language support may be offered where a learner shows strong potential but needs language scaffolding.",
-  "Places are offered subject to availability and a good fit with the school's values and programme.",
+  "Places are offered subject to availability and a good fit with the school’s values and programme.",
 ] as const;
 
 export const feeStructure = [
   {
-    stage: "Early Years (FS1-FS2)",
+    stage: "Early Years (FS1–FS2)",
     annual: "AED 42,000",
     note: "Sample figure",
   },
   {
-    stage: "Primary (Years 1-6)",
+    stage: "Primary (Years 1–6)",
     annual: "AED 55,000",
     note: "Sample figure",
   },
   {
-    stage: "Secondary (Years 7-11)",
+    stage: "Secondary (Years 7–11)",
     annual: "AED 68,000",
     note: "Sample figure",
   },
   {
-    stage: "Sixth Form (Years 12-13)",
+    stage: "Sixth Form (Years 12–13)",
     annual: "AED 72,000",
     note: "Sample figure",
   },
