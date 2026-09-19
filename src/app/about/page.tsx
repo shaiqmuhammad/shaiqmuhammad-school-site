@@ -1,23 +1,31 @@
 import type { Metadata } from "next";
 import { Card } from "@/components/Card";
+import { EncyclopediaCards } from "@/components/EncyclopediaCards";
+import { TeacherProfileCard } from "@/components/TeacherProfileCard";
 import { PageHero } from "@/components/PageHero";
 import { Section } from "@/components/Section";
-import { accreditation, history, mission, vision } from "@/content/about";
+import { history, mission, values, vision } from "@/content/about";
+import { siteConfig } from "@/content/site";
+import { loadContentDataSync } from "@/lib/contentServer";
 
 export const metadata: Metadata = {
   title: "About",
-  description: "Mission, vision, history, and quality assurance at Shaiq Muhammad.",
+  description: `About the ${siteConfig.name} student learning platform.`,
 };
 
 export default function AboutPage() {
+  const { teacher } = loadContentDataSync();
   return (
     <>
       <PageHero
-        eyebrow="About us"
-        title="Who we are"
-        subtitle="An independent Dubai school built on curiosity, character, and community — with no affiliation to any other institution."
+        eyebrow="About"
+        title={`Learning with ${siteConfig.name}`}
+        subtitle="An educational platform for students — encyclopedias, lessons, and video classes in one calm place."
       />
       <Section>
+        <div className="mb-10">
+          <TeacherProfileCard teacher={teacher} />
+        </div>
         <div className="grid gap-6 md:grid-cols-2">
           <Card>
             <h2 className="text-xl font-semibold">Mission</h2>
@@ -30,7 +38,7 @@ export default function AboutPage() {
         </div>
       </Section>
       <Section className="pt-0">
-        <h2 className="text-2xl font-semibold tracking-tight">Our history</h2>
+        <h2 className="text-2xl font-semibold tracking-tight">How this platform works</h2>
         <ol className="mt-8 space-y-6 border-l border-card-border pl-6">
           {history.map((item) => (
             <li key={item.year} className="relative">
@@ -43,19 +51,22 @@ export default function AboutPage() {
         </ol>
       </Section>
       <Section className="pt-0">
-        <h2 className="text-2xl font-semibold tracking-tight">Accreditation &amp; quality</h2>
-        <p className="mt-2 max-w-2xl text-sm text-muted">
-          Statements below describe our approach. They are illustrative and do not claim
-          affiliation with any named board or real Dubai school brand.
-        </p>
-        <div className="mt-8 grid gap-6 md:grid-cols-3">
-          {accreditation.map((item) => (
+        <h2 className="mb-6 text-2xl font-semibold tracking-tight">Our values</h2>
+        <div className="grid gap-6 md:grid-cols-3">
+          {values.map((item) => (
             <Card key={item.title}>
-              <h3 className="font-semibold">{item.title}</h3>
+              <h3 className="font-semibold text-primary">{item.title}</h3>
               <p className="mt-2 text-sm text-muted leading-relaxed">{item.body}</p>
             </Card>
           ))}
         </div>
+      </Section>
+      <Section className="pt-0">
+        <h2 className="mb-2 text-2xl font-semibold tracking-tight">Learning libraries</h2>
+        <p className="mb-6 max-w-2xl text-sm text-muted">
+          Primary study companions — open on this site anytime.
+        </p>
+        <EncyclopediaCards compact />
       </Section>
     </>
   );

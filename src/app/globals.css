@@ -1,31 +1,35 @@
 @import "tailwindcss";
 
 :root {
-  --background: #faf8f5;
-  --foreground: #1c1917;
-  --muted: #78716c;
+  --background: #f4faf8;
+  --foreground: #0f1f1c;
+  --muted: #5c736c;
   --card: #ffffff;
-  --card-border: #e7e5e4;
-  --primary: #9a3412;
-  --primary-foreground: #fff7ed;
-  --accent: #c2410c;
-  --accent-soft: #ffedd5;
-  --header: rgba(250, 248, 245, 0.92);
-  --ring: #ea580c;
+  --card-border: #d5e5df;
+  --primary: #0f5c4c;
+  --primary-foreground: #f0faf6;
+  --accent: #c9a227;
+  --accent-soft: #e8f5f0;
+  --gold: #c9a227;
+  --gold-soft: #f7f0d8;
+  --header: rgba(244, 250, 248, 0.92);
+  --ring: #0f5c4c;
 }
 
 .dark {
-  --background: #0c0a09;
-  --foreground: #fafaf9;
-  --muted: #a8a29e;
-  --card: #1c1917;
-  --card-border: #292524;
-  --primary: #fb923c;
-  --primary-foreground: #1c1917;
-  --accent: #fdba74;
-  --accent-soft: #292524;
-  --header: rgba(12, 10, 9, 0.92);
-  --ring: #fb923c;
+  --background: #0a1613;
+  --foreground: #e8f5f0;
+  --muted: #8faba2;
+  --card: #122420;
+  --card-border: #1e3a33;
+  --primary: #3dba9a;
+  --primary-foreground: #0a1613;
+  --accent: #e0c35a;
+  --accent-soft: #1a332c;
+  --gold: #e0c35a;
+  --gold-soft: #2a2a18;
+  --header: rgba(10, 22, 19, 0.92);
+  --ring: #3dba9a;
 }
 
 @theme inline {
@@ -38,6 +42,8 @@
   --color-primary-foreground: var(--primary-foreground);
   --color-accent: var(--accent);
   --color-accent-soft: var(--accent-soft);
+  --color-gold: var(--gold);
+  --color-gold-soft: var(--gold-soft);
   --color-header: var(--header);
   --color-ring: var(--ring);
   --font-sans: var(--font-geist-sans);
@@ -70,4 +76,79 @@ body {
 :focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
+}
+
+.prose-lesson h2 {
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.prose-lesson h3 {
+  margin-top: 1.25rem;
+  margin-bottom: 0.4rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.prose-lesson p {
+  margin-bottom: 0.9rem;
+  line-height: 1.7;
+  color: var(--muted);
+}
+
+.prose-lesson ul,
+.prose-lesson ol {
+  margin-bottom: 0.9rem;
+  padding-left: 1.25rem;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.prose-lesson li {
+  margin-bottom: 0.35rem;
+}
+
+.prose-lesson strong {
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+.prose-lesson a {
+  color: var(--primary);
+  text-decoration: underline;
+}
+
+.prose-lesson .video-embed {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  margin: 1.25rem 0;
+  overflow: hidden;
+  border-radius: 0.75rem;
+  background: var(--accent-soft);
+}
+.prose-lesson .video-embed iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+.prose-lesson .lesson-figure {
+  margin: 1.25rem 0;
+}
+.prose-lesson .lesson-figure img,
+.prose-lesson .inline-lesson-img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.75rem;
+  border: 1px solid var(--card-border);
+}
+.prose-lesson .lesson-figure figcaption {
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--muted);
 }
