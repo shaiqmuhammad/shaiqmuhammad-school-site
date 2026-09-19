@@ -1,7 +1,13 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { announcements } from "@/content/announcements";
 
 export function AnnouncementTicker() {
+  const pathname = usePathname();
+  if (pathname.startsWith("/admin")) return null;
+  if (pathname.startsWith("/encyclopedia")) return null;
   if (announcements.length === 0) return null;
 
   const items = [...announcements, ...announcements];
@@ -10,7 +16,7 @@ export function AnnouncementTicker() {
     <div className="border-b border-card-border bg-accent-soft text-sm text-foreground">
       <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-2 sm:px-6">
         <span className="shrink-0 rounded-full bg-primary px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-primary-foreground">
-          News
+          Learn
         </span>
         <div className="relative min-w-0 flex-1 overflow-hidden">
           <div className="animate-ticker flex w-max gap-10 whitespace-nowrap">

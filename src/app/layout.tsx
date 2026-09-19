@@ -4,6 +4,7 @@ import { AnnouncementTicker } from "@/components/AnnouncementTicker";
 import { Footer } from "@/components/Footer";
 import { Header } from "@/components/Header";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { ChatWidget } from "@/components/ChatWidget";
 import { siteConfig } from "@/content/site";
 import "./globals.css";
 
@@ -19,7 +20,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: `${siteConfig.name} | Independent School in Dubai`,
+    default: `${siteConfig.name} | Student Learning Platform`,
     template: `%s | ${siteConfig.name}`,
   },
   description: siteConfig.description,
@@ -39,6 +40,7 @@ export default function RootLayout({
           <Header />
           <main className="flex-1">{children}</main>
           <Footer />
+          <ChatWidget />
         </ThemeProvider>
       </body>
     </html>
