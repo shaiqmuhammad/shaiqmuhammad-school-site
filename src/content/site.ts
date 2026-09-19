@@ -1,27 +1,44 @@
 export const siteConfig = {
   name: "Shaiq Muhammad",
-  shortName: "SM School",
+  shortName: "SM Learn",
   domain: "shaiqmuhammad.com",
-  tagline: "Nurturing curious minds in the heart of Dubai",
+  tagline: "A calm learning home for students of Shaiq Muhammad",
   description:
-    "An independent day school in Dubai, UAE, offering a broad British-inspired curriculum with a warm, inclusive community.",
+    "Educational learning platform for students of Shaiq Muhammad — Quran and Hadith encyclopedias, written lessons, and video classes.",
   location: "Dubai, United Arab Emirates",
-  address: "Al Quoz, Dubai, UAE",
+  address: "Dubai, UAE",
   phone: "+971 4 000 0000",
   email: "info@shaiqmuhammad.com",
-  admissionsEmail: "admissions@shaiqmuhammad.com",
   locale: "en-GB",
   copyright: "© Shaiq Muhammad. All rights reserved.",
 } as const;
 
+export const encyclopediaLinks = [
+  {
+    id: "quran",
+    label: "Encyclopedia of Quran",
+    href: "/encyclopedia/quran",
+    externalUrl: "https://quranenc.com/en/home#transes",
+    description:
+      "Browse trusted Quran translations and explanations — open alongside your lessons.",
+  },
+  {
+    id: "hadith",
+    label: "Encyclopedia of Hadith",
+    href: "/encyclopedia/hadith",
+    externalUrl: "https://hadeethenc.com/en/home/about",
+    description:
+      "Explore authentic Hadith with clear explanations — a companion for deeper study.",
+  },
+] as const;
+
 export const navLinks = [
   { href: "/", label: "Home" },
+  { href: "/encyclopedia/quran", label: "Quran" },
+  { href: "/encyclopedia/hadith", label: "Hadith" },
+  { href: "/lessons", label: "Lessons" },
+  { href: "/videos", label: "Videos" },
+  { href: "/forum", label: "Forum" },
   { href: "/about", label: "About" },
-  { href: "/academics", label: "Academics" },
-  { href: "/admissions", label: "Admissions" },
-  { href: "/faculty", label: "Faculty" },
-  { href: "/facilities", label: "Facilities" },
-  { href: "/news", label: "News" },
-  { href: "/gallery", label: "Gallery" },
   { href: "/contact", label: "Contact" },
 ] as const;

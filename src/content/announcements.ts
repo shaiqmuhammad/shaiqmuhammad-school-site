@@ -7,22 +7,17 @@ export type Announcement = {
 export const announcements: Announcement[] = [
   {
     id: "1",
-    text: "Open Morning — Saturday 4 October 2026 · Book your place",
-    href: "/admissions",
+    text: "Welcome students — open the Encyclopedia of Quran and Hadith from Home or the nav",
+    href: "/encyclopedia/quran",
   },
   {
     id: "2",
-    text: "Term 1 starts Monday 1 September 2026 · Welcome back",
-    href: "/news/term-1-welcome",
+    text: "New video lessons and written pages are published regularly — check Lessons & Videos",
+    href: "/lessons",
   },
   {
     id: "3",
-    text: "Sample data: Applications for 2026–27 are now open",
-    href: "/admissions",
-  },
-  {
-    id: "4",
-    text: "Parent–Teacher conferences — week of 20 October",
-    href: "/news",
+    text: "Portal Login is available for class communications and school materials",
+    href: "/login",
   },
 ];
