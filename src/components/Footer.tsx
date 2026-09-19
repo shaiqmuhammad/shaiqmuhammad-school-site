@@ -1,7 +1,14 @@
+"use client";
+
 import Link from "next/link";
-import { navLinks, siteConfig } from "@/content/site";
+import { usePathname } from "next/navigation";
+import { encyclopediaLinks, navLinks, siteConfig } from "@/content/site";
 
 export function Footer() {
+  const pathname = usePathname();
+  if (pathname.startsWith("/admin")) return null;
+  if (pathname.startsWith("/encyclopedia")) return null;
+
   return (
     <footer className="mt-auto border-t border-card-border bg-card">
       <div className="mx-auto grid max-w-6xl gap-10 px-4 py-12 sm:px-6 md:grid-cols-3">
@@ -27,27 +34,28 @@ export function Footer() {
                 Login
               </Link>
             </li>
+            <li>
+              <Link href="/admin/login" className="text-muted hover:text-primary">
+                Admin
+              </Link>
+            </li>
           </ul>
         </div>
         <div>
           <p className="text-sm font-semibold uppercase tracking-wide text-foreground">
-            Contact
+            Learning libraries
           </p>
-          <ul className="mt-3 space-y-2 text-sm text-muted">
-            <li>{siteConfig.address}</li>
-            <li>
-              <a href={`tel:${siteConfig.phone.replace(/\s/g, "")}`} className="hover:text-primary">
-                {siteConfig.phone}
-              </a>
-            </li>
-            <li>
+          <ul className="mt-3 space-y-2 text-sm">
+            {encyclopediaLinks.map((item) => (
+              <li key={item.id}>
+                <Link href={item.href} className="text-muted hover:text-primary">
+                  {item.label}
+                </Link>
+              </li>
+            ))}
+            <li className="pt-2 text-muted">
               <a href={`mailto:${siteConfig.email}`} className="hover:text-primary">
                 {siteConfig.email}
-              </a>
-            </li>
-            <li>
-              <a href={`https://${siteConfig.domain}`} className="hover:text-primary">
-                {siteConfig.domain}
               </a>
             </li>
           </ul>
