@@ -1,0 +1,30 @@
+{
+  "threads": [
+    {
+      "id": "thread-welcome",
+      "title": "Welcome to the kids forum!",
+      "author": "Shaiq Muhammad",
+      "body": "Assalamu alaikum students! This is a safe place to ask kind questions about lessons, share what you learned, and encourage each other. Be respectful, use your first name only, and never share private information (phone, address, passwords).",
+      "createdAt": "2026-09-19T00:00:00.000Z",
+      "hidden": false,
+      "replies": [
+        {
+          "id": "reply-sample-1",
+          "author": "Amina",
+          "body": "JazakAllahu khairan! Excited to learn here.",
+          "createdAt": "2026-09-19T01:00:00.000Z",
+          "hidden": false
+        }
+      ]
+    },
+    {
+      "id": "thread-quran-tips",
+      "title": "Quran study tips — what helps you?",
+      "author": "Shaiq Muhammad",
+      "body": "Share one tip that helps you when reading or reviewing Quran (with meaning). Keep answers short and kind.",
+      "createdAt": "2026-09-19T02:00:00.000Z",
+      "hidden": false,
+      "replies": []
+    }
+  ]
+}

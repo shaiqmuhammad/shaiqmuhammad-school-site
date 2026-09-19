@@ -1,0 +1,40 @@
+{
+  "pages": [
+    {
+      "id": "page-welcome",
+      "slug": "welcome-to-learning",
+      "title": "Welcome to Your Learning Journey",
+      "excerpt": "A warm introduction for students of Shaiq Muhammad — how to use this platform, encyclopedias, and video lessons.",
+      "body": "Assalamu alaikum and welcome.\n\nThis learning platform is built for the students of **Shaiq Muhammad**. Here you will find written lessons, video explanations, and the Encyclopedia of Quran and Encyclopedia of Hadith — integrated on this site.\n\n## How to study here\n\n1. Open **Encyclopedia of Quran** and **Encyclopedia of Hadith** from Home or the navigation — they stay on shaiqmuhammad.com (with an Open in new tab option if needed).\n2. Watch the latest **video lessons** for explanations you can revisit anytime.\n3. Read the **learning pages** for notes, summaries, and reflection prompts.\n\nMay Allah make your study beneficial and lasting. Ameen.",
+      "published": true,
+      "updatedAt": "2026-09-19T00:00:00.000Z"
+    },
+    {
+      "id": "page-daily-practice",
+      "slug": "daily-practice-tips",
+      "title": "Daily Practice Tips",
+      "excerpt": "Simple habits for consistent Quran and Hadith study — short sessions, review, and sincerity.",
+      "body": "Consistency beats intensity. A short, sincere daily practice is better than long sessions once a week.\n\n## Suggested routine\n\n- **Morning:** Recite or review a short portion with meaning from the Encyclopedia of Quran.\n- **Evening:** Read one Hadith with its explanation from the Encyclopedia of Hadith.\n- **Weekly:** Rewatch one video lesson and write three takeaways in your notebook.\n\n## Remember\n\nSeek knowledge with humility, ask questions kindly, and apply what you learn. Your teacher is here to guide you — use the portal Login when you need school communications or class materials.",
+      "published": true,
+      "updatedAt": "2026-09-19T00:00:00.000Z"
+    }
+  ],
+  "videos": [
+    {
+      "id": "video-sample-1",
+      "title": "Introduction to Seeking Knowledge",
+      "youtubeId": "jNQXAC9IVRw",
+      "description": "Sample placeholder video for the learning platform. Replace this with your own YouTube lesson ID from the Admin panel.",
+      "published": true,
+      "updatedAt": "2026-09-19T00:00:00.000Z"
+    }
+  ],
+  "teacher": {
+    "name": "Shaiq Muhammad",
+    "title": "Teacher & guide",
+    "bio": "Assalamu alaikum. I teach students in Dubai with a focus on Quran, Hadith, and sincere character. This platform is our calm learning home — encyclopedias, lessons, and video classes in one place.",
+    "photoUrl": "/content/teacher-placeholder.svg",
+    "subjects": ["Quran", "Hadith", "Islamic studies", "Character"],
+    "location": "Dubai, UAE"
+  }
+}
