@@ -6,7 +6,7 @@ This site does **not** implement Admin / SLT / Teacher / Student / Parent dashbo
 
 ## Stack
 
-- Next.js (App Router) + TypeScript
+- Next.js (App Router) + TypeScript — **static HTML export** (`output: "export"`)
 - Tailwind CSS
 - `next-themes` (light / dark / system)
 - Local content under `src/content/` (TS modules — no CMS or paid services)
@@ -35,8 +35,8 @@ See `.env.example`. Do not commit secrets.
 | Command | Purpose |
 |---|---|
 | `npm run dev` | Development server |
-| `npm run build` | Production build |
-| `npm run start` | Serve production build |
+| `npm run build` | Production static export (writes to `out/`) |
+| `npm run start` | Serve production build (Node server; not used for Cloudflare static) |
 | `npm run lint` | ESLint |
 
 ## Editing content
@@ -57,7 +57,7 @@ All copy lives in `src/content/`:
 | `gallery.ts` | Gallery image seeds |
 | `login.ts` | Portal role descriptions & URL helper |
 
-Images use `picsum.photos` seeds via `next/image`. Replace seeds or URLs when you have real photography.
+Images use `picsum.photos` seeds via `next/image` (unoptimised for static export). Replace seeds or URLs when you have real photography.
 
 ## Routes
 
@@ -73,17 +73,26 @@ Images use `picsum.photos` seeds via `next/image`. Replace seeds or URLs when yo
 - `/contact` — Contact form & map placeholder
 - `/login` — Login Portal explanation + CTA
 
-## Deploy (Vercel — free tier)
+## Deploy (Cloudflare Pages — free static)
 
-1. Push the repo to GitHub / GitLab / Bitbucket.
-2. Import the project in [Vercel](https://vercel.com).
-3. Set `NEXT_PUBLIC_PORTAL_URL` in Project → Settings → Environment Variables.
-4. Deploy. No paid add-ons required.
+The site is configured for **static HTML export**. Cloudflare Pages can host it on the free tier with no Workers or paid services.
 
-Alternatively:
+1. Push the repo to GitHub.
+2. In [Cloudflare Pages](https://dash.cloudflare.com/) → **Create** → connect the GitHub repo `shaiqmuhammad/shaiqmuhammad-school-site`.
+3. Build settings:
+   - **Framework preset:** Next.js (Static HTML Export) **or** None
+   - **Build command:** `npm run build`
+   - **Build output directory:** `out`
+   - **Node version:** `20` or `22` (set via Environment variable `NODE_VERSION=20` or `22`, or the Pages UI)
+4. Optional environment variable:
+   - `NEXT_PUBLIC_PORTAL_URL` — absolute URL of the Login Portal (baked in at build time)
+5. Save and deploy. Pages will serve the contents of `out/`.
+
+Local preview of the static build:
 
 ```bash
-npx vercel
+npm run build
+npx serve out
 ```
 
 ## Brand notes
