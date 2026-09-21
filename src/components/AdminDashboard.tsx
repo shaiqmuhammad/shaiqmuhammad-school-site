@@ -1,1 +1,3 @@
-PLACEHOLDER_ADMIN_WILL_REPLACE
+"use client";
+
+export { default } from "@/components/AdminCms";
