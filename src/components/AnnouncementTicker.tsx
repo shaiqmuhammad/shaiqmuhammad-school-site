@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { isImmersivePath } from "@/lib/immersive";
 import { announcements } from "@/content/announcements";
 import { useI18n } from "@/lib/i18n";
 
@@ -9,6 +10,7 @@ export function AnnouncementTicker() {
   const pathname = usePathname();
   const { t, tx } = useI18n();
   if (pathname.startsWith("/admin")) return null;
+  if (isImmersivePath(pathname)) return null;
   if (pathname.startsWith("/encyclopedia")) return null;
   if (announcements.length === 0) return null;
 

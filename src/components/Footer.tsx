@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { isImmersivePath } from "@/lib/immersive";
 import { encyclopediaLinks, navLinks, siteConfig } from "@/content/site";
 import { useI18n } from "@/lib/i18n";
 
@@ -9,6 +10,7 @@ export function Footer() {
   const pathname = usePathname();
   const { t } = useI18n();
   if (pathname.startsWith("/admin")) return null;
+  if (isImmersivePath(pathname)) return null;
   if (pathname.startsWith("/encyclopedia")) return null;
 
   return (

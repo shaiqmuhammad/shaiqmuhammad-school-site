@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { isImmersivePath } from "@/lib/immersive";
 import { loadSiteSettingsCached, resolveTawkIds } from "@/lib/siteSettings";
 
 declare global {
   interface Window {
-    Tawk_API?: Record<string, unknown>;
+    Tawk_API?: Record<string, unknown> & { hideWidget?: () => void; showWidget?: () => void };
     Tawk_LoadStart?: Date;
   }
 }
@@ -21,7 +23,23 @@ export function ChatWidget() {
   const [propertyId, setPropertyId] = useState("");
   const [widgetId, setWidgetId] = useState("");
 
+  const immersive = isImmersivePath(usePathname());
+
   useEffect(() => setMounted(true), []);
+
+  // Hide the Tawk bubble on full-screen assessment screens.
+  useEffect(() => {
+    const api = window.Tawk_API;
+    try {
+      if (immersive) api?.hideWidget?.();
+      else api?.showWidget?.();
+    } catch {
+      // widget not ready yet
+    }
+    if (immersive && api) {
+      (api as Record<string, unknown>).onLoad = () => window.Tawk_API?.hideWidget?.();
+    }
+  }, [immersive]);
 
   useEffect(() => {
     let cancelled = false;
@@ -59,7 +77,7 @@ export function ChatWidget() {
     document.body.appendChild(s);
   }, [propertyId, widgetId]);
 
-  if (!mounted) return null;
+  if (!mounted || immersive) return null;
 
   if (propertyId && widgetId) {
     return null; // Tawk injects its own floating widget

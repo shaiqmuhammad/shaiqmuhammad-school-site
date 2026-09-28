@@ -92,7 +92,7 @@ export async function downloadCertificatePdf(payload: CertificatePayload): Promi
   doc.setFontSize(12);
   doc.setTextColor(80, 80, 80);
   const subtitle = doc.splitTextToSize(
-    template.subtitle || "This certifies successful completion of the quiz",
+    template.subtitle || "This certifies successful completion of the assessment",
     pageW - 140,
   );
   doc.text(subtitle, pageW / 2, 140 + o, { align: "center" });
@@ -109,7 +109,7 @@ export async function downloadCertificatePdf(payload: CertificatePayload): Promi
   doc.setTextColor(40, 40, 40);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(13);
-  doc.text(`Quiz: ${quizTitle}`, pageW / 2, 262 + o, { align: "center" });
+  doc.text(`Assessment: ${quizTitle}`, pageW / 2, 262 + o, { align: "center" });
 
   const marks = `${result.score}/${result.maxScore} (${result.percentage}%)`;
   doc.setFont("helvetica", "bold");

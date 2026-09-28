@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { isImmersivePath } from "@/lib/immersive";
 import { useState } from "react";
 import { encyclopediaLinks, navLinks, siteConfig } from "@/content/site";
 import { HadithScrollIcon, QuranBookIcon } from "@/components/EncyclopediaIcons";
@@ -18,6 +19,8 @@ export function Header() {
   if (pathname.startsWith("/admin")) {
     return null;
   }
+  // Assessment player / group screens are full-screen.
+  if (isImmersivePath(pathname)) return null;
 
   return (
     <header className="sticky top-0 z-50 border-b border-card-border bg-header backdrop-blur-md">
