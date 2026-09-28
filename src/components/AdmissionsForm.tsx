@@ -1,7 +1,6 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import Link from "next/link";
 
 export function AdmissionsForm() {
   const [status, setStatus] = useState<"idle" | "success">("idle");
@@ -21,11 +20,7 @@ export function AdmissionsForm() {
         <p className="text-lg font-semibold text-foreground">Enquiry received</p>
         <p className="mt-2 text-sm text-muted">
           Thank you. This demonstration form confirms your enquiry locally only.
-          Full applications and document upload are completed through the{" "}
-          <Link href="/login" className="font-medium text-primary underline">
-            Login Portal
-          </Link>
-          .
+          Full applications and documents are handled by email after this first contact.
         </p>
         <button
           type="button"
@@ -141,7 +136,7 @@ export function AdmissionsForm() {
         Submit enquiry
       </button>
       <p className="text-xs text-muted">
-        Full applications also go through the Login Portal after an offer is made.
+        Full applications are handled by email after an offer is made.
       </p>
     </form>
   );

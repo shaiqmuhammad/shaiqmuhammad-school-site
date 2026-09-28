@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { AdmissionsForm } from "@/components/AdmissionsForm";
 import { Card } from "@/components/Card";
 import { PageHero } from "@/components/PageHero";
@@ -22,7 +21,7 @@ export default function AdmissionsPage() {
       <PageHero
         eyebrow="Join us"
         title="Admissions"
-        subtitle="We welcome applications for all year groups subject to places. Full enrolment is completed through the Login Portal after an offer."
+        subtitle="We welcome applications for all year groups subject to places. Full enrolment is completed by email after an offer."
       />
       <Section>
         <h2 className="text-2xl font-semibold tracking-tight">How to apply</h2>
@@ -88,12 +87,7 @@ export default function AdmissionsPage() {
           <div>
             <h2 className="text-2xl font-semibold tracking-tight">Enquiry form</h2>
             <p className="mt-2 text-sm text-muted leading-relaxed">
-              Use this form for an initial enquiry. After an offer, complete your full
-              application documents via the{" "}
-              <Link href="/login" className="font-medium text-primary underline">
-                Login Portal
-              </Link>
-              .
+              Use this form for an initial enquiry. After an offer, your teacher will email you the full application documents.
             </p>
           </div>
           <AdmissionsForm />

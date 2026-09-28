@@ -185,23 +185,6 @@ export default function HomePage() {
         )}
       </Section>
 
-      <section className="border-t border-card-border bg-primary text-primary-foreground">
-        <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-6 px-4 py-12 sm:flex-row sm:items-center sm:px-6">
-          <div>
-            <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">Need the student portal?</h2>
-            <p className="mt-2 max-w-xl text-sm text-primary-foreground/85">
-              Use Login for class communications, timetables, and school materials.
-              This learning site stays open for encyclopedias, lessons, and videos.
-            </p>
-          </div>
-          <Link
-            href="/login"
-            className="shrink-0 rounded-full bg-gold px-6 py-2.5 text-sm font-semibold text-foreground shadow transition hover:opacity-90"
-          >
-            Portal Login
-          </Link>
-        </div>
-      </section>
     </>
   );
 }
