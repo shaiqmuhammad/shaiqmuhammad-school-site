@@ -10,12 +10,24 @@ import {
 } from "@/lib/content";
 import { isAdminAuthenticated, setAdminAuthenticated } from "@/lib/adminAuth";
 import {
-  clearStoredGithubToken, downloadContentJson, downloadForumJson, getStoredGithubToken,
-  publishContentToGithub, publishForumToGithub, setStoredGithubToken,
+  clearStoredGithubToken, downloadContentJson, downloadForumJson, downloadJson, getStoredGithubToken,
+  publishContentToGithub, publishForumToGithub, publishJsonToGithub, setStoredGithubToken,
 } from "@/lib/githubPublish";
 import { type ForumData, type ForumThread, emptyForum, loadForumData, loadForumLocal, normalizeForum } from "@/lib/forum";
+import AdminQuizzes from "@/components/AdminQuizzes";
+import AdminCertificate from "@/components/AdminCertificate";
+import AdminBanners from "@/components/AdminBanners";
+import { GITHUB_BANNERS_PATH, loadBannersData, normalizeBanners, type BannersData } from "@/lib/banners";
+import {
+  GITHUB_CERTIFICATE_PATH, GITHUB_QUIZ_RESULTS_PATH, GITHUB_QUIZZES_PATH,
+  defaultCertificate, loadCertificateTemplate, loadQuizResultsData, loadQuizzesData, normalizeCertificate,
+  normalizeQuizzes, normalizeResults, type CertificateTemplate, type QuizResultsData, type QuizzesData,
+} from "@/lib/quiz";
+import {
+  emptySettings, GITHUB_SETTINGS_PATH, loadSiteSettings, normalizeSettings, type SiteSettings,
+} from "@/lib/siteSettings";
 
-type Tab = "pages" | "videos" | "teacher" | "forum" | "settings";
+type Tab = "pages" | "videos" | "quizzes" | "certificate" | "banners" | "teacher" | "forum" | "settings";
 const emptyPage = (): ContentPage => ({ id: newId("page"), slug: "", title: "", excerpt: "", body: "", published: true, updatedAt: new Date().toISOString() });
 const emptyVideo = (): ContentVideo => ({ id: newId("video"), title: "", youtubeId: "", description: "", published: true, updatedAt: new Date().toISOString() });
 
@@ -35,14 +47,26 @@ export default function AdminCms() {
   const [imageUrlDraft, setImageUrlDraft] = useState("");
   const [ytDraft, setYtDraft] = useState("");
   const [editingThread, setEditingThread] = useState<ForumThread | null>(null);
+  const [quizzesData, setQuizzesData] = useState<QuizzesData>({ quizzes: [] });
+  const [quizResults, setQuizResults] = useState<QuizResultsData>({ results: [] });
+  const [certificate, setCertificate] = useState<CertificateTemplate>(defaultCertificate);
+  const [loaded, setLoaded] = useState<Record<string, boolean>>({});
+  const markLoaded = useCallback((k: string) => setLoaded((prev) => ({ ...prev, [k]: true })), []);
+  const [bannersData, setBannersData] = useState<BannersData>({ banners: [] });
+  const [siteSettings, setSiteSettings] = useState<SiteSettings>(emptySettings);
   const refreshTokenFlag = useCallback(() => setHasToken(Boolean(getStoredGithubToken())), []);
 
   useEffect(() => {
     if (!isAdminAuthenticated()) { router.replace("/admin/login"); return; }
     setReady(true); refreshTokenFlag();
-    loadContentData().then(setData).catch(() => setStatus("Could not load data.json"));
-    loadForumData().then(setForum).catch(() => setForum(emptyForum));
-  }, [router, refreshTokenFlag]);
+    loadContentData().then((d) => { setData(d); markLoaded("data.json"); }).catch(() => setStatus("Could not load data.json"));
+    loadForumData().then((d) => { setForum(d); markLoaded("forum.json"); }).catch(() => setForum(emptyForum));
+    loadQuizzesData().then((d) => { setQuizzesData(d); markLoaded("quizzes.json"); }).catch(() => undefined);
+    loadQuizResultsData().then((d) => { setQuizResults(d); markLoaded("quiz-results.json"); }).catch(() => undefined);
+    loadCertificateTemplate().then((d) => { setCertificate(d); markLoaded("certificate.json"); }).catch(() => undefined);
+    loadBannersData().then((d) => { setBannersData(d); markLoaded("banners.json"); }).catch(() => undefined);
+    loadSiteSettings().then((d) => { setSiteSettings(d); markLoaded("settings.json"); }).catch(() => undefined);
+  }, [router, refreshTokenFlag, markLoaded]);
 
   const sortedPages = useMemo(() => [...data.pages].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)), [data.pages]);
   const sortedVideos = useMemo(() => [...data.videos].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)), [data.videos]);
@@ -111,6 +135,41 @@ export default function AdminCms() {
     setStatus(result.ok ? `Published ${GITHUB_FORUM_PATH}. ${result.htmlUrl || ""}` : result.error);
   }
 
+  async function publishAll() {
+    const token = getStoredGithubToken();
+    if (!token) { setStatus("No GitHub token. Open Settings."); setTab("settings"); return; }
+    setBusy(true);
+    const jobs: { label: string; run: () => Promise<{ ok: boolean; error?: string; htmlUrl?: string }> }[] = [
+      { label: "data.json", run: () => publishContentToGithub(data, token) },
+      { label: "forum.json", run: () => publishForumToGithub(normalizeForum(forum), token) },
+      { label: "quizzes.json", run: () => publishJsonToGithub(GITHUB_QUIZZES_PATH, normalizeQuizzes(quizzesData), token, "chore(quiz): publish quizzes.json") },
+      { label: "quiz-results.json", run: () => publishJsonToGithub(GITHUB_QUIZ_RESULTS_PATH, normalizeResults(quizResults), token, "chore(quiz): publish quiz-results.json") },
+      { label: "certificate.json", run: () => publishJsonToGithub(GITHUB_CERTIFICATE_PATH, normalizeCertificate(certificate), token, "chore(quiz): publish certificate.json") },
+      { label: "banners.json", run: () => publishJsonToGithub(GITHUB_BANNERS_PATH, normalizeBanners(bannersData), token, "chore(banners): publish banners.json") },
+      { label: "settings.json", run: () => publishJsonToGithub(GITHUB_SETTINGS_PATH, normalizeSettings(siteSettings), token, "chore(settings): publish settings.json") },
+    ];
+    const ok: string[] = [];
+    const fail: string[] = [];
+    for (const job of jobs) {
+      if (!loaded[job.label]) { fail.push(`${job.label}: skipped (not loaded yet)`); continue; }
+      setStatus(`Publishing ${job.label}…`);
+      const r = await job.run();
+      if (r.ok) ok.push(job.label);
+      else fail.push(`${job.label}: ${r.error || "failed"}`);
+    }
+    setBusy(false);
+    setStatus(fail.length ? `Published ${ok.length}/${jobs.length}. Errors: ${fail.join(" | ")}` : `Published all (${ok.join(", ")}). Cloudflare rebuilds in ~1–2 min.`);
+  }
+
+  async function publishSettings() {
+    const token = getStoredGithubToken();
+    if (!token) { setStatus("No GitHub token."); setTab("settings"); return; }
+    setBusy(true); setStatus("Publishing settings.json…");
+    const r = await publishJsonToGithub(GITHUB_SETTINGS_PATH, normalizeSettings(siteSettings), token, "chore(settings): update settings.json via admin");
+    setBusy(false);
+    setStatus(r.ok ? `Published ${GITHUB_SETTINGS_PATH}. ${r.htmlUrl || ""}` : r.error || "failed");
+  }
+
   function importLocalForum() {
     const local = loadForumLocal();
     if (!local.threads.length) { setStatus("No local student posts in this browser."); return; }
@@ -142,13 +201,14 @@ export default function AdminCms() {
           <div><p className="text-xs font-semibold uppercase tracking-wider text-primary">CMS</p><h1 className="text-lg font-semibold">Learning content admin</h1></div>
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={() => downloadContentJson(data)} className={btnGhost}>Download data.json</button>
-            <button type="button" disabled={busy} onClick={publishContent} className={btn}>{busy ? "Publishing…" : "Publish content"}</button>
+            <button type="button" disabled={busy} onClick={publishContent} className={btnGhost}>{busy ? "…" : "Publish content"}</button>
+            <button type="button" disabled={busy} onClick={publishAll} className={btn}>{busy ? "Publishing…" : "Publish all"}</button>
             <Link href="/" className="rounded-full px-3 py-1.5 text-sm text-primary hover:underline">View site</Link>
             <button type="button" onClick={() => { setAdminAuthenticated(false); router.replace("/admin/login"); }} className="rounded-full px-3 py-1.5 text-sm text-muted">Log out</button>
           </div>
         </div>
         <div className="mx-auto flex max-w-5xl gap-1 overflow-x-auto px-4 pb-3 sm:px-6">
-          {(["pages","videos","teacher","forum","settings"] as Tab[]).map((id) => (
+          {(["pages","videos","quizzes","certificate","banners","teacher","forum","settings"] as Tab[]).map((id) => (
             <button key={id} type="button" onClick={() => setTab(id)} className={`rounded-full px-3 py-1.5 text-sm capitalize ${tab===id?"bg-accent-soft font-medium text-primary":"text-muted hover:bg-accent-soft/60"}`}>{id}</button>
           ))}
         </div>
@@ -218,6 +278,9 @@ export default function AdminCms() {
             </ul>
           </section>
         )}
+        {tab==="quizzes" && <AdminQuizzes setStatus={setStatus} onNeedToken={()=>setTab("settings")} data={quizzesData} setData={setQuizzesData} results={quizResults} setResults={setQuizResults} />}
+        {tab==="certificate" && <AdminCertificate setStatus={setStatus} onNeedToken={()=>setTab("settings")} tpl={certificate} setTpl={setCertificate} />}
+        {tab==="banners" && <AdminBanners setStatus={setStatus} onNeedToken={()=>setTab("settings")} data={bannersData} setData={setBannersData} />}
         {tab==="teacher" && (
           <form onSubmit={saveTeacher} className="space-y-3 rounded-2xl border border-card-border bg-card p-5">
             <h2 className="text-xl font-semibold">Teacher profile</h2>
@@ -269,15 +332,25 @@ export default function AdminCms() {
         {tab==="settings" && (
           <section className="space-y-4">
             <h2 className="text-xl font-semibold">Publish settings</h2>
-            <p className="text-sm text-muted">PAT with Contents: Read/Write on {GITHUB_REPO}. Publishes {GITHUB_CONTENT_PATH} and {GITHUB_FORUM_PATH} on {GITHUB_BRANCH}.</p>
+            <p className="text-sm text-muted">PAT with Contents: Read/Write on {GITHUB_REPO} ({GITHUB_BRANCH}). <strong>Publish all</strong> (header) writes data.json, forum.json, quizzes.json, quiz-results.json, certificate.json, banners.json, and settings.json.</p>
             <form onSubmit={(e)=>{e.preventDefault(); if(!tokenInput.trim()){setStatus("Paste a token first.");return;} setStoredGithubToken(tokenInput); setTokenInput(""); refreshTokenFlag(); setStatus("Token saved in sessionStorage.");}} className="space-y-3 rounded-2xl border border-card-border bg-card p-5">
               <p className="text-sm">Token: <span className={hasToken?"text-primary font-medium":"text-muted"}>{hasToken?"Stored":"Not set"}</span></p>
               <Field label="GitHub Personal Access Token"><input className={input+" font-mono text-xs"} type="password" value={tokenInput} onChange={(e)=>setTokenInput(e.target.value)} placeholder="github_pat_…" /></Field>
               <div className="flex gap-2"><button type="submit" className={btn}>Save token</button>{hasToken && <button type="button" className={btnGhost} onClick={()=>{clearStoredGithubToken();refreshTokenFlag();}}>Clear</button>}</div>
             </form>
+            <div className="space-y-3 rounded-2xl border border-card-border bg-card p-5">
+              <h3 className="font-semibold">Live chat (Tawk.to)</h3>
+              <p className="text-xs text-muted">Paste IDs from Tawk → Admin → Channels → Chat Widget. Cloudflare env NEXT_PUBLIC_TAWK_* overrides these if set. Leave blank to show “Chat coming soon”.</p>
+              <Field label="Property ID"><input className={input+" font-mono text-xs"} value={siteSettings.tawkPropertyId} onChange={(e)=>setSiteSettings({...siteSettings,tawkPropertyId:e.target.value})} placeholder="e.g. 64f…" /></Field>
+              <Field label="Widget ID"><input className={input+" font-mono text-xs"} value={siteSettings.tawkWidgetId} onChange={(e)=>setSiteSettings({...siteSettings,tawkWidgetId:e.target.value})} placeholder="e.g. 1h…" /></Field>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" disabled={busy} className={btn} onClick={publishSettings}>Publish settings</button>
+                <button type="button" className={btnGhost} onClick={()=>downloadJson(normalizeSettings(siteSettings),"settings.json")}>Download settings.json</button>
+              </div>
+            </div>
             <div className="rounded-2xl border border-card-border bg-accent-soft/50 p-5 text-sm">
               <p className="font-semibold">Admin login</p>
-              <p className="mt-2 text-muted">URL: <code>/admin/login</code> · Password: <code>ShaiqAdmin2026!</code> (set NEXT_PUBLIC_ADMIN_PASSWORD in Cloudflare too)</p>
+              <p className="mt-2 text-muted">Private URL: <code>/admin/login</code> (not linked anywhere on the public site — bookmark it). Password is checked against a SHA-256 hash (ADMIN_PASSWORD_SHA256 in src/lib/adminAuth.ts, or NEXT_PUBLIC_ADMIN_PASSWORD_HASH env). No plaintext password is stored in the code.</p>
             </div>
           </section>
         )}
