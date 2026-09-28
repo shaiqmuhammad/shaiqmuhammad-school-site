@@ -11,6 +11,7 @@ export function Header() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
+  // Hide site chrome on admin
   if (pathname.startsWith("/admin")) {
     return null;
   }

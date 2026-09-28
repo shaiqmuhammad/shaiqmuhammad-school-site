@@ -18,6 +18,7 @@ export default function HomePage() {
 
   return (
     <>
+      {/* 1. Warm hero */}
       <section className="relative overflow-hidden border-b border-card-border bg-gradient-to-br from-accent-soft via-background to-gold-soft/40">
         <div className="absolute inset-0 opacity-30" aria-hidden>
           <div className="absolute -left-20 top-10 h-64 w-64 rounded-full bg-primary/20 blur-3xl" />
@@ -51,6 +52,7 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* 2. Learning Libraries — primary */}
       <Section id="libraries">
         <div className="mb-8">
           <p className="text-xs font-semibold uppercase tracking-wider text-gold">
@@ -66,10 +68,12 @@ export default function HomePage() {
         <EncyclopediaCards />
       </Section>
 
+      {/* Teacher profile */}
       <Section className="pt-0">
         <TeacherProfileCard teacher={data.teacher} />
       </Section>
 
+      {/* 3. Latest video lessons */}
       <section className="border-y border-card-border bg-card">
         <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
           <div className="mb-8 flex items-end justify-between gap-4">
@@ -112,6 +116,7 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* 4. Learning pages */}
       <Section>
         <div className="mb-8 flex items-end justify-between gap-4">
           <div>
@@ -143,6 +148,7 @@ export default function HomePage() {
         )}
       </Section>
 
+      {/* 5. Soft CTA for portal Login */}
       <section className="border-t border-card-border bg-gradient-to-r from-primary to-primary/85 text-primary-foreground">
         <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-6 px-4 py-12 sm:flex-row sm:items-center sm:px-6">
           <div>
