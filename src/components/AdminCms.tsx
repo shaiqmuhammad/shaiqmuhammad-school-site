@@ -26,6 +26,9 @@ import {
 import {
   emptySettings, GITHUB_SETTINGS_PATH, loadSiteSettings, normalizeSettings, type SiteSettings,
 } from "@/lib/siteSettings";
+import { AdminChrome } from "@/components/AdminChrome";
+import { AdminVideosTab } from "@/components/AdminVideosTab";
+import { useI18n } from "@/lib/i18n";
 
 type Tab = "pages" | "videos" | "quizzes" | "certificate" | "banners" | "teacher" | "forum" | "settings";
 const emptyPage = (): ContentPage => ({ id: newId("page"), slug: "", title: "", excerpt: "", body: "", published: true, updatedAt: new Date().toISOString() });
@@ -33,6 +36,7 @@ const emptyVideo = (): ContentVideo => ({ id: newId("video"), title: "", youtube
 
 export default function AdminCms() {
   const router = useRouter();
+  const { t } = useI18n();
   const [ready, setReady] = useState(false);
   const [tab, setTab] = useState<Tab>("pages");
   const [data, setData] = useState<ContentData>(normalizeContentData(null));
@@ -54,12 +58,13 @@ export default function AdminCms() {
   const markLoaded = useCallback((k: string) => setLoaded((prev) => ({ ...prev, [k]: true })), []);
   const [bannersData, setBannersData] = useState<BannersData>({ banners: [] });
   const [siteSettings, setSiteSettings] = useState<SiteSettings>(emptySettings);
+  const [publishedSnapshot, setPublishedSnapshot] = useState<string | null>(null);
   const refreshTokenFlag = useCallback(() => setHasToken(Boolean(getStoredGithubToken())), []);
 
   useEffect(() => {
     if (!isAdminAuthenticated()) { router.replace("/admin/login"); return; }
     setReady(true); refreshTokenFlag();
-    loadContentData().then((d) => { setData(d); markLoaded("data.json"); }).catch(() => setStatus("Could not load data.json"));
+    loadContentData().then((d) => { setData(d); setPublishedSnapshot(JSON.stringify(d)); markLoaded("data.json"); }).catch(() => setStatus("Could not load data.json"));
     loadForumData().then((d) => { setForum(d); markLoaded("forum.json"); }).catch(() => setForum(emptyForum));
     loadQuizzesData().then((d) => { setQuizzesData(d); markLoaded("quizzes.json"); }).catch(() => undefined);
     loadQuizResultsData().then((d) => { setQuizResults(d); markLoaded("quiz-results.json"); }).catch(() => undefined);
@@ -68,6 +73,7 @@ export default function AdminCms() {
     loadSiteSettings().then((d) => { setSiteSettings(d); markLoaded("settings.json"); }).catch(() => undefined);
   }, [router, refreshTokenFlag, markLoaded]);
 
+  const hasUnpublished = publishedSnapshot !== null && JSON.stringify(data) !== publishedSnapshot;
   const sortedPages = useMemo(() => [...data.pages].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)), [data.pages]);
   const sortedVideos = useMemo(() => [...data.videos].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)), [data.videos]);
 
@@ -123,7 +129,8 @@ export default function AdminCms() {
     setBusy(true); setStatus("Publishing data.json…");
     const result = await publishContentToGithub(data, token);
     setBusy(false);
-    setStatus(result.ok ? `Published ${GITHUB_CONTENT_PATH}. ${result.htmlUrl || ""}` : result.error);
+    if (result.ok) setPublishedSnapshot(JSON.stringify(data));
+    setStatus(result.ok ? `Published ${GITHUB_CONTENT_PATH}. Cloudflare rebuilds in ~1–2 min. ${result.htmlUrl || ""}` : result.error);
   }
 
   async function publishForum() {
@@ -154,7 +161,7 @@ export default function AdminCms() {
       if (!loaded[job.label]) { fail.push(`${job.label}: skipped (not loaded yet)`); continue; }
       setStatus(`Publishing ${job.label}…`);
       const r = await job.run();
-      if (r.ok) ok.push(job.label);
+      if (r.ok) { ok.push(job.label); if (job.label === "data.json") setPublishedSnapshot(JSON.stringify(data)); }
       else fail.push(`${job.label}: ${r.error || "failed"}`);
     }
     setBusy(false);
@@ -188,7 +195,7 @@ export default function AdminCms() {
     setData((prev) => ({ ...prev, teacher: { ...prev.teacher, [key]: value } }));
   }
 
-  if (!ready) return <div className="flex min-h-[50vh] items-center justify-center text-sm text-muted">Checking admin session…</div>;
+  if (!ready) return <div className="flex min-h-[50vh] items-center justify-center text-sm text-muted">{t("admin.checking")}</div>;
 
   const input = "mt-1.5 w-full rounded-lg border border-card-border bg-background px-3 py-2 text-sm outline-none focus:border-primary";
   const btn = "rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground";
@@ -196,28 +203,28 @@ export default function AdminCms() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b border-card-border bg-card">
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6">
-          <div><p className="text-xs font-semibold uppercase tracking-wider text-primary">CMS</p><h1 className="text-lg font-semibold">Learning content admin</h1></div>
-          <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={() => downloadContentJson(data)} className={btnGhost}>Download data.json</button>
-            <button type="button" disabled={busy} onClick={publishContent} className={btnGhost}>{busy ? "…" : "Publish content"}</button>
-            <button type="button" disabled={busy} onClick={publishAll} className={btn}>{busy ? "Publishing…" : "Publish all"}</button>
-            <Link href="/" className="rounded-full px-3 py-1.5 text-sm text-primary hover:underline">View site</Link>
-            <button type="button" onClick={() => { setAdminAuthenticated(false); router.replace("/admin/login"); }} className="rounded-full px-3 py-1.5 text-sm text-muted">Log out</button>
-          </div>
+      <AdminChrome
+        busy={busy}
+        tab={tab}
+        onTab={setTab}
+        onDownload={() => downloadContentJson(data)}
+        onPublishContent={publishContent}
+        onPublishAll={publishAll}
+        onLogout={() => { setAdminAuthenticated(false); router.replace("/admin/login"); }}
+      />
+      {hasUnpublished && (
+        <div className="mx-auto max-w-5xl px-4 pt-4 sm:px-6">
+          <p className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-gold bg-gold-soft px-3 py-2 text-sm" data-testid="unpublished-banner">
+            <span>{t("admin.unpublished")}</span>
+            <button type="button" disabled={busy} onClick={publishContent} className={btn}>{busy ? "…" : t("admin.publishContent")}</button>
+          </p>
         </div>
-        <div className="mx-auto flex max-w-5xl gap-1 overflow-x-auto px-4 pb-3 sm:px-6">
-          {(["pages","videos","quizzes","certificate","banners","teacher","forum","settings"] as Tab[]).map((id) => (
-            <button key={id} type="button" onClick={() => setTab(id)} className={`rounded-full px-3 py-1.5 text-sm capitalize ${tab===id?"bg-accent-soft font-medium text-primary":"text-muted hover:bg-accent-soft/60"}`}>{id}</button>
-          ))}
-        </div>
-      </header>
+      )}
       {status && <div className="mx-auto max-w-5xl px-4 pt-4 sm:px-6"><p className="rounded-lg border border-card-border bg-accent-soft/60 px-3 py-2 text-sm">{status}</p></div>}
       <div className="mx-auto max-w-5xl space-y-6 px-4 py-8 sm:px-6">
         {tab==="pages" && (
           <section className="space-y-4">
-            <div className="flex justify-between"><h2 className="text-xl font-semibold">Learning pages</h2><button type="button" className={btn} onClick={() => setEditingPage(emptyPage())}>+ New page</button></div>
+            <div className="flex justify-between"><h2 className="text-xl font-semibold">{t("admin.pages.heading")}</h2><button type="button" className={btn} onClick={() => setEditingPage(emptyPage())}>{t("admin.pages.new")}</button></div>
             {editingPage && (
               <form onSubmit={savePage} className="space-y-3 rounded-2xl border border-card-border bg-card p-5">
                 <Field label="Title"><input className={input} value={editingPage.title} onChange={(e)=>{const title=e.target.value;setEditingPage({...editingPage,title,slug:editingPage.slug||slugify(title)});}} required /></Field>
@@ -254,36 +261,30 @@ export default function AdminCms() {
           </section>
         )}
         {tab==="videos" && (
-          <section className="space-y-4">
-            <div className="flex justify-between"><h2 className="text-xl font-semibold">YouTube videos</h2><button type="button" className={btn} onClick={()=>{setEditingVideo(emptyVideo());setYoutubeInput("");}}>+ New video</button></div>
-            {editingVideo && (
-              <form onSubmit={saveVideo} className="space-y-3 rounded-2xl border border-card-border bg-card p-5">
-                <Field label="Title"><input className={input} value={editingVideo.title} onChange={(e)=>setEditingVideo({...editingVideo,title:e.target.value})} required /></Field>
-                <Field label="YouTube URL or ID"><input className={input} value={youtubeInput||editingVideo.youtubeId} onChange={(e)=>setYoutubeInput(e.target.value)} required /></Field>
-                <Field label="Description"><textarea className={input+" min-h-20"} value={editingVideo.description} onChange={(e)=>setEditingVideo({...editingVideo,description:e.target.value})} /></Field>
-                <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={editingVideo.published} onChange={(e)=>setEditingVideo({...editingVideo,published:e.target.checked})} /> Published</label>
-                <div className="flex gap-2"><button type="submit" className={btn}>Save video</button><button type="button" className="text-sm text-muted" onClick={()=>{setEditingVideo(null);setYoutubeInput("");}}>Cancel</button></div>
-              </form>
-            )}
-            <ul className="divide-y divide-card-border rounded-2xl border border-card-border bg-card">
-              {sortedVideos.map((video)=>(
-                <li key={video.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-                  <div><p className="font-medium">{video.title}</p><p className="text-xs text-muted">{video.youtubeId}</p></div>
-                  <div className="flex gap-2">
-                    <button type="button" className="text-sm text-primary" onClick={()=>{setEditingVideo({...video});setYoutubeInput(video.youtubeId);}}>Edit</button>
-                    <button type="button" className="text-sm text-red-600" onClick={()=>{if(confirm(`Delete "${video.title}"?`)) setData((prev)=>({...prev,videos:prev.videos.filter((v)=>v.id!==video.id)}));}}>Delete</button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </section>
+          <AdminVideosTab
+            videos={data.videos}
+            editingVideo={editingVideo}
+            youtubeInput={youtubeInput}
+            busy={busy}
+            input={input}
+            btn={btn}
+            btnGhost={btnGhost}
+            onNew={()=>{setEditingVideo(emptyVideo());setYoutubeInput("");}}
+            onEdit={(video)=>{setEditingVideo({...video});setYoutubeInput(video.youtubeId);}}
+            onDelete={(video)=>{if(confirm(`Delete "${video.title}"?`)) setData((prev)=>({...prev,videos:prev.videos.filter((v)=>v.id!==video.id)}));}}
+            onCancel={()=>{setEditingVideo(null);setYoutubeInput("");}}
+            onSave={saveVideo}
+            onYoutubeInput={setYoutubeInput}
+            onChangeVideo={setEditingVideo}
+            onPublish={publishContent}
+          />
         )}
         {tab==="quizzes" && <AdminQuizzes setStatus={setStatus} onNeedToken={()=>setTab("settings")} data={quizzesData} setData={setQuizzesData} results={quizResults} setResults={setQuizResults} />}
         {tab==="certificate" && <AdminCertificate setStatus={setStatus} onNeedToken={()=>setTab("settings")} tpl={certificate} setTpl={setCertificate} />}
         {tab==="banners" && <AdminBanners setStatus={setStatus} onNeedToken={()=>setTab("settings")} data={bannersData} setData={setBannersData} />}
         {tab==="teacher" && (
           <form onSubmit={saveTeacher} className="space-y-3 rounded-2xl border border-card-border bg-card p-5">
-            <h2 className="text-xl font-semibold">Teacher profile</h2>
+            <h2 className="text-xl font-semibold">{t("admin.teacher.heading")}</h2>
             <Field label="Name"><input className={input} value={data.teacher.name} onChange={(e)=>updateTeacher("name",e.target.value)} /></Field>
             <Field label="Title"><input className={input} value={data.teacher.title} onChange={(e)=>updateTeacher("title",e.target.value)} /></Field>
             <Field label="Location"><input className={input} value={data.teacher.location} onChange={(e)=>updateTeacher("location",e.target.value)} /></Field>
@@ -296,7 +297,7 @@ export default function AdminCms() {
         {tab==="forum" && (
           <section className="space-y-4">
             <div className="flex flex-wrap justify-between gap-2">
-              <h2 className="text-xl font-semibold">Kids forum moderation</h2>
+              <h2 className="text-xl font-semibold">{t("admin.forum.heading")}</h2>
               <div className="flex flex-wrap gap-2">
                 <button type="button" className={btnGhost} onClick={importLocalForum}>Import local posts</button>
                 <button type="button" className={btnGhost} onClick={()=>downloadForumJson(forum)}>Download forum.json</button>
@@ -331,7 +332,7 @@ export default function AdminCms() {
         )}
         {tab==="settings" && (
           <section className="space-y-4">
-            <h2 className="text-xl font-semibold">Publish settings</h2>
+            <h2 className="text-xl font-semibold">{t("admin.settings.heading")}</h2>
             <p className="text-sm text-muted">PAT with Contents: Read/Write on {GITHUB_REPO} ({GITHUB_BRANCH}). <strong>Publish all</strong> (header) writes data.json, forum.json, quizzes.json, quiz-results.json, certificate.json, banners.json, and settings.json.</p>
             <form onSubmit={(e)=>{e.preventDefault(); if(!tokenInput.trim()){setStatus("Paste a token first.");return;} setStoredGithubToken(tokenInput); setTokenInput(""); refreshTokenFlag(); setStatus("Token saved in sessionStorage.");}} className="space-y-3 rounded-2xl border border-card-border bg-card p-5">
               <p className="text-sm">Token: <span className={hasToken?"text-primary font-medium":"text-muted"}>{hasToken?"Stored":"Not set"}</span></p>
