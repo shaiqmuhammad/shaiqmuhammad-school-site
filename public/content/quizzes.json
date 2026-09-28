@@ -1,0 +1,48 @@
+{
+  "quizzes": [
+    {
+      "id": "quiz-sample-welcome",
+      "slug": "welcome-quiz",
+      "title": "Welcome Quiz",
+      "description": "A short practice quiz so students can try the timer, question types, and certificate.",
+      "timeLimitMinutes": 5,
+      "published": true,
+      "updatedAt": "2026-09-28T12:00:00.000Z",
+      "questions": [
+        {
+          "id": "q1",
+          "type": "multiple_choice",
+          "prompt": "What is the first pillar of Islam?",
+          "options": ["Salah (prayer)", "Shahada (testimony of faith)", "Zakat (charity)", "Hajj (pilgrimage)"],
+          "correct": [1],
+          "points": 1
+        },
+        {
+          "id": "q2",
+          "type": "true_false",
+          "prompt": "The Quran was revealed over approximately 23 years.",
+          "options": ["True", "False"],
+          "correct": [0],
+          "points": 1
+        },
+        {
+          "id": "q3",
+          "type": "short_answer",
+          "prompt": "Name the holy book of Islam (one word).",
+          "options": [],
+          "correct": ["Quran", "Qur'an", "Qur’an", "Koran"],
+          "points": 2
+        },
+        {
+          "id": "q4",
+          "type": "multi_select",
+          "prompt": "Which of these are books of Hadith? (select all that apply)",
+          "options": ["Sahih Bukhari", "Sahih Muslim", "Injil", "Sunan Abu Dawud"],
+          "correct": [0, 1, 3],
+          "points": 2
+        }
+      ],
+      "cardImage": ""
+    }
+  ]
+}
