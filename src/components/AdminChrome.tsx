@@ -24,9 +24,20 @@ export function AdminChrome({ busy, tab, onTab, onDownload, onPublishContent, on
   return (
     <header className="border-b border-card-border bg-card">
       <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-primary">{t("admin.eyebrow")}</p>
-          <h1 className="text-lg font-semibold">{t("admin.title")}</h1>
+        <div className="flex items-center gap-4">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/logo.svg"
+            alt="Shaiq Muhammad"
+            width={96}
+            height={96}
+            className="h-20 w-20 shrink-0 rounded-full border-2 border-primary/30 bg-card object-cover shadow-md sm:h-24 sm:w-24"
+          />
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-primary">{t("admin.eyebrow")}</p>
+            <h1 className="text-xl font-semibold sm:text-2xl">Shaiq Muhammad — Admin</h1>
+            <p className="text-sm text-muted">{t("admin.title")}</p>
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <LanguageToggle />

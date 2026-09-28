@@ -12,7 +12,7 @@ import { useI18n } from "@/lib/i18n";
 export function Header() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
 
   // Admin has its own chrome (with the same language/theme toggles).
   if (pathname.startsWith("/admin")) {
@@ -58,7 +58,7 @@ export function Header() {
           })}
         </nav>
 
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
           <LanguageToggle />
           <ThemeToggle />
           <button
@@ -78,6 +78,13 @@ export function Header() {
 
       {open && (
         <nav id="mobile-nav" className="border-t border-card-border bg-card px-4 py-3 lg:hidden" aria-label="Mobile">
+          <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-card-border bg-accent-soft/50 p-2">
+            <span className="px-1 text-xs font-semibold uppercase tracking-wide text-muted">
+              {lang === "ar" ? "اللغة والمظهر" : "Language & theme"}
+            </span>
+            <LanguageToggle />
+            <ThemeToggle showLabel />
+          </div>
           <ul className="flex flex-col gap-1">
             {navLinks.map((link) => (
               <li key={link.href}>

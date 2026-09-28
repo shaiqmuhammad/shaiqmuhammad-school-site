@@ -32,7 +32,16 @@ export const metadata: Metadata = {
   },
   description: siteConfig.description,
   metadataBase: new URL(`https://${siteConfig.domain}`),
-  icons: { icon: "/favicon.svg", apple: "/logo.svg" },
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icon-32.png", type: "image/png", sizes: "32x32" },
+      { url: "/icon-192.png", type: "image/png", sizes: "192x192" },
+      { url: "/favicon.svg", type: "image/svg+xml" },
+    ],
+    shortcut: "/favicon.ico",
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
 };
 
 export default function RootLayout({
