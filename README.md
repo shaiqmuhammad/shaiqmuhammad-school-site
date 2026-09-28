@@ -67,10 +67,10 @@ npm run dev
 3. **Videos** — YouTube URL/ID gallery entries.
 4. **Teacher** — name, photo URL, bio, subjects, Dubai location (Home + About).
 5. **Forum** — moderate kids forum threads/replies; hide/delete; import local student posts from this browser; publish `forum.json`.
-6. **Quizzes** — timed quizzes (multiple choice, true/false, short answer, multi-select) with optional picture/audio/video/YouTube per question and a card image; results import/publish for class positions.
+6. **Quizzes** — timed quizzes with 8 question types (multiple choice, true/false, short answer, choose all correct / "select all that apply", matching, fill in the blank with `___`, ordering, image choice), optional picture/audio/video/YouTube and an explanation per question, a card image, and "Show answers at end" (review screen after submit); results import/publish for class positions.
 7. **Certificate** — title, subtitle, school name, border colour, footer, logo URL, show position; PDF preview.
 8. **Banners** — home page auto-sliding carousel (image, title, subtitle, button, publish, reorder).
-9. **Settings** — GitHub PAT; Tawk.to IDs (`settings.json`).
+9. **Settings** — GitHub PAT; Tawk.to IDs and teacher WhatsApp number (`settings.json`, default +971545705552; blank hides WhatsApp).
 10. **Publish all** — writes data.json, forum.json, quizzes.json, quiz-results.json, certificate.json, banners.json, settings.json via GitHub PAT (Contents R/W).
 
 ## Kids forum
@@ -83,6 +83,7 @@ npm run dev
 
 - `/contact` — name, email, message. Uses Formspree when `NEXT_PUBLIC_CONTACT_FORM_ENDPOINT` is set; otherwise mailto fallback.
 - Live chat — Tawk.to when IDs are set (env vars, or Admin → Settings → `settings.json`); otherwise “Chat coming soon” + Contact link.
+- WhatsApp — floating green button (bottom-left, clear of the chat bubble), plus links on Contact and in the footer (https://wa.me/971545705552).
 
 ## Deploy (Cloudflare Pages)
 
