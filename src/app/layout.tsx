@@ -26,6 +26,7 @@ export const metadata: Metadata = {
   },
   description: siteConfig.description,
   metadataBase: new URL(`https://${siteConfig.domain}`),
+  icons: { icon: "/favicon.svg", apple: "/logo.svg" },
 };
 
 export default function RootLayout({
