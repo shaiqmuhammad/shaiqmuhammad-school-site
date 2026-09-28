@@ -16,8 +16,8 @@ export const admissionsProcess = [
   },
   {
     step: 4,
-    title: "Enrol via the portal",
-    body: "Accept your offer and complete full registration documents through the Login Portal. The website form is for initial contact only.",
+    title: "Enrol",
+    body: "Accept your offer and your teacher will follow up by email with the full registration documents. The website form is for initial contact only.",
   },
 ] as const;
 

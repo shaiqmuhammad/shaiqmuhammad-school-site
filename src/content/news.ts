@@ -19,7 +19,7 @@ export const newsPosts: NewsPost[] = [
     imageSeed: 201,
     body: [
       "We are delighted to welcome our community back for Term 1. Classrooms are ready, teachers are excited, and our pastoral teams are prepared to support every learner.",
-      "New families joining us this year will find orientation guides in the Login Portal, along with timetables and contact details for form tutors.",
+      "New families joining us this year will receive orientation guides and timetables from their teacher by email.",
       "We look forward to a year of curiosity, kindness, and achievement together.",
     ],
   },

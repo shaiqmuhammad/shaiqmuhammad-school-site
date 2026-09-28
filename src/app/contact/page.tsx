@@ -4,7 +4,6 @@ import { Card } from "@/components/Card";
 import { PageHero } from "@/components/PageHero";
 import { Section } from "@/components/Section";
 import { siteConfig } from "@/content/site";
-import { WhatsAppLink } from "@/components/WhatsApp";
 
 export const metadata: Metadata = {
   title: "Contact",
@@ -33,28 +32,11 @@ export default function ContactPage() {
                 </li>
                 <li>
                   <span className="block text-xs font-semibold uppercase tracking-wide text-foreground">
-                    Phone
-                  </span>
-                  <a
-                    href={`tel:${siteConfig.phone.replace(/\s/g, "")}`}
-                    className="hover:text-primary"
-                  >
-                    {siteConfig.phone}
-                  </a>
-                </li>
-                <li>
-                  <span className="block text-xs font-semibold uppercase tracking-wide text-foreground">
                     Email
                   </span>
                   <a href={`mailto:${siteConfig.email}`} className="hover:text-primary">
                     {siteConfig.email}
                   </a>
-                </li>
-                <li>
-                  <span className="block text-xs font-semibold uppercase tracking-wide text-foreground">
-                    WhatsApp (teacher)
-                  </span>
-                  <WhatsAppLink className="font-medium text-[#128C7E] hover:underline" />
                 </li>
               </ul>
             </Card>
