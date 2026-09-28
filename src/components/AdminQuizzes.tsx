@@ -9,7 +9,7 @@ import { downloadJson, getStoredGithubToken, publishJsonToGithub } from "@/lib/g
 import { AdminQuestionEditor } from "@/components/AdminQuestionEditor";
 import {
   emptyQuestion, emptyQuiz, GITHUB_QUIZ_RESULTS_PATH, GITHUB_QUIZZES_PATH, loadLocalResults,
-  normalizeQuiz, normalizeQuizzes, normalizeResults, QUESTION_TYPE_LABELS, QUESTION_TYPES, questionProblem,
+  isSowSeed, normalizeQuiz, normalizeResults, quizzesForPublish, QUESTION_TYPE_LABELS, QUESTION_TYPES, questionProblem,
   quizMaxScore, type Quiz, type QuizQuestion, type QuizResultsData, type QuizzesData,
 } from "@/lib/quiz";
 
@@ -104,20 +104,28 @@ export default function AdminQuizzes({ setStatus, onNeedToken, data, setData, re
   }
 
   const quizTitle = (id: string) => data.quizzes.find((q) => q.id === id)?.title || id;
+  /** Position within the same assessment by percentage (ties share a place: 1st, 1st, 3rd). */
+  const rankOf = (r: QuizResultsData["results"][number]) => {
+    const better = results.results.filter((x) => x.quizId === r.quizId && x.percentage > r.percentage).length;
+    const tied = results.results.filter((x) => x.quizId === r.quizId && x.percentage === r.percentage).length > 1;
+    const n = better + 1;
+    const suffix = n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] || "th";
+    return `${n}${suffix}${tied ? " (tie)" : ""}`;
+  };
 
   return (
     <section className="space-y-6">
       <div className="flex flex-wrap justify-between gap-2">
         <h2 className="text-xl font-semibold">{tr("Assessments", "التقييمات")}</h2>
         <div className="flex flex-wrap gap-2">
-          <button type="button" className={btnGhost} onClick={() => downloadJson(normalizeQuizzes(data), "quizzes.json")}>{tr("Download quizzes.json", "تنزيل quizzes.json")}</button>
-          <button type="button" disabled={busy} className={btn} onClick={() => publish(GITHUB_QUIZZES_PATH, normalizeQuizzes(data), "quizzes.json")}>{tr("Publish assessments", "نشر التقييمات")}</button>
-          <button type="button" className={btn} onClick={() => setEditing(emptyQuiz())}>{tr("+ New assessment", "+ تقييم جديد")}</button>
+          <button type="button" className={btnGhost} onClick={() => downloadJson(quizzesForPublish(data), "quizzes.json")}>{tr("Download quizzes.json", "تنزيل quizzes.json")}</button>
+          <button type="button" disabled={busy} className={btn} onClick={() => publish(GITHUB_QUIZZES_PATH, quizzesForPublish(data), "quizzes.json")}>{tr("Publish assessments", "نشر التقييمات")}</button>
+          <button type="button" className={btn} onClick={() => setEditing({ ...emptyQuiz(), timeLimitMinutes: 5 })}>{tr("+ New assessment", "+ تقييم جديد")}</button>
         </div>
       </div>
 
       {editing && (
-        <form onSubmit={saveQuiz} className="space-y-4 rounded-2xl border border-card-border bg-card p-5">
+        <form onSubmit={saveQuiz} className="space-y-4 rounded-2xl bg-card ring-1 ring-card-border/50 p-5">
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Title"><input className={input} value={editing.title} onChange={(e) => { const title = e.target.value; setEditing({ ...editing, title, slug: editing.slug || slugify(title) }); }} required /></Field>
             <Field label="Slug (URL)"><input className={input} value={editing.slug} onChange={(e) => setEditing({ ...editing, slug: slugify(e.target.value) })} required /></Field>
@@ -127,6 +135,12 @@ export default function AdminQuizzes({ setStatus, onNeedToken, data, setData, re
             <Field label="Arabic title (optional)"><input dir="rtl" className={input} value={editing.titleAr || ""} onChange={(e) => setEditing({ ...editing, titleAr: e.target.value })} placeholder="العنوان بالعربية" /></Field>
             <Field label="Arabic description (optional)"><input dir="rtl" className={input} value={editing.descriptionAr || ""} onChange={(e) => setEditing({ ...editing, descriptionAr: e.target.value })} placeholder="الوصف بالعربية" /></Field>
           </div>
+          <Field label="Year group (optional — used for the Year filter on the Assessments page)">
+            <select className={input + " w-40"} value={editing.year ?? ""} onChange={(e) => setEditing({ ...editing, year: e.target.value ? Number(e.target.value) : undefined })}>
+              <option value="">—</option>
+              {[1, 2, 3, 4, 5, 6].map((y) => <option key={y} value={y}>Year {y}</option>)}
+            </select>
+          </Field>
           <Field label="Card image (URL or data:image/… — shown on Home & Assessments list)">
             <input className={input} value={editing.cardImage || ""} onChange={(e) => setEditing({ ...editing, cardImage: e.target.value })} placeholder="https://… or upload below" />
           </Field>
@@ -174,13 +188,13 @@ export default function AdminQuizzes({ setStatus, onNeedToken, data, setData, re
         </form>
       )}
 
-      <ul className="divide-y divide-card-border rounded-2xl border border-card-border bg-card">
+      <ul className="divide-y divide-card-border rounded-2xl bg-card ring-1 ring-card-border/50">
         {sorted.length === 0 && <li className="px-4 py-3 text-sm text-muted">No assessments yet.</li>}
         {sorted.map((quiz) => (
           <li key={quiz.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
             <div className="min-w-0">
               <p className="font-medium">{quiz.title}{quiz.titleAr ? <span className="ms-2 text-sm text-muted" dir="rtl">{quiz.titleAr}</span> : null}</p>
-              <p className="text-xs text-muted">/assessments/{quiz.slug} · {quiz.questions.length} Qs · {quiz.timeLimitMinutes || "no"} min</p>
+              <p className="text-xs text-muted">{quiz.year ? `Year ${quiz.year} · ` : ""}{isSowSeed(quiz.id) ? "SOW · " : ""}/assessments/{quiz.slug} · {quiz.questions.length} Qs · {quiz.timeLimitMinutes || "no"} min</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <button
@@ -199,13 +213,22 @@ export default function AdminQuizzes({ setStatus, onNeedToken, data, setData, re
               </button>
               {quiz.published && <a className="text-sm text-primary" href={`/assessments/${quiz.slug}`} target="_blank" rel="noreferrer">{tr("Open", "فتح")}</a>}
               <button type="button" className="text-sm text-primary" onClick={() => setEditing(JSON.parse(JSON.stringify(quiz)) as Quiz)}>{tr("Edit", "تعديل")}</button>
-              <button type="button" className="text-sm text-red-600" onClick={() => { if (confirm(`Delete "${quiz.title}"?`)) setData((prev) => ({ quizzes: prev.quizzes.filter((q) => q.id !== quiz.id) })); }}>{tr("Delete", "حذف")}</button>
+              <button type="button" className="text-sm text-red-600" onClick={() => {
+                if (isSowSeed(quiz.id)) {
+                  if (confirm(`"${quiz.title}" is a built-in scheme-of-work assessment. It can't be deleted, but it will be disabled (hidden from students). Continue?`)) {
+                    setData((prev) => ({ quizzes: prev.quizzes.map((q) => (q.id === quiz.id ? { ...q, published: false, updatedAt: new Date().toISOString() } : q)) }));
+                    setStatus(`"${quiz.title}" disabled locally. Click "Publish assessments" to apply it on the live site.`);
+                  }
+                  return;
+                }
+                if (confirm(`Delete "${quiz.title}"?`)) setData((prev) => ({ quizzes: prev.quizzes.filter((q) => q.id !== quiz.id) }));
+              }}>{tr("Delete", "حذف")}</button>
             </div>
           </li>
         ))}
       </ul>
 
-      <div className="space-y-3 rounded-2xl border border-card-border bg-card p-5">
+      <div className="space-y-3 rounded-2xl bg-card ring-1 ring-card-border/50 p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-lg font-semibold">Results and positions</h3>
           <div className="flex flex-wrap gap-2">
@@ -221,11 +244,11 @@ export default function AdminQuizzes({ setStatus, onNeedToken, data, setData, re
         {results.results.length === 0 ? <p className="text-sm text-muted">No published results yet.</p> : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
-              <thead className="text-xs uppercase text-muted"><tr><th className="py-1">Assessment</th><th>Name</th><th>Score</th><th>Date</th><th /></tr></thead>
+              <thead className="text-xs uppercase text-muted"><tr><th className="py-1">Assessment</th><th>Pos.</th><th>Name</th><th>Score</th><th>Date</th><th /></tr></thead>
               <tbody>
-                {[...results.results].sort((a, b) => a.quizId.localeCompare(b.quizId) || b.score - a.score).map((r) => (
+                {[...results.results].sort((a, b) => a.quizId.localeCompare(b.quizId) || b.percentage - a.percentage || b.score - a.score).map((r) => (
                   <tr key={r.id} className="border-t border-card-border">
-                    <td className="py-1.5">{quizTitle(r.quizId)}</td><td>{r.name}</td><td>{r.score}/{r.maxScore} ({r.percentage}%)</td>
+                    <td className="py-1.5">{quizTitle(r.quizId)}</td><td className="tabular-nums">{rankOf(r)}</td><td>{r.name}</td><td>{r.score}/{r.maxScore} ({r.percentage}%)</td>
                     <td>{new Date(r.finishedAt).toLocaleDateString("en-GB")}</td>
                     <td><button type="button" className="text-red-600" onClick={() => setResults({ results: results.results.filter((x) => x.id !== r.id) })}>Remove</button></td>
                   </tr>
