@@ -1,24 +1,44 @@
 {
   "banners": [
     {
-      "id": "banner-welcome",
-      "title": "Welcome to your learning home",
-      "subtitle": "Quran, Hadith, lessons, videos, and quizzes — all in one calm place.",
-      "imageUrl": "https://picsum.photos/seed/sm-learn-banner/1600/600",
-      "buttonText": "Browse quizzes",
-      "buttonHref": "/quizzes",
+      "id": "banner-quran",
+      "title": "Learn the Quran with Understanding",
+      "subtitle": "Open the Encyclopedia of Quran — translation, tafsir, and calm study on this site.",
+      "imageUrl": "https://images.unsplash.com/photo-1775143612377-335468fbb565?auto=format&fit=crop&w=1600&h=600&q=80",
+      "buttonText": "Encyclopedia of Quran",
+      "buttonHref": "/encyclopedia/quran",
       "published": true,
       "order": 0
     },
     {
-      "id": "banner-libraries",
-      "title": "Open the encyclopedias",
-      "subtitle": "Trusted Quran and Hadith libraries stay on this site while you study.",
-      "imageUrl": "https://picsum.photos/seed/sm-ency/1600/600",
-      "buttonText": "Encyclopedia of Quran",
-      "buttonHref": "/encyclopedia/quran",
+      "id": "banner-hadith",
+      "title": "Hadith for Young Hearts",
+      "subtitle": "Explore the Encyclopedia of Hadith — short narrations, meaning, and character.",
+      "imageUrl": "https://images.unsplash.com/photo-1646229227468-ba6eb534d368?auto=format&fit=crop&w=1600&h=600&q=80",
+      "buttonText": "Encyclopedia of Hadith",
+      "buttonHref": "/encyclopedia/hadith",
       "published": true,
       "order": 1
+    },
+    {
+      "id": "banner-quizzes",
+      "title": "Test Your Knowledge — Islamic Quizzes",
+      "subtitle": "Matching, fill-in-the-blank, ordering, and more — with a review of answers at the end.",
+      "imageUrl": "https://images.unsplash.com/photo-1771335444114-20f84e07cb72?auto=format&fit=crop&w=1600&h=600&q=80",
+      "buttonText": "Browse quizzes",
+      "buttonHref": "/quizzes",
+      "published": true,
+      "order": 2
+    },
+    {
+      "id": "banner-tarbiyah",
+      "title": "Tarbiyah & Tafsir",
+      "subtitle": "Written lessons and video classes for sincere learning — at your pace.",
+      "imageUrl": "https://images.unsplash.com/photo-1724433182983-6e42de9c6e61?auto=format&fit=crop&w=1600&h=600&q=80",
+      "buttonText": "Open lessons",
+      "buttonHref": "/lessons",
+      "published": true,
+      "order": 3
     }
   ]
 }
