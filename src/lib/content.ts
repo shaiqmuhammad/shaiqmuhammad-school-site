@@ -43,7 +43,7 @@ export const defaultTeacher: TeacherProfile = {
   name: "Shaiq Muhammad",
   title: "Teacher & guide",
   bio: "Assalamu alaikum. I teach students in Dubai with a focus on Quran, Hadith, and sincere character. This platform is our calm learning home — encyclopedias, lessons, and video classes in one place.",
-  photoUrl: "/content/teacher-placeholder.svg",
+  photoUrl: "/logo.svg",
   subjects: ["Quran", "Hadith", "Islamic studies", "Character"],
   location: "Dubai, UAE",
 };
@@ -59,7 +59,11 @@ function normalizeTeacher(raw: Partial<TeacherProfile> | undefined): TeacherProf
     name: raw?.name?.trim() || defaultTeacher.name,
     title: raw?.title?.trim() || defaultTeacher.title,
     bio: raw?.bio?.trim() || defaultTeacher.bio,
-    photoUrl: raw?.photoUrl?.trim() || defaultTeacher.photoUrl,
+    // The old placeholder image is replaced by the teacher logo.
+    photoUrl:
+      !raw?.photoUrl?.trim() || raw.photoUrl.trim() === "/content/teacher-placeholder.svg"
+        ? defaultTeacher.photoUrl
+        : raw.photoUrl.trim(),
     subjects:
       Array.isArray(raw?.subjects) && raw.subjects.length
         ? raw.subjects.map(String)

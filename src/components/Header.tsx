@@ -19,9 +19,14 @@ export function Header() {
     <header className="sticky top-0 z-50 border-b border-card-border bg-header backdrop-blur-md">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
         <Link href="/" className="group flex items-center gap-2.5">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground shadow-sm">
-            SM
-          </span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/logo.svg"
+            alt=""
+            width={40}
+            height={40}
+            className="h-10 w-10 shrink-0 rounded-full border border-card-border bg-card object-cover shadow-sm"
+          />
           <span className="leading-tight">
             <span className="block text-sm font-semibold tracking-tight text-foreground group-hover:text-primary sm:text-base">
               {siteConfig.name}
