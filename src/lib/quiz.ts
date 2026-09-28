@@ -82,6 +82,8 @@ export type Quiz = {
   /** Optional Arabic title / description */
   titleAr?: string;
   descriptionAr?: string;
+  /** School year group (2–6) when this assessment belongs to a SOW topic; omit for general quizzes */
+  year?: number;
   updatedAt: string;
   questions: QuizQuestion[];
 };
@@ -116,9 +118,12 @@ export type CertificateTemplate = {
 };
 
 export const QUIZZES_PATH = "/content/quizzes.json";
+export const ASSESSMENTS_SOW_PATH = "/content/assessments-sow.json";
 export const QUIZ_RESULTS_PATH = "/content/quiz-results.json";
 export const CERTIFICATE_PATH = "/content/certificate.json";
 export const GITHUB_QUIZZES_PATH = "public/content/quizzes.json";
+/** Seed SOW assessments — not overwritten by Admin “Publish assessments”. */
+export const GITHUB_ASSESSMENTS_SOW_PATH = "public/content/assessments-sow.json";
 export const GITHUB_QUIZ_RESULTS_PATH = "public/content/quiz-results.json";
 export const GITHUB_CERTIFICATE_PATH = "public/content/certificate.json";
 
@@ -257,6 +262,7 @@ export function normalizeQuiz(raw: Partial<Quiz>): Quiz {
     questions: Array.isArray(raw.questions) ? raw.questions.map(normalizeQuestion) : [],
     ...(titleAr ? { titleAr } : {}),
     ...(descriptionAr ? { descriptionAr } : {}),
+    ...(typeof raw.year === "number" && raw.year >= 1 && raw.year <= 13 ? { year: Math.round(raw.year) } : {}),
   };
 }
 
@@ -264,6 +270,47 @@ export function normalizeQuizzes(data: Partial<QuizzesData> | null | undefined):
   return {
     quizzes: Array.isArray(data?.quizzes) ? data!.quizzes!.map(normalizeQuiz) : [],
   };
+}
+
+/**
+ * Merge scheme-of-work seed assessments (assessments-sow.json, owned by the repo) with the
+ * CMS-published quizzes.json (owned by Admin). A quizzes.json entry with the same `id` or `slug`
+ * as a seed replaces that seed, so Admin can edit or disable a seed without touching the seed file.
+ * Order: CMS-only assessments first, then seeds (or their overrides) by year.
+ */
+export function mergeQuizzes(sow: QuizzesData, cms: QuizzesData): QuizzesData {
+  const seeds = normalizeQuizzes(sow).quizzes;
+  const overrides = normalizeQuizzes(cms).quizzes;
+  const used = new Set<number>();
+  const merged: Quiz[] = [];
+  for (const seed of seeds) {
+    const i = overrides.findIndex((o, idx) => !used.has(idx) && (o.id === seed.id || o.slug === seed.slug));
+    if (i >= 0) {
+      used.add(i);
+      merged.push({ ...overrides[i], year: overrides[i].year ?? seed.year });
+    } else merged.push(seed);
+  }
+  merged.sort((a, b) => (a.year ?? 99) - (b.year ?? 99));
+  const cmsOnly = overrides.filter((_, idx) => !used.has(idx));
+  return { quizzes: [...cmsOnly, ...merged] };
+}
+
+/** Seeds from the last loadQuizzesData() call (client only). */
+let sowSeedCache: Quiz[] = [];
+
+export function isSowSeed(id: string): boolean {
+  return sowSeedCache.some((q) => q.id === id);
+}
+
+/**
+ * What Admin should write to quizzes.json: everything except seeds that are still identical
+ * to assessments-sow.json (so future seed updates keep flowing in).
+ */
+export function quizzesForPublish(data: QuizzesData): QuizzesData {
+  const seedJson = new Map(sowSeedCache.map((q) => [q.id, JSON.stringify(normalizeQuiz(q))]));
+  return normalizeQuizzes({
+    quizzes: normalizeQuizzes(data).quizzes.filter((q) => seedJson.get(q.id) !== JSON.stringify(normalizeQuiz(q))),
+  });
 }
 
 export function normalizeResults(data: Partial<QuizResultsData> | null | undefined): QuizResultsData {
@@ -566,7 +613,12 @@ async function fetchJson<T>(path: string, fallback: T): Promise<T> {
 }
 
 export async function loadQuizzesData(): Promise<QuizzesData> {
-  return normalizeQuizzes(await fetchJson(QUIZZES_PATH, emptyQuizzes));
+  const [cms, sow] = await Promise.all([
+    fetchJson(QUIZZES_PATH, emptyQuizzes),
+    fetchJson(ASSESSMENTS_SOW_PATH, emptyQuizzes),
+  ]);
+  sowSeedCache = normalizeQuizzes(sow).quizzes;
+  return mergeQuizzes(normalizeQuizzes(sow), normalizeQuizzes(cms));
 }
 
 export async function loadQuizResultsData(): Promise<QuizResultsData> {

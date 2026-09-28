@@ -5,6 +5,7 @@ import {
   emptyQuizzes,
   emptyResults,
   normalizeCertificate,
+  mergeQuizzes,
   normalizeQuizzes,
   normalizeResults,
   type CertificateTemplate,
@@ -22,7 +23,10 @@ function readJson<T>(relative: string, fallback: T): T {
 }
 
 export function loadQuizzesSync(): QuizzesData {
-  return normalizeQuizzes(readJson("quizzes.json", emptyQuizzes));
+  return mergeQuizzes(
+    normalizeQuizzes(readJson("assessments-sow.json", emptyQuizzes)),
+    normalizeQuizzes(readJson("quizzes.json", emptyQuizzes)),
+  );
 }
 
 export function loadQuizResultsSync(): QuizResultsData {

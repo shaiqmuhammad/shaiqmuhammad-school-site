@@ -15,7 +15,7 @@ export default function AssessmentsPage() {
     <Section className="pt-10">
       <AssessmentsHeading />
       <div className="mt-8">
-        <AssessmentCards quizzes={quizzes} showJoin />
+        <AssessmentCards quizzes={quizzes} showJoin yearFilter />
       </div>
     </Section>
   );

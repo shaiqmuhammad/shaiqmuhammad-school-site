@@ -8,12 +8,33 @@ import { localizedDescription, localizedTitle, useAssessmentText } from "@/lib/a
 import { quizMaxScore, type Quiz } from "@/lib/quiz";
 
 /** Assessment cards (localized) — used on /assessments and the home page. */
-export function AssessmentCards({ quizzes, showJoin = false }: { quizzes: Quiz[]; showJoin?: boolean }) {
+export function AssessmentCards({ quizzes, showJoin = false, yearFilter = false }: { quizzes: Quiz[]; showJoin?: boolean; yearFilter?: boolean }) {
   const { a, lang } = useAssessmentText();
+  const years = [...new Set(quizzes.map((q) => q.year).filter((y): y is number => typeof y === "number"))].sort((x, y) => x - y);
+  const [year, setYear] = useState<number | "all">("all");
+  const shown = year === "all" ? quizzes : quizzes.filter((q) => q.year === year);
+  const yearLabel = (y: number) => (lang === "ar" ? `السنة ${y}` : `Year ${y}`);
   return (
+    <div className="space-y-6">
+    {yearFilter && years.length > 0 && (
+      <div className="flex flex-wrap gap-2" role="tablist" aria-label={lang === "ar" ? "تصفية حسب السنة" : "Filter by year"} data-testid="year-filter">
+        {(["all", ...years] as (number | "all")[]).map((y) => (
+          <button
+            key={String(y)}
+            type="button"
+            role="tab"
+            aria-selected={year === y}
+            onClick={() => setYear(y)}
+            className={`rounded-full px-4 py-2 text-sm font-semibold transition ${year === y ? "bg-primary text-primary-foreground" : "bg-accent-soft text-primary hover:bg-primary/10"}`}
+          >
+            {y === "all" ? (lang === "ar" ? "الكل" : "All") : yearLabel(y)}
+          </button>
+        ))}
+      </div>
+    )}
     <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
       {showJoin && <JoinCard />}
-      {quizzes.map((quiz) => (
+      {shown.map((quiz) => (
         <Card key={quiz.id} className="flex h-full flex-col overflow-hidden p-0! transition hover:border-primary/40">
           <div className="relative aspect-[16/10] bg-accent-soft">
             {quiz.cardImage ? (
@@ -26,6 +47,7 @@ export function AssessmentCards({ quizzes, showJoin = false }: { quizzes: Quiz[]
             )}
           </div>
           <div className="flex flex-1 flex-col p-5">
+            {quiz.year ? <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-primary">{yearLabel(quiz.year)}</p> : null}
             <h3 className="text-lg font-semibold">{localizedTitle(quiz, lang)}</h3>
             {localizedDescription(quiz, lang) && (
               <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-muted">{localizedDescription(quiz, lang)}</p>
@@ -45,6 +67,7 @@ export function AssessmentCards({ quizzes, showJoin = false }: { quizzes: Quiz[]
           </div>
         </Card>
       ))}
+    </div>
     </div>
   );
 }
