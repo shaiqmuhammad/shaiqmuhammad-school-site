@@ -21,12 +21,12 @@
   ],
   "videos": [
     {
-      "id": "video-mulfje4h-w71lk",
-      "title": "Five Pillars of Islam",
-      "youtubeId": "y9ruqLm80M4",
-      "description": "Five Pillars of Islam",
+      "id": "video-sample-1",
+      "title": "Introduction to Seeking Knowledge",
+      "youtubeId": "jNQXAC9IVRw",
+      "description": "Sample placeholder video for the learning platform. Replace this with your own YouTube lesson ID from the teacher content tools.",
       "published": true,
-      "updatedAt": "2026-09-28T15:57:36.302Z"
+      "updatedAt": "2026-09-19T00:00:00.000Z"
     }
   ],
   "teacher": {
