@@ -1,17 +1,16 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import {
   type ContentData, type ContentPage, type ContentVideo, type TeacherProfile,
-  CONTENT_PATH, defaultTeacher, extractYouTubeId, GITHUB_BRANCH, GITHUB_CONTENT_PATH,
-  GITHUB_FORUM_PATH, GITHUB_REPO, loadContentData, newId, normalizeContentData, slugify,
+  defaultTeacher, extractYouTubeId, GITHUB_CONTENT_PATH,
+  GITHUB_FORUM_PATH, loadContentData, newId, normalizeContentData, slugify,
 } from "@/lib/content";
 import { isAdminAuthenticated, setAdminAuthenticated } from "@/lib/adminAuth";
 import {
-  clearStoredGithubToken, downloadContentJson, downloadForumJson, downloadJson, getStoredGithubToken,
-  publishContentToGithub, publishForumToGithub, publishJsonToGithub, setStoredGithubToken,
+  downloadContentJson, downloadForumJson, getStoredGithubToken,
+  publishContentToGithub, publishForumToGithub, publishJsonToGithub,
 } from "@/lib/githubPublish";
 import { type ForumData, type ForumThread, emptyForum, loadForumData, loadForumLocal, normalizeForum } from "@/lib/forum";
 import AdminQuizzes from "@/components/AdminQuizzes";
@@ -21,24 +20,28 @@ import { GITHUB_BANNERS_PATH, loadBannersData, normalizeBanners, type BannersDat
 import {
   GITHUB_CERTIFICATE_PATH, GITHUB_QUIZ_RESULTS_PATH, GITHUB_QUIZZES_PATH,
   defaultCertificate, loadCertificateTemplate, loadQuizResultsData, loadQuizzesData, normalizeCertificate,
-  normalizeQuizzes, normalizeResults, type CertificateTemplate, type QuizResultsData, type QuizzesData,
+  quizzesForPublish, normalizeResults, type CertificateTemplate, type QuizResultsData, type QuizzesData,
 } from "@/lib/quiz";
 import {
   emptySettings, GITHUB_SETTINGS_PATH, loadSiteSettings, normalizeSettings, type SiteSettings,
 } from "@/lib/siteSettings";
 import { AdminChrome } from "@/components/AdminChrome";
 import { AdminVideosTab } from "@/components/AdminVideosTab";
+import { AdminHome } from "@/components/AdminHome";
+import AdminSettings from "@/components/AdminSettings";
 import { useI18n } from "@/lib/i18n";
 
-type Tab = "pages" | "videos" | "quizzes" | "certificate" | "banners" | "teacher" | "forum" | "settings";
+type Tab = "home" | "pages" | "videos" | "quizzes" | "certificate" | "banners" | "teacher" | "forum" | "settings";
 const emptyPage = (): ContentPage => ({ id: newId("page"), slug: "", title: "", excerpt: "", body: "", published: true, updatedAt: new Date().toISOString() });
 const emptyVideo = (): ContentVideo => ({ id: newId("video"), title: "", youtubeId: "", description: "", published: true, updatedAt: new Date().toISOString() });
 
 export default function AdminCms() {
   const router = useRouter();
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const [ready, setReady] = useState(false);
-  const [tab, setTab] = useState<Tab>("pages");
+  const [tab, setTab] = useState<Tab>("home");
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshedAt, setRefreshedAt] = useState<Date | null>(null);
   const [data, setData] = useState<ContentData>(normalizeContentData(null));
   const [forum, setForum] = useState<ForumData>(emptyForum);
   const [status, setStatus] = useState("");
@@ -46,7 +49,6 @@ export default function AdminCms() {
   const [editingPage, setEditingPage] = useState<ContentPage | null>(null);
   const [editingVideo, setEditingVideo] = useState<ContentVideo | null>(null);
   const [youtubeInput, setYoutubeInput] = useState("");
-  const [tokenInput, setTokenInput] = useState("");
   const [hasToken, setHasToken] = useState(false);
   const [imageUrlDraft, setImageUrlDraft] = useState("");
   const [ytDraft, setYtDraft] = useState("");
@@ -59,23 +61,54 @@ export default function AdminCms() {
   const [bannersData, setBannersData] = useState<BannersData>({ banners: [] });
   const [siteSettings, setSiteSettings] = useState<SiteSettings>(emptySettings);
   const [publishedSnapshot, setPublishedSnapshot] = useState<string | null>(null);
+  const [otherSnapshots, setOtherSnapshots] = useState<Record<string, string>>({});
   const refreshTokenFlag = useCallback(() => setHasToken(Boolean(getStoredGithubToken())), []);
+
+  /** (Re)load every published JSON file (fetches use cache: "no-store"). Admin session is untouched. */
+  const loadAll = useCallback(async () => {
+    setRefreshing(true);
+    const snap: Record<string, string> = {};
+    await Promise.all([
+      loadContentData().then((d) => { setData(d); setPublishedSnapshot(JSON.stringify(d)); markLoaded("data.json"); }).catch(() => setStatus("Could not load data.json")),
+      loadForumData().then((d) => { setForum(d); snap.forum = JSON.stringify(d); markLoaded("forum.json"); }).catch(() => setForum(emptyForum)),
+      loadQuizzesData().then((d) => { setQuizzesData(d); snap.quizzes = JSON.stringify(d); markLoaded("quizzes.json"); }).catch(() => undefined),
+      loadQuizResultsData().then((d) => { setQuizResults(d); snap.results = JSON.stringify(d); markLoaded("quiz-results.json"); }).catch(() => undefined),
+      loadCertificateTemplate().then((d) => { setCertificate(d); snap.certificate = JSON.stringify(d); markLoaded("certificate.json"); }).catch(() => undefined),
+      loadBannersData().then((d) => { setBannersData(d); snap.banners = JSON.stringify(d); markLoaded("banners.json"); }).catch(() => undefined),
+      loadSiteSettings().then((d) => { setSiteSettings(d); snap.settings = JSON.stringify(d); markLoaded("settings.json"); }).catch(() => undefined),
+    ]);
+    setOtherSnapshots(snap);
+    setRefreshedAt(new Date());
+    setRefreshing(false);
+  }, [markLoaded]);
 
   useEffect(() => {
     if (!isAdminAuthenticated()) { router.replace("/admin/login"); return; }
     setReady(true); refreshTokenFlag();
-    loadContentData().then((d) => { setData(d); setPublishedSnapshot(JSON.stringify(d)); markLoaded("data.json"); }).catch(() => setStatus("Could not load data.json"));
-    loadForumData().then((d) => { setForum(d); markLoaded("forum.json"); }).catch(() => setForum(emptyForum));
-    loadQuizzesData().then((d) => { setQuizzesData(d); markLoaded("quizzes.json"); }).catch(() => undefined);
-    loadQuizResultsData().then((d) => { setQuizResults(d); markLoaded("quiz-results.json"); }).catch(() => undefined);
-    loadCertificateTemplate().then((d) => { setCertificate(d); markLoaded("certificate.json"); }).catch(() => undefined);
-    loadBannersData().then((d) => { setBannersData(d); markLoaded("banners.json"); }).catch(() => undefined);
-    loadSiteSettings().then((d) => { setSiteSettings(d); markLoaded("settings.json"); }).catch(() => undefined);
-  }, [router, refreshTokenFlag, markLoaded]);
+    void loadAll();
+  }, [router, refreshTokenFlag, loadAll]);
+
+  /** Logo button: back to the dashboard and re-fetch everything that is published. */
+  function goHomeAndRefresh() {
+    const dirty =
+      hasUnpublished || editingPage || editingVideo || editingThread ||
+      (otherSnapshots.quizzes !== undefined && otherSnapshots.quizzes !== JSON.stringify(quizzesData)) ||
+      (otherSnapshots.forum !== undefined && otherSnapshots.forum !== JSON.stringify(forum)) ||
+      (otherSnapshots.banners !== undefined && otherSnapshots.banners !== JSON.stringify(bannersData)) ||
+      (otherSnapshots.certificate !== undefined && otherSnapshots.certificate !== JSON.stringify(certificate)) ||
+      (otherSnapshots.settings !== undefined && otherSnapshots.settings !== JSON.stringify(siteSettings)) ||
+      (otherSnapshots.results !== undefined && otherSnapshots.results !== JSON.stringify(quizResults));
+    if (dirty && !confirm(lang === "ar" ? "إعادة تحميل أحدث محتوى منشور؟ ستُفقد التغييرات غير المنشورة." : "Reload the latest published content? Changes you haven't published will be lost.")) return;
+    setEditingPage(null); setEditingVideo(null); setEditingThread(null); setYoutubeInput("");
+    setStatus("");
+    setTab("home");
+    refreshTokenFlag();
+    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+    void loadAll();
+  }
 
   const hasUnpublished = publishedSnapshot !== null && JSON.stringify(data) !== publishedSnapshot;
   const sortedPages = useMemo(() => [...data.pages].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)), [data.pages]);
-  const sortedVideos = useMemo(() => [...data.videos].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)), [data.videos]);
 
   function insertIntoBody(snippet: string) {
     if (!editingPage) return;
@@ -149,7 +182,7 @@ export default function AdminCms() {
     const jobs: { label: string; run: () => Promise<{ ok: boolean; error?: string; htmlUrl?: string }> }[] = [
       { label: "data.json", run: () => publishContentToGithub(data, token) },
       { label: "forum.json", run: () => publishForumToGithub(normalizeForum(forum), token) },
-      { label: "quizzes.json", run: () => publishJsonToGithub(GITHUB_QUIZZES_PATH, normalizeQuizzes(quizzesData), token, "chore(quiz): publish quizzes.json") },
+      { label: "quizzes.json", run: () => publishJsonToGithub(GITHUB_QUIZZES_PATH, quizzesForPublish(quizzesData), token, "chore(quiz): publish quizzes.json") },
       { label: "quiz-results.json", run: () => publishJsonToGithub(GITHUB_QUIZ_RESULTS_PATH, normalizeResults(quizResults), token, "chore(quiz): publish quiz-results.json") },
       { label: "certificate.json", run: () => publishJsonToGithub(GITHUB_CERTIFICATE_PATH, normalizeCertificate(certificate), token, "chore(quiz): publish certificate.json") },
       { label: "banners.json", run: () => publishJsonToGithub(GITHUB_BANNERS_PATH, normalizeBanners(bannersData), token, "chore(banners): publish banners.json") },
@@ -166,15 +199,6 @@ export default function AdminCms() {
     }
     setBusy(false);
     setStatus(fail.length ? `Published ${ok.length}/${jobs.length}. Errors: ${fail.join(" | ")}` : `Published all (${ok.join(", ")}). Cloudflare rebuilds in ~1–2 min.`);
-  }
-
-  async function publishSettings() {
-    const token = getStoredGithubToken();
-    if (!token) { setStatus("No GitHub token."); setTab("settings"); return; }
-    setBusy(true); setStatus("Publishing settings.json…");
-    const r = await publishJsonToGithub(GITHUB_SETTINGS_PATH, normalizeSettings(siteSettings), token, "chore(settings): update settings.json via admin");
-    setBusy(false);
-    setStatus(r.ok ? `Published ${GITHUB_SETTINGS_PATH}. ${r.htmlUrl || ""}` : r.error || "failed");
   }
 
   function importLocalForum() {
@@ -202,26 +226,40 @@ export default function AdminCms() {
   const btnGhost = "rounded-full border border-card-border px-3 py-1.5 text-sm";
 
   return (
-    <div className="min-h-screen bg-background">
-      <AdminChrome
-        busy={busy}
-        tab={tab}
-        onTab={setTab}
-        onDownload={() => downloadContentJson(data)}
-        onPublishContent={publishContent}
-        onPublishAll={publishAll}
-        onLogout={() => { setAdminAuthenticated(false); router.replace("/admin/login"); }}
-      />
+    <AdminChrome
+      busy={busy}
+      tab={tab}
+      onTab={setTab}
+      onHome={goHomeAndRefresh}
+      refreshing={refreshing}
+      onPublishAll={publishAll}
+      onLogout={() => { setAdminAuthenticated(false); router.replace("/admin/login"); }}
+    >
+      <div className="space-y-8">
       {hasUnpublished && (
-        <div className="mx-auto max-w-5xl px-4 pt-4 sm:px-6">
-          <p className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-gold bg-gold-soft px-3 py-2 text-sm" data-testid="unpublished-banner">
+          <p className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-gold-soft px-4 py-3 text-sm" data-testid="unpublished-banner">
             <span>{t("admin.unpublished")}</span>
             <button type="button" disabled={busy} onClick={publishContent} className={btn}>{busy ? "…" : t("admin.publishContent")}</button>
           </p>
-        </div>
       )}
-      {status && <div className="mx-auto max-w-5xl px-4 pt-4 sm:px-6"><p className="rounded-lg border border-card-border bg-accent-soft/60 px-3 py-2 text-sm">{status}</p></div>}
-      <div className="mx-auto max-w-5xl space-y-6 px-4 py-8 sm:px-6">
+      {status && <p className="rounded-xl bg-accent-soft px-4 py-3 text-sm">{status}</p>}
+        {tab==="home" && (
+          <AdminHome
+            counts={{
+              pages: data.pages.length,
+              videos: data.videos.length,
+              assessments: quizzesData.quizzes.length,
+              assessmentsEnabled: quizzesData.quizzes.filter((q) => q.published).length,
+              results: quizResults.results.length,
+              threads: forum.threads.length,
+              banners: bannersData.banners.length,
+            }}
+            refreshedAt={refreshedAt}
+            refreshing={refreshing}
+            hasToken={hasToken}
+            onTab={setTab}
+          />
+        )}
         {tab==="pages" && (
           <section className="space-y-4">
             <div className="flex justify-between"><h2 className="text-xl font-semibold">{t("admin.pages.heading")}</h2><button type="button" className={btn} onClick={() => setEditingPage(emptyPage())}>{t("admin.pages.new")}</button></div>
@@ -331,33 +369,17 @@ export default function AdminCms() {
           </section>
         )}
         {tab==="settings" && (
-          <section className="space-y-4">
-            <h2 className="text-xl font-semibold">{t("admin.settings.heading")}</h2>
-            <p className="text-sm text-muted">PAT with Contents: Read/Write on {GITHUB_REPO} ({GITHUB_BRANCH}). <strong>Publish all</strong> (header) writes data.json, forum.json, quizzes.json, quiz-results.json, certificate.json, banners.json, and settings.json.</p>
-            <form onSubmit={(e)=>{e.preventDefault(); if(!tokenInput.trim()){setStatus("Paste a token first.");return;} setStoredGithubToken(tokenInput); setTokenInput(""); refreshTokenFlag(); setStatus("Token saved in sessionStorage.");}} className="space-y-3 rounded-2xl border border-card-border bg-card p-5">
-              <p className="text-sm">Token: <span className={hasToken?"text-primary font-medium":"text-muted"}>{hasToken?"Stored":"Not set"}</span></p>
-              <Field label="GitHub Personal Access Token"><input className={input+" font-mono text-xs"} type="password" value={tokenInput} onChange={(e)=>setTokenInput(e.target.value)} placeholder="github_pat_…" /></Field>
-              <div className="flex gap-2"><button type="submit" className={btn}>Save token</button>{hasToken && <button type="button" className={btnGhost} onClick={()=>{clearStoredGithubToken();refreshTokenFlag();}}>Clear</button>}</div>
-            </form>
-            <div className="space-y-3 rounded-2xl border border-card-border bg-card p-5">
-              <h3 className="font-semibold">Live chat (Tawk.to) and WhatsApp</h3>
-              <p className="text-xs text-muted">Paste IDs from Tawk → Admin → Channels → Chat Widget. Cloudflare env NEXT_PUBLIC_TAWK_* overrides these if set. Leave blank to show “Chat coming soon”.</p>
-              <Field label="Property ID"><input className={input+" font-mono text-xs"} value={siteSettings.tawkPropertyId} onChange={(e)=>setSiteSettings({...siteSettings,tawkPropertyId:e.target.value})} placeholder="e.g. 64f…" /></Field>
-              <Field label="Widget ID"><input className={input+" font-mono text-xs"} value={siteSettings.tawkWidgetId} onChange={(e)=>setSiteSettings({...siteSettings,tawkWidgetId:e.target.value})} placeholder="e.g. 1h…" /></Field>
-              <Field label="Teacher WhatsApp number (international format; blank hides the WhatsApp button)"><input className={input+" font-mono text-xs"} value={siteSettings.whatsappNumber} onChange={(e)=>setSiteSettings({...siteSettings,whatsappNumber:e.target.value})} placeholder="+971545705552" /></Field>
-              <div className="flex flex-wrap gap-2">
-                <button type="button" disabled={busy} className={btn} onClick={publishSettings}>Publish settings</button>
-                <button type="button" className={btnGhost} onClick={()=>downloadJson(normalizeSettings(siteSettings),"settings.json")}>Download settings.json</button>
-              </div>
-            </div>
-            <div className="rounded-2xl border border-card-border bg-accent-soft/50 p-5 text-sm">
-              <p className="font-semibold">Admin login</p>
-              <p className="mt-2 text-muted">Private URL: <code>/admin/login</code> (not linked anywhere on the public site — bookmark it). Password is checked against a SHA-256 hash (ADMIN_PASSWORD_SHA256 in src/lib/adminAuth.ts, or NEXT_PUBLIC_ADMIN_PASSWORD_HASH env). No plaintext password is stored in the code.</p>
-            </div>
-          </section>
+          <AdminSettings
+            siteSettings={siteSettings}
+            setSiteSettings={setSiteSettings}
+            setStatus={setStatus}
+            hasToken={hasToken}
+            refreshTokenFlag={refreshTokenFlag}
+            onDownloadContent={() => downloadContentJson(data)}
+          />
         )}
       </div>
-    </div>
+    </AdminChrome>
   );
 }
 
