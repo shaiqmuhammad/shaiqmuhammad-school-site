@@ -27,7 +27,7 @@ export default function HomePage() {
     <>
       <BannerCarousel banners={banners} />
 
-      <section className="relative overflow-hidden border-b border-card-border bg-white">
+      <section className="relative overflow-hidden border-b border-card-border bg-card">
         <div className="relative mx-auto flex max-w-6xl flex-col gap-5 px-4 py-14 sm:px-6 sm:py-16">
           <p className="text-sm font-semibold uppercase tracking-wider text-primary">
             For students of {siteConfig.name}
@@ -48,13 +48,13 @@ export default function HomePage() {
             </a>
             <Link
               href="/videos"
-              className="rounded-full border border-primary/30 bg-white px-5 py-2.5 text-sm font-medium text-primary transition hover:bg-accent-soft"
+              className="rounded-full border border-primary/30 bg-card px-5 py-2.5 text-sm font-medium text-primary transition hover:bg-accent-soft"
             >
               Watch video lessons
             </Link>
             <Link
               href="/quizzes"
-              className="rounded-full border border-primary/30 bg-white px-5 py-2.5 text-sm font-medium text-primary transition hover:bg-accent-soft"
+              className="rounded-full border border-primary/30 bg-card px-5 py-2.5 text-sm font-medium text-primary transition hover:bg-accent-soft"
             >
               Take a quiz
             </Link>
@@ -124,7 +124,7 @@ export default function HomePage() {
         <TeacherProfileCard teacher={data.teacher} />
       </Section>
 
-      <section className="border-y border-card-border bg-white">
+      <section className="border-y border-card-border bg-card">
         <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
           <div className="mb-8 flex items-end justify-between gap-4">
             <div>
