@@ -27,6 +27,14 @@
       "description": "Sample placeholder video for the learning platform. Replace this with your own YouTube lesson ID from the teacher content tools.",
       "published": true,
       "updatedAt": "2026-09-19T00:00:00.000Z"
+    },
+    {
+      "id": "video-mulg9gc1-tyux6",
+      "title": "Five Pillars of Islam",
+      "youtubeId": "y9ruqLm80M4",
+      "description": "",
+      "published": true,
+      "updatedAt": "2026-09-28T16:16:57.242Z"
     }
   ],
   "teacher": {
