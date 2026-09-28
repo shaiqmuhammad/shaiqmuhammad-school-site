@@ -32,6 +32,7 @@ export function renderMarkdownLite(source: string): string {
       continue;
     }
 
+    // YouTube: :::youtube VIDEO_ID   or   :::youtube https://...
     const ytBlock = trimmed.match(/^:::youtube\s+(.+)$/i);
     if (ytBlock) {
       flushPara();
@@ -45,6 +46,7 @@ export function renderMarkdownLite(source: string): string {
       continue;
     }
 
+    // Image alone on a line: ![alt](url)
     const imgOnly = trimmed.match(/^!\[([^\]]*)\]\(([^)]+)\)$/);
     if (imgOnly) {
       flushPara();
@@ -125,6 +127,7 @@ function escapeHtml(s: string): string {
 }
 
 function escapeAttr(s: string): string {
+  // Allow https URLs and data:image for optional base64 embeds
   const ok =
     /^https?:\/\//i.test(s) ||
     s.startsWith("/") ||

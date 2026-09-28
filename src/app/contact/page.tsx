@@ -7,7 +7,7 @@ import { siteConfig } from "@/content/site";
 
 export const metadata: Metadata = {
   title: "Contact",
-  description: "Contact Shaiq Muhammad in Dubai — phone, email, and enquiry form.",
+  description: "Contact Shaiq Muhammad — questions about lessons and the student learning platform.",
 };
 
 export default function ContactPage() {
@@ -16,13 +16,13 @@ export default function ContactPage() {
       <PageHero
         eyebrow="Get in touch"
         title="Contact"
-        subtitle="We are happy to answer questions about admissions, school life, and visiting our Dubai campus."
+        subtitle="Questions about lessons, classes, or the learning platform? Reach out — we are happy to help."
       />
       <Section>
         <div className="grid gap-10 lg:grid-cols-2">
           <div className="space-y-6">
             <Card>
-              <h2 className="text-lg font-semibold">School office</h2>
+              <h2 className="text-lg font-semibold">Contact</h2>
               <ul className="mt-4 space-y-3 text-sm text-muted">
                 <li>
                   <span className="block text-xs font-semibold uppercase tracking-wide text-foreground">
@@ -49,17 +49,6 @@ export default function ContactPage() {
                     {siteConfig.email}
                   </a>
                 </li>
-                <li>
-                  <span className="block text-xs font-semibold uppercase tracking-wide text-foreground">
-                    Admissions
-                  </span>
-                  <a
-                    href={`mailto:${siteConfig.admissionsEmail}`}
-                    className="hover:text-primary"
-                  >
-                    {siteConfig.admissionsEmail}
-                  </a>
-                </li>
               </ul>
             </Card>
             <div className="overflow-hidden rounded-2xl border border-card-border bg-card shadow-sm">
@@ -71,8 +60,7 @@ export default function ContactPage() {
                 referrerPolicy="no-referrer-when-downgrade"
               />
               <p className="border-t border-card-border px-4 py-2 text-xs text-muted">
-                Map placeholder centred on Dubai, UAE. Replace with your exact campus
-                coordinates when ready.
+                Map centred on Dubai, UAE.
               </p>
             </div>
           </div>
