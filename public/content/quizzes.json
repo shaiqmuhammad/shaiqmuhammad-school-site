@@ -156,6 +156,254 @@
           "explanation": "Islamic months begin when the new crescent moon (hilal) is sighted, which is why the crescent (Picture B) is the answer."
         }
       ]
+    },
+    {
+      "id": "sow-y5-strong-believer",
+      "slug": "year-5-the-strong-believer",
+      "title": "Year 5 – The Strong Believer",
+      "description": "Hadith of the Strong Believer (Al-Mu’min Al-Qawwi): who is better and more beloved to Allah, taking the means, seeking Allah’s help, and not saying “If only…” (Sahih Muslim). Based on the Year 5 Islamic B lesson.",
+      "cardImage": "",
+      "timeLimitMinutes": 15,
+      "showAnswers": true,
+      "published": true,
+      "updatedAt": "2026-09-28T16:30:00.000Z",
+      "questions": [
+        {
+          "id": "sb-q1",
+          "type": "multiple_choice",
+          "prompt": "What does Al-Mu’min Al-Qawwi mean?",
+          "options": [
+            "The Weak Believer",
+            "The Strong Believer",
+            "The Silent Believer",
+            "The Rich Believer"
+          ],
+          "correct": [
+            1
+          ],
+          "points": 1,
+          "explanation": "In this lesson’s key vocabulary, Al-Mu’min Al-Qawwi means The Strong Believer.",
+          "promptAr": "ماذا تعني «المؤمن القوي»؟",
+          "optionsAr": [
+            "المؤمن الضعيف",
+            "المؤمن القوي",
+            "المؤمن الصامت",
+            "المؤمن الغني"
+          ],
+          "explanationAr": "في مفردات الدرس: المؤمن القوي = The Strong Believer."
+        },
+        {
+          "id": "sb-q2",
+          "type": "matching",
+          "prompt": "Match each Arabic key word from the lesson with its English meaning.",
+          "options": [],
+          "correct": [],
+          "points": 2,
+          "pairs": [
+            {
+              "left": "Al-Mu’min Al-Qawwi",
+              "right": "The Strong Believer"
+            },
+            {
+              "left": "Al-Mu’min Ad-Daeef",
+              "right": "The Weak Believer"
+            },
+            {
+              "left": "Khairun",
+              "right": "Better"
+            },
+            {
+              "left": "Ahabbu",
+              "right": "Beloved"
+            }
+          ],
+          "explanation": "These four words are the lesson’s key vocabulary for the Hadith of the Strong Believer.",
+          "promptAr": "طابق كل كلمة عربية من الدرس بمعناها بالإنجليزية."
+        },
+        {
+          "id": "sb-q3",
+          "type": "true_false",
+          "prompt": "According to the Hadith, the strong believer is better and more beloved to Allah than the weak believer.",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "The learning objective is to identify who the Strong Believer is from the Hadith: the strong believer is better (khairun) and more beloved (ahabbu) to Allah. The Hadith also says there is still good in both.",
+          "promptAr": "حسب الحديث، المؤمن القوي خيرٌ وأحبّ إلى الله من المؤمن الضعيف.",
+          "optionsAr": [
+            "صح",
+            "خطأ"
+          ],
+          "explanationAr": "المؤمن القوي خيرٌ وأحبّ إلى الله من المؤمن الضعيف، وفي كلٍّ خير."
+        },
+        {
+          "id": "sb-q4",
+          "type": "multiple_choice",
+          "prompt": "Who taught us the Hadith about the Strong Believer?",
+          "options": [
+            "A companion only, without the Prophet ﷺ",
+            "Prophet Muhammad ﷺ",
+            "An angel speaking on his own",
+            "A later teacher with no link to the Sunnah"
+          ],
+          "correct": [
+            1
+          ],
+          "points": 1,
+          "explanation": "The lesson LO is: “Explain the Hadith of Prophet Muhammad ﷺ about the Strong Believer.”",
+          "promptAr": "من علّمنا حديث المؤمن القوي؟",
+          "optionsAr": [
+            "صحابي فقط دون النبي ﷺ",
+            "النبي محمد ﷺ",
+            "ملك يتكلم من نفسه",
+            "معلم متأخر بلا صلة بالسنة"
+          ],
+          "explanationAr": "هدف الدرس: شرح حديث النبي محمد ﷺ عن المؤمن القوي."
+        },
+        {
+          "id": "sb-q5",
+          "type": "fill_blank",
+          "prompt": "Complete the advice from the Hadith: “Be eager for what ___ you.”",
+          "options": [],
+          "correct": [],
+          "points": 1,
+          "blanks": [
+            [
+              "benefits",
+              "Benefits",
+              "benefit",
+              "ينفعك",
+              "ينفع"
+            ]
+          ],
+          "explanation": "The Hadith teaches: be eager for what benefits you — work for good things that help your faith and life.",
+          "promptAr": "أكمل من الحديث: «احرص على ما ___».",
+          "explanationAr": "الحديث يعلّمنا: احرص على ما ينفعك."
+        },
+        {
+          "id": "sb-q6",
+          "type": "multiple_choice",
+          "prompt": "When something goes wrong, what should a believer say instead of “If only I had done…”?",
+          "options": [
+            "“It is not my problem.”",
+            "“Allah has decreed, and what He wills He does” (Qaddara Allahu wa ma sha’a fa‘al)",
+            "“I will never try again.”",
+            "“Someone else is to blame for everything.”"
+          ],
+          "correct": [
+            1
+          ],
+          "points": 1,
+          "explanation": "The lesson and exam mark scheme teach: say Qaddara Allahu wa ma sha’a fa‘al — Allah has decreed, and what He wills He does — instead of “If only…”.",
+          "promptAr": "إذا وقع أمر سيّئ، ماذا يقول المؤمن بدل «لو أنّي فعلت…»؟",
+          "optionsAr": [
+            "«ليست مشكلتي».",
+            "«قدّر الله وما شاء فعل»",
+            "«لن أحاول مرة أخرى».",
+            "«غيري ملوم على كل شيء»."
+          ],
+          "explanationAr": "نقول: قدّر الله وما شاء فعل، ولا نفتح باب «لو»."
+        },
+        {
+          "id": "sb-q7",
+          "type": "true_false",
+          "prompt": "Saying “If only…” again and again after something has already happened opens the door to the work of Shaytan.",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "The Prophet ﷺ warned against repeatedly saying “If only…” because it opens the door to Shaytan. Accept Allah’s decree and move forward.",
+          "promptAr": "تكرار قول «لو أنّي…» بعد وقوع الأمر يفتح باب عمل الشيطان.",
+          "optionsAr": [
+            "صح",
+            "خطأ"
+          ],
+          "explanationAr": "النبي ﷺ نهى عن «لو» لأنها تفتح عمل الشيطان."
+        },
+        {
+          "id": "sb-q8",
+          "type": "multi_select",
+          "prompt": "Which actions match a Strong Believer? Select all that apply.",
+          "options": [
+            "Take helpful means (make a plan, practise, ask for help)",
+            "Seek help from Allah (dua and tawakkul)",
+            "Feel helpless and give up without trying",
+            "Keep trying and do not feel helpless"
+          ],
+          "correct": [
+            0,
+            1,
+            3
+          ],
+          "points": 2,
+          "explanation": "SOW key knowledge: the strong believer takes the means, relies on Allah (tawakkul), and avoids helplessness. Feeling helpless and giving up is the opposite.",
+          "promptAr": "أيّ الأعمال تناسب المؤمن القوي؟ اختر كل ما ينطبق.",
+          "optionsAr": [
+            "يأخذ الأسباب النافعة (خطة، تمرين، طلب مساعدة)",
+            "يستعين بالله (دعاء وتوكّل)",
+            "يشعر بالعجز ويستسلم بلا محاولة",
+            "يستمر في المحاولة ولا يعجز"
+          ],
+          "explanationAr": "المؤمن القوي يأخذ الأسباب ويتوكّل على الله ولا يعجز."
+        },
+        {
+          "id": "sb-q9",
+          "type": "ordering",
+          "prompt": "Put these pieces of advice from the Hadith in a sensible order for a believer facing a hard task.",
+          "options": [
+            "Be eager for what benefits you",
+            "Seek help from Allah",
+            "Do not feel helpless — keep trying",
+            "If something happens, accept Allah’s decree (do not say “If only…”)"
+          ],
+          "correct": [],
+          "points": 2,
+          "explanation": "The Hadith flows from seeking benefit, to seeking Allah’s help, to not feeling helpless, then accepting Qadr if something still goes wrong.",
+          "promptAr": "رتّب هذه النصائح من الحديث ترتيبًا مناسبًا لمؤمن أمام مهمة صعبة.",
+          "optionsAr": [
+            "احرص على ما ينفعك",
+            "استعن بالله",
+            "لا تعجز — استمر في المحاولة",
+            "إذا وقع شيء فاقبل قضاء الله (ولا تقل «لو»)"
+          ],
+          "explanationAr": "الحديث يبدأ بالحرص على النافع، ثم الاستعانة بالله، ثم ترك العجز، ثم قبول القدر."
+        },
+        {
+          "id": "sb-q10",
+          "type": "multiple_choice",
+          "prompt": "A student trains hard for Sports Day but does not win. Using the Hadith of the Strong Believer, what is the best response?",
+          "options": [
+            "Say “If only I had never tried” and stop all sports forever",
+            "Keep the effort next time, ask Allah for help, and say Allah has decreed what He willed — without opening the door of “If only…”",
+            "Blame only the judges and refuse to train again",
+            "Pretend trying does not matter because results are random"
+          ],
+          "correct": [
+            1
+          ],
+          "points": 2,
+          "explanation": "Exam application: keep trying and do not feel helpless; take the means; ask Allah for help; if the result disappoints, say Qaddara Allahu wa ma sha’a fa‘al because “if only” opens the door to Shaytan.",
+          "promptAr": "طالب يتدرّب كثيرًا ليوم الرياضة ولا يفوز. ما أفضل ردّ حسب حديث المؤمن القوي؟",
+          "optionsAr": [
+            "يقول «لو لم أحاول» ويترك الرياضة إلى الأبد",
+            "يستمر في الجهد، يستعين بالله، ويقول قدّر الله وما شاء فعل — دون باب «لو»",
+            "يلوم الحكّام فقط ويرفض التدرّب",
+            "يتظاهر أن المحاولة لا تهم لأن النتائج عشوائية"
+          ],
+          "explanationAr": "نأخذ الأسباب ونستعين بالله ونقبل القضاء دون «لو»."
+        }
+      ],
+      "titleAr": "السنة ٥ – المؤمن القوي",
+      "descriptionAr": "حديث المؤمن القوي: من هو أحبّ إلى الله، وأخذ الأسباب، والاستعانة بالله، وترك قول «لو أنّي…».",
+      "year": 5
     }
   ]
 }
