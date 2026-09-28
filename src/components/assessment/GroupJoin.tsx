@@ -110,7 +110,7 @@ export function GroupJoin() {
           setAnswers({ ...init.answers, ...s.me.answers });
         }
         if (s.status === "ended") {
-          const r = await groupApi.results(me.code).catch(() => null);
+          const r = await groupApi.results(me.code, undefined, { pid: me.pid, token: me.token }).catch(() => null);
           if (!cancelled && r) setResults(r);
           if (r) return; // final — stop polling
         }
@@ -140,7 +140,7 @@ export function GroupJoin() {
     let n = 0;
     const t = setInterval(async () => {
       n++;
-      const r = await groupApi.results(me.code).catch(() => null);
+      const r = await groupApi.results(me.code, undefined, { pid: me.pid, token: me.token }).catch(() => null);
       if (r) setResults(r);
       if (n >= 20) clearInterval(t);
     }, 3000);
@@ -316,7 +316,7 @@ export function GroupJoin() {
       <AssessmentShell title={title}>
         <div className="mx-auto w-full max-w-4xl space-y-6 px-4 py-10">
           <h1 className="text-3xl font-bold text-teal-950 dark:text-white sm:text-4xl">🏆 {a("resultsBoard")}</h1>
-          <ResultsBoard rows={results.rows} questionCount={results.questionCount} highlightName={me.name} />
+          <ResultsBoard rows={results.rows} questionCount={results.questionCount} highlightName={me.name} summary={results.summary} quiz={results.quiz} />
         </div>
       </AssessmentShell>
     );

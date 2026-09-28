@@ -21,6 +21,9 @@ import {
 } from "@/lib/groupSession";
 import { loadQuizzesData, normalizeQuiz, type Quiz } from "@/lib/quiz";
 
+/** Default live-session length (5 minutes = 300 s) when an assessment has no time limit. */
+const DEFAULT_TIME_LIMIT_MINUTES = 5;
+
 /** Teacher screen for a live class assessment: create → QR/code lobby → start → live board → results. */
 export function GroupHost() {
   const { a, lang } = useAssessmentText();
@@ -28,7 +31,7 @@ export function GroupHost() {
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [slug, setSlug] = useState(params.get("quiz") || "");
-  const [minutes, setMinutes] = useState(10);
+  const [minutes, setMinutes] = useState(DEFAULT_TIME_LIMIT_MINUTES);
   const [secret, setSecret] = useState("");
   const [host, setHost] = useState<StoredHost | null>(null);
   const [data, setData] = useState<SessionResults | null>(null);
@@ -313,7 +316,7 @@ export function GroupHost() {
                 ■ {a("endNow")}
               </button>
             </div>
-            <ResultsBoard rows={data.rows} questionCount={data.questionCount} showProgress />
+            <ResultsBoard rows={data.rows} questionCount={data.questionCount} showProgress quiz={data.quiz} />
           </>
         )}
 
@@ -330,7 +333,7 @@ export function GroupHost() {
                 </button>
               </div>
             </div>
-            <ResultsBoard rows={data.rows} questionCount={data.questionCount} />
+            <ResultsBoard rows={data.rows} questionCount={data.questionCount} summary={data.summary} quiz={data.quiz} />
           </>
         )}
       </div>
