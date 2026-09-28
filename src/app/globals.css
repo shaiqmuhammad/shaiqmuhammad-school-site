@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Class-based dark mode (next-themes sets class="dark" on <html>). */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #ffffff;
   --foreground: #0f1f1c;
@@ -16,21 +19,20 @@
   --ring: #0f5c4c;
 }
 
-/* Light-only site: dark class still readable but white-forward */
 .dark {
-  --background: #ffffff;
-  --foreground: #0f1f1c;
-  --muted: #5c736c;
-  --card: #ffffff;
-  --card-border: #e5ebe8;
-  --primary: #0f5c4c;
-  --primary-foreground: #f0faf6;
-  --accent: #c9a227;
-  --accent-soft: #f3faf7;
-  --gold: #c9a227;
-  --gold-soft: #fbf6e6;
-  --header: rgba(255, 255, 255, 0.95);
-  --ring: #0f5c4c;
+  --background: #0a1613;
+  --foreground: #e8f5f0;
+  --muted: #8faba2;
+  --card: #122420;
+  --card-border: #1e3a33;
+  --primary: #3dba9a;
+  --primary-foreground: #0a1613;
+  --accent: #e0c35a;
+  --accent-soft: #1a332c;
+  --gold: #e0c35a;
+  --gold-soft: #2a2a18;
+  --header: rgba(10, 22, 19, 0.92);
+  --ring: #3dba9a;
 }
 
 @theme inline {
@@ -52,9 +54,13 @@
 }
 
 body {
-  background: #ffffff;
+  background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+html[dir="rtl"] body {
+  font-family: var(--font-arabic), var(--font-sans), system-ui, sans-serif;
 }
 
 @keyframes ticker {
