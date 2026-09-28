@@ -9,9 +9,13 @@ import {
   setAdminAuthenticated,
   verifyAdminPassword,
 } from "@/lib/adminAuth";
+import { LanguageToggle } from "@/components/LanguageToggle";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { useI18n } from "@/lib/i18n";
 
 export default function AdminLoginPage() {
   const router = useRouter();
+  const { t } = useI18n();
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [configured, setConfigured] = useState(true);
@@ -28,7 +32,7 @@ export default function AdminLoginPage() {
     e.preventDefault();
     setError("");
     if (!configured) {
-      setError("Admin sign-in is not configured yet (password hash missing).");
+      setError(t("adminLogin.notConfigured"));
       return;
     }
     setChecking(true);
@@ -38,21 +42,23 @@ export default function AdminLoginPage() {
       setAdminAuthenticated(true);
       router.replace("/admin");
     } else {
-      setError("Incorrect password.");
+      setError(t("adminLogin.incorrect"));
     }
   }
 
   return (
     <div className="mx-auto flex min-h-[70vh] max-w-md flex-col justify-center px-4 py-16">
-      <p className="text-xs font-semibold uppercase tracking-wider text-primary">Admin</p>
-      <h1 className="mt-2 text-2xl font-semibold tracking-tight">Sign in</h1>
-      <p className="mt-2 text-sm text-muted">
-        Manage lessons, videos, quizzes, and banners for students of Shaiq Muhammad.
-      </p>
+      <div className="mb-6 flex items-center justify-end gap-2">
+        <LanguageToggle />
+        <ThemeToggle />
+      </div>
+      <p className="text-xs font-semibold uppercase tracking-wider text-primary">{t("adminLogin.eyebrow")}</p>
+      <h1 className="mt-2 text-2xl font-semibold tracking-tight">{t("adminLogin.title")}</h1>
+      <p className="mt-2 text-sm text-muted">{t("adminLogin.desc")}</p>
       <form onSubmit={onSubmit} className="mt-8 space-y-4">
         <div>
           <label htmlFor="password" className="block text-sm font-medium">
-            Admin password
+            {t("adminLogin.password")}
           </label>
           <input
             id="password"
@@ -74,12 +80,12 @@ export default function AdminLoginPage() {
           disabled={checking}
           className="w-full rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-90"
         >
-          {checking ? "Checking…" : "Continue"}
+          {checking ? t("adminLogin.checking") : t("adminLogin.continue")}
         </button>
       </form>
       <p className="mt-6 text-center text-sm text-muted">
         <Link href="/" className="text-primary hover:underline">
-          ← Back to learning site
+          ← {t("adminLogin.back")}
         </Link>
       </p>
     </div>
