@@ -1,31 +1,42 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { loadSiteSettingsCached, resolveTawkIds } from "@/lib/siteSettings";
 
 declare global {
   interface Window {
-    Tawk_API?: { onLoad?: () => void; hideWidget?: () => void; showWidget?: () => void };
+    Tawk_API?: Record<string, unknown>;
     Tawk_LoadStart?: Date;
   }
 }
 
+/**
+ * Free live chat via Tawk.to.
+ * IDs from NEXT_PUBLIC_TAWK_* env (preferred) OR public/content/settings.json via Admin → Settings.
+ * Without IDs, shows a discreet “Chat coming soon” fallback.
+ */
 export function ChatWidget() {
-  const pathname = usePathname();
-  const [ids, setIds] = useState<{ propertyId: string; widgetId: string } | null>(null);
-  const [loaded, setLoaded] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [propertyId, setPropertyId] = useState("");
+  const [widgetId, setWidgetId] = useState("");
+
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     let cancelled = false;
     loadSiteSettingsCached()
-      .then((s) => {
+      .then((settings) => {
         if (cancelled) return;
-        setIds(resolveTawkIds(s));
+        const ids = resolveTawkIds(settings);
+        setPropertyId(ids.propertyId);
+        setWidgetId(ids.widgetId);
       })
       .catch(() => {
-        if (!cancelled) setIds(resolveTawkIds(null));
+        if (cancelled) return;
+        const ids = resolveTawkIds(null);
+        setPropertyId(ids.propertyId);
+        setWidgetId(ids.widgetId);
       });
     return () => {
       cancelled = true;
@@ -33,41 +44,37 @@ export function ChatWidget() {
   }, []);
 
   useEffect(() => {
-    if (!ids?.propertyId || !ids.widgetId) return;
-    if (pathname.startsWith("/admin")) return;
-
-    const existing = document.getElementById("tawk-script");
-    if (existing) {
-      setLoaded(true);
-      return;
-    }
+    if (!propertyId || !widgetId) return;
+    if (document.getElementById("tawk-script")) return;
 
     window.Tawk_API = window.Tawk_API || {};
     window.Tawk_LoadStart = new Date();
+
     const s = document.createElement("script");
     s.id = "tawk-script";
     s.async = true;
-    s.src = `https://embed.tawk.to/${ids.propertyId}/${ids.widgetId}`;
+    s.src = `https://embed.tawk.to/${propertyId}/${widgetId}`;
     s.charset = "UTF-8";
     s.setAttribute("crossorigin", "*");
-    s.onload = () => setLoaded(true);
     document.body.appendChild(s);
-  }, [ids, pathname]);
+  }, [propertyId, widgetId]);
 
-  if (pathname.startsWith("/admin")) return null;
-  if (ids?.propertyId && ids.widgetId) {
-    return loaded ? null : null;
+  if (!mounted) return null;
+
+  if (propertyId && widgetId) {
+    return null; // Tawk injects its own floating widget
   }
 
   return (
     <div className="fixed bottom-4 right-4 z-40 max-w-[14rem] rounded-2xl border border-card-border bg-card p-3 text-xs shadow-lg">
       <p className="font-semibold text-foreground">Chat coming soon</p>
       <p className="mt-1 text-muted">
-        Live chat will appear here once Tawk.to IDs are set in Admin → Settings (or build env).
+        Live chat will be available here soon. Meanwhile{" "}
+        <Link href="/contact" className="font-medium text-primary hover:underline">
+          contact us
+        </Link>
+        .
       </p>
-      <Link href="/contact" className="mt-2 inline-block text-primary hover:underline">
-        Contact form →
-      </Link>
     </div>
   );
 }
