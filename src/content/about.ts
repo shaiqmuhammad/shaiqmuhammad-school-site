@@ -1,43 +1,38 @@
 export const mission =
-  "To educate the whole child — intellectually, socially, and ethically — so every learner leaves ready to contribute thoughtfully to a diverse world.";
+  "To guide students of Shaiq Muhammad toward sincere, lasting Islamic knowledge — through clear lessons, trusted encyclopedias, and a calm learning space.";
 
 export const vision =
-  "To be Dubai’s trusted independent school for curious, compassionate learners who thrive through enquiry, creativity, and character.";
+  "A learning community where every student can grow in Quran, Hadith, and character — supported by accessible resources and a caring teacher.";
 
 export const history = [
   {
-    year: "2014",
-    title: "Founded",
-    body: "Shaiq Muhammad opened its doors in Dubai with a founding cohort of primary learners and a commitment to warm, personal education.",
+    year: "Purpose",
+    title: "Built for students",
+    body: "This platform exists so students of Shaiq Muhammad can find lessons, video explanations, and encyclopedias in one calm place — not as a generic school brochure.",
   },
   {
-    year: "2017",
-    title: "Secondary expansion",
-    body: "The secondary phase opened, extending a continuous pathway from Foundation Stage through to Sixth Form.",
+    year: "Study",
+    title: "Encyclopedias first",
+    body: "The Encyclopedia of Quran and Encyclopedia of Hadith are linked prominently so you can study primary sources alongside class notes and videos.",
   },
   {
-    year: "2020",
-    title: "Campus renewal",
-    body: "Laboratories, library, and sports facilities were upgraded to support enquiry-based learning and co-curricular life.",
-  },
-  {
-    year: "2024",
-    title: "Growing community",
-    body: "Today the school welcomes families from dozens of nationalities, united by shared values of respect, curiosity, and excellence.",
+    year: "Growth",
+    title: "Lessons & videos",
+    body: "Written learning pages and YouTube lessons are added and updated by your teacher through the site admin — then published for the whole class.",
   },
 ] as const;
 
-export const accreditation = [
+export const values = [
   {
-    title: "Curriculum alignment",
-    body: "Programmes draw on British-inspired frameworks adapted for an international Dubai context. (Sample statement — not a claim of specific board accreditation.)",
+    title: "Sincerity",
+    body: "Seek knowledge for Allah’s pleasure, with humility and good manners.",
   },
   {
-    title: "Safeguarding",
-    body: "Child protection policies follow UAE requirements and internationally recognised safeguarding practice.",
+    title: "Clarity",
+    body: "Lessons and resources are kept readable, calm, and easy to revisit.",
   },
   {
-    title: "Quality assurance",
-    body: "Teaching and learning are reviewed regularly through internal observation, parent feedback, and external advisory visits.",
+    title: "Consistency",
+    body: "Small daily practice with trusted sources builds lasting understanding.",
   },
 ] as const;

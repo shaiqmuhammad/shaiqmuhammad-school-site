@@ -1,13 +1,8 @@
 export const portalRoles = [
   {
-    role: "Admin",
+    role: "Student",
     description:
-      "School administrators manage users, settings, calendars, and institutional records.",
-  },
-  {
-    role: "SLT",
-    description:
-      "Senior Leadership Team members access oversight dashboards, reports, and pastoral summaries.",
+      "Students view timetables, homework, grades, and school notices in the portal.",
   },
   {
     role: "Teacher",
@@ -15,14 +10,14 @@ export const portalRoles = [
       "Teachers mark attendance, enter assessments, share resources, and communicate with families.",
   },
   {
-    role: "Student",
-    description:
-      "Students view timetables, homework, grades, and school notices.",
-  },
-  {
     role: "Parent",
     description:
-      "Parents follow progress, attendance, fees, and school communications for their children.",
+      "Parents follow progress, attendance, and school communications for their children.",
+  },
+  {
+    role: "Admin / SLT",
+    description:
+      "School administrators and senior leaders manage users, settings, and oversight reports.",
   },
 ] as const;
 
