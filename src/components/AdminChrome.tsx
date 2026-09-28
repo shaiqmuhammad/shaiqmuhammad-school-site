@@ -51,7 +51,7 @@ export function AdminChrome({ busy, tab, onTab, onDownload, onPublishContent, on
       </div>
       <div className="mx-auto flex max-w-5xl gap-1 overflow-x-auto px-4 pb-3 sm:px-6">
         {(["pages","videos","quizzes","certificate","banners","teacher","forum","settings"] as Tab[]).map((id) => (
-          <button key={id} type="button" onClick={() => onTab(id)} className={`rounded-full px-3 py-1.5 text-sm ${tab===id?"bg-accent-soft font-medium text-primary":"text-muted hover:bg-accent-soft/60"}`}>{t(`admin.tab.${id}`, id)}</button>
+          <button key={id} type="button" onClick={() => onTab(id)} className={`rounded-full px-3 py-1.5 text-sm ${tab===id?"bg-accent-soft font-medium text-primary":"text-muted hover:bg-accent-soft/60"}`}>{t(`admin.tab.${id}`)}</button>
         ))}
       </div>
     </header>

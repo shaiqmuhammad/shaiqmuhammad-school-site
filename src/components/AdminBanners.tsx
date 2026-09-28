@@ -97,7 +97,7 @@ export default function AdminBanners({ setStatus, onNeedToken, data, setData }: 
           )}
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Button text (optional)"><input className={input} value={editing.buttonText} onChange={(e) => setEditing({ ...editing, buttonText: e.target.value })} /></Field>
-            <Field label="Button link (optional)"><input className={input} value={editing.buttonHref} onChange={(e) => setEditing({ ...editing, buttonHref: e.target.value })} placeholder="/quizzes" /></Field>
+            <Field label="Button link (optional)"><input className={input} value={editing.buttonHref} onChange={(e) => setEditing({ ...editing, buttonHref: e.target.value })} placeholder="/assessments" /></Field>
           </div>
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={editing.published} onChange={(e) => setEditing({ ...editing, published: e.target.checked })} /> Published</label>
           <div className="flex gap-2"><button type="submit" className={btn}>Save banner</button><button type="button" className="text-sm text-muted" onClick={() => setEditing(null)}>Cancel</button></div>

@@ -38,7 +38,7 @@ export default function AdminCertificate({ setStatus, onNeedToken, tpl, setTpl }
   function preview() {
     downloadCertificatePdf({
       template: normalizeCertificate(tpl),
-      quizTitle: "Sample Quiz",
+      quizTitle: "Sample Assessment",
       positionLabel: "1 of 10",
       result: { id: "preview", quizId: "preview", quizSlug: "preview", name: "Sample Student", score: 18, maxScore: 20, percentage: 90, finishedAt: new Date().toISOString() },
     });
@@ -75,7 +75,7 @@ export default function AdminCertificate({ setStatus, onNeedToken, tpl, setTpl }
             <p className="text-xl font-bold">{tpl.title}</p>
             <p className="text-xs text-neutral-500">{tpl.subtitle}</p>
             <p className="mt-2 text-2xl font-bold" style={{ color: tpl.borderColor }}>Sample Student</p>
-            <p className="text-sm">Quiz: Sample Quiz</p>
+            <p className="text-sm">Assessment: Sample Assessment</p>
             <p className="font-semibold">Marks obtained: 18/20 (90%)</p>
             {tpl.showPosition && <p className="text-sm text-neutral-600">Position: 1 of 10</p>}
             <p className="mt-3 text-sm font-semibold" style={{ color: tpl.borderColor }}>{tpl.schoolName}</p>
