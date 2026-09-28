@@ -16,7 +16,8 @@ const ar: Record<string, string> = {
   "nav./encyclopedia/hadith": "الحديث",
   "nav./lessons": "الدروس",
   "nav./videos": "الفيديوهات",
-  "nav./quizzes": "الاختبارات",
+  "nav./assessments": "التقييمات",
+  "nav./quizzes": "التقييمات",
   "nav./forum": "المنتدى",
   "nav./about": "من نحن",
   "nav./contact": "اتصل بنا",
@@ -40,7 +41,7 @@ const ar: Record<string, string> = {
   // Admin login
   "adminLogin.eyebrow": "المشرف",
   "adminLogin.title": "تسجيل الدخول",
-  "adminLogin.desc": "إدارة الدروس والفيديوهات والاختبارات واللافتات لطلاب شائق محمد.",
+  "adminLogin.desc": "إدارة الدروس والفيديوهات والتقييمات واللافتات لطلاب شائق محمد.",
   "adminLogin.password": "كلمة مرور المشرف",
   "adminLogin.continue": "متابعة",
   "adminLogin.checking": "جارٍ التحقق…",
@@ -59,7 +60,7 @@ const ar: Record<string, string> = {
   "admin.logout": "تسجيل الخروج",
   "admin.tab.pages": "الصفحات",
   "admin.tab.videos": "الفيديوهات",
-  "admin.tab.quizzes": "الاختبارات",
+  "admin.tab.quizzes": "التقييمات",
   "admin.tab.certificate": "الشهادة",
   "admin.tab.banners": "اللافتات",
   "admin.tab.teacher": "المعلم",
@@ -120,6 +121,10 @@ const arText: Record<string, string> = {
   "New video lessons and written pages are published regularly — check Lessons & Videos":
     "تُنشر دروس فيديو وصفحات مكتوبة جديدة بانتظام — تابعوا الدروس والفيديوهات",
   Quiz: "اختبار",
+  Assessments: "التقييمات",
+  Assessment: "تقييم",
+  "Test what you have learned. Each assessment is timed — finish it to download your certificate.":
+    "اختبر ما تعلّمته. لكل تقييم وقت محدد — أكمله لتنزيل شهادتك.",
 };
 
 const en: Record<string, string> = {
@@ -135,7 +140,7 @@ const en: Record<string, string> = {
   "videos.watch": "Watch on YouTube",
   "adminLogin.eyebrow": "Admin",
   "adminLogin.title": "Sign in",
-  "adminLogin.desc": "Manage lessons, videos, quizzes, and banners for students of Shaiq Muhammad.",
+  "adminLogin.desc": "Manage lessons, videos, assessments, and banners for students of Shaiq Muhammad.",
   "adminLogin.password": "Admin password",
   "adminLogin.continue": "Continue",
   "adminLogin.checking": "Checking…",
@@ -151,6 +156,14 @@ const en: Record<string, string> = {
   "admin.publishing": "Publishing…",
   "admin.viewSite": "View site",
   "admin.logout": "Log out",
+  "admin.tab.pages": "Pages",
+  "admin.tab.videos": "Videos",
+  "admin.tab.quizzes": "Assessments",
+  "admin.tab.certificate": "Certificate",
+  "admin.tab.banners": "Banners",
+  "admin.tab.teacher": "Teacher",
+  "admin.tab.forum": "Forum",
+  "admin.tab.settings": "Settings",
   "admin.pages.heading": "Learning pages",
   "admin.pages.new": "+ New page",
   "admin.videos.heading": "YouTube videos",

@@ -37,7 +37,7 @@ export const navLinks = [
   { href: "/encyclopedia/hadith", label: "Hadith" },
   { href: "/lessons", label: "Lessons" },
   { href: "/videos", label: "Videos" },
-  { href: "/quizzes", label: "Quizzes" },
+  { href: "/assessments", label: "Assessments" },
   { href: "/forum", label: "Forum" },
   { href: "/about", label: "About" },
   { href: "/contact", label: "Contact" },

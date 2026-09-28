@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AssessmentCards, HomeAssessmentsHeading } from "@/components/assessment/AssessmentCards";
 import { BannerCarousel } from "@/components/BannerCarousel";
 import { Card } from "@/components/Card";
 import { EncyclopediaCards } from "@/components/EncyclopediaCards";
@@ -13,7 +14,7 @@ import {
 import { loadContentDataSync } from "@/lib/contentServer";
 import { listPublishedBanners } from "@/lib/banners";
 import { loadBannersSync } from "@/lib/bannersServer";
-import { listPublishedQuizzes, quizMaxScore } from "@/lib/quiz";
+import { listPublishedQuizzes } from "@/lib/quiz";
 import { loadQuizzesSync } from "@/lib/quizServer";
 
 export default function HomePage() {
@@ -37,7 +38,7 @@ export default function HomePage() {
           </h1>
           <p className="max-w-xl text-lg text-muted leading-relaxed">
             {siteConfig.tagline}. Find Quran and Hadith encyclopedias, written
-            lessons, video classes, and quizzes — all in one calm place.
+            lessons, video classes, and assessments — all in one calm place.
           </p>
           <div className="flex flex-wrap gap-3 pt-2">
             <a
@@ -53,59 +54,19 @@ export default function HomePage() {
               Watch video lessons
             </Link>
             <Link
-              href="/quizzes"
+              href="/assessments"
               className="rounded-full border border-primary/30 bg-card px-5 py-2.5 text-sm font-medium text-primary transition hover:bg-accent-soft"
             >
-              Take a quiz
+              Take an assessment
             </Link>
           </div>
         </div>
       </section>
 
       {quizzes.length > 0 && (
-        <Section id="quizzes">
-          <div className="mb-8 flex items-end justify-between gap-4">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-primary">Practice</p>
-              <h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">Quizzes</h2>
-              <p className="mt-2 max-w-2xl text-muted">
-                Timed quizzes from your teacher — finish one to download your certificate.
-              </p>
-            </div>
-            <Link href="/quizzes" className="shrink-0 text-sm font-medium text-primary hover:underline">
-              All quizzes →
-            </Link>
-          </div>
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {quizzes.map((quiz) => (
-              <Card key={quiz.id} className="flex h-full flex-col overflow-hidden p-0!">
-                <div className="relative aspect-[16/10] bg-accent-soft">
-                  {quiz.cardImage ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={quiz.cardImage} alt="" className="h-full w-full object-cover" />
-                  ) : (
-                    <div className="flex h-full items-center justify-center bg-gradient-to-br from-primary to-primary/70 text-4xl text-primary-foreground" aria-hidden>📝</div>
-                  )}
-                </div>
-                <div className="flex flex-1 flex-col p-5">
-                  <h3 className="text-lg font-semibold">{quiz.title}</h3>
-                  {quiz.description && (
-                    <p className="mt-2 line-clamp-3 text-sm text-muted leading-relaxed">{quiz.description}</p>
-                  )}
-                  <p className="mt-3 text-xs text-muted">
-                    {quiz.questions.length} questions · {quizMaxScore(quiz)} marks
-                    {quiz.timeLimitMinutes > 0 ? ` · ${quiz.timeLimitMinutes} min` : ""}
-                  </p>
-                  <Link
-                    href={`/quizzes/${quiz.slug}`}
-                    className="mt-4 inline-flex w-fit rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:opacity-90"
-                  >
-                    Start quiz
-                  </Link>
-                </div>
-              </Card>
-            ))}
-          </div>
+        <Section id="assessments">
+          <HomeAssessmentsHeading />
+          <AssessmentCards quizzes={quizzes} />
         </Section>
       )}
 
