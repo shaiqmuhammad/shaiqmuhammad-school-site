@@ -1,0 +1,18 @@
+# Live group assessments (join code / QR, shared timer, class results).
+# Deploy:  cd workers/assessment-session && npm install && npx wrangler deploy
+# Durable Objects with the SQLite backend are available on the Workers Free plan.
+name = "assessment-session"
+main = "src/index.ts"
+compatibility_date = "2025-03-01"
+
+[[durable_objects.bindings]]
+name = "SESSIONS"
+class_name = "AssessmentSession"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["AssessmentSession"]
+
+# Optional: require a teacher secret to create sessions.
+#   npx wrangler secret put HOST_SECRET
+# (then enter the same value in Admin → Assessments → Start group session)
