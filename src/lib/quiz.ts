@@ -58,6 +58,12 @@ export type QuizQuestion = {
   explanation?: string;
   points: number;
   media?: QuestionMedia;
+  /** Optional Arabic question text (shown when the student picks العربية; falls back to `prompt`) */
+  promptAr?: string;
+  /** Optional Arabic option labels, same order as `options` (blank entries fall back to English) */
+  optionsAr?: string[];
+  /** Optional Arabic explanation for the review screen */
+  explanationAr?: string;
 };
 
 export type Quiz = {
@@ -71,7 +77,11 @@ export type Quiz = {
   timeLimitMinutes: number;
   /** Show the review screen (student answer, correct answer, explanation) after submitting */
   showAnswers: boolean;
+  /** Enabled for students. Disabled assessments stay in admin (and can still run as a group session) but are hidden from the public site. */
   published: boolean;
+  /** Optional Arabic title / description */
+  titleAr?: string;
+  descriptionAr?: string;
   updatedAt: string;
   questions: QuizQuestion[];
 };
@@ -119,7 +129,7 @@ export const emptyResults: QuizResultsData = { results: [] };
 
 export const defaultCertificate: CertificateTemplate = {
   title: "Certificate of Achievement",
-  subtitle: "This certifies that the student named below has successfully completed the quiz",
+  subtitle: "This certifies that the student named below has successfully completed the assessment",
   schoolName: "Shaiq Muhammad Learning Platform",
   borderColor: "#0f766e",
   footerText: "May knowledge be a light upon your path.",
@@ -192,6 +202,12 @@ export function normalizeQuestion(raw: Partial<QuizQuestion>): QuizQuestion {
   }
   const explanation = String(raw.explanation ?? "").trim();
   if (explanation) q.explanation = explanation;
+  const promptAr = String(raw.promptAr ?? "").trim();
+  if (promptAr) q.promptAr = promptAr;
+  const optionsAr = Array.isArray(raw.optionsAr) ? raw.optionsAr.map((o) => String(o ?? "")) : [];
+  if (optionsAr.some((o) => o.trim())) q.optionsAr = optionsAr;
+  const explanationAr = String(raw.explanationAr ?? "").trim();
+  if (explanationAr) q.explanationAr = explanationAr;
   return q;
 }
 
@@ -225,7 +241,9 @@ export function questionProblem(q: QuizQuestion): string | null {
 }
 
 export function normalizeQuiz(raw: Partial<Quiz>): Quiz {
-  const title = String(raw.title || "Untitled quiz");
+  const title = String(raw.title || "Untitled assessment");
+  const titleAr = String(raw.titleAr ?? "").trim();
+  const descriptionAr = String(raw.descriptionAr ?? "").trim();
   return {
     id: raw.id || newId("quiz"),
     slug: (raw.slug || slugify(title) || newId("quiz")).toLowerCase(),
@@ -237,6 +255,8 @@ export function normalizeQuiz(raw: Partial<Quiz>): Quiz {
     published: Boolean(raw.published),
     updatedAt: raw.updatedAt || new Date().toISOString(),
     questions: Array.isArray(raw.questions) ? raw.questions.map(normalizeQuestion) : [],
+    ...(titleAr ? { titleAr } : {}),
+    ...(descriptionAr ? { descriptionAr } : {}),
   };
 }
 
