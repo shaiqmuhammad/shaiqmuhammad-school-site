@@ -1,7 +1,10 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { slugify } from "@/lib/content";
+import { HOST_DRAFT_KEY } from "@/lib/groupSession";
+import { useI18n } from "@/lib/i18n";
 import { downloadJson, getStoredGithubToken, publishJsonToGithub } from "@/lib/githubPublish";
 import { AdminQuestionEditor } from "@/components/AdminQuestionEditor";
 import {
@@ -26,6 +29,9 @@ const btnGhost = "rounded-full border border-card-border px-3 py-1.5 text-sm";
 export default function AdminQuizzes({ setStatus, onNeedToken, data, setData, results, setResults }: Props) {
   const [editing, setEditing] = useState<Quiz | null>(null);
   const [busy, setBusy] = useState(false);
+  const { lang } = useI18n();
+  const router = useRouter();
+  const tr = (en: string, ar: string) => (lang === "ar" ? ar : en);
 
   const sorted = useMemo(() => [...data.quizzes].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)), [data.quizzes]);
 
@@ -33,7 +39,7 @@ export default function AdminQuizzes({ setStatus, onNeedToken, data, setData, re
     e.preventDefault();
     if (!editing) return;
     const slug = editing.slug.trim() || slugify(editing.title);
-    if (!editing.title.trim() || !slug) { setStatus("Quiz title and slug required."); return; }
+    if (!editing.title.trim() || !slug) { setStatus("Assessment title and slug required."); return; }
     if (!editing.questions.length) { setStatus("Add at least one question."); return; }
     for (let i = 0; i < editing.questions.length; i++) {
       const problem = questionProblem(editing.questions[i]);
@@ -42,7 +48,7 @@ export default function AdminQuizzes({ setStatus, onNeedToken, data, setData, re
     const next = normalizeQuiz({ ...editing, slug, title: editing.title.trim(), updatedAt: new Date().toISOString() });
     setData((prev) => ({ quizzes: prev.quizzes.some((q) => q.id === next.id) ? prev.quizzes.map((q) => (q.id === next.id ? next : q)) : [...prev.quizzes, next] }));
     setEditing(null);
-    setStatus(`Saved quiz "${next.title}" locally. Click "Publish quizzes" to make it live.`);
+    setStatus(`Saved assessment "${next.title}" locally. Click "Publish assessments" to make it live.`);
   }
 
   function setQuestion(idx: number, q: QuizQuestion) {
@@ -61,7 +67,7 @@ export default function AdminQuizzes({ setStatus, onNeedToken, data, setData, re
 
   function importLocalResults() {
     const local = loadLocalResults();
-    if (!local.results.length) { setStatus("No local quiz results in this browser."); return; }
+    if (!local.results.length) { setStatus("No local assessment results in this browser."); return; }
     const ids = new Set(results.results.map((r) => r.id));
     const merged = [...results.results, ...local.results.filter((r) => !ids.has(r.id))];
     setResults({ results: merged });
@@ -80,16 +86,33 @@ export default function AdminQuizzes({ setStatus, onNeedToken, data, setData, re
     });
   }
 
+  function toggleEnabled(quiz: Quiz) {
+    const next = { ...quiz, published: !quiz.published, updatedAt: new Date().toISOString() };
+    setData((prev) => ({ quizzes: prev.quizzes.map((q) => (q.id === quiz.id ? next : q)) }));
+    setStatus(`"${quiz.title}" ${next.published ? "enabled" : "disabled"} locally. Click "Publish assessments" to apply it on the live site.`);
+  }
+
+  function startGroup(quiz: Quiz) {
+    if (editing && !confirm("Leave the editor? Unsaved changes to the open assessment will be lost.")) return;
+    try {
+      sessionStorage.setItem(HOST_DRAFT_KEY, JSON.stringify(quiz));
+    } catch {
+      // ignore — host screen falls back to published assessments
+    }
+    // Same tab keeps the admin session (sessionStorage is per tab).
+    router.push(`/assessments/host?quiz=${encodeURIComponent(quiz.slug)}`);
+  }
+
   const quizTitle = (id: string) => data.quizzes.find((q) => q.id === id)?.title || id;
 
   return (
     <section className="space-y-6">
       <div className="flex flex-wrap justify-between gap-2">
-        <h2 className="text-xl font-semibold">Quizzes</h2>
+        <h2 className="text-xl font-semibold">{tr("Assessments", "التقييمات")}</h2>
         <div className="flex flex-wrap gap-2">
-          <button type="button" className={btnGhost} onClick={() => downloadJson(normalizeQuizzes(data), "quizzes.json")}>Download quizzes.json</button>
-          <button type="button" disabled={busy} className={btn} onClick={() => publish(GITHUB_QUIZZES_PATH, normalizeQuizzes(data), "quizzes.json")}>Publish quizzes</button>
-          <button type="button" className={btn} onClick={() => setEditing(emptyQuiz())}>+ New quiz</button>
+          <button type="button" className={btnGhost} onClick={() => downloadJson(normalizeQuizzes(data), "quizzes.json")}>{tr("Download quizzes.json", "تنزيل quizzes.json")}</button>
+          <button type="button" disabled={busy} className={btn} onClick={() => publish(GITHUB_QUIZZES_PATH, normalizeQuizzes(data), "quizzes.json")}>{tr("Publish assessments", "نشر التقييمات")}</button>
+          <button type="button" className={btn} onClick={() => setEditing(emptyQuiz())}>{tr("+ New assessment", "+ تقييم جديد")}</button>
         </div>
       </div>
 
@@ -100,7 +123,11 @@ export default function AdminQuizzes({ setStatus, onNeedToken, data, setData, re
             <Field label="Slug (URL)"><input className={input} value={editing.slug} onChange={(e) => setEditing({ ...editing, slug: slugify(e.target.value) })} required /></Field>
           </div>
           <Field label="Description"><textarea className={input + " min-h-16"} value={editing.description} onChange={(e) => setEditing({ ...editing, description: e.target.value })} /></Field>
-          <Field label="Card image (URL or data:image/… — shown on Home & Quizzes list)">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Arabic title (optional)"><input dir="rtl" className={input} value={editing.titleAr || ""} onChange={(e) => setEditing({ ...editing, titleAr: e.target.value })} placeholder="العنوان بالعربية" /></Field>
+            <Field label="Arabic description (optional)"><input dir="rtl" className={input} value={editing.descriptionAr || ""} onChange={(e) => setEditing({ ...editing, descriptionAr: e.target.value })} placeholder="الوصف بالعربية" /></Field>
+          </div>
+          <Field label="Card image (URL or data:image/… — shown on Home & Assessments list)">
             <input className={input} value={editing.cardImage || ""} onChange={(e) => setEditing({ ...editing, cardImage: e.target.value })} placeholder="https://… or upload below" />
           </Field>
           <label className="block text-sm font-medium">
@@ -120,7 +147,7 @@ export default function AdminQuizzes({ setStatus, onNeedToken, data, setData, re
           ) : null}
           <div className="flex flex-wrap items-end gap-4">
             <Field label="Time limit (minutes, 0 = none)"><input type="number" min={0} className={input + " w-32"} value={editing.timeLimitMinutes} onChange={(e) => setEditing({ ...editing, timeLimitMinutes: Math.max(0, Number(e.target.value) || 0) })} /></Field>
-            <label className="flex items-center gap-2 pb-2 text-sm"><input type="checkbox" checked={editing.published} onChange={(e) => setEditing({ ...editing, published: e.target.checked })} /> Published</label>
+            <label className="flex items-center gap-2 pb-2 text-sm"><input type="checkbox" checked={editing.published} onChange={(e) => setEditing({ ...editing, published: e.target.checked })} /> <span className="font-medium">Enabled for students</span> <span className="text-xs text-muted">(off = hidden from the site)</span></label>
             <label className="flex items-center gap-2 pb-2 text-sm"><input type="checkbox" checked={editing.showAnswers} onChange={(e) => setEditing({ ...editing, showAnswers: e.target.checked })} /> Show answers at end</label>
             <p className="pb-2 text-xs text-muted">Total marks: {quizMaxScore(editing)}</p>
           </div>
@@ -143,18 +170,36 @@ export default function AdminQuizzes({ setStatus, onNeedToken, data, setData, re
               ))}
             </div>
           </div>
-          <div className="flex gap-2"><button type="submit" className={btn}>Save quiz</button><button type="button" className="text-sm text-muted" onClick={() => setEditing(null)}>Cancel</button></div>
+          <div className="flex gap-2"><button type="submit" className={btn}>Save assessment</button><button type="button" className="text-sm text-muted" onClick={() => setEditing(null)}>Cancel</button></div>
         </form>
       )}
 
       <ul className="divide-y divide-card-border rounded-2xl border border-card-border bg-card">
-        {sorted.length === 0 && <li className="px-4 py-3 text-sm text-muted">No quizzes yet.</li>}
+        {sorted.length === 0 && <li className="px-4 py-3 text-sm text-muted">No assessments yet.</li>}
         {sorted.map((quiz) => (
           <li key={quiz.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-            <div><p className="font-medium">{quiz.title}</p><p className="text-xs text-muted">/quizzes/{quiz.slug} · {quiz.questions.length} Qs · {quiz.timeLimitMinutes || "no"} min · {quiz.published ? "Published" : "Draft"}</p></div>
-            <div className="flex gap-2">
-              <button type="button" className="text-sm text-primary" onClick={() => setEditing(JSON.parse(JSON.stringify(quiz)) as Quiz)}>Edit</button>
-              <button type="button" className="text-sm text-red-600" onClick={() => { if (confirm(`Delete "${quiz.title}"?`)) setData((prev) => ({ quizzes: prev.quizzes.filter((q) => q.id !== quiz.id) })); }}>Delete</button>
+            <div className="min-w-0">
+              <p className="font-medium">{quiz.title}{quiz.titleAr ? <span className="ms-2 text-sm text-muted" dir="rtl">{quiz.titleAr}</span> : null}</p>
+              <p className="text-xs text-muted">/assessments/{quiz.slug} · {quiz.questions.length} Qs · {quiz.timeLimitMinutes || "no"} min</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={quiz.published}
+                onClick={() => toggleEnabled(quiz)}
+                className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${quiz.published ? "bg-emerald-600 text-white" : "bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-100"}`}
+                title="Enable or disable this assessment for students"
+              >
+                <span className={`h-2.5 w-2.5 rounded-full ${quiz.published ? "bg-white" : "bg-slate-500"}`} />
+                {quiz.published ? tr("Enabled", "مفعّل") : tr("Disabled", "معطّل")}
+              </button>
+              <button type="button" className="rounded-full bg-teal-700 px-3 py-1 text-xs font-semibold text-white disabled:opacity-50" disabled={!quiz.questions.length} onClick={() => startGroup(quiz)}>
+                👥 {tr("Start group session", "ابدأ جلسة جماعية")}
+              </button>
+              {quiz.published && <a className="text-sm text-primary" href={`/assessments/${quiz.slug}`} target="_blank" rel="noreferrer">{tr("Open", "فتح")}</a>}
+              <button type="button" className="text-sm text-primary" onClick={() => setEditing(JSON.parse(JSON.stringify(quiz)) as Quiz)}>{tr("Edit", "تعديل")}</button>
+              <button type="button" className="text-sm text-red-600" onClick={() => { if (confirm(`Delete "${quiz.title}"?`)) setData((prev) => ({ quizzes: prev.quizzes.filter((q) => q.id !== quiz.id) })); }}>{tr("Delete", "حذف")}</button>
             </div>
           </li>
         ))}
@@ -171,12 +216,12 @@ export default function AdminQuizzes({ setStatus, onNeedToken, data, setData, re
           </div>
         </div>
         <p className="text-xs text-muted">
-          The site is static, so student attempts are saved in each student’s own browser. To rank the class: collect results (Import local results works for attempts made on this device, e.g. a classroom computer; students can also send you their result), review, then Publish results. Certificates compare each new attempt against published results to show a provisional position.
+          Live class sessions (Start group session) show their own results table with CSV download. For individual attempts: the site is static, so student attempts are saved in each student’s own browser. To rank the class: collect results (Import local results works for attempts made on this device, e.g. a classroom computer; students can also send you their result), review, then Publish results. Certificates compare each new attempt against published results to show a provisional position.
         </p>
         {results.results.length === 0 ? <p className="text-sm text-muted">No published results yet.</p> : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
-              <thead className="text-xs uppercase text-muted"><tr><th className="py-1">Quiz</th><th>Name</th><th>Score</th><th>Date</th><th /></tr></thead>
+              <thead className="text-xs uppercase text-muted"><tr><th className="py-1">Assessment</th><th>Name</th><th>Score</th><th>Date</th><th /></tr></thead>
               <tbody>
                 {[...results.results].sort((a, b) => a.quizId.localeCompare(b.quizId) || b.score - a.score).map((r) => (
                   <tr key={r.id} className="border-t border-card-border">

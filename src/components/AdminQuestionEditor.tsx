@@ -43,7 +43,7 @@ export function AdminQuestionEditor({ q, idx, onChange, onRemove, onMoveUp, setS
 
   function changeType(type: QuestionType) {
     const fresh = emptyQuestion(type);
-    onChange({ ...fresh, id: q.id, prompt: q.prompt, media: q.media, explanation: q.explanation, points: q.points });
+    onChange({ ...fresh, id: q.id, prompt: q.prompt, media: q.media, explanation: q.explanation, points: q.points, promptAr: q.promptAr, explanationAr: q.explanationAr });
   }
 
   function setOption(oi: number, value: string) {
@@ -305,6 +305,37 @@ export function AdminQuestionEditor({ q, idx, onChange, onRemove, onMoveUp, setS
           </Field>
           <Field label="YouTube link">
             <input className={input} value={q.media?.youtubeUrl || ""} onChange={(e) => set({ media: { ...q.media, youtubeUrl: e.target.value } })} />
+          </Field>
+        </div>
+      </details>
+
+      <details className="rounded-xl border border-card-border p-3" open={Boolean(q.promptAr || q.explanationAr || q.optionsAr?.some(Boolean))}>
+        <summary className="cursor-pointer text-sm font-medium">Arabic (optional) — shown when students switch to عربي</summary>
+        <div className="mt-3 space-y-3" dir="rtl">
+          <Field label="نص السؤال بالعربية">
+            <textarea className={input + " min-h-14"} value={q.promptAr || ""} onChange={(e) => set({ promptAr: e.target.value })} placeholder={q.type === "fill_blank" ? "استخدم ___ لكل فراغ (بنفس عدد الفراغات)" : "اكتب السؤال بالعربية"} />
+          </Field>
+          {q.type !== "image_choice" && q.type !== "short_answer" && q.type !== "fill_blank" && q.type !== "matching" && q.options.length > 0 && (
+            <div className="space-y-2">
+              <p className={hint}>الخيارات بالعربية (بنفس الترتيب)</p>
+              {q.options.map((opt, oi) => (
+                <div key={oi} className="flex items-center gap-2">
+                  <span className="w-1/3 truncate text-xs text-muted" dir="ltr">{opt}</span>
+                  <input
+                    className={input + " mt-0 flex-1"}
+                    value={q.optionsAr?.[oi] || ""}
+                    onChange={(e) => {
+                      const next = Array.from({ length: q.options.length }, (_, j) => q.optionsAr?.[j] || "");
+                      next[oi] = e.target.value;
+                      set({ optionsAr: next });
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+          <Field label="الشرح بالعربية">
+            <textarea className={input + " min-h-14"} value={q.explanationAr || ""} onChange={(e) => set({ explanationAr: e.target.value })} />
           </Field>
         </div>
       </details>
