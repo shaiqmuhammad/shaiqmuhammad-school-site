@@ -339,10 +339,11 @@ export default function AdminCms() {
               <div className="flex gap-2"><button type="submit" className={btn}>Save token</button>{hasToken && <button type="button" className={btnGhost} onClick={()=>{clearStoredGithubToken();refreshTokenFlag();}}>Clear</button>}</div>
             </form>
             <div className="space-y-3 rounded-2xl border border-card-border bg-card p-5">
-              <h3 className="font-semibold">Live chat (Tawk.to)</h3>
+              <h3 className="font-semibold">Live chat (Tawk.to) and WhatsApp</h3>
               <p className="text-xs text-muted">Paste IDs from Tawk → Admin → Channels → Chat Widget. Cloudflare env NEXT_PUBLIC_TAWK_* overrides these if set. Leave blank to show “Chat coming soon”.</p>
               <Field label="Property ID"><input className={input+" font-mono text-xs"} value={siteSettings.tawkPropertyId} onChange={(e)=>setSiteSettings({...siteSettings,tawkPropertyId:e.target.value})} placeholder="e.g. 64f…" /></Field>
               <Field label="Widget ID"><input className={input+" font-mono text-xs"} value={siteSettings.tawkWidgetId} onChange={(e)=>setSiteSettings({...siteSettings,tawkWidgetId:e.target.value})} placeholder="e.g. 1h…" /></Field>
+              <Field label="Teacher WhatsApp number (international format; blank hides the WhatsApp button)"><input className={input+" font-mono text-xs"} value={siteSettings.whatsappNumber} onChange={(e)=>setSiteSettings({...siteSettings,whatsappNumber:e.target.value})} placeholder="+971545705552" /></Field>
               <div className="flex flex-wrap gap-2">
                 <button type="button" disabled={busy} className={btn} onClick={publishSettings}>Publish settings</button>
                 <button type="button" className={btnGhost} onClick={()=>downloadJson(normalizeSettings(siteSettings),"settings.json")}>Download settings.json</button>
