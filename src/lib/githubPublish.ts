@@ -32,6 +32,28 @@ async function putGithubFile(
   token: string,
   message: string,
 ): Promise<PublishResult> {
+  return putGithubBase64(path, btoa(unescape(encodeURIComponent(contentText))), token, message);
+}
+
+/**
+ * Commit a binary file (image etc.) through the Contents API. `base64` is the raw file
+ * encoded as base64 (no data: prefix). Creates or replaces the file on the branch.
+ */
+export async function publishBinaryToGithub(
+  path: string,
+  base64: string,
+  token: string,
+  message: string,
+): Promise<PublishResult> {
+  return putGithubBase64(path, base64.replace(/^data:[^,]*,/, ""), token, message);
+}
+
+async function putGithubBase64(
+  path: string,
+  content: string,
+  token: string,
+  message: string,
+): Promise<PublishResult> {
   const apiBase = `https://api.github.com/repos/${GITHUB_REPO}/contents/${path}`;
   const headers: HeadersInit = {
     Accept: "application/vnd.github+json",
@@ -51,8 +73,6 @@ async function putGithubFile(
       error: `Could not read current file (${getRes.status}): ${err.slice(0, 200)}`,
     };
   }
-
-  const content = btoa(unescape(encodeURIComponent(contentText)));
 
   const putRes = await fetch(apiBase, {
     method: "PUT",
