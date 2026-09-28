@@ -138,3 +138,25 @@ export function downloadForumJson(data: ForumData): void {
   a.click();
   URL.revokeObjectURL(url);
 }
+
+/** Publish any JSON file under public/content (quizzes, results, certificate). */
+export async function publishJsonToGithub(
+  path: string,
+  data: unknown,
+  token: string,
+  message: string,
+): Promise<PublishResult> {
+  return putGithubFile(path, JSON.stringify(data, null, 2) + "\n", token, message);
+}
+
+export function downloadJson(data: unknown, filename: string): void {
+  const blob = new Blob([JSON.stringify(data, null, 2) + "\n"], {
+    type: "application/json",
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
