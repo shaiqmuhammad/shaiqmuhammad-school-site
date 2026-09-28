@@ -3,10 +3,11 @@
 import { useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { slugify } from "@/lib/content";
 import { downloadJson, getStoredGithubToken, publishJsonToGithub } from "@/lib/githubPublish";
+import { AdminQuestionEditor } from "@/components/AdminQuestionEditor";
 import {
   emptyQuestion, emptyQuiz, GITHUB_QUIZ_RESULTS_PATH, GITHUB_QUIZZES_PATH, loadLocalResults,
-  normalizeQuiz, normalizeQuizzes, normalizeResults,
-  quizMaxScore, type QuestionType, type Quiz, type QuizQuestion, type QuizResultsData, type QuizzesData,
+  normalizeQuiz, normalizeQuizzes, normalizeResults, QUESTION_TYPE_LABELS, QUESTION_TYPES, questionProblem,
+  quizMaxScore, type Quiz, type QuizQuestion, type QuizResultsData, type QuizzesData,
 } from "@/lib/quiz";
 
 type Props = {
@@ -16,13 +17,6 @@ type Props = {
   setData: React.Dispatch<React.SetStateAction<QuizzesData>>;
   results: QuizResultsData;
   setResults: React.Dispatch<React.SetStateAction<QuizResultsData>>;
-};
-
-const TYPE_LABELS: Record<QuestionType, string> = {
-  multiple_choice: "Multiple choice",
-  true_false: "True / False",
-  short_answer: "Short answer",
-  multi_select: "Multi-select",
 };
 
 const input = "mt-1.5 w-full rounded-lg border border-card-border bg-background px-3 py-2 text-sm outline-none focus:border-primary";
@@ -41,23 +35,19 @@ export default function AdminQuizzes({ setStatus, onNeedToken, data, setData, re
     const slug = editing.slug.trim() || slugify(editing.title);
     if (!editing.title.trim() || !slug) { setStatus("Quiz title and slug required."); return; }
     if (!editing.questions.length) { setStatus("Add at least one question."); return; }
-    const bad = editing.questions.findIndex((q) => !q.prompt.trim());
-    if (bad >= 0) { setStatus(`Question ${bad + 1} needs a prompt.`); return; }
+    for (let i = 0; i < editing.questions.length; i++) {
+      const problem = questionProblem(editing.questions[i]);
+      if (problem) { setStatus(`Question ${i + 1} ${problem}.`); return; }
+    }
     const next = normalizeQuiz({ ...editing, slug, title: editing.title.trim(), updatedAt: new Date().toISOString() });
     setData((prev) => ({ quizzes: prev.quizzes.some((q) => q.id === next.id) ? prev.quizzes.map((q) => (q.id === next.id ? next : q)) : [...prev.quizzes, next] }));
     setEditing(null);
     setStatus(`Saved quiz "${next.title}" locally. Click "Publish quizzes" to make it live.`);
   }
 
-  function updateQ(idx: number, patch: Partial<QuizQuestion>) {
+  function setQuestion(idx: number, q: QuizQuestion) {
     if (!editing) return;
-    setEditing({ ...editing, questions: editing.questions.map((q, i) => (i === idx ? { ...q, ...patch } : q)) });
-  }
-
-  function changeType(idx: number, type: QuestionType) {
-    const fresh = emptyQuestion(type);
-    const cur = editing!.questions[idx];
-    updateQ(idx, { type, options: fresh.options, correct: fresh.correct, prompt: cur.prompt, media: cur.media });
+    setEditing({ ...editing, questions: editing.questions.map((x, i) => (i === idx ? q : x)) });
   }
 
   async function publish(path: string, payload: unknown, label: string) {
@@ -131,68 +121,25 @@ export default function AdminQuizzes({ setStatus, onNeedToken, data, setData, re
           <div className="flex flex-wrap items-end gap-4">
             <Field label="Time limit (minutes, 0 = none)"><input type="number" min={0} className={input + " w-32"} value={editing.timeLimitMinutes} onChange={(e) => setEditing({ ...editing, timeLimitMinutes: Math.max(0, Number(e.target.value) || 0) })} /></Field>
             <label className="flex items-center gap-2 pb-2 text-sm"><input type="checkbox" checked={editing.published} onChange={(e) => setEditing({ ...editing, published: e.target.checked })} /> Published</label>
+            <label className="flex items-center gap-2 pb-2 text-sm"><input type="checkbox" checked={editing.showAnswers} onChange={(e) => setEditing({ ...editing, showAnswers: e.target.checked })} /> Show answers at end</label>
             <p className="pb-2 text-xs text-muted">Total marks: {quizMaxScore(editing)}</p>
           </div>
 
           <div className="space-y-4">
             {editing.questions.map((q, idx) => (
-              <div key={q.id} className="space-y-3 rounded-xl border border-dashed border-card-border bg-accent-soft/30 p-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-sm font-semibold">Question {idx + 1}</p>
-                  <div className="flex flex-wrap items-center gap-2 text-sm">
-                    <select className="rounded-lg border border-card-border bg-background px-2 py-1" value={q.type} onChange={(e) => changeType(idx, e.target.value as QuestionType)}>
-                      {(Object.keys(TYPE_LABELS) as QuestionType[]).map((t) => <option key={t} value={t}>{TYPE_LABELS[t]}</option>)}
-                    </select>
-                    <label className="flex items-center gap-1">Marks <input type="number" min={1} className="w-16 rounded-lg border border-card-border bg-background px-2 py-1" value={q.points} onChange={(e) => updateQ(idx, { points: Math.max(1, Number(e.target.value) || 1) })} /></label>
-                    <button type="button" disabled={idx === 0} className="text-muted" onClick={() => { const qs = [...editing.questions]; [qs[idx - 1], qs[idx]] = [qs[idx], qs[idx - 1]]; setEditing({ ...editing, questions: qs }); }}>↑</button>
-                    <button type="button" className="text-red-600" onClick={() => setEditing({ ...editing, questions: editing.questions.filter((_, i) => i !== idx) })}>Remove</button>
-                  </div>
-                </div>
-                <Field label="Question"><textarea className={input + " min-h-16"} value={q.prompt} onChange={(e) => updateQ(idx, { prompt: e.target.value })} /></Field>
-
-                {q.type === "short_answer" ? (
-                  <Field label="Accepted answers (one per line, not case-sensitive)">
-                    <textarea className={input + " min-h-16"} value={(q.correct as string[]).join("\n")} onChange={(e) => updateQ(idx, { correct: e.target.value.split("\n") })} />
-                  </Field>
-                ) : (
-                  <div className="space-y-2">
-                    <p className="text-xs font-semibold uppercase text-muted">Options — tick the correct {q.type === "multi_select" ? "answers" : "answer"}</p>
-                    {q.options.map((opt, oi) => {
-                      const correct = (q.correct as number[]).map(Number);
-                      const isCorrect = correct.includes(oi);
-                      return (
-                        <div key={oi} className="flex items-center gap-2">
-                          <input
-                            type={q.type === "multi_select" ? "checkbox" : "radio"}
-                            name={`correct-${q.id}`}
-                            checked={isCorrect}
-                            onChange={() => updateQ(idx, { correct: q.type === "multi_select" ? (isCorrect ? correct.filter((c) => c !== oi) : [...correct, oi]) : [oi] })}
-                          />
-                          <input className={input + " mt-0"} value={opt} disabled={q.type === "true_false"} onChange={(e) => updateQ(idx, { options: q.options.map((o, j) => (j === oi ? e.target.value : o)) })} />
-                          {q.type !== "true_false" && q.options.length > 2 && (
-                            <button type="button" className="text-sm text-red-600" onClick={() => updateQ(idx, { options: q.options.filter((_, j) => j !== oi), correct: correct.filter((c) => c !== oi).map((c) => (c > oi ? c - 1 : c)) })}>✕</button>
-                          )}
-                        </div>
-                      );
-                    })}
-                    {q.type !== "true_false" && <button type="button" className={btnGhost} onClick={() => updateQ(idx, { options: [...q.options, `Option ${String.fromCharCode(65 + q.options.length)}`] })}>+ Option</button>}
-                  </div>
-                )}
-
-                <details className="rounded-lg border border-card-border bg-background/60 p-3" open={Boolean(q.media)}>
-                  <summary className="cursor-pointer text-sm font-medium">Media (optional)</summary>
-                  <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                    <Field label="Picture URL or data:image/…"><input className={input} value={q.media?.imageUrl || ""} onChange={(e) => updateQ(idx, { media: { ...q.media, imageUrl: e.target.value } })} /></Field>
-                    <Field label="Audio URL (mp3/ogg)"><input className={input} value={q.media?.audioUrl || ""} onChange={(e) => updateQ(idx, { media: { ...q.media, audioUrl: e.target.value } })} /></Field>
-                    <Field label="Video file URL (mp4/webm)"><input className={input} value={q.media?.videoUrl || ""} onChange={(e) => updateQ(idx, { media: { ...q.media, videoUrl: e.target.value } })} /></Field>
-                    <Field label="YouTube link"><input className={input} value={q.media?.youtubeUrl || ""} onChange={(e) => updateQ(idx, { media: { ...q.media, youtubeUrl: e.target.value } })} /></Field>
-                  </div>
-                </details>
-              </div>
+              <AdminQuestionEditor
+                key={q.id}
+                q={q}
+                idx={idx}
+                setStatus={setStatus}
+                onChange={(next) => setQuestion(idx, next)}
+                onRemove={() => setEditing({ ...editing, questions: editing.questions.filter((_, i) => i !== idx) })}
+                onMoveUp={idx === 0 ? undefined : () => { const qs = [...editing.questions]; [qs[idx - 1], qs[idx]] = [qs[idx], qs[idx - 1]]; setEditing({ ...editing, questions: qs }); }}
+              />
             ))}
             <div className="flex flex-wrap gap-2">
-              {(Object.keys(TYPE_LABELS) as QuestionType[]).map((t) => (
-                <button key={t} type="button" className={btnGhost} onClick={() => setEditing({ ...editing, questions: [...editing.questions, emptyQuestion(t)] })}>+ {TYPE_LABELS[t]}</button>
+              {QUESTION_TYPES.map((t) => (
+                <button key={t} type="button" className={btnGhost} onClick={() => setEditing({ ...editing, questions: [...editing.questions, emptyQuestion(t)] })}>+ {QUESTION_TYPE_LABELS[t]}</button>
               ))}
             </div>
           </div>

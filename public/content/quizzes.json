@@ -4,10 +4,10 @@
       "id": "quiz-sample-welcome",
       "slug": "welcome-quiz",
       "title": "Welcome Quiz",
-      "description": "A short practice quiz so students can try the timer, question types, and certificate.",
-      "timeLimitMinutes": 5,
+      "description": "A short practice quiz so students can try the timer, every question type, the answer review and the certificate.",
+      "timeLimitMinutes": 10,
       "published": true,
-      "updatedAt": "2026-09-28T12:00:00.000Z",
+      "updatedAt": "2026-09-28T14:00:00.000Z",
       "questions": [
         {
           "id": "q1",
@@ -22,7 +22,8 @@
           "correct": [
             1
           ],
-          "points": 1
+          "points": 1,
+          "explanation": "The Shahada, bearing witness that there is no god but Allah and that Muhammad is His Messenger, is the first pillar of Islam."
         },
         {
           "id": "q2",
@@ -35,7 +36,8 @@
           "correct": [
             0
           ],
-          "points": 1
+          "points": 1,
+          "explanation": "The Quran was revealed to the Prophet Muhammad (peace be upon him) gradually over about 23 years."
         },
         {
           "id": "q3",
@@ -48,7 +50,8 @@
             "Qur’an",
             "Koran"
           ],
-          "points": 2
+          "points": 2,
+          "explanation": "The Quran is the holy book of Islam. Different spellings such as Qur'an are accepted."
         },
         {
           "id": "q4",
@@ -65,10 +68,94 @@
             1,
             3
           ],
-          "points": 2
+          "points": 2,
+          "explanation": "Sahih Bukhari, Sahih Muslim and Sunan Abu Dawud are Hadith collections. The Injil (Gospel) is a scripture given to Prophet Isa (Jesus)."
+        },
+        {
+          "id": "q5",
+          "type": "matching",
+          "prompt": "Match each pillar of Islam to its meaning.",
+          "options": [],
+          "correct": [],
+          "points": 2,
+          "pairs": [
+            {
+              "left": "Salah",
+              "right": "Prayer"
+            },
+            {
+              "left": "Sawm",
+              "right": "Fasting"
+            },
+            {
+              "left": "Zakat",
+              "right": "Charity"
+            },
+            {
+              "left": "Hajj",
+              "right": "Pilgrimage"
+            }
+          ],
+          "explanation": "Salah is the five daily prayers, Sawm is fasting in Ramadan, Zakat is obligatory charity, and Hajj is the pilgrimage to Makkah."
+        },
+        {
+          "id": "q6",
+          "type": "fill_blank",
+          "prompt": "The Quran has ___ surahs, and the first surah is called ___.",
+          "options": [],
+          "correct": [],
+          "points": 2,
+          "blanks": [
+            [
+              "114",
+              "one hundred fourteen",
+              "one hundred and fourteen"
+            ],
+            [
+              "Al-Fatiha",
+              "Fatiha",
+              "Al Fatiha",
+              "Al-Fatihah",
+              "Fatihah",
+              "Al-Faatiha",
+              "Surah Al-Fatiha"
+            ]
+          ],
+          "explanation": "There are 114 surahs in the Quran. The first is Al-Fatiha (The Opening)."
+        },
+        {
+          "id": "q7",
+          "type": "ordering",
+          "prompt": "Put the five daily prayers in order, starting from dawn.",
+          "options": [
+            "Fajr",
+            "Dhuhr",
+            "Asr",
+            "Maghrib",
+            "Isha"
+          ],
+          "correct": [],
+          "points": 2,
+          "explanation": "Fajr (dawn), Dhuhr (midday), Asr (afternoon), Maghrib (sunset), Isha (night)."
+        },
+        {
+          "id": "q8",
+          "type": "image_choice",
+          "prompt": "Which picture shows the crescent moon (hilal) that marks the start of an Islamic month?",
+          "options": [
+            "/content/quiz/sun.svg",
+            "/content/quiz/crescent.svg",
+            "/content/quiz/star.svg"
+          ],
+          "correct": [
+            1
+          ],
+          "points": 1,
+          "explanation": "Islamic months begin when the new crescent moon (hilal) is sighted, which is why the crescent (Picture B) is the answer."
         }
       ],
-      "cardImage": ""
+      "cardImage": "",
+      "showAnswers": true
     }
   ]
 }
