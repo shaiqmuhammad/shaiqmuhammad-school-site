@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { isImmersivePath } from "@/lib/immersive";
 import { encyclopediaLinks, navLinks, siteConfig } from "@/content/site";
 import { useI18n } from "@/lib/i18n";
+import { SocialLinks } from "@/components/SocialLinks";
 
 export function Footer() {
   const pathname = usePathname();
@@ -20,6 +21,7 @@ export function Footer() {
           <p className="text-lg font-semibold text-foreground">{siteConfig.name}</p>
           <p className="mt-2 text-sm text-muted">{t("footer.tagline", siteConfig.tagline)}</p>
           <p className="mt-3 text-sm text-muted">{t("footer.location", siteConfig.location)}</p>
+          <SocialLinks className="mt-4" />
         </div>
         <div>
           <p className="text-sm font-semibold uppercase tracking-wide text-foreground">

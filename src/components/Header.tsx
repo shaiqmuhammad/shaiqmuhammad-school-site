@@ -9,11 +9,13 @@ import { HadithScrollIcon, QuranBookIcon } from "@/components/EncyclopediaIcons"
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useI18n } from "@/lib/i18n";
+import { useLogoUrl } from "@/components/SiteBrand";
 
 export function Header() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const { t, lang } = useI18n();
+  const logoUrl = useLogoUrl();
 
   // Admin has its own chrome (with the same language/theme toggles).
   if (pathname.startsWith("/admin")) {
@@ -28,7 +30,7 @@ export function Header() {
         <Link href="/" className="group flex items-center gap-2.5">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="/logo.svg"
+            src={logoUrl}
             alt=""
             width={40}
             height={40}

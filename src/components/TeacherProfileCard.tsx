@@ -1,4 +1,8 @@
+"use client";
+
 import type { TeacherProfile } from "@/lib/content";
+import { defaultTeacher } from "@/lib/content";
+import { useLogoUrl } from "@/components/SiteBrand";
 
 export function TeacherProfileCard({
   teacher,
@@ -7,6 +11,9 @@ export function TeacherProfileCard({
   teacher: TeacherProfile;
   compact?: boolean;
 }) {
+  const logoUrl = useLogoUrl();
+  // The default teacher photo is the site logo, so an uploaded logo replaces it too.
+  const photo = !teacher.photoUrl || teacher.photoUrl === defaultTeacher.photoUrl ? logoUrl : teacher.photoUrl;
   return (
     <div
       className={`overflow-hidden rounded-2xl border border-card-border bg-card shadow-sm ${
@@ -16,7 +23,7 @@ export function TeacherProfileCard({
       <div className={`flex ${compact ? "flex-row items-center gap-4" : "flex-col gap-5 sm:flex-row sm:items-start"}`}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={teacher.photoUrl}
+          src={photo}
           alt={teacher.name}
           className={`shrink-0 rounded-full border-2 border-primary/20 bg-accent-soft object-cover ${
             compact ? "h-16 w-16" : "h-28 w-28 sm:h-32 sm:w-32"

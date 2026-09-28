@@ -7,6 +7,9 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 import { ChatWidget } from "@/components/ChatWidget";
 import { siteConfig } from "@/content/site";
 import { langInitScript } from "@/lib/langStorage";
+import { SiteBrandProvider } from "@/components/SiteBrand";
+import { brandUrl } from "@/lib/siteSettings";
+import { loadSiteSettingsSync } from "@/lib/siteSettingsServer";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -25,6 +28,17 @@ const notoArabic = Noto_Sans_Arabic({
   display: "swap",
 });
 
+const settings = loadSiteSettingsSync();
+const { brand } = settings;
+// Uploaded favicon: gen-icons.mjs rebuilds favicon.ico / icon-32 / icon-192 / apple-touch-icon from it,
+// so only the default SVG icon must be swapped (an uploaded SVG is served as-is).
+const svgIcon = brand.faviconPath
+  ? brand.faviconPath.endsWith(".svg")
+    ? [{ url: brandUrl(brand.faviconPath, brand.version, ""), type: "image/svg+xml" }]
+    : []
+  : [{ url: "/favicon.svg", type: "image/svg+xml" }];
+const v = brand.faviconPath && brand.version ? `?v=${encodeURIComponent(brand.version)}` : "";
+
 export const metadata: Metadata = {
   title: {
     default: `${siteConfig.name} | Student Learning Platform`,
@@ -34,13 +48,13 @@ export const metadata: Metadata = {
   metadataBase: new URL(`https://${siteConfig.domain}`),
   icons: {
     icon: [
-      { url: "/favicon.ico", sizes: "any" },
-      { url: "/icon-32.png", type: "image/png", sizes: "32x32" },
-      { url: "/icon-192.png", type: "image/png", sizes: "192x192" },
-      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: `/favicon.ico${v}`, sizes: "any" },
+      { url: `/icon-32.png${v}`, type: "image/png", sizes: "32x32" },
+      { url: `/icon-192.png${v}`, type: "image/png", sizes: "192x192" },
+      ...svgIcon,
     ],
-    shortcut: "/favicon.ico",
-    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+    shortcut: `/favicon.ico${v}`,
+    apple: [{ url: `/apple-touch-icon.png${v}`, sizes: "180x180", type: "image/png" }],
   },
 };
 
@@ -57,11 +71,13 @@ export default function RootLayout({
       </head>
       <body className="flex min-h-full flex-col bg-background text-foreground">
         <ThemeProvider>
-          <AnnouncementTicker />
-          <Header />
-          <main className="flex-1">{children}</main>
-          <Footer />
-          <ChatWidget />
+          <SiteBrandProvider brand={brand} social={settings.social}>
+            <AnnouncementTicker />
+            <Header />
+            <main className="flex-1">{children}</main>
+            <Footer />
+            <ChatWidget />
+          </SiteBrandProvider>
         </ThemeProvider>
       </body>
     </html>
