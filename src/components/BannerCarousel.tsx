@@ -28,7 +28,7 @@ export function BannerCarousel({ banners }: { banners: Banner[] }) {
 
   return (
     <section
-      className="relative overflow-hidden border-b border-card-border bg-white"
+      className="relative overflow-hidden border-b border-card-border bg-card"
       aria-roledescription="carousel"
       aria-label="Featured banners"
       onMouseEnter={() => setPaused(true)}
@@ -37,7 +37,7 @@ export function BannerCarousel({ banners }: { banners: Banner[] }) {
       onBlur={() => setPaused(false)}
     >
       <div className="relative mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
-        <div className="relative overflow-hidden rounded-2xl border border-card-border bg-white shadow-sm">
+        <div className="relative overflow-hidden rounded-2xl border border-card-border bg-card shadow-sm">
           <div className="relative aspect-[21/9] min-h-[180px] w-full bg-accent-soft sm:min-h-[240px]">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -110,3 +110,4 @@ export function BannerCarousel({ banners }: { banners: Banner[] }) {
     </section>
   );
 }
+
