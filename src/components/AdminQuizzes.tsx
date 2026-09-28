@@ -215,7 +215,7 @@ export default function AdminQuizzes({ setStatus, onNeedToken, data, setData, re
 
       <div className="space-y-3 rounded-2xl border border-card-border bg-card p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-lg font-semibold">Results & positions</h3>
+          <h3 className="text-lg font-semibold">Results and positions</h3>
           <div className="flex flex-wrap gap-2">
             <button type="button" className={btnGhost} onClick={importLocalResults}>Import local results</button>
             <label className={btnGhost + " cursor-pointer"}>Import JSON file<input type="file" accept="application/json,.json" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) importResultsFile(f); e.target.value = ""; }} /></label>
@@ -224,7 +224,7 @@ export default function AdminQuizzes({ setStatus, onNeedToken, data, setData, re
           </div>
         </div>
         <p className="text-xs text-muted">
-          The site is static, so student attempts are saved in each student's own browser. To rank the class: collect results (Import local results works for attempts made on this device, e.g. a classroom computer; students can also send you their result), review, then Publish results. Certificates compare each new attempt against published results to show a provisional position.
+          The site is static, so student attempts are saved in each student’s own browser. To rank the class: collect results (Import local results works for attempts made on this device, e.g. a classroom computer; students can also send you their result), review, then Publish results. Certificates compare each new attempt against published results to show a provisional position.
         </p>
         {results.results.length === 0 ? <p className="text-sm text-muted">No published results yet.</p> : (
           <div className="overflow-x-auto">
