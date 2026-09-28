@@ -14,7 +14,11 @@
  *   POST /api/session/:code/submit        {pid, token, answers?}
  *   POST /api/session/:code/start         {hostKey, countdownSec?}  -> sets startAt for everyone
  *   POST /api/session/:code/end           {hostKey}
- *   GET  /api/session/:code/results[?hostKey=]  class table (host: any time; everyone: after the end)
+ *   GET  /api/session/:code/results[?hostKey=][&pid=&token=]
+ *        class table (host: any time; everyone: after the end) with rank (ties share a rank) and a class summary.
+ *        Per-question detail (answer, correct?, earned, time) is included for every student when hostKey is
+ *        given, and for the student's own row when pid+token are given. The full assessment (answer key +
+ *        explanations) is included with the detail so the board can show questions and correct answers.
  */
 import { DurableObject } from "cloudflare:workers";
 import { isAnswered, normalizeQuiz, quizMaxScore, scoreQuestion, type Quiz, type QuizQuestion } from "../../../src/lib/quiz";
@@ -42,6 +46,8 @@ type Participant = {
   name: string;
   order: string[];
   answers: Record<string, unknown>;
+  /** Server time (ms) each question was last answered. Absent on sessions created before this field existed. */
+  answeredAt?: Record<string, number>;
   joinedAt: number;
   submittedAt?: number;
 };
@@ -162,23 +168,51 @@ export class AssessmentSession extends DurableObject<Env> {
     return this.quiz!.questions.filter((q) => isAnswered(q, p.answers[q.id])).length;
   }
 
-  private results(now: number) {
+  private results(now: number, opts: { hostDetail?: boolean; selfId?: string } = {}) {
     const q = this.quiz!;
     const maxScore = quizMaxScore(q);
+    const startAt = this.meta!.startAt ?? null;
     const rows = [...this.participants.values()].map((p) => {
       let score = 0;
       let correct = 0;
       let unanswered = 0;
+      const details: {
+        questionId: string;
+        answer: unknown;
+        answered: boolean;
+        earned: number;
+        points: number;
+        isCorrect: boolean;
+        answeredAt: number | null;
+        secondsFromStart: number | null;
+        position: number;
+      }[] = [];
       for (const question of q.questions) {
         const answer = p.answers[question.id];
         const earned = scoreQuestion(question, answer);
+        const answered = isAnswered(question, answer);
         score += earned;
         if (earned >= (question.points || 1)) correct++;
-        if (!isAnswered(question, answer)) unanswered++;
+        if (!answered) unanswered++;
+        const at = p.answeredAt?.[question.id] ?? null;
+        details.push({
+          questionId: question.id,
+          answer: answer ?? null,
+          answered,
+          earned,
+          points: question.points || 1,
+          isCorrect: earned >= (question.points || 1),
+          answeredAt: at,
+          secondsFromStart: at !== null && startAt !== null ? Math.max(0, Math.round((at - startAt) / 1000)) : null,
+          position: p.order.indexOf(question.id) + 1,
+        });
       }
       const total = q.questions.length;
+      const showDetail = opts.hostDetail || (opts.selfId !== undefined && opts.selfId === p.id);
       return {
         name: p.name,
+        ...(showDetail ? { details } : {}),
+        ...(opts.selfId !== undefined && opts.selfId === p.id ? { isSelf: true } : {}),
         score,
         maxScore,
         correct,
@@ -197,7 +231,17 @@ export class AssessmentSession extends DurableObject<Env> {
       prev = r.score;
       return { rank, ...r };
     });
-    return { ...this.info(now), rows: ranked };
+    const pcts = ranked.map((r) => r.percentage);
+    const summary = {
+      count: ranked.length,
+      submitted: ranked.filter((r) => r.submitted).length,
+      averagePercentage: pcts.length ? Math.round((pcts.reduce((a, b) => a + b, 0) / pcts.length) * 10) / 10 : 0,
+      highestPercentage: pcts.length ? Math.max(...pcts) : 0,
+      lowestPercentage: pcts.length ? Math.min(...pcts) : 0,
+      averageScore: ranked.length ? Math.round((ranked.reduce((a, r) => a + r.score, 0) / ranked.length) * 10) / 10 : 0,
+    };
+    const withDetail = opts.hostDetail || opts.selfId !== undefined;
+    return { ...this.info(now), rows: ranked, summary, ...(withDetail ? { quiz: q } : {}) };
   }
 
   private auth(body: Record<string, unknown>): Participant | null {
@@ -293,6 +337,7 @@ export class AssessmentSession extends DurableObject<Env> {
         if (!this.quiz.questions.some((q) => q.id === qid)) return { status: 400, body: { error: "bad_question" } };
         if (JSON.stringify(body.answer ?? null).length > 5000) return { status: 413, body: { error: "answer_too_large" } };
         p.answers = { ...p.answers, [qid]: body.answer };
+        p.answeredAt = { ...(p.answeredAt ?? {}), [qid]: now };
         await this.saveParticipant(p);
         return { status: 200, body: { ok: true, answered: this.answeredCount(p), now } };
       }
@@ -306,10 +351,15 @@ export class AssessmentSession extends DurableObject<Env> {
             const incoming = body.answers as Record<string, unknown>;
             const ids = new Set(this.quiz.questions.map((q) => q.id));
             const merged = { ...p.answers };
+            const times = { ...(p.answeredAt ?? {}) };
             for (const [k, v] of Object.entries(incoming)) {
-              if (ids.has(k) && JSON.stringify(v ?? null).length <= 5000) merged[k] = v;
+              if (ids.has(k) && JSON.stringify(v ?? null).length <= 5000) {
+                if (JSON.stringify(merged[k] ?? null) !== JSON.stringify(v ?? null) || times[k] === undefined) times[k] = now;
+                merged[k] = v;
+              }
             }
             p.answers = merged;
+            p.answeredAt = times;
           }
           p.submittedAt = now;
           await this.saveParticipant(p);
@@ -337,12 +387,13 @@ export class AssessmentSession extends DurableObject<Env> {
           if (!m.startAt) m.startAt = now;
           await this.ctx.storage.put("meta", m);
         }
-        return { status: 200, body: this.results(now) };
+        return { status: 200, body: this.results(now, { hostDetail: true }) };
       }
 
       case "results": {
         if (!isHost && this.status(now) !== "ended") return { status: 403, body: { error: "not_ended", ...this.info(now) } };
-        return { status: 200, body: this.results(now) };
+        const self = !isHost && body.pid ? this.auth(body) : null;
+        return { status: 200, body: this.results(now, { hostDetail: isHost, selfId: self?.id }) };
       }
     }
     return { status: 404, body: { error: "unknown_action" } };
@@ -382,7 +433,7 @@ export default {
       if (!quiz.questions.length) return json({ error: "no_questions" }, 400);
       delete (quiz as Partial<Quiz>).cardImage;
       if (JSON.stringify(quiz).length > MAX_QUIZ_BYTES) return json({ error: "quiz_too_large" }, 413);
-      const durationSec = Number(body.durationSec) || (quiz.timeLimitMinutes > 0 ? quiz.timeLimitMinutes * 60 : 600);
+      const durationSec = Number(body.durationSec) || (quiz.timeLimitMinutes > 0 ? quiz.timeLimitMinutes * 60 : 300);
       for (let attempt = 0; attempt < 6; attempt++) {
         const code = randomString(6, CODE_ALPHABET);
         const stub = env.SESSIONS.get(env.SESSIONS.idFromName(code));

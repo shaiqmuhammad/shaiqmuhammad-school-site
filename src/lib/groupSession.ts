@@ -38,9 +38,41 @@ export type ResultRow = {
   percentage: number;
   submitted: boolean;
   finishedAt: number | null;
+  /** Per-question detail: every row for the teacher, only the student's own row for a student. */
+  details?: QuestionDetail[];
+  isSelf?: boolean;
 };
 
-export type SessionResults = SessionInfo & { rows: ResultRow[] };
+export type QuestionDetail = {
+  questionId: string;
+  answer: unknown;
+  answered: boolean;
+  earned: number;
+  points: number;
+  isCorrect: boolean;
+  answeredAt: number | null;
+  /** Seconds after the shared start when this question was (last) answered. */
+  secondsFromStart: number | null;
+  /** 1-based position of the question in this student's shuffled order. */
+  position: number;
+};
+
+export type ClassSummary = {
+  count: number;
+  submitted: number;
+  averagePercentage: number;
+  highestPercentage: number;
+  lowestPercentage: number;
+  averageScore: number;
+};
+
+export type SessionResults = SessionInfo & {
+  rows: ResultRow[];
+  /** Older Worker versions omit this; the board computes it from rows. */
+  summary?: ClassSummary;
+  /** Full assessment (answer key + explanations) sent with detail. */
+  quiz?: Quiz;
+};
 
 export type MeState = SessionInfo & {
   me: { id: string; name: string; submitted: boolean; answers: Record<string, unknown>; answered: number };
@@ -94,8 +126,10 @@ export const groupApi = {
   start: (code: string, hostKey: string, countdownSec = 5) =>
     call<SessionInfo>(`${encodeURIComponent(code)}/start`, { method: "POST", body: { hostKey, countdownSec } }),
   end: (code: string, hostKey: string) => call<SessionResults>(`${encodeURIComponent(code)}/end`, { method: "POST", body: { hostKey } }),
-  results: (code: string, hostKey?: string) =>
-    call<SessionResults>(`${encodeURIComponent(code)}/results`, { query: hostKey ? { hostKey } : undefined }),
+  results: (code: string, hostKey?: string, self?: { pid: string; token: string }) =>
+    call<SessionResults>(`${encodeURIComponent(code)}/results`, {
+      query: hostKey ? { hostKey } : self ? { pid: self.pid, token: self.token } : undefined,
+    }),
 };
 
 /** Server-clock offset in ms (server - client), from a response's `now`. */
