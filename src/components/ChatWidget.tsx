@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { loadSiteSettings, resolveTawkIds } from "@/lib/siteSettings";
+import { loadSiteSettingsCached, resolveTawkIds } from "@/lib/siteSettings";
 
 declare global {
   interface Window {
@@ -25,7 +25,7 @@ export function ChatWidget() {
 
   useEffect(() => {
     let cancelled = false;
-    loadSiteSettings()
+    loadSiteSettingsCached()
       .then((settings) => {
         if (cancelled) return;
         const ids = resolveTawkIds(settings);

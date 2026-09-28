@@ -5,6 +5,7 @@ import { Footer } from "@/components/Footer";
 import { Header } from "@/components/Header";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { ChatWidget } from "@/components/ChatWidget";
+import { WhatsAppButton } from "@/components/WhatsApp";
 import { siteConfig } from "@/content/site";
 import "./globals.css";
 
@@ -40,6 +41,7 @@ export default function RootLayout({
           <Header />
           <main className="flex-1">{children}</main>
           <Footer />
+          <WhatsAppButton />
           <ChatWidget />
         </ThemeProvider>
       </body>

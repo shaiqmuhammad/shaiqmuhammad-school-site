@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { encyclopediaLinks, navLinks, siteConfig } from "@/content/site";
+import { WhatsAppLink } from "@/components/WhatsApp";
 
 export function Footer() {
   const pathname = usePathname();
@@ -52,6 +53,9 @@ export function Footer() {
               <a href={`mailto:${siteConfig.email}`} className="hover:text-primary">
                 {siteConfig.email}
               </a>
+            </li>
+            <li className="text-muted">
+              <WhatsAppLink className="hover:text-primary" />
             </li>
           </ul>
         </div>
