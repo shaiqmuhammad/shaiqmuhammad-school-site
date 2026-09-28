@@ -5,9 +5,8 @@ export const ADMIN_PREVIEW_KEY = "sm_admin_preview_data";
  * SHA-256 (hex, lowercase) of the admin password. Only the hash is stored — never the plaintext.
  * Generate with: printf %s 'your-password' | sha256sum | cut -d' ' -f1
  * NEXT_PUBLIC_ADMIN_PASSWORD_HASH (build-time env) overrides this constant when set.
- * TODO: set this hash (currently empty = admin login disabled).
  */
-export const ADMIN_PASSWORD_SHA256 = "";
+export const ADMIN_PASSWORD_SHA256 = "19340acab16306dd9c33f9a90668727fe4e237582a6e42e442c29f3b1efa4aec";
 
 export function getAdminPasswordHash(): string {
   const fromEnv = process.env.NEXT_PUBLIC_ADMIN_PASSWORD_HASH?.trim().toLowerCase() || "";
