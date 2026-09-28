@@ -4,8 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import {
-  getAdminPassword,
   isAdminAuthenticated,
+  isAdminConfigured,
   setAdminAuthenticated,
   verifyAdminPassword,
 } from "@/lib/adminAuth";
@@ -15,22 +15,26 @@ export default function AdminLoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [configured, setConfigured] = useState(true);
+  const [checking, setChecking] = useState(false);
 
   useEffect(() => {
-    setConfigured(Boolean(getAdminPassword()));
+    setConfigured(isAdminConfigured());
     if (isAdminAuthenticated()) {
       router.replace("/admin");
     }
   }, [router]);
 
-  function onSubmit(e: FormEvent) {
+  async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError("");
     if (!configured) {
-      setError("NEXT_PUBLIC_ADMIN_PASSWORD is not set. Add it to .env.local and rebuild.");
+      setError("Admin sign-in is not configured yet (password hash missing).");
       return;
     }
-    if (verifyAdminPassword(password)) {
+    setChecking(true);
+    const ok = await verifyAdminPassword(password).catch(() => false);
+    setChecking(false);
+    if (ok) {
       setAdminAuthenticated(true);
       router.replace("/admin");
     } else {
@@ -43,7 +47,7 @@ export default function AdminLoginPage() {
       <p className="text-xs font-semibold uppercase tracking-wider text-primary">Admin</p>
       <h1 className="mt-2 text-2xl font-semibold tracking-tight">Sign in</h1>
       <p className="mt-2 text-sm text-muted">
-        Manage learning pages and YouTube videos for students of Shaiq Muhammad.
+        Manage lessons, videos, quizzes, and banners for students of Shaiq Muhammad.
       </p>
       <form onSubmit={onSubmit} className="mt-8 space-y-4">
         <div>
@@ -67,9 +71,10 @@ export default function AdminLoginPage() {
         )}
         <button
           type="submit"
+          disabled={checking}
           className="w-full rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-90"
         >
-          Continue
+          {checking ? "Checking…" : "Continue"}
         </button>
       </form>
       <p className="mt-6 text-center text-sm text-muted">

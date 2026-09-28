@@ -1,8 +1,22 @@
 export const ADMIN_SESSION_KEY = "sm_admin_authenticated";
 export const ADMIN_PREVIEW_KEY = "sm_admin_preview_data";
 
-export function getAdminPassword(): string {
-  return process.env.NEXT_PUBLIC_ADMIN_PASSWORD?.trim() || "";
+/**
+ * SHA-256 (hex, lowercase) of the admin password. Only the hash is stored — never the plaintext.
+ * Generate with: printf %s 'your-password' | sha256sum | cut -d' ' -f1
+ * NEXT_PUBLIC_ADMIN_PASSWORD_HASH (build-time env) overrides this constant when set.
+ * TODO: set this hash (currently empty = admin login disabled).
+ */
+export const ADMIN_PASSWORD_SHA256 = "";
+
+export function getAdminPasswordHash(): string {
+  const fromEnv = process.env.NEXT_PUBLIC_ADMIN_PASSWORD_HASH?.trim().toLowerCase() || "";
+  const hash = fromEnv || ADMIN_PASSWORD_SHA256.trim().toLowerCase();
+  return /^[0-9a-f]{64}$/.test(hash) ? hash : "";
+}
+
+export function isAdminConfigured(): boolean {
+  return Boolean(getAdminPasswordHash());
 }
 
 export function isAdminAuthenticated(): boolean {
@@ -15,8 +29,21 @@ export function setAdminAuthenticated(ok: boolean): void {
   else sessionStorage.removeItem(ADMIN_SESSION_KEY);
 }
 
-export function verifyAdminPassword(input: string): boolean {
-  const expected = getAdminPassword();
-  if (!expected) return false;
-  return input === expected;
+export async function sha256Hex(input: string): Promise<string> {
+  const bytes = new TextEncoder().encode(input);
+  const digest = await globalThis.crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+/** Compare SHA-256(input) with the configured hash (constant-time over the hex string). */
+export async function verifyAdminPassword(input: string): Promise<boolean> {
+  const expected = getAdminPasswordHash();
+  if (!expected || !input) return false;
+  const actual = await sha256Hex(input);
+  if (actual.length !== expected.length) return false;
+  let diff = 0;
+  for (let i = 0; i < actual.length; i++) diff |= actual.charCodeAt(i) ^ expected.charCodeAt(i);
+  return diff === 0;
 }
