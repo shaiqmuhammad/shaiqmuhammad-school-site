@@ -1,6 +1,36 @@
 import { extractYouTubeId, newId, slugify } from "@/lib/content";
 
-export type QuestionType = "multiple_choice" | "true_false" | "short_answer" | "multi_select";
+export type QuestionType =
+  | "multiple_choice"
+  | "true_false"
+  | "short_answer"
+  | "multi_select"
+  | "matching"
+  | "fill_blank"
+  | "ordering"
+  | "image_choice";
+
+export const QUESTION_TYPES: QuestionType[] = [
+  "multiple_choice",
+  "true_false",
+  "short_answer",
+  "multi_select",
+  "matching",
+  "fill_blank",
+  "ordering",
+  "image_choice",
+];
+
+export const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
+  multiple_choice: "Multiple choice",
+  true_false: "True / False",
+  short_answer: "Short answer",
+  multi_select: "Choose all correct (select all that apply)",
+  matching: "Matching",
+  fill_blank: "Fill in the blank",
+  ordering: "Ordering / sequence",
+  image_choice: "Image choice",
+};
 
 export type QuestionMedia = {
   imageUrl?: string;
@@ -9,14 +39,23 @@ export type QuestionMedia = {
   youtubeUrl?: string;
 };
 
+export type MatchPair = { left: string; right: string };
+
 export type QuizQuestion = {
   id: string;
   type: QuestionType;
+  /** Question text. fill_blank: sentence with ___ (3+ underscores) for each blank */
   prompt: string;
-  /** Options for MC / multi-select / true-false */
+  /** MC / TF / multi-select: option text. ordering: items in the CORRECT order. image_choice: image URLs */
   options: string[];
-  /** Correct option index(es) for MC/TF/multi; for short_answer: accepted strings (case-insensitive) */
+  /** MC/TF/image_choice: [index]; multi-select: indexes; short_answer: accepted strings. Unused for matching/fill_blank/ordering */
   correct: string[] | number[];
+  /** matching: each left item with its correct right item (students see the right side shuffled) */
+  pairs?: MatchPair[];
+  /** fill_blank: accepted answers for each blank (case-insensitive, trimmed) */
+  blanks?: string[][];
+  /** Optional explanation shown on the review screen after submission */
+  explanation?: string;
   points: number;
   media?: QuestionMedia;
 };
@@ -30,6 +69,8 @@ export type Quiz = {
   cardImage: string;
   /** Overall timer in minutes; 0 = no limit */
   timeLimitMinutes: number;
+  /** Show the review screen (student answer, correct answer, explanation) after submitting */
+  showAnswers: boolean;
   published: boolean;
   updatedAt: string;
   questions: QuizQuestion[];
@@ -96,12 +137,22 @@ export function normalizeMedia(raw?: Partial<QuestionMedia> | null): QuestionMed
   return Object.keys(media).length ? media : undefined;
 }
 
+const BLANK_RE = /_{3,}/g;
+
+export function countBlanks(prompt: string): number {
+  return (prompt.match(BLANK_RE) || []).length;
+}
+
+export function splitBlanks(prompt: string): string[] {
+  return prompt.split(BLANK_RE);
+}
+
+export function optionLetter(i: number): string {
+  return String.fromCharCode(65 + i);
+}
+
 export function normalizeQuestion(raw: Partial<QuizQuestion>): QuizQuestion {
-  const type = (["multiple_choice", "true_false", "short_answer", "multi_select"] as QuestionType[]).includes(
-    raw.type as QuestionType,
-  )
-    ? (raw.type as QuestionType)
-    : "multiple_choice";
+  const type = QUESTION_TYPES.includes(raw.type as QuestionType) ? (raw.type as QuestionType) : "multiple_choice";
 
   let options = Array.isArray(raw.options) ? raw.options.map(String) : [];
   if (type === "true_false" && options.length < 2) {
@@ -112,12 +163,14 @@ export function normalizeQuestion(raw: Partial<QuizQuestion>): QuizQuestion {
   if (Array.isArray(raw.correct)) {
     if (type === "short_answer") {
       correct = raw.correct.map(String);
+    } else if (type === "matching" || type === "fill_blank" || type === "ordering") {
+      correct = [];
     } else {
       correct = raw.correct.map((c) => (typeof c === "number" ? c : Number(c))).filter((n) => !Number.isNaN(n));
     }
   }
 
-  return {
+  const q: QuizQuestion = {
     id: raw.id || newId("q"),
     type,
     prompt: String(raw.prompt || ""),
@@ -126,6 +179,49 @@ export function normalizeQuestion(raw: Partial<QuizQuestion>): QuizQuestion {
     points: typeof raw.points === "number" && raw.points > 0 ? raw.points : 1,
     media: normalizeMedia(raw.media),
   };
+  if (type === "matching") {
+    q.pairs = (Array.isArray(raw.pairs) ? raw.pairs : []).map((p) => ({
+      left: String(p?.left ?? ""),
+      right: String(p?.right ?? ""),
+    }));
+  }
+  if (type === "fill_blank") {
+    q.blanks = (Array.isArray(raw.blanks) ? raw.blanks : []).map((b) =>
+      Array.isArray(b) ? b.map(String) : [String(b ?? "")],
+    );
+  }
+  const explanation = String(raw.explanation ?? "").trim();
+  if (explanation) q.explanation = explanation;
+  return q;
+}
+
+/** Returns a problem description for the admin editor, or null when the question is valid. */
+export function questionProblem(q: QuizQuestion): string | null {
+  const filled = (list: string[]) => list.filter((x) => x.trim()).length;
+  if (!q.prompt.trim()) return q.type === "fill_blank" ? "needs a sentence with ___ blanks" : "needs a question";
+  switch (q.type) {
+    case "short_answer":
+      return filled(q.correct as string[]) ? null : "needs at least one accepted answer";
+    case "fill_blank": {
+      const n = countBlanks(q.prompt);
+      if (!n) return "needs at least one ___ blank in the sentence";
+      for (let i = 0; i < n; i++) if (!filled(q.blanks?.[i] || [])) return `blank ${i + 1} needs an accepted answer`;
+      return null;
+    }
+    case "matching": {
+      const pairs = q.pairs || [];
+      if (pairs.length < 2) return "needs at least two pairs";
+      return pairs.every((p) => p.left.trim() && p.right.trim()) ? null : "every pair needs both sides filled in";
+    }
+    case "ordering":
+      return filled(q.options) >= 2 && filled(q.options) === q.options.length ? null : "needs at least two items (no empty items)";
+    case "image_choice":
+      if (filled(q.options) < 2 || filled(q.options) !== q.options.length) return "needs at least two pictures (no empty ones)";
+      return (q.correct as number[]).length ? null : "tick the correct picture";
+    default:
+      if (q.options.length < 2) return "needs at least two options";
+      return (q.correct as number[]).length ? null : "tick the correct answer";
+  }
 }
 
 export function normalizeQuiz(raw: Partial<Quiz>): Quiz {
@@ -137,6 +233,7 @@ export function normalizeQuiz(raw: Partial<Quiz>): Quiz {
     description: String(raw.description || ""),
     cardImage: String(raw.cardImage || "").trim(),
     timeLimitMinutes: typeof raw.timeLimitMinutes === "number" && raw.timeLimitMinutes >= 0 ? raw.timeLimitMinutes : 10,
+    showAnswers: raw.showAnswers !== false,
     published: Boolean(raw.published),
     updatedAt: raw.updatedAt || new Date().toISOString(),
     questions: Array.isArray(raw.questions) ? raw.questions.map(normalizeQuestion) : [],
@@ -195,33 +292,147 @@ export function quizMaxScore(quiz: Quiz): number {
   return quiz.questions.reduce((sum, q) => sum + (q.points || 1), 0);
 }
 
-function answersMatchShort(student: string, accepted: string[]): boolean {
-  const norm = student.trim().toLowerCase();
-  if (!norm) return false;
-  return accepted.some((a) => a.trim().toLowerCase() === norm);
+function normText(s: string): string {
+  return s.trim().replace(/\s+/g, " ").toLowerCase();
 }
 
-/** Score a single question. `answer` is option index, array of indices, or string. */
+function answersMatchShort(student: string, accepted: string[]): boolean {
+  const norm = normText(student);
+  if (!norm) return false;
+  return accepted.some((a) => normText(a) === norm);
+}
+
+function numList(answer: unknown): number[] {
+  return Array.isArray(answer) ? answer.map((n) => Number(n)) : [];
+}
+
+/**
+ * Score a single question (full marks only when completely correct).
+ * Answers: MC/TF/image_choice index; multi_select index[]; short_answer string;
+ * matching number[] (chosen pair index per left item, -1 = none); fill_blank string[]; ordering index[] in student order.
+ */
 export function scoreQuestion(question: QuizQuestion, answer: unknown): number {
   const pts = question.points || 1;
-  if (question.type === "short_answer") {
-    const accepted = (question.correct as string[]).map(String);
-    return answersMatchShort(String(answer ?? ""), accepted) ? pts : 0;
+  switch (question.type) {
+    case "short_answer": {
+      const accepted = (question.correct as string[]).map(String);
+      return answersMatchShort(String(answer ?? ""), accepted) ? pts : 0;
+    }
+    case "multi_select": {
+      const correct = new Set((question.correct as number[]).map(Number));
+      const given = new Set(numList(answer).filter((n) => !Number.isNaN(n)));
+      if (correct.size !== given.size) return 0;
+      for (const c of correct) if (!given.has(c)) return 0;
+      return pts;
+    }
+    case "matching": {
+      const pairs = question.pairs || [];
+      if (!pairs.length) return 0;
+      const given = numList(answer);
+      return pairs.every((p, i) => {
+        const chosen = pairs[given[i]];
+        return chosen !== undefined && normText(chosen.right) === normText(p.right);
+      })
+        ? pts
+        : 0;
+    }
+    case "fill_blank": {
+      const n = countBlanks(question.prompt);
+      if (!n) return 0;
+      const given = Array.isArray(answer) ? answer.map((a) => String(a ?? "")) : [];
+      for (let i = 0; i < n; i++) {
+        if (!answersMatchShort(given[i] ?? "", question.blanks?.[i] || [])) return 0;
+      }
+      return pts;
+    }
+    case "ordering": {
+      const n = question.options.length;
+      const given = numList(answer);
+      if (n < 2 || given.length !== n) return 0;
+      return given.every((idx, pos) => normText(question.options[idx] ?? "\u0000") === normText(question.options[pos]))
+        ? pts
+        : 0;
+    }
+    default: {
+      // multiple_choice / true_false / image_choice
+      const correctIdx = Number((question.correct as number[])[0]);
+      const givenIdx = typeof answer === "number" ? answer : Number.NaN;
+      if (Number.isNaN(correctIdx) || Number.isNaN(givenIdx)) return 0;
+      return correctIdx === givenIdx ? pts : 0;
+    }
   }
-  if (question.type === "multi_select") {
-    const correct = new Set((question.correct as number[]).map(Number));
-    const given = new Set(
-      (Array.isArray(answer) ? answer : []).map((n) => Number(n)).filter((n) => !Number.isNaN(n)),
-    );
-    if (correct.size !== given.size) return 0;
-    for (const c of correct) if (!given.has(c)) return 0;
-    return pts;
+}
+
+export function isAnswered(question: QuizQuestion, answer: unknown): boolean {
+  if (answer === undefined || answer === null || answer === "") return false;
+  switch (question.type) {
+    case "matching":
+      return numList(answer).length === (question.pairs || []).length && numList(answer).every((n) => n >= 0);
+    case "fill_blank": {
+      const n = countBlanks(question.prompt);
+      const given = Array.isArray(answer) ? answer.map((a) => String(a ?? "").trim()) : [];
+      return n > 0 && given.length >= n && given.slice(0, n).every(Boolean);
+    }
+    case "multi_select":
+    case "ordering":
+      return Array.isArray(answer) && answer.length > 0;
+    default:
+      return typeof answer === "number" || String(answer).trim() !== "";
   }
-  // multiple_choice / true_false
-  const correctIdx = Number((question.correct as number[])[0]);
-  const givenIdx = Number(answer);
-  if (Number.isNaN(correctIdx) || Number.isNaN(givenIdx)) return 0;
-  return correctIdx === givenIdx ? pts : 0;
+}
+
+export type ReviewLine = { text: string; image?: string };
+
+/** Human-readable version of a student's answer for the review screen. */
+export function describeAnswer(q: QuizQuestion, answer: unknown): ReviewLine[] {
+  if (!isAnswered(q, answer) && q.type !== "matching" && q.type !== "fill_blank") return [];
+  switch (q.type) {
+    case "short_answer":
+      return [{ text: String(answer) }];
+    case "multi_select":
+      return numList(answer)
+        .sort((a, b) => a - b)
+        .map((i) => ({ text: q.options[i] ?? "?" }));
+    case "matching": {
+      const pairs = q.pairs || [];
+      const given = numList(answer);
+      if (!given.some((n) => n >= 0)) return [];
+      return pairs.map((p, i) => ({ text: `${p.left} \u2192 ${pairs[given[i]]?.right ?? "(no answer)"}` }));
+    }
+    case "fill_blank": {
+      const given = Array.isArray(answer) ? answer.map((a) => String(a ?? "").trim()) : [];
+      if (!given.some(Boolean)) return [];
+      return Array.from({ length: countBlanks(q.prompt) }, (_, i) => ({ text: `Blank ${i + 1}: ${given[i] || "(empty)"}` }));
+    }
+    case "ordering":
+      return numList(answer).map((idx, pos) => ({ text: `${pos + 1}. ${q.options[idx] ?? "?"}` }));
+    case "image_choice": {
+      const i = Number(answer);
+      return [{ text: `Picture ${optionLetter(i)}`, image: q.options[i] }];
+    }
+    default:
+      return [{ text: q.options[Number(answer)] ?? "?" }];
+  }
+}
+
+/** Human-readable correct answer for the review screen. */
+export function describeCorrect(q: QuizQuestion): ReviewLine[] {
+  switch (q.type) {
+    case "short_answer":
+      return [{ text: (q.correct as string[]).filter((a) => a.trim()).join(" / ") }];
+    case "matching":
+      return (q.pairs || []).map((p) => ({ text: `${p.left} \u2192 ${p.right}` }));
+    case "fill_blank":
+      return Array.from({ length: countBlanks(q.prompt) }, (_, i) => ({
+        text: `Blank ${i + 1}: ${(q.blanks?.[i] || []).filter((a) => a.trim()).join(" / ")}`,
+      }));
+    case "ordering":
+      return q.options.map((o, i) => ({ text: `${i + 1}. ${o}` }));
+    case "image_choice":
+      return (q.correct as number[]).map((i) => ({ text: `Picture ${optionLetter(i)}`, image: q.options[i] }));
+    default:
+      return (q.correct as number[]).map((i) => ({ text: q.options[i] ?? "?" }));
+  }
 }
 
 export function scoreQuiz(
@@ -265,15 +476,23 @@ export function youtubeIdFromMedia(media?: QuestionMedia): string | null {
 }
 
 export function emptyQuestion(type: QuestionType = "multiple_choice"): QuizQuestion {
-  const base: QuizQuestion = {
-    id: newId("q"),
-    type,
-    prompt: "",
-    options: type === "true_false" ? ["True", "False"] : ["Option A", "Option B"],
-    correct: type === "short_answer" ? [""] : type === "multi_select" ? [0] : [0],
-    points: 1,
-  };
-  return base;
+  const base: QuizQuestion = { id: newId("q"), type, prompt: "", options: [], correct: [], points: 1 };
+  switch (type) {
+    case "true_false":
+      return { ...base, options: ["True", "False"], correct: [0] };
+    case "short_answer":
+      return { ...base, correct: [""] };
+    case "matching":
+      return { ...base, pairs: [{ left: "", right: "" }, { left: "", right: "" }] };
+    case "fill_blank":
+      return { ...base, blanks: [[""]] };
+    case "ordering":
+      return { ...base, options: ["First item", "Second item", "Third item"] };
+    case "image_choice":
+      return { ...base, options: ["", ""], correct: [0] };
+    default:
+      return { ...base, options: ["Option A", "Option B"], correct: [0] };
+  }
 }
 
 export function emptyQuiz(): Quiz {
@@ -284,6 +503,7 @@ export function emptyQuiz(): Quiz {
     description: "",
     cardImage: "",
     timeLimitMinutes: 10,
+    showAnswers: true,
     published: true,
     updatedAt: new Date().toISOString(),
     questions: [emptyQuestion("multiple_choice")],
