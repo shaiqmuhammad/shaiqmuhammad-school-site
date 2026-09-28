@@ -1,0 +1,24 @@
+{
+  "banners": [
+    {
+      "id": "banner-welcome",
+      "title": "Welcome to your learning home",
+      "subtitle": "Quran, Hadith, lessons, videos, and quizzes — all in one calm place.",
+      "imageUrl": "https://picsum.photos/seed/sm-learn-banner/1600/600",
+      "buttonText": "Browse quizzes",
+      "buttonHref": "/quizzes",
+      "published": true,
+      "order": 0
+    },
+    {
+      "id": "banner-libraries",
+      "title": "Open the encyclopedias",
+      "subtitle": "Trusted Quran and Hadith libraries stay on this site while you study.",
+      "imageUrl": "https://picsum.photos/seed/sm-ency/1600/600",
+      "buttonText": "Encyclopedia of Quran",
+      "buttonHref": "/encyclopedia/quran",
+      "published": true,
+      "order": 1
+    }
+  ]
+}
