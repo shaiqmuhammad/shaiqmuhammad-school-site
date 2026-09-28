@@ -1,5 +1,7 @@
 /** Markdown-ish → HTML for lesson bodies: headings, lists, bold, links, images, YouTube. */
 
+import { extractYouTubeId } from "@/lib/content";
+
 export function renderMarkdownLite(source: string): string {
   const lines = source.replace(/\r\n/g, "\n").split("\n");
   const out: string[] = [];
@@ -37,7 +39,7 @@ export function renderMarkdownLite(source: string): string {
     if (ytBlock) {
       flushPara();
       closeLists();
-      const id = extractId(ytBlock[1]);
+      const id = extractYouTubeId(ytBlock[1]);
       if (id) {
         out.push(
           `<div class="video-embed"><iframe title="YouTube video" src="https://www.youtube.com/embed/${id}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe></div>`,
@@ -111,12 +113,6 @@ export function renderMarkdownLite(source: string): string {
   return out.join("\n");
 }
 
-function extractId(raw: string): string | null {
-  const t = raw.trim();
-  if (/^[\w-]{11}$/.test(t)) return t;
-  const m = t.match(/(?:v=|\/embed\/|\/shorts\/|youtu\.be\/)([\w-]{11})/);
-  return m?.[1] ?? null;
-}
 
 function escapeHtml(s: string): string {
   return s

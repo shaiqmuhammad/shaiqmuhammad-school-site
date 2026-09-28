@@ -73,9 +73,13 @@ function normalizeTeacher(raw: Partial<TeacherProfile> | undefined): TeacherProf
 }
 
 export function normalizeContentData(data: Partial<ContentData> | null | undefined): ContentData {
+  const videos = (Array.isArray(data?.videos) ? data!.videos! : []).map((v) => {
+    const extracted = extractYouTubeId(v.youtubeId || "");
+    return extracted && extracted !== v.youtubeId ? { ...v, youtubeId: extracted } : v;
+  });
   return {
     pages: Array.isArray(data?.pages) ? data!.pages! : [],
-    videos: Array.isArray(data?.videos) ? data!.videos! : [],
+    videos,
     teacher: normalizeTeacher(data?.teacher),
   };
 }
@@ -91,12 +95,17 @@ export function extractYouTubeId(input: string): string | null {
     const url = new URL(raw);
     const host = url.hostname.replace(/^www\./, "");
 
-    if (host === "youtu.be") {
-      const id = url.pathname.split("/").filter(Boolean)[0];
+    if (host === "youtu.be" || host === "www.youtu.be") {
+      const id = url.pathname.split("/").filter(Boolean)[0]?.split("?")[0];
       return id && /^[\w-]{11}$/.test(id) ? id : null;
     }
 
-    if (host === "youtube.com" || host === "m.youtube.com" || host === "music.youtube.com") {
+    if (
+      host === "youtube.com" ||
+      host === "m.youtube.com" ||
+      host === "music.youtube.com" ||
+      host === "youtube-nocookie.com"
+    ) {
       const v = url.searchParams.get("v");
       if (v && /^[\w-]{11}$/.test(v)) return v;
 
@@ -113,16 +122,22 @@ export function extractYouTubeId(input: string): string | null {
     // not a URL
   }
 
-  const match = raw.match(/(?:v=|\/embed\/|\/shorts\/|youtu\.be\/)([\w-]{11})/);
+  const match = raw.match(/(?:v=|\/embed\/|\/shorts\/|\/live\/|youtu\.be\/)([\w-]{11})/);
   return match?.[1] ?? null;
 }
 
-export function youtubeEmbedUrl(youtubeId: string): string {
-  return `https://www.youtube.com/embed/${youtubeId}`;
+/**
+ * Build a YouTube embed URL from a bare 11-char ID **or** a full watch/youtu.be/shorts URL.
+ * Falls back to the raw value when extraction fails (caller should prefer extractYouTubeId first).
+ */
+export function youtubeEmbedUrl(youtubeIdOrUrl: string): string {
+  const id = extractYouTubeId(youtubeIdOrUrl) || youtubeIdOrUrl.trim();
+  return `https://www.youtube.com/embed/${id}`;
 }
 
-export function youtubeThumbUrl(youtubeId: string): string {
-  return `https://i.ytimg.com/vi/${youtubeId}/hqdefault.jpg`;
+export function youtubeThumbUrl(youtubeIdOrUrl: string): string {
+  const id = extractYouTubeId(youtubeIdOrUrl) || youtubeIdOrUrl.trim();
+  return `https://i.ytimg.com/vi/${id}/hqdefault.jpg`;
 }
 
 export async function loadContentData(): Promise<ContentData> {

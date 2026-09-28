@@ -3,10 +3,12 @@ import { Card } from "@/components/Card";
 import { PageHero } from "@/components/PageHero";
 import { Section } from "@/components/Section";
 import {
+  extractYouTubeId,
   listPublishedVideos,
   youtubeEmbedUrl,
 } from "@/lib/content";
 import { loadContentDataSync } from "@/lib/contentServer";
+import { VideosEmpty, WatchOnYouTube } from "@/components/VideosEmpty";
 
 export const metadata: Metadata = {
   title: "Videos",
@@ -14,7 +16,12 @@ export const metadata: Metadata = {
 };
 
 export default function VideosPage() {
-  const videos = listPublishedVideos(loadContentDataSync());
+  const videos = listPublishedVideos(loadContentDataSync())
+    .map((video) => {
+      const id = extractYouTubeId(video.youtubeId) || video.youtubeId.trim();
+      return { ...video, youtubeId: id };
+    })
+    .filter((video) => Boolean(video.youtubeId));
 
   return (
     <>
@@ -25,7 +32,7 @@ export default function VideosPage() {
       />
       <Section>
         {videos.length === 0 ? (
-          <p className="text-muted">No published videos yet. Please check back soon.</p>
+          <VideosEmpty />
         ) : (
           <div className="space-y-10">
             {videos.map((video) => (
@@ -34,7 +41,7 @@ export default function VideosPage() {
                   <iframe
                     title={video.title}
                     src={youtubeEmbedUrl(video.youtubeId)}
-                    className="h-full w-full"
+                    className="h-full w-full border-0"
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                     allowFullScreen
                     loading="lazy"
@@ -43,9 +50,8 @@ export default function VideosPage() {
                 </div>
                 <div className="p-6">
                   <h2 className="text-xl font-semibold">{video.title}</h2>
-                  <p className="mt-2 text-sm text-muted leading-relaxed">
-                    {video.description}
-                  </p>
+                  <p className="mt-2 text-sm text-muted leading-relaxed">{video.description}</p>
+                  <WatchOnYouTube youtubeId={video.youtubeId} />
                 </div>
               </Card>
             ))}
