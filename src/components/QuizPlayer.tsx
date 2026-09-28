@@ -3,11 +3,14 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { QuizMedia } from "@/components/QuizMedia";
+import { QuizQuestionInput } from "@/components/QuizQuestionInput";
+import { QuizReview } from "@/components/QuizReview";
 import { downloadCertificatePdf } from "@/lib/certificatePdf";
 import { newId } from "@/lib/content";
 import {
   appendLocalResult,
   computeRank,
+  isAnswered,
   loadCertificateTemplate,
   loadQuizResultsData,
   quizMaxScore,
@@ -25,6 +28,35 @@ type Props = {
 
 type Phase = "intro" | "running" | "done";
 
+/** Random order of 0..n-1 that is never the original order (when n > 1). */
+function shuffledIndexes(n: number): number[] {
+  const a = Array.from({ length: n }, (_, i) => i);
+  for (let i = n - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  if (n > 1 && a.every((v, i) => v === i)) a.push(a.shift() as number);
+  return a;
+}
+
+function initialAnswers(quiz: Quiz): { answers: Record<string, unknown>; rightOrders: Record<string, number[]> } {
+  const answers: Record<string, unknown> = {};
+  const rightOrders: Record<string, number[]> = {};
+  for (const q of quiz.questions) {
+    if (q.type === "ordering") answers[q.id] = shuffledIndexes(q.options.length);
+    if (q.type === "matching") {
+      const n = (q.pairs || []).length;
+      answers[q.id] = Array.from({ length: n }, () => -1);
+      rightOrders[q.id] = shuffledIndexes(n);
+    }
+  }
+  return { answers, rightOrders };
+}
+
+function countBlanksLabel(prompt: string): string {
+  return (prompt.match(/_{3,}/g) || []).length > 1 ? "s" : "";
+}
+
 function formatTime(totalSeconds: number): string {
   const m = Math.floor(totalSeconds / 60);
   const s = totalSeconds % 60;
@@ -41,6 +73,8 @@ export function QuizPlayer({ quiz, initialTemplate, initialResults }: Props) {
   const [template, setTemplate] = useState<CertificateTemplate>(initialTemplate);
   const [published, setPublished] = useState<QuizResult[]>(initialResults);
   const [timedOut, setTimedOut] = useState(false);
+  const [rightOrders, setRightOrders] = useState<Record<string, number[]>>({});
+  const [finalAnswers, setFinalAnswers] = useState<Record<string, unknown>>({});
   const answersRef = useRef(answers);
   const submittedRef = useRef(false);
 
@@ -73,6 +107,7 @@ export function QuizPlayer({ quiz, initialTemplate, initialResults }: Props) {
       } catch {
         // storage unavailable — still show the result
       }
+      setFinalAnswers(answersRef.current);
       setResult(r);
       setRank(computeRank(published, quiz.id, r));
       setTimedOut(auto);
@@ -100,25 +135,13 @@ export function QuizPlayer({ quiz, initialTemplate, initialResults }: Props) {
     setAnswers((prev) => ({ ...prev, [qid]: value }));
   }
 
-  function toggleMulti(qid: string, idx: number) {
-    setAnswers((prev) => {
-      const cur = Array.isArray(prev[qid]) ? (prev[qid] as number[]) : [];
-      const next = cur.includes(idx) ? cur.filter((n) => n !== idx) : [...cur, idx];
-      return { ...prev, [qid]: next };
-    });
-  }
-
   function positionLabel(): string {
     if (!rank || !rank.total) return "";
     return `${rank.rank} of ${rank.total}`;
   }
 
   const maxScore = quizMaxScore(quiz);
-  const answeredCount = quiz.questions.filter((q) => {
-    const a = answers[q.id];
-    if (Array.isArray(a)) return a.length > 0;
-    return a !== undefined && a !== "";
-  }).length;
+  const answeredCount = quiz.questions.filter((q) => isAnswered(q, answers[q.id])).length;
 
   if (phase === "intro") {
     return (
@@ -132,7 +155,9 @@ export function QuizPlayer({ quiz, initialTemplate, initialResults }: Props) {
             e.preventDefault();
             if (!name.trim()) return;
             submittedRef.current = false;
-            setAnswers({});
+            const init = initialAnswers(quiz);
+            setAnswers(init.answers);
+            setRightOrders(init.rightOrders);
             setSecondsLeft(quiz.timeLimitMinutes * 60);
             setPhase("running");
           }}
@@ -160,6 +185,7 @@ export function QuizPlayer({ quiz, initialTemplate, initialResults }: Props) {
 
   if (phase === "done" && result) {
     return (
+      <div className="space-y-8">
       <div className="max-w-xl space-y-5 rounded-2xl border border-card-border bg-card p-6">
         {timedOut && <p className="rounded-lg bg-gold-soft px-3 py-2 text-sm">Time is up — your answers were submitted automatically.</p>}
         <div>
@@ -194,6 +220,8 @@ export function QuizPlayer({ quiz, initialTemplate, initialResults }: Props) {
         </div>
         <p className="text-xs text-muted">Your result is saved on this device. Please tell your teacher you finished so they can add it to the class results.</p>
       </div>
+      {quiz.showAnswers && <QuizReview quiz={quiz} answers={finalAnswers} />}
+      </div>
     );
   }
 
@@ -220,37 +248,15 @@ export function QuizPlayer({ quiz, initialTemplate, initialResults }: Props) {
             <legend className="sr-only">Question {i + 1}</legend>
             <p className="text-xs font-semibold uppercase tracking-wide text-muted">
               Question {i + 1} · {q.points} mark{q.points === 1 ? "" : "s"}
-              {q.type === "multi_select" && " · select all that apply"}
             </p>
-            <p className="mt-1 font-medium whitespace-pre-wrap">{q.prompt}</p>
+            {q.type === "fill_blank" ? (
+              <p className="mt-1 font-medium">Fill in the blank{countBlanksLabel(q.prompt)}</p>
+            ) : (
+              <p className="mt-1 whitespace-pre-wrap font-medium">{q.prompt}</p>
+            )}
             <QuizMedia media={q.media} />
-            <div className="mt-4 space-y-2">
-              {(q.type === "multiple_choice" || q.type === "true_false") &&
-                q.options.map((opt, idx) => (
-                  <label key={idx} className="flex cursor-pointer items-center gap-3 rounded-lg border border-card-border px-3 py-2 text-sm hover:bg-accent-soft/60">
-                    <input type="radio" name={q.id} checked={answers[q.id] === idx} onChange={() => setAnswer(q.id, idx)} />
-                    {opt}
-                  </label>
-                ))}
-              {q.type === "multi_select" &&
-                q.options.map((opt, idx) => (
-                  <label key={idx} className="flex cursor-pointer items-center gap-3 rounded-lg border border-card-border px-3 py-2 text-sm hover:bg-accent-soft/60">
-                    <input
-                      type="checkbox"
-                      checked={Array.isArray(answers[q.id]) && (answers[q.id] as number[]).includes(idx)}
-                      onChange={() => toggleMulti(q.id, idx)}
-                    />
-                    {opt}
-                  </label>
-                ))}
-              {q.type === "short_answer" && (
-                <input
-                  className="w-full rounded-lg border border-card-border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
-                  value={String(answers[q.id] ?? "")}
-                  onChange={(e) => setAnswer(q.id, e.target.value)}
-                  placeholder="Type your answer"
-                />
-              )}
+            <div className="mt-4">
+              <QuizQuestionInput q={q} value={answers[q.id]} onChange={(v) => setAnswer(q.id, v)} rightOrder={rightOrders[q.id]} />
             </div>
           </fieldset>
         ))}
