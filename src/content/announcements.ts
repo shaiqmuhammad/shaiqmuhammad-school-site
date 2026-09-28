@@ -15,9 +15,4 @@ export const announcements: Announcement[] = [
     text: "New video lessons and written pages are published regularly — check Lessons & Videos",
     href: "/lessons",
   },
-  {
-    id: "3",
-    text: "Portal Login is available for class communications and school materials",
-    href: "/login",
-  },
 ];
