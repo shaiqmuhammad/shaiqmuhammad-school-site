@@ -34,11 +34,6 @@ export function Footer() {
                 Login
               </Link>
             </li>
-            <li>
-              <Link href="/admin/login" className="text-muted hover:text-primary">
-                Admin
-              </Link>
-            </li>
           </ul>
         </div>
         <div>

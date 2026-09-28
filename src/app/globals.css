@@ -1,35 +1,36 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f4faf8;
+  --background: #ffffff;
   --foreground: #0f1f1c;
   --muted: #5c736c;
   --card: #ffffff;
-  --card-border: #d5e5df;
+  --card-border: #e5ebe8;
   --primary: #0f5c4c;
   --primary-foreground: #f0faf6;
   --accent: #c9a227;
-  --accent-soft: #e8f5f0;
+  --accent-soft: #f3faf7;
   --gold: #c9a227;
-  --gold-soft: #f7f0d8;
-  --header: rgba(244, 250, 248, 0.92);
+  --gold-soft: #fbf6e6;
+  --header: rgba(255, 255, 255, 0.95);
   --ring: #0f5c4c;
 }
 
+/* Light-only site: dark class still readable but white-forward */
 .dark {
-  --background: #0a1613;
-  --foreground: #e8f5f0;
-  --muted: #8faba2;
-  --card: #122420;
-  --card-border: #1e3a33;
-  --primary: #3dba9a;
-  --primary-foreground: #0a1613;
-  --accent: #e0c35a;
-  --accent-soft: #1a332c;
-  --gold: #e0c35a;
-  --gold-soft: #2a2a18;
-  --header: rgba(10, 22, 19, 0.92);
-  --ring: #3dba9a;
+  --background: #ffffff;
+  --foreground: #0f1f1c;
+  --muted: #5c736c;
+  --card: #ffffff;
+  --card-border: #e5ebe8;
+  --primary: #0f5c4c;
+  --primary-foreground: #f0faf6;
+  --accent: #c9a227;
+  --accent-soft: #f3faf7;
+  --gold: #c9a227;
+  --gold-soft: #fbf6e6;
+  --header: rgba(255, 255, 255, 0.95);
+  --ring: #0f5c4c;
 }
 
 @theme inline {
@@ -51,27 +52,18 @@
 }
 
 body {
-  background: var(--background);
+  background: #ffffff;
   color: var(--foreground);
   font-family: var(--font-sans), system-ui, sans-serif;
 }
 
 @keyframes ticker {
-  0% {
-    transform: translateX(0);
-  }
-  100% {
-    transform: translateX(-50%);
-  }
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
 }
 
-.animate-ticker {
-  animation: ticker 40s linear infinite;
-}
-
-.animate-ticker:hover {
-  animation-play-state: paused;
-}
+.animate-ticker { animation: ticker 40s linear infinite; }
+.animate-ticker:hover { animation-play-state: paused; }
 
 :focus-visible {
   outline: 2px solid var(--ring);
@@ -79,76 +71,32 @@ body {
 }
 
 .prose-lesson h2 {
-  margin-top: 1.5rem;
-  margin-bottom: 0.5rem;
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: var(--foreground);
+  margin-top: 1.5rem; margin-bottom: 0.5rem;
+  font-size: 1.25rem; font-weight: 600; color: var(--foreground);
 }
-
 .prose-lesson h3 {
-  margin-top: 1.25rem;
-  margin-bottom: 0.4rem;
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: var(--foreground);
+  margin-top: 1.25rem; margin-bottom: 0.4rem;
+  font-size: 1.1rem; font-weight: 600; color: var(--foreground);
 }
-
-.prose-lesson p {
-  margin-bottom: 0.9rem;
-  line-height: 1.7;
-  color: var(--muted);
+.prose-lesson p { margin-bottom: 0.9rem; line-height: 1.7; color: var(--muted); }
+.prose-lesson ul, .prose-lesson ol {
+  margin-bottom: 0.9rem; padding-left: 1.25rem; color: var(--muted); line-height: 1.7;
 }
-
-.prose-lesson ul,
-.prose-lesson ol {
-  margin-bottom: 0.9rem;
-  padding-left: 1.25rem;
-  color: var(--muted);
-  line-height: 1.7;
-}
-
-.prose-lesson li {
-  margin-bottom: 0.35rem;
-}
-
-.prose-lesson strong {
-  color: var(--foreground);
-  font-weight: 600;
-}
-
-.prose-lesson a {
-  color: var(--primary);
-  text-decoration: underline;
-}
-
+.prose-lesson li { margin-bottom: 0.35rem; }
+.prose-lesson strong { color: var(--foreground); font-weight: 600; }
+.prose-lesson a { color: var(--primary); text-decoration: underline; }
 .prose-lesson .video-embed {
-  position: relative;
-  aspect-ratio: 16 / 9;
-  margin: 1.25rem 0;
-  overflow: hidden;
-  border-radius: 0.75rem;
-  background: var(--accent-soft);
+  position: relative; aspect-ratio: 16 / 9; margin: 1.25rem 0;
+  overflow: hidden; border-radius: 0.75rem; background: var(--accent-soft);
 }
 .prose-lesson .video-embed iframe {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  border: 0;
+  position: absolute; inset: 0; width: 100%; height: 100%; border: 0;
 }
-.prose-lesson .lesson-figure {
-  margin: 1.25rem 0;
-}
+.prose-lesson .lesson-figure { margin: 1.25rem 0; }
 .prose-lesson .lesson-figure img,
 .prose-lesson .inline-lesson-img {
-  max-width: 100%;
-  height: auto;
-  border-radius: 0.75rem;
-  border: 1px solid var(--card-border);
+  max-width: 100%; height: auto; border-radius: 0.75rem; border: 1px solid var(--card-border);
 }
 .prose-lesson .lesson-figure figcaption {
-  margin-top: 0.5rem;
-  font-size: 0.75rem;
-  color: var(--muted);
+  margin-top: 0.5rem; font-size: 0.75rem; color: var(--muted);
 }

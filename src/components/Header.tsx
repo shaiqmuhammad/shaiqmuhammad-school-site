@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { encyclopediaLinks, navLinks, siteConfig } from "@/content/site";
-import { ThemeToggle } from "@/components/ThemeToggle";
 import { HadithScrollIcon, QuranBookIcon } from "@/components/EncyclopediaIcons";
 
 export function Header() {
@@ -56,19 +55,11 @@ export function Header() {
         </nav>
 
         <div className="flex items-center gap-2">
-          <ThemeToggle />
           <Link
             href="/login"
             className="hidden rounded-full bg-primary px-3.5 py-1.5 text-sm font-medium text-primary-foreground shadow-sm transition hover:opacity-90 sm:inline-flex"
           >
             Login
-          </Link>
-          <Link
-            href="/admin/login"
-            className="hidden rounded-full border border-card-border px-3 py-1.5 text-xs font-medium text-muted transition hover:border-primary hover:text-primary md:inline-flex"
-            title="Admin CMS"
-          >
-            Admin
           </Link>
           <button
             type="button"
@@ -135,15 +126,6 @@ export function Header() {
                 className="mt-2 block rounded-md bg-primary px-3 py-2 text-center text-sm font-medium text-primary-foreground"
               >
                 Login Portal
-              </Link>
-            </li>
-            <li>
-              <Link
-                href="/admin/login"
-                onClick={() => setOpen(false)}
-                className="block rounded-md px-3 py-2 text-center text-sm text-muted hover:text-primary"
-              >
-                Admin
               </Link>
             </li>
           </ul>

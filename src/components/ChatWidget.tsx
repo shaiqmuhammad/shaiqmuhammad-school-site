@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { loadSiteSettings, resolveTawkIds } from "@/lib/siteSettings";
 
 declare global {
   interface Window {
@@ -12,15 +13,35 @@ declare global {
 
 /**
  * Free live chat via Tawk.to.
- * Set NEXT_PUBLIC_TAWK_PROPERTY_ID and NEXT_PUBLIC_TAWK_WIDGET_ID in env, then rebuild.
- * Without IDs, shows a discreet Contact fallback — no fake backend.
+ * IDs from NEXT_PUBLIC_TAWK_* env (preferred) OR public/content/settings.json via Admin → Settings.
+ * Without IDs, shows a discreet “Chat coming soon” fallback.
  */
 export function ChatWidget() {
-  const propertyId = process.env.NEXT_PUBLIC_TAWK_PROPERTY_ID?.trim() || "";
-  const widgetId = process.env.NEXT_PUBLIC_TAWK_WIDGET_ID?.trim() || "";
   const [mounted, setMounted] = useState(false);
+  const [propertyId, setPropertyId] = useState("");
+  const [widgetId, setWidgetId] = useState("");
 
   useEffect(() => setMounted(true), []);
+
+  useEffect(() => {
+    let cancelled = false;
+    loadSiteSettings()
+      .then((settings) => {
+        if (cancelled) return;
+        const ids = resolveTawkIds(settings);
+        setPropertyId(ids.propertyId);
+        setWidgetId(ids.widgetId);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        const ids = resolveTawkIds(null);
+        setPropertyId(ids.propertyId);
+        setWidgetId(ids.widgetId);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!propertyId || !widgetId) return;
@@ -36,10 +57,6 @@ export function ChatWidget() {
     s.charset = "UTF-8";
     s.setAttribute("crossorigin", "*");
     document.body.appendChild(s);
-
-    return () => {
-      // leave script in place across SPA navigations
-    };
   }, [propertyId, widgetId]);
 
   if (!mounted) return null;
@@ -49,10 +66,10 @@ export function ChatWidget() {
   }
 
   return (
-    <div className="fixed bottom-4 right-4 z-40 max-w-[14rem] rounded-2xl border border-card-border bg-card p-3 text-xs shadow-lg">
+    <div className="fixed bottom-4 right-4 z-40 max-w-[14rem] rounded-2xl border border-card-border bg-white p-3 text-xs shadow-lg">
       <p className="font-semibold text-foreground">Chat coming soon</p>
       <p className="mt-1 text-muted">
-        Live chat activates when Tawk.to IDs are set. Meanwhile{" "}
+        Live chat will be available here soon. Meanwhile{" "}
         <Link href="/contact" className="font-medium text-primary hover:underline">
           contact us
         </Link>
