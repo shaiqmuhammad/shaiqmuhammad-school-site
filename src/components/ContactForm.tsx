@@ -38,6 +38,7 @@ export function ContactForm() {
       return;
     }
 
+    // mailto fallback for static export
     const subject = encodeURIComponent(`Learning site message from ${name}`);
     const body = encodeURIComponent(`Name: ${name}\nEmail: ${email}\n\n${message}`);
     window.location.href = `mailto:${siteConfig.email}?subject=${subject}&body=${body}`;
