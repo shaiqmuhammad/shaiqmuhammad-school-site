@@ -3,13 +3,13 @@
     {
       "id": "quiz-sample-welcome",
       "slug": "welcome-quiz",
-      "title": "Welcome Quiz",
+      "title": "Five Pillars of Islam",
       "description": "A short practice quiz so students can try the timer, every question type, the answer review and the certificate.",
       "cardImage": "https://images.unsplash.com/photo-1752900385454-7876eec9c326?auto=format&fit=crop&w=800&h=500&q=80",
       "timeLimitMinutes": 10,
       "showAnswers": true,
       "published": true,
-      "updatedAt": "2026-09-28T14:00:00.000Z",
+      "updatedAt": "2026-09-29T09:05:18.909Z",
       "questions": [
         {
           "id": "q1",
