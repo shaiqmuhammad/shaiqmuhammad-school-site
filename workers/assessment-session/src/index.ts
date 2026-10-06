@@ -8,12 +8,15 @@
  * Endpoints (JSON, CORS *):
  *   POST /api/session/create              {quiz, durationSec?, teacherSecret?} -> {code, hostKey, ...info}
  *   GET  /api/session/:code               public join info (title, status, startAt, endAt, now, participants)
- *   POST /api/session/:code/join          {name} -> {participantId, token, name}
+ *   POST /api/session/:code/join          {name, deviceId?} -> {participantId, token, name} (403 "removed" for a removed device)
  *   GET  /api/session/:code/me?pid=&token=  participant state (+ shuffled questions once started)
  *   POST /api/session/:code/answer        {pid, token, questionId, answer}
  *   POST /api/session/:code/submit        {pid, token, answers?}
  *   POST /api/session/:code/start         {hostKey, countdownSec?}  -> sets startAt for everyone
  *   POST /api/session/:code/end           {hostKey}
+ *   POST /api/session/:code/remove        {hostKey, pid}  -> student removed (device blocked from rejoining, left out of results)
+ *   POST /api/session/:code/restore       {hostKey, pid}  -> let a removed student back in (answers kept)
+ *   POST /api/session/:code/names         {hostKey, hide} -> hide/show student names on every screen
  *   GET  /api/session/:code/results[?hostKey=][&pid=&token=]
  *        class table (host: any time; everyone: after the end) with rank (ties share a rank) and a class summary.
  *        Per-question detail (answer, correct?, earned, time) is included for every student when hostKey is
@@ -21,7 +24,7 @@
  *        explanations) is included with the detail so the board can show questions and correct answers.
  */
 import { DurableObject } from "cloudflare:workers";
-import { isAnswered, normalizeQuiz, quizMaxScore, scoreQuestion, type Quiz, type QuizQuestion } from "../../../src/lib/quiz";
+import { isAnswered, normalizeQuiz, quizMaxScore, scoreQuestion, wordBank, type Quiz, type QuizQuestion } from "../../../src/lib/quiz";
 
 export interface Env {
   SESSIONS: DurableObjectNamespace<AssessmentSession>;
@@ -38,6 +41,8 @@ type Meta = {
   startAt?: number;
   endAt?: number;
   endedAt?: number;
+  /** Teacher hid names: students see "Student N" for everyone except themselves. */
+  hideNames?: boolean;
 };
 
 type Participant = {
@@ -50,6 +55,10 @@ type Participant = {
   answeredAt?: Record<string, number>;
   joinedAt: number;
   submittedAt?: number;
+  /** Random id stored on the student's device, used to stop a removed student rejoining. */
+  deviceId?: string;
+  /** Set when the teacher removed the student. */
+  removedAt?: number;
 };
 
 type Reply = { status: number; body: unknown };
@@ -102,9 +111,10 @@ function cleanName(raw: unknown): string {
     .slice(0, 40);
 }
 
-/** Question as sent to students during the attempt: no answer key, no explanations. */
+/** Question as sent to students during the attempt: no answer key, no explanations (choose-the-word gets its full word bank). */
 function forStudent(q: QuizQuestion): QuizQuestion {
   const copy: QuizQuestion = { ...q, correct: [] };
+  if (q.type === "fill_blank") copy.options = wordBank(q);
   delete copy.blanks;
   delete copy.explanation;
   delete copy.explanationAr;
@@ -141,9 +151,21 @@ export class AssessmentSession extends DurableObject<Env> {
     return "running";
   }
 
-  private info(now: number) {
+  /** Students still in the session (not removed), in join order. */
+  private active(): Participant[] {
+    return [...this.participants.values()].filter((p) => !p.removedAt).sort((a, b) => a.joinedAt - b.joinedAt);
+  }
+
+  /** Name as shown to this viewer: "Student N" when the teacher hid names (the host and the student themself see the real name). */
+  private label(p: Participant, opts: { host?: boolean; selfId?: string }): string {
+    if (!this.meta!.hideNames || opts.host || p.id === opts.selfId) return p.name;
+    return `Student ${this.active().findIndex((x) => x.id === p.id) + 1}`;
+  }
+
+  private info(now: number, opts: { host?: boolean; selfId?: string } = {}) {
     const m = this.meta!;
     const q = this.quiz!;
+    const active = this.active();
     return {
       code: m.code,
       title: q.title,
@@ -157,10 +179,12 @@ export class AssessmentSession extends DurableObject<Env> {
       startAt: m.startAt ?? null,
       endAt: m.endedAt ?? m.endAt ?? null,
       now,
-      participantCount: this.participants.size,
-      participants: [...this.participants.values()]
-        .sort((a, b) => a.joinedAt - b.joinedAt)
-        .map((p) => ({ name: p.name, answered: this.answeredCount(p), submitted: Boolean(p.submittedAt) })),
+      participantCount: active.length,
+      participants: active.map((p) => ({ id: p.id, name: this.label(p, opts), answered: this.answeredCount(p), submitted: Boolean(p.submittedAt) })),
+      hideNames: Boolean(m.hideNames),
+      ...(opts.host
+        ? { removed: [...this.participants.values()].filter((p) => p.removedAt).sort((a, b) => a.removedAt! - b.removedAt!).map((p) => ({ id: p.id, name: p.name })) }
+        : {}),
     };
   }
 
@@ -172,7 +196,7 @@ export class AssessmentSession extends DurableObject<Env> {
     const q = this.quiz!;
     const maxScore = quizMaxScore(q);
     const startAt = this.meta!.startAt ?? null;
-    const rows = [...this.participants.values()].map((p) => {
+    const rows = this.active().map((p) => {
       let score = 0;
       let correct = 0;
       let unanswered = 0;
@@ -210,7 +234,8 @@ export class AssessmentSession extends DurableObject<Env> {
       const total = q.questions.length;
       const showDetail = opts.hostDetail || (opts.selfId !== undefined && opts.selfId === p.id);
       return {
-        name: p.name,
+        id: p.id,
+        name: this.label(p, { host: opts.hostDetail, selfId: opts.selfId }),
         ...(showDetail ? { details } : {}),
         ...(opts.selfId !== undefined && opts.selfId === p.id ? { isSelf: true } : {}),
         score,
@@ -241,7 +266,7 @@ export class AssessmentSession extends DurableObject<Env> {
       averageScore: ranked.length ? Math.round((ranked.reduce((a, r) => a + r.score, 0) / ranked.length) * 10) / 10 : 0,
     };
     const withDetail = opts.hostDetail || opts.selfId !== undefined;
-    return { ...this.info(now), rows: ranked, summary, ...(withDetail ? { quiz: q } : {}) };
+    return { ...this.info(now, { host: opts.hostDetail, selfId: opts.selfId }), rows: ranked, summary, ...(withDetail ? { quiz: q } : {}) };
   }
 
   private auth(body: Record<string, unknown>): Participant | null {
@@ -282,15 +307,19 @@ export class AssessmentSession extends DurableObject<Env> {
 
     switch (action) {
       case "info":
-        return { status: 200, body: this.info(now) };
+        return { status: 200, body: this.info(now, { host: isHost }) };
 
       case "join": {
         if (method !== "POST") break;
         if (this.status(now) === "ended") return { status: 409, body: { error: "ended" } };
         if (this.participants.size >= MAX_PARTICIPANTS) return { status: 409, body: { error: "full" } };
+        const deviceId = String(body.deviceId ?? "").replace(/[^a-zA-Z0-9-]/g, "").slice(0, 64);
+        if (deviceId && [...this.participants.values()].some((x) => x.removedAt && x.deviceId === deviceId)) {
+          return { status: 403, body: { error: "removed" } };
+        }
         let name = cleanName(body.name);
         if (!name) return { status: 400, body: { error: "name_required" } };
-        const taken = new Set([...this.participants.values()].map((p) => p.name.toLowerCase()));
+        const taken = new Set(this.active().map((p) => p.name.toLowerCase()));
         if (taken.has(name.toLowerCase())) {
           let n = 2;
           while (taken.has(`${name} (${n})`.toLowerCase())) n++;
@@ -303,14 +332,16 @@ export class AssessmentSession extends DurableObject<Env> {
           order: shuffle(this.quiz.questions.map((q) => q.id)),
           answers: {},
           joinedAt: now,
+          ...(deviceId ? { deviceId } : {}),
         };
         await this.saveParticipant(p);
-        return { status: 200, body: { participantId: p.id, token: p.token, name: p.name, ...this.info(now) } };
+        return { status: 200, body: { participantId: p.id, token: p.token, name: p.name, ...this.info(now, { selfId: p.id }) } };
       }
 
       case "me": {
         const p = this.auth(body);
         if (!p) return { status: 403, body: { error: "unknown_participant" } };
+        if (p.removedAt) return { status: 403, body: { error: "removed" } };
         const status = this.status(now);
         const byId = new Map(this.quiz.questions.map((q) => [q.id, q]));
         const questions =
@@ -320,7 +351,7 @@ export class AssessmentSession extends DurableObject<Env> {
         return {
           status: 200,
           body: {
-            ...this.info(now),
+            ...this.info(now, { selfId: p.id }),
             me: { id: p.id, name: p.name, submitted: Boolean(p.submittedAt), answers: p.answers, answered: this.answeredCount(p) },
             questions,
           },
@@ -331,6 +362,7 @@ export class AssessmentSession extends DurableObject<Env> {
         if (method !== "POST") break;
         const p = this.auth(body);
         if (!p) return { status: 403, body: { error: "unknown_participant" } };
+        if (p.removedAt) return { status: 403, body: { error: "removed" } };
         if (p.submittedAt) return { status: 409, body: { error: "already_submitted" } };
         if (!this.canAnswer(now)) return { status: 409, body: { error: "not_running", ...this.info(now) } };
         const qid = String(body.questionId ?? "");
@@ -346,6 +378,7 @@ export class AssessmentSession extends DurableObject<Env> {
         if (method !== "POST") break;
         const p = this.auth(body);
         if (!p) return { status: 403, body: { error: "unknown_participant" } };
+        if (p.removedAt) return { status: 403, body: { error: "removed" } };
         if (!p.submittedAt) {
           if (body.answers && typeof body.answers === "object" && this.canAnswer(now)) {
             const incoming = body.answers as Record<string, unknown>;
@@ -387,6 +420,26 @@ export class AssessmentSession extends DurableObject<Env> {
           if (!m.startAt) m.startAt = now;
           await this.ctx.storage.put("meta", m);
         }
+        return { status: 200, body: this.results(now, { hostDetail: true }) };
+      }
+
+      case "remove":
+      case "restore": {
+        if (method !== "POST") break;
+        if (!isHost) return { status: 403, body: { error: "host_only" } };
+        const p = this.participants.get(String(body.pid ?? ""));
+        if (!p) return { status: 404, body: { error: "unknown_participant" } };
+        if (action === "remove") p.removedAt = p.removedAt ?? now;
+        else delete p.removedAt;
+        await this.saveParticipant(p);
+        return { status: 200, body: this.results(now, { hostDetail: true }) };
+      }
+
+      case "names": {
+        if (method !== "POST") break;
+        if (!isHost) return { status: 403, body: { error: "host_only" } };
+        m.hideNames = Boolean(body.hide);
+        await this.ctx.storage.put("meta", m);
         return { status: 200, body: this.results(now, { hostDetail: true }) };
       }
 

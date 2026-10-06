@@ -6,10 +6,12 @@ import { AssessmentShell, fieldCls, panelCls, primaryBtn, ghostBtn } from "@/com
 import { MissingAnswers } from "@/components/assessment/MissingAnswers";
 import { QuestionStage } from "@/components/assessment/QuestionStage";
 import { ResultsBoard } from "@/components/assessment/ResultsBoard";
+import { Podium, ResultsCharts } from "@/components/assessment/ResultsVisuals";
 import { initialAnswers } from "@/components/QuizPlayer";
 import { useAssessmentText } from "@/lib/assessmentI18n";
 import {
   clockOffset,
+  deviceId,
   groupApi,
   loadParticipant,
   saveParticipant,
@@ -50,6 +52,8 @@ export function GroupJoin() {
   const [saving, setSaving] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [showMissing, setShowMissing] = useState(false);
+  /** The teacher removed this student (cleared again if the teacher lets them back in). */
+  const [removed, setRemoved] = useState(false);
   const answersRef = useRef(answers);
   const pending = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const submittingRef = useRef(false);
@@ -103,6 +107,7 @@ export function GroupJoin() {
         if (cancelled) return;
         setOffset(clockOffset(s.now, sent, Date.now()));
         setNetIssue(false);
+        setRemoved(false);
         setState(s);
         if (s.me.submitted) setSubmitted(true);
         if (s.questions.length && !questions.length) {
@@ -118,6 +123,11 @@ export function GroupJoin() {
         }
       } catch (e) {
         if (cancelled) return;
+        if (e instanceof SessionError && e.code === "removed") {
+          setRemoved(true);
+          timer = setTimeout(tick, 5000);
+          return;
+        }
         if (e instanceof SessionError && e.status === 403) {
           setMe(null);
           return;
@@ -134,20 +144,19 @@ export function GroupJoin() {
     };
   }, [me, questions.length, submitted, state?.status]);
 
-  // After the end, keep refreshing the board briefly until late auto-submits land.
+  // After the end, keep refreshing the board for a while: late auto-submits, removed students and the teacher's hide-names switch.
   const hasResults = Boolean(results);
-  const allSubmitted = Boolean(results?.rows.every((r) => r.submitted));
   useEffect(() => {
-    if (!me || !hasResults || allSubmitted) return;
+    if (!me || !hasResults) return;
     let n = 0;
     const t = setInterval(async () => {
       n++;
       const r = await groupApi.results(me.code, undefined, { pid: me.pid, token: me.token }).catch(() => null);
       if (r) setResults(r);
-      if (n >= 20) clearInterval(t);
-    }, 3000);
+      if (n >= 200) clearInterval(t);
+    }, 4000);
     return () => clearInterval(t);
-  }, [me, hasResults, allSubmitted]);
+  }, [me, hasResults]);
 
   // Local clock (corrected by the server offset) for the countdown and timer.
   useEffect(() => {
@@ -176,7 +185,11 @@ export function GroupJoin() {
       try {
         await groupApi.submit(me.code, me.pid, me.token, answersRef.current);
         return;
-      } catch {
+      } catch (e) {
+        if (e instanceof SessionError && e.code === "removed") {
+          setRemoved(true);
+          return;
+        }
         await new Promise((r) => setTimeout(r, 1500));
       }
     }
@@ -197,8 +210,9 @@ export function GroupJoin() {
       try {
         await groupApi.answer(me.code, me.pid, me.token, qid, value);
         setNetIssue(false);
-      } catch {
-        setNetIssue(true);
+      } catch (e) {
+        if (e instanceof SessionError && e.code === "removed") setRemoved(true);
+        else setNetIssue(true);
       } finally {
         if (!Object.keys(pending.current).length) setSaving(false);
       }
@@ -211,13 +225,14 @@ export function GroupJoin() {
     setBusy(true);
     setError("");
     try {
-      const r = await groupApi.join(code, name.trim());
+      const r = await groupApi.join(code, name.trim(), deviceId());
       const p = { code, pid: r.participantId, token: r.token, name: r.name };
       saveParticipant(p);
       setMe(p);
       setInfo(r);
     } catch (err) {
-      setError(errorText(err));
+      if (err instanceof SessionError && err.code === "removed") setRemoved(true);
+      else setError(errorText(err));
     } finally {
       setBusy(false);
     }
@@ -279,6 +294,27 @@ export function GroupJoin() {
     );
   }
 
+  // Removed by the teacher
+  if (removed) {
+    return (
+      <AssessmentShell title={title}>
+        <div className="mx-auto flex w-full max-w-xl flex-1 flex-col justify-center px-4 py-10 text-center">
+          <div className={panelCls} role="alert" data-testid="removed-screen">
+            <p className="text-6xl" aria-hidden>
+              🚫
+            </p>
+            <h1 className="mt-4 text-2xl font-bold text-rose-800 dark:text-rose-200 sm:text-3xl">
+              {lang === "ar" ? "لقد أزالك المعلم من هذه الجلسة" : "You have been removed by the teacher"}
+            </h1>
+            <p className="mt-3 text-base opacity-75">
+              {lang === "ar" ? "لا يمكنك العودة إلى هذه الجلسة إلا إذا سمح لك المعلم." : "You can't rejoin this session unless your teacher lets you back in."}
+            </p>
+          </div>
+        </div>
+      </AssessmentShell>
+    );
+  }
+
   // 2) Name entry
   if (!me) {
     return (
@@ -318,6 +354,8 @@ export function GroupJoin() {
       <AssessmentShell title={title}>
         <div className="mx-auto w-full max-w-4xl space-y-6 px-4 py-10">
           <h1 className="text-3xl font-bold text-teal-950 dark:text-white sm:text-4xl">🏆 {a("resultsBoard")}</h1>
+          <Podium rows={results.rows} lang={lang} />
+          <ResultsCharts rows={results.rows} lang={lang} />
           <ResultsBoard rows={results.rows} questionCount={results.questionCount} highlightName={me.name} summary={results.summary} quiz={results.quiz} />
         </div>
       </AssessmentShell>
@@ -416,7 +454,7 @@ export function GroupJoin() {
                 <li
                   key={`${p.name}-${i}`}
                   className={`rounded-full px-3 py-1 text-sm font-medium ${
-                    p.name === me.name ? "bg-teal-700 text-white" : "bg-emerald-100 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-100"
+                    (p.id ? p.id === me.pid : p.name === me.name) ? "bg-teal-700 text-white" : "bg-emerald-100 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-100"
                   }`}
                 >
                   {p.name}
