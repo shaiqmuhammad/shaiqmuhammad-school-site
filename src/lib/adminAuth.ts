@@ -1,5 +1,7 @@
 export const ADMIN_SESSION_KEY = "sm_admin_authenticated";
 export const ADMIN_PREVIEW_KEY = "sm_admin_preview_data";
+/** Signed 30-day publishing session from the Worker (see lib/adminServer.ts). */
+export const ADMIN_SERVER_SESSION_KEY = "sm_admin_server_session";
 
 /**
  * SHA-256 (hex, lowercase) of the admin password. Only the hash is stored — never the plaintext.
@@ -45,7 +47,10 @@ export function setAdminAuthenticated(ok: boolean): void {
   try {
     sessionStorage.removeItem(ADMIN_SESSION_KEY);
     if (ok) localStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify({ exp: Date.now() + ADMIN_SESSION_DAYS * 864e5 }));
-    else localStorage.removeItem(ADMIN_SESSION_KEY);
+    else {
+      localStorage.removeItem(ADMIN_SESSION_KEY);
+      localStorage.removeItem(ADMIN_SERVER_SESSION_KEY);
+    }
   } catch {
     // storage unavailable
   }

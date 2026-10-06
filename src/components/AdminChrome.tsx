@@ -17,6 +17,9 @@ type Props = {
   refreshing?: boolean;
   onPublishAll: () => void;
   onLogout: () => void;
+  /** Forum posts waiting for approval (bell badge). */
+  pendingCount?: number;
+  onBell?: () => void;
   children: ReactNode;
 };
 
@@ -26,7 +29,7 @@ const ORDER: Tab[] = ["home", "quizzes", "pages", "videos", "banners", "forum", 
  * Calm admin shell: sidebar on large screens, compact top bar + scrollable tab strip on phones.
  * The round logo is the "home" button: it returns to the dashboard and re-fetches published content.
  */
-export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPublishAll, onLogout, children }: Props) {
+export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPublishAll, onLogout, pendingCount = 0, onBell, children }: Props) {
   const { t, lang } = useI18n();
   const tr = (en: string, ar: string) => (lang === "ar" ? ar : en);
   const logoUrl = useLogoUrl();
@@ -54,6 +57,26 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
     </button>
   );
 
+  const badge = (n: number, testId?: string) =>
+    n > 0 ? (
+      <span data-testid={testId} className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-600 px-1 text-[11px] font-extrabold leading-none text-white ring-2 ring-navy">
+        {n > 99 ? "99+" : n}
+      </span>
+    ) : null;
+  const bellLabel =
+    pendingCount > 0
+      ? tr(`${pendingCount} forum post${pendingCount === 1 ? "" : "s"} waiting for approval`, `${pendingCount} مشاركة بانتظار الموافقة`)
+      : tr("No forum posts waiting", "لا توجد مشاركات بانتظار الموافقة");
+  const bell = onBell ? (
+    <button type="button" onClick={onBell} aria-label={bellLabel} title={bellLabel} data-testid="admin-bell" className="pill-on-navy relative h-9 w-9 shrink-0 justify-center">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" className="h-4.5 w-4.5" aria-hidden>
+        <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+        <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+      </svg>
+      {pendingCount > 0 && <span className="absolute -end-1.5 -top-1.5">{badge(pendingCount, "admin-bell-badge")}</span>}
+    </button>
+  ) : null;
+
   const publishBtn = (
     <button
       type="button"
@@ -75,6 +98,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
             <p className="font-extrabold leading-tight text-white">Shaiq Muhammad — Admin</p>
             <p className="text-xs text-white/70">{t("admin.title")}</p>
           </div>
+          {bell}
         </div>
         <nav className="mt-8 flex-1 space-y-0.5 overflow-y-auto" aria-label={tr("Admin sections", "أقسام الإدارة")}>
           {ORDER.map((id) => (
@@ -85,7 +109,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
               aria-current={tab === id ? "page" : undefined}
               className="nav-link-navy block w-full px-4 py-2 text-start text-sm transition"
             >
-              {label(id)}
+              <span className="inline-flex items-center gap-2">{label(id)}{id === "forum" ? badge(pendingCount) : null}</span>
             </button>
           ))}
         </nav>
@@ -113,6 +137,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
               <button type="button" onClick={onLogout} className="text-white/75">{t("admin.logout")}</button>
             </div>
           </div>
+          {bell}
           <LanguageToggle variant="navy" className="px-2.5" />
           <ThemeToggle variant="navy" />
         </div>
@@ -125,7 +150,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
               aria-current={tab === id ? "page" : undefined}
               className="pill-on-navy shrink-0 px-3 py-1.5 text-sm"
             >
-              {label(id)}
+              <span className="inline-flex items-center gap-2">{label(id)}{id === "forum" ? badge(pendingCount) : null}</span>
             </button>
           ))}
         </nav>
