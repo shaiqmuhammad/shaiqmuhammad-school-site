@@ -109,3 +109,22 @@ export function AssessmentShell({ title, exitHref = "/assessments", onExit, seco
     </div>
   );
 }
+
+/** Soft, multi-colour accents for answer options (letter badge + tinted card). */
+export const OPTION_ACCENTS = [
+  { card: "border-teal-200 bg-teal-50/80 dark:border-teal-800 dark:bg-teal-950/40", badge: "bg-teal-600 text-white", ring: "ring-teal-400 border-teal-500 bg-teal-100 dark:bg-teal-900/60" },
+  { card: "border-sky-200 bg-sky-50/80 dark:border-sky-800 dark:bg-sky-950/40", badge: "bg-sky-600 text-white", ring: "ring-sky-400 border-sky-500 bg-sky-100 dark:bg-sky-900/60" },
+  { card: "border-amber-200 bg-amber-50/80 dark:border-amber-800 dark:bg-amber-950/40", badge: "bg-amber-500 text-amber-950", ring: "ring-amber-400 border-amber-500 bg-amber-100 dark:bg-amber-900/50" },
+  { card: "border-violet-200 bg-violet-50/80 dark:border-violet-800 dark:bg-violet-950/40", badge: "bg-violet-600 text-white", ring: "ring-violet-400 border-violet-500 bg-violet-100 dark:bg-violet-900/60" },
+  { card: "border-emerald-200 bg-emerald-50/80 dark:border-emerald-800 dark:bg-emerald-950/40", badge: "bg-emerald-600 text-white", ring: "ring-emerald-400 border-emerald-500 bg-emerald-100 dark:bg-emerald-900/60" },
+  { card: "border-rose-200 bg-rose-50/80 dark:border-rose-800 dark:bg-rose-950/40", badge: "bg-rose-500 text-white", ring: "ring-rose-400 border-rose-500 bg-rose-100 dark:bg-rose-900/50" },
+];
+
+export const panelCls =
+  "glass rounded-[20px] p-6 sm:p-10";
+export const primaryBtn =
+  "inline-flex items-center justify-center gap-2 rounded-full border-2 border-sun-border bg-sun px-7 py-3.5 text-lg font-extrabold text-navy shadow-lg shadow-amber-500/25 transition hover:bg-[#f6d589] disabled:cursor-not-allowed disabled:opacity-50";
+export const ghostBtn =
+  "inline-flex items-center justify-center gap-2 rounded-full border-2 border-navy/20 bg-white/70 px-6 py-3 text-base font-bold text-navy backdrop-blur transition hover:border-sun-border disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/15 dark:bg-white/5 dark:text-white";
+export const fieldCls =
+  "mt-2 w-full rounded-2xl border-2 border-navy/15 bg-white px-4 py-3 text-lg outline-none transition focus:border-sun-border focus:ring-4 focus:ring-sun/40 dark:border-white/15 dark:bg-black/20";
