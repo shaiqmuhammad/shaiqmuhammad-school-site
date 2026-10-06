@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { Banner } from "@/lib/banners";
 import { useI18n } from "@/lib/i18n";
 
-/** Home page "Announcements" slider (managed in Admin → Announcements). Hidden when there are no visible slides. */
+/** Home page banner slider (managed in Admin → Banners). Hidden when there are no visible slides. */
 export function BannerCarousel({ banners }: { banners: Banner[] }) {
   const { lang } = useI18n();
   const ar = lang === "ar";
@@ -32,31 +32,20 @@ export function BannerCarousel({ banners }: { banners: Banner[] }) {
   const title = (ar && slide.titleAr) || slide.title;
   const subtitle = (ar && slide.subtitleAr) || slide.subtitle;
   const buttonText = (ar && slide.buttonTextAr) || slide.buttonText;
-  const heading = ar ? "الإعلانات" : "Announcements";
+  const label = ar ? "اللافتات المميزة" : "Featured banners";
 
   return (
     <section
       className="band-cream relative overflow-hidden border-b border-sun-border/30"
       aria-roledescription="carousel"
-      aria-label={heading}
-      data-testid="announcements"
+      aria-label={label}
+      data-testid="banners"
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
       onFocus={() => setPaused(true)}
       onBlur={() => setPaused(false)}
     >
       <div className="relative mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
-        <div className="mb-4 flex items-end justify-between gap-3">
-          <div>
-            <p className="eyebrow">{ar ? "آخر الأخبار" : "What's new"}</p>
-            <h2 className="mt-1 text-2xl font-extrabold tracking-tight text-heading sm:text-3xl">📣 {heading}</h2>
-          </div>
-          {slides.length > 1 && (
-            <p className="pill shrink-0 px-3 py-1 text-xs tabular-nums" aria-hidden>
-              {index + 1} / {slides.length}
-            </p>
-          )}
-        </div>
         <div className="glass glass-emph relative overflow-hidden rounded-[20px] p-0">
           <div className="relative aspect-[4/3] min-h-[300px] w-full sm:aspect-[21/9] sm:min-h-[260px]">
             {slide.imageUrl ? (
