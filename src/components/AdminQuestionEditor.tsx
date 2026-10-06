@@ -104,29 +104,30 @@ export function AdminQuestionEditor({ q, idx, onChange, onRemove, onMoveUp, setS
         <textarea className={input + " min-h-16"} value={q.prompt} onChange={(e) => set({ prompt: e.target.value })} />
       </Field>
 
-      {q.type === "short_answer" && (
-        <Field label="Accepted answers (one per line, not case-sensitive)">
-          <textarea
-            className={input + " min-h-16"}
-            value={(q.correct as string[]).join("\n")}
-            onChange={(e) => set({ correct: e.target.value.split("\n") })}
-          />
-        </Field>
-      )}
-
       {q.type === "fill_blank" &&
         (blankCount === 0 ? (
           <p className="text-xs text-red-600">Add at least one ___ blank to the sentence, e.g. The Quran has ___ surahs.</p>
         ) : (
-          blanks.map((b, bi) => (
-            <Field key={bi} label={`Blank ${bi + 1} \u2014 accepted answers (one per line, not case-sensitive)`}>
+          <>
+            <p className="text-xs text-muted">Students choose each missing word from a word bank (no typing). The word bank shows the correct word of every blank plus the extra wrong words below, in A–Z order.</p>
+            {blanks.map((b, bi) => (
+              <Field key={bi} label={`Blank ${bi + 1} \u2014 correct word (first line is shown in the word bank; extra lines are other accepted spellings)`}>
+                <textarea
+                  className={input + " min-h-14"}
+                  value={b.join("\n")}
+                  onChange={(e) => set({ blanks: blanks.map((x, j) => (j === bi ? e.target.value.split("\n") : x)) })}
+                />
+              </Field>
+            ))}
+            <Field label="Extra wrong words for the word bank (one per line, at least 2)">
               <textarea
                 className={input + " min-h-14"}
-                value={b.join("\n")}
-                onChange={(e) => set({ blanks: blanks.map((x, j) => (j === bi ? e.target.value.split("\n") : x)) })}
+                value={q.options.join("\n")}
+                onChange={(e) => set({ options: e.target.value.split("\n") })}
+                data-testid="wordbank-extra"
               />
             </Field>
-          ))
+          </>
         ))}
 
       {q.type === "matching" && (
