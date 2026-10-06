@@ -4,10 +4,13 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { AssessmentShell, fieldCls, ghostBtn, panelCls, primaryBtn } from "@/components/assessment/AssessmentShell";
+import { PaperDownloads } from "@/components/assessment/PaperDownloads";
 import { ResultsBoard, resultsCsv } from "@/components/assessment/ResultsBoard";
+import { Podium, ResultsCharts, ResultsDownloads } from "@/components/assessment/ResultsVisuals";
 import { isAdminAuthenticated } from "@/lib/adminAuth";
 import { formatClock, localizedTitle, useAssessmentText } from "@/lib/assessmentI18n";
 import {
+  anonymousName,
   clockOffset,
   groupApi,
   HOST_DRAFT_KEY,
@@ -39,6 +42,7 @@ export function GroupHost() {
   const [now, setNow] = useState(() => Date.now());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const tr = (en: string, ar: string) => (lang === "ar" ? ar : en);
 
   useEffect(() => {
     const authTimer = setTimeout(() => {
@@ -164,6 +168,33 @@ export function GroupHost() {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
+  async function removeStudent(id: string, name: string) {
+    if (!host || !confirm(tr(`Remove ${name} from this session? Their device will show that the teacher removed them.`, `إزالة ${name} من هذه الجلسة؟`))) return;
+    try {
+      setData(await groupApi.remove(host.code, host.hostKey, id));
+    } catch {
+      setError(a("networkError"));
+    }
+  }
+
+  async function restoreStudent(id: string) {
+    if (!host) return;
+    try {
+      setData(await groupApi.restore(host.code, host.hostKey, id));
+    } catch {
+      setError(a("networkError"));
+    }
+  }
+
+  async function toggleNames() {
+    if (!host || !data) return;
+    try {
+      setData(await groupApi.setHideNames(host.code, host.hostKey, !data.hideNames));
+    } catch {
+      setError(a("networkError"));
+    }
+  }
+
   function reset() {
     saveHost(null);
     setHost(null);
@@ -227,6 +258,7 @@ export function GroupHost() {
               <summary className="cursor-pointer opacity-70">{a("teacherSecret")}</summary>
               <input type="password" className={fieldCls} value={secret} onChange={(e) => setSecret(e.target.value)} autoComplete="off" />
             </details>
+            {quiz && <PaperDownloads quiz={quiz} className="mt-4 inline-block" />}
             {error && <p className="mt-4 rounded-xl bg-rose-100 px-4 py-2 text-base text-rose-800 dark:bg-rose-900/40 dark:text-rose-100">{error}</p>}
             <button type="submit" className={`${primaryBtn} mt-6 w-full`} disabled={busy || !quiz}>
               {busy ? a("creating") : a("createSession")}
@@ -250,6 +282,50 @@ export function GroupHost() {
   const title = data ? (lang === "ar" && data.titleAr ? data.titleAr : data.title) : a("groupAssessment");
   const url = joinUrl(host.code);
   const secondsLeft = status === "running" && data?.endAt ? Math.max(0, (data.endAt - serverNow) / 1000) : null;
+  // Names as shown on this (projected) screen: "Student N" in join order when the teacher hides them.
+  const hidden = Boolean(data?.hideNames);
+  const joinOrder = new Map((data?.participants ?? []).map((p, i) => [p.id, i]));
+  const shown = (id: string | undefined, name: string) => (hidden ? anonymousName(joinOrder.get(id) ?? 0, lang) : name);
+  const rows = (data?.rows ?? []).map((r) => ({ ...r, name: shown(r.id, r.name) }));
+  const toolbar = data && (
+    <div className="flex flex-wrap items-center gap-2">
+      <button type="button" onClick={toggleNames} className={`${ghostBtn} py-2 text-sm`} aria-pressed={hidden} data-testid="toggle-names">
+        {hidden ? `👁 ${tr("Show names", "إظهار الأسماء")}` : `🙈 ${tr("Hide names", "إخفاء الأسماء")}`}
+      </button>
+    </div>
+  );
+  const students = data && (data.participants.length > 0 || (data.removed?.length ?? 0) > 0) && (
+    <div className="space-y-3" data-testid="manage-students">
+      <ul className="flex flex-wrap gap-2">
+        {data.participants.map((p, i) => (
+          <li key={p.id ?? `${p.name}-${i}`} className="inline-flex items-center gap-1 rounded-full bg-emerald-100 py-1.5 ps-4 pe-1.5 text-lg font-semibold text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-100">
+            <span dir="auto">{shown(p.id, p.name)}</span>
+            {status === "running" ? <span className="ms-1 text-xs font-medium opacity-70">{p.submitted ? "✓" : `${p.answered}/${data.questionCount}`}</span> : null}
+            {p.id ? (
+              <button type="button" onClick={() => removeStudent(p.id!, shown(p.id, p.name))} className="ms-1 inline-flex h-7 w-7 items-center justify-center rounded-full text-base text-rose-700 hover:bg-rose-100 dark:text-rose-300 dark:hover:bg-rose-900/40" aria-label={tr(`Remove ${shown(p.id, p.name)}`, `إزالة ${shown(p.id, p.name)}`)} title={tr("Remove", "إزالة")} data-testid="remove-student">
+                ✕
+              </button>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+      {data.removed && data.removed.length > 0 && (
+        <div className="rounded-2xl bg-rose-50 px-4 py-3 text-sm dark:bg-rose-950/30" data-testid="removed-list">
+          <p className="font-semibold text-rose-800 dark:text-rose-200">{tr("Removed (can't rejoin unless you allow it):", "تمت إزالتهم (لا يمكنهم العودة إلا بإذنك):")}</p>
+          <ul className="mt-2 flex flex-wrap gap-2">
+            {data.removed.map((p) => (
+              <li key={p.id} className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 dark:bg-white/10">
+                <span dir="auto">{hidden ? tr("Student", "طالب") : p.name}</span>
+                <button type="button" onClick={() => restoreStudent(p.id)} className="font-semibold text-teal-700 underline dark:text-teal-300" data-testid="restore-student">
+                  {tr("Allow back", "السماح بالعودة")}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <AssessmentShell title={`${title} · ${a("sessionCode", { code: host.code })}`} exitHref="/admin" secondsLeft={secondsLeft}>
@@ -262,7 +338,7 @@ export function GroupHost() {
               <p className="text-sm font-bold uppercase tracking-widest text-teal-700 dark:text-teal-300">{a("scanToJoin")}</p>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={qrImageUrl(url, 360)} alt={url} width={300} height={300} className="mt-4 rounded-2xl bg-white p-2" />
-              <p className="mt-4 text-sm opacity-70">{a("orVisit", { url: url.replace(/^https?:\/\//, "").replace(/\?.*$/, "") })}</p>
+              <p className="mt-4 text-base font-semibold opacity-80" dir="ltr" data-testid="join-url">{a("orVisit", { url: url.replace(/^https?:\/\//, "").replace(/\?.*$/, "") })}</p>
               <p className="mt-2 font-mono text-6xl font-black tracking-[0.2em] text-teal-800 dark:text-teal-200" dir="ltr">
                 {host.code}
               </p>
@@ -279,21 +355,18 @@ export function GroupHost() {
                 <>
                   <div className="flex flex-wrap items-center justify-between gap-4">
                     <h2 className="text-2xl font-bold">{a("studentsJoined", { n: data?.participantCount ?? 0 })}</h2>
-                    <button type="button" className={primaryBtn} onClick={start} disabled={busy || !data || data.participantCount === 0}>
-                      ▶ {a("startForEveryone")}
-                    </button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {toolbar}
+                      <button type="button" className={primaryBtn} onClick={start} disabled={busy || !data || data.participantCount === 0}>
+                        ▶ {a("startForEveryone")}
+                      </button>
+                    </div>
                   </div>
                   <p className="mt-2 text-sm opacity-70">
                     {a("questionsMarks", { q: data?.questionCount ?? 0, m: data?.maxScore ?? 0 })} · {a("minutes", { n: Math.round((data?.durationSec ?? 0) / 60) })}
                   </p>
-                  {data && data.participants.length > 0 ? (
-                    <ul className="mt-6 flex flex-wrap gap-2">
-                      {data.participants.map((p, i) => (
-                        <li key={`${p.name}-${i}`} className="rounded-full bg-emerald-100 px-4 py-2 text-lg font-semibold text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-100">
-                          {p.name}
-                        </li>
-                      ))}
-                    </ul>
+                  {students ? (
+                    <div className="mt-6">{students}</div>
                   ) : (
                     <p className="mt-6 text-lg opacity-70">{a("noStudents")}</p>
                   )}
@@ -312,11 +385,15 @@ export function GroupHost() {
                   {formatClock(secondsLeft ?? 0)}
                 </p>
               </div>
-              <button type="button" className={`${ghostBtn} border-rose-300 text-rose-700 dark:text-rose-300`} onClick={end} disabled={busy}>
-                ■ {a("endNow")}
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                {toolbar}
+                <button type="button" className={`${ghostBtn} border-rose-300 text-rose-700 dark:text-rose-300`} onClick={end} disabled={busy}>
+                  ■ {a("endNow")}
+                </button>
+              </div>
             </div>
-            <ResultsBoard rows={data.rows} questionCount={data.questionCount} showProgress quiz={data.quiz} />
+            {students ? <div className={panelCls}>{students}</div> : null}
+            <ResultsBoard rows={rows} questionCount={data.questionCount} showProgress quiz={data.quiz} />
           </>
         )}
 
@@ -324,16 +401,20 @@ export function GroupHost() {
           <>
             <div className="flex flex-wrap items-center justify-between gap-4">
               <h1 className="text-3xl font-bold">🏆 {a("resultsBoard")}</h1>
-              <div className="flex flex-wrap gap-3">
-                <button type="button" className={primaryBtn} onClick={downloadCsv}>
+              <div className="flex flex-wrap items-center gap-2">
+                {toolbar}
+                <ResultsDownloads data={data} />
+                <button type="button" className={`${ghostBtn} py-2 text-sm`} onClick={downloadCsv}>
                   ⬇ {a("downloadCsv")}
                 </button>
-                <button type="button" className={ghostBtn} onClick={reset}>
+                <button type="button" className={`${ghostBtn} py-2 text-sm`} onClick={reset}>
                   {a("newSession")}
                 </button>
               </div>
             </div>
-            <ResultsBoard rows={data.rows} questionCount={data.questionCount} summary={data.summary} quiz={data.quiz} />
+            <Podium rows={rows} lang={lang} />
+            <ResultsCharts rows={rows} quiz={data.quiz} lang={lang} />
+            <ResultsBoard rows={rows} questionCount={data.questionCount} summary={data.summary} quiz={data.quiz} />
           </>
         )}
       </div>
