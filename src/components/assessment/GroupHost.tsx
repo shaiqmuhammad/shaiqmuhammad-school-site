@@ -63,7 +63,7 @@ export function GroupHost() {
         const merged = draft ? [draft, ...list.filter((q) => q.id !== draft!.id)] : list;
         setQuizzes(merged);
         setSlug((s) => {
-          const pick = merged.find((q) => q.slug === s) || merged[0];
+          const pick = merged.find((q) => q.slug === s && q.active) || merged.find((q) => q.active) || merged[0];
           if (pick && pick.timeLimitMinutes > 0) setMinutes(pick.timeLimitMinutes);
           return pick ? pick.slug : s;
         });
@@ -116,7 +116,7 @@ export function GroupHost() {
   const quiz = quizzes.find((q) => q.slug === slug);
 
   async function create() {
-    if (!quiz) return;
+    if (!quiz || !quiz.active) return;
     setBusy(true);
     setError("");
     try {
@@ -125,7 +125,13 @@ export function GroupHost() {
       saveHost(h);
       setHost(h);
     } catch (e) {
-      setError(e instanceof SessionError && e.status === 403 ? a("teacherSecret") : a("apiMissing"));
+      setError(
+        e instanceof SessionError && e.code === "inactive"
+          ? (lang === "ar" ? "هذا التقييم غير نشط. فعّله من الإدارة ← التقييمات ثم انشر." : "This assessment is not active. Activate it in Admin → Assessments, then publish.")
+          : e instanceof SessionError && e.status === 403
+            ? a("teacherSecret")
+            : a("apiMissing"),
+      );
     } finally {
       setBusy(false);
     }
@@ -231,7 +237,7 @@ export function GroupHost() {
               create();
             }}
           >
-            <h1 className="text-3xl font-bold text-teal-950 dark:text-white">{a("hostTitle")}</h1>
+            <h1 className="text-3xl font-bold text-navy dark:text-white">{a("hostTitle")}</h1>
             <label className="mt-6 block text-base font-semibold">
               {a("chooseAssessment")}
               <select
@@ -244,8 +250,9 @@ export function GroupHost() {
                 }}
               >
                 {quizzes.map((q) => (
-                  <option key={q.id} value={q.slug}>
-                    {localizedTitle(q, lang)} ({q.questions.length}){q.published ? "" : ` — ${a("disabledNote")}`}
+                  <option key={q.id} value={q.slug} disabled={!q.active}>
+                    {localizedTitle(q, lang)} ({q.questions.length})
+                    {!q.active ? ` — ${(lang === "ar" ? "غير نشط — فعّله من الإدارة أولًا" : "inactive — activate it in Admin first")}` : !q.visible ? ` — ${(lang === "ar" ? "مخفي من الموقع" : "hidden from website")}` : ""}
                   </option>
                 ))}
               </select>
@@ -260,7 +267,8 @@ export function GroupHost() {
             </details>
             {quiz && <PaperDownloads quiz={quiz} className="mt-4 inline-block" />}
             {error && <p className="mt-4 rounded-xl bg-rose-100 px-4 py-2 text-base text-rose-800 dark:bg-rose-900/40 dark:text-rose-100">{error}</p>}
-            <button type="submit" className={`${primaryBtn} mt-6 w-full`} disabled={busy || !quiz}>
+            {quiz && !quiz.active && <p className="mt-4 rounded-xl bg-amber-100 px-4 py-2 text-base text-amber-900 dark:bg-amber-900/40 dark:text-amber-100">{(lang === "ar" ? "هذا التقييم غير نشط. فعّله من الإدارة ← التقييمات ثم انشر." : "This assessment is not active. Activate it in Admin → Assessments, then publish.")}</p>}
+            <button type="submit" className={`${primaryBtn} mt-6 w-full`} disabled={busy || !quiz || !quiz.active}>
               {busy ? a("creating") : a("createSession")}
             </button>
           </form>
@@ -316,7 +324,7 @@ export function GroupHost() {
             {data.removed.map((p) => (
               <li key={p.id} className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 dark:bg-white/10">
                 <span dir="auto">{hidden ? tr("Student", "طالب") : p.name}</span>
-                <button type="button" onClick={() => restoreStudent(p.id)} className="font-semibold text-teal-700 underline dark:text-teal-300" data-testid="restore-student">
+                <button type="button" onClick={() => restoreStudent(p.id)} className="font-semibold text-teal-brand underline dark:text-teal-300" data-testid="restore-student">
                   {tr("Allow back", "السماح بالعودة")}
                 </button>
               </li>
@@ -335,11 +343,11 @@ export function GroupHost() {
         {(status === "lobby" || status === "countdown") && (
           <div className="grid gap-6 lg:grid-cols-[auto_1fr]">
             <div className={`${panelCls} flex flex-col items-center text-center`}>
-              <p className="text-sm font-bold uppercase tracking-widest text-teal-700 dark:text-teal-300">{a("scanToJoin")}</p>
+              <p className="text-sm font-bold uppercase tracking-widest text-teal-brand dark:text-teal-300">{a("scanToJoin")}</p>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={qrImageUrl(url, 360)} alt={url} width={300} height={300} className="mt-4 rounded-2xl bg-white p-2" />
               <p className="mt-4 text-base font-semibold opacity-80" dir="ltr" data-testid="join-url">{a("orVisit", { url: url.replace(/^https?:\/\//, "").replace(/\?.*$/, "") })}</p>
-              <p className="mt-2 font-mono text-6xl font-black tracking-[0.2em] text-teal-800 dark:text-teal-200" dir="ltr">
+              <p className="mt-2 font-mono text-6xl font-black tracking-[0.2em] text-navy dark:text-teal-200" dir="ltr">
                 {host.code}
               </p>
             </div>
@@ -347,7 +355,7 @@ export function GroupHost() {
               {status === "countdown" && data?.startAt ? (
                 <div className="py-10 text-center">
                   <p className="text-2xl font-semibold">{a("getReady")}</p>
-                  <p className="text-[8rem] font-black leading-none tabular-nums text-teal-700 dark:text-teal-300">
+                  <p className="text-[8rem] font-black leading-none tabular-nums text-teal-brand dark:text-teal-300">
                     {Math.max(1, Math.ceil((data.startAt - serverNow) / 1000))}
                   </p>
                 </div>
@@ -380,8 +388,8 @@ export function GroupHost() {
           <>
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
-                <p className="text-sm font-bold uppercase tracking-widest text-teal-700 dark:text-teal-300">{a("liveProgress")}</p>
-                <p className="text-6xl font-black tabular-nums text-teal-800 dark:text-teal-200" dir="ltr">
+                <p className="text-sm font-bold uppercase tracking-widest text-teal-brand dark:text-teal-300">{a("liveProgress")}</p>
+                <p className="text-6xl font-black tabular-nums text-navy dark:text-teal-200" dir="ltr">
                   {formatClock(secondsLeft ?? 0)}
                 </p>
               </div>

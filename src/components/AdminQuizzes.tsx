@@ -87,10 +87,16 @@ export default function AdminQuizzes({ setStatus, onNeedToken, data, setData, re
     });
   }
 
-  function toggleEnabled(quiz: Quiz) {
-    const next = { ...quiz, published: !quiz.published, updatedAt: new Date().toISOString() };
+  /** Flip "Show on website" or "Active" for one assessment (local until "Publish assessments"). */
+  function toggleFlag(quiz: Quiz, flag: "visible" | "active") {
+    // updatedAt is left alone so the list (and the public card order) doesn't jump around.
+    const next = normalizeQuiz({ ...quiz, [flag]: !quiz[flag] });
     setData((prev) => ({ quizzes: prev.quizzes.map((q) => (q.id === quiz.id ? next : q)) }));
-    setStatus(`"${quiz.title}" ${next.published ? "enabled" : "disabled"} locally. Click "Publish assessments" to apply it on the live site.`);
+    const what =
+      flag === "visible"
+        ? next.visible ? tr("shown on the website", "ظاهر على الموقع") : tr("hidden from the website", "مخفي من الموقع")
+        : next.active ? tr("activated", "مفعّل") : tr("deactivated", "معطّل");
+    setStatus(tr(`"${quiz.title}" ${what} locally. Click "Publish assessments" to apply it on the live site.`, `«${quiz.title}» ${what} محليًا. اضغط «نشر التقييمات» لتطبيقه على الموقع.`));
   }
 
   function startGroup(quiz: Quiz) {
@@ -162,7 +168,8 @@ export default function AdminQuizzes({ setStatus, onNeedToken, data, setData, re
           ) : null}
           <div className="flex flex-wrap items-end gap-4">
             <Field label="Time limit (minutes, 0 = none)"><input type="number" min={0} className={input + " w-32"} value={editing.timeLimitMinutes} onChange={(e) => setEditing({ ...editing, timeLimitMinutes: Math.max(0, Number(e.target.value) || 0) })} /></Field>
-            <label className="flex items-center gap-2 pb-2 text-sm"><input type="checkbox" checked={editing.published} onChange={(e) => setEditing({ ...editing, published: e.target.checked })} /> <span className="font-medium">Enabled for students</span> <span className="text-xs text-muted">(off = hidden from the site)</span></label>
+            <label className="flex items-center gap-2 pb-2 text-sm"><input type="checkbox" checked={editing.visible} onChange={(e) => setEditing({ ...editing, visible: e.target.checked })} /> <span className="font-medium">{tr("Show on website", "إظهار على الموقع")}</span> <span className="text-xs text-muted">{tr("(off = not listed; you can still run it as a group session)", "(إيقاف = غير مدرج؛ يمكنك تشغيله كجلسة جماعية)")}</span></label>
+            <label className="flex items-center gap-2 pb-2 text-sm"><input type="checkbox" checked={editing.active} onChange={(e) => setEditing({ ...editing, active: e.target.checked, published: e.target.checked })} /> <span className="font-medium">{tr("Active", "نشط")}</span> <span className="text-xs text-muted">{tr("(off = shows “Not available yet”; can’t be started or joined)", "(إيقاف = يظهر «غير متاح بعد»؛ لا يمكن بدؤه أو الانضمام إليه)")}</span></label>
             <label className="flex items-center gap-2 pb-2 text-sm"><input type="checkbox" checked={editing.showAnswers} onChange={(e) => setEditing({ ...editing, showAnswers: e.target.checked })} /> Show answers at end</label>
             <p className="pb-2 text-xs text-muted">Total marks: {quizMaxScore(editing)}</p>
           </div>
@@ -198,28 +205,35 @@ export default function AdminQuizzes({ setStatus, onNeedToken, data, setData, re
               <p className="text-xs text-muted">{quiz.year ? `Year ${quiz.year} · ` : ""}{isSowSeed(quiz.id) ? "SOW · " : ""}/assessments/{quiz.slug} · {quiz.questions.length} Qs · {quiz.timeLimitMinutes || "no"} min</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                role="switch"
-                aria-checked={quiz.published}
-                onClick={() => toggleEnabled(quiz)}
-                className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${quiz.published ? "bg-emerald-600 text-white" : "bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-100"}`}
-                title="Enable or disable this assessment for students"
-              >
-                <span className={`h-2.5 w-2.5 rounded-full ${quiz.published ? "bg-white" : "bg-slate-500"}`} />
-                {quiz.published ? tr("Enabled", "مفعّل") : tr("Disabled", "معطّل")}
-              </button>
-              <button type="button" className="rounded-full bg-teal-700 px-3 py-1 text-xs font-semibold text-white disabled:opacity-50" disabled={!quiz.questions.length} onClick={() => startGroup(quiz)}>
+              <FlagSwitch
+                on={quiz.visible}
+                onClick={() => toggleFlag(quiz, "visible")}
+                label={tr("Website", "الموقع")}
+                onText={tr("Shown", "ظاهر")}
+                offText={tr("Hidden", "مخفي")}
+                title={tr("Show on website: hidden assessments are not listed on the site, but you can still run them as a group session.", "إظهار على الموقع: التقييمات المخفية لا تظهر في الموقع، ويمكنك تشغيلها كجلسة جماعية.")}
+                testId="toggle-visible"
+              />
+              <FlagSwitch
+                on={quiz.active}
+                onClick={() => toggleFlag(quiz, "active")}
+                label={tr("Status", "الحالة")}
+                onText={tr("Active", "نشط")}
+                offText={tr("Inactive", "غير نشط")}
+                title={tr("Active: inactive assessments show “Not available yet” and can't be started or joined.", "نشط: التقييمات غير النشطة تظهر «غير متاح بعد» ولا يمكن بدؤها أو الانضمام إليها.")}
+                testId="toggle-active"
+              />
+              <button type="button" className="rounded-full bg-teal-700 px-3 py-1 text-xs font-semibold text-white disabled:opacity-50" disabled={!quiz.questions.length || !quiz.active} title={quiz.active ? undefined : tr("Activate it first", "فعّله أولًا")} onClick={() => startGroup(quiz)}>
                 👥 {tr("Start group session", "ابدأ جلسة جماعية")}
               </button>
               <PaperDownloads quiz={quiz} />
-              {quiz.published && <a className="text-sm text-primary" href={`/assessments/${quiz.slug}`} target="_blank" rel="noreferrer">{tr("Open", "فتح")}</a>}
+              {quiz.visible && quiz.active && <a className="text-sm text-primary" href={`/assessments/${quiz.slug}`} target="_blank" rel="noreferrer">{tr("Open", "فتح")}</a>}
               <button type="button" className="text-sm text-primary" onClick={() => setEditing(JSON.parse(JSON.stringify(quiz)) as Quiz)}>{tr("Edit", "تعديل")}</button>
               <button type="button" className="text-sm text-red-600" onClick={() => {
                 if (isSowSeed(quiz.id)) {
-                  if (confirm(`"${quiz.title}" is a built-in scheme-of-work assessment. It can't be deleted, but it will be disabled (hidden from students). Continue?`)) {
-                    setData((prev) => ({ quizzes: prev.quizzes.map((q) => (q.id === quiz.id ? { ...q, published: false, updatedAt: new Date().toISOString() } : q)) }));
-                    setStatus(`"${quiz.title}" disabled locally. Click "Publish assessments" to apply it on the live site.`);
+                  if (confirm(`"${quiz.title}" is a built-in scheme-of-work assessment. It can't be deleted, but it will be hidden from the website. Continue?`)) {
+                    setData((prev) => ({ quizzes: prev.quizzes.map((q) => (q.id === quiz.id ? normalizeQuiz({ ...q, visible: false, updatedAt: new Date().toISOString() }) : q)) }));
+                    setStatus(`"${quiz.title}" hidden locally. Click "Publish assessments" to apply it on the live site.`);
                   }
                   return;
                 }
@@ -261,6 +275,28 @@ export default function AdminQuizzes({ setStatus, onNeedToken, data, setData, re
         )}
       </div>
     </section>
+  );
+}
+
+/** Pill switch used for "Show on website" and "Active". */
+function FlagSwitch({ on, onClick, label, onText, offText, title, testId }: { on: boolean; onClick: () => void; label: string; onText: string; offText: string; title: string; testId: string }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      aria-label={`${label}: ${on ? onText : offText}`}
+      onClick={onClick}
+      title={title}
+      data-testid={testId}
+      className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold transition ${on ? "border-emerald-700/30 bg-emerald-600 text-white" : "border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"}`}
+    >
+      <span className="opacity-80">{label}:</span>
+      <span className={`relative inline-flex h-4 w-7 items-center rounded-full ${on ? "bg-white/40" : "bg-slate-300 dark:bg-slate-600"}`} aria-hidden>
+        <span className={`absolute h-3 w-3 rounded-full bg-white shadow transition-all ${on ? "end-0.5" : "start-0.5"}`} />
+      </span>
+      {on ? onText : offText}
+    </button>
   );
 }
 

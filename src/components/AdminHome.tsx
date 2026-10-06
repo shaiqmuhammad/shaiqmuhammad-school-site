@@ -28,12 +28,12 @@ export function AdminHome({ counts, refreshedAt, refreshing, hasToken, onTab }: 
   const tr = (en: string, ar: string) => (lang === "ar" ? ar : en);
 
   const stats: Stat[] = [
-    { label: tr("Assessments enabled", "التقييمات المفعّلة"), value: `${counts.assessmentsEnabled} / ${counts.assessments}`, tab: "quizzes" },
+    { label: tr("Active assessments", "التقييمات النشطة"), value: `${counts.assessmentsEnabled} / ${counts.assessments}`, tab: "quizzes" },
     { label: tr("Published results", "النتائج المنشورة"), value: String(counts.results), tab: "quizzes" },
     { label: tr("Lesson pages", "صفحات الدروس"), value: String(counts.pages), tab: "pages" },
     { label: tr("Videos", "الفيديوهات"), value: String(counts.videos), tab: "videos" },
     { label: tr("Forum threads", "مواضيع المنتدى"), value: String(counts.threads), tab: "forum" },
-    { label: tr("Home banners", "لافتات الرئيسية"), value: String(counts.banners), tab: "banners" },
+    { label: tr("Announcements", "الإعلانات"), value: String(counts.banners), tab: "banners" },
   ];
 
   const time = refreshedAt
