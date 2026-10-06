@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useLogoUrl } from "@/components/SiteBrand";
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useI18n } from "@/lib/i18n";
@@ -31,7 +31,13 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
   const tr = (en: string, ar: string) => (lang === "ar" ? ar : en);
   const logoUrl = useLogoUrl();
   const homeLabel = tr("Admin home — refresh content", "الرئيسية وتحديث المحتوى");
-  const label = (id: Tab) => (id === "home" ? tr("Home", "الرئيسية") : t(`admin.tab.${id}`));
+  const label = (id: Tab) =>
+    id === "home" ? tr("Home", "الرئيسية") : id === "banners" ? tr("Announcements", "الإعلانات") : t(`admin.tab.${id}`);
+  const tabStrip = useRef<HTMLElement>(null);
+  // Phones: keep the current tab visible in the scrollable strip.
+  useEffect(() => {
+    tabStrip.current?.querySelector<HTMLElement>('[aria-current="page"]')?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [tab, lang]);
 
   const logo = (size: string) => (
     <button
@@ -43,7 +49,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
       className="relative shrink-0 rounded-full outline-none transition hover:opacity-90 focus-visible:ring-4 focus-visible:ring-primary/30"
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={logoUrl} alt="" width={96} height={96} className={`${size} rounded-full bg-card object-cover ${refreshing ? "animate-pulse" : ""}`} />
+      <img src={logoUrl} alt="" width={96} height={96} className={`${size} rounded-full border-2 border-sun bg-white object-cover ${refreshing ? "animate-pulse" : ""}`} />
       <span className="sr-only">{homeLabel}</span>
     </button>
   );
@@ -60,14 +66,14 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
   );
 
   return (
-    <div className="admin-calm min-h-screen bg-background lg:flex">
+    <div className="admin-calm min-h-screen lg:flex">
       {/* Sidebar (lg+) */}
-      <aside className="hidden lg:sticky lg:top-0 lg:flex lg:h-screen lg:w-64 lg:shrink-0 lg:flex-col lg:border-e lg:border-card-border/60 lg:px-5 lg:py-8">
+      <aside className="hidden bg-header text-white lg:sticky lg:top-0 lg:flex lg:h-screen lg:w-64 lg:shrink-0 lg:flex-col lg:px-5 lg:py-8">
         <div className="flex flex-col items-center gap-3 text-center">
           {logo("h-24 w-24")}
           <div>
-            <p className="font-semibold leading-tight">Shaiq Muhammad — Admin</p>
-            <p className="text-xs text-muted">{t("admin.title")}</p>
+            <p className="font-extrabold leading-tight text-white">Shaiq Muhammad — Admin</p>
+            <p className="text-xs text-white/70">{t("admin.title")}</p>
           </div>
         </div>
         <nav className="mt-8 flex-1 space-y-0.5 overflow-y-auto" aria-label={tr("Admin sections", "أقسام الإدارة")}>
@@ -77,7 +83,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
               type="button"
               onClick={() => onTab(id)}
               aria-current={tab === id ? "page" : undefined}
-              className={`block w-full rounded-lg px-3 py-2 text-start text-sm transition ${tab === id ? "bg-accent-soft font-semibold text-primary" : "text-muted hover:text-foreground"}`}
+              className="nav-link-navy block w-full px-4 py-2 text-start text-sm transition"
             >
               {label(id)}
             </button>
@@ -86,38 +92,38 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
         <div className="space-y-3 pt-6">
           <div className="w-full [&>button]:w-full">{publishBtn}</div>
           <div className="flex items-center justify-center gap-2">
-            <LanguageToggle />
-            <ThemeToggle />
+            <LanguageToggle variant="navy" />
+            <ThemeToggle variant="navy" />
           </div>
           <div className="flex justify-center gap-4 text-sm">
-            <Link href="/" className="text-primary hover:underline">{t("admin.viewSite")}</Link>
-            <button type="button" onClick={onLogout} className="text-muted hover:text-foreground">{t("admin.logout")}</button>
+            <Link href="/" className="font-semibold text-sun hover:underline">{t("admin.viewSite")}</Link>
+            <button type="button" onClick={onLogout} className="text-white/75 hover:text-white">{t("admin.logout")}</button>
           </div>
         </div>
       </aside>
 
       {/* Top bar (phones / tablets) */}
-      <header className="sticky top-0 z-30 border-b border-card-border/60 bg-background/95 backdrop-blur lg:hidden">
+      <header className="sticky top-0 z-30 bg-header text-white shadow-[0_6px_20px_-10px_rgba(10,25,40,0.6)] lg:hidden">
         <div className="flex items-center gap-3 px-4 py-3">
           {logo("h-12 w-12")}
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold">Shaiq Muhammad — Admin</p>
+            <p className="truncate text-sm font-extrabold text-white">Shaiq Muhammad — Admin</p>
             <div className="flex gap-3 text-xs">
-              <Link href="/" className="text-primary">{t("admin.viewSite")}</Link>
-              <button type="button" onClick={onLogout} className="text-muted">{t("admin.logout")}</button>
+              <Link href="/" className="font-semibold text-sun">{t("admin.viewSite")}</Link>
+              <button type="button" onClick={onLogout} className="text-white/75">{t("admin.logout")}</button>
             </div>
           </div>
-          <LanguageToggle className="px-2.5" />
-          <ThemeToggle />
+          <LanguageToggle variant="navy" className="px-2.5" />
+          <ThemeToggle variant="navy" />
         </div>
-        <nav className="flex gap-1 overflow-x-auto px-3 pb-2 [scrollbar-width:none]" aria-label={tr("Admin sections", "أقسام الإدارة")}>
+        <nav ref={tabStrip} className="flex gap-1 overflow-x-auto px-3 pb-2 [scrollbar-width:none]" aria-label={tr("Admin sections", "أقسام الإدارة")}>
           {ORDER.map((id) => (
             <button
               key={id}
               type="button"
               onClick={() => onTab(id)}
               aria-current={tab === id ? "page" : undefined}
-              className={`shrink-0 rounded-full px-3 py-1.5 text-sm ${tab === id ? "bg-accent-soft font-semibold text-primary" : "text-muted"}`}
+              className="pill-on-navy shrink-0 px-3 py-1.5 text-sm"
             >
               {label(id)}
             </button>
@@ -128,7 +134,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
       <main className="min-w-0 flex-1">
         <div className="mx-auto max-w-4xl px-4 py-6 sm:px-8 lg:py-10">
           <div className="mb-6 flex items-center justify-between gap-3 lg:hidden">
-            <h1 className="text-lg font-semibold">{label(tab)}</h1>
+            <h1 className="text-lg font-extrabold">{label(tab)}</h1>
             {publishBtn}
           </div>
           {children}

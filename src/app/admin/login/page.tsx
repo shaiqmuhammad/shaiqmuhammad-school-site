@@ -47,13 +47,14 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <div className="mx-auto flex min-h-[70vh] max-w-md flex-col justify-center px-4 py-16">
+    <div className="mx-auto flex min-h-[70vh] max-w-md flex-col justify-center px-4 py-12">
+      <div className="glass glass-emph rounded-[20px] px-6 py-8 sm:px-8">
       <div className="mb-6 flex items-center justify-end gap-2">
         <LanguageToggle />
         <ThemeToggle />
       </div>
-      <p className="text-xs font-semibold uppercase tracking-wider text-primary">{t("adminLogin.eyebrow")}</p>
-      <h1 className="mt-2 text-2xl font-semibold tracking-tight">{t("adminLogin.title")}</h1>
+      <p className="eyebrow">{t("adminLogin.eyebrow")}</p>
+      <h1 className="mt-2 text-2xl font-extrabold tracking-tight">{t("adminLogin.title")}</h1>
       <p className="mt-2 text-sm text-muted">{t("adminLogin.desc")}</p>
       <form onSubmit={onSubmit} className="mt-8 space-y-4">
         <div>
@@ -66,7 +67,7 @@ export default function AdminLoginPage() {
             autoComplete="current-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="mt-1.5 w-full rounded-lg border border-card-border bg-card px-3 py-2 text-sm outline-none focus:border-primary"
+            className="mt-1.5 w-full rounded-xl border border-card-border bg-card-solid px-3 py-2 text-sm outline-none focus:border-sun-border focus:ring-2 focus:ring-sun/40"
             required
           />
         </div>
@@ -88,6 +89,7 @@ export default function AdminLoginPage() {
           ← {t("adminLogin.back")}
         </Link>
       </p>
+      </div>
     </div>
   );
 }

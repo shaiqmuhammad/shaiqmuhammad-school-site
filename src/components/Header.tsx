@@ -20,11 +20,11 @@ function JoinButton({ lang }: { lang: string }) {
       data-testid="header-join"
       aria-label={ar ? "انضم إلى اختبار الصف" : "Join a class assessment"}
       title={ar ? "انضم إلى اختبار الصف" : "Join a class assessment"}
-      className="relative inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 px-2.5 text-sm font-bold text-[#2a1400] shadow-md shadow-orange-500/30 ring-2 ring-amber-300/70 transition hover:scale-105 hover:from-amber-300 hover:to-orange-400 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-amber-300 dark:ring-amber-400/50 sm:px-4 lg:px-3 xl:px-4"
+      className="btn-cta relative h-9 shrink-0 px-2.5 text-sm ring-2 ring-sun/30 hover:scale-105 sm:px-4 lg:px-3 xl:px-4"
     >
       <span className="absolute -end-0.5 -top-0.5 flex h-2.5 w-2.5" aria-hidden>
-        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400 opacity-75 motion-reduce:animate-none" />
-        <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-rose-500" />
+        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-coral opacity-75 motion-reduce:animate-none" />
+        <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-coral ring-2 ring-navy" />
       </span>
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4" aria-hidden>
         <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
@@ -50,7 +50,7 @@ export function Header() {
   if (isImmersivePath(pathname)) return null;
 
   return (
-    <header className="sticky top-0 z-50 border-b border-card-border bg-header backdrop-blur-md">
+    <header className="sticky top-0 z-50 bg-header text-white shadow-[0_6px_20px_-10px_rgba(10,25,40,0.6)]">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-3 py-3 sm:gap-4 sm:px-6 lg:gap-2 lg:px-4 xl:gap-4 xl:px-6">
         <Link href="/" className="group flex min-w-0 items-center gap-2 sm:shrink-0 sm:gap-2.5">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -59,13 +59,13 @@ export function Header() {
             alt=""
             width={40}
             height={40}
-            className="h-9 w-9 shrink-0 rounded-full border border-card-border bg-card object-cover shadow-sm sm:h-10 sm:w-10"
+            className="h-9 w-9 shrink-0 rounded-full border-2 border-sun bg-white object-cover shadow-sm sm:h-10 sm:w-10"
           />
           <span className="min-w-0 leading-tight max-[374px]:sr-only">
-            <span className="block text-[13px] font-semibold tracking-tight text-foreground group-hover:text-primary sm:whitespace-nowrap sm:text-base">
+            <span className="block text-[13px] font-extrabold tracking-tight text-white group-hover:text-sun sm:whitespace-nowrap sm:text-base">
               {siteConfig.name}
             </span>
-            <span className="hidden whitespace-nowrap text-xs text-muted sm:block lg:hidden xl:block">{t("header.tagline")}</span>
+            <span className="hidden whitespace-nowrap text-xs text-white/70 sm:block lg:hidden xl:block">{t("header.tagline")}</span>
           </span>
         </Link>
 
@@ -76,11 +76,8 @@ export function Header() {
               <Link
                 key={link.href}
                 href={link.href}
-                className={`whitespace-nowrap rounded-md px-2 py-1.5 text-sm transition xl:px-2.5 ${
-                  active
-                    ? "bg-accent-soft font-medium text-primary"
-                    : "text-foreground/80 hover:bg-accent-soft hover:text-primary"
-                }`}
+                aria-current={active ? "page" : undefined}
+                className="nav-link-navy whitespace-nowrap px-2 py-1.5 text-sm transition xl:px-2.5"
               >
                 {t(`nav.${link.href}`, link.label)}
               </Link>
@@ -89,12 +86,12 @@ export function Header() {
         </nav>
 
         <div className="flex shrink-0 items-center gap-1 sm:gap-2">
-          <LanguageToggle className="max-sm:px-2.5" />
-          <ThemeToggle labelClassName="hidden sm:inline lg:hidden xl:inline" />
+          <LanguageToggle variant="navy" className="max-sm:px-2.5" />
+          <ThemeToggle variant="navy" labelClassName="hidden sm:inline lg:hidden xl:inline" />
           <JoinButton lang={lang} />
           <button
             type="button"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-card-border lg:hidden"
+            className="pill-on-navy h-9 w-9 justify-center lg:hidden"
             aria-expanded={open}
             aria-controls="mobile-nav"
             aria-label={t("header.menu")}
@@ -108,9 +105,9 @@ export function Header() {
       </div>
 
       {open && (
-        <nav id="mobile-nav" className="border-t border-card-border bg-card px-4 py-3 lg:hidden" aria-label="Mobile">
-          <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-card-border bg-accent-soft/50 p-2">
-            <span className="px-1 text-xs font-semibold uppercase tracking-wide text-muted">
+        <nav id="mobile-nav" className="border-t border-white/10 bg-background px-4 py-3 text-foreground lg:hidden" aria-label="Mobile">
+          <div className="glass mb-3 flex flex-wrap items-center gap-2 rounded-2xl p-2">
+            <span className="eyebrow px-1">
               {lang === "ar" ? "اللغة والمظهر" : "Language & theme"}
             </span>
             <LanguageToggle />
@@ -122,14 +119,15 @@ export function Header() {
                 <Link
                   href={link.href}
                   onClick={() => setOpen(false)}
-                  className="block rounded-md px-3 py-2 text-sm hover:bg-accent-soft hover:text-primary"
+                  aria-current={(link.href === "/" ? pathname === "/" : pathname.startsWith(link.href)) ? "page" : undefined}
+                  className="block rounded-full px-4 py-2 text-sm font-semibold text-heading hover:bg-cream aria-[current=page]:bg-sun aria-[current=page]:text-navy dark:hover:bg-white/10"
                 >
                   {t(`nav.${link.href}`, link.label)}
                 </Link>
               </li>
             ))}
             <li className="mt-2 border-t border-card-border pt-2">
-              <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-muted">
+              <p className="eyebrow px-3 pb-1">
                 {t("header.libraries")}
               </p>
             </li>
@@ -138,7 +136,7 @@ export function Header() {
                 <Link
                   href={item.href}
                   onClick={() => setOpen(false)}
-                  className="flex items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-gold-soft hover:text-primary"
+                  className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-heading hover:bg-cream dark:hover:bg-white/10"
                 >
                   {item.id === "quran" ? <QuranBookIcon className="h-4 w-4" /> : <HadithScrollIcon className="h-4 w-4" />}
                   {t(`enc.${item.id}`, item.label)}
