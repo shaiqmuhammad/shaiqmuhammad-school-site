@@ -3,6 +3,4 @@
 /quizzes /assessments 301
 /quizzes/ /assessments 301
 /quizzes/* /assessments/:splat 301
-/join /assessments/join 302
-/join/ /assessments/join 302
-/join/:code /assessments/join?code=:code 302
+/join/:code /join?code=:code 302

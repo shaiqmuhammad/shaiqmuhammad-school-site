@@ -24,10 +24,16 @@ export type SessionInfo = {
   endAt: number | null;
   now: number;
   participantCount: number;
-  participants: { name: string; answered: number; submitted: boolean }[];
+  participants: { id?: string; name: string; answered: number; submitted: boolean }[];
+  /** Teacher hid student names (students then see "Student N" for everyone else). */
+  hideNames?: boolean;
+  /** Host only: students the teacher removed (they can be let back in). */
+  removed?: { id: string; name: string }[];
 };
 
 export type ResultRow = {
+  /** Participant id (newer Worker versions). */
+  id?: string;
   rank: number;
   name: string;
   score: number;
@@ -110,11 +116,18 @@ export const groupApi = {
   create: (quiz: Quiz, durationSec: number, teacherSecret?: string) =>
     call<SessionInfo & { hostKey: string }>("create", { method: "POST", body: { quiz, durationSec, teacherSecret } }),
   info: (code: string) => call<SessionInfo>(encodeURIComponent(code)),
-  join: (code: string, name: string) =>
+  join: (code: string, name: string, deviceId?: string) =>
     call<SessionInfo & { participantId: string; token: string; name: string }>(`${encodeURIComponent(code)}/join`, {
       method: "POST",
-      body: { name },
+      body: { name, deviceId },
     }),
+  /** Teacher: remove a student (their device can't rejoin) or let them back in. */
+  remove: (code: string, hostKey: string, pid: string) =>
+    call<SessionResults>(`${encodeURIComponent(code)}/remove`, { method: "POST", body: { hostKey, pid } }),
+  restore: (code: string, hostKey: string, pid: string) =>
+    call<SessionResults>(`${encodeURIComponent(code)}/restore`, { method: "POST", body: { hostKey, pid } }),
+  setHideNames: (code: string, hostKey: string, hide: boolean) =>
+    call<SessionResults>(`${encodeURIComponent(code)}/names`, { method: "POST", body: { hostKey, hide } }),
   me: (code: string, pid: string, token: string) => call<MeState>(`${encodeURIComponent(code)}/me`, { query: { pid, token } }),
   answer: (code: string, pid: string, token: string, questionId: string, answer: unknown) =>
     call<{ ok: boolean; answered: number; now: number }>(`${encodeURIComponent(code)}/answer`, {
@@ -137,9 +150,37 @@ export function clockOffset(serverNow: number, sentAt: number, receivedAt: numbe
   return serverNow - (sentAt + receivedAt) / 2;
 }
 
+/**
+ * Link in the QR code / on the host screen. The bare domain (shaiqmuhammad.com/join) is only
+ * forwarded to the home page by the registrar, so the live site always uses www.
+ */
 export function joinUrl(code: string): string {
-  const origin = typeof window !== "undefined" ? window.location.origin : "https://www.shaiqmuhammad.com";
-  return `${origin}/assessments/join?code=${encodeURIComponent(code)}`;
+  const origin =
+    typeof window === "undefined" || /(^|\.)shaiqmuhammad\.com$/.test(window.location.hostname)
+      ? "https://www.shaiqmuhammad.com"
+      : window.location.origin;
+  return `${origin}/join?code=${encodeURIComponent(code)}`;
+}
+
+const DEVICE_KEY = "sm_group_device_v1";
+
+/** Random id kept on this device so a student the teacher removed can't simply rejoin. */
+export function deviceId(): string {
+  try {
+    let id = window.localStorage.getItem(DEVICE_KEY);
+    if (!id) {
+      id = Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("");
+      window.localStorage.setItem(DEVICE_KEY, id);
+    }
+    return id;
+  } catch {
+    return "";
+  }
+}
+
+/** "Student 3" placeholders when the teacher hides names (numbered in join order). */
+export function anonymousName(index: number, lang: string): string {
+  return lang === "ar" ? `طالب ${index + 1}` : `Student ${index + 1}`;
 }
 
 export function qrImageUrl(data: string, size = 320): string {

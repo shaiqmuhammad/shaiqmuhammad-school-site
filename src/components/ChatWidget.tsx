@@ -61,8 +61,9 @@ export function ChatWidget() {
     };
   }, []);
 
+  // Load Tawk only on normal pages: never on assessment screens (it is loaded later if the visitor moves on).
   useEffect(() => {
-    if (!propertyId || !widgetId) return;
+    if (!propertyId || !widgetId || immersive) return;
     if (document.getElementById("tawk-script")) return;
 
     window.Tawk_API = window.Tawk_API || {};
@@ -75,7 +76,7 @@ export function ChatWidget() {
     s.charset = "UTF-8";
     s.setAttribute("crossorigin", "*");
     document.body.appendChild(s);
-  }, [propertyId, widgetId]);
+  }, [propertyId, widgetId, immersive]);
 
   if (!mounted || immersive) return null;
 
