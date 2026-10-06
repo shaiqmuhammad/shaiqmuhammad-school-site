@@ -22,11 +22,20 @@
  *        Per-question detail (answer, correct?, earned, time) is included for every student when hostKey is
  *        given, and for the student's own row when pid+token are given. The full assessment (answer key +
  *        explanations) is included with the detail so the board can show questions and correct answers.
+ *
+ * Admin publishing (site origins only, see ./admin.ts):
+ *   POST /api/admin/login {password} -> {token, exp};  POST /api/admin/publish (Bearer token);  GET /api/admin/status
+ * Moderated forum (see ./forum.ts): POST /api/forum/submit (public, pending); count/pending/approve/reject (admin).
  */
 import { DurableObject } from "cloudflare:workers";
+import { handleAdmin, type AdminEnv } from "./admin";
+import { handleForum } from "./forum";
 import { isAnswered, normalizeQuiz, quizMaxScore, scoreQuestion, wordBank, type Quiz, type QuizQuestion } from "../../../src/lib/quiz";
 
-export interface Env {
+export { AdminGuard } from "./admin";
+export { ForumQueue } from "./forum";
+
+export interface Env extends AdminEnv {
   SESSIONS: DurableObjectNamespace<AssessmentSession>;
   HOST_SECRET?: string;
 }
@@ -467,9 +476,12 @@ async function readBody(request: Request, limit: number): Promise<Record<string,
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
     const url = new URL(request.url);
     const parts = url.pathname.replace(/\/+$/, "").split("/").filter(Boolean);
+    // Admin publishing (own CORS: site origins only). See ./admin.ts.
+    if (parts[0] === "api" && parts[1] === "admin") return handleAdmin(request, env, parts[2] || "");
+    if (parts[0] === "api" && parts[1] === "forum") return handleForum(request, env, parts[2] || "");
+    if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
 
     if (parts.length === 0 || (parts[0] === "api" && parts.length === 1)) {
       return json({ ok: true, service: "assessment-session" });

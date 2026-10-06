@@ -9,9 +9,32 @@ compatibility_date = "2025-03-01"
 name = "SESSIONS"
 class_name = "AssessmentSession"
 
+[[durable_objects.bindings]]
+name = "ADMIN_GUARD"
+class_name = "AdminGuard"
+
+[[durable_objects.bindings]]
+name = "FORUM_QUEUE"
+class_name = "ForumQueue"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["AssessmentSession"]
+
+# Failed-login limiter for /api/admin/login.
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["AdminGuard"]
+
+# Forum posts waiting for the teacher's approval.
+[[migrations]]
+tag = "v3"
+new_sqlite_classes = ["ForumQueue"]
+
+# Admin publishing secrets (never committed):
+#   npx wrangler secret put GITHUB_PAT              (fine-grained token: Contents read/write on this repo)
+#   npx wrangler secret put ADMIN_PASSWORD_SHA256   (sha256 hex of the admin password)
+#   npx wrangler secret put SESSION_SIGNING_KEY     (random; changing it signs every device out)
 
 # Optional: require a teacher secret to create sessions.
 #   npx wrangler secret put HOST_SECRET
