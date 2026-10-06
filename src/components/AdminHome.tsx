@@ -2,7 +2,7 @@
 
 import { useI18n } from "@/lib/i18n";
 
-export type AdminHomeTab = "pages" | "videos" | "quizzes" | "certificate" | "banners" | "teacher" | "forum" | "settings";
+export type AdminHomeTab = "pages" | "videos" | "quizzes" | "certificate" | "banners" | "announcements" | "teacher" | "forum" | "settings";
 
 type Stat = { label: string; value: string; tab: AdminHomeTab };
 
@@ -15,6 +15,7 @@ type Props = {
     results: number;
     threads: number;
     banners: number;
+    announcements: number;
   };
   refreshedAt: Date | null;
   refreshing: boolean;
@@ -33,7 +34,8 @@ export function AdminHome({ counts, refreshedAt, refreshing, hasToken, onTab }: 
     { label: tr("Lesson pages", "صفحات الدروس"), value: String(counts.pages), tab: "pages" },
     { label: tr("Videos", "الفيديوهات"), value: String(counts.videos), tab: "videos" },
     { label: tr("Forum threads", "مواضيع المنتدى"), value: String(counts.threads), tab: "forum" },
-    { label: tr("Announcements", "الإعلانات"), value: String(counts.banners), tab: "banners" },
+    { label: tr("Announcements", "الإعلانات"), value: String(counts.announcements), tab: "announcements" },
+    { label: tr("Banners", "اللافتات"), value: String(counts.banners), tab: "banners" },
   ];
 
   const time = refreshedAt
