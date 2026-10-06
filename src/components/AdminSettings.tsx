@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import { GITHUB_BRANCH, GITHUB_REPO } from "@/lib/content";
-import { clearStoredGithubToken, downloadJson, getStoredGithubToken, publishBinaryToGithub, publishJsonToGithub, setStoredGithubToken } from "@/lib/githubPublish";
+import { clearStoredGithubToken, downloadJson, getStoredGithubToken, isGithubTokenRemembered, publishBinaryToGithub, publishJsonToGithub, setStoredGithubToken } from "@/lib/githubPublish";
 import { useI18n } from "@/lib/i18n";
 import {
   BRAND_DIR, brandUrl, DEFAULT_LOGO_URL, GITHUB_SETTINGS_PATH, normalizeSettings, safeSocialUrl,
@@ -27,6 +27,8 @@ export default function AdminSettings({ siteSettings, setSiteSettings, setStatus
   const { t, lang } = useI18n();
   const tr = (en: string, ar: string) => (lang === "ar" ? ar : en);
   const [tokenInput, setTokenInput] = useState("");
+  const [remember, setRemember] = useState(true);
+  const remembered = hasToken && isGithubTokenRemembered();
   const [busy, setBusy] = useState(false);
 
   const [pending, setPending] = useState<{ logo: PendingImage | null; favicon: PendingImage | null }>({ logo: null, favicon: null });
@@ -89,10 +91,17 @@ export default function AdminSettings({ siteSettings, setSiteSettings, setStatus
 
       <Block title={tr("GitHub publishing token", "رمز النشر على GitHub")}>
         <p className="text-sm text-muted">PAT with Contents: Read/Write on {GITHUB_REPO} ({GITHUB_BRANCH}). <strong>Publish all</strong> writes data.json, forum.json, quizzes.json, quiz-results.json, certificate.json, banners.json and settings.json.</p>
-        <form onSubmit={(e) => { e.preventDefault(); if (!tokenInput.trim()) { setStatus("Paste a token first."); return; } setStoredGithubToken(tokenInput); setTokenInput(""); refreshTokenFlag(); setStatus("Token saved in sessionStorage."); }} className="space-y-3">
-          <p className="text-sm">Token: <span className={hasToken ? "font-medium text-primary" : "text-muted"}>{hasToken ? "Stored" : "Not set"}</span></p>
-          <Field label="GitHub Personal Access Token"><input className={input + " font-mono text-xs"} type="password" value={tokenInput} onChange={(e) => setTokenInput(e.target.value)} placeholder="github_pat_…" /></Field>
-          <div className="flex gap-2"><button type="submit" className={btn}>Save token</button>{hasToken && <button type="button" className={btnGhost} onClick={() => { clearStoredGithubToken(); refreshTokenFlag(); }}>Clear</button>}</div>
+        <form onSubmit={(e) => { e.preventDefault(); if (!tokenInput.trim()) { setStatus("Paste a token first."); return; } setStoredGithubToken(tokenInput, remember); setTokenInput(""); refreshTokenFlag(); setStatus(remember ? "Key saved on this device." : "Key saved for this tab only."); }} className="space-y-3">
+          <p className="text-sm" data-testid="token-status">
+            {tr("Key", "المفتاح")}:{" "}
+            <span className={hasToken ? "font-medium text-primary" : "text-muted"}>
+              {!hasToken ? tr("Not set", "غير محفوظ") : remembered ? tr("Key saved on this device", "المفتاح محفوظ على هذا الجهاز") : tr("Saved for this tab only", "محفوظ لهذه النافذة فقط")}
+            </span>
+          </p>
+          <Field label={hasToken ? tr("Replace with a new token", "استبدال بمفتاح جديد") : "GitHub Personal Access Token"}><input className={input + " font-mono text-xs"} type="password" autoComplete="off" value={tokenInput} onChange={(e) => setTokenInput(e.target.value)} placeholder="github_pat_…" data-testid="token-input" /></Field>
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} data-testid="token-remember" /> {tr("Remember on this device", "تذكّر على هذا الجهاز")}</label>
+          <p className="text-xs text-muted">{tr("Stored only in this browser (never published). Untick on a shared computer.", "يُحفظ في هذا المتصفح فقط (لا يُنشر). ألغِ التحديد على جهاز مشترك.")}</p>
+          <div className="flex gap-2"><button type="submit" className={btn} data-testid="token-save">{tr("Save key", "حفظ المفتاح")}</button>{hasToken && <button type="button" className={btnGhost} data-testid="token-forget" onClick={() => { clearStoredGithubToken(); refreshTokenFlag(); setStatus("Key removed from this device."); }}>{tr("Forget key", "نسيان المفتاح")}</button>}</div>
         </form>
       </Block>
 
@@ -157,7 +166,7 @@ export default function AdminSettings({ siteSettings, setSiteSettings, setStatus
       </div>
 
       <Block title={tr("Admin login", "دخول المشرف")}>
-        <p className="text-sm text-muted">Private URL: <code>/admin/login</code> (not linked anywhere on the public site — bookmark it). Password is checked against a SHA-256 hash (ADMIN_PASSWORD_SHA256 in src/lib/adminAuth.ts, or NEXT_PUBLIC_ADMIN_PASSWORD_HASH env). No plaintext password is stored in the code.</p>
+        <p className="text-sm text-muted">Private URL: <code>/admin/login</code> (not linked anywhere on the public site — bookmark it). Password is checked against a SHA-256 hash (ADMIN_PASSWORD_SHA256 in src/lib/adminAuth.ts, or NEXT_PUBLIC_ADMIN_PASSWORD_HASH env). No plaintext password is stored in the code. Signing in is remembered on this device for 30 days (every tab); use “Log out” to end it.</p>
       </Block>
     </section>
   );
@@ -225,7 +234,7 @@ function BrandUpload({ kind, title, hint, currentUrl, isCustom, pending, onPick,
 
   const warn: string[] = [];
   if (pending && pending.ext !== "svg") {
-    if (pending.width && pending.height && Math.abs(pending.width - pending.height) > 2) warn.push(tr("Not square — it will be centred with empty space.", "الصورة ليست مربعة — ستُوسَّط مع فراغ."));
+    if (pending.width && pending.height && Math.abs(pending.width - pending.height) > 2) warn.push(tr("Not square — it will be centred with empty space.", "الصورة ليست مربعة — ستُوسَّط مع فراغ."));
     if (Math.min(pending.width, pending.height) < 512) warn.push(tr(`Only ${pending.width}×${pending.height}px — 512×512 or larger looks sharper.`, `الأبعاد ${pending.width}×${pending.height} فقط — ٥١٢×٥١٢ أو أكبر أوضح.`));
   }
 
