@@ -8,8 +8,7 @@
       "buttonText": "",
       "buttonHref": "",
       "published": true,
-      "order": 0,
-      "hidden": true
+      "order": 0
     },
     {
       "id": "banner-quran",
@@ -19,7 +18,8 @@
       "buttonText": "Encyclopedia of Quran",
       "buttonHref": "/encyclopedia/quran",
       "published": true,
-      "order": 1
+      "order": 1,
+      "hidden": true
     },
     {
       "id": "banner-hadith",
@@ -50,8 +50,7 @@
       "buttonText": "Open lessons",
       "buttonHref": "/lessons",
       "published": true,
-      "order": 4,
-      "hidden": true
+      "order": 4
     }
   ]
 }
