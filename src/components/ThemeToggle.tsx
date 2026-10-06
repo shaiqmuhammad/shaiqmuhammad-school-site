@@ -25,7 +25,16 @@ function SunIcon() {
  * Light/dark pill (sun/moon icon). `showLabel` always shows the text ("Dark"/"Light");
  * otherwise the text appears from the `sm` breakpoint up and the icon is always visible.
  */
-export function ThemeToggle({ className = "", showLabel = false }: { className?: string; showLabel?: boolean }) {
+export function ThemeToggle({
+  className = "",
+  showLabel = false,
+  labelClassName = "hidden sm:inline",
+}: {
+  className?: string;
+  showLabel?: boolean;
+  /** Visibility classes for the text when `showLabel` is off. */
+  labelClassName?: string;
+}) {
   const { theme, setTheme, resolvedTheme } = useTheme();
   const { t, lang } = useI18n();
   const [mounted, setMounted] = useState(false);
@@ -46,7 +55,7 @@ export function ThemeToggle({ className = "", showLabel = false }: { className?:
       className={`inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-full border border-primary/40 bg-accent-soft px-2.5 text-sm font-semibold text-primary shadow-sm transition hover:border-primary hover:bg-primary hover:text-primary-foreground ${className}`}
     >
       {isDark ? <SunIcon /> : <MoonIcon />}
-      <span className={showLabel ? "" : "hidden sm:inline"}>{mounted ? text : "Dark"}</span>
+      <span className={showLabel ? "" : labelClassName}>{mounted ? text : "Dark"}</span>
     </button>
   );
 }
