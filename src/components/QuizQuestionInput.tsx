@@ -1,8 +1,8 @@
 "use client";
 
-import { OPTION_ACCENTS, fieldCls } from "@/components/assessment/AssessmentShell";
+import { OPTION_ACCENTS } from "@/components/assessment/AssessmentShell";
 import { useAssessmentText } from "@/lib/assessmentI18n";
-import { optionLetter, splitBlanks, type QuizQuestion } from "@/lib/quiz";
+import { optionLetter, splitBlanks, wordBank, type QuizQuestion } from "@/lib/quiz";
 
 type Props = {
   /** Question to render (already localized for display). */
@@ -23,7 +23,7 @@ function Check({ on }: { on: boolean }) {
 
 /** Large, touch-friendly answer controls for every question type. */
 export function QuizQuestionInput({ q, value, onChange, rightOrder }: Props) {
-  const { a } = useAssessmentText();
+  const { a, lang } = useAssessmentText();
 
   if (q.type === "multiple_choice" || q.type === "true_false" || q.type === "multi_select") {
     const multi = q.type === "multi_select";
@@ -56,19 +56,6 @@ export function QuizQuestionInput({ q, value, onChange, rightOrder }: Props) {
           })}
         </div>
       </div>
-    );
-  }
-
-  if (q.type === "short_answer") {
-    return (
-      <input
-        className={fieldCls + " text-xl sm:text-2xl"}
-        value={String(value ?? "")}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={a("typeAnswer")}
-        aria-label={a("typeAnswer")}
-        autoFocus
-      />
     );
   }
 
@@ -106,26 +93,45 @@ export function QuizQuestionInput({ q, value, onChange, rightOrder }: Props) {
   }
 
   if (q.type === "fill_blank") {
+    // Choose the word: every blank is a drop-down of the same word bank (no typing).
     const parts = splitBlanks(q.prompt);
     const cur = Array.isArray(value) ? (value as string[]) : [];
+    const words = wordBank(q);
     return (
-      <div className="space-y-3">
-        <p className="text-base text-slate-600 dark:text-emerald-100/70">{a("fillBlanks")}</p>
-        <p className="text-2xl font-semibold leading-[3.5rem] sm:text-3xl sm:leading-[4rem]">
+      <div className="space-y-4">
+        <p className="text-base text-slate-600 dark:text-emerald-100/70">
+          {lang === "ar" ? "اختر الكلمة الصحيحة لكل فراغ من بنك الكلمات." : "Choose the right word for each gap from the word bank."}
+        </p>
+        <div className="flex flex-wrap gap-2" aria-hidden>
+          {words.map((w) => (
+            <span key={w} dir="auto" className={`rounded-full border-2 px-3 py-1 text-base font-semibold ${cur.includes(w) ? "border-teal-500 bg-teal-100 text-teal-900 dark:bg-teal-900/50 dark:text-teal-100" : "border-emerald-900/15 bg-white dark:border-emerald-100/15 dark:bg-black/30"}`}>
+              {w}
+            </span>
+          ))}
+        </div>
+        <p dir="auto" className="text-2xl font-semibold leading-[3.5rem] sm:text-3xl sm:leading-[4rem]">
           {parts.map((part, i) => (
             <span key={i}>
               <span className="whitespace-pre-wrap">{part}</span>
               {i < parts.length - 1 && (
-                <input
+                <select
                   aria-label={a("blank", { n: i + 1 })}
-                  className="mx-1 inline-block w-44 rounded-xl border-2 border-dashed border-teal-500 bg-teal-50 px-3 py-1 text-center text-xl font-semibold outline-none focus:border-solid focus:ring-4 focus:ring-teal-200 dark:bg-teal-950/40 dark:focus:ring-teal-900 sm:text-2xl"
+                  data-testid={`blank-${i}`}
+                  className="mx-1 inline-block max-w-[16rem] rounded-xl border-2 border-dashed border-teal-500 bg-teal-50 px-2 py-1 text-xl font-semibold outline-none focus:border-solid focus:ring-4 focus:ring-teal-200 dark:bg-teal-950/40 dark:focus:ring-teal-900 sm:text-2xl"
                   value={cur[i] ?? ""}
                   onChange={(e) => {
                     const next = Array.from({ length: parts.length - 1 }, (_, j) => cur[j] ?? "");
                     next[i] = e.target.value;
                     onChange(next);
                   }}
-                />
+                >
+                  <option value="">{a("choose")}</option>
+                  {words.map((w) => (
+                    <option key={w} value={w}>
+                      {w}
+                    </option>
+                  ))}
+                </select>
               )}
             </span>
           ))}

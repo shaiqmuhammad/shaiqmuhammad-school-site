@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AssessmentShell, fieldCls, ghostBtn, panelCls, primaryBtn } from "@/components/assessment/AssessmentShell";
+import { MissingAnswers } from "@/components/assessment/MissingAnswers";
 import { QuestionStage } from "@/components/assessment/QuestionStage";
 import { QuizReview } from "@/components/QuizReview";
 import { localizedDescription, localizedTitle, useAssessmentText } from "@/lib/assessmentI18n";
@@ -73,6 +74,7 @@ export function QuizPlayer({ quiz, initialTemplate, initialResults }: Props) {
   const [published, setPublished] = useState<QuizResult[]>(initialResults);
   const [timedOut, setTimedOut] = useState(false);
   const [finalAnswers, setFinalAnswers] = useState<Record<string, unknown>>({});
+  const [showMissing, setShowMissing] = useState(false);
   const answersRef = useRef(answers);
   const submittedRef = useRef(false);
 
@@ -265,7 +267,11 @@ export function QuizPlayer({ quiz, initialTemplate, initialResults }: Props) {
             setCurrent((c) => c + 1);
             return;
           }
-          if (answeredCount < total && !confirm(a("unansweredConfirm"))) return;
+          // Every question is required; only the timer may submit with gaps (they count as wrong).
+          if (answeredCount < total) {
+            setShowMissing(true);
+            return;
+          }
           submit(false);
         }}
       >
@@ -278,6 +284,16 @@ export function QuizPlayer({ quiz, initialTemplate, initialResults }: Props) {
             onChange={(v) => setAnswers((prev) => ({ ...prev, [q.id]: v }))}
             rightOrder={rightOrders[q.id]}
           />
+          {showMissing && (
+            <MissingAnswers
+              answered={answeredFlags}
+              onJump={(i) => {
+                setCurrent(i);
+                window.scrollTo({ top: 0 });
+              }}
+              onClose={() => setShowMissing(false)}
+            />
+          )}
         </div>
         <div className="sticky bottom-0 mt-10 flex items-center justify-between gap-3 border-t border-emerald-900/10 bg-gradient-to-t from-white via-white/95 to-white/0 pb-4 pt-4 dark:border-emerald-100/10 dark:from-[#0a1613] dark:via-[#0a1613]/95">
           <button type="button" className={`${ghostBtn} ${current === 0 ? "invisible" : ""}`} disabled={current === 0} onClick={() => setCurrent((c) => c - 1)}>

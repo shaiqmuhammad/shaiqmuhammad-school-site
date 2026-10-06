@@ -3,6 +3,7 @@
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AssessmentShell, fieldCls, panelCls, primaryBtn, ghostBtn } from "@/components/assessment/AssessmentShell";
+import { MissingAnswers } from "@/components/assessment/MissingAnswers";
 import { QuestionStage } from "@/components/assessment/QuestionStage";
 import { ResultsBoard } from "@/components/assessment/ResultsBoard";
 import { initialAnswers } from "@/components/QuizPlayer";
@@ -48,6 +49,7 @@ export function GroupJoin() {
   const [current, setCurrent] = useState(0);
   const [saving, setSaving] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [showMissing, setShowMissing] = useState(false);
   const answersRef = useRef(answers);
   const pending = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const submittingRef = useRef(false);
@@ -343,7 +345,8 @@ export function GroupJoin() {
           onSubmit={(e) => {
             e.preventDefault();
             if (!last) return setCurrent((c) => c + 1);
-            if (answeredCount < total && !confirm(a("unansweredConfirm"))) return;
+            // Every question is required; the shared timer still auto-submits gaps as wrong.
+            if (answeredCount < total) return setShowMissing(true);
             submitAll();
           }}
         >
@@ -356,6 +359,16 @@ export function GroupJoin() {
               onChange={(v) => setAnswer(q.id, v)}
               rightOrder={rightOrders[q.id]}
             />
+            {showMissing && (
+              <MissingAnswers
+                answered={answeredFlags}
+                onJump={(i) => {
+                  setCurrent(i);
+                  window.scrollTo({ top: 0 });
+                }}
+                onClose={() => setShowMissing(false)}
+              />
+            )}
           </div>
           <div className="sticky bottom-0 mt-10 flex items-center justify-between gap-3 border-t border-emerald-900/10 bg-gradient-to-t from-white via-white/95 to-white/0 pb-4 pt-4 dark:border-emerald-100/10 dark:from-[#0a1613] dark:via-[#0a1613]/95">
             <button type="button" className={`${ghostBtn} ${current === 0 ? "invisible" : ""}`} disabled={current === 0} onClick={() => setCurrent((c) => c - 1)}>
