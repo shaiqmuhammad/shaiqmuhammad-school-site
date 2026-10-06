@@ -15,22 +15,22 @@ export function Footer() {
   if (pathname.startsWith("/encyclopedia")) return null;
 
   return (
-    <footer className="mt-auto border-t border-card-border bg-card">
+    <footer className="mt-auto bg-footer text-white/80">
       <div className="mx-auto grid max-w-6xl gap-10 px-4 py-12 sm:px-6 md:grid-cols-3">
         <div>
-          <p className="text-lg font-semibold text-foreground">{siteConfig.name}</p>
-          <p className="mt-2 text-sm text-muted">{t("footer.tagline", siteConfig.tagline)}</p>
-          <p className="mt-3 text-sm text-muted">{t("footer.location", siteConfig.location)}</p>
+          <p className="text-lg font-extrabold text-white">{siteConfig.name}</p>
+          <p className="mt-2 text-sm text-white/75">{t("footer.tagline", siteConfig.tagline)}</p>
+          <p className="mt-3 text-sm text-white/75">{t("footer.location", siteConfig.location)}</p>
           <SocialLinks className="mt-4" />
         </div>
         <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-foreground">
+          <p className="text-xs font-extrabold uppercase tracking-widest text-sun">
             {t("footer.quickLinks")}
           </p>
           <ul className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
             {navLinks.map((link) => (
               <li key={link.href}>
-                <Link href={link.href} className="text-muted hover:text-primary">
+                <Link href={link.href} className="text-white/80 hover:text-sun">
                   {t(`nav.${link.href}`, link.label)}
                 </Link>
               </li>
@@ -38,26 +38,26 @@ export function Footer() {
           </ul>
         </div>
         <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-foreground">
+          <p className="text-xs font-extrabold uppercase tracking-widest text-sun">
             {t("header.libraries")}
           </p>
           <ul className="mt-3 space-y-2 text-sm">
             {encyclopediaLinks.map((item) => (
               <li key={item.id}>
-                <Link href={item.href} className="text-muted hover:text-primary">
+                <Link href={item.href} className="text-white/80 hover:text-sun">
                   {t(`enc.${item.id}`, item.label)}
                 </Link>
               </li>
             ))}
-            <li className="pt-2 text-muted">
-              <a href={`mailto:${siteConfig.email}`} className="hover:text-primary">
+            <li className="pt-2 text-white/80">
+              <a href={`mailto:${siteConfig.email}`} className="hover:text-sun">
                 {siteConfig.email}
               </a>
             </li>
           </ul>
         </div>
       </div>
-      <div className="border-t border-card-border py-4 text-center text-xs text-muted">
+      <div className="border-t border-white/10 py-4 text-center text-xs text-white/60">
         {t("footer.copyright", siteConfig.copyright)}
       </div>
     </footer>

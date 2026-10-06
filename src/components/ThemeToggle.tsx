@@ -29,11 +29,14 @@ export function ThemeToggle({
   className = "",
   showLabel = false,
   labelClassName = "hidden sm:inline",
+  variant = "default",
 }: {
   className?: string;
   showLabel?: boolean;
   /** Visibility classes for the text when `showLabel` is off. */
   labelClassName?: string;
+  /** "navy": light-on-dark pill for the navy header bars. */
+  variant?: "default" | "navy";
 }) {
   const { theme, setTheme, resolvedTheme } = useTheme();
   const { t, lang } = useI18n();
@@ -52,7 +55,7 @@ export function ThemeToggle({
       title={label}
       data-testid="theme-toggle"
       onClick={() => setTheme(isDark ? "light" : "dark")}
-      className={`inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-full border border-primary/40 bg-accent-soft px-2.5 text-sm font-semibold text-primary shadow-sm transition hover:border-primary hover:bg-primary hover:text-primary-foreground ${className}`}
+      className={`inline-flex h-9 shrink-0 items-center justify-center gap-1.5 px-2.5 text-sm ${variant === "navy" ? "pill-on-navy" : "pill"} ${className}`}
     >
       {isDark ? <SunIcon /> : <MoonIcon />}
       <span className={showLabel ? "" : labelClassName}>{mounted ? text : "Dark"}</span>

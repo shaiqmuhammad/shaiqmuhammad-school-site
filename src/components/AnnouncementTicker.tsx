@@ -17,9 +17,9 @@ export function AnnouncementTicker() {
   const items = [...announcements, ...announcements];
 
   return (
-    <div className="border-b border-card-border bg-accent-soft text-sm text-foreground">
+    <div className="border-b border-white/10 bg-navy-deep text-sm text-white/90 dark:bg-[#0b1826]">
       <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-2 sm:px-6">
-        <span className="shrink-0 rounded-full bg-primary px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-primary-foreground">
+        <span className="shrink-0 rounded-full border border-sun-border bg-sun px-2.5 py-0.5 text-xs font-extrabold uppercase tracking-wide text-navy">
           {t("ticker.label")}
         </span>
         <div className="relative min-w-0 flex-1 overflow-hidden" dir="ltr">
@@ -27,7 +27,7 @@ export function AnnouncementTicker() {
             {items.map((item, index) => {
               const content = (
                 <span className="inline-flex items-center gap-2">
-                  <span aria-hidden className="text-primary">
+                  <span aria-hidden className="text-sun">
                     •
                   </span>
                   {tx(item.text)}
@@ -37,7 +37,7 @@ export function AnnouncementTicker() {
                 <Link
                   key={`${item.id}-${index}`}
                   href={item.href}
-                  className="hover:text-primary hover:underline"
+                  className="hover:text-sun hover:underline"
                 >
                   {content}
                 </Link>

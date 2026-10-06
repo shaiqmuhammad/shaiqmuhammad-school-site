@@ -4,42 +4,72 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
+  /* Palette from the classroom slides: navy bars, warm yellow pills, cream bands, teal eyebrows, coral step. */
+  --navy: #1b3a57;
+  --navy-deep: #17344f;
+  --yellow: #f3c969;
+  --yellow-border: #e9b949;
+  --yellow-hover: #f6d589;
+  --cream: #fff8ec;
+  --teal: #24857a; /* #2E9C8F darkened a touch so small labels pass contrast on white */
+  --coral: #f28c7b;
+
   --background: #ffffff;
-  --foreground: #0f1f1c;
-  --muted: #5c736c;
-  --card: #ffffff;
-  --card-border: #e5ebe8;
-  --primary: #0f5c4c;
-  --primary-foreground: #f0faf6;
-  --accent: #c9a227;
-  --accent-soft: #f3faf7;
-  --gold: #c9a227;
-  --gold-soft: #fbf6e6;
-  --header: rgba(255, 255, 255, 0.95);
-  --ring: #0f5c4c;
+  --foreground: #1b2f44;
+  --heading: #1b3a57;
+  --muted: #586a7d;
+  --card: rgba(255, 255, 255, 0.72);
+  --card-solid: #ffffff;
+  --card-border: rgba(27, 58, 87, 0.12);
+  --primary: #1b3a57;
+  --primary-foreground: #ffffff;
+  --accent: #e9b949;
+  --accent-soft: #fff8ec;
+  --gold: #b7860f;
+  --gold-soft: #fff8ec;
+  --header: #1b3a57;
+  --footer: #17344f;
+  --ring: #e9b949;
+  --cta: #f3c969;
+  --cta-border: #e9b949;
+  --cta-foreground: #1b3a57;
+  --glass-border: rgba(255, 255, 255, 0.7);
+  --glass-shadow: 0 1px 2px rgba(23, 52, 79, 0.06), 0 8px 24px -6px rgba(23, 52, 79, 0.12), 0 24px 48px -24px rgba(23, 52, 79, 0.18);
+  --page-glow-1: rgba(243, 201, 105, 0.22);
+  --page-glow-2: rgba(46, 156, 143, 0.12);
 }
 
 .dark {
-  --background: #0a1613;
-  --foreground: #e8f5f0;
-  --muted: #8faba2;
-  --card: #122420;
-  --card-border: #1e3a33;
-  --primary: #3dba9a;
-  --primary-foreground: #0a1613;
-  --accent: #e0c35a;
-  --accent-soft: #1a332c;
-  --gold: #e0c35a;
-  --gold-soft: #2a2a18;
-  --header: rgba(10, 22, 19, 0.92);
-  --ring: #3dba9a;
+  --background: #0d1b2a;
+  --foreground: #e6eef6;
+  --heading: #ffffff;
+  --muted: #a3b6c9;
+  --card: rgba(27, 58, 87, 0.45);
+  --card-solid: #142a40;
+  --card-border: rgba(255, 255, 255, 0.1);
+  --primary: #f3c969;
+  --primary-foreground: #17344f;
+  --accent: #f3c969;
+  --accent-soft: rgba(243, 201, 105, 0.12);
+  --gold: #f3c969;
+  --gold-soft: rgba(243, 201, 105, 0.1);
+  --header: #10263b;
+  --footer: #0b1826;
+  --ring: #f3c969;
+  --teal: #5cc9bc;
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 30px -8px rgba(0, 0, 0, 0.45);
+  --page-glow-1: rgba(243, 201, 105, 0.08);
+  --page-glow-2: rgba(46, 156, 143, 0.1);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-heading: var(--heading);
   --color-muted: var(--muted);
   --color-card: var(--card);
+  --color-card-solid: var(--card-solid);
   --color-card-border: var(--card-border);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
@@ -48,15 +78,31 @@
   --color-gold: var(--gold);
   --color-gold-soft: var(--gold-soft);
   --color-header: var(--header);
+  --color-footer: var(--footer);
   --color-ring: var(--ring);
-  --font-sans: var(--font-geist-sans);
+  --color-navy: var(--navy);
+  --color-navy-deep: var(--navy-deep);
+  --color-sun: var(--yellow);
+  --color-sun-border: var(--yellow-border);
+  --color-cream: var(--cream);
+  --color-teal-brand: var(--teal);
+  --color-coral: var(--coral);
+  --font-sans: var(--font-nunito);
   --font-mono: var(--font-geist-mono);
 }
 
 body {
-  background: var(--background);
+  background:
+    radial-gradient(60rem 30rem at 100% -10%, var(--page-glow-1), transparent 60%),
+    radial-gradient(50rem 30rem at -10% 40%, var(--page-glow-2), transparent 60%),
+    var(--background);
+  background-attachment: fixed;
   color: var(--foreground);
   font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+@layer base {
+  h1, h2, h3 { color: var(--heading); }
 }
 
 html[dir="rtl"] body {
@@ -75,6 +121,99 @@ html[dir="rtl"] body {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
+
+@layer components {
+/* ---------- Design system (glass panels, yellow pills, teal eyebrows) ---------- */
+.glass {
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-border);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  backdrop-filter: blur(14px) saturate(140%);
+}
+.glass-emph { border: 2px solid var(--yellow-border); }
+.band-cream { background: var(--cream); }
+.dark .band-cream { background: rgba(255, 248, 236, 0.04); }
+.eyebrow {
+  color: var(--teal);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.btn-cta {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+  border-radius: 9999px;
+  border: 1.5px solid var(--cta-border);
+  background: var(--cta);
+  color: var(--cta-foreground);
+  font-weight: 800;
+  box-shadow: 0 6px 16px -6px rgba(233, 185, 73, 0.7);
+  transition: background-color 0.15s, transform 0.15s;
+}
+.btn-cta:hover { background: var(--yellow-hover); }
+.btn-cta:active { transform: translateY(1px); }
+.btn-glass {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+  border-radius: 9999px;
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  color: var(--heading);
+  font-weight: 700;
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  transition: border-color 0.15s, background-color 0.15s;
+}
+.btn-glass:hover { border-color: var(--yellow-border); }
+/* Pills used for tabs and filters: glass at rest, yellow when active. */
+.pill {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  border-radius: 9999px;
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  color: var(--heading);
+  font-weight: 700;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+}
+.pill:hover { border-color: var(--yellow-border); }
+.pill[aria-selected="true"], .pill[aria-current="page"], .pill.is-active {
+  background: var(--cta);
+  border-color: var(--cta-border);
+  color: var(--cta-foreground);
+  box-shadow: 0 4px 12px -6px rgba(233, 185, 73, 0.8);
+}
+/* Pills on the navy bars */
+.pill-on-navy {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+  font-weight: 700;
+  transition: background-color 0.15s, border-color 0.15s;
+}
+.pill-on-navy:hover { background: rgba(255, 255, 255, 0.16); border-color: rgba(243, 201, 105, 0.7); }
+.pill-on-navy[aria-current="page"], .pill-on-navy.is-active {
+  background: var(--yellow);
+  border-color: var(--yellow-border);
+  color: var(--navy);
+}
+.nav-link-navy { color: rgba(255, 255, 255, 0.86); font-weight: 700; border-radius: 9999px; border: 1px solid transparent; }
+.nav-link-navy:hover { color: #fff; background: rgba(255, 255, 255, 0.1); }
+.nav-link-navy[aria-current="page"] { background: var(--yellow); border-color: var(--yellow-border); color: var(--navy); }
+}
+
+/* Small uppercase labels coloured with the primary token read as teal eyebrows, like the slides. */
+.uppercase.text-primary { color: var(--teal); }
+
+/* Every existing primary button (bg-primary + text-primary-foreground) becomes the warm yellow pill. */
+.bg-primary.text-primary-foreground {
+  background-color: var(--cta);
+  color: var(--cta-foreground);
+  box-shadow: inset 0 0 0 1.5px var(--cta-border);
+  font-weight: 700;
+}
+.bg-primary.text-primary-foreground:hover { background-color: var(--yellow-hover); }
 
 .prose-lesson h2 {
   margin-top: 1.5rem; margin-bottom: 0.5rem;
@@ -108,9 +247,11 @@ html[dir="rtl"] body {
 }
 
 /* ---------- Admin: calm, low-distraction surfaces ---------- */
-.admin-calm { --card-border: color-mix(in srgb, var(--muted) 18%, transparent); }
-.admin-calm main .shadow-sm,
-.admin-calm main .shadow-md { box-shadow: none; }
+.admin-calm main .rounded-2xl.bg-card,
+.admin-calm main .rounded-xl.bg-card {
+  border: 1px solid var(--card-border);
+  box-shadow: var(--glass-shadow);
+}
 .admin-calm main h2 { font-size: 1.375rem; font-weight: 600; letter-spacing: -0.01em; }
 .admin-calm main h3 { font-weight: 600; }
 .admin-calm main section { scroll-margin-top: 6rem; }

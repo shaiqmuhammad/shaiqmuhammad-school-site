@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Noto_Sans_Arabic } from "next/font/google";
+import { Geist_Mono, Noto_Sans_Arabic, Nunito } from "next/font/google";
 import { AnnouncementTicker } from "@/components/AnnouncementTicker";
 import { Footer } from "@/components/Footer";
 import { Header } from "@/components/Header";
@@ -12,9 +12,11 @@ import { brandUrl } from "@/lib/siteSettings";
 import { loadSiteSettingsSync } from "@/lib/siteSettingsServer";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+// Rounded, friendly sans (matches the classroom slides).
+const nunito = Nunito({
+  variable: "--font-nunito",
   subsets: ["latin"],
+  display: "swap",
 });
 
 const geistMono = Geist_Mono({
@@ -64,7 +66,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en-GB" suppressHydrationWarning className={`${geistSans.variable} ${geistMono.variable} ${notoArabic.variable} h-full antialiased`}>
+    <html lang="en-GB" suppressHydrationWarning className={`${nunito.variable} ${geistMono.variable} ${notoArabic.variable} h-full antialiased`}>
       <head>
         {/* Apply saved Arabic/RTL preference before paint (theme is handled by next-themes). */}
         <script dangerouslySetInnerHTML={{ __html: langInitScript }} />
