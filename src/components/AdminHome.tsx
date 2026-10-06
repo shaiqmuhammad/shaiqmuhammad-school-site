@@ -53,9 +53,9 @@ export function AdminHome({ counts, refreshedAt, refreshing, hasToken, onTab }: 
 
       {!hasToken && (
         <div className="rounded-xl bg-gold-soft px-4 py-3 text-sm">
-          {tr("Publishing needs a GitHub token.", "النشر يحتاج إلى رمز GitHub.")}{" "}
+          {tr("Publishing isn't connected on this device.", "النشر غير متصل على هذا الجهاز.")}{" "}
           <button type="button" className="font-semibold text-primary underline-offset-2 hover:underline" onClick={() => onTab("settings")}>
-            {tr("Add it in Settings", "أضفه من الإعدادات")}
+            {tr("Open Settings", "افتح الإعدادات")}
           </button>
         </div>
       )}

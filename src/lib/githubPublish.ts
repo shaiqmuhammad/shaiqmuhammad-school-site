@@ -7,54 +7,55 @@ import {
 } from "@/lib/content";
 import type { ForumData } from "@/lib/forum";
 
-const STORAGE_TOKEN_KEY = "sm_admin_github_token";
+import { getServerSession, serverPublish } from "@/lib/adminServer";
+
+/** Key name used by older builds that kept a GitHub key in the browser (now removed on load). */
+const LEGACY_TOKEN_KEY = "sm_admin_github_token";
+/** "Advanced: use my own key" fallback, only offered when the publishing server is unreachable. Tab only. */
+const FALLBACK_TOKEN_KEY = "sm_admin_github_fallback_key";
+/** Returned by getStoredGithubToken() when publishing goes through the server (no key in the browser). */
+export const SERVER_PUBLISH_TOKEN = "server-session";
+
+/** Remove any GitHub key an older build saved in this browser. */
+export function clearLegacyGithubToken(): void {
+  try {
+    localStorage.removeItem(LEGACY_TOKEN_KEY);
+    sessionStorage.removeItem(LEGACY_TOKEN_KEY);
+    sessionStorage.removeItem(LEGACY_TOKEN_KEY + "_tab_only");
+  } catch {
+    // storage unavailable
+  }
+}
 
 /**
- * The admin GitHub token lives in localStorage ("Remember on this device", the default) so it
- * survives new tabs and browser restarts, or in sessionStorage (this tab only) when the admin
- * unticks it. It is only ever stored in this browser — never committed or sent anywhere but GitHub.
- * A token saved by an older build in sessionStorage is moved to localStorage on first read.
+ * What the Publish buttons use. Normally SERVER_PUBLISH_TOKEN (signed-in device, the Worker commits);
+ * otherwise the tab-only fallback key if the admin entered one; otherwise null (not connected).
  */
 export function getStoredGithubToken(): string | null {
   if (typeof window === "undefined") return null;
+  clearLegacyGithubToken();
+  if (getServerSession()) return SERVER_PUBLISH_TOKEN;
   try {
-    const kept = localStorage.getItem(STORAGE_TOKEN_KEY);
-    if (kept) return kept;
-    const tab = sessionStorage.getItem(STORAGE_TOKEN_KEY);
-    if (tab && sessionStorage.getItem(STORAGE_TOKEN_KEY + "_tab_only") !== "1") {
-      localStorage.setItem(STORAGE_TOKEN_KEY, tab);
-      sessionStorage.removeItem(STORAGE_TOKEN_KEY);
-    }
-    return tab;
+    return sessionStorage.getItem(FALLBACK_TOKEN_KEY);
   } catch {
     return null;
   }
 }
 
-/** True when the token is remembered on this device (localStorage), false for this tab only. */
-export function isGithubTokenRemembered(): boolean {
-  if (typeof window === "undefined") return false;
-  try {
-    return Boolean(localStorage.getItem(STORAGE_TOKEN_KEY));
-  } catch {
-    return false;
-  }
+export function isServerPublishing(): boolean {
+  return Boolean(getServerSession());
 }
 
-export function setStoredGithubToken(token: string, remember = true): void {
+/** Fallback only: keep a key for this tab (never in localStorage, never published). */
+export function setStoredGithubToken(token: string): void {
   clearStoredGithubToken();
-  if (remember) localStorage.setItem(STORAGE_TOKEN_KEY, token.trim());
-  else {
-    sessionStorage.setItem(STORAGE_TOKEN_KEY, token.trim());
-    sessionStorage.setItem(STORAGE_TOKEN_KEY + "_tab_only", "1");
-  }
+  sessionStorage.setItem(FALLBACK_TOKEN_KEY, token.trim());
 }
 
 export function clearStoredGithubToken(): void {
+  clearLegacyGithubToken();
   try {
-    localStorage.removeItem(STORAGE_TOKEN_KEY);
-    sessionStorage.removeItem(STORAGE_TOKEN_KEY);
-    sessionStorage.removeItem(STORAGE_TOKEN_KEY + "_tab_only");
+    sessionStorage.removeItem(FALLBACK_TOKEN_KEY);
   } catch {
     // storage unavailable
   }
@@ -92,6 +93,10 @@ async function putGithubBase64(
   token: string,
   message: string,
 ): Promise<PublishResult> {
+  if (token === SERVER_PUBLISH_TOKEN) {
+    const r = await serverPublish([{ path, content, encoding: "base64" }], message);
+    return r.ok ? { ok: true, commitSha: r.commitSha, htmlUrl: r.htmlUrl } : { ok: false, error: r.error };
+  }
   const apiBase = `https://api.github.com/repos/${GITHUB_REPO}/contents/${path}`;
   const headers: HeadersInit = {
     Accept: "application/vnd.github+json",
