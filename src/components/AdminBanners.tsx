@@ -6,6 +6,7 @@ import {
 } from "@/lib/banners";
 import { downloadJson, getStoredGithubToken, publishJsonToGithub } from "@/lib/githubPublish";
 import { useI18n } from "@/lib/i18n";
+import { ImageSizeHint } from "@/components/ImageSizeHint";
 
 type Props = {
   setStatus: (s: string) => void;
@@ -125,6 +126,16 @@ export default function AdminBanners({ setStatus, onNeedToken, data, setData }: 
             {tr("Or upload an image", "أو ارفع صورة")}
             <input type="file" accept="image/*" className="mt-1.5 block w-full text-sm" onChange={(e) => onFile(e.target.files?.[0])} />
           </label>
+          {/* Slider renders 21:9 from 640 px up (max 1104 × 473 px on desktop) and 4:3 / min 300 px tall on phones (≈358 × 300 px at 390 px). */}
+          <ImageSizeHint
+            src={editing.imageUrl || undefined}
+            minWidth={1600}
+            ratio={21 / 9}
+            ratioLabel="21:9"
+            testId="banner-size-hint"
+            recommendEn="Recommended: 2100 × 900 px (21:9), JPG/WebP under 500 KB. On computers the slide shows up to about 1100 × 470 px; on phones it is almost square (about 6:5), so the left and right edges are cropped — keep text and important parts in the centre half (about 1100 × 900 px). The title is written over the bottom-left, so keep that area simple."
+            recommendAr="المقترح: ٢١٠٠ × ٩٠٠ بكسل (٢١:٩)، بصيغة JPG/WebP وأقل من ٥٠٠ كيلوبايت. على الحاسوب تظهر الشريحة بحجم يصل إلى ١١٠٠ × ٤٧٠ بكسل تقريبًا، وعلى الهاتف تكون شبه مربعة (٦:٥ تقريبًا) فتُقص الأطراف اليمنى واليسرى — اجعل النص والعناصر المهمة في النصف الأوسط (١١٠٠ × ٩٠٠ بكسل تقريبًا). يُكتب العنوان أسفل الصورة، فاجعل تلك المنطقة بسيطة."
+          />
           {editing.imageUrl && (
             <div className="flex items-center gap-3">
               {/* eslint-disable-next-line @next/next/no-img-element */}

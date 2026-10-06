@@ -60,7 +60,7 @@ export default function AdminCertificate({ setStatus, onNeedToken, tpl, setTpl }
           <Field label="Subtitle"><textarea className={input + " min-h-16"} value={tpl.subtitle} onChange={(e) => set("subtitle", e.target.value)} /></Field>
           <Field label="School / teacher name"><input className={input} value={tpl.schoolName} onChange={(e) => set("schoolName", e.target.value)} /></Field>
           <Field label="Footer text"><input className={input} value={tpl.footerText} onChange={(e) => set("footerText", e.target.value)} /></Field>
-          <Field label="Logo URL (optional, shown on screen preview)"><input className={input} value={tpl.logoUrl} onChange={(e) => set("logoUrl", e.target.value)} /></Field>
+          <Field label="Logo URL (optional, shown on screen preview)"><input className={input} value={tpl.logoUrl} onChange={(e) => set("logoUrl", e.target.value)} /><span className="mt-1 block text-xs font-normal text-muted">Recommended: transparent PNG or SVG, about 400 px tall (any width), under 200 KB — it is shown 48 px tall above the title.</span></Field>
           <div className="flex flex-wrap items-center gap-4">
             <label className="flex items-center gap-2 text-sm font-medium">Border colour <input type="color" value={tpl.borderColor} onChange={(e) => set("borderColor", e.target.value)} /></label>
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={tpl.showPosition} onChange={(e) => set("showPosition", e.target.checked)} /> Show position</label>

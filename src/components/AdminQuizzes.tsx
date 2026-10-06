@@ -6,6 +6,7 @@ import { useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { slugify } from "@/lib/content";
 import { HOST_DRAFT_KEY } from "@/lib/groupSession";
 import { useI18n } from "@/lib/i18n";
+import { ImageSizeHint } from "@/components/ImageSizeHint";
 import { downloadJson, getStoredGithubToken, publishJsonToGithub } from "@/lib/githubPublish";
 import { AdminQuestionEditor } from "@/components/AdminQuestionEditor";
 import {
@@ -162,6 +163,16 @@ export default function AdminQuizzes({ setStatus, onNeedToken, data, setData, re
               reader.readAsDataURL(file);
             }} />
           </label>
+          {/* Card renders 16:10 (≈350 × 220 px in the 3-column grid); the start screen shows a 16:7 strip up to 640 × 280 px. */}
+          <ImageSizeHint
+            src={editing.cardImage || undefined}
+            minWidth={1200}
+            ratio={16 / 10}
+            ratioLabel="16:10"
+            testId="cover-size-hint"
+            recommendEn="Recommended: 1600 × 1000 px (16:10), JPG/WebP under 300 KB. The card shows the whole 16:10 picture; the start screen shows a wider 16:7 strip, so about 15% is cropped from the top and bottom — keep the subject in the middle. Use respectful photos (no faces of prophets, angels or sacred figures)."
+            recommendAr="المقترح: ١٦٠٠ × ١٠٠٠ بكسل (١٦:١٠)، بصيغة JPG/WebP وأقل من ٣٠٠ كيلوبايت. تظهر الصورة كاملة على البطاقة، أما شاشة البدء فتعرض شريطًا أعرض (١٦:٧) فيُقص نحو ١٥٪ من الأعلى والأسفل — اجعل العنصر الأساسي في المنتصف. استخدم صورًا لائقة (بلا وجوه للأنبياء أو الملائكة أو الشخصيات المقدسة)."
+          />
           {editing.cardImage ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={editing.cardImage} alt="" className="max-h-36 rounded-xl border border-card-border object-cover" />
