@@ -80,7 +80,17 @@ export type Quiz = {
   timeLimitMinutes: number;
   /** Show the review screen (student answer, correct answer, explanation) after submitting */
   showAnswers: boolean;
-  /** Enabled for students. Disabled assessments stay in admin (and can still run as a group session) but are hidden from the public site. */
+  /**
+   * "Show on website": listed on /assessments and the home page. Hidden assessments stay in Admin and the
+   * teacher can still run them as a live group session. Missing in older data = shown.
+   */
+  visible: boolean;
+  /**
+   * "Active": students can start it on their own and join live sessions. An inactive assessment that is still
+   * shown appears with "Not available yet". Older data: taken from `published` (Enabled=false → inactive).
+   */
+  active: boolean;
+  /** Legacy "Enabled" flag, kept equal to `active` so older readers keep working. */
   published: boolean;
   /** Optional Arabic title / description */
   titleAr?: string;
@@ -252,6 +262,8 @@ export function normalizeQuiz(raw: Partial<Quiz>): Quiz {
   const title = String(raw.title || "Untitled assessment");
   const titleAr = String(raw.titleAr ?? "").trim();
   const descriptionAr = String(raw.descriptionAr ?? "").trim();
+  // Migration: older data only has `published` ("Enabled"); Enabled=false becomes Active=false.
+  const active = typeof raw.active === "boolean" ? raw.active : Boolean(raw.published);
   return {
     id: raw.id || newId("quiz"),
     slug: (raw.slug || slugify(title) || newId("quiz")).toLowerCase(),
@@ -260,7 +272,9 @@ export function normalizeQuiz(raw: Partial<Quiz>): Quiz {
     cardImage: String(raw.cardImage || "").trim(),
     timeLimitMinutes: typeof raw.timeLimitMinutes === "number" && raw.timeLimitMinutes >= 0 ? raw.timeLimitMinutes : 10,
     showAnswers: raw.showAnswers !== false,
-    published: Boolean(raw.published),
+    visible: typeof raw.visible === "boolean" ? raw.visible : true,
+    active,
+    published: active,
     updatedAt: raw.updatedAt || new Date().toISOString(),
     questions: Array.isArray(raw.questions) ? withoutTyping(raw.questions.map(normalizeQuestion)) : [],
     ...(titleAr ? { titleAr } : {}),
@@ -422,9 +436,10 @@ export function normalizeCertificate(raw: Partial<CertificateTemplate> | null | 
   };
 }
 
+/** Assessments shown on the website (/assessments and home cards), active or not. */
 export function listPublishedQuizzes(data: QuizzesData): Quiz[] {
   return data.quizzes
-    .filter((q) => q.published)
+    .filter((q) => q.visible)
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
@@ -433,7 +448,7 @@ export function getQuizBySlug(
   slug: string,
   opts?: { includeDrafts?: boolean },
 ): Quiz | undefined {
-  return data.quizzes.find((q) => q.slug === slug && (opts?.includeDrafts || q.published));
+  return data.quizzes.find((q) => q.slug === slug && (opts?.includeDrafts || q.visible));
 }
 
 export function quizMaxScore(quiz: Quiz): number {
@@ -652,6 +667,8 @@ export function emptyQuiz(): Quiz {
     cardImage: "",
     timeLimitMinutes: 5,
     showAnswers: true,
+    visible: true,
+    active: true,
     published: true,
     updatedAt: new Date().toISOString(),
     questions: [emptyQuestion("multiple_choice")],

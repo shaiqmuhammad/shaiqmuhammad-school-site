@@ -14,6 +14,7 @@ export function AssessmentCards({ quizzes, showJoin = false, yearFilter = false 
   const [year, setYear] = useState<number | "all">("all");
   const shown = year === "all" ? quizzes : quizzes.filter((q) => q.year === year);
   const yearLabel = (y: number) => (lang === "ar" ? `السنة ${y}` : `Year ${y}`);
+  const notYetLabel = lang === "ar" ? "غير متاح بعد" : "Not available yet";
   return (
     <div className="space-y-6">
     {yearFilter && years.length > 0 && (
@@ -25,30 +26,35 @@ export function AssessmentCards({ quizzes, showJoin = false, yearFilter = false 
             role="tab"
             aria-selected={year === y}
             onClick={() => setYear(y)}
-            className={`rounded-full px-4 py-2 text-sm font-semibold transition ${year === y ? "bg-primary text-primary-foreground" : "bg-accent-soft text-primary hover:bg-primary/10"}`}
+            className="pill px-4 py-2 text-sm"
           >
             {y === "all" ? (lang === "ar" ? "الكل" : "All") : yearLabel(y)}
           </button>
         ))}
       </div>
     )}
-    <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
       {showJoin && <JoinCard />}
       {shown.map((quiz) => (
-        <Card key={quiz.id} className="flex h-full flex-col overflow-hidden p-0! transition hover:border-primary/40">
-          <div className="relative aspect-[16/10] bg-accent-soft">
+        <Card key={quiz.id} className={`flex h-full flex-col overflow-hidden p-0! transition ${quiz.active ? "hover:-translate-y-0.5 hover:border-sun-border" : ""}`}>
+          <div className="relative aspect-[16/10] bg-cream">
             {quiz.cardImage ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={quiz.cardImage} alt="" className="h-full w-full object-cover" />
+              <img src={quiz.cardImage} alt="" className={`h-full w-full object-cover ${quiz.active ? "" : "opacity-60 grayscale"}`} />
             ) : (
-              <div className="flex h-full items-center justify-center bg-gradient-to-br from-teal-600 via-emerald-500 to-lime-400 text-5xl text-white" aria-hidden>
+              <div className={`flex h-full items-center justify-center bg-gradient-to-br from-navy via-navy-deep to-teal-brand text-5xl text-white ${quiz.active ? "" : "opacity-60 grayscale"}`} aria-hidden>
                 📝
               </div>
             )}
+            {!quiz.active && (
+              <span className="absolute start-3 top-3 rounded-full border border-white/60 bg-navy/85 px-3 py-1 text-xs font-extrabold text-white backdrop-blur" data-testid="not-available-badge">
+                🔒 {notYetLabel}
+              </span>
+            )}
           </div>
           <div className="flex flex-1 flex-col p-5">
-            {quiz.year ? <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-primary">{yearLabel(quiz.year)}</p> : null}
-            <h3 className="text-lg font-semibold">{localizedTitle(quiz, lang)}</h3>
+            {quiz.year ? <p className="mb-1 eyebrow">{yearLabel(quiz.year)}</p> : null}
+            <h3 className="text-lg font-extrabold">{localizedTitle(quiz, lang)}</h3>
             {localizedDescription(quiz, lang) && (
               <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-muted">{localizedDescription(quiz, lang)}</p>
             )}
@@ -57,12 +63,15 @@ export function AssessmentCards({ quizzes, showJoin = false, yearFilter = false 
               {quiz.timeLimitMinutes > 0 ? a("minutes", { n: quiz.timeLimitMinutes }) : a("untimed")}
             </p>
             <div className="mt-auto pt-4">
-              <Link
-                href={`/assessments/${quiz.slug}`}
-                className="inline-flex w-fit rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-90"
-              >
-                {a("startAssessment")} →
-              </Link>
+              {quiz.active ? (
+                <Link href={`/assessments/${quiz.slug}`} className="btn-cta w-fit px-5 py-2.5 text-sm">
+                  {a("startAssessment")} <span className="inline-block rtl:rotate-180" aria-hidden>→</span>
+                </Link>
+              ) : (
+                <span aria-disabled="true" className="inline-flex w-fit cursor-not-allowed items-center gap-1.5 rounded-full border border-card-border bg-slate-100 px-5 py-2.5 text-sm font-bold text-slate-500 dark:bg-white/5 dark:text-slate-400">
+                  {notYetLabel}
+                </span>
+              )}
             </div>
           </div>
         </Card>
@@ -78,19 +87,19 @@ function JoinCard() {
   const [code, setCode] = useState("");
   const clean = code.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
   return (
-    <Card className="flex h-full flex-col justify-between gap-4 border-teal-500/40 bg-gradient-to-br from-teal-50 to-emerald-50 dark:from-teal-950/60 dark:to-emerald-950/40">
+    <Card className="glass-emph flex h-full flex-col justify-between gap-4 bg-cream/80! dark:bg-white/5!">
       <div>
         <p className="text-4xl" aria-hidden>
           👥
         </p>
-        <h3 className="mt-3 text-lg font-semibold">{a("joinTitle")}</h3>
+        <h3 className="mt-3 text-lg font-extrabold">{a("joinTitle")}</h3>
         <p className="mt-2 text-sm leading-relaxed text-muted">{a("joinSubtitle")}</p>
       </div>
       <form
         className="flex gap-2"
         onSubmit={(e) => {
           e.preventDefault();
-          if (clean.length >= 4) router.push(`/assessments/join?code=${clean}`);
+          if (clean.length >= 4) router.push(`/join?code=${clean}`);
         }}
       >
         <input
@@ -100,9 +109,9 @@ function JoinCard() {
           aria-label={a("joinCode")}
           dir="ltr"
           autoCapitalize="characters"
-          className="min-w-0 flex-1 rounded-full border border-border bg-background px-4 py-2.5 text-center font-mono text-base font-bold uppercase tracking-widest"
+          className="min-w-0 flex-1 rounded-full border border-card-border bg-card-solid px-4 py-2.5 text-center font-mono text-base font-bold uppercase tracking-widest text-heading"
         />
-        <button type="submit" disabled={clean.length < 4} className="rounded-full bg-teal-700 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50">
+        <button type="submit" disabled={clean.length < 4} className="btn-cta px-5 py-2.5 text-sm disabled:opacity-50">
           {a("join")}
         </button>
       </form>
@@ -115,8 +124,8 @@ export function AssessmentsHeading() {
   const { a } = useAssessmentText();
   return (
     <div>
-      <p className="text-sm font-semibold uppercase tracking-widest text-primary">{a("practice")}</p>
-      <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">{a("assessments")}</h1>
+      <p className="eyebrow">{a("practice")}</p>
+      <h1 className="mt-2 text-3xl font-extrabold tracking-tight sm:text-4xl">{a("assessments")}</h1>
       <p className="mt-3 max-w-2xl text-base leading-relaxed text-muted">{a("listSubtitle")}</p>
     </div>
   );
@@ -128,8 +137,8 @@ export function HomeAssessmentsHeading() {
   return (
     <div className="mb-8 flex items-end justify-between gap-4">
       <div>
-        <p className="text-xs font-semibold uppercase tracking-wider text-primary">{a("practice")}</p>
-        <h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">{a("assessments")}</h2>
+        <p className="eyebrow">{a("practice")}</p>
+        <h2 className="mt-2 text-2xl font-extrabold tracking-tight sm:text-3xl">{a("assessments")}</h2>
         <p className="mt-2 max-w-2xl text-muted">{a("homeSubtitle")}</p>
       </div>
       <Link href="/assessments" className="shrink-0 text-sm font-medium text-primary hover:underline">
