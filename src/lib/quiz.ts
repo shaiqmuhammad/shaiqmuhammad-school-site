@@ -10,10 +10,13 @@ export type QuestionType =
   | "ordering"
   | "image_choice";
 
+/**
+ * Types Admin can create. Students never type an answer: "short_answer" is legacy only and is
+ * converted to multiple choice when a quiz is loaded; "fill_blank" is answered from a word bank.
+ */
 export const QUESTION_TYPES: QuestionType[] = [
   "multiple_choice",
   "true_false",
-  "short_answer",
   "multi_select",
   "matching",
   "fill_blank",
@@ -24,10 +27,10 @@ export const QUESTION_TYPES: QuestionType[] = [
 export const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
   multiple_choice: "Multiple choice",
   true_false: "True / False",
-  short_answer: "Short answer",
+  short_answer: "Short answer (old — now multiple choice)",
   multi_select: "Choose all correct (select all that apply)",
   matching: "Matching",
-  fill_blank: "Fill in the blank",
+  fill_blank: "Choose the word (word bank)",
   ordering: "Ordering / sequence",
   image_choice: "Image choice",
 };
@@ -167,7 +170,7 @@ export function optionLetter(i: number): string {
 }
 
 export function normalizeQuestion(raw: Partial<QuizQuestion>): QuizQuestion {
-  const type = QUESTION_TYPES.includes(raw.type as QuestionType) ? (raw.type as QuestionType) : "multiple_choice";
+  const type = QUESTION_TYPES.includes(raw.type as QuestionType) || raw.type === "short_answer" ? (raw.type as QuestionType) : "multiple_choice";
 
   let options = Array.isArray(raw.options) ? raw.options.map(String) : [];
   if (type === "true_false" && options.length < 2) {
@@ -259,11 +262,89 @@ export function normalizeQuiz(raw: Partial<Quiz>): Quiz {
     showAnswers: raw.showAnswers !== false,
     published: Boolean(raw.published),
     updatedAt: raw.updatedAt || new Date().toISOString(),
-    questions: Array.isArray(raw.questions) ? raw.questions.map(normalizeQuestion) : [],
+    questions: Array.isArray(raw.questions) ? withoutTyping(raw.questions.map(normalizeQuestion)) : [],
     ...(titleAr ? { titleAr } : {}),
     ...(descriptionAr ? { descriptionAr } : {}),
     ...(typeof raw.year === "number" && raw.year >= 1 && raw.year <= 13 ? { year: Math.round(raw.year) } : {}),
   };
+}
+
+/** Small stable hash (for deterministic option order). */
+function hashText(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
+  return h >>> 0;
+}
+
+/** Wrong-answer candidates for a converted question, taken from the other answers in the same quiz. */
+function distractorsFor(target: QuizQuestion, all: QuizQuestion[], answers: string[], want: number): string[] {
+  const taken = new Set(answers.map(normText));
+  const out: string[] = [];
+  const add = (t: string) => {
+    const v = String(t ?? "").trim();
+    if (!v || v.length > 60 || taken.has(normText(v)) || /^(true|false)$/i.test(v) || /^(\/|https?:|data:)/i.test(v)) return;
+    taken.add(normText(v));
+    out.push(v);
+  };
+  const first = answers[0] ?? "";
+  if (/^\d+$/.test(first.trim())) {
+    const n = Number(first.trim());
+    [n - 1, n + 10, Math.round(n / 2), n + 1].filter((x) => x > 0).forEach((x) => add(String(x)));
+  }
+  const pool: string[] = [];
+  for (const q of all) {
+    if (q === target) continue;
+    if (q.type === "multiple_choice" || q.type === "multi_select" || q.type === "ordering") pool.push(...q.options);
+    if (q.type === "matching") pool.push(...(q.pairs || []).map((p) => p.right));
+    if (q.type === "fill_blank") pool.push(...(q.blanks || []).map((b) => b[0] || ""));
+  }
+  const h = hashText(target.id);
+  for (let i = 0; i < pool.length && out.length < want; i++) add(pool[(i + h) % pool.length]);
+  return out.slice(0, want);
+}
+
+/**
+ * No question makes a student type. Legacy short-answer questions become multiple choice (the
+ * first accepted answer plus wrong answers from the same quiz, in a stable shuffled order), and
+ * choose-the-word (fill_blank) questions get at least two extra words in their word bank.
+ */
+function withoutTyping(questions: QuizQuestion[]): QuizQuestion[] {
+  return questions.map((q) => {
+    if (q.type === "short_answer") {
+      const accepted = (q.correct as string[]).map((c) => String(c).trim()).filter(Boolean);
+      const answer = accepted[0] || "";
+      const wrong = [...q.options.filter((o) => o.trim() && !accepted.some((a) => normText(a) === normText(o)))];
+      if (wrong.length < 3) wrong.push(...distractorsFor(q, questions, [...accepted, ...wrong], 3 - wrong.length));
+      const options = [answer, ...wrong.slice(0, 3)];
+      const at = hashText(q.id) % options.length;
+      options.splice(0, 1);
+      options.splice(at, 0, answer);
+      return { ...q, type: "multiple_choice" as QuestionType, options, correct: [at], optionsAr: undefined };
+    }
+    if (q.type === "fill_blank") {
+      const answers = (q.blanks || []).map((b) => b[0] || "").filter(Boolean);
+      const extra = q.options.filter((o) => o.trim());
+      if (extra.length < 2) {
+        const more = distractorsFor(q, questions, [...answers, ...extra, ...(q.blanks || []).flat()], 2 - extra.length);
+        return { ...q, options: [...extra, ...more] };
+      }
+    }
+    return q;
+  });
+}
+
+/** Words a student chooses from for a fill_blank question: each blank's answer + the extra words, A–Z. */
+export function wordBank(q: QuizQuestion): string[] {
+  const seen = new Set<string>();
+  const words: string[] = [];
+  for (const w of [...(q.blanks || []).map((b) => b[0] || ""), ...q.options]) {
+    const v = String(w ?? "").trim();
+    if (v && !seen.has(normText(v))) {
+      seen.add(normText(v));
+      words.push(v);
+    }
+  }
+  return words.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base", numeric: true }));
 }
 
 export function normalizeQuizzes(data: Partial<QuizzesData> | null | undefined): QuizzesData {
@@ -569,7 +650,7 @@ export function emptyQuiz(): Quiz {
     title: "",
     description: "",
     cardImage: "",
-    timeLimitMinutes: 10,
+    timeLimitMinutes: 5,
     showAnswers: true,
     published: true,
     updatedAt: new Date().toISOString(),
