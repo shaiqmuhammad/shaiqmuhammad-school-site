@@ -8,6 +8,8 @@
       "cardImage": "https://images.unsplash.com/photo-1752900385454-7876eec9c326?auto=format&fit=crop&w=800&h=500&q=80",
       "timeLimitMinutes": 10,
       "showAnswers": true,
+      "visible": true,
+      "active": true,
       "published": true,
       "updatedAt": "2026-09-29T09:05:18.909Z",
       "questions": [
@@ -43,14 +45,16 @@
         },
         {
           "id": "q3",
-          "type": "short_answer",
+          "type": "multiple_choice",
           "prompt": "Name the holy book of Islam (one word).",
-          "options": [],
-          "correct": [
+          "options": [
+            "Sahih Muslim",
             "Quran",
-            "Qur'an",
-            "Qur’an",
-            "Koran"
+            "Injil",
+            "Sunan Abu Dawud"
+          ],
+          "correct": [
+            1
           ],
           "points": 2,
           "explanation": "The Quran is the holy book of Islam. Different spellings such as Qur'an are accepted."
@@ -104,7 +108,10 @@
           "id": "q6",
           "type": "fill_blank",
           "prompt": "The Quran has ___ surahs, and the first surah is called ___.",
-          "options": [],
+          "options": [
+            "113",
+            "124"
+          ],
           "correct": [],
           "points": 2,
           "blanks": [
