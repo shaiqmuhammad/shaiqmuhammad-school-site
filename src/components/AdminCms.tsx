@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import {
   type ContentData, type ContentPage, type ContentVideo, type TeacherProfile,
   defaultTeacher, extractYouTubeId, GITHUB_CONTENT_PATH,
@@ -12,7 +12,9 @@ import {
   downloadContentJson, downloadForumJson, getStoredGithubToken,
   publishContentToGithub, publishForumToGithub, publishJsonToGithub,
 } from "@/lib/githubPublish";
-import { type ForumData, type ForumThread, emptyForum, loadForumData, loadForumLocal, normalizeForum } from "@/lib/forum";
+import { type ForumData, type ForumThread, emptyForum, loadForumData, mergeForumLocal, normalizeForum } from "@/lib/forum";
+import { AdminForumQueue } from "@/components/AdminForumQueue";
+import { forumPendingCount } from "@/lib/adminServer";
 import AdminQuizzes from "@/components/AdminQuizzes";
 import AdminCertificate from "@/components/AdminCertificate";
 import AdminBanners from "@/components/AdminBanners";
@@ -63,6 +65,51 @@ export default function AdminCms() {
   const [publishedSnapshot, setPublishedSnapshot] = useState<string | null>(null);
   const [otherSnapshots, setOtherSnapshots] = useState<Record<string, string>>({});
   const refreshTokenFlag = useCallback(() => setHasToken(Boolean(getStoredGithubToken())), []);
+  const [pendingCount, setPendingCount] = useState(0);
+  const [queueKey, setQueueKey] = useState(0);
+  const prevPending = useRef<number | null>(null);
+
+  // Forum moderation: poll the queue every 60 s while Admin is open, even in a background tab
+  // (bell badge, "(n)" tab title, optional desktop alert).
+  useEffect(() => {
+    if (!ready) return;
+    let stop = false;
+    const check = async () => {
+      const n = await forumPendingCount();
+      if (stop || n === null) return;
+      setPendingCount(n);
+      if (prevPending.current !== null && n > prevPending.current) {
+        setQueueKey((k) => k + 1);
+        if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+          new Notification(lang === "ar" ? "مشاركة جديدة في المنتدى" : "New forum post waiting", {
+            body: lang === "ar" ? `${n} بانتظار موافقتك` : `${n} waiting for your approval`,
+            icon: "/icon-192.png",
+          });
+        }
+      }
+      prevPending.current = n;
+    };
+    void check();
+    const timer = setInterval(check, 60_000);
+    const onVisible = () => { if (!document.hidden) void check(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => { stop = true; clearInterval(timer); document.removeEventListener("visibilitychange", onVisible); };
+  }, [ready, lang]);
+
+  useEffect(() => {
+    const base = document.title.replace(/^\(\d+\+?\)\s*/, "");
+    document.title = pendingCount > 0 ? `(${pendingCount}) ${base}` : base;
+  }, [pendingCount]);
+
+  const onQueueCount = useCallback((n: number) => { setPendingCount(n); prevPending.current = n; }, []);
+
+  /** After approving, the server returns forum.json as published; keep any unpublished local forum edits. */
+  function onForumApproved(raw: unknown) {
+    const server = normalizeForum(raw as ForumData);
+    const dirty = otherSnapshots.forum !== undefined && otherSnapshots.forum !== JSON.stringify(forum);
+    setForum(dirty ? mergeForumLocal(forum, server) : server);
+    setOtherSnapshots((prev) => ({ ...prev, forum: JSON.stringify(server) }));
+  }
 
   /** (Re)load every published JSON file (fetches use cache: "no-store"). Admin session is untouched. */
   const loadAll = useCallback(async () => {
@@ -158,7 +205,7 @@ export default function AdminCms() {
 
   async function publishContent() {
     const token = getStoredGithubToken();
-    if (!token) { setStatus("No GitHub token. Open Settings."); setTab("settings"); return; }
+    if (!token) { setStatus("Publishing isn't connected on this device — open Settings."); setTab("settings"); return; }
     setBusy(true); setStatus("Publishing data.json…");
     const result = await publishContentToGithub(data, token);
     setBusy(false);
@@ -168,7 +215,7 @@ export default function AdminCms() {
 
   async function publishForum() {
     const token = getStoredGithubToken();
-    if (!token) { setStatus("No GitHub token."); setTab("settings"); return; }
+    if (!token) { setStatus("Publishing isn't connected on this device — open Settings."); setTab("settings"); return; }
     setBusy(true); setStatus("Publishing forum.json…");
     const result = await publishForumToGithub(normalizeForum(forum), token);
     setBusy(false);
@@ -177,7 +224,7 @@ export default function AdminCms() {
 
   async function publishAll() {
     const token = getStoredGithubToken();
-    if (!token) { setStatus("No GitHub token. Open Settings."); setTab("settings"); return; }
+    if (!token) { setStatus("Publishing isn't connected on this device — open Settings."); setTab("settings"); return; }
     setBusy(true);
     const jobs: { label: string; run: () => Promise<{ ok: boolean; error?: string; htmlUrl?: string }> }[] = [
       { label: "data.json", run: () => publishContentToGithub(data, token) },
@@ -201,20 +248,6 @@ export default function AdminCms() {
     setStatus(fail.length ? `Published ${ok.length}/${jobs.length}. Errors: ${fail.join(" | ")}` : `Published all (${ok.join(", ")}). Cloudflare rebuilds in ~1–2 min.`);
   }
 
-  function importLocalForum() {
-    const local = loadForumLocal();
-    if (!local.threads.length) { setStatus("No local student posts in this browser."); return; }
-    const byId = new Map(forum.threads.map((t) => [t.id, t]));
-    for (const t of local.threads) {
-      const existing = byId.get(t.id);
-      if (!existing) { byId.set(t.id, t); continue; }
-      const ids = new Set(existing.replies.map((r) => r.id));
-      for (const r of t.replies) if (!ids.has(r.id)) existing.replies.push(r);
-    }
-    setForum({ threads: Array.from(byId.values()) });
-    setStatus("Merged local posts. Review then Publish forum.");
-  }
-
   function updateTeacher<K extends keyof TeacherProfile>(key: K, value: TeacherProfile[K]) {
     setData((prev) => ({ ...prev, teacher: { ...prev.teacher, [key]: value } }));
   }
@@ -234,6 +267,8 @@ export default function AdminCms() {
       refreshing={refreshing}
       onPublishAll={publishAll}
       onLogout={() => { setAdminAuthenticated(false); router.replace("/admin/login"); }}
+      pendingCount={pendingCount}
+      onBell={() => { setTab("forum"); setQueueKey((k) => k + 1); }}
     >
       <div className="space-y-8">
       {hasUnpublished && (
@@ -337,12 +372,12 @@ export default function AdminCms() {
             <div className="flex flex-wrap justify-between gap-2">
               <h2 className="text-xl font-semibold">{t("admin.forum.heading")}</h2>
               <div className="flex flex-wrap gap-2">
-                <button type="button" className={btnGhost} onClick={importLocalForum}>Import local posts</button>
-                <button type="button" className={btnGhost} onClick={()=>downloadForumJson(forum)}>Download forum.json</button>
+                                <button type="button" className={btnGhost} onClick={()=>downloadForumJson(forum)}>Download forum.json</button>
                 <button type="button" disabled={busy} className={btn} onClick={publishForum}>Publish forum</button>
                 <button type="button" className={btn} onClick={()=>setEditingThread({id:newId("thread"),title:"",author:"Shaiq Muhammad",body:"",createdAt:new Date().toISOString(),hidden:false,replies:[]})}>+ Thread</button>
               </div>
             </div>
+            <AdminForumQueue forum={forum} refreshKey={queueKey} onApproved={onForumApproved} onCount={onQueueCount} setStatus={setStatus} />
             {editingThread && (
               <form onSubmit={saveThread} className="space-y-3 rounded-2xl border border-card-border bg-card p-5">
                 <Field label="Title"><input className={input} value={editingThread.title} onChange={(e)=>setEditingThread({...editingThread,title:e.target.value})} required /></Field>
