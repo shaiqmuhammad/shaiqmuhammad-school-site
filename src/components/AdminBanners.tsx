@@ -19,7 +19,7 @@ const btn = "rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-
 const btnGhost = "btn-glass px-3 py-1.5 text-sm";
 const iconBtn = "pill h-8 min-w-8 justify-center px-2 text-sm disabled:opacity-40";
 
-/** Admin → Announcements: the home page slider. Add, edit, hide/show, delete and reorder slides. */
+/** Admin → Banners: the home page slider. Add, edit, hide/show, delete and reorder slides. */
 export default function AdminBanners({ setStatus, onNeedToken, data, setData }: Props) {
   const [editing, setEditing] = useState<Banner | null>(null);
   const [busy, setBusy] = useState(false);
@@ -46,7 +46,7 @@ export default function AdminBanners({ setStatus, onNeedToken, data, setData }: 
         : [...prev.banners, next],
     }));
     setEditing(null);
-    setStatus(tr(`Saved "${next.title || "announcement"}" locally. Click "Publish announcements" (or Publish all) to go live.`, `تم حفظ «${next.title || "الإعلان"}» محليًا. اضغط «نشر الإعلانات» (أو نشر الكل) لنشره.`));
+    setStatus(tr(`Saved "${next.title || "banner"}" locally. Click "Publish banners" (or Publish all) to go live.`, `تم حفظ «${next.title || "اللافتة"}» محليًا. اضغط «نشر اللافتات» (أو نشر الكل) لنشرها.`));
   }
 
   function move(id: string, dir: -1 | 1) {
@@ -63,11 +63,11 @@ export default function AdminBanners({ setStatus, onNeedToken, data, setData }: 
     // Showing also re-publishes an old draft; hiding uses the optional `hidden` flag.
     const next = show ? normalizeBanner({ ...b, hidden: false, published: true }, b.order) : normalizeBanner({ ...b, hidden: true }, b.order);
     setData((prev) => ({ banners: prev.banners.map((x) => (x.id === b.id ? next : x)) }));
-    setStatus(show ? tr(`"${b.title || "Announcement"}" will show on the site after you publish.`, `سيظهر «${b.title || "الإعلان"}» على الموقع بعد النشر.`) : tr(`"${b.title || "Announcement"}" hidden. Publish to apply.`, `تم إخفاء «${b.title || "الإعلان"}». انشر للتطبيق.`));
+    setStatus(show ? tr(`"${b.title || "Banner"}" will show on the site after you publish.`, `ستظهر «${b.title || "اللافتة"}» على الموقع بعد النشر.`) : tr(`"${b.title || "Banner"}" hidden. Publish to apply.`, `تم إخفاء «${b.title || "اللافتة"}». انشر للتطبيق.`));
   }
 
   function remove(b: Banner) {
-    if (!confirm(tr(`Delete the announcement "${b.title || "(untitled)"}"? This can't be undone after you publish.`, `حذف الإعلان «${b.title || "(بدون عنوان)"}»؟ لا يمكن التراجع بعد النشر.`))) return;
+    if (!confirm(tr(`Delete the banner "${b.title || "(untitled)"}"? This can't be undone after you publish.`, `حذف اللافتة «${b.title || "(بدون عنوان)"}»؟ لا يمكن التراجع بعد النشر.`))) return;
     setData((prev) => ({ banners: prev.banners.filter((x) => x.id !== b.id).map((x, order) => ({ ...x, order })) }));
     if (editing?.id === b.id) setEditing(null);
   }
@@ -75,11 +75,11 @@ export default function AdminBanners({ setStatus, onNeedToken, data, setData }: 
   async function publish() {
     const token = getStoredGithubToken();
     if (!token) { setStatus(tr("Publishing isn't connected on this device — open Settings.", "النشر غير متصل على هذا الجهاز — افتح الإعدادات.")); onNeedToken(); return; }
-    setBusy(true); setStatus(tr("Publishing announcements…", "جارٍ نشر الإعلانات…"));
+    setBusy(true); setStatus(tr("Publishing banners…", "جارٍ نشر اللافتات…"));
     const payload = normalizeBanners({ banners: sorted.map((b, order) => ({ ...b, order })) });
-    const r = await publishJsonToGithub(GITHUB_BANNERS_PATH, payload, token, "chore(banners): update announcements via admin");
+    const r = await publishJsonToGithub(GITHUB_BANNERS_PATH, payload, token, "chore(banners): update banners via admin");
     setBusy(false);
-    setStatus(r.ok ? tr(`Published announcements. The site rebuilds in ~1–2 min. ${r.htmlUrl || ""}`, `تم نشر الإعلانات. يُعاد بناء الموقع خلال دقيقة أو دقيقتين. ${r.htmlUrl || ""}`) : r.error);
+    setStatus(r.ok ? tr(`Published banners. The site rebuilds in ~1–2 min. ${r.htmlUrl || ""}`, `تم نشر اللافتات. يُعاد بناء الموقع خلال دقيقة أو دقيقتين. ${r.htmlUrl || ""}`) : r.error);
   }
 
   function onFile(file: File | undefined) {
@@ -92,30 +92,30 @@ export default function AdminBanners({ setStatus, onNeedToken, data, setData }: 
   }
 
   return (
-    <section className="space-y-4" data-testid="admin-announcements">
+    <section className="space-y-4" data-testid="admin-banners">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-xl font-semibold">{tr("Announcements", "الإعلانات")}</h2>
+        <h2 className="text-xl font-semibold">{tr("Banners", "اللافتات")}</h2>
         <div className="flex flex-wrap gap-2">
           <button type="button" className={btnGhost} onClick={() => downloadJson(normalizeBanners(data), "banners.json")}>{tr("Download", "تنزيل")}</button>
-          <button type="button" disabled={busy} className={btn} onClick={publish}>{tr("Publish announcements", "نشر الإعلانات")}</button>
-          <button type="button" className={btn} data-testid="add-announcement" onClick={() => setEditing({ ...emptyBanner(), order: data.banners.length })}>{tr("+ Announcement", "+ إعلان")}</button>
+          <button type="button" disabled={busy} className={btn} onClick={publish}>{tr("Publish banners", "نشر اللافتات")}</button>
+          <button type="button" className={btn} data-testid="add-banner" onClick={() => setEditing({ ...emptyBanner(), order: data.banners.length })}>{tr("+ Banner", "+ لافتة")}</button>
         </div>
       </div>
       <p className="text-xs text-muted">
         {tr(
-          `The "Announcements" slider at the top of the home page. ${visibleCount} of ${sorted.length} showing. Hidden slides stay here but don't appear on the site; with none showing, the section is hidden.`,
-          `شريط «الإعلانات» أعلى الصفحة الرئيسية. يظهر ${visibleCount} من ${sorted.length}. الشرائح المخفية تبقى هنا ولا تظهر في الموقع؛ وإذا لم يظهر أي منها يُخفى القسم.`,
+          `The banner slider at the top of the home page. ${visibleCount} of ${sorted.length} showing. Hidden slides stay here but don't appear on the site; with none showing, the section is hidden.`,
+          `شرائح اللافتات أعلى الصفحة الرئيسية. يظهر ${visibleCount} من ${sorted.length}. الشرائح المخفية تبقى هنا ولا تظهر في الموقع؛ وإذا لم يظهر أي منها يُخفى القسم.`,
         )}
       </p>
 
       {editing && (
-        <form onSubmit={save} className="space-y-3 rounded-2xl bg-card p-5" data-testid="announcement-form">
+        <form onSubmit={save} className="space-y-3 rounded-2xl bg-card p-5" data-testid="banner-form">
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label={tr("Title", "العنوان")}><input className={input} value={editing.title} onChange={(e) => setEditing({ ...editing, title: e.target.value })} data-testid="ann-title" /></Field>
+            <Field label={tr("Title", "العنوان")}><input className={input} value={editing.title} onChange={(e) => setEditing({ ...editing, title: e.target.value })} data-testid="banner-title" /></Field>
             <Field label={tr("Arabic title (optional)", "العنوان بالعربية (اختياري)")}><input dir="rtl" className={input} value={editing.titleAr || ""} onChange={(e) => setEditing({ ...editing, titleAr: e.target.value })} /></Field>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label={tr("Text", "النص")}><textarea className={input + " min-h-16"} value={editing.subtitle} onChange={(e) => setEditing({ ...editing, subtitle: e.target.value })} data-testid="ann-text" /></Field>
+            <Field label={tr("Text", "النص")}><textarea className={input + " min-h-16"} value={editing.subtitle} onChange={(e) => setEditing({ ...editing, subtitle: e.target.value })} data-testid="banner-text" /></Field>
             <Field label={tr("Arabic text (optional)", "النص بالعربية (اختياري)")}><textarea dir="rtl" className={input + " min-h-16"} value={editing.subtitleAr || ""} onChange={(e) => setEditing({ ...editing, subtitleAr: e.target.value })} /></Field>
           </div>
           <Field label={tr("Image URL or data:image/… (optional — without one the slide uses a navy background)", "رابط الصورة (اختياري — بدونها تظهر خلفية كحلية)")}>
@@ -142,18 +142,18 @@ export default function AdminBanners({ setStatus, onNeedToken, data, setData }: 
             {tr("Show on the website", "إظهار على الموقع")}
           </label>
           <div className="flex gap-2">
-            <button type="submit" className={btn} data-testid="ann-save">{tr("Save announcement", "حفظ الإعلان")}</button>
+            <button type="submit" className={btn} data-testid="banner-save">{tr("Save banner", "حفظ اللافتة")}</button>
             <button type="button" className="text-sm text-muted" onClick={() => setEditing(null)}>{tr("Cancel", "إلغاء")}</button>
           </div>
         </form>
       )}
 
-      <ul className="divide-y divide-card-border rounded-2xl bg-card" data-testid="announcement-list">
-        {sorted.length === 0 && <li className="px-4 py-3 text-sm text-muted">{tr("No announcements yet.", "لا توجد إعلانات بعد.")}</li>}
+      <ul className="divide-y divide-card-border rounded-2xl bg-card" data-testid="banner-list">
+        {sorted.length === 0 && <li className="px-4 py-3 text-sm text-muted">{tr("No banners yet.", "لا توجد لافتات بعد.")}</li>}
         {sorted.map((b, i) => {
           const visible = isBannerVisible(b);
           return (
-            <li key={b.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3" data-testid="announcement-row">
+            <li key={b.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3" data-testid="banner-row">
               <div className="flex min-w-0 items-center gap-3">
                 {b.imageUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -173,14 +173,14 @@ export default function AdminBanners({ setStatus, onNeedToken, data, setData }: 
                   type="button"
                   role="switch"
                   aria-checked={visible}
-                  data-testid="ann-toggle"
+                  data-testid="banner-toggle"
                   onClick={() => toggleHidden(b)}
                   className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold ${visible ? "border-emerald-700/30 bg-emerald-600 text-white" : "border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"}`}
                 >
                   {visible ? `👁 ${tr("Shown", "ظاهر")}` : `🚫 ${tr("Hidden", "مخفي")}`}
                 </button>
                 <button type="button" className="px-2 text-primary" onClick={() => setEditing({ ...b })}>{tr("Edit", "تعديل")}</button>
-                <button type="button" className="px-2 text-red-600" data-testid="ann-delete" onClick={() => remove(b)}>{tr("Delete", "حذف")}</button>
+                <button type="button" className="px-2 text-red-600" data-testid="banner-delete" onClick={() => remove(b)}>{tr("Delete", "حذف")}</button>
               </div>
             </li>
           );

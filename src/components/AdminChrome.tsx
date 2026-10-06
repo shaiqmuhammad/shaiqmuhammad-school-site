@@ -7,7 +7,7 @@ import { LanguageToggle } from "@/components/LanguageToggle";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useI18n } from "@/lib/i18n";
 
-type Tab = "home" | "pages" | "videos" | "quizzes" | "certificate" | "banners" | "teacher" | "forum" | "settings";
+type Tab = "home" | "pages" | "videos" | "quizzes" | "certificate" | "banners" | "announcements" | "teacher" | "forum" | "settings";
 
 type Props = {
   busy: boolean;
@@ -23,7 +23,7 @@ type Props = {
   children: ReactNode;
 };
 
-const ORDER: Tab[] = ["home", "quizzes", "pages", "videos", "banners", "forum", "certificate", "teacher", "settings"];
+const ORDER: Tab[] = ["home", "quizzes", "pages", "videos", "announcements", "banners", "forum", "certificate", "teacher", "settings"];
 
 /**
  * Calm admin shell: sidebar on large screens, compact top bar + scrollable tab strip on phones.
@@ -35,7 +35,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
   const logoUrl = useLogoUrl();
   const homeLabel = tr("Admin home — refresh content", "الرئيسية وتحديث المحتوى");
   const label = (id: Tab) =>
-    id === "home" ? tr("Home", "الرئيسية") : id === "banners" ? tr("Announcements", "الإعلانات") : t(`admin.tab.${id}`);
+    id === "home" ? tr("Home", "الرئيسية") : id === "announcements" ? tr("Announcements", "الإعلانات") : t(`admin.tab.${id}`);
   const tabStrip = useRef<HTMLElement>(null);
   // Phones: keep the current tab visible in the scrollable strip.
   useEffect(() => {
