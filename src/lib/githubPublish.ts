@@ -9,17 +9,55 @@ import type { ForumData } from "@/lib/forum";
 
 const STORAGE_TOKEN_KEY = "sm_admin_github_token";
 
+/**
+ * The admin GitHub token lives in localStorage ("Remember on this device", the default) so it
+ * survives new tabs and browser restarts, or in sessionStorage (this tab only) when the admin
+ * unticks it. It is only ever stored in this browser — never committed or sent anywhere but GitHub.
+ * A token saved by an older build in sessionStorage is moved to localStorage on first read.
+ */
 export function getStoredGithubToken(): string | null {
   if (typeof window === "undefined") return null;
-  return sessionStorage.getItem(STORAGE_TOKEN_KEY);
+  try {
+    const kept = localStorage.getItem(STORAGE_TOKEN_KEY);
+    if (kept) return kept;
+    const tab = sessionStorage.getItem(STORAGE_TOKEN_KEY);
+    if (tab && sessionStorage.getItem(STORAGE_TOKEN_KEY + "_tab_only") !== "1") {
+      localStorage.setItem(STORAGE_TOKEN_KEY, tab);
+      sessionStorage.removeItem(STORAGE_TOKEN_KEY);
+    }
+    return tab;
+  } catch {
+    return null;
+  }
 }
 
-export function setStoredGithubToken(token: string): void {
-  sessionStorage.setItem(STORAGE_TOKEN_KEY, token.trim());
+/** True when the token is remembered on this device (localStorage), false for this tab only. */
+export function isGithubTokenRemembered(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return Boolean(localStorage.getItem(STORAGE_TOKEN_KEY));
+  } catch {
+    return false;
+  }
+}
+
+export function setStoredGithubToken(token: string, remember = true): void {
+  clearStoredGithubToken();
+  if (remember) localStorage.setItem(STORAGE_TOKEN_KEY, token.trim());
+  else {
+    sessionStorage.setItem(STORAGE_TOKEN_KEY, token.trim());
+    sessionStorage.setItem(STORAGE_TOKEN_KEY + "_tab_only", "1");
+  }
 }
 
 export function clearStoredGithubToken(): void {
-  sessionStorage.removeItem(STORAGE_TOKEN_KEY);
+  try {
+    localStorage.removeItem(STORAGE_TOKEN_KEY);
+    sessionStorage.removeItem(STORAGE_TOKEN_KEY);
+    sessionStorage.removeItem(STORAGE_TOKEN_KEY + "_tab_only");
+  } catch {
+    // storage unavailable
+  }
 }
 
 export type PublishResult =

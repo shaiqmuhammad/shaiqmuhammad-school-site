@@ -18,14 +18,37 @@ export function isAdminConfigured(): boolean {
   return Boolean(getAdminPasswordHash());
 }
 
+/** How long a sign-in is remembered on this device (shared by every tab, survives restarts). */
+export const ADMIN_SESSION_DAYS = 30;
+
 export function isAdminAuthenticated(): boolean {
   if (typeof window === "undefined") return false;
-  return sessionStorage.getItem(ADMIN_SESSION_KEY) === "1";
+  try {
+    const raw = localStorage.getItem(ADMIN_SESSION_KEY);
+    if (raw) {
+      const exp = Number(JSON.parse(raw)?.exp) || 0;
+      if (exp > Date.now()) return true;
+      localStorage.removeItem(ADMIN_SESSION_KEY);
+    }
+    // Sign-in from an older build (per-tab sessionStorage): upgrade it to the 30-day device session.
+    if (sessionStorage.getItem(ADMIN_SESSION_KEY) === "1") {
+      setAdminAuthenticated(true);
+      return true;
+    }
+  } catch {
+    // storage unavailable or malformed — treat as signed out
+  }
+  return false;
 }
 
 export function setAdminAuthenticated(ok: boolean): void {
-  if (ok) sessionStorage.setItem(ADMIN_SESSION_KEY, "1");
-  else sessionStorage.removeItem(ADMIN_SESSION_KEY);
+  try {
+    sessionStorage.removeItem(ADMIN_SESSION_KEY);
+    if (ok) localStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify({ exp: Date.now() + ADMIN_SESSION_DAYS * 864e5 }));
+    else localStorage.removeItem(ADMIN_SESSION_KEY);
+  } catch {
+    // storage unavailable
+  }
 }
 
 export async function sha256Hex(input: string): Promise<string> {
