@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { PaperDownloads } from "@/components/assessment/PaperDownloads";
 import { useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { slugify } from "@/lib/content";
 import { HOST_DRAFT_KEY } from "@/lib/groupSession";
@@ -211,6 +212,7 @@ export default function AdminQuizzes({ setStatus, onNeedToken, data, setData, re
               <button type="button" className="rounded-full bg-teal-700 px-3 py-1 text-xs font-semibold text-white disabled:opacity-50" disabled={!quiz.questions.length} onClick={() => startGroup(quiz)}>
                 👥 {tr("Start group session", "ابدأ جلسة جماعية")}
               </button>
+              <PaperDownloads quiz={quiz} />
               {quiz.published && <a className="text-sm text-primary" href={`/assessments/${quiz.slug}`} target="_blank" rel="noreferrer">{tr("Open", "فتح")}</a>}
               <button type="button" className="text-sm text-primary" onClick={() => setEditing(JSON.parse(JSON.stringify(quiz)) as Quiz)}>{tr("Edit", "تعديل")}</button>
               <button type="button" className="text-sm text-red-600" onClick={() => {
