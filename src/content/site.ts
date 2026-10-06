@@ -7,7 +7,7 @@ export const siteConfig = {
     "Educational learning platform for students of Shaiq Muhammad — Quran and Hadith encyclopedias, written lessons, and video classes.",
   location: "Dubai, United Arab Emirates",
   address: "Dubai, UAE",
-  email: "info@shaiqmuhammad.com",
+  email: "contact@shaiqmuhammad.com",
   locale: "en-GB",
   copyright: "© Shaiq Muhammad. All rights reserved.",
 } as const;
