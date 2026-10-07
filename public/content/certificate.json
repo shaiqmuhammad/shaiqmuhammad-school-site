@@ -2,8 +2,8 @@
   "title": "Certificate of Achievement",
   "subtitle": "This certifies that the student named below has successfully completed the quiz",
   "schoolName": "Shaiq Muhammad Learning Platform",
-  "borderColor": "#03a84e",
+  "borderColor": "#0f766e",
   "footerText": "May knowledge be a light upon your path.",
   "logoUrl": "",
-  "showPosition": false
+  "showPosition": true
 }
