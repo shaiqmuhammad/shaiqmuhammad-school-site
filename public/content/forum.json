@@ -33,7 +33,15 @@
       "body": "Share in Arabic and English",
       "createdAt": "2026-10-07T09:28:45.376Z",
       "hidden": false,
-      "replies": []
+      "replies": [
+        {
+          "id": "reply-muxwu2gq4m1v6537",
+          "author": "Ali",
+          "body": "There are many",
+          "createdAt": "2026-10-07T09:33:34.586Z",
+          "hidden": false
+        }
+      ]
     }
   ]
 }
