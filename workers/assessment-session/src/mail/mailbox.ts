@@ -1,17 +1,21 @@
 /** Live IMAP mailbox for contact@ (iCloud) + SMTP sending. No local cache: every call talks to iCloud. */
 import { classifyParts, decodeTextPart, decodeTransfer, flattenStructure, parseEnvelope, withImap, type ImapAccount, type Tok } from "./imap";
 import { latin1ToBytes } from "./socket";
-import { sendMail, type OutMail } from "./smtp";
+import { buildMime, sendMail, type OutMail } from "./smtp";
 import { CONTACT, INFO, renderEmail, renderText, type Branded } from "./template";
 
 export interface MailEnv {
   ICLOUD_APPLE_ID?: string;
+  ICLOUD_SMTP_USER?: string;
   ICLOUD_APP_PASSWORD?: string;
 }
 
-export const mailReady = (env: MailEnv) => Boolean(env.ICLOUD_APPLE_ID && env.ICLOUD_APP_PASSWORD);
-const imapAcct = (env: MailEnv): ImapAccount => ({ host: "imap.mail.me.com", port: 993, user: env.ICLOUD_APPLE_ID || "", pass: env.ICLOUD_APP_PASSWORD || "" });
-const smtpAcct = (env: MailEnv) => ({ host: "smtp.mail.me.com", port: 587, user: env.ICLOUD_APPLE_ID || "", pass: env.ICLOUD_APP_PASSWORD || "" });
+/** The Apple account also holds arabzmart.com + personal mail: the server only ever lists/opens mail to/from contact@shaiqmuhammad.com (IMAP SEARCH). */
+const C = '"contact@shaiqmuhammad.com"';
+const SCOPE = `OR OR OR OR TO ${C} CC ${C} FROM ${C} HEADER Delivered-To ${C} HEADER X-Original-To ${C}`;
+export const mailReady = (env: MailEnv) => Boolean((env.ICLOUD_SMTP_USER || env.ICLOUD_APPLE_ID) && env.ICLOUD_APP_PASSWORD);
+const imapAcct = (env: MailEnv): ImapAccount => ({ host: "imap.mail.me.com", port: 993, user: (env.ICLOUD_SMTP_USER || env.ICLOUD_APPLE_ID || ""), pass: env.ICLOUD_APP_PASSWORD || "" });
+const smtpAcct = (env: MailEnv) => ({ host: "smtp.mail.me.com", port: 587, user: (env.ICLOUD_SMTP_USER || env.ICLOUD_APPLE_ID || ""), pass: env.ICLOUD_APP_PASSWORD || "" });
 
 function bodyValue(map: Map<string, Tok>, part: string) {
   for (const [k, v] of map) if (k.startsWith(`BODY[${part}]`)) return typeof v === "string" ? v : "";
@@ -37,9 +41,10 @@ export async function folders(env: MailEnv) {
     const list = await s.list();
     const out = [];
     for (const f of list) {
-      const r = await s.cmd(`STATUS "${f.path.replace(/"/g, '\\"')}" (MESSAGES UNSEEN)`).catch(() => []);
-      const t = r.map((x) => x.text).join(" ");
-      out.push({ path: f.path, name: f.name, total: Number(t.match(/MESSAGES (\d+)/)?.[1] || 0), unread: Number(t.match(/UNSEEN (\d+)/)?.[1] || 0) });
+      try {
+        await s.select(f.path, true);
+        out.push({ path: f.path, name: f.name, total: (await s.uidSearch(SCOPE)).length, unread: (await s.uidSearch(`UNSEEN ${SCOPE}`)).length });
+      } catch { out.push({ path: f.path, name: f.name, total: 0, unread: 0 }); }
     }
     const order = (n: string) => (/^inbox$/i.test(n) ? 0 : /sent/i.test(n) ? 1 : /draft/i.test(n) ? 2 : /junk|spam/i.test(n) ? 4 : /trash|deleted/i.test(n) ? 5 : 3);
     return out.sort((a, b) => order(a.name) - order(b.name) || a.name.localeCompare(b.name));
@@ -48,15 +53,15 @@ export async function folders(env: MailEnv) {
 
 export async function unreadInbox(env: MailEnv) {
   return withImap(imapAcct(env), async (s) => {
-    const r = await s.cmd(`STATUS "INBOX" (UNSEEN)`);
-    return Number(r.map((x) => x.text).join(" ").match(/UNSEEN (\d+)/)?.[1] || 0);
+    await s.select("INBOX", true);
+    return (await s.uidSearch(`UNSEEN ${SCOPE}`)).length;
   });
 }
 
 export async function listMessages(env: MailEnv, folder: string, page = 0, size = 30) {
   return withImap(imapAcct(env), async (s) => {
     await s.select(folder, true);
-    const uids = (await s.uidSearch("ALL")).reverse();
+    const uids = (await s.uidSearch(SCOPE)).reverse();
     const slice = uids.slice(page * size, page * size + size);
     if (!slice.length) return { total: uids.length, items: [] };
     const rows = await s.uidFetch(slice.join(","), "UID FLAGS INTERNALDATE RFC822.SIZE ENVELOPE BODYSTRUCTURE");
@@ -72,6 +77,7 @@ export async function listMessages(env: MailEnv, folder: string, page = 0, size 
 export async function getMessage(env: MailEnv, folder: string, uid: number) {
   return withImap(imapAcct(env), async (s) => {
     await s.select(folder, false);
+    if (!(await s.uidSearch(`UID ${uid} ${SCOPE}`)).includes(uid)) return null;
     const [m] = await s.uidFetch(String(uid), "UID FLAGS ENVELOPE BODYSTRUCTURE");
     if (!m) return null;
     const env2 = parseEnvelope(m.get("ENVELOPE") ?? undefined);
@@ -95,6 +101,7 @@ export async function getMessage(env: MailEnv, folder: string, uid: number) {
 export async function getPart(env: MailEnv, folder: string, uid: number, part: string) {
   return withImap(imapAcct(env), async (s) => {
     await s.select(folder, true);
+    if (!(await s.uidSearch(`UID ${uid} ${SCOPE}`)).includes(uid)) return null;
     const [m] = await s.uidFetch(String(uid), "UID BODYSTRUCTURE");
     const info = flattenStructure(m?.get("BODYSTRUCTURE") ?? undefined).find((p) => p.part === part);
     if (!info) return null;
@@ -126,11 +133,14 @@ export async function sendAuto(env: MailEnv, to: string | string[], subject: str
   return true;
 }
 
+/** Contact-form message -> placed straight into contact@'s INBOX (unread) via IMAP APPEND.
+ * (SMTP from our own account to itself is filed as Junk by iCloud.) Reply-To = the sender. */
 export async function sendToContact(env: MailEnv, m: { name: string; email: string; subject: string; message: string }) {
-  await sendMail(smtpAcct(env), {
-    from: INFO, fromName: `Website contact: ${m.name.slice(0, 60)}`, to: [CONTACT], replyTo: m.email,
+  const raw = buildMime({
+    from: INFO, fromName: `${m.name.replace(/[",:;<>@]/g, " ").slice(0, 60)} (website)`, to: [CONTACT], replyTo: m.email,
     subject: `[Contact] ${m.subject || "New message"}`.slice(0, 200),
     text: `From: ${m.name} <${m.email}>\n\n${m.message}`,
     html: renderEmail({ heading: m.subject || "New contact message", paragraphs: [`From: ${m.name} <${m.email}>`, m.message], note: "Reply to this email to answer the sender directly." }),
   });
+  await withImap(imapAcct(env), (s) => s.append("INBOX", raw, []));
 }

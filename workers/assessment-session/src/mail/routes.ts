@@ -4,6 +4,8 @@
  */
 import { corsHeaders, reply, verifyToken } from "../admin";
 import type { LmsEnv } from "../lms";
+import { verifySmtp } from "./smtp";
+import { CONTACT } from "./template";
 import { folders, getMessage, getPart, listMessages, mailReady, sendAuto, sendPersonal, sendToContact, setSeen, unreadInbox } from "./mailbox";
 
 const str = (v: unknown, n: number) => String(v ?? "").trim().slice(0, n);
@@ -20,6 +22,18 @@ export async function handleMail(request: Request, env: LmsEnv, action: string, 
   if (!mailReady(env)) return reply(origin, { error: "mail_not_configured" }, 503);
   try {
     switch (action) {
+      case "test": {
+        // Settings > Email "Test": SMTP login, IMAP login, then one test from contact@ and one from info@ to contact@.
+        const out: Record<string, string> = {};
+        try { await verifySmtp({ host: "smtp.mail.me.com", port: 587, user: env.ICLOUD_SMTP_USER || env.ICLOUD_APPLE_ID || "", pass: env.ICLOUD_APP_PASSWORD || "" }); out.smtp = "ok"; } catch (e) { out.smtp = (e as Error).message.slice(0, 160); }
+        try { out.imap = `ok (${await unreadInbox(env)} unread)`; } catch (e) { out.imap = (e as Error).message.slice(0, 160); }
+        if (body.send === true && out.smtp === "ok") {
+          const at = new Date().toLocaleString("en-GB", { timeZone: "Asia/Dubai" });
+          try { await sendPersonal(env, { to: [CONTACT], subject: `Test from contact@ (${at} UAE)`, text: "Test message sent from contact@shaiqmuhammad.com via iCloud SMTP." }); out.fromContact = "ok"; } catch (e) { out.fromContact = (e as Error).message.slice(0, 160); }
+          try { await sendAuto(env, CONTACT, `Test from info@ (${at} UAE)`, { heading: "Test email", paragraphs: ["Automatic notifications from info@shaiqmuhammad.com are working."] }); out.fromInfo = "ok"; } catch (e) { out.fromInfo = (e as Error).message.slice(0, 160); }
+        }
+        return reply(origin, out);
+      }
       case "folders": return reply(origin, { folders: await folders(env) });
       case "list": return reply(origin, await listMessages(env, str(q.get("folder") || "INBOX", 200), Math.max(0, Number(q.get("page")) || 0)));
       case "message": {
@@ -66,8 +80,9 @@ export async function handleContact(request: Request, env: LmsEnv, ctx: Executio
   const store = env.LMS.get(env.LMS.idFromName("main"));
   const saved = (await store.contactSave(request.headers.get("CF-Connecting-IP") || "?", m)) as { ok: boolean; id?: string; error?: string };
   if (!saved.ok) return reply(origin, { error: saved.error || "failed" }, 429);
+  let mailErr = "";
   if (mailReady(env)) {
-    ctx.waitUntil((async () => {
+    await (async () => {
       try {
         await sendToContact(env, m);
         await store.contactEmailed(saved.id!);
@@ -76,8 +91,9 @@ export async function handleContact(request: Request, env: LmsEnv, ctx: Executio
           paragraphs: ["We received your message and will reply soon, in shaa Allah.", `Your message:\n${m.message.slice(0, 1000)}`],
           note: "This is an automatic acknowledgement. To add anything, write to contact@shaiqmuhammad.com.",
         });
-      } catch { /* stored in admin regardless */ }
-    })());
+      } catch (e) { mailErr = (e as Error).message.slice(0, 200); }
+    })();
   }
+  if (mailErr) console.error("contact mail failed:", mailErr);
   return reply(origin, { ok: true });
 }

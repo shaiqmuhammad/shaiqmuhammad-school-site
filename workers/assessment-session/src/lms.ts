@@ -45,6 +45,8 @@ export interface LmsEnv extends AdminEnv, StorageEnv, MailEnv {
 }
 
 type Json = Record<string, unknown>;
+/** Actions allowed in admin read-only "view as" mode. */
+const VIEW_AS_READ = new Set(["dashboard", "hw", "progress", "quran-map", "leaderboard", "notes", "catalog", "me"]);
 
 /** Which LMS notifications also go out by email (when the user has an email and mail is configured). */
 const EMAIL_KINDS: Record<string, [string, string]> = {
@@ -58,7 +60,7 @@ const EMAIL_KINDS: Record<string, [string, string]> = {
 };
 type Reply = { status: number; body: unknown };
 export type Role = "student" | "teacher";
-export type Actor = { id: string; role: Role | "admin"; name: string; cls: string; perms: string[]; scope?: string[] };
+export type Actor = { id: string; role: Role | "admin"; name: string; cls: string; perms: string[]; scope?: string[]; viewAs?: boolean };
 type CatKind = "subject" | "class" | "section";
 
 const TOKEN_DAYS = 30;
@@ -176,6 +178,8 @@ export class LmsStore extends DurableObject<LmsEnv> {
     // Phase 2: activity days (streaks), revision tracking, settings, parent links, mistake notes.
     this.sql.exec(`CREATE TABLE IF NOT EXISTS activity (student TEXT, day TEXT, PRIMARY KEY (student, day))`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS settings (k TEXT PRIMARY KEY, v TEXT)`);
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS qr (token TEXT PRIMARY KEY, hw TEXT, student TEXT, created INTEGER)`);
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS viewlog (id TEXT PRIMARY KEY, uid TEXT, name TEXT, role TEXT, at INTEGER)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS contacts (id TEXT PRIMARY KEY, name TEXT, email TEXT, subject TEXT, message TEXT, created INTEGER, read INTEGER DEFAULT 0, emailed INTEGER DEFAULT 0, ip TEXT)`);
     if (!cols("users").has("parent_token")) this.sql.exec(`ALTER TABLE users ADD COLUMN parent_token TEXT DEFAULT ''`);
     if (!cols("users").has("email")) this.sql.exec(`ALTER TABLE users ADD COLUMN email TEXT DEFAULT ''`);
@@ -317,7 +321,10 @@ export class LmsStore extends DurableObject<LmsEnv> {
       if (cur.audio && !kept) await this.dropBlob(String(cur.audio));
       await this.files.put(id, data, type);
       this.sql.exec(`INSERT INTO blobs (id, owner, sub, kind, mime, size, created) VALUES (?, ?, ?, 'rec', ?, ?, ?)`, id, a.id, String(cur.id), type, data.byteLength, Date.now());
-      this.sql.exec(`UPDATE subs SET audio=?, updated=? WHERE id=?`, id, Date.now(), String(cur.id));
+      // Saving a recording hands it in: the teacher sees it straight away ("Sent to teacher ✓").
+      const was = String(cur.status);
+      this.sql.exec(`UPDATE subs SET audio=?, status='submitted', submitted_at=COALESCE(NULLIF(submitted_at,0), ?), updated=? WHERE id=?`, id, Date.now(), Date.now(), String(cur.id));
+      if (was !== "submitted") this.notify([String(h.createdBy), "admin"], "sub_new", { hw: h.id, title: h.title, student: a.name });
       this.touch(a.id);
       return { status: 200, body: { ok: true, id, sub: this.sub(h.id, a.id) } };
     }
@@ -588,8 +595,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
 
       case "dashboard": {
         if (a.role === "student") {
-          this.touch(a.id);
-          this.remind(a);
+          if (!a.viewAs) { this.touch(a.id); this.remind(a); }
           const hw = this.assignedTo(a).map((h) => { const sb = this.sub(h.id, a.id); return { ...h, sub: sb, locked: this.lockedFor(h, a.id), late: !!(h.due && ((sb?.submittedAt || 0) > h.due || (!(sb?.submittedAt) && h.due < Date.now()))) }; });
           return { status: 200, body: { homework: hw, tracker: this.trackerOf(a.id), progress: this.progressOf(a.id), leaderboard: this.setting("leaderboard", "off") !== "off" } };
         }
@@ -681,6 +687,35 @@ export class LmsStore extends DurableObject<LmsEnv> {
         if (!pin) return { status: 409, body: { error: "reset_pin_first" } };
         const ok = await sendAuto(this.env as LmsEnv, String(u.email), "Your sign-in details — Shaiq Muhammad", { heading: `Sign-in details for ${String(u.name)}`, paragraphs: ["Assalamu alaikum,", `Username: ${String(u.username)}`, `PIN: ${pin}`, "Keep this PIN private."], button: { label: "Sign in", url: "https://www.shaiqmuhammad.com/lms/login" }, note: "Automatic message — please don't reply. Questions: contact@shaiqmuhammad.com" }).catch(() => false);
         return ok ? { status: 200, body: { ok: true } } : { status: 503, body: { error: "mail_not_configured" } };
+      }
+
+      case "qr-links": {
+        // Teacher/admin: per-student QR tokens for one homework (created on demand; reset/revoke one).
+        if (!can(a, "assign") && !can(a, "review")) return { status: 403, body: { error: "forbidden" } };
+        const h = this.allHomework(str(input.hw, 40))[0];
+        if (!h) return { status: 404, body: { error: "not_found" } };
+        if (input.__method === "POST") {
+          const sid = str(input.student, 40);
+          if (input.revoke === true || input.reset === true) this.sql.exec(`DELETE FROM qr WHERE hw=? AND student=?`, h.id, sid);
+          if (input.revoke === true) this.sql.exec(`INSERT INTO qr (token, hw, student, created) VALUES (?, ?, ?, 0)`, "revoked:" + rid("x"), h.id, sid);
+        }
+        const out = this.assignees(h).map((sid) => {
+          const u = this.userRow("id=?", sid);
+          let row = this.sql.exec(`SELECT token FROM qr WHERE hw=? AND student=?`, h.id, sid).toArray()[0];
+          if (!row) {
+            const tok = b64url(crypto.getRandomValues(new Uint8Array(18)));
+            this.sql.exec(`INSERT INTO qr (token, hw, student, created) VALUES (?, ?, ?, ?)`, tok, h.id, sid, Date.now());
+            row = { token: tok };
+          }
+          const t = String(row.token);
+          return { student: sid, name: String(u?.name || "?"), cls: String(u?.cls || ""), section: String(u?.section || ""), token: t.startsWith("revoked:") ? "" : t };
+        });
+        return { status: 200, body: { links: out, teacher: a.name } };
+      }
+
+      case "viewas-log": {
+        if (a.role !== "admin") return { status: 403, body: { error: "admin_only" } };
+        return { status: 200, body: { items: this.sql.exec(`SELECT * FROM viewlog ORDER BY at DESC LIMIT 200`).toArray().map((r) => ({ uid: String(r.uid), name: String(r.name), role: String(r.role), at: Number(r.at) })) } };
       }
 
       case "contacts": {
@@ -943,6 +978,49 @@ export class LmsStore extends DurableObject<LmsEnv> {
     this.sql.exec(`UPDATE contacts SET emailed=1 WHERE id=?`, id);
   }
 
+  /** Admin "view as" access log. */
+  logViewAs(uid: string) {
+    const u = this.userRow("id=?", uid);
+    if (!u) return;
+    const now = Date.now();
+    // One log row per user per 10 minutes is enough.
+    const last = this.sql.exec(`SELECT at FROM viewlog WHERE uid=? ORDER BY at DESC LIMIT 1`, uid).toArray()[0];
+    if (!last || now - Number(last.at) > 600e3) this.sql.exec(`INSERT INTO viewlog (id, uid, name, role, at) VALUES (?, ?, ?, ?, ?)`, rid("v"), uid, String(u.name), String(u.role), now);
+    this.sql.exec(`DELETE FROM viewlog WHERE at < ?`, now - 180 * 864e5);
+  }
+
+  /** QR token page: strictly one student + one homework, read-only. */
+  qrView(token: string) {
+    if (!/^[A-Za-z0-9_-]{22,64}$/.test(token)) return { status: 404, body: { error: "not_found" } };
+    const q = this.sql.exec(`SELECT * FROM qr WHERE token=?`, token).toArray()[0];
+    if (!q) return { status: 404, body: { error: "not_found" } };
+    const h = this.allHomework(String(q.hw))[0];
+    const u = this.userRow("id=?", String(q.student));
+    if (!h || !u || u.disabled) return { status: 404, body: { error: "not_found" } };
+    const sb = this.sub(h.id, String(u.id));
+    const recs = [...new Set([...(sb?.attempts || []).map((x) => x.audio), sb?.audio || ""].filter(Boolean))];
+    const d = h.data as { surah?: number; from?: number; to?: number; reciter?: string; translit?: boolean; translation?: boolean };
+    const tracker = h.kind === "quran" ? this.trackerOf(String(u.id)).filter((t) => t.surah === d.surah) : [];
+    return { status: 200, body: {
+      student: String(u.name), cls: String(u.cls || ""), section: String(u.section || ""),
+      homework: { title: h.title, kind: h.kind, data: h.kind === "quran" ? { surah: d.surah, from: d.from, to: d.to, reciter: d.reciter, translit: d.translit, translation: d.translation } : {} },
+      status: sb?.status || "none", grade: sb?.grade || "",
+      recordings: recs, attempts: (sb?.attempts || []).map((x) => ({ n: x.n, grade: x.grade, audio: x.audio, at: x.at })),
+      feedback: (sb?.comments || []).map((c) => ({ by: c.by, text: c.text, audio: c.audio || "", at: c.at })),
+      tracker,
+    } };
+  }
+
+  async qrAudio(token: string, id: string): Promise<{ status: number; mime?: string; data?: ArrayBuffer }> {
+    const q = this.sql.exec(`SELECT * FROM qr WHERE token=?`, token).toArray()[0];
+    if (!q || !/^[A-Za-z0-9_-]{22,64}$/.test(token)) return { status: 404 };
+    const b = this.sql.exec(`SELECT b.* FROM blobs b JOIN subs s ON s.id=b.sub WHERE b.id=? AND s.hw=? AND s.student=?`, id, String(q.hw), String(q.student)).toArray()[0];
+    if (!b) return { status: 404 };
+    const f = await this.files.get(id);
+    if (!f) return { status: 404 };
+    return { status: 200, mime: String(b.mime), data: f.body instanceof ArrayBuffer ? f.body : await new Response(f.body).arrayBuffer() };
+  }
+
   /** Read-only parent view by secret token. */
   parentView(token: string) {
     if (!/^[A-Za-z0-9_-]{20,64}$/.test(token)) return { status: 404, body: { error: "not_found" } };
@@ -970,9 +1048,16 @@ export async function handleLms(request: Request, env: LmsEnv, action: string): 
   const origin = request.headers.get("Origin");
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders(origin) });
   const store = env.LMS.get(env.LMS.idFromName("main"));
+  if (action === "qr-audio") {
+    const q = new URL(request.url).searchParams;
+    const r = (await store.qrAudio(str(q.get("t"), 80), str(q.get("id"), 40))) as unknown as { status: number; mime?: string; data?: ArrayBuffer };
+    if (r.status !== 200 || !r.data) return reply(origin, { error: "not_found" }, 404);
+    return new Response(r.data, { headers: { ...corsHeaders(origin), "Content-Type": r.mime || "audio/mpeg", "Cache-Control": "private, max-age=3600", "X-Robots-Tag": "noindex" } });
+  }
   if (action === "audio-upload" || action === "audio") {
     const a = await lmsActor(request, env, store);
     if (!a) return reply(origin, { error: "unauthorized" }, 401);
+    if (a.viewAs && action !== "audio") return reply(origin, { error: "read_only" }, 403);
     const q = Object.fromEntries(new URL(request.url).searchParams) as Json;
     if (action === "audio") {
       const r = (await store.audioGet(a, str(q.id, 40))) as unknown as { status: number; mime?: string; data?: ArrayBuffer; error?: string };
@@ -1014,8 +1099,13 @@ export async function handleLms(request: Request, env: LmsEnv, action: string): 
     const r = (await store.parentView(str(new URL(request.url).searchParams.get("t") || body.t, 80))) as unknown as Reply;
     return reply(origin, r.body, r.status);
   }
+  if (action === "qr") {
+    const r = (await store.qrView(str(new URL(request.url).searchParams.get("t") || body.t, 80))) as unknown as Reply;
+    return reply(origin, r.body, r.status);
+  }
   const actor = await lmsActor(request, env, store);
   if (!actor) return reply(origin, { error: "unauthorized" }, 401);
+  if (actor.viewAs && !VIEW_AS_READ.has(action)) return reply(origin, { error: "read_only" }, 403);
   const url = new URL(request.url);
   const input: Json = { ...Object.fromEntries(url.searchParams), ...body, __method: request.method };
   const r = (await store.handle(action, actor, input)) as unknown as Reply;
@@ -1024,7 +1114,17 @@ export async function handleLms(request: Request, env: LmsEnv, action: string): 
 
 async function lmsActor(request: Request, env: LmsEnv, store: DurableObjectStub<LmsStore>): Promise<Actor | null> {
   const auth = request.headers.get("Authorization");
-  if (await verifyToken(env, auth)) return { id: "admin", role: "admin", name: "Admin", cls: "", perms: [...PERMS] };
+  if (await verifyToken(env, auth)) {
+    // Admin "view as": read-only impersonation using ONLY the admin session (logged).
+    const as = str(request.headers.get("X-View-As"), 40);
+    if (as) {
+      const u = (await store.actor(as)) as unknown as Actor | null;
+      if (!u) return null;
+      await store.logViewAs(as);
+      return { ...u, viewAs: true };
+    }
+    return { id: "admin", role: "admin", name: "Admin", cls: "", perms: [...PERMS] };
+  }
   const uid = await verifyUserToken(env, auth);
   return uid ? ((await store.actor(uid)) as unknown as Actor | null) : null;
 }
