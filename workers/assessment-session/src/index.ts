@@ -36,6 +36,7 @@ import { handleForum } from "./forum";
 import { handleResults, resultsStore, type ResultRecord, type ResultsEnv } from "./results";
 import { handleActivity, type ActivityEnv } from "./activity";
 import { handleLms, type LmsEnv } from "./lms";
+import { handleContact, handleMail } from "./mail/routes";
 import { describeAnswer, describeCorrect, isAnswered, normalizeQuiz, quizMaxScore, scoreQuestion, wordBank, type Quiz, type QuizQuestion } from "../../../src/lib/quiz";
 
 export { AdminGuard } from "./admin";
@@ -549,7 +550,7 @@ async function readBody(request: Request, limit: number): Promise<Record<string,
 }
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     const parts = url.pathname.replace(/\/+$/, "").split("/").filter(Boolean);
     // Admin publishing (own CORS: site origins only). See ./admin.ts.
@@ -558,6 +559,8 @@ export default {
     if (parts[0] === "api" && parts[1] === "results") return handleResults(request, env, parts[2] || "");
     if (parts[0] === "api" && parts[1] === "activity") return handleActivity(request, env, parts);
     if (parts[0] === "api" && parts[1] === "lms") return handleLms(request, env, parts[2] || "");
+    if (parts[0] === "api" && parts[1] === "mail") return handleMail(request, env, parts[2] || "", ctx);
+    if (parts[0] === "api" && parts[1] === "contact") return handleContact(request, env, ctx);
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
 
     if (parts.length === 0 || (parts[0] === "api" && parts.length === 1)) {

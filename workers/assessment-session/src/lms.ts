@@ -35,15 +35,27 @@
  */
 import { DurableObject } from "cloudflare:workers";
 import { corsHeaders, reply, verifyToken, type AdminEnv } from "./admin";
+import { sendAuto, type MailEnv } from "./mail/mailbox";
 import { blobStore, sqliteChunkStore, type BlobStore, type StorageEnv } from "./storage";
 
-export interface LmsEnv extends AdminEnv, StorageEnv {
+export interface LmsEnv extends AdminEnv, StorageEnv, MailEnv {
   LMS: DurableObjectNamespace<LmsStore>;
   /** base64 of 32 random bytes; enables admin PIN viewing. */
   LMS_PIN_KEY?: string;
 }
 
 type Json = Record<string, unknown>;
+
+/** Which LMS notifications also go out by email (when the user has an email and mail is configured). */
+const EMAIL_KINDS: Record<string, [string, string]> = {
+  hw_new: ["New homework", "You have new homework: {title}."],
+  graded: ["Your Quran homework was graded", "{title} was graded by {by}."],
+  feedback: ["New feedback from your teacher", "{by} left feedback on {title}."],
+  feedback_audio: ["Voice feedback from your teacher", "{by} sent voice feedback on {title}."],
+  returned: ["Please try again", "{title} was returned — please practise and hand it in again."],
+  sub_new: ["New submission", "{student} handed in {title}."],
+  reminder: ["Homework reminder", "{title} is due soon."],
+};
 type Reply = { status: number; body: unknown };
 export type Role = "student" | "teacher";
 export type Actor = { id: string; role: Role | "admin"; name: string; cls: string; perms: string[]; scope?: string[] };
@@ -164,6 +176,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     // Phase 2: activity days (streaks), revision tracking, settings, parent links, mistake notes.
     this.sql.exec(`CREATE TABLE IF NOT EXISTS activity (student TEXT, day TEXT, PRIMARY KEY (student, day))`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS settings (k TEXT PRIMARY KEY, v TEXT)`);
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS contacts (id TEXT PRIMARY KEY, name TEXT, email TEXT, subject TEXT, message TEXT, created INTEGER, read INTEGER DEFAULT 0, emailed INTEGER DEFAULT 0, ip TEXT)`);
     if (!cols("users").has("parent_token")) this.sql.exec(`ALTER TABLE users ADD COLUMN parent_token TEXT DEFAULT ''`);
     if (!cols("users").has("email")) this.sql.exec(`ALTER TABLE users ADD COLUMN email TEXT DEFAULT ''`);
     if (!cols("subs").has("mistakes")) this.sql.exec(`ALTER TABLE subs ADD COLUMN mistakes TEXT DEFAULT '[]'`);
@@ -212,7 +225,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     return this.sql.exec(`SELECT * FROM users WHERE ${where}`, arg).toArray()[0];
   }
   private publicUser(r: Record<string, unknown>) {
-    return { id: String(r.id), username: String(r.username), name: String(r.name), role: String(r.role) as Role, cls: String(r.cls || ""), section: String(r.section || ""), subjects: JSON.parse(String(r.subjects || "[]")) as string[], scope: JSON.parse(String(r.scope || "[]")) as string[], perms: JSON.parse(String(r.perms || "[]")) as string[], disabled: Boolean(r.disabled), hasPin: Boolean(r.pin_enc), created: Number(r.created), lastLogin: r.last_login ? Number(r.last_login) : null };
+    return { id: String(r.id), username: String(r.username), name: String(r.name), role: String(r.role) as Role, cls: String(r.cls || ""), section: String(r.section || ""), subjects: JSON.parse(String(r.subjects || "[]")) as string[], scope: JSON.parse(String(r.scope || "[]")) as string[], perms: JSON.parse(String(r.perms || "[]")) as string[], disabled: Boolean(r.disabled), hasPin: Boolean(r.pin_enc), email: String(r.email || ""), created: Number(r.created), lastLogin: r.last_login ? Number(r.last_login) : null };
   }
   private failCount(k: string) {
     this.sql.exec(`DELETE FROM fails WHERE t < ?`, Date.now() - FAIL_WINDOW);
@@ -261,6 +274,18 @@ export class LmsStore extends DurableObject<LmsEnv> {
       this.sql.exec(`DELETE FROM notes WHERE uid=? AND id NOT IN (SELECT id FROM notes WHERE uid=? ORDER BY created DESC LIMIT 100)`, uid, uid);
     }
     this.sql.exec(`DELETE FROM notes WHERE created < ?`, now - 60 * 864e5);
+    // Email copy (info@ no-reply, Reply-To contact@) for users with an email address.
+    const tpl = EMAIL_KINDS[kind];
+    if (tpl) {
+      const fill = (t: string) => t.replace(/\{(\w+)\}/g, (_, k) => String(data[k] ?? ""));
+      for (const uid of [...new Set(uids)]) {
+        const u = this.userRow("id=?", uid);
+        const to = String(u?.email || "");
+        if (!to || u?.disabled) continue;
+        const link = data.hw ? `https://www.shaiqmuhammad.com/lms/homework?id=${encodeURIComponent(String(data.hw))}` : "https://www.shaiqmuhammad.com/lms";
+        this.ctx.waitUntil(sendAuto(this.env as LmsEnv, to, `${tpl[0]} — ${String(u?.name || "")}`.slice(0, 150), { heading: tpl[0], paragraphs: [`Assalamu alaikum,`, `${fill(tpl[1])}${u?.role === "student" ? ` (${String(u?.name)})` : ""}`], button: { label: "Open", url: link }, note: "This is an automatic message — please don't reply. Questions: contact@shaiqmuhammad.com" }).catch(() => false));
+      }
+    }
   }
   private studentName(id: string) {
     return String(this.userRow("id=?", id)?.name ?? "?");
@@ -353,6 +378,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
           const section = role === "student" ? str(raw.section, 40) : "";
           const subjects = role === "teacher" ? strList(raw.subjects) : [];
           const scope = role === "teacher" ? strList(raw.scope, 80) : [];
+          const email = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(raw.email || "").trim()) ? String(raw.email).trim().slice(0, 120) : "";
           const placement = this.checkPlacement(cls, section, subjects, scope);
           if (placement) { errors.push({ row: i + 1, username, error: placement }); continue; }
           const existing = raw.id ? this.userRow("id=?", String(raw.id)) : this.userRow("username=?", username);
@@ -364,13 +390,13 @@ export class LmsStore extends DurableObject<LmsEnv> {
           if (pin && !validPin(pin)) { errors.push({ row: i + 1, username, error: "pin_digits" }); continue; }
           if (existing) {
             if (existing.role === "teacher" && a.role !== "admin") { errors.push({ row: i + 1, username, error: "admin_only" }); continue; }
-            this.sql.exec(`UPDATE users SET username=?, name=?, role=?, cls=?, section=?, subjects=?, scope=?, perms=?, disabled=? WHERE id=?`, username, name, role, cls, section, JSON.stringify(subjects), JSON.stringify(scope), JSON.stringify(perms), raw.disabled ? 1 : 0, String(existing.id));
+            this.sql.exec(`UPDATE users SET username=?, name=?, role=?, cls=?, section=?, subjects=?, scope=?, perms=?, disabled=?, email=? WHERE id=?`, username, name, role, cls, section, JSON.stringify(subjects), JSON.stringify(scope), JSON.stringify(perms), raw.disabled ? 1 : 0, raw.email === undefined ? String(existing.email || "") : email, String(existing.id));
             if (pin) await this.setPin(String(existing.id), pin);
           } else {
             if (Number(this.sql.exec(`SELECT COUNT(*) AS n FROM users`).one().n) >= MAX_USERS) { errors.push({ row: i + 1, username, error: "full" }); continue; }
             if (!pin) pin = newPin();
             const id = rid("u");
-            this.sql.exec(`INSERT INTO users (id, username, name, role, cls, section, subjects, scope, perms, disabled, created) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, id, username, name, role, cls, section, JSON.stringify(subjects), JSON.stringify(scope), JSON.stringify(perms), raw.disabled ? 1 : 0, Date.now());
+            this.sql.exec(`INSERT INTO users (id, username, name, role, cls, section, subjects, scope, perms, disabled, created, email) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, id, username, name, role, cls, section, JSON.stringify(subjects), JSON.stringify(scope), JSON.stringify(perms), raw.disabled ? 1 : 0, Date.now(), email);
             await this.setPin(id, pin);
             pins.push({ username, name, pin });
           }
@@ -646,6 +672,27 @@ export class LmsStore extends DurableObject<LmsEnv> {
         return { status: 200, body: { ok: true } };
       }
 
+      case "email-pin": {
+        // Admin emails a user their username + PIN (from info@, Reply-To contact@).
+        if (a.role !== "admin") return { status: 403, body: { error: "admin_only" } };
+        const u = this.userRow("id=?", str(input.id, 40));
+        if (!u?.email) return { status: 400, body: { error: "no_email" } };
+        const pin = u.pin_enc ? await openPin(this.env as LmsEnv, String(u.pin_enc)).catch(() => "") : "";
+        if (!pin) return { status: 409, body: { error: "reset_pin_first" } };
+        const ok = await sendAuto(this.env as LmsEnv, String(u.email), "Your sign-in details — Shaiq Muhammad", { heading: `Sign-in details for ${String(u.name)}`, paragraphs: ["Assalamu alaikum,", `Username: ${String(u.username)}`, `PIN: ${pin}`, "Keep this PIN private."], button: { label: "Sign in", url: "https://www.shaiqmuhammad.com/lms/login" }, note: "Automatic message — please don't reply. Questions: contact@shaiqmuhammad.com" }).catch(() => false);
+        return ok ? { status: 200, body: { ok: true } } : { status: 503, body: { error: "mail_not_configured" } };
+      }
+
+      case "contacts": {
+        if (a.role !== "admin") return { status: 403, body: { error: "admin_only" } };
+        if (input.__method === "POST" && input.id) {
+          if (input.delete === true) this.sql.exec(`DELETE FROM contacts WHERE id=?`, str(input.id, 40));
+          else this.sql.exec(`UPDATE contacts SET read=1 WHERE id=?`, str(input.id, 40));
+        }
+        const items = this.sql.exec(`SELECT * FROM contacts ORDER BY created DESC LIMIT 200`).toArray().map((r) => ({ id: String(r.id), name: String(r.name), email: String(r.email), subject: String(r.subject), message: String(r.message), created: Number(r.created), read: Boolean(r.read), emailed: Boolean(r.emailed) }));
+        return { status: 200, body: { items, unread: items.filter((x) => !x.read).length } };
+      }
+
       case "progress": {
         // Per-student tracker screen for teachers (in scope) and admin.
         const sid = str(input.id, 40);
@@ -879,6 +926,21 @@ export class LmsStore extends DurableObject<LmsEnv> {
     if (!a.scope?.length) return true;
     const u = this.userRow("id=?", sid);
     return !!u && a.scope.some((x) => { const [k, s2] = x.split("|"); return k === String(u.cls || "") && (!s2 || s2 === String(u.section || "")); });
+  }
+
+  /** Public contact form: store (always), rate-limit per IP (5/hour, 20/day site-wide per IP). */
+  contactSave(ip: string, m: { name: string; email: string; subject: string; message: string }): { ok: boolean; id?: string; error?: string } {
+    const now = Date.now();
+    const recent = Number(this.sql.exec(`SELECT COUNT(*) AS n FROM contacts WHERE ip=? AND created>?`, ip, now - 3600e3).one().n);
+    const day = Number(this.sql.exec(`SELECT COUNT(*) AS n FROM contacts WHERE ip=? AND created>?`, ip, now - 864e5).one().n);
+    if (recent >= 5 || day >= 20) return { ok: false, error: "rate_limited" };
+    const id = rid("c");
+    this.sql.exec(`INSERT INTO contacts (id, name, email, subject, message, created, ip) VALUES (?, ?, ?, ?, ?, ?, ?)`, id, m.name, m.email, m.subject, m.message, now, ip);
+    this.sql.exec(`DELETE FROM contacts WHERE created < ?`, now - 365 * 864e5);
+    return { ok: true, id };
+  }
+  contactEmailed(id: string) {
+    this.sql.exec(`UPDATE contacts SET emailed=1 WHERE id=?`, id);
   }
 
   /** Read-only parent view by secret token. */
