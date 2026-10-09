@@ -13,7 +13,6 @@ export default function EncyclopediaHadithPage() {
       title="Encyclopedia of Hadith"
       description="Authentic Hadith with explanations — stay on this site while you study."
       src="https://hadeethenc.com/en/home/about"
-      externalUrl="https://hadeethenc.com/en/home/about"
     />
   );
 }

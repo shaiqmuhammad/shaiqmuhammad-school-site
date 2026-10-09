@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { isImmersivePath } from "@/lib/immersive";
-import { encyclopediaLinks, navLinks, siteConfig } from "@/content/site";
+import { encyclopediaLinks, footerLinks, siteConfig } from "@/content/site";
 import { useI18n } from "@/lib/i18n";
 import { SocialLinks } from "@/components/SocialLinks";
 
@@ -28,7 +28,7 @@ export function Footer() {
             {t("footer.quickLinks")}
           </p>
           <ul className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-            {navLinks.map((link) => (
+            {footerLinks.map((link) => (
               <li key={link.href}>
                 <Link href={link.href} className="text-white/80 hover:text-sun">
                   {t(`nav.${link.href}`, link.label)}

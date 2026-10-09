@@ -3,13 +3,93 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { isImmersivePath } from "@/lib/immersive";
-import { useState } from "react";
-import { encyclopediaLinks, navLinks, siteConfig } from "@/content/site";
+import { useEffect, useRef, useState } from "react";
+import { navLinks, resourceLinks, siteConfig, type ResourceLink } from "@/content/site";
 import { HadithScrollIcon, QuranBookIcon } from "@/components/EncyclopediaIcons";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useI18n } from "@/lib/i18n";
 import { useLogoUrl } from "@/components/SiteBrand";
+
+const samePath = (pathname: string, href: string) => pathname.replace(/\/$/, "") === href || pathname.startsWith(href + "/");
+
+function ResourceIcon({ kind, className = "h-4 w-4 shrink-0" }: { kind: ResourceLink["kind"]; className?: string }) {
+  if (kind === "quran") return <QuranBookIcon className={className} />;
+  if (kind === "hadith") return <HadithScrollIcon className={className} />;
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
+      {kind === "videos" ? (
+        <><rect x="3" y="5" width="18" height="14" rx="3" /><path d="M10 9.5v5l4.5-2.5z" fill="currentColor" /></>
+      ) : (
+        <><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z" /><path d="M4 20.5A2.5 2.5 0 0 1 6.5 18H20v3H6.5A2.5 2.5 0 0 1 4 20.5z" /></>
+      )}
+    </svg>
+  );
+}
+
+const menuItemCls =
+  "flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-semibold text-heading transition hover:bg-sun hover:text-navy focus-visible:bg-sun focus-visible:text-navy focus-visible:outline-none aria-[current=page]:bg-sun aria-[current=page]:text-navy";
+
+/** Desktop "Students Resources" dropdown: hover, click/tap or keyboard (Enter/Space/↓ opens, ↑/↓ move, Escape closes). */
+function ResourcesMenu({ label, active, t }: { label: string; active: boolean; t: (key: string, fallback?: string) => string }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const pathname = usePathname() || "";
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [open]);
+  const links = () => [...(ref.current?.querySelectorAll<HTMLAnchorElement>("[data-menu-item]") ?? [])];
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    const items = links();
+    const idx = items.indexOf(document.activeElement as HTMLAnchorElement);
+    if (e.key === "Escape") { setOpen(false); ref.current?.querySelector("button")?.focus(); }
+    else if (e.key === "ArrowDown") { e.preventDefault(); if (!open) { setOpen(true); setTimeout(() => links()[0]?.focus(), 0); } else items[(idx + 1) % items.length]?.focus(); }
+    else if (e.key === "ArrowUp" && open) { e.preventDefault(); items[(idx - 1 + items.length) % items.length]?.focus(); }
+  };
+  return (
+    <div
+      ref={ref}
+      className="relative"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+      onKeyDown={onKeyDown}
+      onBlur={(e) => { if (!ref.current?.contains(e.relatedTarget as Node)) setOpen(false); }}
+    >
+      <button
+        type="button"
+        aria-haspopup="true"
+        aria-expanded={open}
+        aria-controls="resources-menu"
+        aria-current={active ? "page" : undefined}
+        onClick={() => setOpen((v) => !v)}
+        className={`nav-link-navy inline-flex items-center gap-1 whitespace-nowrap px-2 py-1.5 text-sm transition xl:px-2.5 ${active ? "is-active bg-white/10 text-white" : ""}`}
+        data-testid="nav-resources"
+      >
+        {label}
+        <svg viewBox="0 0 20 20" fill="currentColor" className={`h-3.5 w-3.5 opacity-70 transition ${open ? "rotate-180" : ""}`} aria-hidden>
+          <path d="M5.3 7.3a1 1 0 0 1 1.4 0L10 10.6l3.3-3.3a1 1 0 1 1 1.4 1.4l-4 4a1 1 0 0 1-1.4 0l-4-4a1 1 0 0 1 0-1.4z" />
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute start-0 top-full z-50 pt-2">
+          <ul id="resources-menu" className="glass glass-emph w-64 rounded-2xl bg-card-solid p-1.5 text-foreground shadow-xl" data-testid="resources-menu">
+            {resourceLinks.map((item) => (
+              <li key={item.href}>
+                <Link href={item.href} data-menu-item onClick={() => setOpen(false)} aria-current={samePath(pathname, item.href) ? "page" : undefined} className={menuItemCls}>
+                  <ResourceIcon kind={item.kind} />
+                  {t(item.key, item.label)}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
 
 /** Bright "Join" pill: students tap it to join a live class assessment with the teacher's code. */
 function JoinButton({ lang }: { lang: string }) {
@@ -39,6 +119,7 @@ function JoinButton({ lang }: { lang: string }) {
 export function Header() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const [resOpen, setResOpen] = useState(() => resourceLinks.some((r) => samePath(pathname || "", r.href)));
   const { t, lang } = useI18n();
   const logoUrl = useLogoUrl();
 
@@ -71,6 +152,10 @@ export function Header() {
 
         <nav className="hidden items-center lg:flex xl:gap-1" aria-label="Primary">
           {navLinks.map((link) => {
+            if (link.menu) {
+              const activeMenu = resourceLinks.some((r) => samePath(pathname, r.href));
+              return <ResourcesMenu key={link.href} label={t("nav.resources", link.label)} active={activeMenu} t={t} />;
+            }
             const active = link.href === "/" ? pathname === "/" : pathname.startsWith(link.href);
             return (
               <Link
@@ -114,35 +199,48 @@ export function Header() {
             <ThemeToggle showLabel />
           </div>
           <ul className="flex flex-col gap-1">
-            {navLinks.map((link) => (
-              <li key={link.href}>
-                <Link
-                  href={link.href}
-                  onClick={() => setOpen(false)}
-                  aria-current={(link.href === "/" ? pathname === "/" : pathname.startsWith(link.href)) ? "page" : undefined}
-                  className="block rounded-full px-4 py-2 text-sm font-semibold text-heading hover:bg-cream aria-[current=page]:bg-sun aria-[current=page]:text-navy dark:hover:bg-white/10"
-                >
-                  {t(`nav.${link.href}`, link.label)}
-                </Link>
-              </li>
-            ))}
-            <li className="mt-2 border-t border-card-border pt-2">
-              <p className="eyebrow px-3 pb-1">
-                {t("header.libraries")}
-              </p>
-            </li>
-            {encyclopediaLinks.map((item) => (
-              <li key={item.id}>
-                <Link
-                  href={item.href}
-                  onClick={() => setOpen(false)}
-                  className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-heading hover:bg-cream dark:hover:bg-white/10"
-                >
-                  {item.id === "quran" ? <QuranBookIcon className="h-4 w-4" /> : <HadithScrollIcon className="h-4 w-4" />}
-                  {t(`enc.${item.id}`, item.label)}
-                </Link>
-              </li>
-            ))}
+            {navLinks.map((link) =>
+              link.menu ? (
+                <li key={link.href}>
+                  <button
+                    type="button"
+                    aria-expanded={resOpen}
+                    aria-controls="mobile-resources"
+                    onClick={() => setResOpen((v) => !v)}
+                    className="flex w-full items-center justify-between rounded-full px-4 py-2 text-start text-sm font-semibold text-heading hover:bg-cream dark:hover:bg-white/10"
+                    data-testid="mobile-nav-resources"
+                  >
+                    {t("nav.resources", link.label)}
+                    <svg viewBox="0 0 20 20" fill="currentColor" className={`h-4 w-4 opacity-70 transition ${resOpen ? "rotate-180" : ""}`} aria-hidden>
+                      <path d="M5.3 7.3a1 1 0 0 1 1.4 0L10 10.6l3.3-3.3a1 1 0 1 1 1.4 1.4l-4 4a1 1 0 0 1-1.4 0l-4-4a1 1 0 0 1 0-1.4z" />
+                    </svg>
+                  </button>
+                  {resOpen && (
+                    <ul id="mobile-resources" className="glass glass-emph mx-2 mb-1 mt-1 flex flex-col gap-0.5 rounded-2xl p-1.5" data-testid="mobile-resources">
+                      {resourceLinks.map((item) => (
+                        <li key={item.href}>
+                          <Link href={item.href} onClick={() => setOpen(false)} aria-current={samePath(pathname, item.href) ? "page" : undefined} className={menuItemCls}>
+                            <ResourceIcon kind={item.kind} />
+                            {t(item.key, item.label)}
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </li>
+              ) : (
+                <li key={link.href}>
+                  <Link
+                    href={link.href}
+                    onClick={() => setOpen(false)}
+                    aria-current={(link.href === "/" ? pathname === "/" : pathname.startsWith(link.href)) ? "page" : undefined}
+                    className="block rounded-full px-4 py-2 text-sm font-semibold text-heading hover:bg-cream aria-[current=page]:bg-sun aria-[current=page]:text-navy dark:hover:bg-white/10"
+                  >
+                    {t(`nav.${link.href}`, link.label)}
+                  </Link>
+                </li>
+              ),
+            )}
           </ul>
         </nav>
       )}

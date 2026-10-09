@@ -13,7 +13,6 @@ export default function EncyclopediaQuranPage() {
       title="Encyclopedia of Quran"
       description="Translations and explanations — stay on this site while you study."
       src="https://quranenc.com/en/home#transes"
-      externalUrl="https://quranenc.com/en/home#transes"
     />
   );
 }

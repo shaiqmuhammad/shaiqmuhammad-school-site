@@ -2,7 +2,6 @@ type Props = {
   title: string;
   description: string;
   src: string;
-  externalUrl: string;
 };
 
 export function EncyclopediaEmbed({ title, description, src }: Props) {
@@ -23,7 +22,11 @@ export function EncyclopediaEmbed({ title, description, src }: Props) {
           className="absolute inset-0 h-full w-full border-0"
           loading="lazy"
           referrerPolicy="no-referrer-when-downgrade"
-          allow="fullscreen"
+          // Sandboxed: scripts, logins/forms and links that open new tabs still work inside the embed,
+          // but the embedded site can't navigate this page away (no allow-top-navigation).
+          sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
+          // Audio recitations (quran.com) need autoplay/encrypted-media.
+          allow="autoplay; encrypted-media; fullscreen; clipboard-write"
         />
         <noscript>
           <div className="p-6 text-sm text-muted">

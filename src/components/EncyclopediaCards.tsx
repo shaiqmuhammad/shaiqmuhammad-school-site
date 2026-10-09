@@ -15,7 +15,7 @@ export function EncyclopediaCards({
   return (
     <div className={`grid gap-5 ${compact ? "sm:grid-cols-2" : "md:grid-cols-2"}`}>
       {encyclopediaLinks.map((item) => {
-        const Icon = icons[item.id];
+        const Icon = icons[item.kind];
         return (
           <Link
             key={item.id}
