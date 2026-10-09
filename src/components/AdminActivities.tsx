@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ActivityOptionsEditor, READY_TYPES } from "@/components/activity/ActivityViews";
+import { ActivityOptionsEditor, READY_TYPES, afterCreate, prepareOptions } from "@/components/activity/ActivityViews";
 import { getServerSession } from "@/lib/adminServer";
 import { activityApi, ACTIVITY_LABELS, ActivityError, forgetHosted, loadHosted, saveHosted, type ActivitySettings, type ActivityType, type HostedActivity } from "@/lib/activity";
 import { joinUrl } from "@/lib/groupSession";
@@ -51,8 +51,15 @@ export function AdminActivities() {
     setBusy(true);
     setError("");
     try {
-      const settings: Partial<ActivitySettings> = { moderation, hideNames, allowImages, allowLinks, likes, options };
+      const prepared = prepareOptions(type, options);
+      if (!prepared) {
+        setError(tr("Please fill in the options first (at least two choices / one question).", "يرجى تعبئة الخيارات أولًا (خياران على الأقل / سؤال واحد)."));
+        setBusy(false);
+        return;
+      }
+      const settings: Partial<ActivitySettings> = { moderation, hideNames, allowImages, allowLinks, likes, options: prepared.options };
       const r = await activityApi.create({ type, title: title.trim(), prompt: prompt.trim(), settings });
+      await afterCreate(type, r.code, r.hostKey, prepared.options, prepared.images);
       saveHosted({ code: r.code, hostKey: r.hostKey, type, title: r.title, createdAt: r.createdAt, expiresAt: r.expiresAt });
       router.push(`/activities/host?code=${r.code}`);
     } catch (err) {
