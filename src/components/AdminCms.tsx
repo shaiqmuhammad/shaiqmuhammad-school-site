@@ -21,6 +21,7 @@ import { LmsAdmin } from "@/components/lms/LmsAdmin";
 import { LmsSetup } from "@/components/lms/LmsSetup";
 import { AdminLmsHomework } from "@/components/lms/AdminLmsHomework";
 import { AdminMail } from "@/components/AdminMail";
+import { AdminClasses } from "@/components/lms/AdminClasses";
 import AdminQuizzes from "@/components/AdminQuizzes";
 import AdminCertificate from "@/components/AdminCertificate";
 import AdminBanners from "@/components/AdminBanners";
@@ -41,8 +42,8 @@ import { AdminHome } from "@/components/AdminHome";
 import AdminSettings from "@/components/AdminSettings";
 import { useI18n } from "@/lib/i18n";
 
-type Tab = "home" | "pages" | "videos" | "quizzes" | "certificate" | "banners" | "announcements" | "teacher" | "forum" | "results" | "activities" | "settings" | "students" | "teachers" | "setup" | "lmshw" | "mail";
-const HASH_TABS: Tab[] = ["pages", "videos", "quizzes", "certificate", "banners", "announcements", "teacher", "forum", "results", "activities", "settings", "students", "teachers", "setup", "lmshw", "mail"];
+type Tab = "home" | "pages" | "videos" | "quizzes" | "certificate" | "banners" | "announcements" | "teacher" | "forum" | "results" | "activities" | "settings" | "students" | "teachers" | "setup" | "lmshw" | "classes" | "mail";
+const HASH_TABS: Tab[] = ["pages", "videos", "quizzes", "certificate", "banners", "announcements", "teacher", "forum", "results", "activities", "settings", "students", "teachers", "setup", "classes", "lmshw", "mail"];
 const emptyPage = (): ContentPage => ({ id: newId("page"), slug: "", title: "", excerpt: "", body: "", published: true, updatedAt: new Date().toISOString() });
 const emptyVideo = (): ContentVideo => ({ id: newId("video"), title: "", youtubeId: "", description: "", published: true, updatedAt: new Date().toISOString() });
 
@@ -406,6 +407,7 @@ export default function AdminCms() {
         {tab==="setup" && <LmsSetup />}
         {tab==="lmshw" && <AdminLmsHomework />}
         {tab==="mail" && <AdminMail />}
+        {tab==="classes" && <AdminClasses />}
         {tab==="forum" && (
           <section className="space-y-4">
             <div className="flex flex-wrap justify-between gap-2">

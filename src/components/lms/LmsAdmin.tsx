@@ -352,6 +352,7 @@ export function LmsAdmin({ role = "student", embedded = false }: { role?: Role; 
                         <td className={td + " whitespace-nowrap"}>
                           <span className="inline-flex gap-0.5">
                             <button type="button" className={iconBtn} onClick={() => setEdit(edit === u.id ? null : u.id)} aria-label={tr(`Edit ${u.name}`, `تعديل ${u.name}`)} title={tr("Edit", "تعديل")} aria-expanded={edit === u.id} data-testid="lms-user-edit">✏️</button>
+                            <a className={iconBtn} href={`/lms?${new URLSearchParams({ viewAs: u.id, n: u.name, r: u.role, c: u.cls || "" })}`} target="_blank" rel="noopener" aria-label={tr(`View as ${u.name} (read-only)`, `عرض كـ ${u.name} (للعرض فقط)`)} title={tr("View as (read-only, new tab)", "عرض كـ (للعرض فقط، تبويب جديد)")} data-testid="lms-user-viewas">👁</a>
                             {u.email && <button type="button" className={iconBtn} onClick={async () => { if (!confirm(tr(`Email the username and PIN to ${u.email}?`, `إرسال اسم المستخدم والرقم السري إلى ${u.email}؟`))) return; try { await mailApi.emailPin(u.id); alert(tr("Sent.", "تم الإرسال.")); } catch (e) { const c = (e as Error).message; alert(c === "mail_not_configured" ? tr("Email isn't connected yet.", "البريد غير متصل بعد.") : c === "reset_pin_first" ? tr("Reset the PIN first so it can be sent.", "أعد تعيين الرقم السري أولاً.") : tr("Couldn't send.", "تعذر الإرسال.")); } }} aria-label={tr(`Email PIN to ${u.email}`, `إرسال الرقم السري إلى ${u.email}`)} title={tr(`Email sign-in details to ${u.email}`, `إرسال بيانات الدخول إلى ${u.email}`)} data-testid="lms-user-email-pin">📧</button>}
                             {role === "student" && <button type="button" className={iconBtn} onClick={() => setProg(prog === u.id ? null : u.id)} aria-label={tr(`Progress of ${u.name}`, `تقدم ${u.name}`)} title={tr("Progress & tracker", "التقدم والمتابعة")} aria-expanded={prog === u.id} data-testid="lms-user-progress">📈</button>}
                             <button type="button" className={iconBtn} onClick={async () => { if (!confirm(tr(`Give ${u.name} a new PIN?`, `رقم سري جديد لـ ${u.name}؟`))) return; const r = await lmsApi.resetPin(u.id, undefined, asAdmin).catch(() => null); if (r) { setPins((p) => [{ username: u.username, name: u.name, pin: r.pin }, ...p]); load(); } }} aria-label={tr(`Reset PIN for ${u.name}`, `إعادة تعيين رقم ${u.name}`)} title={tr("Reset PIN", "إعادة تعيين الرقم")} data-testid="lms-user-pin">🔑</button>
@@ -391,7 +392,22 @@ export function LmsAdmin({ role = "student", embedded = false }: { role?: Role; 
             </div>
           )}
         </section>
+        {embedded && <ViewAsLog />}
       </div>
     </Frame>
+  );
+}
+
+/** Admin audit: who was opened in "view as" mode, and when. */
+function ViewAsLog() {
+  const { tr } = useTr();
+  const [items, setItems] = useState<{ uid: string; name: string; role: string; at: number }[] | null>(null);
+  return (
+    <details className={card + " py-3"} onToggle={(e) => { if ((e.target as HTMLDetailsElement).open && !items) lmsApi.viewAsLog().then((r) => setItems(r.items)).catch(() => setItems([])); }} data-testid="viewas-log">
+      <summary className="cursor-pointer font-bold">👁 {tr("View-as log", "سجل العرض كمستخدم")}</summary>
+      {!items ? <p className="mt-2 opacity-60">…</p> : !items.length ? <p className="mt-2 opacity-60">{tr("No view-as access yet.", "لا يوجد بعد.")}</p> : (
+        <ul className="mt-2 max-h-64 space-y-1 overflow-y-auto text-sm">{items.map((x, i) => <li key={i}><span dir="auto">{x.name}</span> <span className="opacity-60">({x.role}) · {new Date(x.at).toLocaleString("en-GB")}</span></li>)}</ul>
+      )}
+    </details>
   );
 }
