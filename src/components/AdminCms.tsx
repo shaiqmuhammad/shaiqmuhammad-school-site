@@ -26,6 +26,8 @@ import AdminQuizzes from "@/components/AdminQuizzes";
 import AdminCertificate from "@/components/AdminCertificate";
 import AdminBanners from "@/components/AdminBanners";
 import AdminHomepage from "@/components/AdminHomepage";
+import AdminAbout from "@/components/AdminAbout";
+import { defaultAbout, GITHUB_ABOUT_PATH, loadAboutData, normalizeAbout, type AboutData } from "@/lib/about";
 import { defaultHomepage, GITHUB_HOMEPAGE_PATH, loadHomepageData, normalizeHomepage, type HomepageData } from "@/lib/homepage";
 import AdminAnnouncements from "@/components/AdminAnnouncements";
 import { builtAnnouncements, GITHUB_ANNOUNCEMENTS_PATH, loadAnnouncementsData, normalizeAnnouncements, type AnnouncementsData } from "@/lib/announcements";
@@ -91,6 +93,7 @@ export default function AdminCms() {
   const markLoaded = useCallback((k: string) => setLoaded((prev) => ({ ...prev, [k]: true })), []);
   const [bannersData, setBannersData] = useState<BannersData>({ banners: [] });
   const [homepageData, setHomepageData] = useState<HomepageData>(defaultHomepage());
+  const [aboutData, setAboutData] = useState<AboutData>(defaultAbout());
   const [announcementsData, setAnnouncementsData] = useState<AnnouncementsData>(builtAnnouncements);
   const [siteSettings, setSiteSettings] = useState<SiteSettings>(emptySettings);
   const [publishedSnapshot, setPublishedSnapshot] = useState<string | null>(null);
@@ -153,6 +156,7 @@ export default function AdminCms() {
       loadQuizResultsData().then((d) => { setQuizResults(d); snap.results = JSON.stringify(d); markLoaded("quiz-results.json"); }).catch(() => undefined),
       loadCertificateTemplate().then((d) => { setCertificate(d); snap.certificate = JSON.stringify(d); markLoaded("certificate.json"); }).catch(() => undefined),
       loadBannersData().then((d) => { setBannersData(d); snap.banners = JSON.stringify(d); markLoaded("banners.json"); }).catch(() => undefined),
+      loadAboutData().then((d) => { setAboutData(d); markLoaded("about.json"); }).catch(() => undefined),
       loadHomepageData().then((d) => { setHomepageData(d); snap.homepage = JSON.stringify(d); markLoaded("homepage.json"); }).catch(() => undefined),
       loadAnnouncementsData().then((d) => { setAnnouncementsData(d); snap.announcements = JSON.stringify(d); markLoaded("announcements.json"); }).catch(() => undefined),
       loadSiteSettings().then((d) => { setSiteSettings(d); snap.settings = JSON.stringify(d); markLoaded("settings.json"); }).catch(() => undefined),
@@ -267,6 +271,7 @@ export default function AdminCms() {
       { label: "quiz-results.json", run: () => publishJsonToGithub(GITHUB_QUIZ_RESULTS_PATH, normalizeResults(quizResults), token, "chore(quiz): publish quiz-results.json") },
       { label: "certificate.json", run: () => publishJsonToGithub(GITHUB_CERTIFICATE_PATH, normalizeCertificate(certificate), token, "chore(quiz): publish certificate.json") },
       { label: "banners.json", run: () => publishJsonToGithub(GITHUB_BANNERS_PATH, normalizeBanners(bannersData), token, "chore(banners): publish banners.json") },
+      { label: "about.json", run: () => publishJsonToGithub(GITHUB_ABOUT_PATH, normalizeAbout(aboutData), token, "chore(about): publish about.json") },
       { label: "homepage.json", run: () => publishJsonToGithub(GITHUB_HOMEPAGE_PATH, normalizeHomepage(homepageData), token, "chore(home): publish homepage.json") },
       { label: "announcements.json", run: () => publishJsonToGithub(GITHUB_ANNOUNCEMENTS_PATH, normalizeAnnouncements(announcementsData), token, "chore(announcements): publish announcements.json") },
       { label: "settings.json", run: () => publishJsonToGithub(GITHUB_SETTINGS_PATH, normalizeSettings(siteSettings), token, "chore(settings): publish settings.json") },
@@ -394,8 +399,10 @@ export default function AdminCms() {
         {tab==="announcements" && <AdminAnnouncements setStatus={setStatus} onNeedToken={()=>setTab("settings")} data={announcementsData} setData={setAnnouncementsData} />}
         {tab==="homepage" && <AdminHomepage setStatus={setStatus} onNeedToken={()=>setTab("settings")} data={homepageData} setData={setHomepageData} />}
         {tab==="banners" && <AdminBanners setStatus={setStatus} onNeedToken={()=>setTab("settings")} data={bannersData} setData={setBannersData} />}
+        {tab==="teacher" && <AdminAbout setStatus={setStatus} onNeedToken={()=>setTab("settings")} data={aboutData} setData={setAboutData} />}
         {tab==="teacher" && (
-          <form onSubmit={saveTeacher} className="space-y-3 rounded-2xl border border-card-border bg-card p-5">
+          <details className="mt-6 rounded-2xl border border-card-border bg-card p-5"><summary className="cursor-pointer font-bold">🧑‍🏫 Home page teacher card</summary>
+          <form onSubmit={saveTeacher} className="mt-3 space-y-3">
             <h2 className="text-xl font-semibold">{t("admin.teacher.heading")}</h2>
             <Field label="Name"><input className={input} value={data.teacher.name} onChange={(e)=>updateTeacher("name",e.target.value)} /></Field>
             <Field label="Title"><input className={input} value={data.teacher.title} onChange={(e)=>updateTeacher("title",e.target.value)} /></Field>
@@ -404,7 +411,7 @@ export default function AdminCms() {
             <Field label="Subjects (comma-separated)"><input className={input} value={data.teacher.subjects.join(", ")} onChange={(e)=>updateTeacher("subjects",e.target.value.split(",").map((s)=>s.trim()).filter(Boolean))} /></Field>
             <Field label="Bio"><textarea className={input+" min-h-28"} value={data.teacher.bio} onChange={(e)=>updateTeacher("bio",e.target.value)} /></Field>
             <button type="submit" className={btn}>Save teacher profile</button>
-          </form>
+          </form></details>
         )}
         {tab==="results" && <AdminResults quizzes={quizzesData.quizzes} />}
         {tab==="activities" && <AdminActivities />}
