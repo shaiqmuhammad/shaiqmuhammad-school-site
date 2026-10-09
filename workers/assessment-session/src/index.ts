@@ -35,14 +35,16 @@ import { handleAdmin, type AdminEnv } from "./admin";
 import { handleForum } from "./forum";
 import { handleResults, resultsStore, type ResultRecord, type ResultsEnv } from "./results";
 import { handleActivity, type ActivityEnv } from "./activity";
+import { handleLms, type LmsEnv } from "./lms";
 import { describeAnswer, describeCorrect, isAnswered, normalizeQuiz, quizMaxScore, scoreQuestion, wordBank, type Quiz, type QuizQuestion } from "../../../src/lib/quiz";
 
 export { AdminGuard } from "./admin";
 export { ForumQueue } from "./forum";
 export { ResultsStore } from "./results";
 export { ClassActivity } from "./activity";
+export { LmsStore } from "./lms";
 
-export interface Env extends AdminEnv, ResultsEnv, ActivityEnv {
+export interface Env extends AdminEnv, ResultsEnv, ActivityEnv, LmsEnv {
   SESSIONS: DurableObjectNamespace<AssessmentSession>;
   HOST_SECRET?: string;
 }
@@ -555,6 +557,7 @@ export default {
     if (parts[0] === "api" && parts[1] === "forum") return handleForum(request, env, parts[2] || "");
     if (parts[0] === "api" && parts[1] === "results") return handleResults(request, env, parts[2] || "");
     if (parts[0] === "api" && parts[1] === "activity") return handleActivity(request, env, parts);
+    if (parts[0] === "api" && parts[1] === "lms") return handleLms(request, env, parts[2] || "");
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
 
     if (parts.length === 0 || (parts[0] === "api" && parts.length === 1)) {
