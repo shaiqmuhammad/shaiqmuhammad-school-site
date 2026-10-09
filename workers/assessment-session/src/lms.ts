@@ -155,6 +155,18 @@ export class LmsStore extends DurableObject<LmsEnv> {
     const uc = cols("users");
     for (const [c, def] of [["section", "TEXT DEFAULT ''"], ["subjects", "TEXT DEFAULT '[]'"], ["scope", "TEXT DEFAULT '[]'"], ["pin_enc", "TEXT"]] as const) if (!uc.has(c)) this.sql.exec(`ALTER TABLE users ADD COLUMN ${c} ${def}`);
     if (!cols("subs").has("audio")) this.sql.exec(`ALTER TABLE subs ADD COLUMN audio TEXT DEFAULT ''`);
+    // Quran traffic-light grade (green/yellow = passed, red = practise again) + every graded attempt kept.
+    if (!cols("subs").has("grade")) this.sql.exec(`ALTER TABLE subs ADD COLUMN grade TEXT DEFAULT ''`);
+    if (!cols("subs").has("attempts")) this.sql.exec(`ALTER TABLE subs ADD COLUMN attempts TEXT DEFAULT '[]'`);
+    if (!cols("tracker").has("grade")) this.sql.exec(`ALTER TABLE tracker ADD COLUMN grade TEXT DEFAULT 'green'`);
+    // Old schema had hw UNIQUE, so one student's approval overwrote another's on class homework: one row per (hw, student).
+    const tsql = String(this.sql.exec(`SELECT sql FROM sqlite_master WHERE name='tracker'`).toArray()[0]?.sql || "");
+    if (tsql.includes("hw TEXT UNIQUE")) {
+      this.sql.exec(`CREATE TABLE tracker_new (id TEXT PRIMARY KEY, student TEXT, surah INTEGER, from_ayah INTEGER, to_ayah INTEGER, hw TEXT, approved INTEGER, grade TEXT DEFAULT 'green', UNIQUE (hw, student))`);
+      this.sql.exec(`INSERT OR IGNORE INTO tracker_new SELECT id, student, surah, from_ayah, to_ayah, hw, approved, grade FROM tracker`);
+      this.sql.exec(`DROP TABLE tracker`);
+      this.sql.exec(`ALTER TABLE tracker_new RENAME TO tracker`);
+    }
     if (!cols("homework").has("section")) this.sql.exec(`ALTER TABLE homework ADD COLUMN section TEXT DEFAULT ''`);
     // One-time migration: free-text class values become catalog classes (idempotent).
     for (const r of this.sql.exec(`SELECT DISTINCT cls FROM users WHERE cls != '' UNION SELECT DISTINCT cls FROM homework WHERE cls != ''`).toArray()) {
@@ -248,13 +260,16 @@ export class LmsStore extends DurableObject<LmsEnv> {
     if (a.role === "student") {
       const h = this.allHomework(str(q.hw, 40))[0];
       if (!h || !this.assignees(h).includes(a.id)) return { status: 404, body: { error: "not_found" } };
+      if (this.lockedFor(h, a.id)) return { status: 409, body: { error: "locked" } };
       let cur = this.sql.exec(`SELECT * FROM subs WHERE hw=? AND student=?`, h.id, a.id).toArray()[0];
       if (cur?.status === "approved") return { status: 409, body: { error: "already_approved" } };
       if (!cur) {
         this.sql.exec(`INSERT INTO subs (id, hw, student, status, text, practised, updated) VALUES (?, ?, ?, 'draft', '', 0, ?)`, rid("s"), h.id, a.id, Date.now());
         cur = this.sql.exec(`SELECT * FROM subs WHERE hw=? AND student=?`, h.id, a.id).toArray()[0];
       }
-      if (cur.audio) await this.dropBlob(String(cur.audio));
+      // Keep recordings that belong to a graded attempt (history); replace an ungraded draft recording.
+      const kept = (JSON.parse(String(cur.attempts || "[]")) as { audio: string }[]).some((x) => x.audio === cur.audio);
+      if (cur.audio && !kept) await this.dropBlob(String(cur.audio));
       await this.files.put(id, data, type);
       this.sql.exec(`INSERT INTO blobs (id, owner, sub, kind, mime, size, created) VALUES (?, ?, ?, 'rec', ?, ?, ?)`, id, a.id, String(cur.id), type, data.byteLength, Date.now());
       this.sql.exec(`UPDATE subs SET audio=?, updated=? WHERE id=?`, id, Date.now(), String(cur.id));
@@ -477,7 +492,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
           const from = Math.trunc(Number(d.from));
           const to = Math.trunc(Number(d.to));
           if (!(surah >= 1 && surah <= 114) || !(from >= 1) || !(to >= from) || to - from > 300) return { status: 400, body: { error: "verses" } };
-          data = { surah, from, to, reciter: str(d.reciter, 60) || "Alafasy_128kbps", notes: str(d.notes, 1000) };
+          data = { surah, from, to, reciter: str(d.reciter, 60) || "Alafasy_128kbps", notes: str(d.notes, 1000), translit: d.translit === true, translation: d.translation === true };
         } else {
           const slides = (Array.isArray(d.slides) ? (d.slides as Json[]) : []).slice(0, 30).map((s) => ({ title: str(s.title, 160), text: str(s.text, 3000), image: /^https:\/\//.test(String(s.image || "")) ? str(s.image, 500) : "" }));
           data = { slides, question: str(d.question, 1000) };
@@ -524,7 +539,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
 
       case "dashboard": {
         if (a.role === "student") {
-          const hw = this.assignedTo(a).map((h) => ({ ...h, sub: this.sub(h.id, a.id) }));
+          const hw = this.assignedTo(a).map((h) => ({ ...h, sub: this.sub(h.id, a.id), locked: this.lockedFor(h, a.id) }));
           return { status: 200, body: { homework: hw, tracker: this.trackerOf(a.id) } };
         }
         const all = this.allHomework().filter((h) => a.role === "admin" || a.perms.includes("viewAll") || h.createdBy === a.id);
@@ -544,7 +559,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         if (!h) return { status: 404, body: { error: "not_found" } };
         if (a.role === "student") {
           if (!this.assignees(h).includes(a.id)) return { status: 403, body: { error: "forbidden" } };
-          return { status: 200, body: { homework: h, sub: this.sub(h.id, a.id) } };
+          return { status: 200, body: { homework: { ...h, locked: this.lockedFor(h, a.id) }, sub: this.sub(h.id, a.id) } };
         }
         const names = new Map(this.sql.exec(`SELECT id, name, cls FROM users`).toArray().map((r) => [String(r.id), { name: String(r.name), cls: String(r.cls || "") }]));
         const subs = this.sql.exec(`SELECT * FROM subs WHERE hw=? ORDER BY updated DESC`, h.id).toArray().map((r) => ({ ...this.subOut(r), student: String(r.student), name: names.get(String(r.student))?.name ?? "?", cls: names.get(String(r.student))?.cls ?? "" }));
@@ -556,6 +571,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         if (a.role !== "student") return { status: 403, body: { error: "students_only" } };
         const h = this.allHomework(str(input.hw, 40))[0];
         if (!h || !this.assignees(h).includes(a.id)) return { status: 404, body: { error: "not_found" } };
+        if (this.lockedFor(h, a.id)) return { status: 409, body: { error: "locked" } };
         const cur = this.sql.exec(`SELECT * FROM subs WHERE hw=? AND student=?`, h.id, a.id).toArray()[0];
         if (cur?.status === "approved") return { status: 409, body: { error: "already_approved" } };
         const status = input.submit === true ? "submitted" : cur?.status === "returned" ? "returned" : "draft";
@@ -575,21 +591,30 @@ export class LmsStore extends DurableObject<LmsEnv> {
         const c = str(input.comment, 1000);
         if (c) comments.push({ by: a.name, text: c, at: Date.now() });
         const liked = typeof input.like === "boolean" ? (input.like ? 1 : 0) : Number(r.liked);
-        const status = input.status === "approved" || input.status === "returned" ? String(input.status) : String(r.status);
-        this.sql.exec(`UPDATE subs SET comments=?, liked=?, status=?, updated=? WHERE id=?`, JSON.stringify(comments.slice(-50)), liked, status, Date.now(), String(r.id));
+        const hq = this.allHomework(String(r.hw))[0];
+        const grade = hq?.kind === "quran" && ["green", "yellow", "red"].includes(String(input.grade)) ? String(input.grade) : "";
+        // Green/Yellow = passed (approved); Red = back to the student to practise the same verses again.
+        let status = input.status === "approved" || input.status === "returned" ? String(input.status) : String(r.status);
+        if (grade) status = grade === "red" ? "returned" : "approved";
+        const attempts = JSON.parse(String(r.attempts || "[]")) as { n: number; audio: string; grade: string; by: string; at: number }[];
+        if (grade) attempts.push({ n: attempts.length + 1, audio: String(r.audio || ""), grade, by: a.name, at: Date.now() });
+        this.sql.exec(`UPDATE subs SET comments=?, liked=?, status=?, grade=?, attempts=?, updated=? WHERE id=?`, JSON.stringify(comments.slice(-50)), liked, status, grade || String(r.grade || ""), JSON.stringify(attempts.slice(-30)), Date.now(), String(r.id));
+        if (grade === "red") this.sql.exec(`UPDATE subs SET audio='', practised=0 WHERE id=?`, String(r.id));
         {
           const hh = this.allHomework(String(r.hw))[0];
           const nd = { hw: String(r.hw), title: hh?.title || "", by: a.name };
-          if (status !== String(r.status) && (status === "approved" || status === "returned")) this.notify([String(r.student)], status, nd);
+          if (grade) this.notify([String(r.student)], "graded", { ...nd, grade });
+          else if (status !== String(r.status) && (status === "approved" || status === "returned")) this.notify([String(r.student)], status, nd);
           else if (c) this.notify([String(r.student)], "feedback", nd);
         }
         // Approving a Quran homework updates the student's tracker automatically.
         const h = this.allHomework(String(r.hw))[0];
         if (h?.kind === "quran") {
-          if (status === "approved") {
-            const d = h.data as { surah: number; from: number; to: number };
-            this.sql.exec(`INSERT OR REPLACE INTO tracker (id, student, surah, from_ayah, to_ayah, hw, approved) VALUES (?, ?, ?, ?, ?, ?, ?)`, rid("t"), String(r.student), d.surah, d.from, d.to, h.id, Date.now());
-          } else this.sql.exec(`DELETE FROM tracker WHERE hw=? AND student=?`, h.id, String(r.student));
+          // Tracker row per homework with its latest grade (red rows show as "needs practice", not learned).
+          const d = h.data as { surah: number; from: number; to: number };
+          const g = grade || (status === "approved" ? "green" : "");
+          this.sql.exec(`DELETE FROM tracker WHERE hw=? AND student=?`, h.id, String(r.student));
+          if (g) this.sql.exec(`INSERT INTO tracker (id, student, surah, from_ayah, to_ayah, hw, approved, grade) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, rid("t"), String(r.student), d.surah, d.from, d.to, h.id, Date.now(), g);
         }
         return { status: 200, body: { ok: true } };
       }
@@ -657,14 +682,26 @@ export class LmsStore extends DurableObject<LmsEnv> {
     return this.allHomework().filter((h) => (h.students.length ? h.students.includes(a.id) : !h.cls || (h.cls === a.cls && (!h.section || h.section === sec))));
   }
   private subOut(r: Record<string, unknown>) {
-    return { id: String(r.id), status: String(r.status), text: String(r.text || ""), practised: Boolean(r.practised), liked: Boolean(r.liked), comments: JSON.parse(String(r.comments || "[]")) as { by: string; text: string; at: number; audio?: string }[], audio: String(r.audio || ""), updated: Number(r.updated) };
+    return { id: String(r.id), status: String(r.status), text: String(r.text || ""), practised: Boolean(r.practised), liked: Boolean(r.liked), comments: JSON.parse(String(r.comments || "[]")) as { by: string; text: string; at: number; audio?: string }[], audio: String(r.audio || ""), grade: String(r.grade || ""), attempts: JSON.parse(String(r.attempts || "[]")) as { n: number; audio: string; grade: string; by: string; at: number }[], updated: Number(r.updated) };
   }
   private sub(hw: string, student: string) {
     const r = this.sql.exec(`SELECT * FROM subs WHERE hw=? AND student=?`, hw, student).toArray()[0];
     return r ? this.subOut(r) : null;
   }
   private trackerOf(student: string) {
-    return this.sql.exec(`SELECT surah, from_ayah, to_ayah, approved FROM tracker WHERE student=? ORDER BY surah, from_ayah`, student).toArray().map((r) => ({ surah: Number(r.surah), from: Number(r.from_ayah), to: Number(r.to_ayah), approved: Number(r.approved) }));
+    return this.sql.exec(`SELECT surah, from_ayah, to_ayah, approved, grade FROM tracker WHERE student=? ORDER BY surah, from_ayah`, student).toArray().map((r) => ({ surah: Number(r.surah), from: Number(r.from_ayah), to: Number(r.to_ayah), approved: Number(r.approved), grade: String(r.grade || "green") }));
+  }
+
+  /** A Quran homework stays locked until every earlier Quran homework on the same surah is passed (green/yellow). */
+  private lockedFor(h: ReturnType<LmsStore["allHomework"]>[number], student: string): boolean {
+    if (h.kind !== "quran") return false;
+    const surah = Number((h.data as { surah?: number }).surah);
+    return this.allHomework().some((o) => {
+      if (o.id === h.id || o.kind !== "quran" || o.created >= h.created || Number((o.data as { surah?: number }).surah) !== surah) return false;
+      if (!this.assignees(o).includes(student)) return false;
+      const st = this.sql.exec(`SELECT status FROM subs WHERE hw=? AND student=?`, o.id, student).toArray()[0];
+      return st?.status !== "approved";
+    });
   }
 }
 

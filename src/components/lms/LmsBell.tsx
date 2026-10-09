@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { lmsApi, type Note } from "@/lib/lms";
 import { useI18n } from "@/lib/i18n";
 
-const ICON: Record<Note["kind"], string> = { hw_new: "📚", sub_new: "📥", feedback: "💬", feedback_audio: "🎙️", approved: "✅", returned: "↺" };
+const ICON: Record<Note["kind"], string> = { hw_new: "📚", sub_new: "📥", feedback: "💬", feedback_audio: "🎙️", approved: "✅", returned: "↺", graded: "🚦" };
 
 /**
  * Notification bell with dropdown. Students: new homework, feedback, approved, try again. Teachers: new submissions.
@@ -47,6 +47,7 @@ export function LmsBell({ asAdmin = false, variant = "navy", extra, testId = "lm
       case "sub_new": return tr(`${n.data.student} handed in ${t}`, `سلّم ${n.data.student} ${t}`);
       case "feedback": return tr(`${n.data.by} commented on ${t}`, `علّق ${n.data.by} على ${t}`);
       case "feedback_audio": return tr(`${n.data.by} sent voice feedback on ${t}`, `أرسل ${n.data.by} تعليقًا صوتيًا على ${t}`);
+      case "graded": return n.data.grade === "red" ? tr(`${t}: 🔴 practise again and re-record`, `${t}: 🔴 تدرّب مجددًا وأعد التسجيل`) : tr(`${t}: ${n.data.grade === "green" ? "🟢" : "🟡"} passed — well done!`, `${t}: ${n.data.grade === "green" ? "🟢" : "🟡"} نجحت — أحسنت!`);
       case "approved": return tr(`${t} was approved`, `تم قبول ${t}`);
       case "returned": return tr(`${t}: please try again`, `${t}: حاول مرة أخرى`);
     }

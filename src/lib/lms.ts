@@ -12,13 +12,15 @@ export type DashStudent = { id: string; name: string; cls: string; section: stri
 export const scopeLabel = (s: string) => s.replace("|", " · ");
 export type Actor = { id: string; role: Role | "admin"; name: string; cls: string; perms: string[] };
 export type Slide = { title: string; text: string; image: string };
-export type QuranData = { surah: number; from: number; to: number; reciter: string; notes: string };
+export type QuranData = { surah: number; from: number; to: number; reciter: string; notes: string; translit?: boolean; translation?: boolean };
 export type GeneralData = { slides: Slide[]; question: string };
-export type Homework = { id: string; kind: "quran" | "general"; title: string; cls: string; section?: string; students: string[]; data: QuranData | GeneralData; due: number | null; createdBy: string; created: number };
+export type Homework = { id: string; kind: "quran" | "general"; title: string; cls: string; section?: string; students: string[]; data: QuranData | GeneralData; due: number | null; createdBy: string; created: number; locked?: boolean };
 export type Comment = { by: string; text: string; at: number; audio?: string };
-export type Note = { id: string; kind: "hw_new" | "sub_new" | "feedback" | "feedback_audio" | "approved" | "returned"; data: { hw?: string; title?: string; by?: string; student?: string }; created: number; read: boolean };
-export type Submission = { id: string; status: "draft" | "submitted" | "approved" | "returned"; text: string; practised: boolean; liked: boolean; comments: Comment[]; audio?: string; updated: number };
-export type TrackerRow = { surah: number; from: number; to: number; approved: number };
+export type Note = { id: string; kind: "hw_new" | "sub_new" | "feedback" | "feedback_audio" | "approved" | "returned" | "graded"; data: { hw?: string; title?: string; by?: string; student?: string; grade?: Grade }; created: number; read: boolean };
+export type Submission = { id: string; status: "draft" | "submitted" | "approved" | "returned"; text: string; practised: boolean; liked: boolean; comments: Comment[]; audio?: string; grade?: Grade | ""; attempts?: Attempt[]; updated: number };
+export type Grade = "green" | "yellow" | "red";
+export type Attempt = { n: number; audio: string; grade: Grade; by: string; at: number };
+export type TrackerRow = { surah: number; from: number; to: number; approved: number; grade?: Grade };
 
 export const PERMS = ["assign", "review", "manageUsers", "viewAll"] as const;
 
@@ -90,7 +92,7 @@ export const lmsApi = {
   homework: (id: string, asAdmin = false) =>
     call<{ homework: Homework; sub?: Submission | null; subs?: (Submission & { student: string; name: string; cls: string })[]; notStarted?: { id: string; name: string }[] }>("hw", undefined, { asAdmin, query: { id } }),
   saveSub: (hw: string, text: string, practised: boolean, submit: boolean) => call<{ ok: true; sub: Submission }>("sub-save", { hw, text, practised, submit }),
-  review: (id: string, patch: { comment?: string; like?: boolean; status?: "approved" | "returned" }, asAdmin = false) => call<{ ok: true }>("sub-review", { id, ...patch }, { asAdmin }),
+  review: (id: string, patch: { comment?: string; like?: boolean; status?: "approved" | "returned"; grade?: Grade }, asAdmin = false) => call<{ ok: true }>("sub-review", { id, ...patch }, { asAdmin }),
   catalog: (asAdmin = false) => call<Catalog>("catalog", undefined, { asAdmin }),
   catalogSave: (item: { kind: "subject" | "class" | "section"; id?: string; name: string; parent?: string }) => call<Catalog & { ok: true; id: string }>("catalog-save", item, { asAdmin: true }),
   catalogDelete: (id: string) => call<Catalog & { ok: true }>("catalog-delete", { id }, { asAdmin: true }),
@@ -128,6 +130,7 @@ export function lmsErrorText(e: unknown, tr: (en: string, ar: string) => string)
   const c = e instanceof LmsError ? e.code : "";
   const m: Record<string, [string, string]> = {
     bad_login: ["Wrong username or PIN.", "اسم المستخدم أو الرقم السري غير صحيح."],
+    locked: ["Finish the earlier verses first — this unlocks when your teacher passes them.", "أكمل الآيات السابقة أولًا — تُفتح عندما يجتازها معلمك."],
     blocked: ["Your account is blocked. Please contact your teacher.", "حسابك موقوف. يرجى التواصل مع معلمك."],
     too_many_attempts: ["Too many tries — wait 15 minutes and try again.", "محاولات كثيرة — انتظر 15 دقيقة ثم حاول."],
     unauthorized: ["Please sign in again.", "يرجى تسجيل الدخول مجددًا."],
@@ -175,6 +178,24 @@ export async function quranVerses(surah: number, from: number, to: number): Prom
   }
   return out;
 }
+/** Transliteration (en.transliteration) and a translation (Sahih International in English, Tafsir al-Muyassar in Arabic) from api.alquran.cloud. */
+const extrasCache = new Map<string, Promise<Map<number, { translit: string; translation: string }>>>();
+export function quranExtras(surah: number, from: number, to: number, lang: "en" | "ar") {
+  const ed = lang === "ar" ? "ar.muyassar" : "en.sahih";
+  const key = `${surah}:${lang}`;
+  if (!extrasCache.has(key)) {
+    extrasCache.set(key, fetch(`https://api.alquran.cloud/v1/surah/${surah}/editions/en.transliteration,${ed}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("http"))))
+      .then((j: { data: { ayahs: { numberInSurah: number; text: string }[] }[] }) => {
+        const m = new Map<number, { translit: string; translation: string }>();
+        j.data[0].ayahs.forEach((a, i) => m.set(a.numberInSurah, { translit: a.text, translation: j.data[1]?.ayahs[i]?.text || "" }));
+        return m;
+      })
+      .catch((e) => { extrasCache.delete(key); throw e; }));
+  }
+  return extrasCache.get(key)!.then((m) => new Map([...m].filter(([n]) => n >= from && n <= to)));
+}
+
 export const ayahAudio = (reciter: string, surah: number, ayah: number) => `https://everyayah.com/data/${reciter || "Alafasy_128kbps"}/${String(surah).padStart(3, "0")}${String(ayah).padStart(3, "0")}.mp3`;
 export const RECITERS = [
   ["Alafasy_128kbps", "Mishary Alafasy"],

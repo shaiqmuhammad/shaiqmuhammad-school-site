@@ -55,3 +55,13 @@ export const STATUS_STYLE: Record<string, string> = {
 export function statusLabel(s: string, tr: (en: string, ar: string) => string) {
   return s === "draft" ? tr("In progress", "قيد العمل") : s === "submitted" ? tr("Submitted", "مُسلَّم") : s === "returned" ? tr("Needs another try", "يحتاج محاولة أخرى") : s === "approved" ? tr("Approved", "مقبول") : tr("Not started", "لم يبدأ");
 }
+
+/** Quran traffic light: green = memorised perfectly, yellow = good with minor fixes (both passed), red = needs practice. */
+export const GRADE_STYLE: Record<string, string> = {
+  green: "bg-emerald-500 text-white",
+  yellow: "bg-amber-400 text-amber-950",
+  red: "bg-rose-600 text-white",
+};
+export function gradeLabel(g: string, tr: (en: string, ar: string) => string): string {
+  return g === "green" ? tr("Green · memorised", "أخضر · محفوظ") : g === "yellow" ? tr("Yellow · good, minor fixes", "أصفر · جيد مع تحسين بسيط") : g === "red" ? tr("Red · needs practice", "أحمر · يحتاج تدريبًا") : "";
+}
