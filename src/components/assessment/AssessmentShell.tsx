@@ -15,6 +15,10 @@ type Props = {
   secondsLeft?: number | null;
   /** Progress bar: current index (0-based), total, and which questions are answered. */
   progress?: { current: number; total: number; answered?: boolean[]; onJump?: (i: number) => void };
+  /** Extra buttons in the bar (before language/theme), e.g. the projector's full-screen toggle. */
+  actions?: ReactNode;
+  /** Use the full screen width (teacher projector screens). */
+  wide?: boolean;
   children: ReactNode;
 };
 
@@ -22,7 +26,7 @@ type Props = {
  * Full-screen, distraction-free frame for assessments: navy bar, warm yellow and cream (light + dark),
  * minimal chrome (exit, progress, timer, language/theme), content centred with big type.
  */
-export function AssessmentShell({ title, exitHref = "/assessments", onExit, secondsLeft, progress, children }: Props) {
+export function AssessmentShell({ title, exitHref = "/assessments", onExit, secondsLeft, progress, actions, wide = false, children }: Props) {
   const { a } = useAssessmentText();
   const showTimer = typeof secondsLeft === "number";
   const low = showTimer && (secondsLeft as number) <= 30;
@@ -36,7 +40,7 @@ export function AssessmentShell({ title, exitHref = "/assessments", onExit, seco
       </div>
 
       <header className="relative z-10 bg-header text-white shadow-[0_6px_20px_-10px_rgba(10,25,40,0.6)]">
-        <div className="mx-auto flex max-w-5xl items-center gap-3 px-3 py-2.5 sm:px-6">
+        <div className={`mx-auto flex ${wide ? "max-w-[1800px]" : "max-w-5xl"} items-center gap-3 px-3 py-2.5 sm:px-6`}>
           <Link
             href={exitHref}
             onClick={(e) => {
@@ -75,6 +79,7 @@ export function AssessmentShell({ title, exitHref = "/assessments", onExit, seco
               <span dir="ltr">{formatClock(secondsLeft as number)}</span>
             </div>
           )}
+          {actions}
           <LanguageToggle variant="navy" />
           <ThemeToggle variant="navy" />
         </div>
