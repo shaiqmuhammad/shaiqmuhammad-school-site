@@ -12,13 +12,13 @@ import { AssessmentShell, primaryBtn } from "@/components/assessment/AssessmentS
 import { HomeworkEditor } from "@/components/lms/HomeworkEditor";
 import { homeworkQrPdf } from "@/components/lms/lmsFiles";
 import { GRADE_STYLE, STATUS_STYLE, card, gradeLabel, inputCls, smallBtn, statusLabel, useLmsActor, useTr } from "@/components/lms/useLms";
-import { quranExtras, ayahAudio, lmsApi, lmsErrorText, quranChapters, quranVerses, type Chapter, type GeneralData, type QuranData, type Submission, type Attempt, type Catalog, type DashStudent } from "@/lib/lms";
+import { quranExtras, ayahAudio, lmsApi, lmsErrorText, quranChapters, quranVerses, type Chapter, type GeneralData, type QuranData, type Submission, type Attempt, type Mistake, type Catalog, type DashStudent } from "@/lib/lms";
 
 const quranFont = Amiri_Quran({ weight: "400", subsets: ["arabic"], display: "swap" });
 
 type Data = Awaited<ReturnType<typeof lmsApi.homework>>;
 
-function QuranReader({ data }: { data: QuranData }) {
+function QuranReader({ data, mistakes = [], onMarkWord }: { data: QuranData; mistakes?: Mistake[]; onMarkWord?: (ayah: number, word: number, text: string) => void }) {
   const { tr, lang } = useTr();
   const [verses, setVerses] = useState<{ n: number; text: string }[] | null>(null);
   const [playing, setPlaying] = useState<number | null>(null);
@@ -44,13 +44,18 @@ function QuranReader({ data }: { data: QuranData }) {
     window.addEventListener("lms-rec-stop", off);
     return () => { window.removeEventListener("lms-rec-start", on); window.removeEventListener("lms-rec-stop", off); };
   }, []);
-  const play = (n: number, chain: boolean) => {
+  // Repeat-after-me: each verse plays ×repeat with a short pause to repeat it aloud.
+  const [repeat, setRepeat] = useState(1);
+  const [hide, setHide] = useState(false);
+  const [shown, setShown] = useState<Set<string>>(new Set());
+  const play = (n: number, chain: boolean, left = repeat) => {
     audio.current?.pause();
     if (recording) return;
     const a = new Audio(ayahAudio(data.reciter, data.surah, n));
     audio.current = a;
     setPlaying(n);
     a.onended = () => {
+      if (left > 1) { setTimeout(() => { if (audio.current === a) play(n, chain, left - 1); }, 1800); return; }
       if (chain && n < data.to) play(n + 1, true);
       else {
         setPlaying(null);
@@ -60,6 +65,25 @@ function QuranReader({ data }: { data: QuranData }) {
     a.play().catch(() => setPlaying(null));
   };
   const perVerse = !!(data.translit || data.translation);
+  const words = (v: { n: number; text: string }) =>
+    v.text.split(/\s+/).map((w, i) => {
+      const key = `${v.n}:${i}`;
+      const m = mistakes.find((x) => x.ayah === v.n && x.word === i);
+      const hidden = hide && !shown.has(key);
+      return (
+        <span key={i}>
+          <span
+            className={`${hidden ? "rounded bg-current/10 blur-[7px] select-none" : ""} ${m ? "mushaf-mistake" : ""} ${onMarkWord ? "cursor-pointer hover:bg-rose-100 dark:hover:bg-rose-900/40" : ""}`}
+            title={m ? `✏️ ${m.note || tr("Check this word", "راجع هذه الكلمة")}` : undefined}
+            onClick={(e) => {
+              if (onMarkWord) { e.stopPropagation(); onMarkWord(v.n, i, w); }
+              else if (hidden) { e.stopPropagation(); setShown((x) => new Set(x).add(key)); }
+            }}
+            data-testid={m ? "quran-mistake" : hidden ? "quran-hidden-word" : undefined}
+          >{w}</span>{" "}
+        </span>
+      );
+    });
   const arNum = (n: number) => n.toLocaleString("ar-EG");
   const showBismillah = data.from === 1 && data.surah !== 1 && data.surah !== 9;
   return (
@@ -68,6 +92,12 @@ function QuranReader({ data }: { data: QuranData }) {
         <button type="button" className={smallBtn} onClick={() => { if (all) { audio.current?.pause(); setAll(false); setPlaying(null); } else { setAll(true); play(data.from, true); } }} data-testid="quran-play-all">
           {all ? "⏹ " + tr("Stop", "إيقاف") : "▶ " + tr("Listen to all", "استمع للكل")}
         </button>
+        <label className="flex items-center gap-1 text-sm font-semibold">🔁 {tr("Repeat", "كرر")}
+          <select className="rounded-full border border-black/15 bg-transparent px-2 py-1 dark:border-white/20" value={repeat} onChange={(e) => { setRepeat(Number(e.target.value)); if (Number(e.target.value) > 1) lmsApi.practice().catch(() => undefined); }} data-testid="quran-repeat" aria-label={tr("Repeat each verse", "كرر كل آية")}>
+            <option value={1}>×1</option><option value={3}>×3</option><option value={5}>×5</option>
+          </select>
+        </label>
+        <button type="button" className={smallBtn} aria-pressed={hide} onClick={() => { setHide(!hide); setShown(new Set()); if (!hide) lmsApi.practice().catch(() => undefined); }} data-testid="quran-hide">{hide ? "👁 " + tr("Show words", "أظهر الكلمات") : "🙈 " + tr("Test myself", "اختبر نفسي")}</button>
         <span className="text-sm opacity-70" data-testid="quran-hint">{recording ? "🎙️ " + tr("Recording — the reciter is paused.", "جارٍ التسجيل — القارئ متوقف.") : tr("Tap a verse to hear it.", "اضغط على الآية لسماعها.")}</span>
       </div>
       {/* Mushaf page: cream paper, double gold frame with corner ornaments, surah cartouche, bismillah. */}
@@ -92,7 +122,7 @@ function QuranReader({ data }: { data: QuranData }) {
               {verses.map((v) => (
                 <li key={v.n} className="border-b border-[color:var(--mushaf-gold)]/30 pb-2 last:border-0">
                   <button type="button" onClick={() => play(v.n, false)} className={`${quranFont.className} w-full rounded-xl px-2 text-right text-[1.7rem] leading-[2.4] transition sm:text-3xl ${playing === v.n ? "mushaf-active" : "hover:bg-black/5 dark:hover:bg-white/5"}`} data-testid="quran-verse">
-                    {v.text} <span className="mushaf-ayah" aria-label={tr(`verse ${v.n}`, `الآية ${v.n}`)}>{arNum(v.n)}</span>
+                    {words(v)}<span className="mushaf-ayah" aria-label={tr(`verse ${v.n}`, `الآية ${v.n}`)}>{arNum(v.n)}</span>
                   </button>
                   {data.translit && extras?.get(v.n)?.translit && <p className="px-2 text-left text-base italic opacity-80" dir="ltr" data-testid="quran-translit">{extras.get(v.n)!.translit}</p>}
                   {data.translation && extras?.get(v.n)?.translation && <p className={`px-2 text-sm opacity-75 ${lang === "ar" ? "text-right" : "text-left"}`} dir={lang === "ar" ? "rtl" : "ltr"} data-testid="quran-translation">{extras.get(v.n)!.translation}</p>}
@@ -103,7 +133,7 @@ function QuranReader({ data }: { data: QuranData }) {
             <p className={`${quranFont.className} text-justify text-[1.7rem] leading-[2.5] [text-align-last:center] sm:text-3xl sm:leading-[2.6]`} dir="rtl">
               {verses.map((v) => (
                 <span key={v.n} role="button" tabIndex={0} onClick={() => play(v.n, false)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); play(v.n, false); } }} className={`cursor-pointer rounded-lg px-0.5 transition ${playing === v.n ? "mushaf-active" : "hover:bg-black/5 dark:hover:bg-white/5"}`} data-testid="quran-verse">
-                  {v.text} <span className="mushaf-ayah" aria-label={tr(`verse ${v.n}`, `الآية ${v.n}`)}>{arNum(v.n)}</span>{" "}
+                  {words(v)}<span className="mushaf-ayah" aria-label={tr(`verse ${v.n}`, `الآية ${v.n}`)}>{arNum(v.n)}</span>{" "}
                 </span>
               ))}
             </p>
@@ -232,8 +262,31 @@ function Attempts({ list, asAdmin = false }: { list: Attempt[]; asAdmin?: boolea
   );
 }
 
-function Review({ s, asAdmin, reload, quran }: { s: NonNullable<Data["subs"]>[number]; asAdmin: boolean; reload: () => void; quran: boolean }) {
+const PRESETS: [string, string][] = [
+  ["MashaAllah, excellent recitation! 🌟", "ما شاء الله، تلاوة ممتازة! 🌟"],
+  ["Very good — keep practising daily.", "جيد جدًا — استمر في التدريب يوميًا."],
+  ["Please check your tajweed (makharij) and try again.", "يرجى مراجعة التجويد (المخارج) والمحاولة مجددًا."],
+  ["Watch the stops (waqf) at the end of each verse.", "انتبه للوقف في نهاية كل آية."],
+  ["Recite slowly and clearly.", "اقرأ ببطء ووضوح."],
+  ["Great effort! Listen to the reciter again before recording.", "جهد رائع! استمع للقارئ مرة أخرى قبل التسجيل."],
+];
+
+function Review({ s, asAdmin, reload, quran, qdata }: { s: NonNullable<Data["subs"]>[number]; asAdmin: boolean; reload: () => void; quran: boolean; qdata?: QuranData }) {
   const { tr } = useTr();
+  const [marking, setMarking] = useState(false);
+  const [mistakes, setMistakes] = useState<Mistake[]>(s.mistakes || []);
+  const toggleWord = async (ayah: number, word: number, text: string) => {
+    const exists = mistakes.find((m) => m.ayah === ayah && m.word === word);
+    let next: Mistake[];
+    if (exists) next = mistakes.filter((m) => m !== exists);
+    else {
+      const note = window.prompt(tr(`Note for “${text}” (optional)`, `ملاحظة على «${text}» (اختياري)`), "");
+      if (note === null) return;
+      next = [...mistakes, { ayah, word, text, note }];
+    }
+    setMistakes(next);
+    await lmsApi.saveMistakes(s.id, next, asAdmin).catch(() => undefined);
+  };
   const [c, setC] = useState("");
   const act = async (patch: Parameters<typeof lmsApi.review>[1]) => {
     await lmsApi.review(s.id, patch, asAdmin).catch(() => undefined);
@@ -268,6 +321,16 @@ function Review({ s, asAdmin, reload, quran }: { s: NonNullable<Data["subs"]>[nu
       ))}
       {s.attempts && s.attempts.length > 0 && <Attempts list={s.attempts} asAdmin={asAdmin} />}
       <AudioRecorder label={tr("Record voice feedback (up to 3 minutes)", "سجّل تعليقًا صوتيًا (حتى 3 دقائق)")} testId="rec-teacher" onSave={async (b) => { await lmsApi.audioUpload({ sub: s.id }, b, asAdmin); reload(); }} />
+      {quran && qdata && (
+        <div className="space-y-2">
+          <button type="button" className={smallBtn} aria-pressed={marking} onClick={() => setMarking(!marking)} data-testid="hw-mark-mistakes">✏️ {marking ? tr("Done marking", "إنهاء التحديد") : tr(`Mark mistakes${mistakes.length ? ` (${mistakes.length})` : ""}`, `حدّد الأخطاء${mistakes.length ? ` (${mistakes.length})` : ""}`)}</button>
+          {marking && <><p className="text-sm opacity-70">{tr("Tap a word to mark it (tap again to remove).", "اضغط على كلمة لتحديدها (اضغط مجددًا للإزالة).")}</p><QuranReader data={qdata} mistakes={mistakes} onMarkWord={toggleWord} /></>}
+          {!marking && mistakes.length > 0 && <ul className="text-sm" dir="auto">{mistakes.map((m, i) => <li key={i}>✏️ {tr("Verse", "آية")} {m.ayah}: <b>{m.text}</b>{m.note ? ` — ${m.note}` : ""}</li>)}</ul>}
+        </div>
+      )}
+      <div className="flex flex-wrap gap-1" data-testid="hw-presets">
+        {PRESETS.map(([en, ar]) => <button key={en} type="button" className="rounded-full bg-black/5 px-2.5 py-1 text-xs font-semibold hover:bg-sun/40 dark:bg-white/10" onClick={() => act({ comment: tr(en, ar) })} data-testid="hw-preset">{tr(en, ar)}</button>)}
+      </div>
       <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); if (c.trim()) act({ comment: c.trim() }); }}>
         <input className={inputCls + " mt-0"} value={c} onChange={(e) => setC(e.target.value)} placeholder={tr("Write a comment…", "اكتب تعليقًا…")} dir="auto" data-testid="hw-comment-input" />
         <button type="submit" className={smallBtn} disabled={!c.trim()}>{tr("Send", "أرسل")}</button>
@@ -352,14 +415,14 @@ export function LmsHomework() {
               </div>
             )}
             {editing && <HomeworkEditor initial={hw} classes={extra.classes} students={extra.students} catalog={extra.catalog} scope={extra.scope} asAdmin={asAdmin} onCancel={() => setEditing(false)} onSaved={() => { setEditing(false); load(); }} />}
-            {hw.kind === "quran" ? <QuranReader data={hw.data as QuranData} /> : <Slides data={hw.data as GeneralData} />}
+            {hw.kind === "quran" ? <QuranReader data={hw.data as QuranData} mistakes={(d.sub?.mistakes || [])} /> : <Slides data={hw.data as GeneralData} />}
             {!staff && <StudentWork key={d?.sub?.updated || 0} hw={hw} sub={d?.sub || null} reload={load} />}
             {staff && (
               <section className="space-y-3">
                 <h2 className="text-xl font-bold">{tr("Submissions", "التسليمات")} ({d?.subs?.length || 0})</h2>
                 <ul className="space-y-3">
                   {(d?.subs || []).map((s) => (
-                    <Review quran={d.homework.kind === "quran"} key={s.id + s.updated} s={s} asAdmin={asAdmin} reload={load} />
+                    <Review quran={d.homework.kind === "quran"} qdata={d.homework.kind === "quran" ? (d.homework.data as QuranData) : undefined} key={s.id + s.updated} s={s} asAdmin={asAdmin} reload={load} />
                   ))}
                 </ul>
                 {(d?.notStarted || []).length > 0 && (

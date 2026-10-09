@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
 import { AssessmentShell, primaryBtn } from "@/components/assessment/AssessmentShell";
 import { HomeworkEditor } from "@/components/lms/HomeworkEditor";
+import { Certificates, Leaderboard, LeaderboardSetting, ProgressCard, RevisionList } from "@/components/lms/Progress";
 import { exportAllHomeworkZip } from "@/components/lms/lmsFiles";
 import { STATUS_STYLE, card, smallBtn, statusLabel, useLmsActor, useTr, GRADE_STYLE, gradeLabel } from "@/components/lms/useLms";
 import { lmsApi, lmsErrorText, lmsSignOut, quranChapters, type Chapter, type QuranData } from "@/lib/lms";
@@ -81,6 +82,8 @@ export function LmsDashboard() {
           <p className="p-10 text-center opacity-70">{tr("Loading…", "جارٍ التحميل…")}</p>
         ) : !staff ? (
           <>
+            {dash.progress && <ProgressCard p={dash.progress} />}
+            <RevisionList tracker={dash.tracker || []} onChange={(t) => setDash({ ...dash, tracker: t })} />
             <section>
               <h2 className="mb-3 text-xl font-bold">{tr("Homework", "الواجبات")}</h2>
               {dash.homework.length === 0 && <p className={card + " opacity-80"}>{tr("No homework yet — enjoy your day!", "لا توجد واجبات بعد — استمتع بيومك!")}</p>}
@@ -96,7 +99,7 @@ export function LmsDashboard() {
                           <div className="min-w-0 flex-1">
                             <p className="text-lg font-bold" dir="auto">{h.title}</p>
                             {h.kind === "quran" && <p className="text-sm opacity-80">{surahName(q.surah)} · {q.from}–{q.to}</p>}
-                            {h.due && <p className="text-sm opacity-70">{tr("Due", "التسليم")} {new Date(h.due).toLocaleDateString(lang === "ar" ? "ar" : "en-GB")}</p>}
+                            {h.due && <p className="text-sm opacity-70">{tr("Due", "التسليم")} {new Date(h.due).toLocaleDateString(lang === "ar" ? "ar" : "en-GB")} {h.late && <span className="ms-1 rounded-full bg-rose-100 px-2 py-0.5 text-xs font-bold text-rose-800" data-testid="lms-hw-late">⏰ {h.sub?.submittedAt ? tr("Handed in late", "سُلّم متأخرًا") : tr("Overdue", "متأخر")}</span>}</p>}
                           </div>
                           {h.locked ? <span className="shrink-0 rounded-full bg-black/10 px-2.5 py-1 text-xs font-bold dark:bg-white/15" data-testid="lms-hw-locked">🔒 {tr("Locked", "مقفل")}</span> : h.sub?.grade ? <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${GRADE_STYLE[h.sub.grade]}`} data-testid="lms-hw-grade">{h.sub.grade === "red" ? tr("Practise again", "تدرّب مجددًا") : gradeLabel(h.sub.grade, tr)}</span> : <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${STATUS_STYLE[st]}`} data-testid="lms-hw-status">{statusLabel(st, tr)}</span>}
                         </div>
@@ -121,6 +124,8 @@ export function LmsDashboard() {
                 </ul>
               )}
             </section>
+            <Certificates tracker={dash.tracker || []} student={actor?.name || ""} />
+            {dash.leaderboard && <Leaderboard />}
           </>
         ) : (
           <>
@@ -139,9 +144,10 @@ export function LmsDashboard() {
               >
                 ⬇ {busy ? "…" : tr("Export all homework (ZIP)", "تصدير كل الواجبات (ZIP)")}
               </button>
-              {actor?.perms.includes("manageUsers") && <a className={smallBtn} href="/lms/students">🎒 {tr("Students", "الطلاب")}</a>}
+              <a className={smallBtn} href="/lms/map" data-testid="lms-map-link">🗺️ {tr("Class Quran map", "خريطة القرآن للصف")}</a>
               <span className="text-sm opacity-70">{(dash.classes || []).map((c) => `${c.cls || "—"}: ${c.students}`).join(" · ")}</span>
             </div>
+            <div className={card + " py-3"}><LeaderboardSetting /></div>
             {creating && (
               <HomeworkEditor classes={dash.classes || []} students={dash.students || []} catalog={dash.catalog} scope={dash.scope} asAdmin={asAdmin} onCancel={() => setCreating(false)} onSaved={(id) => router.push(`/lms/homework?id=${id}`)} />
             )}
