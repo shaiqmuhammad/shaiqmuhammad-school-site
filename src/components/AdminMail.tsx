@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { mailApi, type ContactMsg, type Folder, type MailItem, type MailMessage, type OutAttachment } from "@/lib/mail";
+import { mailApi, type MailSignature, type ContactMsg, type Folder, type MailItem, type MailMessage, type OutAttachment } from "@/lib/mail";
 import { card, inputCls, smallBtn, useTr } from "@/components/lms/useLms";
 
 const when = (v: string | number) => { const d = new Date(v); return Number.isNaN(d.getTime()) ? String(v) : d.toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }); };
@@ -74,6 +74,7 @@ function Inbox() {
   const [cMode, setCMode] = useState<"normal" | "min" | "max">("normal");
   const [panel, setPanel] = useState<"normal" | "min" | "max">("normal");
   const [foldersOpen, setFoldersOpen] = useState(true);
+  const [sigOpen, setSigOpen] = useState(false);
   const [err, setErr] = useState("");
   const loadList = useCallback(() => { mailApi.list(folder, page).then(setList).catch((e) => setErr(String(e.message))); }, [folder, page]);
   useEffect(() => { mailApi.folders().then((r) => setFolders(r.folders)).catch((e) => setErr(String(e.message))); }, []);
@@ -144,6 +145,7 @@ function Inbox() {
             <select className="rounded-full border border-black/10 bg-transparent px-2 py-1 text-sm md:hidden dark:border-white/15" value={folder} onChange={(e) => { setList(null); setFolder(e.target.value); setPage(0); }} aria-label={tr("Folder", "المجلد")}>{folders.map((f) => <option key={f.path} value={f.path}>{f.name}</option>)}</select>
             <b className="hidden flex-1 truncate md:block">{curFolder?.name || folder}</b><span className="flex-1 md:hidden" />
             <button type="button" className={ctl + " md:hidden"} onClick={() => newCompose({ to: "", subject: "", text: "" })} aria-label={tr("Compose", "رسالة جديدة")}>✏️</button>
+            <button type="button" className={ctl} onClick={() => setSigOpen(true)} title={tr("Email signature", "توقيع البريد")} aria-label={tr("Email signature", "توقيع البريد")} data-testid="mail-sig-open">✍️</button>
             <button type="button" className={ctl} onClick={() => { setList(null); loadList(); }} title={tr("Refresh", "تحديث")} aria-label={tr("Refresh", "تحديث")}>↻</button>
             <button type="button" className={ctl} onClick={() => setPanel("min")} title={tr("Minimise mailbox", "تصغير صندوق البريد")} aria-label={tr("Minimise mailbox", "تصغير صندوق البريد")} data-testid="mail-panel-minimise">—</button>
             <button type="button" className={ctl} onClick={() => setPanel(panel === "max" ? "normal" : "max")} title={panel === "max" ? tr("Exit full screen", "إنهاء ملء الشاشة") : tr("Full screen", "ملء الشاشة")} aria-label={tr("Full screen", "ملء الشاشة")} data-testid="mail-panel-max">{panel === "max" ? "⤡" : "⤢"}</button>
@@ -207,7 +209,43 @@ function Inbox() {
         </section>
       </div>
       {composeWin}
+      {sigOpen && <SignatureEditor onClose={() => setSigOpen(false)} />}
     </>
+  );
+}
+
+function SignatureEditor({ onClose }: { onClose: () => void }) {
+  const { tr } = useTr();
+  const [sg, setSg] = useState<MailSignature | null>(null);
+  const [html, setHtml] = useState("");
+  const [msg, setMsg] = useState("");
+  useEffect(() => { mailApi.signature().then((r) => { setSg(r.signature); setHtml(r.html); }).catch(() => setMsg(tr("Couldn't load the signature.", "تعذر تحميل التوقيع."))); }, [tr]);
+  const f = (k: keyof MailSignature, label: string, ltr = false) => sg && (
+    <label className="block text-sm font-semibold">{label}<input className={inputCls} value={String(sg[k] ?? "")} dir={ltr ? "ltr" : "auto"} onChange={(e) => setSg({ ...sg, [k]: e.target.value })} data-testid={`sig-${k}`} /></label>
+  );
+  return (
+    <div className="fixed inset-0 z-[85] flex justify-end bg-black/40" onClick={onClose}>
+      <aside role="dialog" aria-modal="true" aria-label={tr("Email signature", "توقيع البريد")} className="flex h-full w-full max-w-md flex-col gap-3 overflow-y-auto bg-white p-5 shadow-2xl dark:bg-[#0f1a26] sm:rounded-s-3xl" onClick={(e) => e.stopPropagation()} data-testid="mail-sig">
+        <div className="flex items-center gap-2"><h3 className="flex-1 text-lg font-extrabold">✍️ {tr("Email signature", "توقيع البريد")}</h3><button type="button" className="h-8 w-8 rounded-full hover:bg-black/10" onClick={onClose} aria-label={tr("Close", "إغلاق")}>✕</button></div>
+        {!sg ? <p className="opacity-70">{msg || tr("Loading…", "جارٍ التحميل…")}</p> : (
+          <>
+            <label className="flex items-center gap-2 font-semibold"><input type="checkbox" className="h-5 w-5" checked={sg.on} onChange={(e) => setSg({ ...sg, on: e.target.checked })} data-testid="sig-on" />{tr("Add signature to new messages, replies and forwards", "أضف التوقيع للرسائل الجديدة والردود وإعادة التوجيه")}</label>
+            {f("name", tr("Name", "الاسم"))}
+            {f("title", tr("Title", "المسمى"))}
+            {f("email", tr("Email", "البريد"), true)}
+            {f("website", tr("Website", "الموقع"), true)}
+            {f("phone", tr("Phone (optional)", "الهاتف (اختياري)"), true)}
+            <label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" className="h-5 w-5" checked={sg.logo} onChange={(e) => setSg({ ...sg, logo: e.target.checked })} />{tr("Show logo", "إظهار الشعار")}</label>
+            <p className="text-sm font-semibold">{tr("Preview", "معاينة")}</p>
+            <iframe title="signature preview" sandbox="" srcDoc={html} className="h-36 w-full rounded-xl border border-black/10 bg-white" />
+            <div className="flex gap-2">
+              <button type="button" className={smallBtn + " bg-header! text-white!"} onClick={() => mailApi.signature(sg).then((r) => { setSg(r.signature); setHtml(r.html); setMsg(tr("Saved ✓", "تم الحفظ ✓")); }).catch(() => setMsg(tr("Save failed", "فشل الحفظ")))} data-testid="sig-save">{tr("Save", "حفظ")}</button>
+              <span className="self-center text-sm" role="status">{msg}</span>
+            </div>
+          </>
+        )}
+      </aside>
+    </div>
   );
 }
 
@@ -215,6 +253,8 @@ function Compose({ init, onDone, onChange, big }: { init: { to: string; subject:
   const { tr } = useTr();
   const [m, setM] = useState({ ...init, cc: "" });
   const [files, setFiles] = useState<OutAttachment[]>([]);
+  const [sig, setSig] = useState<{ on: boolean; html: string } | null>(null);
+  useEffect(() => { mailApi.signature().then((r) => setSig({ on: r.signature.on, html: r.html })).catch(() => undefined); }, []);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const addFiles = async (list: FileList | null) => {
@@ -225,12 +265,18 @@ function Compose({ init, onDone, onChange, big }: { init: { to: string; subject:
     }
   };
   return (
-    <form className="space-y-2" onSubmit={async (e) => { e.preventDefault(); setBusy(true); setErr(""); try { await mailApi.send({ ...m, attachments: files }); onDone(); } catch (x) { setErr(String((x as Error).message)); } setBusy(false); }} data-testid="mail-compose-form">
+    <form className="space-y-2" onSubmit={async (e) => { e.preventDefault(); setBusy(true); setErr(""); try { await mailApi.send({ ...m, attachments: files, signature: sig ? sig.on : undefined }); onDone(); } catch (x) { setErr(String((x as Error).message)); } setBusy(false); }} data-testid="mail-compose-form">
       <p className="text-xs opacity-60">{tr("From", "من")} contact@shaiqmuhammad.com</p>
       <input className={inputCls} placeholder={tr("To (comma-separated)", "إلى (افصل بفاصلة)")} value={m.to} onChange={(e) => setM({ ...m, to: e.target.value })} required dir="ltr" />
       <input className={inputCls} placeholder="Cc" value={m.cc} onChange={(e) => setM({ ...m, cc: e.target.value })} dir="ltr" />
       <input className={inputCls} placeholder={tr("Subject", "الموضوع")} value={m.subject} onChange={(e) => { setM({ ...m, subject: e.target.value }); onChange?.(e.target.value); }} required />
       <textarea className={inputCls + (big ? " min-h-[50vh]" : " min-h-56")} value={m.text} onChange={(e) => setM({ ...m, text: e.target.value })} required dir="auto" />
+      {sig && (
+        <div className="rounded-xl border border-dashed border-black/15 p-2 dark:border-white/20">
+          <label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={sig.on} onChange={(e) => setSig({ ...sig, on: e.target.checked })} data-testid="compose-sig" />✍️ {tr("Signature", "التوقيع")}</label>
+          {sig.on && <iframe title="signature" sandbox="" srcDoc={sig.html} className="mt-1 h-28 w-full rounded-lg bg-white" />}
+        </div>
+      )}
       <div className="flex flex-wrap items-center gap-2">
         <label className={smallBtn + " cursor-pointer"}>📎 {tr("Attach", "إرفاق")}<input type="file" multiple className="hidden" onChange={(e) => addFiles(e.target.files)} /></label>
         {files.map((f, i) => <span key={i} className="rounded-full bg-black/5 px-2 py-0.5 text-xs dark:bg-white/10">{f.filename} <button type="button" onClick={() => setFiles(files.filter((_, j) => j !== i))} aria-label={tr("Remove", "إزالة")}>✕</button></span>)}

@@ -20,13 +20,16 @@ async function call<T>(path: string, init: { method?: string; body?: unknown; qu
   return data;
 }
 
+export type MailSignature = { on: boolean; name: string; title: string; email: string; website: string; phone?: string; logo: boolean };
+
 export const mailApi = {
   status: () => call<{ ready: boolean; unread: number | null }>("/api/mail/status"),
   folders: () => call<{ folders: Folder[] }>("/api/mail/folders"),
   list: (folder: string, page = 0) => call<{ total: number; items: MailItem[] }>("/api/mail/list", { query: { folder, page } }),
   message: (folder: string, uid: number) => call<MailMessage>("/api/mail/message", { query: { folder, uid } }),
   seen: (folder: string, uids: number[], seen: boolean) => call<{ ok: true }>("/api/mail/seen", { body: { folder, uids, seen } }),
-  send: (m: { to: string; cc?: string; subject: string; text: string; inReplyTo?: string; attachments?: OutAttachment[] }) => call<{ ok: true }>("/api/mail/send", { body: m }),
+  signature: (signature?: MailSignature) => call<{ signature: MailSignature; html: string }>("/api/mail/signature", signature ? { body: { signature } } : {}),
+  send: (m: { to: string; cc?: string; subject: string; text: string; inReplyTo?: string; attachments?: OutAttachment[]; signature?: boolean }) => call<{ ok: true }>("/api/mail/send", { body: m }),
   async part(folder: string, uid: number, part: string, filename: string) {
     const tok = getServerSession()?.token;
     const res = await fetch(`${ASSESSMENT_API_BASE}/api/mail/part?${new URLSearchParams({ folder, uid: String(uid), part })}`, { headers: { Authorization: `Bearer ${tok}` } });
