@@ -127,11 +127,13 @@ export function LmsDashboard() {
               >
                 ⬇ {busy ? "…" : tr("Export all homework (ZIP)", "تصدير كل الواجبات (ZIP)")}
               </button>
-              {(asAdmin || actor?.perms.includes("manageUsers")) && <a className={smallBtn} href="/lms/admin">👥 {tr("Students & teachers", "الطلاب والمعلمون")}</a>}
+              {(asAdmin || actor?.perms.includes("manageUsers")) && <a className={smallBtn} href="/lms/students">🎒 {tr("Students", "الطلاب")}</a>}
+              {asAdmin && <a className={smallBtn} href="/lms/teachers">🧑‍🏫 {tr("Teachers", "المعلمون")}</a>}
+              {asAdmin && <a className={smallBtn} href="/lms/setup">🏫 {tr("Classes & subjects", "الصفوف والمواد")}</a>}
               <span className="text-sm opacity-70">{(dash.classes || []).map((c) => `${c.cls || "—"}: ${c.students}`).join(" · ")}</span>
             </div>
             {creating && (
-              <HomeworkEditor classes={dash.classes || []} students={dash.students || []} asAdmin={asAdmin} onCancel={() => setCreating(false)} onSaved={(id) => router.push(`/lms/homework?id=${id}`)} />
+              <HomeworkEditor classes={dash.classes || []} students={dash.students || []} catalog={dash.catalog} scope={dash.scope} asAdmin={asAdmin} onCancel={() => setCreating(false)} onSaved={(id) => router.push(`/lms/homework?id=${id}`)} />
             )}
             <section>
               <h2 className="mb-3 text-xl font-bold">{tr("Homework", "الواجبات")} ({dash.homework.length})</h2>
@@ -148,7 +150,7 @@ export function LmsDashboard() {
                           <span className="block font-bold" dir="auto">{h.title}</span>
                           <span className="block text-sm opacity-75">
                             {h.kind === "quran" ? `${surahName(q.surah)} ${q.from}–${q.to} · ` : ""}
-                            {h.students.length ? tr(`${h.students.length} students`, `${h.students.length} طلاب`) : h.cls || tr("All students", "كل الطلاب")}
+                            {h.students.length ? tr(`${h.students.length} students`, `${h.students.length} طلاب`) : [h.cls, h.section].filter(Boolean).join(" · ") || tr("All students", "كل الطلاب")}
                             {h.due ? ` · ${tr("due", "التسليم")} ${new Date(h.due).toLocaleDateString(lang === "ar" ? "ar" : "en-GB")}` : ""}
                           </span>
                         </span>
