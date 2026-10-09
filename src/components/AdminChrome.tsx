@@ -213,16 +213,20 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
             </Icon>
           </button>
         </div>
-        <div className={`flex flex-col items-center text-center ${collapsed ? "mt-3 gap-3" : "mt-1 gap-3"}`}>
-          {logo(collapsed ? "h-10 w-10" : "h-24 w-24")}
-          {!collapsed && (
-            <div>
-              <p className="font-extrabold leading-tight text-white">Shaiq Muhammad — Admin</p>
-              <p className="text-xs text-white/70">{t("admin.title")}</p>
+        {collapsed ? (
+          <div className="mt-3 flex flex-col items-center gap-3" data-testid="admin-sidebar-brand">
+            {logo("h-9 w-9")}
+            {bell}
+          </div>
+        ) : (
+          <div className="mt-2 flex items-center gap-2.5" data-testid="admin-sidebar-brand">
+            {logo("h-10 w-10")}
+            <div className="min-w-0 flex-1 text-start">
+              <p className="text-sm font-extrabold leading-tight text-white" dir="ltr"><span className="whitespace-nowrap">Shaiq Muhammad</span> — Admin</p>
             </div>
-          )}
-          {bell}
-        </div>
+            {bell}
+          </div>
+        )}
         <nav className={`flex-1 space-y-0.5 overflow-y-auto overflow-x-hidden ${collapsed ? "mt-5" : "mt-8"}`} aria-label={tr("Admin sections", "أقسام الإدارة")}>
           {navItems({ rail: collapsed })}
           {lmsLinks({ rail: collapsed })}
