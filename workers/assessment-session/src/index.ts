@@ -26,6 +26,7 @@
  * Admin publishing (site origins only, see ./admin.ts):
  *   POST /api/admin/login {password} -> {token, exp};  POST /api/admin/publish (Bearer token);  GET /api/admin/status
  * Moderated forum (see ./forum.ts): POST /api/forum/submit (public, pending); count/pending/approve/reject (admin).
+ * Classroom activities (see ./activity.ts): /api/activity/create (admin) and /api/activity/:code/... (5-letter codes).
  * Results record (see ./results.ts): POST /api/results/attempt (site); list/get/delete (admin). Group sessions are
  * recorded automatically once they have ended.
  */
@@ -33,13 +34,15 @@ import { DurableObject } from "cloudflare:workers";
 import { handleAdmin, type AdminEnv } from "./admin";
 import { handleForum } from "./forum";
 import { handleResults, resultsStore, type ResultRecord, type ResultsEnv } from "./results";
+import { handleActivity, type ActivityEnv } from "./activity";
 import { describeAnswer, describeCorrect, isAnswered, normalizeQuiz, quizMaxScore, scoreQuestion, wordBank, type Quiz, type QuizQuestion } from "../../../src/lib/quiz";
 
 export { AdminGuard } from "./admin";
 export { ForumQueue } from "./forum";
 export { ResultsStore } from "./results";
+export { ClassActivity } from "./activity";
 
-export interface Env extends AdminEnv, ResultsEnv {
+export interface Env extends AdminEnv, ResultsEnv, ActivityEnv {
   SESSIONS: DurableObjectNamespace<AssessmentSession>;
   HOST_SECRET?: string;
 }
@@ -551,6 +554,7 @@ export default {
     if (parts[0] === "api" && parts[1] === "admin") return handleAdmin(request, env, parts[2] || "");
     if (parts[0] === "api" && parts[1] === "forum") return handleForum(request, env, parts[2] || "");
     if (parts[0] === "api" && parts[1] === "results") return handleResults(request, env, parts[2] || "");
+    if (parts[0] === "api" && parts[1] === "activity") return handleActivity(request, env, parts);
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
 
     if (parts.length === 0 || (parts[0] === "api" && parts.length === 1)) {

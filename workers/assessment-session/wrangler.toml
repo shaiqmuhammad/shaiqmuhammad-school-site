@@ -21,6 +21,10 @@ class_name = "ForumQueue"
 name = "RESULTS"
 class_name = "ResultsStore"
 
+[[durable_objects.bindings]]
+name = "ACTIVITIES"
+class_name = "ClassActivity"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["AssessmentSession"]
@@ -39,6 +43,11 @@ new_sqlite_classes = ["ForumQueue"]
 [[migrations]]
 tag = "v4"
 new_sqlite_classes = ["ResultsStore"]
+
+# Classroom activities (Shared Wall, Word Cloud, Poll, Survey, Think/Pair/Share, Vote).
+[[migrations]]
+tag = "v5"
+new_sqlite_classes = ["ClassActivity"]
 
 # Admin publishing secrets (never committed):
 #   npx wrangler secret put GITHUB_PAT              (fine-grained token: Contents read/write on this repo)
