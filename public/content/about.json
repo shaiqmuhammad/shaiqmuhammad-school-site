@@ -1,0 +1,227 @@
+{
+  "hero": {
+    "name": "Shaiq Muhammad",
+    "nameAr": "شائق محمد",
+    "title": "Islamic Education B Teacher",
+    "titleAr": "معلم التربية الإسلامية (ب)",
+    "bio": "My aim is to instill not only knowledge but also a sense of moral and ethical values rooted in Islamic teachings. By creating an engaging and interactive classroom experience while applying technology, my aim is to empower my students with a strong foundation in Islamic education, enabling them to navigate the complexities of the modern world while upholding the principles of their faith.",
+    "bioAr": "هدفي أن أغرس في طلابي المعرفة وكذلك القيم الأخلاقية المستمدة من التعاليم الإسلامية. ومن خلال بيئة صفية تفاعلية وممتعة توظّف التقنية، أسعى إلى تمكين طلابي من أساس متين في التربية الإسلامية يعينهم على مواجهة تعقيدات العالم الحديث مع التمسك بمبادئ دينهم.",
+    "photo": "/logo.svg",
+    "email": "contact@shaiqmuhammad.com",
+    "location": "Dubai, UAE",
+    "locationAr": "دبي، الإمارات"
+  },
+  "sections": [
+    {
+      "id": "experience",
+      "kind": "timeline",
+      "title": "Experience",
+      "titleAr": "الخبرات",
+      "icon": "💼",
+      "items": [
+        {
+          "id": "e1",
+          "title": "Islamic B Teacher (Primary)",
+          "titleAr": "معلم التربية الإسلامية (ب) — المرحلة الابتدائية",
+          "org": "Raffles International School",
+          "orgAr": "مدرسة رافلز الدولية",
+          "location": "Dubai",
+          "locationAr": "دبي",
+          "period": "Aug 2017 – Present",
+          "periodAr": "أغسطس 2017 – حتى الآن",
+          "monogram": "RIS",
+          "url": "https://www.rafflesis.com"
+        },
+        {
+          "id": "e2",
+          "title": "Islamic B Teacher (Primary / Secondary)",
+          "titleAr": "معلم التربية الإسلامية (ب) — الابتدائي / الثانوي",
+          "org": "GEMS Our Own Indian School",
+          "orgAr": "مدرسة جيمس أور أون الهندية",
+          "location": "Dubai",
+          "locationAr": "دبي",
+          "period": "Apr 2015 – Jun 2017",
+          "periodAr": "أبريل 2015 – يونيو 2017",
+          "logo": "https://www.google.com/s2/favicons?domain=gemsoo-alquoz.com&sz=128",
+          "url": "https://www.gemsoo-alquoz.com"
+        },
+        {
+          "id": "e3",
+          "title": "Islamic B Teacher (Primary / Secondary)",
+          "titleAr": "معلم التربية الإسلامية (ب) — الابتدائي / الثانوي",
+          "org": "Pakistan Education Academy",
+          "orgAr": "أكاديمية باكستان التعليمية",
+          "location": "Dubai",
+          "locationAr": "دبي",
+          "period": "Nov 2012 – Mar 2015",
+          "periodAr": "نوفمبر 2012 – مارس 2015",
+          "logo": "https://www.google.com/s2/favicons?domain=pea.ae&sz=128",
+          "url": "https://www.pea.ae"
+        },
+        {
+          "id": "e4",
+          "title": "Quran / Islamic Teacher",
+          "titleAr": "معلم القرآن والتربية الإسلامية",
+          "org": "Eaalim Institute",
+          "orgAr": "معهد إعليم",
+          "location": "UK",
+          "locationAr": "المملكة المتحدة",
+          "period": "Nov 2009 – Mar 2012",
+          "periodAr": "نوفمبر 2009 – مارس 2012",
+          "logo": "https://www.google.com/s2/favicons?domain=eaalim.com&sz=128",
+          "url": "https://www.eaalim.com"
+        }
+      ]
+    },
+    {
+      "id": "education",
+      "kind": "timeline",
+      "title": "Education",
+      "titleAr": "التعليم",
+      "icon": "🎓",
+      "items": [
+        {
+          "id": "d1",
+          "title": "M.Ed in Education",
+          "titleAr": "ماجستير في التربية (M.Ed)",
+          "monogram": "M.Ed"
+        },
+        {
+          "id": "d2",
+          "title": "M.A in Islamic Studies",
+          "titleAr": "ماجستير في الدراسات الإسلامية",
+          "monogram": "M.A"
+        },
+        {
+          "id": "d3",
+          "title": "7-Year Islamic Studies Diploma (Arabic medium)",
+          "titleAr": "دبلوم الدراسات الإسلامية لمدة 7 سنوات (باللغة العربية)",
+          "org": "Abubakr Islamic University",
+          "orgAr": "جامعة أبي بكر الإسلامية",
+          "logo": "https://www.google.com/s2/favicons?domain=abibakr.com&sz=128",
+          "url": "https://abibakr.com"
+        },
+        {
+          "id": "d4",
+          "title": "Memorization of the Quran (Hifz)",
+          "titleAr": "حفظ القرآن الكريم",
+          "monogram": "📖"
+        }
+      ]
+    },
+    {
+      "id": "qualifications",
+      "kind": "cards",
+      "title": "Professional qualifications",
+      "titleAr": "المؤهلات المهنية",
+      "icon": "🏅",
+      "items": [
+        {
+          "id": "q1",
+          "title": "NPQLT — National Professional Qualification for Leading Teaching",
+          "titleAr": "NPQLT — المؤهل المهني الوطني لقيادة التدريس",
+          "org": "LLSE",
+          "location": "Dubai, UAE",
+          "locationAr": "دبي، الإمارات",
+          "logo": "https://www.google.com/s2/favicons?domain=llse.org.uk&sz=128",
+          "url": "https://www.llse.org.uk/npqlt"
+        }
+      ]
+    },
+    {
+      "id": "expertise",
+      "kind": "chips",
+      "title": "Expertise & skills",
+      "titleAr": "الخبرات والمهارات",
+      "icon": "✨",
+      "items": [
+        {
+          "id": "x1",
+          "title": "Animated videos for the subject",
+          "titleAr": "فيديوهات متحركة للمادة"
+        },
+        {
+          "id": "x2",
+          "title": "Developed an Islamic website",
+          "titleAr": "تطوير موقع إسلامي"
+        },
+        {
+          "id": "x3",
+          "title": "Comfortable with teaching apps",
+          "titleAr": "إتقان تطبيقات التدريس"
+        },
+        {
+          "id": "x4",
+          "title": "Teaching Quran in creative ways",
+          "titleAr": "تعليم القرآن بأساليب إبداعية"
+        },
+        {
+          "id": "x5",
+          "title": "Critical thinking",
+          "titleAr": "التفكير الناقد"
+        },
+        {
+          "id": "x6",
+          "title": "Pressure management",
+          "titleAr": "إدارة الضغوط"
+        },
+        {
+          "id": "x7",
+          "title": "Leadership",
+          "titleAr": "القيادة"
+        },
+        {
+          "id": "x8",
+          "title": "Teamwork",
+          "titleAr": "العمل الجماعي"
+        }
+      ]
+    },
+    {
+      "id": "languages",
+      "kind": "chips",
+      "title": "Languages",
+      "titleAr": "اللغات",
+      "icon": "🗣️",
+      "items": [
+        {
+          "id": "l1",
+          "title": "English",
+          "titleAr": "الإنجليزية"
+        },
+        {
+          "id": "l2",
+          "title": "Arabic",
+          "titleAr": "العربية"
+        },
+        {
+          "id": "l3",
+          "title": "Urdu / Hindi",
+          "titleAr": "الأردية / الهندية"
+        }
+      ]
+    },
+    {
+      "id": "creativity",
+      "kind": "links",
+      "title": "Samples of creativity within the subject",
+      "titleAr": "نماذج من الإبداع في المادة",
+      "icon": "🎬",
+      "items": [
+        {
+          "id": "c1",
+          "title": "YouTube — @almudarris_ins",
+          "titleAr": "يوتيوب — ‎@almudarris_ins",
+          "url": "https://youtube.com/@almudarris_ins",
+          "logo": "https://www.google.com/s2/favicons?domain=youtube.com&sz=128"
+        },
+        {
+          "id": "c2",
+          "title": "shaiqmuhammad.com",
+          "url": "https://shaiqmuhammad.com",
+          "logo": "/logo.svg"
+        }
+      ]
+    }
+  ]
+}
