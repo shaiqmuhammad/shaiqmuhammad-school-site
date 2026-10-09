@@ -8,6 +8,8 @@
       "cardImage": "https://images.unsplash.com/photo-1752900385454-7876eec9c326?auto=format&fit=crop&w=800&h=500&q=80",
       "timeLimitMinutes": 10,
       "showAnswers": true,
+      "certificateIndividual": true,
+      "certificateGroup": true,
       "visible": true,
       "active": true,
       "published": true,
