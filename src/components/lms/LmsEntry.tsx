@@ -2,7 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { lmsSession } from "@/lib/lms";
+import { useRouter } from "next/navigation";
+import { AdminToolbar } from "@/components/AdminToolbar";
+import { clearServerSession } from "@/lib/adminServer";
+import { lmsSession, lmsSignOut } from "@/lib/lms";
 import { useI18n } from "@/lib/i18n";
 
 /** True once a student/teacher session exists on this device (read after hydration). */
@@ -59,5 +62,20 @@ export function LmsHomeCard() {
         {signedIn ? (ar ? "منطقتي" : "My Area") : ar ? "تسجيل الدخول" : "Login"} →
       </Link>
     </div>
+  );
+}
+
+/** Staff (teacher/admin) icon toolbar for the LMS top bar. Log out ends both the LMS and admin sessions on this device. */
+export function LmsStaffToolbar() {
+  const router = useRouter();
+  return (
+    <AdminToolbar
+      variant="navy"
+      onLogout={() => {
+        lmsSignOut();
+        clearServerSession();
+        router.push("/lms/login");
+      }}
+    />
   );
 }

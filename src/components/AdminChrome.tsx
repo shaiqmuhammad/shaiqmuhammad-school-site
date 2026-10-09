@@ -3,8 +3,7 @@
 import Link from "next/link";
 import { useLogoUrl } from "@/components/SiteBrand";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { LanguageToggle } from "@/components/LanguageToggle";
-import { ThemeToggle } from "@/components/ThemeToggle";
+import { AdminToolbar } from "@/components/AdminToolbar";
 import { useI18n } from "@/lib/i18n";
 
 type Tab = "home" | "pages" | "videos" | "quizzes" | "certificate" | "banners" | "announcements" | "teacher" | "forum" | "results" | "activities" | "settings";
@@ -233,25 +232,6 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
         </nav>
         <div className={`space-y-3 pt-4 ${collapsed ? "flex flex-col items-center" : ""}`}>
           {collapsed ? publishBtn(true) : <div className="w-full [&>button]:w-full">{publishBtn()}</div>}
-          <div className={`flex items-center justify-center gap-2 ${collapsed ? "flex-col" : ""}`}>
-            <LanguageToggle variant="navy" className={collapsed ? "w-12 px-1 [&>svg]:hidden" : ""} />
-            <ThemeToggle variant="navy" labelClassName={collapsed ? "hidden" : undefined} />
-          </div>
-          {collapsed ? (
-            <div className="flex flex-col items-center gap-2">
-              <Link href="/" aria-label={t("admin.viewSite")} title={t("admin.viewSite")} className="pill-on-navy h-9 w-9 justify-center text-sun">
-                <Icon className="h-4 w-4"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" /></Icon>
-              </Link>
-              <button type="button" onClick={onLogout} aria-label={t("admin.logout")} title={t("admin.logout")} className="pill-on-navy h-9 w-9 justify-center">
-                <Icon className="h-4 w-4 rtl:-scale-x-100"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" /></Icon>
-              </button>
-            </div>
-          ) : (
-            <div className="flex justify-center gap-4 text-sm">
-              <Link href="/" className="font-semibold text-sun hover:underline">{t("admin.viewSite")}</Link>
-              <button type="button" onClick={onLogout} className="text-white/75 hover:text-white">{t("admin.logout")}</button>
-            </div>
-          )}
         </div>
       </aside>
 
@@ -269,11 +249,10 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
           >
             <Icon className="h-5 w-5"><path d="M4 7h16M4 12h16M4 17h16" /></Icon>
           </button>
-          {logo("h-10 w-10")}
+          {logo("h-9 w-9")}
           <p className="min-w-0 flex-1 truncate text-sm font-extrabold text-white">{label(tab)}</p>
           {bell}
-          <LanguageToggle variant="navy" className="px-2.5" />
-          <ThemeToggle variant="navy" labelClassName="hidden sm:inline" />
+          <AdminToolbar variant="navy" onLogout={onLogout} />
         </div>
       </header>
       {drawer && (
@@ -301,10 +280,6 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
             </nav>
             <div className="space-y-3 pt-4">
               <div className="w-full [&>button]:w-full">{publishBtn()}</div>
-              <div className="flex justify-center gap-4 text-sm">
-                <Link href="/" className="font-semibold text-sun hover:underline">{t("admin.viewSite")}</Link>
-                <button type="button" onClick={onLogout} className="text-white/75 hover:text-white">{t("admin.logout")}</button>
-              </div>
             </div>
           </div>
         </div>
@@ -312,6 +287,9 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
 
       <main className="min-w-0 flex-1">
         <div className={`mx-auto px-4 py-6 sm:px-8 lg:py-10 ${collapsed ? "max-w-5xl" : "max-w-4xl"}`}>
+          <div className="mb-4 hidden justify-end lg:flex" data-testid="admin-toolbar-wrap">
+            <AdminToolbar onLogout={onLogout} />
+          </div>
           <div className="mb-6 flex items-center justify-between gap-3 lg:hidden">
             <h1 className="text-lg font-extrabold">{label(tab)}</h1>
             {publishBtn()}

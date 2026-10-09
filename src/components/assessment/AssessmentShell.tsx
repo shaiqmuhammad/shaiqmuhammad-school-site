@@ -17,6 +17,8 @@ type Props = {
   progress?: { current: number; total: number; answered?: boolean[]; onJump?: (i: number) => void };
   /** Extra buttons in the bar (before language/theme), e.g. the projector's full-screen toggle. */
   actions?: ReactNode;
+  /** Replaces the default language/theme pills (staff icon toolbar). */
+  toolbar?: ReactNode;
   /** Use the full screen width (teacher projector screens). */
   wide?: boolean;
   children: ReactNode;
@@ -26,7 +28,7 @@ type Props = {
  * Full-screen, distraction-free frame for assessments: navy bar, warm yellow and cream (light + dark),
  * minimal chrome (exit, progress, timer, language/theme), content centred with big type.
  */
-export function AssessmentShell({ title, exitHref = "/assessments", onExit, secondsLeft, progress, actions, wide = false, children }: Props) {
+export function AssessmentShell({ title, exitHref = "/assessments", onExit, secondsLeft, progress, actions, toolbar, wide = false, children }: Props) {
   const { a } = useAssessmentText();
   const showTimer = typeof secondsLeft === "number";
   const low = showTimer && (secondsLeft as number) <= 30;
@@ -80,8 +82,12 @@ export function AssessmentShell({ title, exitHref = "/assessments", onExit, seco
             </div>
           )}
           {actions}
-          <LanguageToggle variant="navy" />
-          <ThemeToggle variant="navy" />
+          {toolbar ?? (
+            <>
+              <LanguageToggle variant="navy" />
+              <ThemeToggle variant="navy" />
+            </>
+          )}
         </div>
         {progress && progress.total > 0 && (
           <div className="mx-auto flex max-w-5xl gap-1 px-3 pb-2.5 sm:px-6" aria-label={a("questionOf", { i: progress.current + 1, n: progress.total })}>
