@@ -1,0 +1,36 @@
+{
+  "sections": [
+    {
+      "id": "banners",
+      "kind": "banners"
+    },
+    {
+      "id": "intro",
+      "kind": "intro"
+    },
+    {
+      "id": "lms",
+      "kind": "lms"
+    },
+    {
+      "id": "assessments",
+      "kind": "assessments"
+    },
+    {
+      "id": "libraries",
+      "kind": "libraries"
+    },
+    {
+      "id": "teacher",
+      "kind": "teacher"
+    },
+    {
+      "id": "videos",
+      "kind": "videos"
+    },
+    {
+      "id": "lessons",
+      "kind": "lessons"
+    }
+  ]
+}
