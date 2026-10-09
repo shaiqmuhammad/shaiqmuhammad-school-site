@@ -10,6 +10,7 @@ import { LanguageToggle } from "@/components/LanguageToggle";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useI18n } from "@/lib/i18n";
 import { useLogoUrl } from "@/components/SiteBrand";
+import { LmsHeaderButton } from "@/components/lms/LmsEntry";
 
 const samePath = (pathname: string, href: string) => pathname.replace(/\/$/, "") === href || pathname.startsWith(href + "/");
 
@@ -177,6 +178,7 @@ export function Header() {
         <div className="flex shrink-0 items-center gap-1 sm:gap-2">
           <LanguageToggle variant="navy" className="max-sm:px-2.5" />
           <ThemeToggle variant="navy" labelClassName="hidden sm:inline lg:hidden xl:inline" />
+          <LmsHeaderButton />
           <JoinButton lang={lang} />
           <button
             type="button"
@@ -201,6 +203,9 @@ export function Header() {
             </span>
             <LanguageToggle />
             <ThemeToggle showLabel />
+          </div>
+          <div className="mb-3">
+            <LmsHeaderButton mobile onPick={() => setOpen(false)} />
           </div>
           <ul className="flex flex-col gap-1">
             {navLinks.map((link) =>

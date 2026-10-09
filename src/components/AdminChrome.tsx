@@ -169,6 +169,25 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
       </button>
     ));
 
+  const lmsLinks = (opts: { rail?: boolean; onPick?: () => void }) =>
+    ([
+      ["/lms/admin", tr("Students & Teachers", "الطلاب والمعلمون"), <><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6 6 0 0 1 3.5 6" /></>, "admin-nav-lms-users"],
+      ["/lms", tr("Homework", "الواجبات"), <><path d="M4 4h12l4 4v12H4z" /><path d="M8 12h8M8 16h5M8 8h4" /></>, "admin-nav-lms-homework"],
+    ] as const).map(([href, text, icon, id]) => (
+      <Link
+        key={href}
+        href={href}
+        onClick={() => opts.onPick?.()}
+        aria-label={opts.rail ? text : undefined}
+        title={opts.rail ? text : undefined}
+        data-testid={id}
+        className={`nav-link-navy relative flex w-full items-center gap-3 py-2 text-start text-sm transition ${opts.rail ? "justify-center px-0" : "px-4"}`}
+      >
+        <Icon>{icon}</Icon>
+        {!opts.rail && <span>{text}</span>}
+      </Link>
+    ));
+
   const collapseLabel = collapsed ? tr("Expand menu", "توسيع القائمة") : tr("Collapse menu", "تصغير القائمة");
 
   return (
@@ -206,6 +225,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
         </div>
         <nav className={`flex-1 space-y-0.5 overflow-y-auto overflow-x-hidden ${collapsed ? "mt-5" : "mt-8"}`} aria-label={tr("Admin sections", "أقسام الإدارة")}>
           {navItems({ rail: collapsed })}
+          {lmsLinks({ rail: collapsed })}
         </nav>
         <div className={`space-y-3 pt-4 ${collapsed ? "flex flex-col items-center" : ""}`}>
           {collapsed ? publishBtn(true) : <div className="w-full [&>button]:w-full">{publishBtn()}</div>}
@@ -273,6 +293,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
             </div>
             <nav className="mt-5 flex-1 space-y-0.5 overflow-y-auto" aria-label={tr("Admin sections", "أقسام الإدارة")}>
               {navItems({ onPick: () => setDrawer(false) })}
+              {lmsLinks({ onPick: () => setDrawer(false) })}
             </nav>
             <div className="space-y-3 pt-4">
               <div className="w-full [&>button]:w-full">{publishBtn()}</div>
