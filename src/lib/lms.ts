@@ -14,13 +14,16 @@ export type Actor = { id: string; role: Role | "admin"; name: string; cls: strin
 export type Slide = { title: string; text: string; image: string };
 export type QuranData = { surah: number; from: number; to: number; reciter: string; notes: string; translit?: boolean; translation?: boolean };
 export type GeneralData = { slides: Slide[]; question: string };
-export type Homework = { id: string; kind: "quran" | "general"; title: string; cls: string; section?: string; students: string[]; data: QuranData | GeneralData; due: number | null; createdBy: string; created: number; locked?: boolean };
+export type Homework = { id: string; kind: "quran" | "general"; title: string; cls: string; section?: string; students: string[]; data: QuranData | GeneralData; due: number | null; createdBy: string; created: number; locked?: boolean; late?: boolean };
 export type Comment = { by: string; text: string; at: number; audio?: string };
-export type Note = { id: string; kind: "hw_new" | "sub_new" | "feedback" | "feedback_audio" | "approved" | "returned" | "graded"; data: { hw?: string; title?: string; by?: string; student?: string; grade?: Grade }; created: number; read: boolean };
-export type Submission = { id: string; status: "draft" | "submitted" | "approved" | "returned"; text: string; practised: boolean; liked: boolean; comments: Comment[]; audio?: string; grade?: Grade | ""; attempts?: Attempt[]; updated: number };
+export type Note = { id: string; kind: "hw_new" | "sub_new" | "feedback" | "feedback_audio" | "approved" | "returned" | "graded" | "reminder" | "revise" | "mistakes"; data: { hw?: string; title?: string; by?: string; student?: string; grade?: Grade; overdue?: boolean; count?: number; surah?: number }; created: number; read: boolean };
+export type Submission = { id: string; status: "draft" | "submitted" | "approved" | "returned"; text: string; practised: boolean; liked: boolean; comments: Comment[]; audio?: string; grade?: Grade | ""; attempts?: Attempt[]; mistakes?: Mistake[]; submittedAt?: number; updated: number };
 export type Grade = "green" | "yellow" | "red";
 export type Attempt = { n: number; audio: string; grade: Grade; by: string; at: number };
-export type TrackerRow = { surah: number; from: number; to: number; approved: number; grade?: Grade };
+export type TrackerRow = { surah: number; from: number; to: number; approved: number; grade?: Grade; hw?: string; revCount?: number; revDue?: number };
+export type Progress = { stars: number; streak: number; greens: number; yellows: number; handed: number; badges: string[]; activeDays: number };
+export type Mistake = { ayah: number; word: number; text: string; note: string };
+export type MapRow = { id: string; name: string; cls: string; section: string; cells: Record<number, { grade: string; verses: number }> };
 
 export const PERMS = ["assign", "review", "manageUsers", "viewAll"] as const;
 
@@ -81,10 +84,19 @@ export const lmsApi = {
   },
   me: () => call<{ user: Actor }>("me"),
   dashboard: (asAdmin = false) =>
-    call<{ homework: (Homework & { sub?: Submission | null; counts?: Record<string, number>; assigned?: number })[]; tracker?: TrackerRow[]; classes?: { cls: string; students: number }[]; students?: DashStudent[]; catalog?: Catalog; scope?: string[] }>("dashboard", undefined, { asAdmin }),
+    call<{ homework: (Homework & { sub?: Submission | null; counts?: Record<string, number>; assigned?: number })[]; tracker?: TrackerRow[]; progress?: Progress; leaderboard?: boolean; classes?: { cls: string; students: number }[]; students?: DashStudent[]; catalog?: Catalog; scope?: string[] }>("dashboard", undefined, { asAdmin }),
   users: (asAdmin = true) => call<{ users: LmsUser[] }>("users", undefined, { asAdmin }),
   saveUsers: (users: Partial<LmsUser & { pin: string }>[], asAdmin = true) => call<{ saved: number; pins: { username: string; name: string; pin: string }[]; errors: { row: number; username: string; error: string }[] }>("users", { users }, { asAdmin }),
   setStatus: (ids: string[], disabled: boolean, asAdmin = true) => call<{ ok: true; changed: number }>("users-status", { ids, disabled }, { asAdmin }),
+  progress: (id: string, asAdmin = false) => call<{ student: LmsUser; homework: { id: string; title: string; kind: string; data: QuranData | GeneralData; due: number | null; status: string; grade: string; attempts: number; late: boolean }[]; tracker: TrackerRow[]; progress: Progress; parentLink: string }>("progress", { id }, { asAdmin }),
+  quranMap: (cls = "", section = "", asAdmin = false) => call<{ rows: MapRow[]; surahs: number[] }>("quran-map", { cls, section }, { asAdmin }),
+  revise: (hw: string) => call<{ ok: true; tracker: TrackerRow[] }>("revise", { hw }),
+  practice: () => call<{ ok: true }>("practice", {}),
+  settings: (patch?: { leaderboard: "off" | "on" | "top3" }, asAdmin = false) => call<{ leaderboard: "off" | "on" | "top3" }>("settings", patch, { asAdmin }),
+  leaderboard: (cls = "", asAdmin = false) => call<{ mode: string; cls: string; list: { rank: number; name: string; stars: number; me: boolean }[] }>("leaderboard", { cls }, { asAdmin }),
+  parentLink: (id: string, opts: { reset?: boolean; revoke?: boolean } = {}, asAdmin = false) => call<{ token: string }>("parent-link", { id, ...opts }, { asAdmin }),
+  parent: (t: string) => call<{ name: string; cls: string; section: string; homework: { id: string; title: string; kind: string; due: number | null; status: string; grade: string; late: boolean; comments: { by: string; text: string; at: number }[] }[]; tracker: TrackerRow[]; progress: Progress }>("parent", { t }),
+  saveMistakes: (id: string, mistakes: Mistake[], asAdmin = false) => call<{ ok: true }>("mistakes", { id, mistakes }, { asAdmin }),
   deleteUser: (id: string, asAdmin = true) => call<{ ok: true }>("user-delete", { id }, { asAdmin }),
   resetPin: (id: string, pin?: string, asAdmin = true) => call<{ pin: string }>("user-pin", { id, pin }, { asAdmin }),
   saveHomework: (hw: Partial<Homework>, asAdmin = false) => call<{ ok: true; id: string }>("hw-save", hw, { asAdmin }),
@@ -131,6 +143,7 @@ export function lmsErrorText(e: unknown, tr: (en: string, ar: string) => string)
   const m: Record<string, [string, string]> = {
     bad_login: ["Wrong username or PIN.", "اسم المستخدم أو الرقم السري غير صحيح."],
     locked: ["Finish the earlier verses first — this unlocks when your teacher passes them.", "أكمل الآيات السابقة أولًا — تُفتح عندما يجتازها معلمك."],
+    leaderboard_off: ["The leaderboard is turned off.", "لوحة المتصدرين متوقفة."],
     blocked: ["Your account is blocked. Please contact your teacher.", "حسابك موقوف. يرجى التواصل مع معلمك."],
     too_many_attempts: ["Too many tries — wait 15 minutes and try again.", "محاولات كثيرة — انتظر 15 دقيقة ثم حاول."],
     unauthorized: ["Please sign in again.", "يرجى تسجيل الدخول مجددًا."],

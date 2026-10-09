@@ -54,6 +54,8 @@ const MAX_USERS = 3000;
 const MAX_HW = 2000;
 const FAIL_WINDOW = 15 * 60_000;
 const PERMS = ["assign", "review", "manageUsers", "viewAll"] as const;
+/** Spaced revision after a pass: 1, 3, 7, 14, 30, then every 60 days. */
+const REVISION_DAYS = [1, 3, 7, 14, 30, 60];
 const MAX_AUDIO = 1_600_000; // ~3 min at 24 kbps + container overhead, with headroom
 const USER_AUDIO_CAP = 30_000_000;
 const TOTAL_AUDIO_CAP = 1_500_000_000;
@@ -159,6 +161,13 @@ export class LmsStore extends DurableObject<LmsEnv> {
     if (!cols("subs").has("grade")) this.sql.exec(`ALTER TABLE subs ADD COLUMN grade TEXT DEFAULT ''`);
     if (!cols("subs").has("attempts")) this.sql.exec(`ALTER TABLE subs ADD COLUMN attempts TEXT DEFAULT '[]'`);
     if (!cols("tracker").has("grade")) this.sql.exec(`ALTER TABLE tracker ADD COLUMN grade TEXT DEFAULT 'green'`);
+    // Phase 2: activity days (streaks), revision tracking, settings, parent links, mistake notes.
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS activity (student TEXT, day TEXT, PRIMARY KEY (student, day))`);
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS settings (k TEXT PRIMARY KEY, v TEXT)`);
+    if (!cols("users").has("parent_token")) this.sql.exec(`ALTER TABLE users ADD COLUMN parent_token TEXT DEFAULT ''`);
+    if (!cols("users").has("email")) this.sql.exec(`ALTER TABLE users ADD COLUMN email TEXT DEFAULT ''`);
+    if (!cols("subs").has("mistakes")) this.sql.exec(`ALTER TABLE subs ADD COLUMN mistakes TEXT DEFAULT '[]'`);
+    if (!cols("subs").has("submitted_at")) this.sql.exec(`ALTER TABLE subs ADD COLUMN submitted_at INTEGER DEFAULT 0`);
     // Old schema had hw UNIQUE, so one student's approval overwrote another's on class homework: one row per (hw, student).
     const tsql = String(this.sql.exec(`SELECT sql FROM sqlite_master WHERE name='tracker'`).toArray()[0]?.sql || "");
     if (tsql.includes("hw TEXT UNIQUE")) {
@@ -167,6 +176,8 @@ export class LmsStore extends DurableObject<LmsEnv> {
       this.sql.exec(`DROP TABLE tracker`);
       this.sql.exec(`ALTER TABLE tracker_new RENAME TO tracker`);
     }
+    if (!cols("tracker").has("rev_count")) this.sql.exec(`ALTER TABLE tracker ADD COLUMN rev_count INTEGER DEFAULT 0`);
+    if (!cols("tracker").has("rev_at")) this.sql.exec(`ALTER TABLE tracker ADD COLUMN rev_at INTEGER DEFAULT 0`);
     if (!cols("homework").has("section")) this.sql.exec(`ALTER TABLE homework ADD COLUMN section TEXT DEFAULT ''`);
     // One-time migration: free-text class values become catalog classes (idempotent).
     for (const r of this.sql.exec(`SELECT DISTINCT cls FROM users WHERE cls != '' UNION SELECT DISTINCT cls FROM homework WHERE cls != ''`).toArray()) {
@@ -209,6 +220,15 @@ export class LmsStore extends DurableObject<LmsEnv> {
   }
 
   /** Resolves a user id from a token into an actor (null when unknown or disabled). */
+  private actorOf(r: Record<string, unknown>): Actor {
+    const u = this.publicUser(r);
+    return { id: u.id, role: u.role, name: u.name, cls: u.cls, perms: u.perms, scope: u.scope };
+  }
+
+  private setting(k: string, def = ""): string {
+    return String(this.sql.exec(`SELECT v FROM settings WHERE k=?`, k).toArray()[0]?.v ?? def);
+  }
+
   async actor(uid: string): Promise<Actor | null> {
     const r = this.userRow("id=?", uid);
     if (!r || r.disabled) return null;
@@ -273,6 +293,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
       await this.files.put(id, data, type);
       this.sql.exec(`INSERT INTO blobs (id, owner, sub, kind, mime, size, created) VALUES (?, ?, ?, 'rec', ?, ?, ?)`, id, a.id, String(cur.id), type, data.byteLength, Date.now());
       this.sql.exec(`UPDATE subs SET audio=?, updated=? WHERE id=?`, id, Date.now(), String(cur.id));
+      this.touch(a.id);
       return { status: 200, body: { ok: true, id, sub: this.sub(h.id, a.id) } };
     }
     if (!can(a, "review")) return { status: 403, body: { error: "forbidden" } };
@@ -541,8 +562,10 @@ export class LmsStore extends DurableObject<LmsEnv> {
 
       case "dashboard": {
         if (a.role === "student") {
-          const hw = this.assignedTo(a).map((h) => ({ ...h, sub: this.sub(h.id, a.id), locked: this.lockedFor(h, a.id) }));
-          return { status: 200, body: { homework: hw, tracker: this.trackerOf(a.id) } };
+          this.touch(a.id);
+          this.remind(a);
+          const hw = this.assignedTo(a).map((h) => { const sb = this.sub(h.id, a.id); return { ...h, sub: sb, locked: this.lockedFor(h, a.id), late: !!(h.due && ((sb?.submittedAt || 0) > h.due || (!(sb?.submittedAt) && h.due < Date.now()))) }; });
+          return { status: 200, body: { homework: hw, tracker: this.trackerOf(a.id), progress: this.progressOf(a.id), leaderboard: this.setting("leaderboard", "off") !== "off" } };
         }
         const all = this.allHomework().filter((h) => a.role === "admin" || a.perms.includes("viewAll") || h.createdBy === a.id);
         const counts = new Map<string, Record<string, number>>();
@@ -581,6 +604,8 @@ export class LmsStore extends DurableObject<LmsEnv> {
         const practised = input.practised === true ? 1 : 0;
         if (cur) this.sql.exec(`UPDATE subs SET status=?, text=?, practised=?, updated=? WHERE id=?`, status, text, practised, Date.now(), String(cur.id));
         else this.sql.exec(`INSERT INTO subs (id, hw, student, status, text, practised, updated) VALUES (?, ?, ?, ?, ?, ?, ?)`, rid("s"), h.id, a.id, status, text, practised, Date.now());
+        this.touch(a.id);
+        if (status === "submitted") this.sql.exec(`UPDATE subs SET submitted_at=? WHERE hw=? AND student=?`, Date.now(), h.id, a.id);
         if (status === "submitted" && cur?.status !== "submitted") this.notify([h.createdBy, "admin"], "sub_new", { hw: h.id, title: h.title, student: a.name });
         return { status: 200, body: { ok: true, sub: this.sub(h.id, a.id) } };
       }
@@ -618,6 +643,100 @@ export class LmsStore extends DurableObject<LmsEnv> {
           this.sql.exec(`DELETE FROM tracker WHERE hw=? AND student=?`, h.id, String(r.student));
           if (g) this.sql.exec(`INSERT INTO tracker (id, student, surah, from_ayah, to_ayah, hw, approved, grade) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, rid("t"), String(r.student), d.surah, d.from, d.to, h.id, Date.now(), g);
         }
+        return { status: 200, body: { ok: true } };
+      }
+
+      case "progress": {
+        // Per-student tracker screen for teachers (in scope) and admin.
+        const sid = str(input.id, 40);
+        if (!this.canSeeStudent(a, sid)) return { status: 403, body: { error: "forbidden" } };
+        const u = this.userRow("id=?", sid);
+        if (!u || u.role !== "student") return { status: 404, body: { error: "not_found" } };
+        const sa = this.actorOf(u);
+        const hw = this.assignedTo(sa).map((h) => { const sb = this.sub(h.id, sid); return { id: h.id, title: h.title, kind: h.kind, data: h.data, due: h.due, status: sb?.status || "none", grade: sb?.grade || "", attempts: sb?.attempts?.length || 0, late: !!(h.due && ((sb?.submittedAt || 0) > h.due || (!(sb?.submittedAt) && h.due < Date.now()))) }; });
+        return { status: 200, body: { student: this.publicUser(u), homework: hw, tracker: this.trackerOf(sid), progress: this.progressOf(sid), parentLink: String(u.parent_token || "") } };
+      }
+
+      case "quran-map": {
+        // Class heatmap: students × surahs with best grade.
+        if (!can(a, "review") && a.role !== "admin") return { status: 403, body: { error: "forbidden" } };
+        const cls = str(input.cls, 40);
+        const section = str(input.section, 40);
+        const students = this.sql.exec(`SELECT * FROM users WHERE role='student' AND disabled=0 ORDER BY cls, section, name`).toArray().filter((u) => (!cls || u.cls === cls) && (!section || u.section === section) && this.canSeeStudent(a, String(u.id)));
+        const rank: Record<string, number> = { red: 1, yellow: 2, green: 3 };
+        const rows = students.map((u) => {
+          const cells: Record<number, { grade: string; verses: number }> = {};
+          for (const t of this.trackerOf(String(u.id))) {
+            const c = cells[t.surah] || { grade: "", verses: 0 };
+            if (t.grade !== "red") c.verses += t.to - t.from + 1;
+            if ((rank[t.grade] || 0) > (rank[c.grade] || 0)) c.grade = t.grade;
+            cells[t.surah] = c;
+          }
+          return { id: String(u.id), name: String(u.name), cls: String(u.cls || ""), section: String(u.section || ""), cells };
+        });
+        const surahs = [...new Set(rows.flatMap((r) => Object.keys(r.cells).map(Number)))].sort((x, y) => y - x);
+        return { status: 200, body: { rows, surahs } };
+      }
+
+      case "revise": {
+        // Student marks a passed passage as revised -> next spaced interval.
+        if (a.role !== "student") return { status: 403, body: { error: "students_only" } };
+        const hw = str(input.hw, 40);
+        this.sql.exec(`UPDATE tracker SET rev_count=rev_count+1, rev_at=? WHERE hw=? AND student=? AND grade!='red'`, Date.now(), hw, a.id);
+        this.touch(a.id);
+        return { status: 200, body: { ok: true, tracker: this.trackerOf(a.id) } };
+      }
+
+      case "practice": {
+        // Any practice (repeat-after-me / memorisation test) counts for the streak.
+        if (a.role === "student") this.touch(a.id);
+        return { status: 200, body: { ok: true } };
+      }
+
+      case "settings": {
+        if (input.__method === "POST") {
+          if (!can(a, "assign") && a.role !== "admin") return { status: 403, body: { error: "forbidden" } };
+          const v = ["off", "on", "top3"].includes(String(input.leaderboard)) ? String(input.leaderboard) : "off";
+          this.sql.exec(`INSERT OR REPLACE INTO settings (k, v) VALUES ('leaderboard', ?)`, v);
+        }
+        return { status: 200, body: { leaderboard: this.setting("leaderboard", "off") } };
+      }
+
+      case "leaderboard": {
+        // Weekly stars within the student's class (or a chosen class for staff). Hidden unless a teacher turned it on.
+        const mode = this.setting("leaderboard", "off");
+        if (a.role === "student" && mode === "off") return { status: 403, body: { error: "leaderboard_off" } };
+        const cls = a.role === "student" ? a.cls : str(input.cls, 40);
+        const since = Date.now() - 7 * 864e5;
+        const list = this.sql.exec(`SELECT id, name, cls FROM users WHERE role='student' AND disabled=0`).toArray().filter((u) => !cls || u.cls === cls).filter((u) => a.role === "student" || this.canSeeStudent(a, String(u.id)))
+          .map((u) => ({ id: String(u.id), name: String(u.name), stars: this.progressOf(String(u.id), since).stars }))
+          .filter((x) => x.stars > 0).sort((x, y) => y.stars - x.stars);
+        const top = mode === "top3" && a.role === "student" ? list.slice(0, 3) : list.slice(0, 20);
+        return { status: 200, body: { mode, cls, list: top.map((x, i) => ({ rank: i + 1, name: x.name, stars: x.stars, me: x.id === a.id })) } };
+      }
+
+      case "parent-link": {
+        const sid = str(input.id, 40);
+        if (!this.canSeeStudent(a, sid)) return { status: 403, body: { error: "forbidden" } };
+        const u = this.userRow("id=?", sid);
+        if (!u || u.role !== "student") return { status: 404, body: { error: "not_found" } };
+        let tok = String(u.parent_token || "");
+        if (!tok || input.reset === true || input.revoke === true) {
+          tok = input.revoke === true ? "" : b64url(crypto.getRandomValues(new Uint8Array(24)));
+          this.sql.exec(`UPDATE users SET parent_token=? WHERE id=?`, tok, sid);
+        }
+        return { status: 200, body: { token: tok } };
+      }
+
+      case "mistakes": {
+        // Teacher marks mistakes on an exact verse/word of a Quran submission.
+        if (!can(a, "review")) return { status: 403, body: { error: "forbidden" } };
+        const r = this.sql.exec(`SELECT * FROM subs WHERE id=?`, str(input.id, 40)).toArray()[0];
+        if (!r) return { status: 404, body: { error: "not_found" } };
+        const list = (Array.isArray(input.mistakes) ? (input.mistakes as Json[]) : []).slice(0, 100).map((m) => ({ ayah: Math.trunc(Number(m.ayah)) || 0, word: Math.trunc(Number(m.word)), text: str(m.text, 80), note: str(m.note, 300) })).filter((m) => m.ayah > 0);
+        this.sql.exec(`UPDATE subs SET mistakes=?, updated=? WHERE id=?`, JSON.stringify(list), Date.now(), String(r.id));
+        const h = this.allHomework(String(r.hw))[0];
+        if (list.length) this.notify([String(r.student)], "mistakes", { hw: String(r.hw), title: h?.title || "", by: a.name, count: list.length });
         return { status: 200, body: { ok: true } };
       }
 
@@ -685,14 +804,91 @@ export class LmsStore extends DurableObject<LmsEnv> {
     return this.allHomework().filter((h) => (h.students.includes(a.id) || (h.cls ? h.cls === a.cls && (!h.section || h.section === sec) : !h.students.length)));
   }
   private subOut(r: Record<string, unknown>) {
-    return { id: String(r.id), status: String(r.status), text: String(r.text || ""), practised: Boolean(r.practised), liked: Boolean(r.liked), comments: JSON.parse(String(r.comments || "[]")) as { by: string; text: string; at: number; audio?: string }[], audio: String(r.audio || ""), grade: String(r.grade || ""), attempts: JSON.parse(String(r.attempts || "[]")) as { n: number; audio: string; grade: string; by: string; at: number }[], updated: Number(r.updated) };
+    return { id: String(r.id), status: String(r.status), text: String(r.text || ""), practised: Boolean(r.practised), liked: Boolean(r.liked), comments: JSON.parse(String(r.comments || "[]")) as { by: string; text: string; at: number; audio?: string }[], audio: String(r.audio || ""), grade: String(r.grade || ""), mistakes: JSON.parse(String(r.mistakes || "[]")) as { ayah: number; word: number; text: string; note: string }[], submittedAt: Number(r.submitted_at || 0), attempts: JSON.parse(String(r.attempts || "[]")) as { n: number; audio: string; grade: string; by: string; at: number }[], updated: Number(r.updated) };
   }
   private sub(hw: string, student: string) {
     const r = this.sql.exec(`SELECT * FROM subs WHERE hw=? AND student=?`, hw, student).toArray()[0];
     return r ? this.subOut(r) : null;
   }
   private trackerOf(student: string) {
-    return this.sql.exec(`SELECT surah, from_ayah, to_ayah, approved, grade FROM tracker WHERE student=? ORDER BY surah, from_ayah`, student).toArray().map((r) => ({ surah: Number(r.surah), from: Number(r.from_ayah), to: Number(r.to_ayah), approved: Number(r.approved), grade: String(r.grade || "green") }));
+    return this.sql.exec(`SELECT surah, from_ayah, to_ayah, approved, grade, hw, rev_count, rev_at FROM tracker WHERE student=? ORDER BY surah, from_ayah`, student).toArray().map((r) => {
+      const revCount = Number(r.rev_count || 0);
+      const last = Number(r.rev_at || 0) || Number(r.approved);
+      const g = String(r.grade || "green");
+      const revDue = g !== "red" ? last + REVISION_DAYS[Math.min(revCount, REVISION_DAYS.length - 1)] * 864e5 : 0;
+      return { surah: Number(r.surah), from: Number(r.from_ayah), to: Number(r.to_ayah), approved: Number(r.approved), grade: g, hw: String(r.hw), revCount, revDue };
+    });
+  }
+
+  /** Marks today as an active day for streaks (Dubai day boundary). */
+  private touch(student: string) {
+    const day = new Date(Date.now() + 4 * 3600e3).toISOString().slice(0, 10);
+    this.sql.exec(`INSERT OR IGNORE INTO activity (student, day) VALUES (?, ?)`, student, day);
+  }
+
+  /** Stars, streak and badges, computed from grades/submissions/activity. */
+  private progressOf(student: string, since = 0) {
+    const subs = this.sql.exec(`SELECT status, grade, updated FROM subs WHERE student=?`, student).toArray().filter((r) => Number(r.updated) >= since);
+    const greens = subs.filter((r) => r.grade === "green").length;
+    const yellows = subs.filter((r) => r.grade === "yellow").length;
+    const handed = subs.filter((r) => r.status === "submitted" || r.status === "approved").length;
+    const stars = greens * 3 + yellows * 2 + handed;
+    const days = new Set(this.sql.exec(`SELECT day FROM activity WHERE student=?`, student).toArray().map((r) => String(r.day)));
+    let streak = 0;
+    const d0 = new Date(Date.now() + 4 * 3600e3);
+    const key = (d: Date) => d.toISOString().slice(0, 10);
+    if (!days.has(key(d0))) d0.setUTCDate(d0.getUTCDate() - 1); // today not done yet: count up to yesterday
+    while (days.has(key(d0))) { streak++; d0.setUTCDate(d0.getUTCDate() - 1); }
+    const tracker = this.trackerOf(student).filter((t) => t.grade !== "red");
+    const badges: string[] = [];
+    if (handed >= 1) badges.push("first_step");
+    if (greens >= 1) badges.push("first_green");
+    if (greens >= 5) badges.push("five_greens");
+    if (streak >= 3) badges.push("streak_3");
+    if (streak >= 7) badges.push("streak_7");
+    if (tracker.reduce((n, t) => n + (t.to - t.from + 1), 0) >= 50) badges.push("fifty_verses");
+    if (tracker.some((t) => t.revCount >= 3)) badges.push("reviser");
+    return { stars, streak, greens, yellows, handed, badges, activeDays: days.size };
+  }
+
+  /** Lazy reminders when a student opens the LMS: due within 24h / overdue, and revision due. One note per item per day. */
+  private remind(a: Actor) {
+    const now = Date.now();
+    const today = new Date(now + 4 * 3600e3).toISOString().slice(0, 10);
+    const sent = new Set(this.sql.exec(`SELECT data FROM notes WHERE uid=? AND kind IN ('reminder','revise') AND created > ?`, a.id, now - 864e5).toArray().map((r) => String((JSON.parse(String(r.data || "{}")) as Json).key || "")));
+    for (const h of this.assignedTo(a)) {
+      if (!h.due || this.lockedFor(h, a.id)) continue;
+      const st = this.sql.exec(`SELECT status FROM subs WHERE hw=? AND student=?`, h.id, a.id).toArray()[0]?.status;
+      if (st === "submitted" || st === "approved") continue;
+      if (h.due - now < 864e5) {
+        const key = `due:${h.id}:${today}`;
+        if (!sent.has(key)) this.notify([a.id], "reminder", { hw: h.id, title: h.title, key, overdue: h.due < now });
+      }
+    }
+    for (const t of this.trackerOf(a.id)) {
+      if (t.revDue && t.revDue <= now) {
+        const key = `rev:${t.hw}:${today}`;
+        if (!sent.has(key)) this.notify([a.id], "revise", { hw: t.hw, title: `${t.surah}:${t.from}-${t.to}`, surah: t.surah, from: t.from, to: t.to, key });
+      }
+    }
+  }
+
+  private canSeeStudent(a: Actor, sid: string): boolean {
+    if (a.role === "admin") return true;
+    if (a.role !== "teacher" || !can(a, "review")) return false;
+    if (!a.scope?.length) return true;
+    const u = this.userRow("id=?", sid);
+    return !!u && a.scope.some((x) => { const [k, s2] = x.split("|"); return k === String(u.cls || "") && (!s2 || s2 === String(u.section || "")); });
+  }
+
+  /** Read-only parent view by secret token. */
+  parentView(token: string) {
+    if (!/^[A-Za-z0-9_-]{20,64}$/.test(token)) return { status: 404, body: { error: "not_found" } };
+    const u = this.sql.exec(`SELECT * FROM users WHERE parent_token=? AND role='student'`, token).toArray()[0];
+    if (!u) return { status: 404, body: { error: "not_found" } };
+    const a = this.actorOf(u);
+    const hw = this.assignedTo(a).map((h) => { const sb = this.sub(h.id, a.id); return { id: h.id, title: h.title, kind: h.kind, due: h.due, status: sb?.status || "none", grade: sb?.grade || "", late: !!(h.due && ((sb?.submittedAt || 0) > h.due || (!sb?.submittedAt && h.due < Date.now()))), comments: (sb?.comments || []).filter((c) => c.text).map((c) => ({ by: c.by, text: c.text, at: c.at })) }; });
+    return { status: 200, body: { name: String(u.name), cls: String(u.cls || ""), section: String(u.section || ""), homework: hw, tracker: this.trackerOf(a.id), progress: this.progressOf(a.id) } };
   }
 
   /** A Quran homework stays locked until every earlier Quran homework on the same surah is passed (green/yellow). */
@@ -751,6 +947,10 @@ export async function handleLms(request: Request, env: LmsEnv, action: string): 
   if (action === "upload") {
     if (!blobStore(env).enabled) return reply(origin, { error: "storage_not_configured" }, 501);
     return reply(origin, { error: "not_implemented" }, 501);
+  }
+  if (action === "parent") {
+    const r = (await store.parentView(str(new URL(request.url).searchParams.get("t") || body.t, 80))) as unknown as Reply;
+    return reply(origin, r.body, r.status);
   }
   const actor = await lmsActor(request, env, store);
   if (!actor) return reply(origin, { error: "unauthorized" }, 401);
