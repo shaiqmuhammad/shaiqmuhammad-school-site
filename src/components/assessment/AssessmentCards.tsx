@@ -2,14 +2,14 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Card } from "@/components/Card";
 import { CardCarousel } from "@/components/CardCarousel";
 import { localizedDescription, localizedTitle, useAssessmentText } from "@/lib/assessmentI18n";
 import { quizMaxScore, type Quiz } from "@/lib/quiz";
 
 /** Assessment cards (localized) — used on /assessments and the home page. */
-export function AssessmentCards({ quizzes, showJoin = false, yearFilter = false, carousel = false }: { quizzes: Quiz[]; showJoin?: boolean; yearFilter?: boolean; carousel?: boolean }) {
+export function AssessmentCards({ quizzes, showJoin = false, yearFilter = false, carousel = false, heading, moreHref }: { quizzes: Quiz[]; showJoin?: boolean; yearFilter?: boolean; carousel?: boolean; heading?: ReactNode; moreHref?: string }) {
   const { a, lang } = useAssessmentText();
   const years = [...new Set(quizzes.map((q) => q.year).filter((y): y is number => typeof y === "number"))].sort((x, y) => x - y);
   const [year, setYear] = useState<number | "all">("all");
@@ -78,7 +78,7 @@ export function AssessmentCards({ quizzes, showJoin = false, yearFilter = false,
       ));
       if (carousel) {
         return (
-          <CardCarousel label="Assessments" labelAr="التقييمات" testId="home-assessments-carousel">
+          <CardCarousel label="Assessments" labelAr="التقييمات" testId="home-assessments-carousel" heading={heading} moreHref={moreHref} moreTestId="home-assessments-more">
             {showJoin ? [<JoinCard key="join" />, ...cards] : cards}
           </CardCarousel>
         );
@@ -144,19 +144,14 @@ export function AssessmentsHeading() {
   );
 }
 
-/** Home page section heading (localized). */
+/** Heading for the home assessments slider (the slider adds the small "Show more →" link and arrows). */
 export function HomeAssessmentsHeading() {
   const { a } = useAssessmentText();
   return (
-    <div className="mb-8 flex items-end justify-between gap-4">
-      <div>
-        <p className="eyebrow">{a("practice")}</p>
-        <h2 className="mt-2 text-2xl font-extrabold tracking-tight sm:text-3xl">{a("assessments")}</h2>
-        <p className="mt-2 max-w-2xl text-muted">{a("homeSubtitle")}</p>
-      </div>
-      <Link href="/assessments" className="shrink-0 text-sm font-medium text-primary hover:underline">
-        {a("allAssessments")} →
-      </Link>
+    <div>
+      <p className="eyebrow">{a("practice")}</p>
+      <h2 className="mt-2 text-2xl font-extrabold tracking-tight sm:text-3xl">{a("assessments")}</h2>
+      <p className="mt-2 max-w-2xl text-muted max-sm:hidden">{a("homeSubtitle")}</p>
     </div>
   );
 }

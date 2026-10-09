@@ -31,9 +31,10 @@ const menuItemCls =
   "flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-semibold text-heading transition hover:bg-sun hover:text-navy focus-visible:bg-sun focus-visible:text-navy focus-visible:outline-none aria-[current=page]:bg-sun aria-[current=page]:text-navy";
 
 /** Desktop "Students Resources" dropdown: hover, click/tap or keyboard (Enter/Space/↓ opens, ↑/↓ move, Escape closes). */
-function ResourcesMenu({ label, active, t }: { label: string; active: boolean; t: (key: string, fallback?: string) => string }) {
+function ResourcesMenu({ label, groupLabel, active, t }: { label: string; groupLabel: string; active: boolean; t: (key: string, fallback?: string) => string }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const hoverOpenedAt = useRef(0);
   const pathname = usePathname() || "";
   useEffect(() => {
     if (!open) return;
@@ -53,7 +54,7 @@ function ResourcesMenu({ label, active, t }: { label: string; active: boolean; t
     <div
       ref={ref}
       className="relative"
-      onMouseEnter={() => setOpen(true)}
+      onMouseEnter={() => { if (!open) hoverOpenedAt.current = Date.now(); setOpen(true); }}
       onMouseLeave={() => setOpen(false)}
       onKeyDown={onKeyDown}
       onBlur={(e) => { if (!ref.current?.contains(e.relatedTarget as Node)) setOpen(false); }}
@@ -64,8 +65,10 @@ function ResourcesMenu({ label, active, t }: { label: string; active: boolean; t
         aria-expanded={open}
         aria-controls="resources-menu"
         aria-current={active ? "page" : undefined}
-        onClick={() => setOpen((v) => !v)}
-        className={`nav-link-navy inline-flex items-center gap-1 whitespace-nowrap px-2 py-1.5 text-sm transition xl:px-2.5 ${active ? "is-active bg-white/10 text-white" : ""}`}
+        aria-label={active ? `${groupLabel}: ${label}` : undefined}
+        // A mouse click right after hovering opened the menu keeps it open instead of toggling it shut.
+        onClick={() => { if (Date.now() - hoverOpenedAt.current < 600) { hoverOpenedAt.current = 0; setOpen(true); } else setOpen((v) => !v); }}
+        className="nav-link-navy inline-flex items-center gap-1 whitespace-nowrap px-2 py-1.5 text-sm transition xl:px-2.5"
         data-testid="nav-resources"
       >
         {label}
@@ -153,8 +156,9 @@ export function Header() {
         <nav className="hidden items-center lg:flex xl:gap-1" aria-label="Primary">
           {navLinks.map((link) => {
             if (link.menu) {
-              const activeMenu = resourceLinks.some((r) => samePath(pathname, r.href));
-              return <ResourcesMenu key={link.href} label={t("nav.resources", link.label)} active={activeMenu} t={t} />;
+              const current = resourceLinks.find((r) => samePath(pathname, r.href));
+              const group = t("nav.resources", link.label);
+              return <ResourcesMenu key={link.href} label={current ? t(current.key, current.label) : group} groupLabel={group} active={!!current} t={t} />;
             }
             const active = link.href === "/" ? pathname === "/" : pathname.startsWith(link.href);
             return (
@@ -200,17 +204,22 @@ export function Header() {
           </div>
           <ul className="flex flex-col gap-1">
             {navLinks.map((link) =>
-              link.menu ? (
+              link.menu ? (() => {
+                const current = resourceLinks.find((r) => samePath(pathname, r.href));
+                const group = t("nav.resources", link.label);
+                return (
                 <li key={link.href}>
                   <button
                     type="button"
                     aria-expanded={resOpen}
                     aria-controls="mobile-resources"
+                    aria-current={current ? "page" : undefined}
+                    aria-label={current ? `${group}: ${t(current.key, current.label)}` : undefined}
                     onClick={() => setResOpen((v) => !v)}
-                    className="flex w-full items-center justify-between rounded-full px-4 py-2 text-start text-sm font-semibold text-heading hover:bg-cream dark:hover:bg-white/10"
+                    className="flex w-full items-center justify-between rounded-full px-4 py-2 text-start text-sm font-semibold text-heading hover:bg-cream aria-[current=page]:bg-sun aria-[current=page]:text-navy dark:hover:bg-white/10"
                     data-testid="mobile-nav-resources"
                   >
-                    {t("nav.resources", link.label)}
+                    {current ? t(current.key, current.label) : group}
                     <svg viewBox="0 0 20 20" fill="currentColor" className={`h-4 w-4 opacity-70 transition ${resOpen ? "rotate-180" : ""}`} aria-hidden>
                       <path d="M5.3 7.3a1 1 0 0 1 1.4 0L10 10.6l3.3-3.3a1 1 0 1 1 1.4 1.4l-4 4a1 1 0 0 1-1.4 0l-4-4a1 1 0 0 1 0-1.4z" />
                     </svg>
@@ -228,7 +237,8 @@ export function Header() {
                     </ul>
                   )}
                 </li>
-              ) : (
+                );
+              })() : (
                 <li key={link.href}>
                   <Link
                     href={link.href}
