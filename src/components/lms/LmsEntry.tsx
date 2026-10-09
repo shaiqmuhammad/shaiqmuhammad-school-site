@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AdminToolbar } from "@/components/AdminToolbar";
-import { clearServerSession, forumPendingCount, getServerSession } from "@/lib/adminServer";
+import { LmsBell } from "@/components/lms/LmsBell";
 import { lmsSession, lmsSignOut } from "@/lib/lms";
 import { useI18n } from "@/lib/i18n";
 
@@ -65,35 +65,33 @@ export function LmsHomeCard() {
   );
 }
 
-/** Staff (teacher/admin) icon toolbar for the LMS top bar. For the admin it also shows the forum bell
- * (polled every 60 s, like the Admin page). Log out ends both the LMS and admin sessions on this device. */
+/** LMS top-bar: who is signed in ("Teacher: name" / "Student: name") + icon toolbar. Log out ends ONLY the LMS session. */
 export function LmsStaffToolbar() {
   const router = useRouter();
-  const [admin, setAdmin] = useState(false);
-  const [pending, setPending] = useState(0);
+  const { lang } = useI18n();
+  const [who, setWho] = useState<{ role: string; name: string } | null>(null);
   useEffect(() => {
-    if (lmsSession() || !getServerSession()) return;
-    let stop = false;
-    const check = async () => {
-      const n = await forumPendingCount();
-      if (!stop && n !== null) setPending(n);
-    };
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- admin session is only readable after hydration
-    setAdmin(true);
-    void check();
-    const t = setInterval(check, 60_000);
-    return () => { stop = true; clearInterval(t); };
+    const s = lmsSession();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage is only readable after hydration
+    if (s) setWho({ role: s.user.role, name: s.user.name });
   }, []);
+  const ar = lang === "ar";
+  const roleLabel = who?.role === "teacher" ? (ar ? "المعلم" : "Teacher") : ar ? "الطالب" : "Student";
   return (
-    <AdminToolbar
-      variant="navy"
-      pending={pending}
-      onBell={admin ? () => router.push("/admin#forum") : undefined}
-      onLogout={() => {
-        lmsSignOut();
-        clearServerSession();
-        router.push("/lms/login");
-      }}
-    />
+    <div className="flex items-center gap-2">
+      {who && (
+        <span className="hidden max-w-[14rem] truncate rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white sm:inline" data-testid="lms-who" dir="auto">
+          {who.role === "teacher" ? "🧑‍🏫" : "🎒"} {roleLabel}: {who.name}
+        </span>
+      )}
+      <AdminToolbar
+        variant="navy"
+        bell={who ? <LmsBell /> : undefined}
+        onLogout={() => {
+          lmsSignOut();
+          router.push("/lms/login");
+        }}
+      />
+    </div>
   );
 }

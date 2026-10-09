@@ -1,12 +1,12 @@
 "use client";
 
-import Link from "next/link";
 import { useLogoUrl } from "@/components/SiteBrand";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AdminToolbar } from "@/components/AdminToolbar";
+import { LmsBell } from "@/components/lms/LmsBell";
 import { useI18n } from "@/lib/i18n";
 
-type Tab = "home" | "pages" | "videos" | "quizzes" | "certificate" | "banners" | "announcements" | "teacher" | "forum" | "results" | "activities" | "settings";
+type Tab = "home" | "pages" | "videos" | "quizzes" | "certificate" | "banners" | "announcements" | "teacher" | "forum" | "results" | "activities" | "settings" | "students" | "teachers" | "setup" | "lmshw";
 
 type Props = {
   busy: boolean;
@@ -22,7 +22,8 @@ type Props = {
   children: ReactNode;
 };
 
-const ORDER: Tab[] = ["quizzes", "results", "activities", "pages", "videos", "announcements", "banners", "forum", "certificate", "teacher", "settings"];
+const ORDER: Tab[] = ["quizzes", "results", "activities", "pages", "videos", "announcements", "banners", "forum", "certificate", "teacher", "settings", "students", "teachers", "setup", "lmshw"];
+const LMS_IDS: Partial<Record<Tab, string>> = { students: "admin-nav-lms-students", teachers: "admin-nav-lms-teachers", setup: "admin-nav-lms-setup", lmshw: "admin-nav-lms-homework" };
 const COLLAPSE_KEY = "sm-admin-sidebar-collapsed";
 
 /** Small line icons for the sidebar rail (24px grid, currentColor). */
@@ -38,6 +39,10 @@ const ICONS: Record<Tab, ReactNode> = {
   forum: <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" />,
   certificate: <><circle cx="12" cy="9" r="5" /><path d="M9 13.5L8 21l4-2 4 2-1-7.5" /></>,
   teacher: <><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></>,
+  students: <><path d="M2 9l10-5 10 5-10 5z" /><path d="M6 11v5c3 2.5 9 2.5 12 0v-5" /></>,
+  teachers: <><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20a6.5 6.5 0 0 1 13 0M15 4h7v6h-7" /></>,
+  setup: <><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></>,
+  lmshw: <><path d="M4 4h12l4 4v12H4z" /><path d="M8 12h8M8 16h5M8 8h4" /></>,
   settings: <><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" /></>,
 };
 
@@ -61,7 +66,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
   const drawerRef = useRef<HTMLDivElement>(null);
   const homeLabel = tr("Admin home — refresh content", "الرئيسية وتحديث المحتوى");
   const label = (id: Tab) =>
-    id === "home" ? tr("Home", "الرئيسية") : id === "announcements" ? tr("Announcements", "الإعلانات") : id === "results" ? tr("Results", "النتائج") : id === "activities" ? tr("Activities", "الأنشطة") : t(`admin.tab.${id}`);
+    id === "home" ? tr("Home", "الرئيسية") : id === "announcements" ? tr("Announcements", "الإعلانات") : id === "results" ? tr("Results", "النتائج") : id === "activities" ? tr("Activities", "الأنشطة") : id === "students" ? tr("Students", "الطلاب") : id === "teachers" ? tr("Teachers", "المعلمون") : id === "setup" ? tr("Classes & Subjects", "الصفوف والمواد") : id === "lmshw" ? tr("Homework", "الواجبات") : t(`admin.tab.${id}`);
 
   useEffect(() => {
     try {
@@ -163,7 +168,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
         aria-current={tab === id ? "page" : undefined}
         aria-label={opts.rail ? label(id) : undefined}
         title={opts.rail ? label(id) : undefined}
-        data-testid={`admin-nav-${id}`}
+        data-testid={LMS_IDS[id] || `admin-nav-${id}`}
         className={`nav-link-navy relative flex w-full items-center gap-3 py-2 text-start text-sm transition ${opts.rail ? "justify-center px-0" : "px-4"}`}
       >
         <Icon>{ICONS[id]}</Icon>
@@ -173,27 +178,6 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
           <span className="inline-flex items-center gap-2">{label(id)}{id === "forum" ? badge(pendingCount) : null}</span>
         )}
       </button>
-    ));
-
-  const lmsLinks = (opts: { rail?: boolean; onPick?: () => void }) =>
-    ([
-      ["/lms/students", tr("Students", "الطلاب"), <><path d="M2 9l10-5 10 5-10 5z" /><path d="M6 11v5c3 2.5 9 2.5 12 0v-5" /></>, "admin-nav-lms-students"],
-      ["/lms/teachers", tr("Teachers", "المعلمون"), <><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20a6.5 6.5 0 0 1 13 0M15 4h7v6h-7" /></>, "admin-nav-lms-teachers"],
-      ["/lms/setup", tr("Classes & Subjects", "الصفوف والمواد"), <><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></>, "admin-nav-lms-setup"],
-      ["/lms", tr("Homework", "الواجبات"), <><path d="M4 4h12l4 4v12H4z" /><path d="M8 12h8M8 16h5M8 8h4" /></>, "admin-nav-lms-homework"],
-    ] as const).map(([href, text, icon, id]) => (
-      <Link
-        key={href}
-        href={href}
-        onClick={() => opts.onPick?.()}
-        aria-label={opts.rail ? text : undefined}
-        title={opts.rail ? text : undefined}
-        data-testid={id}
-        className={`nav-link-navy relative flex w-full items-center gap-3 py-2 text-start text-sm transition ${opts.rail ? "justify-center px-0" : "px-4"}`}
-      >
-        <Icon>{icon}</Icon>
-        {!opts.rail && <span>{text}</span>}
-      </Link>
     ));
 
   const collapseLabel = collapsed ? tr("Expand menu", "توسيع القائمة") : tr("Collapse menu", "تصغير القائمة");
@@ -209,7 +193,6 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
         <div className={`flex items-center ${collapsed ? "justify-center" : ""}`}>{brand}</div>
         <nav className={`flex-1 space-y-0.5 overflow-y-auto overflow-x-hidden ${collapsed ? "mt-4" : "mt-6"}`} aria-label={tr("Admin sections", "أقسام الإدارة")}>
           {navItems({ rail: collapsed })}
-          {lmsLinks({ rail: collapsed })}
         </nav>
         <div className={`space-y-3 pt-4 ${collapsed ? "flex flex-col items-center" : ""}`}>
           <div className={`flex items-center gap-2 ${collapsed ? "flex-col" : ""}`}>
@@ -247,7 +230,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
           </button>
           {logo("h-9 w-9")}
           <p className="min-w-0 flex-1 truncate text-sm font-extrabold text-white">{label(tab)}</p>
-          <AdminToolbar variant="navy" onLogout={onLogout} pending={pendingCount} onBell={onBell} />
+          <AdminToolbar variant="navy" onLogout={onLogout} bell={<LmsBell asAdmin testId="admin-bell" variant={"navy"} extra={onBell ? { count: pendingCount, label: tr(`${pendingCount} forum post${pendingCount === 1 ? "" : "s"} waiting for approval`, `${pendingCount} مشاركة في المنتدى بانتظار الموافقة`), onClick: onBell } : undefined} />} />
         </div>
       </header>
       {drawer && (
@@ -271,7 +254,6 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
             </div>
             <nav className="mt-5 flex-1 space-y-0.5 overflow-y-auto" aria-label={tr("Admin sections", "أقسام الإدارة")}>
               {navItems({ onPick: () => setDrawer(false) })}
-              {lmsLinks({ onPick: () => setDrawer(false) })}
             </nav>
             <div className="space-y-3 pt-4">
               <div className="w-full [&>button]:w-full">{publishBtn()}</div>
@@ -283,7 +265,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
       <main className="min-w-0 flex-1">
         <div className={`mx-auto px-4 py-6 sm:px-8 lg:py-10 ${collapsed ? "max-w-5xl" : "max-w-4xl"}`}>
           <div className="mb-4 hidden justify-end lg:flex" data-testid="admin-toolbar-wrap">
-            <AdminToolbar onLogout={onLogout} pending={pendingCount} onBell={onBell} />
+            <AdminToolbar onLogout={onLogout} bell={<LmsBell asAdmin testId="admin-bell" variant={"glass"} extra={onBell ? { count: pendingCount, label: tr(`${pendingCount} forum post${pendingCount === 1 ? "" : "s"} waiting for approval`, `${pendingCount} مشاركة في المنتدى بانتظار الموافقة`), onClick: onBell } : undefined} />} />
           </div>
           <div className="mb-6 flex items-center justify-between gap-3 lg:hidden">
             <h1 className="text-lg font-extrabold">{label(tab)}</h1>

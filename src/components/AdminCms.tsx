@@ -17,6 +17,9 @@ import { AdminForumQueue } from "@/components/AdminForumQueue";
 import { AdminResults } from "@/components/AdminResults";
 import { AdminActivities } from "@/components/AdminActivities";
 import { forumPendingCount } from "@/lib/adminServer";
+import { LmsAdmin } from "@/components/lms/LmsAdmin";
+import { LmsSetup } from "@/components/lms/LmsSetup";
+import { AdminLmsHomework } from "@/components/lms/AdminLmsHomework";
 import AdminQuizzes from "@/components/AdminQuizzes";
 import AdminCertificate from "@/components/AdminCertificate";
 import AdminBanners from "@/components/AdminBanners";
@@ -37,7 +40,8 @@ import { AdminHome } from "@/components/AdminHome";
 import AdminSettings from "@/components/AdminSettings";
 import { useI18n } from "@/lib/i18n";
 
-type Tab = "home" | "pages" | "videos" | "quizzes" | "certificate" | "banners" | "announcements" | "teacher" | "forum" | "results" | "activities" | "settings";
+type Tab = "home" | "pages" | "videos" | "quizzes" | "certificate" | "banners" | "announcements" | "teacher" | "forum" | "results" | "activities" | "settings" | "students" | "teachers" | "setup" | "lmshw";
+const HASH_TABS: Tab[] = ["pages", "videos", "quizzes", "certificate", "banners", "announcements", "teacher", "forum", "results", "activities", "settings", "students", "teachers", "setup", "lmshw"];
 const emptyPage = (): ContentPage => ({ id: newId("page"), slug: "", title: "", excerpt: "", body: "", published: true, updatedAt: new Date().toISOString() });
 const emptyVideo = (): ContentVideo => ({ id: newId("video"), title: "", youtubeId: "", description: "", published: true, updatedAt: new Date().toISOString() });
 
@@ -46,11 +50,23 @@ export default function AdminCms() {
   const { t, lang } = useI18n();
   const [ready, setReady] = useState(false);
   const [tab, setTab] = useState<Tab>("home");
-  // "/admin#forum" (bell on the LMS pages) opens the forum approval queue.
+  // Deep links: /admin#students, #teachers, #setup, #lmshw, #forum … open that tab; the hash follows the tab.
   useEffect(() => {
+    const h = window.location.hash.slice(1) as Tab;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- the URL hash is only readable after hydration
-    if (window.location.hash === "#forum") setTab("forum");
+    if (HASH_TABS.includes(h)) setTab(h);
+    // Links like /admin#teachers clicked while already on /admin (e.g. from a notification) switch tabs too.
+    const onHash = () => {
+      const x = window.location.hash.slice(1) as Tab;
+      if (HASH_TABS.includes(x)) setTab(x);
+    };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
   }, []);
+  useEffect(() => {
+    const want = tab === "home" ? "" : `#${tab}`;
+    if (window.location.hash !== want) history.replaceState(null, "", window.location.pathname + window.location.search + want);
+  }, [tab]);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshedAt, setRefreshedAt] = useState<Date | null>(null);
   const [data, setData] = useState<ContentData>(normalizeContentData(null));
@@ -384,6 +400,10 @@ export default function AdminCms() {
         )}
         {tab==="results" && <AdminResults quizzes={quizzesData.quizzes} />}
         {tab==="activities" && <AdminActivities />}
+        {tab==="students" && <LmsAdmin role="student" embedded />}
+        {tab==="teachers" && <LmsAdmin role="teacher" embedded />}
+        {tab==="setup" && <LmsSetup />}
+        {tab==="lmshw" && <AdminLmsHomework />}
         {tab==="forum" && (
           <section className="space-y-4">
             <div className="flex flex-wrap justify-between gap-2">

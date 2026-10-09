@@ -1,9 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
-import { AssessmentShell } from "@/components/assessment/AssessmentShell";
-import { adminRelogin, card, inputCls, smallBtn, useLmsActor, useTr } from "@/components/lms/useLms";
+import { adminRelogin, card, inputCls, smallBtn, useTr } from "@/components/lms/useLms";
 import { lmsApi, lmsErrorText, type Catalog } from "@/lib/lms";
 
 type Item = { id: string; name: string };
@@ -39,17 +37,15 @@ function AddForm({ placeholder, onAdd, testId }: { placeholder: string; onAdd: (
   );
 }
 
-/** Admin: Subjects, Classes and their Sections (used by people forms, templates, homework targeting and filters). */
+/** Admin area only (rendered inside the Admin layout): Subjects, Classes and their Sections (used by people forms, templates, homework targeting and filters). */
 export function LmsSetup() {
   const { tr } = useTr();
-  const { asAdmin, ready } = useLmsActor(true);
   const [cat, setCat] = useState<Catalog | null>(null);
   const [err, setErr] = useState("");
   const load = useCallback(() => lmsApi.catalog(true).then(setCat).catch((e) => { if ((e as { status?: number }).status === 401 && adminRelogin()) return; setErr(lmsErrorText(e, tr)); }), [tr]);
   useEffect(() => {
-    if (ready && asAdmin) load();
-    else if (ready) adminRelogin();
-  }, [ready, asAdmin, load]);
+    load();
+  }, [load]);
 
   const run = async (p: Promise<Catalog>) => {
     try {
@@ -63,22 +59,10 @@ export function LmsSetup() {
   };
   const del = (it: Item) => { if (confirm(tr(`Delete ${it.name}?`, `حذف ${it.name}؟`))) run(lmsApi.catalogDelete(it.id)); };
 
-  if (ready && !asAdmin) {
-    return (
-      <AssessmentShell title={tr("Classes & subjects", "الصفوف والمواد")} exitHref="/admin">
-        <div className="mx-auto max-w-lg flex-1 p-8 text-center"><p className={card}>{tr("Only the admin can change classes and subjects.", "فقط المدير يمكنه تعديل الصفوف والمواد.")} <a className="font-bold underline" href="/admin/login?next=/lms/setup">{tr("Admin sign-in", "دخول الإدارة")}</a></p></div>
-      </AssessmentShell>
-    );
-  }
-
   return (
-    <AssessmentShell title={tr("Classes & subjects", "الصفوف والمواد")} exitHref="/admin" wide toolbar={<LmsStaffToolbar />}>
-      <div className="mx-auto w-full max-w-5xl flex-1 space-y-5 px-3 py-5 sm:px-6" data-testid="lms-setup">
-        <nav className="flex flex-wrap gap-2 text-sm">
-          <a className={smallBtn} href="/lms/students">🎒 {tr("Students", "الطلاب")}</a>
-          <a className={smallBtn} href="/lms/teachers">🧑‍🏫 {tr("Teachers", "المعلمون")}</a>
-          <a className={smallBtn} href="/lms">📚 {tr("Homework", "الواجبات")}</a>
-        </nav>
+    <>
+      <div className="space-y-5" data-testid="lms-setup">
+        <h2 className="text-2xl font-extrabold" data-testid="admin-lms-heading">{tr("Classes & subjects", "الصفوف والمواد")}</h2>
         {err && <p className="rounded-xl bg-rose-100 px-4 py-2 text-rose-800" role="alert" data-testid="lms-setup-error">{err}</p>}
         <p className="text-sm opacity-75">{tr("Renaming updates every student, teacher and homework that uses the name. Something still in use can't be deleted.", "إعادة التسمية تحدّث كل الطلاب والمعلمين والواجبات. لا يمكن حذف ما زال مستخدمًا.")}</p>
 
@@ -108,6 +92,6 @@ export function LmsSetup() {
           </ul>
         </section>
       </div>
-    </AssessmentShell>
+    </>
   );
 }
