@@ -1,12 +1,13 @@
 "use client";
 
+import { isAdminAuthenticated } from "@/lib/adminAuth";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
 import { AssessmentShell, primaryBtn } from "@/components/assessment/AssessmentShell";
 import { HomeworkEditor } from "@/components/lms/HomeworkEditor";
 import { homeworkQrPdf } from "@/components/lms/lmsFiles";
-import { STATUS_STYLE, card, inputCls, smallBtn, statusLabel, useLmsActor, useTr } from "@/components/lms/useLms";
+import { adminRelogin, STATUS_STYLE, card, inputCls, smallBtn, statusLabel, useLmsActor, useTr } from "@/components/lms/useLms";
 import { ayahAudio, lmsApi, lmsErrorText, quranChapters, quranVerses, type Chapter, type GeneralData, type QuranData, type Submission, type Catalog, type DashStudent } from "@/lib/lms";
 
 type Data = Awaited<ReturnType<typeof lmsApi.homework>>;
@@ -193,11 +194,12 @@ export function LmsHomework() {
   const [chapters, setChapters] = useState<Chapter[]>([]);
 
   const load = useCallback(() => {
-    lmsApi.homework(id, asAdmin).then(setD).catch((e) => setErr(lmsErrorText(e, tr)));
+    lmsApi.homework(id, asAdmin).then(setD).catch((e) => { if (asAdmin && (e as { status?: number }).status === 401) adminRelogin(); else setErr(lmsErrorText(e, tr)); });
   }, [id, asAdmin, tr]);
   useEffect(() => {
     if (!ready) return;
     if (!actor) {
+      if (isAdminAuthenticated() && adminRelogin()) return;
       router.replace(`/lms/login?next=${encodeURIComponent(`/lms/homework?id=${id}`)}`);
       return;
     }

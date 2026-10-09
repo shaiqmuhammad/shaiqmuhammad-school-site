@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
 import { AssessmentShell } from "@/components/assessment/AssessmentShell";
-import { card, inputCls, smallBtn, useLmsActor, useTr } from "@/components/lms/useLms";
+import { adminRelogin, card, inputCls, smallBtn, useLmsActor, useTr } from "@/components/lms/useLms";
 import { lmsApi, lmsErrorText, type Catalog } from "@/lib/lms";
 
 type Item = { id: string; name: string };
@@ -42,12 +42,13 @@ function AddForm({ placeholder, onAdd, testId }: { placeholder: string; onAdd: (
 /** Admin: Subjects, Classes and their Sections (used by people forms, templates, homework targeting and filters). */
 export function LmsSetup() {
   const { tr } = useTr();
-  const { asAdmin, ready } = useLmsActor();
+  const { asAdmin, ready } = useLmsActor(true);
   const [cat, setCat] = useState<Catalog | null>(null);
   const [err, setErr] = useState("");
-  const load = useCallback(() => lmsApi.catalog(true).then(setCat).catch((e) => setErr(lmsErrorText(e, tr))), [tr]);
+  const load = useCallback(() => lmsApi.catalog(true).then(setCat).catch((e) => { if ((e as { status?: number }).status === 401 && adminRelogin()) return; setErr(lmsErrorText(e, tr)); }), [tr]);
   useEffect(() => {
     if (ready && asAdmin) load();
+    else if (ready) adminRelogin();
   }, [ready, asAdmin, load]);
 
   const run = async (p: Promise<Catalog>) => {
@@ -65,7 +66,7 @@ export function LmsSetup() {
   if (ready && !asAdmin) {
     return (
       <AssessmentShell title={tr("Classes & subjects", "الصفوف والمواد")} exitHref="/admin">
-        <div className="mx-auto max-w-lg flex-1 p-8 text-center"><p className={card}>{tr("Only the admin can change classes and subjects.", "فقط المدير يمكنه تعديل الصفوف والمواد.")} <a className="font-bold underline" href="/admin">{tr("Admin sign-in", "دخول الإدارة")}</a></p></div>
+        <div className="mx-auto max-w-lg flex-1 p-8 text-center"><p className={card}>{tr("Only the admin can change classes and subjects.", "فقط المدير يمكنه تعديل الصفوف والمواد.")} <a className="font-bold underline" href="/admin/login?next=/lms/setup">{tr("Admin sign-in", "دخول الإدارة")}</a></p></div>
       </AssessmentShell>
     );
   }

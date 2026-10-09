@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
 import { AssessmentShell, primaryBtn } from "@/components/assessment/AssessmentShell";
 import { downloadCredentials, downloadSignInSheet, downloadUsersTemplate, exportAllHomeworkZip, parseUsersXlsx } from "@/components/lms/lmsFiles";
-import { card, inputCls, smallBtn, useLmsActor, useTr } from "@/components/lms/useLms";
+import { adminRelogin, card, inputCls, smallBtn, useLmsActor, useTr } from "@/components/lms/useLms";
 import { lmsApi, lmsErrorText, PERMS, scopeLabel, type Catalog, type LmsUser, type Role } from "@/lib/lms";
 
 type Pins = { username: string; name: string; pin: string }[];
@@ -81,7 +81,7 @@ function PersonForm({ role, catalog, initial, onSave, submitLabel, testPrefix }:
 /** Admin: Students page or Teachers page (list, search, filters, add, bulk upload, sign-in sheet, PINs). */
 export function LmsAdmin({ role = "student" }: { role?: Role }) {
   const { tr } = useTr();
-  const { actor, asAdmin, ready } = useLmsActor();
+  const { actor, asAdmin, ready } = useLmsActor(true);
   const [users, setUsers] = useState<LmsUser[] | null>(null);
   const [catalog, setCatalog] = useState<Catalog>(EMPTY);
   const [err, setErr] = useState("");
@@ -101,12 +101,14 @@ export function LmsAdmin({ role = "student" }: { role?: Role }) {
   const title = role === "teacher" ? tr("Teachers", "المعلمون") : tr("Students", "الطلاب");
 
   const load = useCallback(() => {
-    lmsApi.users(asAdmin).then((r) => { setUsers(r.users); setKnown(null); }).catch((e) => setErr(lmsErrorText(e, tr)));
+    lmsApi.users(asAdmin).then((r) => { setUsers(r.users); setKnown(null); }).catch((e) => { if (asAdmin && (e as { status?: number }).status === 401 && adminRelogin()) return; setErr(lmsErrorText(e, tr)); });
     lmsApi.catalog(asAdmin).then(setCatalog).catch(() => undefined);
   }, [asAdmin, tr]);
   useEffect(() => {
     if (ready && allowed) load();
-  }, [ready, allowed, load]);
+    // Admin pages: no valid admin session (and not a teacher allowed here) → admin sign-in once, then back.
+    else if (ready && !allowed && !actor) adminRelogin();
+  }, [ready, allowed, actor, load]);
 
   /** Admin-only PIN lookup, fetched once on first use. */
   async function allPins() {
@@ -140,7 +142,7 @@ export function LmsAdmin({ role = "student" }: { role?: Role }) {
     return (
       <AssessmentShell title={title} exitHref="/admin">
         <div className="mx-auto max-w-lg flex-1 p-8 text-center">
-          <p className={card}>{role === "teacher" && actor ? tr("Only the admin manages teachers.", "فقط المدير يدير المعلمين.") : tr("Sign in to the admin first.", "سجّل الدخول إلى الإدارة أولًا.")} <a className="font-bold underline" href="/admin">{tr("Admin sign-in", "دخول الإدارة")}</a></p>
+          <p className={card}>{role === "teacher" && actor ? tr("Only the admin manages teachers.", "فقط المدير يدير المعلمين.") : tr("Sign in to the admin first.", "سجّل الدخول إلى الإدارة أولًا.")} <a className="font-bold underline" href={`/admin/login?next=/lms/${role === "teacher" ? "teachers" : "students"}`}>{tr("Admin sign-in", "دخول الإدارة")}</a></p>
         </div>
       </AssessmentShell>
     );

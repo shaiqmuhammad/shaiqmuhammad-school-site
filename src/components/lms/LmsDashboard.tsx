@@ -1,12 +1,13 @@
 "use client";
 
+import { isAdminAuthenticated } from "@/lib/adminAuth";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
 import { AssessmentShell, primaryBtn } from "@/components/assessment/AssessmentShell";
 import { HomeworkEditor } from "@/components/lms/HomeworkEditor";
 import { exportAllHomeworkZip } from "@/components/lms/lmsFiles";
-import { STATUS_STYLE, card, smallBtn, statusLabel, useLmsActor, useTr } from "@/components/lms/useLms";
+import { adminRelogin, STATUS_STYLE, card, smallBtn, statusLabel, useLmsActor, useTr } from "@/components/lms/useLms";
 import { lmsApi, lmsErrorText, lmsSignOut, quranChapters, type Chapter, type QuranData } from "@/lib/lms";
 
 type Dash = Awaited<ReturnType<typeof lmsApi.dashboard>>;
@@ -28,8 +29,11 @@ export function LmsDashboard() {
       .then(setDash)
       .catch((e) => {
         if ((e as { status?: number }).status === 401) {
-          lmsSignOut();
-          router.push("/lms/login");
+          if (asAdmin) adminRelogin();
+          else {
+            lmsSignOut();
+            router.push("/lms/login");
+          }
         } else setErr(lmsErrorText(e, tr));
       });
   }, [asAdmin, router, tr]);
@@ -37,7 +41,8 @@ export function LmsDashboard() {
   useEffect(() => {
     if (!ready) return;
     if (!actor) {
-      router.replace("/lms/login");
+      // Signed in to /admin but its server session is missing/old → admin sign-in (then back here), not the student login.
+      if (!(isAdminAuthenticated() && adminRelogin())) router.replace("/lms/login");
       return;
     }
     load();
