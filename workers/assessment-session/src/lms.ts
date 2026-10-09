@@ -506,7 +506,9 @@ export class LmsStore extends DurableObject<LmsEnv> {
           if (students.length) {
             const rows = this.sql.exec(`SELECT id, cls, section FROM users WHERE role='student'`).toArray().filter((r) => students.includes(String(r.id)));
             if (rows.some((r) => !inScope(String(r.cls || ""), String(r.section || "")))) return { status: 403, body: { error: "out_of_scope" } };
-          } else if (!cls || !(section ? inScope(cls, section) : a.scope.includes(cls))) return { status: 403, body: { error: "out_of_scope" } };
+          }
+          if (cls && !(section ? inScope(cls, section) : a.scope.includes(cls))) return { status: 403, body: { error: "out_of_scope" } };
+          if (!cls && !students.length) return { status: 403, body: { error: "out_of_scope" } };
         }
         const due = Number(input.due) > 0 ? Number(input.due) : null;
         const blob = JSON.stringify(data);
@@ -669,17 +671,18 @@ export class LmsStore extends DurableObject<LmsEnv> {
   }
   /** Students a homework is for: the listed students, else everyone in its class ("" = all students). */
   private assignees(h: { cls: string; section: string; students: string[] }): string[] {
-    if (h.students.length) return h.students;
+    // Target = individual students ∪ class/section members (no class and no students = everyone).
+    if (!h.cls && h.students.length) return h.students;
     const rows = h.cls
       ? h.section
         ? this.sql.exec(`SELECT id FROM users WHERE role='student' AND disabled=0 AND cls=? AND section=?`, h.cls, h.section).toArray()
         : this.sql.exec(`SELECT id FROM users WHERE role='student' AND disabled=0 AND cls=?`, h.cls).toArray()
       : this.sql.exec(`SELECT id FROM users WHERE role='student' AND disabled=0`).toArray();
-    return rows.map((r) => String(r.id));
+    return [...new Set([...h.students, ...rows.map((r) => String(r.id))])];
   }
   private assignedTo(a: Actor) {
     const sec = String(this.userRow("id=?", a.id)?.section || "");
-    return this.allHomework().filter((h) => (h.students.length ? h.students.includes(a.id) : !h.cls || (h.cls === a.cls && (!h.section || h.section === sec))));
+    return this.allHomework().filter((h) => (h.students.includes(a.id) || (h.cls ? h.cls === a.cls && (!h.section || h.section === sec) : !h.students.length)));
   }
   private subOut(r: Record<string, unknown>) {
     return { id: String(r.id), status: String(r.status), text: String(r.text || ""), practised: Boolean(r.practised), liked: Boolean(r.liked), comments: JSON.parse(String(r.comments || "[]")) as { by: string; text: string; at: number; audio?: string }[], audio: String(r.audio || ""), grade: String(r.grade || ""), attempts: JSON.parse(String(r.attempts || "[]")) as { n: number; audio: string; grade: string; by: string; at: number }[], updated: Number(r.updated) };

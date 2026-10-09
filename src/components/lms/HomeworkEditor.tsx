@@ -13,7 +13,7 @@ export function HomeworkEditor({ initial, classes, students, catalog, scope = []
   const [cls, setCls] = useState(initial?.cls ?? (scope[0]?.split("|")[0] || ""));
   const [pick, setPick] = useState<string[]>(initial?.students || []);
   const [section, setSection] = useState(initial?.section ?? "");
-  const [who, setWho] = useState<"class" | "students">(initial?.students?.length ? "students" : "class");
+  const [who, setWho] = useState<"class" | "students">(initial?.students?.length && !initial.cls ? "students" : "class");
   const [fCls, setFCls] = useState("");
   const [fSec, setFSec] = useState("");
   // Classes from the catalog (plus any older free-text ones), narrowed to a teacher's scope when set.
@@ -45,6 +45,32 @@ export function HomeworkEditor({ initial, classes, students, catalog, scope = []
   const ch = chapters.find((c) => c.id === surah);
   const max = ch?.verses_count || 286;
 
+  const picker = (
+            <div className="space-y-2">
+              <div className="flex flex-wrap gap-2">
+                <select className={inputCls + " mt-0 w-auto"} value={fCls} onChange={(e) => { setFCls(e.target.value); setFSec(""); }} aria-label={tr("Filter class", "تصفية الصف")}>
+                  <option value="">{tr("All classes", "كل الصفوف")}</option>
+                  {classNames.map((c) => <option key={c}>{c}</option>)}
+                </select>
+                <select className={inputCls + " mt-0 w-auto"} value={fSec} onChange={(e) => setFSec(e.target.value)} disabled={!fCls} aria-label={tr("Filter section", "تصفية الشعبة")}>
+                  <option value="">{tr("All sections", "كل الشعب")}</option>
+                  {fCls && sectionsOf(fCls).map((x) => <option key={x}>{x}</option>)}
+                </select>
+                <button type="button" className="rounded-full px-3 py-1 font-semibold glass" onClick={() => setPick([...new Set([...pick, ...shownStudents.map((s) => s.id)])])} data-testid="hw-pick-all">{tr("Select all shown", "تحديد الظاهرين")}</button>
+                {pick.length > 0 && <button type="button" className="rounded-full px-3 py-1 font-semibold glass" onClick={() => setPick([])}>{tr("Clear", "مسح")} ({pick.length})</button>}
+              </div>
+              <div className="max-h-48 space-y-1 overflow-auto rounded-xl border border-black/10 p-2 dark:border-white/15">
+                {shownStudents.map((s) => (
+                  <label key={s.id} className="flex items-center gap-2">
+                    <input type="checkbox" checked={pick.includes(s.id)} onChange={(e) => setPick(e.target.checked ? [...pick, s.id] : pick.filter((x) => x !== s.id))} data-testid="hw-pick" />
+                    <span dir="auto">{s.name}</span> <span className="opacity-60">{[s.cls, s.section].filter(Boolean).join(" · ")}</span>
+                  </label>
+                ))}
+                {!shownStudents.length && <p className="opacity-60">{tr("No students here.", "لا يوجد طلاب.")}</p>}
+              </div>
+            </div>
+  );
+
   return (
     <form
       className={card + " space-y-4"}
@@ -54,7 +80,7 @@ export function HomeworkEditor({ initial, classes, students, catalog, scope = []
         setErr("");
         try {
           const data = kind === "quran" ? { surah, from, to: Math.max(from, to), reciter, notes, translit, translation } : { slides: slides.filter((s) => s.title || s.text || s.image), question };
-          const r = await lmsApi.saveHomework({ id: initial?.id, kind, title: title.trim() || (kind === "quran" && ch ? `${ch.name_simple} ${from}–${to}` : ""), cls: who === "students" ? "" : cls, section: who === "students" ? "" : section || (cls && !wholeClassOk(cls) ? sectionsOf(cls)[0] || "" : ""), students: who === "students" ? pick : [], due: due ? new Date(due + "T23:59:00").getTime() : null, data: data as QuranData | GeneralData }, asAdmin);
+          const r = await lmsApi.saveHomework({ id: initial?.id, kind, title: title.trim() || (kind === "quran" && ch ? `${ch.name_simple} ${from}–${to}` : ""), cls: who === "students" ? "" : cls, section: who === "students" ? "" : section || (cls && !wholeClassOk(cls) ? sectionsOf(cls)[0] || "" : ""), students: pick, due: due ? new Date(due + "T23:59:00").getTime() : null, data: data as QuranData | GeneralData }, asAdmin);
           onSaved(r.id);
         } catch (x) {
           setErr(lmsErrorText(x, tr));
@@ -143,6 +169,7 @@ export function HomeworkEditor({ initial, classes, students, catalog, scope = []
             ))}
           </div>
           {who === "class" ? (
+            <div className="space-y-2">
             <div className="grid gap-2 sm:grid-cols-2">
               <select className={inputCls} value={cls} onChange={(e) => { setCls(e.target.value); setSection(""); }} data-testid="hw-class" aria-label={tr("Class", "الصف")}>
                 {!scope.length && <option value="">{tr("All students", "كل الطلاب")}</option>}
@@ -155,30 +182,13 @@ export function HomeworkEditor({ initial, classes, students, catalog, scope = []
                 {cls && sectionsOf(cls).map((x) => <option key={x} value={x}>{x}</option>)}
               </select>
             </div>
-          ) : (
-            <div className="space-y-2">
-              <div className="flex flex-wrap gap-2">
-                <select className={inputCls + " mt-0 w-auto"} value={fCls} onChange={(e) => { setFCls(e.target.value); setFSec(""); }} aria-label={tr("Filter class", "تصفية الصف")}>
-                  <option value="">{tr("All classes", "كل الصفوف")}</option>
-                  {classNames.map((c) => <option key={c}>{c}</option>)}
-                </select>
-                <select className={inputCls + " mt-0 w-auto"} value={fSec} onChange={(e) => setFSec(e.target.value)} disabled={!fCls} aria-label={tr("Filter section", "تصفية الشعبة")}>
-                  <option value="">{tr("All sections", "كل الشعب")}</option>
-                  {fCls && sectionsOf(fCls).map((x) => <option key={x}>{x}</option>)}
-                </select>
-                <button type="button" className="rounded-full px-3 py-1 font-semibold glass" onClick={() => setPick([...new Set([...pick, ...shownStudents.map((s) => s.id)])])} data-testid="hw-pick-all">{tr("Select all shown", "تحديد الظاهرين")}</button>
-                {pick.length > 0 && <button type="button" className="rounded-full px-3 py-1 font-semibold glass" onClick={() => setPick([])}>{tr("Clear", "مسح")} ({pick.length})</button>}
-              </div>
-              <div className="max-h-48 space-y-1 overflow-auto rounded-xl border border-black/10 p-2 dark:border-white/15">
-                {shownStudents.map((s) => (
-                  <label key={s.id} className="flex items-center gap-2">
-                    <input type="checkbox" checked={pick.includes(s.id)} onChange={(e) => setPick(e.target.checked ? [...pick, s.id] : pick.filter((x) => x !== s.id))} data-testid="hw-pick" />
-                    <span dir="auto">{s.name}</span> <span className="opacity-60">{[s.cls, s.section].filter(Boolean).join(" · ")}</span>
-                  </label>
-                ))}
-                {!shownStudents.length && <p className="opacity-60">{tr("No students here.", "لا يوجد طلاب.")}</p>}
-              </div>
+              <details className="rounded-xl border border-black/10 p-2 dark:border-white/15" open={pick.length > 0} data-testid="hw-extra">
+                <summary className="cursor-pointer font-semibold">{tr("Also add individual students", "أضف طلابًا آخرين أيضًا")}{pick.length ? ` (${pick.length})` : ""}</summary>
+                <div className="mt-2">{picker}</div>
+              </details>
             </div>
+          ) : (
+            picker
           )}
         </fieldset>
         <label className="block text-sm font-semibold">
