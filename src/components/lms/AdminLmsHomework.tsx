@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { exportAllHomeworkZip } from "@/components/lms/lmsFiles";
 import { AudioClip } from "@/components/lms/Audio";
-import { adminRelogin, card, smallBtn, STATUS_STYLE, statusLabel, useTr } from "@/components/lms/useLms";
+import { adminRelogin, card, GRADE_STYLE, gradeLabel, smallBtn, STATUS_STYLE, statusLabel, useTr } from "@/components/lms/useLms";
 import { lmsApi, lmsErrorText } from "@/lib/lms";
 
 type Dash = Awaited<ReturnType<typeof lmsApi.dashboard>>;
@@ -59,12 +59,13 @@ export function AdminLmsHomework() {
                           <li key={s.id} className="space-y-1" data-testid="admin-hw-sub">
                             <div className="flex flex-wrap items-center gap-2 text-sm">
                               <b dir="auto">{s.name}</b>
-                              <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${STATUS_STYLE[s.status]}`}>{statusLabel(s.status, tr)}</span>
+                              <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${STATUS_STYLE[s.status]}`}>{statusLabel(s.status, tr)}</span>{s.grade && <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${GRADE_STYLE[s.grade]}`} data-testid="admin-sub-grade">{gradeLabel(s.grade, tr)}</span>}
                               {s.practised && <span>✅ {tr("practised", "تدرّب")}</span>}
                               
                             </div>
                             {s.text && <p className="whitespace-pre-wrap text-sm" dir="auto">{s.text}</p>}
                             {s.audio && <AudioClip id={s.audio} asAdmin label={"🎙️ " + tr("Student recording", "تسجيل الطالب")} testId="admin-sub-clip" />}
+                            {(s.attempts || []).map((x) => <div key={x.n} className="flex flex-wrap items-center gap-2 text-xs"><b>#{x.n}</b><span className={`rounded-full px-2 py-0.5 font-bold ${GRADE_STYLE[x.grade]}`}>{gradeLabel(x.grade, tr)}</span>{x.audio && <AudioClip id={x.audio} asAdmin testId="admin-attempt-clip" />}</div>)}
                             {s.comments.map((c, i) => <div key={i} className="text-sm opacity-80" dir="auto"><b>{c.by}:</b> {c.text}{c.audio && <AudioClip id={c.audio} asAdmin label={"🎙️ " + tr("Voice feedback", "تعليق صوتي")} testId="admin-fb-clip" />}</div>)}
                           </li>
                         ))}
