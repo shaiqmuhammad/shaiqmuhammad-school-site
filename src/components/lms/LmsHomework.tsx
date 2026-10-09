@@ -1,5 +1,7 @@
 "use client";
 
+import { Amiri_Quran } from "next/font/google";
+
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -12,6 +14,8 @@ import { homeworkQrPdf } from "@/components/lms/lmsFiles";
 import { GRADE_STYLE, STATUS_STYLE, card, gradeLabel, inputCls, smallBtn, statusLabel, useLmsActor, useTr } from "@/components/lms/useLms";
 import { quranExtras, ayahAudio, lmsApi, lmsErrorText, quranChapters, quranVerses, type Chapter, type GeneralData, type QuranData, type Submission, type Attempt, type Catalog, type DashStudent } from "@/lib/lms";
 
+const quranFont = Amiri_Quran({ weight: "400", subsets: ["arabic"], display: "swap" });
+
 type Data = Awaited<ReturnType<typeof lmsApi.homework>>;
 
 function QuranReader({ data }: { data: QuranData }) {
@@ -21,6 +25,8 @@ function QuranReader({ data }: { data: QuranData }) {
   const [all, setAll] = useState(false);
   const audio = useRef<HTMLAudioElement | null>(null);
   const [recording, setRecording] = useState(false);
+  const [chapter, setChapter] = useState<Chapter | null>(null);
+  useEffect(() => { quranChapters().then((c) => setChapter(c.find((x) => x.id === data.surah) || null)).catch(() => undefined); }, [data.surah]);
   const [extras, setExtras] = useState<Map<number, { translit: string; translation: string }> | null>(null);
   const wantExtras = !!(data.translit || data.translation);
   useEffect(() => {
@@ -53,31 +59,57 @@ function QuranReader({ data }: { data: QuranData }) {
     };
     a.play().catch(() => setPlaying(null));
   };
+  const perVerse = !!(data.translit || data.translation);
+  const arNum = (n: number) => n.toLocaleString("ar-EG");
+  const showBismillah = data.from === 1 && data.surah !== 1 && data.surah !== 9;
   return (
-    <section className={card} data-testid="quran-reader">
-      <div className="mb-3 flex flex-wrap items-center gap-2">
+    <section className="space-y-3" data-testid="quran-reader">
+      <div className="flex flex-wrap items-center gap-2">
         <button type="button" className={smallBtn} onClick={() => { if (all) { audio.current?.pause(); setAll(false); setPlaying(null); } else { setAll(true); play(data.from, true); } }} data-testid="quran-play-all">
           {all ? "⏹ " + tr("Stop", "إيقاف") : "▶ " + tr("Listen to all", "استمع للكل")}
         </button>
         <span className="text-sm opacity-70" data-testid="quran-hint">{recording ? "🎙️ " + tr("Recording — the reciter is paused.", "جارٍ التسجيل — القارئ متوقف.") : tr("Tap a verse to hear it.", "اضغط على الآية لسماعها.")}</span>
       </div>
-      {!verses ? (
-        <p className="opacity-70">{tr("Loading verses…", "جارٍ تحميل الآيات…")}</p>
-      ) : verses.length === 0 ? (
-        <p className="opacity-70">{tr("Couldn't load the verses — check your connection.", "تعذر تحميل الآيات — تحقق من الاتصال.")}</p>
-      ) : (
-        <ol className="space-y-2" dir="rtl">
-          {verses.map((v) => (
-            <li key={v.n}>
-              <button type="button" onClick={() => play(v.n, false)} className={`w-full rounded-2xl px-4 py-3 text-right font-[family-name:var(--font-quran,serif)] text-3xl leading-[2.2] transition ${playing === v.n ? "bg-sun/40" : "hover:bg-black/5 dark:hover:bg-white/5"}`} data-testid="quran-verse">
-                {v.text} <span className="mx-1 inline-flex h-9 w-9 items-center justify-center rounded-full border-2 border-current align-middle text-base font-bold opacity-60">{v.n.toLocaleString("ar-EG")}</span>
-              </button>
-              {data.translit && extras?.get(v.n)?.translit && <p className="px-4 pb-1 text-left text-base italic opacity-80" dir="ltr" data-testid="quran-translit">{extras.get(v.n)!.translit}</p>}
-              {data.translation && extras?.get(v.n)?.translation && <p className={`px-4 pb-2 text-sm opacity-70 ${lang === "ar" ? "text-right" : "text-left"}`} dir={lang === "ar" ? "rtl" : "ltr"} data-testid="quran-translation">{extras.get(v.n)!.translation}</p>}
-            </li>
+      {/* Mushaf page: cream paper, double gold frame with corner ornaments, surah cartouche, bismillah. */}
+      <div className="mushaf relative rounded-[1.25rem] p-2 sm:p-3" data-testid="mushaf">
+        <div className="mushaf-frame relative rounded-2xl px-3 py-5 sm:px-8 sm:py-7">
+          {["top-1 left-1", "top-1 right-1", "bottom-1 left-1", "bottom-1 right-1"].map((pos) => (
+            <span key={pos} aria-hidden className={`mushaf-corner absolute ${pos}`}>❁</span>
           ))}
-        </ol>
-      )}
+          <div className="mushaf-cartouche mx-auto mb-4 flex max-w-md items-center justify-center gap-3 rounded-full px-5 py-2" data-testid="mushaf-header">
+            <span aria-hidden className="mushaf-gold">۞</span>
+            <span className={`${quranFont.className} text-2xl sm:text-3xl`} dir="rtl">سُورَةُ {chapter?.name_arabic || ""}</span>
+            <span className="text-xs font-bold uppercase tracking-wider opacity-70">{chapter?.name_simple} · {data.from}–{data.to}</span>
+            <span aria-hidden className="mushaf-gold">۞</span>
+          </div>
+          {showBismillah && <p className={`${quranFont.className} mb-3 text-center text-2xl sm:text-3xl`} dir="rtl" data-testid="mushaf-bismillah">بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ</p>}
+          {!verses ? (
+            <p className="text-center opacity-70">{tr("Loading verses…", "جارٍ تحميل الآيات…")}</p>
+          ) : verses.length === 0 ? (
+            <p className="text-center opacity-70">{tr("Couldn't load the verses — check your connection.", "تعذر تحميل الآيات — تحقق من الاتصال.")}</p>
+          ) : perVerse ? (
+            <ol className="space-y-3" dir="rtl">
+              {verses.map((v) => (
+                <li key={v.n} className="border-b border-[color:var(--mushaf-gold)]/30 pb-2 last:border-0">
+                  <button type="button" onClick={() => play(v.n, false)} className={`${quranFont.className} w-full rounded-xl px-2 text-right text-[1.7rem] leading-[2.4] transition sm:text-3xl ${playing === v.n ? "mushaf-active" : "hover:bg-black/5 dark:hover:bg-white/5"}`} data-testid="quran-verse">
+                    {v.text} <span className="mushaf-ayah" aria-label={tr(`verse ${v.n}`, `الآية ${v.n}`)}>{arNum(v.n)}</span>
+                  </button>
+                  {data.translit && extras?.get(v.n)?.translit && <p className="px-2 text-left text-base italic opacity-80" dir="ltr" data-testid="quran-translit">{extras.get(v.n)!.translit}</p>}
+                  {data.translation && extras?.get(v.n)?.translation && <p className={`px-2 text-sm opacity-75 ${lang === "ar" ? "text-right" : "text-left"}`} dir={lang === "ar" ? "rtl" : "ltr"} data-testid="quran-translation">{extras.get(v.n)!.translation}</p>}
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <p className={`${quranFont.className} text-justify text-[1.7rem] leading-[2.5] [text-align-last:center] sm:text-3xl sm:leading-[2.6]`} dir="rtl">
+              {verses.map((v) => (
+                <span key={v.n} role="button" tabIndex={0} onClick={() => play(v.n, false)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); play(v.n, false); } }} className={`cursor-pointer rounded-lg px-0.5 transition ${playing === v.n ? "mushaf-active" : "hover:bg-black/5 dark:hover:bg-white/5"}`} data-testid="quran-verse">
+                  {v.text} <span className="mushaf-ayah" aria-label={tr(`verse ${v.n}`, `الآية ${v.n}`)}>{arNum(v.n)}</span>{" "}
+                </span>
+              ))}
+            </p>
+          )}
+        </div>
+      </div>
     </section>
   );
 }
