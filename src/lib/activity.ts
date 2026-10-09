@@ -1,5 +1,6 @@
 "use client";
 
+import { lmsSession } from "@/lib/lms";
 import { getServerSession } from "@/lib/adminServer";
 import { ASSESSMENT_API_BASE } from "@/lib/groupSession";
 
@@ -88,11 +89,13 @@ async function call<T>(path: string, body?: unknown, headers: Record<string, str
 const q = (o: Record<string, string | number | undefined>) =>
   "?" + new URLSearchParams(Object.entries(o).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])).toString();
 
+
 export const activityApi = {
   create: (input: { type: ActivityType; title: string; prompt?: string; settings?: Partial<ActivitySettings> }) => {
-    const s = getServerSession();
-    if (!s) return Promise.reject(new ActivityError("unauthorized", 401));
-    return call<ActivityInfo & { hostKey: string }>("create", input, { Authorization: `Bearer ${s.token}` });
+    // Admin server session, else a teacher login the admin granted this activity type to.
+    const tok = getServerSession()?.token || lmsSession()?.token;
+    if (!tok) return Promise.reject(new ActivityError("unauthorized", 401));
+    return call<ActivityInfo & { hostKey: string }>("create", input, { Authorization: `Bearer ${tok}` });
   },
   info: (code: string) => call<ActivityInfo>(code),
   join: (code: string, name: string, deviceId: string) => call<ActivityInfo & { pid: string; token: string; name: string }>(`${code}/join`, { name, deviceId }),

@@ -18,10 +18,13 @@ const TOOLS = [
 ];
 
 /** Admin → Activities: create a live classroom activity (join code + QR) and reopen ones made on this device. */
-export function AdminActivities() {
+/** `allowed` (teacher area): only these activity types/tools; creation uses the teacher login. */
+export function AdminActivities({ allowed }: { allowed?: string[] } = {}) {
   const { lang } = useI18n();
   const tr = (en: string, ar: string) => (lang === "ar" ? ar : en);
-  const [type, setType] = useState<ActivityType>("wall");
+  const types = allowed ? TYPES.filter((t) => allowed.includes(t)) : TYPES;
+  const tools = allowed ? TOOLS.filter((t) => allowed.includes(t.href.split("/").pop() || "")) : TOOLS;
+  const [type, setType] = useState<ActivityType>(types[0] || "wall");
   const [title, setTitle] = useState("");
   const [prompt, setPrompt] = useState("");
   const [moderation, setModeration] = useState<"live" | "approve">("live");
@@ -33,7 +36,7 @@ export function AdminActivities() {
   const [hosted, setHosted] = useState<HostedActivity[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const signedIn = Boolean(getServerSession());
+  const signedIn = Boolean(allowed) || Boolean(getServerSession());
   const [now, setNow] = useState(0);
   const router = useRouter();
 
@@ -88,7 +91,7 @@ export function AdminActivities() {
 
         <form onSubmit={create} className="mt-4 space-y-4">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6" role="radiogroup" aria-label={tr("Activity type", "نوع النشاط")}>
-            {TYPES.map((t) => {
+            {types.map((t) => {
               const l = ACTIVITY_LABELS[t];
               const ok = READY_TYPES.includes(t);
               return (
@@ -150,7 +153,7 @@ export function AdminActivities() {
       <section className="glass rounded-3xl p-5">
         <h2 className="text-lg font-bold">{tr("Teacher tools (no join code)", "أدوات المعلم (بدون رمز)")}</h2>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          {TOOLS.map((t) => (
+          {tools.map((t) => (
             <a key={t.href} href={t.href} className="flex items-start gap-3 rounded-2xl border border-card-border bg-card-solid p-4 transition hover:border-sun-border" data-testid={`tool-${t.href.split("/").pop()}`}>
               <span className="text-3xl" aria-hidden>{t.icon}</span>
               <span>

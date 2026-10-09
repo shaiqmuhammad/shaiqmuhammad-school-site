@@ -385,7 +385,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
           const role: Role = raw.role === "teacher" ? "teacher" : "student";
           // Only the admin can create or edit teachers.
           if (role === "teacher" && a.role !== "admin") { errors.push({ row: i + 1, username, error: "admin_only" }); continue; }
-          const perms = role === "teacher" ? (Array.isArray(raw.perms) ? (raw.perms as unknown[]).map(String).filter((p) => (PERMS as readonly string[]).includes(p)) : ["assign", "review"]) : [];
+          const perms = role === "teacher" ? (Array.isArray(raw.perms) ? (raw.perms as unknown[]).map(String).filter((p) => (PERMS as readonly string[]).includes(p) || /^(act|host):[\w*-]{1,80}$/.test(p)).slice(0, 80) : ["assign", "review"]) : [];
           const cls = str(raw.cls, 40);
           const section = role === "student" ? str(raw.section, 40) : "";
           const subjects = role === "teacher" ? strList(raw.subjects) : [];
@@ -1138,6 +1138,14 @@ export async function handleLms(request: Request, env: LmsEnv, action: string): 
   const input: Json = { ...Object.fromEntries(url.searchParams), ...body, __method: request.method };
   const r = (await store.handle(action, actor, input)) as unknown as Reply;
   return reply(origin, r.body, r.status);
+}
+
+/** A signed-in, active teacher holding an extra permission like "act:wall" or "host:<quiz>" (Classroom Activities access). */
+export async function teacherWithPerm(request: Request, env: LmsEnv, perm: string): Promise<boolean> {
+  const uid = await verifyUserToken(env, request.headers.get("Authorization"));
+  if (!uid) return false;
+  const u = (await env.LMS.get(env.LMS.idFromName("main")).actor(uid)) as unknown as Actor | null;
+  return !!u && u.role === "teacher" && (u.perms.includes(perm) || u.perms.includes(perm.split(":")[0] + ":*"));
 }
 
 async function lmsActor(request: Request, env: LmsEnv, store: DurableObjectStub<LmsStore>): Promise<Actor | null> {

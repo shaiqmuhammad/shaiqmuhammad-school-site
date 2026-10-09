@@ -23,6 +23,7 @@
  */
 import { DurableObject } from "cloudflare:workers";
 import { corsHeaders, reply, verifyToken, type AdminEnv } from "./admin";
+import { teacherWithPerm, type LmsEnv } from "./lms";
 
 export interface ActivityEnv extends AdminEnv {
   ACTIVITIES: DurableObjectNamespace<ClassActivity>;
@@ -571,9 +572,10 @@ export async function handleActivity(request: Request, env: ActivityEnv, parts: 
 
   if (parts[2] === "create") {
     if (request.method !== "POST") return reply(origin, { error: "method" }, 405);
-    if (!(await verifyToken(env, request.headers.get("Authorization")))) return reply(origin, { error: "unauthorized" }, 401);
     const type = String(body.type) as ActivityType;
     if (!ACTIVITY_TYPES.includes(type)) return reply(origin, { error: "bad_type" }, 400);
+    // Admin, or a teacher the admin granted this activity type to.
+    if (!(await verifyToken(env, request.headers.get("Authorization"))) && !(await teacherWithPerm(request, env as unknown as LmsEnv, `act:${type}`))) return reply(origin, { error: "unauthorized" }, 401);
     for (let attempt = 0; attempt < 8; attempt++) {
       const code = rand(5, ALPHABET);
       const stub = env.ACTIVITIES.get(env.ACTIVITIES.idFromName(code));
