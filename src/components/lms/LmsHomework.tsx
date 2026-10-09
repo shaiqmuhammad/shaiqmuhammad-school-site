@@ -10,15 +10,15 @@ import { NeedLogin } from "@/components/lms/LmsDashboard";
 import { AudioClip, AudioRecorder } from "@/components/lms/Audio";
 import { AssessmentShell, primaryBtn } from "@/components/assessment/AssessmentShell";
 import { HomeworkEditor } from "@/components/lms/HomeworkEditor";
-import { homeworkQrPdf } from "@/components/lms/lmsFiles";
+import { studentQrCardsPdf } from "@/components/lms/lmsFiles";
 import { GRADE_STYLE, STATUS_STYLE, card, gradeLabel, inputCls, smallBtn, statusLabel, useLmsActor, useTr } from "@/components/lms/useLms";
-import { quranExtras, ayahAudio, lmsApi, lmsErrorText, quranChapters, quranVerses, type Chapter, type GeneralData, type QuranData, type Submission, type Attempt, type Mistake, type Catalog, type DashStudent } from "@/lib/lms";
+import { quranExtras, ayahAudio, lmsApi, lmsErrorText, quranChapters, quranVerses, type Chapter, type GeneralData, type QuranData, type Submission, type Attempt, type Mistake, type QrLink, type Catalog, type DashStudent } from "@/lib/lms";
 
 const quranFont = Amiri_Quran({ weight: "400", subsets: ["arabic"], display: "swap" });
 
 type Data = Awaited<ReturnType<typeof lmsApi.homework>>;
 
-function QuranReader({ data, mistakes = [], onMarkWord }: { data: QuranData; mistakes?: Mistake[]; onMarkWord?: (ayah: number, word: number, text: string) => void }) {
+export function QuranReader({ data, mistakes = [], onMarkWord }: { data: QuranData; mistakes?: Mistake[]; onMarkWord?: (ayah: number, word: number, text: string) => void }) {
   const { tr, lang } = useTr();
   const [verses, setVerses] = useState<{ n: number; text: string }[] | null>(null);
   const [playing, setPlaying] = useState<number | null>(null);
@@ -220,13 +220,15 @@ function StudentWork({ hw, sub, reload }: { hw: Data["homework"]; sub: Submissio
           {sub?.audio ? (
             <AudioClip id={sub.audio} label={"🎙️ " + tr("My recitation", "تلاوتي")} testId="my-rec" onDelete={locked ? undefined : async () => { if (confirm(tr("Delete this recording?", "حذف هذا التسجيل؟"))) { await lmsApi.audioDelete(sub.audio!).catch(() => undefined); reload(); } }} />
           ) : null}
-          {!locked && <AudioRecorder label={sub?.audio ? tr("Record again (replaces the old one)", "سجّل مجددًا (يستبدل القديم)") : tr("Record your recitation (up to 3 minutes)", "سجّل تلاوتك (حتى 3 دقائق)")} testId="rec-student" onSave={async (b) => { await lmsApi.audioUpload({ hw: hw.id }, b); reload(); }} />}
+{sub?.audio && sub.status === "submitted" && <p className="font-semibold text-emerald-700 dark:text-emerald-300" data-testid="rec-sent">✓ {tr("Sent to teacher", "أُرسل للمعلم")}</p>}
+          {!locked && sub?.status !== "approved" && <AudioRecorder label={sub?.audio ? tr("Record again (replaces the old one)", "سجّل مجددًا (يستبدل القديم)") : tr("Record your recitation (up to 3 minutes)", "سجّل تلاوتك (حتى 3 دقائق)")} testId="rec-student" saveLabel={tr("Send to teacher", "أرسل للمعلم")} onSave={async (b) => { await lmsApi.audioUpload({ hw: hw.id }, b); reload(); }} />}
         </>
       ) : (
         <>
           {(hw.data as GeneralData).question && <p className="text-lg font-semibold" dir="auto">{(hw.data as GeneralData).question}</p>}
           {sub?.audio && <AudioClip id={sub.audio} label={"🎙️ " + tr("My audio answer", "إجابتي الصوتية")} testId="my-rec" onDelete={locked ? undefined : async () => { if (confirm(tr("Delete this recording?", "حذف هذا التسجيل؟"))) { await lmsApi.audioDelete(sub.audio!).catch(() => undefined); reload(); } }} />}
-          {!locked && <AudioRecorder label={tr("Audio answer (optional, up to 3 minutes)", "إجابة صوتية (اختياري، حتى 3 دقائق)")} testId="rec-student" onSave={async (b) => { await lmsApi.audioUpload({ hw: hw.id }, b); reload(); }} />}
+{sub?.audio && sub.status === "submitted" && <p className="font-semibold text-emerald-700 dark:text-emerald-300" data-testid="rec-sent">✓ {tr("Sent to teacher", "أُرسل للمعلم")}</p>}
+          {!locked && sub?.status !== "approved" && <AudioRecorder label={tr("Audio answer (optional, up to 3 minutes)", "إجابة صوتية (اختياري، حتى 3 دقائق)")} testId="rec-student" saveLabel={tr("Send to teacher", "أرسل للمعلم")} onSave={async (b) => { await lmsApi.audioUpload({ hw: hw.id }, b); reload(); }} />}
         </>
       )}
       <textarea className={inputCls + " min-h-28"} value={text} onChange={(e) => setText(e.target.value)} disabled={locked} maxLength={4000} dir="auto" placeholder={hw.kind === "quran" ? tr("A note for your teacher (optional)", "ملاحظة لمعلمك (اختياري)") : tr("Your answer", "إجابتك")} data-testid="hw-text" />
@@ -387,7 +389,8 @@ export function LmsHomework() {
             </header>
             {staff && (
               <div className="flex flex-wrap gap-2">
-                <button type="button" className={smallBtn} onClick={() => homeworkQrPdf(hw, subtitle).catch(() => setErr(tr("Couldn't make the QR card.", "تعذر إنشاء بطاقة QR.")))} data-testid="hw-qr-pdf">🔳 {tr("QR card (PDF)", "بطاقة QR (PDF)")}</button>
+                <button type="button" className={smallBtn} onClick={async () => { try { const r = await lmsApi.qrLinks(hw.id, {}, asAdmin); await studentQrCardsPdf(hw, { surahEn: ch?.name_simple, surahAr: ch?.name_arabic, verses: q ? `${tr("verses", "الآيات")} ${q.from}–${q.to}` : "", teacher: r.teacher, links: r.links }); } catch { setErr(tr("Couldn't make the QR cards.", "تعذر إنشاء بطاقات QR.")); } }} data-testid="hw-qr-pdf">🔳 {tr("Student QR cards (PDF)", "بطاقات QR للطلاب (PDF)")}</button>
+                <QrLinks hwId={hw.id} asAdmin={asAdmin} />
                 <button
                   type="button"
                   className={smallBtn}
@@ -434,5 +437,29 @@ export function LmsHomework() {
         )}
       </div>
     </AssessmentShell>
+  );
+}
+
+/** Per-student QR links (read-only token pages): open, regenerate or turn off. */
+function QrLinks({ hwId, asAdmin }: { hwId: string; asAdmin: boolean }) {
+  const { tr } = useTr();
+  const [links, setLinks] = useState<QrLink[] | null>(null);
+  const act = (student: string, o: { reset?: boolean; revoke?: boolean }) => lmsApi.qrLinks(hwId, { student, ...o }, asAdmin).then((r) => setLinks(r.links)).catch(() => undefined);
+  return (
+    <details className="w-full" onToggle={(e) => { if ((e.target as HTMLDetailsElement).open && !links) lmsApi.qrLinks(hwId, {}, asAdmin).then((r) => setLinks(r.links)).catch(() => setLinks([])); }} data-testid="hw-qr-links">
+      <summary className={smallBtn + " cursor-pointer"}>🔗 {tr("QR links per student", "روابط QR لكل طالب")}</summary>
+      {links && (
+        <ul className="mt-2 divide-y divide-black/5 rounded-2xl border border-black/10 text-sm dark:divide-white/10 dark:border-white/15">
+          {links.map((l) => (
+            <li key={l.student} className="flex flex-wrap items-center gap-2 px-3 py-2">
+              <span className="flex-1 font-semibold" dir="auto">{l.name} <span className="font-normal opacity-60">{l.section}</span></span>
+              {l.token ? <a className={smallBtn} href={`/q?t=${l.token}`} target="_blank" rel="noopener" data-testid="qr-open">↗ {tr("Open", "فتح")}</a> : <span className="opacity-60">{tr("Off", "متوقف")}</span>}
+              <button type="button" className={smallBtn} onClick={() => act(l.student, { reset: true })} title={tr("New link (old QR stops working)", "رابط جديد (يتوقف القديم)")}>↻</button>
+              {l.token && <button type="button" className={smallBtn + " text-rose-600"} onClick={() => act(l.student, { revoke: true })} title={tr("Turn off", "إيقاف")}>⦸</button>}
+            </li>
+          ))}
+        </ul>
+      )}
+    </details>
   );
 }

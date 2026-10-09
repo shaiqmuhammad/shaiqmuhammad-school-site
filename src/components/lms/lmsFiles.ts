@@ -252,3 +252,49 @@ export async function exportAllHomeworkZip(asAdmin: boolean) {
   files.push({ name: "README.txt", data: `Homework export ${new Date(d.exportedAt).toISOString()}\n\nsummary.xlsx – every homework + Quran tracker\nhomework/*.xlsx – one workbook per homework with each student's submission\ndata.json – everything in machine-readable form\n\nRecordings will be included once file storage is enabled.\n` });
   downloadBlob(makeZip(files), `homework-export-${new Date().toISOString().slice(0, 10)}.zip`);
 }
+
+/** Per-student QR cards (A5, one page each). The QR opens the read-only token page /q?t=… — no username/PIN. */
+export async function studentQrCardsPdf(hw: Homework, opts: { surahEn?: string; surahAr?: string; verses?: string; teacher: string; links: { name: string; cls: string; section: string; token: string }[] }) {
+  const W = 1240, H = 1748;
+  const { jsPDF } = await import("jspdf");
+  const pdf = new jsPDF({ unit: "mm", format: "a5" });
+  const origin = window.location.origin;
+  let first = true;
+  for (const l of opts.links.filter((x) => x.token)) {
+    const c = document.createElement("canvas");
+    c.width = W; c.height = H;
+    const g = c.getContext("2d")!;
+    g.fillStyle = "#fffaf0"; g.fillRect(0, 0, W, H);
+    g.strokeStyle = "#16324f"; g.lineWidth = 18; g.strokeRect(30, 30, W - 60, H - 60);
+    g.strokeStyle = "#f2c14e"; g.lineWidth = 6; g.strokeRect(62, 62, W - 124, H - 124);
+    g.fillStyle = "#16324f"; g.fillRect(62, 62, W - 124, 170);
+    g.textAlign = "center";
+    g.fillStyle = "#f2c14e"; g.font = "bold 54px system-ui, sans-serif";
+    g.fillText(hw.kind === "quran" ? "Quran homework · واجب القرآن" : "Homework · واجب", W / 2, 168);
+    g.fillStyle = "#16324f"; g.font = "bold 76px system-ui, sans-serif";
+    g.fillText(l.name.slice(0, 32), W / 2, 340);
+    g.font = "40px system-ui, sans-serif"; g.fillStyle = "#3b5770";
+    g.fillText([l.cls, l.section].filter(Boolean).join(" · "), W / 2, 400);
+    if (hw.kind === "quran" && opts.surahAr) {
+      g.fillStyle = "#16324f"; g.font = "bold 84px 'Amiri Quran', Amiri, serif";
+      g.fillText(`سورة ${opts.surahAr}`, W / 2, 520);
+      g.font = "bold 44px system-ui, sans-serif";
+      g.fillText(`Surah ${opts.surahEn} · ${opts.verses}`, W / 2, 590);
+    } else {
+      g.fillStyle = "#16324f"; g.font = "bold 56px system-ui, sans-serif";
+      g.fillText(hw.title.slice(0, 36), W / 2, 540);
+    }
+    const qr = await loadImage(qrImageUrl(`${origin}/q?t=${l.token}`, 700));
+    g.fillStyle = "#ffffff"; g.fillRect((W - 700) / 2 - 20, 650, 740, 740);
+    g.drawImage(qr, (W - 700) / 2, 670, 700, 700);
+    g.fillStyle = "#16324f"; g.font = "bold 36px system-ui, sans-serif";
+    g.fillText("Scan to see your verses, recitation & feedback", W / 2, 1470);
+    g.fillText("امسح لرؤية الآيات والتلاوة وملاحظات المعلم", W / 2, 1525);
+    g.font = "32px system-ui, sans-serif"; g.fillStyle = "#3b5770";
+    g.fillText(`Teacher: ${opts.teacher} · Shaiq Muhammad`, W / 2, 1610);
+    if (!first) pdf.addPage("a5");
+    first = false;
+    pdf.addImage(c.toDataURL("image/jpeg", 0.9), "JPEG", 0, 0, 148, 210);
+  }
+  pdf.save(`${safeFileName(hw.title)}-student-qr-cards.pdf`);
+}
