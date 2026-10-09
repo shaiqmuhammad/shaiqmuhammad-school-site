@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { exportAllHomeworkZip } from "@/components/lms/lmsFiles";
 import { AudioClip } from "@/components/lms/Audio";
+import { LeaderboardSetting, QuranMap } from "@/components/lms/Progress";
 import { adminRelogin, card, GRADE_STYLE, gradeLabel, smallBtn, STATUS_STYLE, statusLabel, useTr } from "@/components/lms/useLms";
 import { lmsApi, lmsErrorText } from "@/lib/lms";
 
@@ -16,6 +17,7 @@ export function AdminLmsHomework() {
   const [open, setOpen] = useState<string | null>(null);
   const [detail, setDetail] = useState<Detail | null>(null);
   const [err, setErr] = useState("");
+  const mapCat = { classes: (dash?.catalog?.classes || []).map((c) => c.name), sections: (dash?.catalog?.sections || []).map((x) => ({ cls: x.cls, name: x.name })) };
   const fail = useCallback((e: unknown) => { if ((e as { status?: number }).status === 401 && adminRelogin()) return; setErr(lmsErrorText(e, tr)); }, [tr]);
   const load = useCallback(() => { lmsApi.dashboard(true).then(setDash).catch(fail); }, [fail]);
   useEffect(() => { load(); }, [load]);
@@ -23,6 +25,8 @@ export function AdminLmsHomework() {
 
   return (
     <div className="space-y-5" data-testid="admin-lms-homework">
+      <QuranMap asAdmin classes={mapCat.classes} sections={mapCat.sections} />
+      <div className={card + " py-3"}><LeaderboardSetting asAdmin /></div>
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="text-2xl font-extrabold" data-testid="admin-lms-heading">{tr("Homework", "الواجبات")} {dash && `(${dash.homework.length})`}</h2>
         <span className="flex-1" />
