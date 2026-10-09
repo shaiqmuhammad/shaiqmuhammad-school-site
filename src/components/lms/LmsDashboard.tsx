@@ -76,7 +76,24 @@ export function LmsDashboard() {
       toolbar={actor ? <LmsStaffToolbar /> : undefined}
     >
       <div className="mx-auto w-full max-w-6xl flex-1 space-y-5 px-3 py-5 sm:px-6" data-testid="lms-dashboard">
-        {actor && <p className="text-2xl font-bold" data-testid="lms-hello">{tr("Assalamu alaikum", "السلام عليكم")}, <span dir="auto">{actor.name}</span> 👋</p>}
+        {actor && (
+          <div className="relative overflow-hidden rounded-3xl bg-header px-6 py-6 text-white shadow-[0_18px_40px_-24px_rgba(10,25,40,0.8)]">
+            <div aria-hidden className="absolute -end-10 -top-10 h-40 w-40 rounded-full bg-sun/30 blur-2xl" />
+            <p className="relative text-2xl font-extrabold !text-white sm:text-3xl" data-testid="lms-hello">{tr("Assalamu alaikum", "السلام عليكم")}, <span dir="auto">{actor.name}</span> 👋</p>
+            <p className="relative mt-1 text-sm text-white/75">{staff ? tr("Here is your class at a glance.", "هذه نظرة سريعة على صفك.") : tr("Keep going — every verse counts.", "استمر — كل آية لها أجر.")}</p>
+          </div>
+        )}
+        {dash && <DashStats items={staff ? [
+          { label: tr("Students", "الطلاب"), value: (dash.students || []).length, icon: "🎒" },
+          { label: tr("Classes", "الصفوف"), value: (dash.classes || []).length, icon: "🏫" },
+          { label: tr("Homework", "الواجبات"), value: dash.homework.length, icon: "📚" },
+          { label: tr("To review", "للمراجعة"), value: dash.homework.reduce((n, h) => n + (Number((h.counts as Record<string, number> | undefined)?.submitted) || 0), 0), icon: "📝", hot: true },
+        ] : [
+          { label: tr("Homework", "الواجبات"), value: dash.homework.length, icon: "📚" },
+          { label: tr("To do", "للإنجاز"), value: dash.homework.filter((h) => !h.locked && (!h.sub || h.sub.status === "draft" || h.sub.status === "returned")).length, icon: "✏️", hot: true },
+          { label: tr("Passed", "مُجتاز"), value: dash.homework.filter((h) => h.sub?.status === "approved").length, icon: "✅" },
+          { label: tr("Surahs tracked", "سور في المتابعة"), value: (dash.tracker || []).length, icon: "📖" },
+        ]} />}
         {err && <p className="rounded-xl bg-rose-100 px-4 py-2 text-rose-800" role="alert">{err}</p>}
         {!dash ? (
           <p className="p-10 text-center opacity-70">{tr("Loading…", "جارٍ التحميل…")}</p>
@@ -185,5 +202,18 @@ export function LmsDashboard() {
         )}
       </div>
     </AssessmentShell>
+  );
+}
+
+function DashStats({ items }: { items: { label: string; value: number; icon: string; hot?: boolean }[] }) {
+  return (
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" data-testid="lms-dash-stats">
+      {items.map((x) => (
+        <div key={x.label} className={`flex items-center gap-3 rounded-3xl border px-4 py-4 shadow-sm backdrop-blur ${x.hot && x.value > 0 ? "border-sun bg-sun/15" : "border-black/10 bg-white/70 dark:border-white/15 dark:bg-white/5"}`}>
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-black/5 text-xl dark:bg-white/10" aria-hidden>{x.icon}</span>
+          <span className="min-w-0"><span className="block text-2xl font-extrabold leading-none">{x.value}</span><span className="mt-1 block truncate text-xs font-semibold opacity-70">{x.label}</span></span>
+        </div>
+      ))}
+    </div>
   );
 }

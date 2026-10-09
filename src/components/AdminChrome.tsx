@@ -4,6 +4,7 @@ import { useLogoUrl } from "@/components/SiteBrand";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AdminToolbar } from "@/components/AdminToolbar";
 import { LmsBell } from "@/components/lms/LmsBell";
+import { mailApi } from "@/lib/mail";
 import { useI18n } from "@/lib/i18n";
 
 type Tab = "home" | "pages" | "videos" | "quizzes" | "certificate" | "banners" | "announcements" | "teacher" | "forum" | "results" | "activities" | "settings" | "students" | "teachers" | "setup" | "lmshw" | "classes" | "mail";
@@ -60,6 +61,15 @@ const Icon = ({ children, className = "h-5 w-5 shrink-0" }: { children: ReactNod
  * The round logo is the "home" button: it returns to the dashboard and re-fetches published content.
  */
 /** Data-heavy tabs use the full width of the main area. */
+function MailIcon({ unread, onClick, label }: { unread: number; onClick: () => void; label: string }) {
+  return (
+    <button type="button" onClick={onClick} title={label} aria-label={label} className="pill-on-navy relative !p-0 inline-flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full" data-testid="admin-mail-icon">
+      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3 7 9 6 9-6" /></svg>
+      {unread > 0 && <span className="absolute -end-1.5 -top-1.5 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-extrabold text-white" data-testid="admin-mail-badge">{unread > 99 ? "99+" : unread}</span>}
+    </button>
+  );
+}
+
 const WIDE = ["students", "teachers", "classes", "lmshw", "mail", "home", "homepage"];
 
 export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPublishAll, onLogout, pendingCount = 0, onBell, children }: Props) {
@@ -67,6 +77,14 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
   const tr = (en: string, ar: string) => (lang === "ar" ? ar : en);
   const logoUrl = useLogoUrl();
   const [collapsed, setCollapsed] = useState(false);
+  const [mailUnread, setMailUnread] = useState(0);
+  useEffect(() => {
+    let on = true;
+    const poll = () => mailApi.status().then((r) => { if (on) setMailUnread(r.unread || 0); }).catch(() => undefined);
+    poll();
+    const t = setInterval(poll, 120000);
+    return () => { on = false; clearInterval(t); };
+  }, []);
   const [drawer, setDrawer] = useState(false);
   const drawerRef = useRef<HTMLDivElement>(null);
   const homeLabel = tr("Admin home — refresh content", "الرئيسية وتحديث المحتوى");
@@ -235,6 +253,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
           </button>
           {logo("h-9 w-9")}
           <p className="min-w-0 flex-1 truncate text-sm font-extrabold text-white">{label(tab)}</p>
+          <MailIcon unread={mailUnread} onClick={() => onTab("mail")} label={tr("Mailbox", "البريد")} />
           <AdminToolbar variant="navy" onLogout={onLogout} bell={<LmsBell asAdmin testId="admin-bell" variant={"navy"} extra={onBell ? { count: pendingCount, label: tr(`${pendingCount} forum post${pendingCount === 1 ? "" : "s"} waiting for approval`, `${pendingCount} مشاركة في المنتدى بانتظار الموافقة`), onClick: onBell } : undefined} />} />
         </div>
       </header>
@@ -269,8 +288,19 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
 
       <main className="min-w-0 flex-1">
         <div className={`mx-auto px-4 py-6 sm:px-8 lg:py-8 ${WIDE.includes(tab) ? "max-w-none" : collapsed ? "max-w-5xl" : "max-w-4xl"}`}>
-          <div className="mb-4 hidden justify-end lg:flex" data-testid="admin-toolbar-wrap">
-            <AdminToolbar onLogout={onLogout} bell={<LmsBell asAdmin testId="admin-bell" variant={"glass"} extra={onBell ? { count: pendingCount, label: tr(`${pendingCount} forum post${pendingCount === 1 ? "" : "s"} waiting for approval`, `${pendingCount} مشاركة في المنتدى بانتظار الموافقة`), onClick: onBell } : undefined} />} />
+          <div className="mb-6 hidden items-center gap-3 rounded-2xl bg-header px-4 py-2.5 text-white shadow-[0_10px_30px_-15px_rgba(10,25,40,0.7)] lg:flex" data-testid="admin-toolbar-wrap">
+            <h1 className="min-w-0 flex-1 truncate text-lg font-extrabold !text-white" data-testid="admin-page-title">{label(tab) || tr("Dashboard", "لوحة التحكم")}</h1>
+            <nav className="flex items-center gap-1" aria-label={tr("Quick links", "روابط سريعة")}>
+              {([["quizzes", tr("Assessments", "التقييمات"), "M4 5h16v14H4zM8 9h8M8 13h5"], ["lmshw", tr("Homework", "الواجبات"), "M5 4h11l3 3v13H5zM9 12l2 2 4-4"], ["students", tr("Students", "الطلاب"), "M12 3 2 8l10 5 10-5-10-5Zm-6 7v5c3 2 9 2 12 0v-5"]] as const).map(([k, l, d]) => (
+                <button key={k} type="button" onClick={() => onTab(k)} className={`inline-flex h-[34px] items-center gap-1.5 rounded-full px-3 text-xs font-bold transition ${tab === k ? "bg-sun text-[#0b1b2b]" : "bg-white/10 hover:bg-white/20"}`} title={l} data-testid={`admin-quick-${k}`}>
+                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d={d} /></svg>
+                  <span className="hidden xl:inline">{l}</span>
+                </button>
+              ))}
+            </nav>
+            <span className="h-6 w-px bg-white/20" aria-hidden />
+            <MailIcon unread={mailUnread} onClick={() => onTab("mail")} label={tr(`Mailbox${mailUnread ? ` (${mailUnread} unread)` : ""}`, `البريد${mailUnread ? ` (${mailUnread} غير مقروءة)` : ""}`)} />
+            <AdminToolbar variant="navy" onLogout={onLogout} bell={<LmsBell asAdmin testId="admin-bell" variant={"navy"} extra={onBell ? { count: pendingCount, label: tr(`${pendingCount} forum post${pendingCount === 1 ? "" : "s"} waiting for approval`, `${pendingCount} مشاركة في المنتدى بانتظار الموافقة`), onClick: onBell } : undefined} />} />
           </div>
           <div className="mb-6 flex items-center justify-between gap-3 lg:hidden">
             <h1 className="text-lg font-extrabold">{label(tab)}</h1>
