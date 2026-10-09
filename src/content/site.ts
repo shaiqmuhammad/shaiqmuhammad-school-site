@@ -65,7 +65,6 @@ export type ResourceLink = (typeof resourceLinks)[number];
 
 /** Top-level header items; the entry with `menu` opens the Students Resources dropdown. */
 export const navLinks: readonly { href: string; label: string; menu?: "resources" }[] = [
-  { href: "/", label: "Home" },
   { href: "#resources", label: "Students Resources", menu: "resources" },
   { href: "/assessments", label: "Assessments" },
   { href: "/forum", label: "Forum" },

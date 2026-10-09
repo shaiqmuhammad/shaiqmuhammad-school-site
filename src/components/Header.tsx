@@ -176,8 +176,8 @@ export function Header() {
         </nav>
 
         <div className="flex shrink-0 items-center gap-1 sm:gap-2">
-          <LanguageToggle variant="navy" className="max-sm:px-2.5" />
-          <ThemeToggle variant="navy" labelClassName="hidden sm:inline lg:hidden xl:inline" />
+          <LanguageToggle variant="navy" compact />
+          <ThemeToggle variant="navy" labelClassName="hidden" className="w-9 rounded-full !px-0" />
           <LmsHeaderButton />
           <JoinButton lang={lang} />
           <button
