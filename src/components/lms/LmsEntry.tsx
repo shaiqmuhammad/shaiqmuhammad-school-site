@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AdminToolbar } from "@/components/AdminToolbar";
 import { LmsBell } from "@/components/lms/LmsBell";
-import { lmsSession, lmsSignOut } from "@/lib/lms";
+import { viewAs, lmsSession, lmsSignOut } from "@/lib/lms";
 import { useI18n } from "@/lib/i18n";
 
 /** True once a student/teacher session exists on this device (read after hydration). */
@@ -76,6 +76,7 @@ export function LmsStaffToolbar() {
     if (s) setWho({ role: s.user.role, name: s.user.name });
   }, []);
   const ar = lang === "ar";
+  if (typeof window !== "undefined" && viewAs()) return null; // view-as: the banner is the only control (no LMS logout)
   const roleLabel = who?.role === "teacher" ? (ar ? "المعلم" : "Teacher") : ar ? "الطالب" : "Student";
   return (
     <div className="flex items-center gap-2">
