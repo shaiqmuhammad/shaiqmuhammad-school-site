@@ -17,6 +17,10 @@ class_name = "AdminGuard"
 name = "FORUM_QUEUE"
 class_name = "ForumQueue"
 
+[[durable_objects.bindings]]
+name = "RESULTS"
+class_name = "ResultsStore"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["AssessmentSession"]
@@ -30,6 +34,11 @@ new_sqlite_classes = ["AdminGuard"]
 [[migrations]]
 tag = "v3"
 new_sqlite_classes = ["ForumQueue"]
+
+# Permanent assessment results record (individual + group).
+[[migrations]]
+tag = "v4"
+new_sqlite_classes = ["ResultsStore"]
 
 # Admin publishing secrets (never committed):
 #   npx wrangler secret put GITHUB_PAT              (fine-grained token: Contents read/write on this repo)

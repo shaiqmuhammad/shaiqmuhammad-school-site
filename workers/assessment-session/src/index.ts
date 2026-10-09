@@ -26,16 +26,20 @@
  * Admin publishing (site origins only, see ./admin.ts):
  *   POST /api/admin/login {password} -> {token, exp};  POST /api/admin/publish (Bearer token);  GET /api/admin/status
  * Moderated forum (see ./forum.ts): POST /api/forum/submit (public, pending); count/pending/approve/reject (admin).
+ * Results record (see ./results.ts): POST /api/results/attempt (site); list/get/delete (admin). Group sessions are
+ * recorded automatically once they have ended.
  */
 import { DurableObject } from "cloudflare:workers";
 import { handleAdmin, type AdminEnv } from "./admin";
 import { handleForum } from "./forum";
-import { isAnswered, normalizeQuiz, quizMaxScore, scoreQuestion, wordBank, type Quiz, type QuizQuestion } from "../../../src/lib/quiz";
+import { handleResults, resultsStore, type ResultRecord, type ResultsEnv } from "./results";
+import { describeAnswer, describeCorrect, isAnswered, normalizeQuiz, quizMaxScore, scoreQuestion, wordBank, type Quiz, type QuizQuestion } from "../../../src/lib/quiz";
 
 export { AdminGuard } from "./admin";
 export { ForumQueue } from "./forum";
+export { ResultsStore } from "./results";
 
-export interface Env extends AdminEnv {
+export interface Env extends AdminEnv, ResultsEnv {
   SESSIONS: DurableObjectNamespace<AssessmentSession>;
   HOST_SECRET?: string;
 }
@@ -52,6 +56,8 @@ type Meta = {
   endedAt?: number;
   /** Teacher hid names: students see "Student N" for everyone except themselves. */
   hideNames?: boolean;
+  /** Fingerprint of the class results last written to the permanent results record. */
+  recordedSig?: string;
 };
 
 type Participant = {
@@ -297,6 +303,69 @@ export class AssessmentSession extends DurableObject<Env> {
 
   /** Single RPC entry point used by the Worker router. */
   async handle(action: string, method: string, body: Record<string, unknown>): Promise<Reply> {
+    const out = await this.handleInner(action, method, body);
+    try {
+      await this.recordIfEnded();
+    } catch {
+      // The results record is best-effort; never break the live session because of it.
+    }
+    return out;
+  }
+
+  /** After the end, copy the class results (real names, rank, per-question detail) into the permanent results record. */
+  private async recordIfEnded(): Promise<void> {
+    if (!this.meta || !this.quiz || !this.env.RESULTS) return;
+    const now = Date.now();
+    if (this.status(now) !== "ended") return;
+    const res = this.results(now, { hostDetail: true });
+    const sig = JSON.stringify(res.rows.map((r) => [r.id, r.score, r.rank, r.submitted]));
+    if (sig === this.meta.recordedSig) return;
+    const q = this.quiz;
+    const m = this.meta;
+    const startAt = m.startAt ?? m.createdAt;
+    const endAt = m.endedAt ?? m.endAt ?? now;
+    const byId = new Map(q.questions.map((x) => [x.id, x]));
+    const text = (lines: { text: string }[]) => lines.map((l) => l.text).join("; ");
+    const records: ResultRecord[] = res.rows.map((r) => ({
+      id: `g_${m.code}_${startAt.toString(36)}_${r.id}`,
+      kind: "group",
+      quizId: q.id,
+      quizSlug: q.slug,
+      quizTitle: q.title,
+      year: typeof q.year === "number" ? q.year : null,
+      name: r.name,
+      sessionCode: m.code,
+      score: r.score,
+      maxScore: r.maxScore,
+      percentage: r.percentage,
+      correct: r.correct,
+      wrong: r.wrong,
+      unanswered: r.unanswered,
+      timeSec: Math.max(0, Math.round(((r.finishedAt ?? endAt) - startAt) / 1000)),
+      finishedAt: r.finishedAt ?? endAt,
+      rank: r.rank,
+      groupSize: res.rows.length,
+      details: (r.details ?? []).map((d, i) => {
+        const question = byId.get(d.questionId);
+        return {
+          n: i + 1,
+          prompt: (question?.prompt ?? "").slice(0, 600),
+          answer: question ? text(describeAnswer(question, d.answer)).slice(0, 600) : "",
+          correctAnswer: question ? text(describeCorrect(question)).slice(0, 600) : "",
+          isCorrect: d.isCorrect,
+          answered: d.answered,
+          earned: d.earned,
+          points: d.points,
+          seconds: d.secondsFromStart,
+        };
+      }),
+    }));
+    await resultsStore(this.env).replaceSession(m.code, startAt, records);
+    m.recordedSig = sig;
+    await this.ctx.storage.put("meta", m);
+  }
+
+  private async handleInner(action: string, method: string, body: Record<string, unknown>): Promise<Reply> {
     const now = Date.now();
 
     if (action === "init") {
@@ -481,6 +550,7 @@ export default {
     // Admin publishing (own CORS: site origins only). See ./admin.ts.
     if (parts[0] === "api" && parts[1] === "admin") return handleAdmin(request, env, parts[2] || "");
     if (parts[0] === "api" && parts[1] === "forum") return handleForum(request, env, parts[2] || "");
+    if (parts[0] === "api" && parts[1] === "results") return handleResults(request, env, parts[2] || "");
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
 
     if (parts.length === 0 || (parts[0] === "api" && parts.length === 1)) {
