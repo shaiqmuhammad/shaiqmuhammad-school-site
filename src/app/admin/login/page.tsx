@@ -9,12 +9,18 @@ import {
   setAdminAuthenticated,
   verifyAdminPassword,
 } from "@/lib/adminAuth";
-import { serverLogin } from "@/lib/adminServer";
+import { getServerSession, serverLogin } from "@/lib/adminServer";
 import { clearLegacyGithubToken } from "@/lib/githubPublish";
 import { useLogoUrl } from "@/components/SiteBrand";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useI18n } from "@/lib/i18n";
+
+/** Same-site page to return to after signing in (?next=/lms/students), else /admin. */
+function nextPath(): string {
+  const n = new URLSearchParams(window.location.search).get("next") || "";
+  return /^\/(?!\/)[\w\-./?=&%]*$/.test(n) ? n : "/admin";
+}
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -28,8 +34,9 @@ export default function AdminLoginPage() {
   useEffect(() => {
     clearLegacyGithubToken();
     setConfigured(isAdminConfigured());
-    if (isAdminAuthenticated()) {
-      router.replace("/admin");
+    // Only skip the form when the server session is valid too (older sessions may lack it → LMS pages need it).
+    if (isAdminAuthenticated() && getServerSession()) {
+      router.replace(nextPath());
     }
   }, [router]);
 
@@ -51,7 +58,7 @@ export default function AdminLoginPage() {
         return;
       }
       setAdminAuthenticated(true);
-      router.replace("/admin");
+      router.replace(nextPath());
     } else {
       setChecking(false);
       setError(t("adminLogin.incorrect"));

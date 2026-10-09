@@ -1,21 +1,48 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { getServerSession } from "@/lib/adminServer";
+import { clearServerSession, getServerSession } from "@/lib/adminServer";
 import { lmsSession, type Actor } from "@/lib/lms";
 import { useI18n } from "@/lib/i18n";
 
-/** Current LMS actor: the signed-in student/teacher, else the admin (admin session on this device). */
-export function useLmsActor(): { actor: Actor | null; asAdmin: boolean; ready: boolean } {
+const ADMIN_ACTOR: Actor = { id: "admin", role: "admin", name: "Admin", cls: "", perms: ["assign", "review", "manageUsers", "viewAll"] };
+const at = (k: string) => Number(localStorage.getItem(k) || 0);
+
+/**
+ * Current LMS actor. With both an admin and a student/teacher session on one device, the most recent sign-in wins
+ * (sessions from before this existed have no time → admin wins). `preferAdmin` (admin-only pages) always uses the
+ * admin session when there is one.
+ */
+export function useLmsActor(preferAdmin = false): { actor: Actor | null; asAdmin: boolean; ready: boolean } {
   const [st, setSt] = useState<{ actor: Actor | null; asAdmin: boolean; ready: boolean }>({ actor: null, asAdmin: false, ready: false });
   useEffect(() => {
     const s = lmsSession();
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (s) setSt({ actor: s.user, asAdmin: false, ready: true });
-    else if (getServerSession()) setSt({ actor: { id: "admin", role: "admin", name: "Admin", cls: "", perms: ["assign", "review", "manageUsers", "viewAll"] }, asAdmin: true, ready: true });
+    const admin = getServerSession();
+    const useAdmin = !!admin && (preferAdmin || !s || at("sm_admin_login_at") >= at("sm_lms_login_at"));
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage is only readable after hydration
+    if (useAdmin) setSt({ actor: ADMIN_ACTOR, asAdmin: true, ready: true });
+    else if (s) setSt({ actor: s.user, asAdmin: false, ready: true });
     else setSt({ actor: null, asAdmin: false, ready: true });
-  }, []);
+  }, [preferAdmin]);
   return st;
+}
+
+/**
+ * The admin token is missing/expired/rejected: go to the admin sign-in once and come back here afterwards.
+ * Returns false (no redirect) if we were just sent there, so a broken sign-in can never loop.
+ */
+export function adminRelogin(): boolean {
+  clearServerSession();
+  try {
+    const last = Number(sessionStorage.getItem("sm_admin_relogin") || 0);
+    if (Date.now() - last < 20_000) return false;
+    sessionStorage.setItem("sm_admin_relogin", String(Date.now()));
+  } catch {
+    // storage unavailable
+  }
+  // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- full reload so the login page reads fresh storage
+  window.location.assign(`/admin/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`);
+  return true;
 }
 
 export function useTr() {

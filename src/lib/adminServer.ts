@@ -49,6 +49,7 @@ export async function serverLogin(password: string): Promise<ServerLoginResult> 
   const data = (await res.json().catch(() => ({}))) as { token?: string; exp?: number; retryAfter?: number };
   if (res.ok && data.token && data.exp) {
     localStorage.setItem(ADMIN_SERVER_SESSION_KEY, JSON.stringify({ token: data.token, exp: data.exp }));
+    localStorage.setItem("sm_admin_login_at", String(Date.now()));
     return { ok: true };
   }
   if (res.status === 401) return { ok: false, reason: "wrong_password" };

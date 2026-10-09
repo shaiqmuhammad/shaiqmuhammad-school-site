@@ -74,6 +74,7 @@ export const lmsApi = {
     const r = await call<{ token: string; exp: number; user: LmsUser }>("login", { username, pin });
     const s: Session = { token: r.token, exp: r.exp, user: { id: r.user.id, role: r.user.role, name: r.user.name, cls: r.user.cls, perms: r.user.perms } };
     localStorage.setItem(SESSION_KEY, JSON.stringify(s));
+    localStorage.setItem("sm_lms_login_at", String(Date.now()));
     return s;
   },
   me: () => call<{ user: Actor }>("me"),
