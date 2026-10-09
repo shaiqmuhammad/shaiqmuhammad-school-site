@@ -36,8 +36,11 @@ export function LmsLogin() {
           data-testid="lms-login"
         >
           <p className="text-4xl" aria-hidden>🎒</p>
-          <h1 className="mt-2 text-3xl font-bold">{tr("Students & teachers", "الطلاب والمعلمون")}</h1>
+          <h1 className="mt-2 text-3xl font-bold">{tr("Student / Teacher login", "دخول الطلاب والمعلمين")}</h1>
           <p className="mt-1 opacity-80">{tr("Sign in with the username and PIN from your teacher.", "سجّل الدخول باسم المستخدم والرقم السري من معلمك.")}</p>
+          <p className="mt-3 rounded-xl bg-sky-50 px-4 py-2 text-sm text-sky-900 dark:bg-sky-900/30 dark:text-sky-100" data-testid="lms-login-help">
+            ℹ️ {tr("Accounts are created by your teacher. Ask your teacher for your username and PIN.", "الحسابات يُنشئها معلمك. اطلب من معلمك اسم المستخدم والرقم السري.")}
+          </p>
           <label className="mt-6 block font-semibold">
             {tr("Username", "اسم المستخدم")}
             <input className={fieldCls + " text-xl"} value={username} onChange={(e) => setUsername(e.target.value)} autoCapitalize="none" autoCorrect="off" autoComplete="username" dir="ltr" data-testid="lms-username" />

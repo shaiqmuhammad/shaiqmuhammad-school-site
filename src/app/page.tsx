@@ -6,6 +6,7 @@ import { CardCarousel } from "@/components/CardCarousel";
 import { EncyclopediaCards } from "@/components/EncyclopediaCards";
 import { TeacherProfileCard } from "@/components/TeacherProfileCard";
 import { Section } from "@/components/Section";
+import { LmsHomeCard } from "@/components/lms/LmsEntry";
 import { siteConfig } from "@/content/site";
 import {
   listPublishedPages,
@@ -65,6 +66,10 @@ export default function HomePage() {
         </div>
         </div>
       </section>
+
+      <Section className="pt-0">
+        <LmsHomeCard />
+      </Section>
 
       {quizzes.length > 0 && (
         <Section id="assessments">
