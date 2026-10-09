@@ -5,7 +5,7 @@ import { ASSESSMENT_API_BASE } from "@/lib/groupSession";
 
 /** LMS phase 1 client (see workers/assessment-session/src/lms.ts). */
 export type Role = "student" | "teacher";
-export type LmsUser = { id: string; username: string; name: string; role: Role; cls: string; section: string; subjects: string[]; scope: string[]; perms: string[]; disabled: boolean; hasPin: boolean; created: number; lastLogin: number | null };
+export type LmsUser = { id: string; username: string; name: string; role: Role; cls: string; section: string; subjects: string[]; scope: string[]; perms: string[]; disabled: boolean; hasPin: boolean; email?: string; created: number; lastLogin: number | null };
 export type Catalog = { subjects: { id: string; name: string }[]; classes: { id: string; name: string }[]; sections: { id: string; name: string; classId: string; cls: string }[] };
 export type DashStudent = { id: string; name: string; cls: string; section: string };
 /** Teacher scope entry: "Year 2" (whole class) or "Year 2|2A" (one section). */

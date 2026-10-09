@@ -1,5 +1,6 @@
 "use client";
 
+import { mailApi } from "@/lib/mail";
 import { StudentProgress } from "@/components/lms/Progress";
 import { Fragment, useCallback, useEffect, useState } from "react";
 import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
@@ -21,7 +22,7 @@ const EMPTY: Catalog = { subjects: [], classes: [], sections: [] };
 /** Add / edit one student or teacher, with dropdowns from Classes & Subjects. */
 function PersonForm({ role, catalog, initial, onSave, submitLabel, testPrefix }: { role: Role; catalog: Catalog; initial?: LmsUser; onSave: (r: Row) => Promise<void>; submitLabel: string; testPrefix: string }) {
   const { tr } = useTr();
-  const [f, setF] = useState({ name: initial?.name || "", username: initial?.username || "", cls: initial?.cls || "", section: initial?.section || "", pin: "", subjects: initial?.subjects || [], scope: initial?.scope || [], perms: initial?.perms || ["assign", "review"], disabled: initial?.disabled || false });
+  const [f, setF] = useState({ name: initial?.name || "", username: initial?.username || "", cls: initial?.cls || "", section: initial?.section || "", pin: "", email: initial?.email || "", subjects: initial?.subjects || [], scope: initial?.scope || [], perms: initial?.perms || ["assign", "review"], disabled: initial?.disabled || false });
   const [busy, setBusy] = useState(false);
   const toggle = (k: "subjects" | "scope" | "perms", v: string) => setF((x) => ({ ...x, [k]: x[k].includes(v) ? x[k].filter((y) => y !== v) : [...x[k], v] }));
   const secs = catalog.sections.filter((s) => s.cls === f.cls);
@@ -33,13 +34,14 @@ function PersonForm({ role, catalog, initial, onSave, submitLabel, testPrefix }:
       onSubmit={async (e) => {
         e.preventDefault();
         setBusy(true);
-        await onSave({ id: initial?.id, role, name: f.name.trim(), username: f.username, cls: role === "student" ? f.cls : "", section: role === "student" ? f.section : "", subjects: role === "teacher" ? f.subjects : [], scope: role === "teacher" ? f.scope : [], perms: role === "teacher" ? f.perms : [], pin: f.pin || undefined, disabled: f.disabled });
+        await onSave({ id: initial?.id, role, name: f.name.trim(), username: f.username, cls: role === "student" ? f.cls : "", section: role === "student" ? f.section : "", subjects: role === "teacher" ? f.subjects : [], scope: role === "teacher" ? f.scope : [], perms: role === "teacher" ? f.perms : [], pin: f.pin || undefined, disabled: f.disabled, email: f.email.trim() });
         setBusy(false);
         if (!initial) setF((x) => ({ ...x, name: "", username: "", pin: "" }));
       }}
     >
       <input className={inputCls + " sm:col-span-2"} placeholder={tr("Full name", "الاسم الكامل")} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} dir="auto" data-testid={`${testPrefix}-name`} aria-label={tr("Full name", "الاسم الكامل")} />
       <input className={inputCls} placeholder={tr("username", "اسم المستخدم")} value={f.username} onChange={(e) => setF({ ...f, username: e.target.value.toLowerCase() })} dir="ltr" data-testid={`${testPrefix}-username`} aria-label={tr("username", "اسم المستخدم")} />
+      <input type="email" className={inputCls + " sm:col-span-2"} placeholder={role === "student" ? tr("Parent email (optional)", "بريد ولي الأمر (اختياري)") : tr("Email (optional)", "البريد (اختياري)")} value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} dir="ltr" data-testid={`${testPrefix}-email`} aria-label={role === "student" ? tr("Parent email (optional)", "بريد ولي الأمر (اختياري)") : tr("Email (optional)", "البريد (اختياري)")} />
       {role === "student" ? (
         <>
           <select className={inputCls} value={f.cls} onChange={(e) => setF({ ...f, cls: e.target.value, section: "" })} data-testid={`${testPrefix}-class`} aria-label={tr("Class", "الصف")}>
@@ -350,6 +352,7 @@ export function LmsAdmin({ role = "student", embedded = false }: { role?: Role; 
                         <td className={td + " whitespace-nowrap"}>
                           <span className="inline-flex gap-0.5">
                             <button type="button" className={iconBtn} onClick={() => setEdit(edit === u.id ? null : u.id)} aria-label={tr(`Edit ${u.name}`, `تعديل ${u.name}`)} title={tr("Edit", "تعديل")} aria-expanded={edit === u.id} data-testid="lms-user-edit">✏️</button>
+                            {u.email && <button type="button" className={iconBtn} onClick={async () => { if (!confirm(tr(`Email the username and PIN to ${u.email}?`, `إرسال اسم المستخدم والرقم السري إلى ${u.email}؟`))) return; try { await mailApi.emailPin(u.id); alert(tr("Sent.", "تم الإرسال.")); } catch (e) { const c = (e as Error).message; alert(c === "mail_not_configured" ? tr("Email isn't connected yet.", "البريد غير متصل بعد.") : c === "reset_pin_first" ? tr("Reset the PIN first so it can be sent.", "أعد تعيين الرقم السري أولاً.") : tr("Couldn't send.", "تعذر الإرسال.")); } }} aria-label={tr(`Email PIN to ${u.email}`, `إرسال الرقم السري إلى ${u.email}`)} title={tr(`Email sign-in details to ${u.email}`, `إرسال بيانات الدخول إلى ${u.email}`)} data-testid="lms-user-email-pin">📧</button>}
                             {role === "student" && <button type="button" className={iconBtn} onClick={() => setProg(prog === u.id ? null : u.id)} aria-label={tr(`Progress of ${u.name}`, `تقدم ${u.name}`)} title={tr("Progress & tracker", "التقدم والمتابعة")} aria-expanded={prog === u.id} data-testid="lms-user-progress">📈</button>}
                             <button type="button" className={iconBtn} onClick={async () => { if (!confirm(tr(`Give ${u.name} a new PIN?`, `رقم سري جديد لـ ${u.name}؟`))) return; const r = await lmsApi.resetPin(u.id, undefined, asAdmin).catch(() => null); if (r) { setPins((p) => [{ username: u.username, name: u.name, pin: r.pin }, ...p]); load(); } }} aria-label={tr(`Reset PIN for ${u.name}`, `إعادة تعيين رقم ${u.name}`)} title={tr("Reset PIN", "إعادة تعيين الرقم")} data-testid="lms-user-pin">🔑</button>
                             <button type="button" className={iconBtn} onClick={async () => { await lmsApi.setStatus([u.id], !u.disabled, asAdmin).catch((e) => setErr(lmsErrorText(e, tr))); load(); }} aria-label={u.disabled ? tr(`Activate ${u.name}`, `تفعيل ${u.name}`) : tr(`Block ${u.name}`, `إيقاف ${u.name}`)} title={u.disabled ? tr("Activate", "تفعيل") : tr("Block", "إيقاف")} data-testid="lms-user-toggle">{u.disabled ? "✅" : "⛔"}</button>
