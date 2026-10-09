@@ -45,7 +45,7 @@ export function originAllowed(origin: string): boolean {
 export function corsHeaders(origin: string | null): Record<string, string> {
   const h: Record<string, string> = {
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-View-As",
     "Access-Control-Max-Age": "86400",
     Vary: "Origin",
   };
