@@ -182,6 +182,8 @@ export default function AdminQuizzes({ setStatus, onNeedToken, data, setData, re
             <label className="flex items-center gap-2 pb-2 text-sm"><input type="checkbox" checked={editing.visible} onChange={(e) => setEditing({ ...editing, visible: e.target.checked })} /> <span className="font-medium">{tr("Show on website", "إظهار على الموقع")}</span> <span className="text-xs text-muted">{tr("(off = not listed; you can still run it as a group session)", "(إيقاف = غير مدرج؛ يمكنك تشغيله كجلسة جماعية)")}</span></label>
             <label className="flex items-center gap-2 pb-2 text-sm"><input type="checkbox" checked={editing.active} onChange={(e) => setEditing({ ...editing, active: e.target.checked, published: e.target.checked })} /> <span className="font-medium">{tr("Active", "نشط")}</span> <span className="text-xs text-muted">{tr("(off = shows “Not available yet”; can’t be started or joined)", "(إيقاف = يظهر «غير متاح بعد»؛ لا يمكن بدؤه أو الانضمام إليه)")}</span></label>
             <label className="flex items-center gap-2 pb-2 text-sm"><input type="checkbox" checked={editing.showAnswers} onChange={(e) => setEditing({ ...editing, showAnswers: e.target.checked })} /> Show answers at end</label>
+            <label className="flex items-center gap-2 pb-2 text-sm" data-testid="cert-individual-toggle"><input type="checkbox" checked={editing.certificateIndividual} onChange={(e) => setEditing({ ...editing, certificateIndividual: e.target.checked })} /> <span className="font-medium">{tr("Certificate (individual)", "شهادة (فردي)")}</span></label>
+            <label className="flex items-center gap-2 pb-2 text-sm" data-testid="cert-group-toggle"><input type="checkbox" checked={editing.certificateGroup} onChange={(e) => setEditing({ ...editing, certificateGroup: e.target.checked })} /> <span className="font-medium">{tr("Certificate (group)", "شهادة (جماعي)")}</span></label>
             <p className="pb-2 text-xs text-muted">Total marks: {quizMaxScore(editing)}</p>
           </div>
 
@@ -266,7 +268,7 @@ export default function AdminQuizzes({ setStatus, onNeedToken, data, setData, re
           </div>
         </div>
         <p className="text-xs text-muted">
-          Live class sessions (Start group session) show their own results table with CSV download. For individual attempts: the site is static, so student attempts are saved in each student’s own browser. To rank the class: collect results (Import local results works for attempts made on this device, e.g. a classroom computer; students can also send you their result), review, then Publish results. Certificates compare each new attempt against published results to show a provisional position.
+          Every attempt (individual and live group) is now also saved permanently on the server — open the Results tab to filter, inspect and download them. Live class sessions (Start group session) show their own results table with CSV download. For individual attempts: the site is static, so student attempts are saved in each student’s own browser. To rank the class: collect results (Import local results works for attempts made on this device, e.g. a classroom computer; students can also send you their result), review, then Publish results. Certificates compare each new attempt against published results to show a provisional position.
         </p>
         {results.results.length === 0 ? <p className="text-sm text-muted">No published results yet.</p> : (
           <div className="overflow-x-auto">
