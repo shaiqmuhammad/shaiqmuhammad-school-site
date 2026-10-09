@@ -58,7 +58,7 @@ export function normalizeAbout(raw: unknown): AboutData {
   if (!raw || typeof raw !== "object") return d;
   const r = raw as { hero?: Record<string, unknown>; sections?: unknown[] };
   const h = r.hero || {};
-  const hero: AboutData["hero"] = { name: s(h.name, 120) || d.hero.name, nameAr: s(h.nameAr, 120), title: s(h.title, 200) ?? d.hero.title, titleAr: s(h.titleAr, 200), bio: s(h.bio, 6000) ?? "", bioAr: s(h.bioAr, 6000), photo: s(h.photo, 1000) || d.hero.photo, email: s(h.email, 200) || d.hero.email, location: s(h.location, 120), locationAr: s(h.locationAr, 120) };
+  const hero: AboutData["hero"] = { name: s(h.name, 120) || d.hero.name, nameAr: s(h.nameAr, 120), title: s(h.title, 200) ?? d.hero.title, titleAr: s(h.titleAr, 200), bio: s(h.bio, 6000) ?? "", bioAr: s(h.bioAr, 6000), photo: s(h.photo, 300000) || d.hero.photo, email: s(h.email, 200) || d.hero.email, location: s(h.location, 120), locationAr: s(h.locationAr, 120) };
   const sections: AboutSection[] = (Array.isArray(r.sections) ? r.sections : []).slice(0, 30).map((x, i) => {
     const o = (x || {}) as Record<string, unknown>;
     return {
@@ -66,7 +66,7 @@ export function normalizeAbout(raw: unknown): AboutData {
       title: s(o.title, 200) || "", titleAr: s(o.titleAr, 200), icon: s(o.icon, 8), hidden: o.hidden === true, text: s(o.text), textAr: s(o.textAr),
       items: (Array.isArray(o.items) ? o.items : []).slice(0, 60).map((y, j) => {
         const it = (y || {}) as Record<string, unknown>;
-        return { id: s(it.id, 60) || `i${j}`, title: s(it.title, 300) || "", titleAr: s(it.titleAr, 300), org: s(it.org, 200), orgAr: s(it.orgAr, 200), period: s(it.period, 80), periodAr: s(it.periodAr, 80), location: s(it.location, 120), locationAr: s(it.locationAr, 120), text: s(it.text, 3000), textAr: s(it.textAr, 3000), logo: s(it.logo, 1000), monogram: s(it.monogram, 8), url: s(it.url, 1000) };
+        return { id: s(it.id, 60) || `i${j}`, title: s(it.title, 300) || "", titleAr: s(it.titleAr, 300), org: s(it.org, 200), orgAr: s(it.orgAr, 200), period: s(it.period, 80), periodAr: s(it.periodAr, 80), location: s(it.location, 120), locationAr: s(it.locationAr, 120), text: s(it.text, 3000), textAr: s(it.textAr, 3000), logo: s(it.logo, 100000), monogram: s(it.monogram, 8), url: s(it.url, 1000) };
       }),
     };
   });

@@ -23,6 +23,17 @@ async function logoDataUrl(f: File): Promise<string> {
   } finally { URL.revokeObjectURL(url); }
 }
 
+/** Square-crop and compress an uploaded portrait to a 320px JPEG data URL. */
+async function photoDataUrl(f: File): Promise<string> {
+  const url = URL.createObjectURL(f);
+  try {
+    const img = await new Promise<HTMLImageElement>((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
+    const side = Math.min(img.width, img.height); const c = document.createElement("canvas"); c.width = c.height = 320;
+    c.getContext("2d")!.drawImage(img, (img.width - side) / 2, 0, side, side, 0, 0, 320, 320);
+    return c.toDataURL("image/jpeg", 0.8);
+  } finally { URL.revokeObjectURL(url); }
+}
+
 /** Admin → About: the public About page (hero + sections + entries), stored in about.json. */
 export default function AdminAbout({ setStatus, onNeedToken, data, setData }: Props) {
   const { lang } = useI18n();
@@ -69,7 +80,12 @@ export default function AdminAbout({ setStatus, onNeedToken, data, setData }: Pr
         {pair(tr("Location", "الموقع"), h.location || "", h.locationAr, (v) => setHero({ location: v }), (v) => setHero({ locationAr: v }))}
         {pair(tr("Short bio", "نبذة قصيرة"), h.bio, h.bioAr, (v) => setHero({ bio: v }), (v) => setHero({ bioAr: v }), true)}
         <div className="grid gap-2 sm:grid-cols-2">
-          <label className="block text-xs font-semibold opacity-80">{tr("Photo / logo URL", "رابط الصورة / الشعار")}<input className={input} dir="ltr" value={h.photo} onChange={(e) => setHero({ photo: e.target.value })} /></label>
+          <div className="flex items-end gap-2">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={h.photo} alt="" className="h-12 w-12 shrink-0 rounded-full border-2 border-sun object-cover" />
+            <label className="block min-w-0 flex-1 text-xs font-semibold opacity-80">{tr("Photo / logo URL", "رابط الصورة / الشعار")}<input className={input} dir="ltr" value={h.photo.startsWith("data:") ? tr("(uploaded photo)", "(صورة مرفوعة)") : h.photo} onChange={(e) => setHero({ photo: e.target.value })} /></label>
+            <label className={pill + " cursor-pointer"}>⬆ {tr("Upload", "رفع")}<input type="file" accept="image/*" className="sr-only" onChange={async (e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) setHero({ photo: await photoDataUrl(f) }); }} /></label>
+          </div>
           <label className="block text-xs font-semibold opacity-80">{tr("Public email", "البريد العام")}<input className={input} dir="ltr" value={h.email} onChange={(e) => setHero({ email: e.target.value })} /></label>
         </div>
         <p className="text-xs opacity-60">{tr("Privacy: keep phone numbers, home address, date of birth and ID numbers off this public page.", "الخصوصية: لا تضع رقم الهاتف أو العنوان أو تاريخ الميلاد أو أرقام الهوية في هذه الصفحة العامة.")}</p>
