@@ -6,53 +6,80 @@ import { smallBtn, useTr } from "@/components/lms/useLms";
 
 const MAX_SECONDS = 180;
 /** Opus in WebM (Chrome/Android/Firefox), MP4/AAC on Safari/iPhone. */
-function pickMime(): string {
-  if (typeof MediaRecorder === "undefined") return "";
-  for (const m of ["audio/webm;codecs=opus", "audio/mp4;codecs=mp4a.40.2", "audio/mp4", "audio/webm", "audio/ogg;codecs=opus"]) if (MediaRecorder.isTypeSupported?.(m)) return m;
-  return "";
+/** Float32 PCM at `rate` -> 16 kHz mono MP3 (32 kbps, ~240 KB/min). */
+async function encodeMp3(chunks: Float32Array[], rate: number): Promise<Blob> {
+  const { Mp3Encoder } = await import("@breezystack/lamejs");
+  const len = chunks.reduce((n, c) => n + c.length, 0);
+  const all = new Float32Array(len);
+  let o = 0;
+  for (const c of chunks) { all.set(c, o); o += c.length; }
+  const OUT = 16000, ratio = rate / OUT, n = Math.floor(len / ratio);
+  const pcm = new Int16Array(n);
+  for (let i = 0; i < n; i++) {
+    const s0 = Math.floor(i * ratio), s1 = Math.max(s0 + 1, Math.min(len, Math.floor((i + 1) * ratio)));
+    let sum = 0;
+    for (let k = s0; k < s1; k++) sum += all[k] || 0;
+    const v = Math.max(-1, Math.min(1, sum / (s1 - s0)));
+    pcm[i] = v < 0 ? v * 0x8000 : v * 0x7fff;
+  }
+  const enc = new Mp3Encoder(1, OUT, 32);
+  const out: Uint8Array[] = [];
+  for (let i = 0; i < n; i += 1152) { const b = enc.encodeBuffer(pcm.subarray(i, i + 1152)); if (b.length) out.push(new Uint8Array(b)); }
+  const end = enc.flush();
+  if (end.length) out.push(new Uint8Array(end));
+  return new Blob(out as BlobPart[], { type: "audio/mpeg" });
 }
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 
 /** Record (max 3 min, ~24 kbps mono), listen back, then save. `onSave` uploads the blob. */
-export function AudioRecorder({ label, onSave, testId = "rec" }: { label: string; onSave: (b: Blob) => Promise<void>; testId?: string }) {
+export function AudioRecorder({ label, onSave, testId = "rec", saveLabel }: { label: string; onSave: (b: Blob) => Promise<void>; testId?: string; saveLabel?: string }) {
   const { tr } = useTr();
   const [state, setState] = useState<"idle" | "rec" | "done" | "saving">("idle");
   const [secs, setSecs] = useState(0);
   const [blob, setBlob] = useState<Blob | null>(null);
   const [url, setUrl] = useState("");
   const [err, setErr] = useState("");
-  const rec = useRef<MediaRecorder | null>(null);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const stream = useRef<MediaStream | null>(null);
-  useEffect(() => () => { if (timer.current) clearInterval(timer.current); stream.current?.getTracks().forEach((t) => t.stop()); }, []);
+  const cap = useRef<{ ctx: AudioContext; proc: ScriptProcessorNode; src: MediaStreamAudioSourceNode; chunks: Float32Array[] } | null>(null);
+  useEffect(() => () => { if (timer.current) clearInterval(timer.current); stream.current?.getTracks().forEach((t) => t.stop()); cap.current?.ctx.close().catch(() => undefined); }, []);
   useEffect(() => () => { if (url) URL.revokeObjectURL(url); }, [url]);
 
-  const stop = () => { if (rec.current?.state === "recording") rec.current.stop(); };
+  // Universal format: mic PCM -> 16 kHz mono -> MP3 (lamejs) in the browser. Plays everywhere incl. iPhone Safari.
+  const stop = async () => {
+    const c = cap.current;
+    if (!c) return;
+    cap.current = null;
+    if (timer.current) clearInterval(timer.current);
+    c.proc.disconnect(); c.src.disconnect();
+    stream.current?.getTracks().forEach((t) => t.stop());
+    window.dispatchEvent(new Event("lms-rec-stop"));
+    document.querySelectorAll("audio").forEach((el) => { el.muted = false; });
+    const rate = c.ctx.sampleRate;
+    await c.ctx.close().catch(() => undefined);
+    const b = await encodeMp3(c.chunks, rate);
+    setBlob(b);
+    setUrl(URL.createObjectURL(b));
+    setState("done");
+  };
   const start = async () => {
     setErr("");
-    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") { setErr(tr("Recording isn't supported in this browser.", "التسجيل غير مدعوم في هذا المتصفح.")); return; }
+    if (!navigator.mediaDevices?.getUserMedia) { setErr(tr("Recording isn't supported in this browser.", "التسجيل غير مدعوم في هذا المتصفح.")); return; }
     try {
-      // Only the student's voice: stop/mute the reciter and any other audio before the mic opens.
       window.dispatchEvent(new Event("lms-rec-start"));
       document.querySelectorAll("audio").forEach((el) => { el.pause(); el.muted = true; });
       const s = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
       stream.current = s;
-      const mime = pickMime();
-      const r = new MediaRecorder(s, { ...(mime ? { mimeType: mime } : {}), audioBitsPerSecond: 24000 });
-      const parts: Blob[] = [];
-      r.ondataavailable = (e) => { if (e.data.size) parts.push(e.data); };
-      r.onstop = () => {
-        window.dispatchEvent(new Event("lms-rec-stop"));
-        document.querySelectorAll("audio").forEach((el) => { el.muted = false; });
-        if (timer.current) clearInterval(timer.current);
-        s.getTracks().forEach((t) => t.stop());
-        const b = new Blob(parts, { type: (r.mimeType || mime || "audio/webm").split(";")[0] });
-        setBlob(b);
-        setUrl(URL.createObjectURL(b));
-        setState("done");
-      };
-      rec.current = r;
-      r.start(1000);
+      const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const ctx = new AC();
+      await ctx.resume().catch(() => undefined);
+      const src = ctx.createMediaStreamSource(s);
+      const proc = ctx.createScriptProcessor(4096, 1, 1);
+      const chunks: Float32Array[] = [];
+      proc.onaudioprocess = (e) => { chunks.push(new Float32Array(e.inputBuffer.getChannelData(0))); };
+      src.connect(proc);
+      proc.connect(ctx.destination);
+      cap.current = { ctx, proc, src, chunks };
       setSecs(0);
       setState("rec");
       const t0 = Date.now();
@@ -83,7 +110,7 @@ export function AudioRecorder({ label, onSave, testId = "rec" }: { label: string
           <audio controls src={url} className="w-full" data-testid={`${testId}-preview`} />
           <div className="flex flex-wrap gap-2">
             <button type="button" className={smallBtn} disabled={state === "saving"} onClick={async () => { setState("saving"); setErr(""); try { await onSave(blob); setBlob(null); setState("idle"); } catch (e) { setErr(lmsErrorText(e, tr)); setState("done"); } }} data-testid={`${testId}-save`}>
-              {state === "saving" ? tr("Saving…", "جارٍ الحفظ…") : "⬆ " + tr("Save recording", "حفظ التسجيل")}
+              {state === "saving" ? tr("Saving…", "جارٍ الحفظ…") : "⬆ " + (saveLabel || tr("Save recording", "حفظ التسجيل"))}
             </button>
             <button type="button" className={smallBtn} disabled={state === "saving"} onClick={() => { setBlob(null); setState("idle"); }} data-testid={`${testId}-redo`}>↺ {tr("Record again", "سجّل مجددًا")}</button>
             <span className="self-center text-xs opacity-60">{mmss(secs)} · {Math.round(blob.size / 1024)} KB</span>
@@ -101,7 +128,7 @@ export function AudioClip({ id, asAdmin = false, label, onDelete, testId = "clip
   const [src, setSrc] = useState<{ url: string; type: string } | null>(null);
   const [err, setErr] = useState("");
   useEffect(() => () => { if (src) URL.revokeObjectURL(src.url); }, [src]);
-  const ext = src?.type.includes("mp4") ? "m4a" : src?.type.includes("ogg") ? "ogg" : "webm";
+  const ext = src?.type.includes("mpeg") ? "mp3" : src?.type.includes("mp4") ? "m4a" : src?.type.includes("ogg") ? "ogg" : "webm";
   return (
     <div className="flex flex-wrap items-center gap-2" data-testid={testId}>
       {label && <span className="text-sm font-semibold">{label}</span>}

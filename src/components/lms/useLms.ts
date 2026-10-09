@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { clearServerSession, getServerSession } from "@/lib/adminServer";
-import { lmsSession, type Actor } from "@/lib/lms";
+import { lmsSession, viewAs, type Actor } from "@/lib/lms";
 import { useI18n } from "@/lib/i18n";
 
 export const ADMIN_ACTOR: Actor = { id: "admin", role: "admin", name: "Admin", cls: "", perms: ["assign", "review", "manageUsers", "viewAll"] };
@@ -11,7 +11,17 @@ export const ADMIN_ACTOR: Actor = { id: "admin", role: "admin", name: "Admin", c
 export function useLmsActor(): { actor: Actor | null; asAdmin: false; ready: boolean; adminElsewhere: boolean } {
   const [st, setSt] = useState<{ actor: Actor | null; asAdmin: false; ready: boolean; adminElsewhere: boolean }>({ actor: null, asAdmin: false, ready: false, adminElsewhere: false });
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage is only readable after hydration
+    // Admin "view as" (opened from Admin → Students/Teachers): ?viewAs=<id>&n=<name>&r=<role>&c=<class> -> this tab only.
+    const p = new URLSearchParams(window.location.search);
+    if (p.get("viewAs") && getServerSession()) {
+      sessionStorage.setItem("sm_view_as", JSON.stringify({ id: p.get("viewAs"), name: p.get("n") || "", role: p.get("r") === "teacher" ? "teacher" : "student", cls: p.get("c") || "" }));
+      ["viewAs", "n", "r", "c"].forEach((k) => p.delete(k));
+      window.history.replaceState(null, "", window.location.pathname + (p.toString() ? `?${p}` : ""));
+    }
+    const va = viewAs();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- storage is only readable after hydration
+    if (va) { setSt({ actor: { id: va.id, role: va.role, name: va.name, cls: va.cls, perms: va.role === "teacher" ? ["assign", "review"] : [], viewAs: true } as Actor, asAdmin: false, ready: true, adminElsewhere: false }); return; }
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- storage is only readable after hydration
     setSt({ actor: lmsSession()?.user ?? null, asAdmin: false, ready: true, adminElsewhere: !!getServerSession() });
   }, []);
   return st;

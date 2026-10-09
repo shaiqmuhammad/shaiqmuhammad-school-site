@@ -5,5 +5,5 @@
  */
 export function isImmersivePath(pathname: string | null | undefined): boolean {
   if (!pathname) return false;
-  return /^\/assessments\/[^/]+/.test(pathname) || /^\/activities\/[^/]+/.test(pathname) || /^\/join(\/|$)/.test(pathname) || /^\/lms(\/|$)/.test(pathname);
+  return /^\/assessments\/[^/]+/.test(pathname) || /^\/activities\/[^/]+/.test(pathname) || /^\/join(\/|$)/.test(pathname) || /^\/lms(\/|$)/.test(pathname) || /^\/q(\/|$)/.test(pathname);
 }

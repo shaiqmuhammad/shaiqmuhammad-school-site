@@ -10,7 +10,7 @@ export type Catalog = { subjects: { id: string; name: string }[]; classes: { id:
 export type DashStudent = { id: string; name: string; cls: string; section: string };
 /** Teacher scope entry: "Year 2" (whole class) or "Year 2|2A" (one section). */
 export const scopeLabel = (s: string) => s.replace("|", " · ");
-export type Actor = { id: string; role: Role | "admin"; name: string; cls: string; perms: string[] };
+export type Actor = { id: string; role: Role | "admin"; name: string; cls: string; perms: string[]; viewAs?: boolean };
 export type Slide = { title: string; text: string; image: string };
 export type QuranData = { surah: number; from: number; to: number; reciter: string; notes: string; translit?: boolean; translation?: boolean };
 export type GeneralData = { slides: Slide[]; question: string };
@@ -50,20 +50,42 @@ export function lmsSignOut() {
   localStorage.removeItem(SESSION_KEY);
 }
 
+/** Admin read-only "view as" (this browser tab only; never touches the user's real LMS session). */
+export type QrLink = { student: string; name: string; cls: string; section: string; token: string };
+export type QrView = { student: string; cls: string; section: string; homework: { title: string; kind: "quran" | "general"; data: Partial<QuranData> }; status: string; grade: Grade | ""; recordings: string[]; attempts: { n: number; grade: Grade; audio: string; at: number }[]; feedback: { by: string; text: string; audio: string; at: number }[]; tracker: TrackerRow[] };
+export type ViewAs = { id: string; name: string; role: "student" | "teacher"; cls: string };
+export function viewAs(): ViewAs | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const v = JSON.parse(sessionStorage.getItem("sm_view_as") || "null") as ViewAs | null;
+    return v && getServerSession() ? v : null;
+  } catch {
+    return null;
+  }
+}
+export function exitViewAs() {
+  try { sessionStorage.removeItem("sm_view_as"); } catch { /* ignore */ }
+}
+function authHeaders(asAdmin = false): Record<string, string> {
+  const va = !asAdmin ? viewAs() : null;
+  if (va) return { Authorization: `Bearer ${getServerSession()!.token}`, "X-View-As": va.id };
+  const tok = bearer(asAdmin);
+  return tok ? { Authorization: `Bearer ${tok}` } : {};
+}
+
 /** Admin pages send ONLY the admin token; the LMS (/lms) sends ONLY the student/teacher token. Never mixed. */
 function bearer(asAdmin = false): string | null {
   return asAdmin ? (getServerSession()?.token ?? null) : (lmsSession()?.token ?? null);
 }
 
 async function call<T>(action: string, body?: unknown, opts: { asAdmin?: boolean; query?: Record<string, string> } = {}): Promise<T> {
-  const tok = bearer(opts.asAdmin);
   const q = opts.query ? "?" + new URLSearchParams(opts.query).toString() : "";
   let res: Response;
   try {
     res = await fetch(`${ASSESSMENT_API_BASE}/api/lms/${action}${q}`, {
       method: body === undefined ? "GET" : "POST",
       cache: "no-store",
-      headers: { ...(body === undefined ? {} : { "Content-Type": "application/json" }), ...(tok ? { Authorization: `Bearer ${tok}` } : {}) },
+      headers: { ...(body === undefined ? {} : { "Content-Type": "application/json" }), ...authHeaders(opts.asAdmin) },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   } catch {
@@ -75,6 +97,10 @@ async function call<T>(action: string, body?: unknown, opts: { asAdmin?: boolean
 }
 
 export const lmsApi = {
+  qrLinks: (hw: string, opts: { student?: string; reset?: boolean; revoke?: boolean } = {}, asAdmin = false) => (opts.student ? call<{ links: QrLink[]; teacher: string }>("qr-links", { hw, ...opts }, { asAdmin }) : call<{ links: QrLink[]; teacher: string }>("qr-links", undefined, { asAdmin, query: { hw } })),
+  qrView: (t: string) => call<QrView>("qr", undefined, { query: { t } }),
+  qrAudioUrl: (t: string, id: string) => `${ASSESSMENT_API_BASE}/api/lms/qr-audio?t=${encodeURIComponent(t)}&id=${encodeURIComponent(id)}`,
+  viewAsLog: () => call<{ items: { uid: string; name: string; role: string; at: number }[] }>("viewas-log", undefined, { asAdmin: true }),
   async login(username: string, pin: string) {
     const r = await call<{ token: string; exp: number; user: LmsUser }>("login", { username, pin });
     const s: Session = { token: r.token, exp: r.exp, user: { id: r.user.id, role: r.user.role, name: r.user.name, cls: r.user.cls, perms: r.user.perms } };
@@ -129,8 +155,7 @@ export const lmsApi = {
   },
   /** Fetches a recording (auth header) and returns an object URL for <audio> / download. */
   async audioUrl(id: string, asAdmin = false) {
-    const tok = bearer(asAdmin);
-    const res = await fetch(`${ASSESSMENT_API_BASE}/api/lms/audio?id=${encodeURIComponent(id)}`, { headers: tok ? { Authorization: `Bearer ${tok}` } : {} }).catch(() => null);
+    const res = await fetch(`${ASSESSMENT_API_BASE}/api/lms/audio?id=${encodeURIComponent(id)}`, { headers: authHeaders(asAdmin) }).catch(() => null);
     if (!res?.ok) throw new LmsError(res ? "not_found" : "network", res?.status || 0);
     const blob = await res.blob();
     return { url: URL.createObjectURL(blob), type: blob.type };
