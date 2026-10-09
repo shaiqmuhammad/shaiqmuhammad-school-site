@@ -170,7 +170,9 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
 
   const lmsLinks = (opts: { rail?: boolean; onPick?: () => void }) =>
     ([
-      ["/lms/admin", tr("Students & Teachers", "الطلاب والمعلمون"), <><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6 6 0 0 1 3.5 6" /></>, "admin-nav-lms-users"],
+      ["/lms/students", tr("Students", "الطلاب"), <><path d="M2 9l10-5 10 5-10 5z" /><path d="M6 11v5c3 2.5 9 2.5 12 0v-5" /></>, "admin-nav-lms-students"],
+      ["/lms/teachers", tr("Teachers", "المعلمون"), <><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20a6.5 6.5 0 0 1 13 0M15 4h7v6h-7" /></>, "admin-nav-lms-teachers"],
+      ["/lms/setup", tr("Classes & Subjects", "الصفوف والمواد"), <><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></>, "admin-nav-lms-setup"],
       ["/lms", tr("Homework", "الواجبات"), <><path d="M4 4h12l4 4v12H4z" /><path d="M8 12h8M8 16h5M8 8h4" /></>, "admin-nav-lms-homework"],
     ] as const).map(([href, text, icon, id]) => (
       <Link
