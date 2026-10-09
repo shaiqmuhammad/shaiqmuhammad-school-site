@@ -115,9 +115,9 @@ export async function setSeen(env: MailEnv, folder: string, uids: number[], seen
 }
 
 /** Personal mail from contact@ (compose/reply); a copy is saved to Sent. */
-export async function sendPersonal(env: MailEnv, m: { to: string[]; cc?: string[]; subject: string; text: string; inReplyTo?: string; attachments?: OutMail["attachments"] }) {
-  const html = `<div style="font-family:Segoe UI,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;white-space:pre-wrap">${m.text.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]!)}</div>`;
-  const { raw } = await sendMail(smtpAcct(env), { from: CONTACT, fromName: "Shaiq Muhammad", to: m.to, cc: m.cc, subject: m.subject, text: m.text, html, attachments: m.attachments, headers: m.inReplyTo ? { "In-Reply-To": m.inReplyTo, References: m.inReplyTo } : undefined });
+export async function sendPersonal(env: MailEnv, m: { to: string[]; cc?: string[]; subject: string; text: string; inReplyTo?: string; attachments?: OutMail["attachments"]; sig?: { html: string; text: string } }) {
+  const html = `<div style="font-family:Segoe UI,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6"><div style="white-space:pre-wrap">${m.text.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]!)}</div>${m.sig?.html || ""}</div>`;
+  const { raw } = await sendMail(smtpAcct(env), { from: CONTACT, fromName: "Shaiq Muhammad", to: m.to, cc: m.cc, subject: m.subject, text: m.text + (m.sig ? "\n" + m.sig.text : ""), html, attachments: m.attachments, headers: m.inReplyTo ? { "In-Reply-To": m.inReplyTo, References: m.inReplyTo } : undefined });
   await withImap(imapAcct(env), async (s) => {
     const sent = (await s.list()).find((f) => f.flags.includes("\\sent") || /^sent( messages)?$/i.test(f.name));
     if (sent) await s.append(sent.path, raw);

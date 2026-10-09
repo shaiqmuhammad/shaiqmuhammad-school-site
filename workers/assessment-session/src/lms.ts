@@ -243,6 +243,10 @@ export class LmsStore extends DurableObject<LmsEnv> {
     return { id: u.id, role: u.role, name: u.name, cls: u.cls, perms: u.perms, scope: u.scope };
   }
 
+  /** RPC for the mail routes: small admin settings (e.g. the email signature). */
+  async getSetting(k: string): Promise<string> { return this.setting(k, ""); }
+  async putSetting(k: string, v: string): Promise<void> { this.sql.exec(`INSERT OR REPLACE INTO settings (k, v) VALUES (?, ?)`, k, v.slice(0, 20000)); }
+
   private setting(k: string, def = ""): string {
     return String(this.sql.exec(`SELECT v FROM settings WHERE k=?`, k).toArray()[0]?.v ?? def);
   }

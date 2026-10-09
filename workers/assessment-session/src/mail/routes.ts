@@ -5,7 +5,7 @@
 import { corsHeaders, reply, verifyToken } from "../admin";
 import type { LmsEnv } from "../lms";
 import { verifySmtp } from "./smtp";
-import { CONTACT } from "./template";
+import { CONTACT, DEFAULT_SIG, parseSig, sigHtml, sigText, type Signature } from "./template";
 import { folders, getMessage, getPart, listMessages, mailReady, sendAuto, sendPersonal, sendToContact, setSeen, unreadInbox } from "./mailbox";
 
 const str = (v: unknown, n: number) => String(v ?? "").trim().slice(0, n);
@@ -34,6 +34,16 @@ export async function handleMail(request: Request, env: LmsEnv, action: string, 
         }
         return reply(origin, out);
       }
+      case "signature": {
+        const store = env.LMS.get(env.LMS.idFromName("main"));
+        if (request.method === "POST") {
+          const b = body.signature as Record<string, unknown> || {};
+          const sg: Signature = { on: b.on !== false, name: str(b.name, 80) || DEFAULT_SIG.name, title: str(b.title, 120), email: str(b.email, 120) || CONTACT, website: /^https?:\/\//i.test(str(b.website, 200)) ? str(b.website, 200) : "", phone: str(b.phone, 40), logo: b.logo !== false };
+          await store.putSetting("mail_sig", JSON.stringify(sg));
+        }
+        const sg = parseSig(await store.getSetting("mail_sig"));
+        return reply(origin, { signature: sg, html: sigHtml(sg) });
+      }
       case "folders": return reply(origin, { folders: await folders(env) });
       case "list": return reply(origin, await listMessages(env, str(q.get("folder") || "INBOX", 200), Math.max(0, Number(q.get("page")) || 0)));
       case "message": {
@@ -56,7 +66,9 @@ export async function handleMail(request: Request, env: LmsEnv, action: string, 
         const text = str(body.text, 100_000);
         if (!subject || !text) return reply(origin, { error: "empty" }, 400);
         const atts = (Array.isArray(body.attachments) ? body.attachments : []).slice(0, 5).map((a: Record<string, unknown>) => ({ filename: str(a.filename, 120), contentType: str(a.contentType, 100), base64: String(a.base64 || "") })).filter((a) => a.base64.length < 7_000_000);
-        await sendPersonal(env, { to, cc: list(body.cc), subject, text, inReplyTo: str(body.inReplyTo, 300) || undefined, attachments: atts });
+        const sig = parseSig(await env.LMS.get(env.LMS.idFromName("main")).getSetting("mail_sig"));
+        const useSig = body.signature === undefined ? sig.on : body.signature === true;
+        await sendPersonal(env, { to, cc: list(body.cc), subject, text, inReplyTo: str(body.inReplyTo, 300) || undefined, attachments: atts, sig: useSig ? { html: sigHtml(sig), text: sigText(sig) } : undefined });
         return reply(origin, { ok: true });
       }
     }

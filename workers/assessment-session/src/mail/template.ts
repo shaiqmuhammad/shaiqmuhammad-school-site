@@ -36,3 +36,16 @@ Questions? Write to <a href="mailto:${CONTACT}" style="color:#1b3a57;font-weight
 export function renderText(e: Branded) {
   return [e.heading, "", ...e.paragraphs, ...(e.button ? ["", `${e.button.label}: ${e.button.url}`] : []), ...(e.note ? ["", e.note] : []), "", "—", `Shaiq Muhammad · ${SITE_URL}`, `Questions: ${CONTACT}`].join("\n");
 }
+
+export type Signature = { on: boolean; name: string; title: string; email: string; website: string; phone?: string; logo: boolean };
+export const DEFAULT_SIG: Signature = { on: true, name: "Shaiq Muhammad", title: "Teacher", email: CONTACT, website: SITE_URL, logo: true };
+export function parseSig(raw: string): Signature {
+  try { const j = JSON.parse(raw); return { ...DEFAULT_SIG, ...j, on: j.on !== false, logo: j.logo !== false }; } catch { return DEFAULT_SIG; }
+}
+export function sigHtml(s: Signature): string {
+  const site = s.website.replace(/^https?:\/\//, "").replace(/\/$/, "");
+  return `<table cellpadding="0" cellspacing="0" style="margin-top:18px;border-top:3px solid #f5c542;padding-top:12px;font-family:Segoe UI,Helvetica,Arial,sans-serif"><tr>${s.logo ? `<td style="padding-right:12px;vertical-align:top"><img src="${SITE_URL}/logo.svg" width="54" height="54" alt="" style="border-radius:50%;border:2px solid #f5c542;background:#fff"></td>` : ""}<td style="vertical-align:top;font-size:13px;line-height:1.5;color:#1b3a57"><div style="font-size:16px;font-weight:800;color:#13283d">${esc(s.name)}</div>${s.title ? `<div style="color:#5b6b7b">${esc(s.title)}</div>` : ""}<div><a href="mailto:${esc(s.email)}" style="color:#1b3a57;font-weight:700;text-decoration:none">${esc(s.email)}</a>${s.phone ? ` · ${esc(s.phone)}` : ""}</div>${s.website ? `<div><a href="${esc(s.website)}" style="color:#c9971a;text-decoration:none;font-weight:700">${esc(site)}</a></div>` : ""}</td></tr></table>`;
+}
+export function sigText(s: Signature): string {
+  return ["", "--", s.name, s.title, s.email + (s.phone ? ` · ${s.phone}` : ""), s.website].filter((x, i) => i < 2 || !!x).join("\n");
+}
