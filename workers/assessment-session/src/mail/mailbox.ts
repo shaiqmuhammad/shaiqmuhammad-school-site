@@ -12,7 +12,7 @@ export interface MailEnv {
 
 /** The Apple account also holds arabzmart.com + personal mail: the server only ever lists/opens mail to/from contact@shaiqmuhammad.com (IMAP SEARCH). */
 const C = '"contact@shaiqmuhammad.com"';
-const SCOPE = `OR OR OR OR TO ${C} CC ${C} FROM ${C} HEADER Delivered-To ${C} HEADER X-Original-To ${C}`;
+const SCOPE = `OR OR TO ${C} CC ${C} FROM ${C}`;
 export const mailReady = (env: MailEnv) => Boolean((env.ICLOUD_SMTP_USER || env.ICLOUD_APPLE_ID) && env.ICLOUD_APP_PASSWORD);
 const imapAcct = (env: MailEnv): ImapAccount => ({ host: "imap.mail.me.com", port: 993, user: (env.ICLOUD_SMTP_USER || env.ICLOUD_APPLE_ID || ""), pass: env.ICLOUD_APP_PASSWORD || "" });
 const smtpAcct = (env: MailEnv) => ({ host: "smtp.mail.me.com", port: 587, user: (env.ICLOUD_SMTP_USER || env.ICLOUD_APPLE_ID || ""), pass: env.ICLOUD_APP_PASSWORD || "" });

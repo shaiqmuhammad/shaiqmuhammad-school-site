@@ -178,6 +178,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     // Phase 2: activity days (streaks), revision tracking, settings, parent links, mistake notes.
     this.sql.exec(`CREATE TABLE IF NOT EXISTS activity (student TEXT, day TEXT, PRIMARY KEY (student, day))`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS settings (k TEXT PRIMARY KEY, v TEXT)`);
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS unlocks (hw TEXT, student TEXT, PRIMARY KEY (hw, student))`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS qr (token TEXT PRIMARY KEY, hw TEXT, student TEXT, created INTEGER)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS viewlog (id TEXT PRIMARY KEY, uid TEXT, name TEXT, role TEXT, at INTEGER)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS contacts (id TEXT PRIMARY KEY, name TEXT, email TEXT, subject TEXT, message TEXT, created INTEGER, read INTEGER DEFAULT 0, emailed INTEGER DEFAULT 0, ip TEXT)`);
@@ -596,7 +597,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
       case "dashboard": {
         if (a.role === "student") {
           if (!a.viewAs) { this.touch(a.id); this.remind(a); }
-          const hw = this.assignedTo(a).map((h) => { const sb = this.sub(h.id, a.id); return { ...h, sub: sb, locked: this.lockedFor(h, a.id), late: !!(h.due && ((sb?.submittedAt || 0) > h.due || (!(sb?.submittedAt) && h.due < Date.now()))) }; });
+          const hw = this.assignedTo(a).map((h) => { const sb = this.sub(h.id, a.id); return { ...h, sub: sb, locked: this.lockedFor(h, a.id), lockedBy: this.lockInfo(h, a.id), late: !!(h.due && ((sb?.submittedAt || 0) > h.due || (!(sb?.submittedAt) && h.due < Date.now()))) }; });
           return { status: 200, body: { homework: hw, tracker: this.trackerOf(a.id), progress: this.progressOf(a.id), leaderboard: this.setting("leaderboard", "off") !== "off" } };
         }
         const all = this.allHomework().filter((h) => a.role === "admin" || a.perms.includes("viewAll") || h.createdBy === a.id);
@@ -616,7 +617,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         if (!h) return { status: 404, body: { error: "not_found" } };
         if (a.role === "student") {
           if (!this.assignees(h).includes(a.id)) return { status: 403, body: { error: "forbidden" } };
-          return { status: 200, body: { homework: { ...h, locked: this.lockedFor(h, a.id) }, sub: this.sub(h.id, a.id) } };
+          return { status: 200, body: { homework: { ...h, locked: this.lockedFor(h, a.id), lockedBy: this.lockInfo(h, a.id) }, sub: this.sub(h.id, a.id) } };
         }
         const names = new Map(this.sql.exec(`SELECT id, name, cls FROM users`).toArray().map((r) => [String(r.id), { name: String(r.name), cls: String(r.cls || "") }]));
         const subs = this.sql.exec(`SELECT * FROM subs WHERE hw=? ORDER BY updated DESC`, h.id).toArray().map((r) => ({ ...this.subOut(r), student: String(r.student), name: names.get(String(r.student))?.name ?? "?", cls: names.get(String(r.student))?.cls ?? "" }));
@@ -689,6 +690,19 @@ export class LmsStore extends DurableObject<LmsEnv> {
         return ok ? { status: 200, body: { ok: true } } : { status: 503, body: { error: "mail_not_configured" } };
       }
 
+      case "hw-unlock": {
+        // Teacher/admin override: let one student work on a Quran homework even though earlier verses aren't passed yet (or re-lock).
+        if (!can(a, "assign") && !can(a, "review")) return { status: 403, body: { error: "forbidden" } };
+        const h = this.allHomework(str(input.hw, 40))[0];
+        if (!h) return { status: 404, body: { error: "not_found" } };
+        const sid = str(input.student, 40);
+        if (input.__method === "POST") {
+          if (input.unlock === false) this.sql.exec(`DELETE FROM unlocks WHERE hw=? AND student=?`, h.id, sid);
+          else this.sql.exec(`INSERT OR IGNORE INTO unlocks (hw, student) VALUES (?, ?)`, h.id, sid);
+        }
+        const locks = this.assignees(h).map((s2) => ({ student: s2, name: String(this.userRow("id=?", s2)?.name || s2), section: String(this.userRow("id=?", s2)?.section || ""), lockedBy: this.lockInfo(h, s2), unlocked: this.sql.exec(`SELECT 1 FROM unlocks WHERE hw=? AND student=?`, h.id, s2).toArray().length > 0 }));
+        return { status: 200, body: { ok: true, locks } };
+      }
       case "qr-links": {
         // Teacher/admin: per-student QR tokens for one homework (created on demand; reset/revoke one).
         if (!can(a, "assign") && !can(a, "review")) return { status: 403, body: { error: "forbidden" } };
@@ -1031,16 +1045,21 @@ export class LmsStore extends DurableObject<LmsEnv> {
     return { status: 200, body: { name: String(u.name), cls: String(u.cls || ""), section: String(u.section || ""), homework: hw, tracker: this.trackerOf(a.id), progress: this.progressOf(a.id) } };
   }
 
-  /** A Quran homework stays locked until every earlier Quran homework on the same surah is passed (green/yellow). */
-  private lockedFor(h: ReturnType<LmsStore["allHomework"]>[number], student: string): boolean {
-    if (h.kind !== "quran") return false;
+  /** A Quran homework stays locked until every earlier Quran homework on the same surah is passed (green/yellow), unless staff unlocked it. */
+  private lockedFor(h: ReturnType<LmsStore["allHomework"]>[number], student: string): boolean { return !!this.lockInfo(h, student); }
+  private lockInfo(h: ReturnType<LmsStore["allHomework"]>[number], student: string): { surah: number; from: number; to: number; title: string } | null {
+    if (h.kind !== "quran") return null;
+    if (this.sql.exec(`SELECT 1 FROM unlocks WHERE hw=? AND student=?`, h.id, student).toArray().length) return null;
     const surah = Number((h.data as { surah?: number }).surah);
-    return this.allHomework().some((o) => {
+    const o = this.allHomework().filter((o) => {
       if (o.id === h.id || o.kind !== "quran" || o.created >= h.created || Number((o.data as { surah?: number }).surah) !== surah) return false;
       if (!this.assignees(o).includes(student)) return false;
       const st = this.sql.exec(`SELECT status FROM subs WHERE hw=? AND student=?`, o.id, student).toArray()[0];
       return st?.status !== "approved";
-    });
+    }).sort((x, y) => x.created - y.created)[0];
+    if (!o) return null;
+    const d = o.data as { surah?: number; from?: number; to?: number };
+    return { surah, from: Number(d.from) || 1, to: Number(d.to) || Number(d.from) || 1, title: o.title };
   }
 }
 

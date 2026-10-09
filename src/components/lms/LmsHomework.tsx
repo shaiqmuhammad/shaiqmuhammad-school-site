@@ -181,8 +181,9 @@ function Comments({ sub }: { sub: Submission }) {
   );
 }
 
-function StudentWork({ hw, sub, reload }: { hw: Data["homework"]; sub: Submission | null; reload: () => void }) {
+function StudentWork({ hw, sub, reload, chapters = [] }: { hw: Data["homework"]; sub: Submission | null; reload: () => void; chapters?: Chapter[] }) {
   const { tr } = useTr();
+  const lockName = (n: number, l: "en" | "ar") => { const c = chapters.find((x) => x.id === n); return c ? (l === "ar" ? c.name_arabic : c.name_simple) : String(n); };
   const [text, setText] = useState(sub?.text || "");
   const [practised, setPractised] = useState(sub?.practised || false);
   const [busy, setBusy] = useState(false);
@@ -209,7 +210,7 @@ function StudentWork({ hw, sub, reload }: { hw: Data["homework"]; sub: Submissio
         <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${STATUS_STYLE[sub?.status || "none"]}`} data-testid="hw-status">{statusLabel(sub?.status || "none", tr)}</span>
         {sub?.grade && <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${GRADE_STYLE[sub.grade]}`} data-testid="hw-grade">{gradeLabel(sub.grade, tr)}</span>}
       </div>
-      {hw.locked && <p className="rounded-2xl bg-black/5 px-3 py-2 font-semibold dark:bg-white/10" data-testid="hw-locked">🔒 {tr("Finish the earlier verses first — this unlocks when your teacher passes them (green or yellow).", "أكمل الآيات السابقة أولًا — تُفتح عندما يجتازها معلمك (أخضر أو أصفر).")}</p>}
+      {hw.locked && <p className="rounded-2xl bg-black/5 px-3 py-2 font-semibold dark:bg-white/10" data-testid="hw-locked">🔒 {hw.lockedBy ? tr(`Finish Surah ${lockName(hw.lockedBy.surah, "en")} verses ${hw.lockedBy.from}–${hw.lockedBy.to} first — your teacher must pass them (green or yellow).`, `أكمل سورة ${lockName(hw.lockedBy.surah, "ar")} الآيات ${hw.lockedBy.from}–${hw.lockedBy.to} أولًا — يجب أن يجتازها معلمك (أخضر أو أصفر).`) : tr("Finish the earlier verses first — your teacher must pass them (green or yellow).", "أكمل الآيات السابقة أولًا — يجب أن يجتازها معلمك (أخضر أو أصفر).")}</p>}
       {again && <p className="rounded-2xl bg-rose-50 px-3 py-2 font-semibold text-rose-900 dark:bg-rose-900/30 dark:text-rose-100" data-testid="hw-practise-again">🔴 {tr("Practise again: same verses. Listen to your teacher's feedback, practise, then record again and hand in.", "تدرّب مجددًا: نفس الآيات. استمع لتعليق معلمك، تدرّب، ثم سجّل مجددًا وسلّم.")}</p>}
       {sub?.status === "approved" && sub.grade && <p className="rounded-2xl bg-emerald-50 px-3 py-2 font-semibold text-emerald-900 dark:bg-emerald-900/30 dark:text-emerald-100" data-testid="hw-passed">🎉 {tr("Passed! You can move on to the next verses.", "نجحت! يمكنك الانتقال إلى الآيات التالية.")}</p>}
       {hw.kind === "quran" ? (
@@ -391,6 +392,7 @@ export function LmsHomework() {
               <div className="flex flex-wrap gap-2">
                 <button type="button" className={smallBtn} onClick={async () => { try { const r = await lmsApi.qrLinks(hw.id, {}, asAdmin); await studentQrCardsPdf(hw, { surahEn: ch?.name_simple, surahAr: ch?.name_arabic, verses: q ? `${tr("verses", "الآيات")} ${q.from}–${q.to}` : "", teacher: r.teacher, links: r.links }); } catch { setErr(tr("Couldn't make the QR cards.", "تعذر إنشاء بطاقات QR.")); } }} data-testid="hw-qr-pdf">🔳 {tr("Student QR cards (PDF)", "بطاقات QR للطلاب (PDF)")}</button>
                 <QrLinks hwId={hw.id} asAdmin={asAdmin} />
+                {hw.kind === "quran" && <LockList hwId={hw.id} asAdmin={asAdmin} />}
                 <button
                   type="button"
                   className={smallBtn}
@@ -419,7 +421,7 @@ export function LmsHomework() {
             )}
             {editing && <HomeworkEditor initial={hw} classes={extra.classes} students={extra.students} catalog={extra.catalog} scope={extra.scope} asAdmin={asAdmin} onCancel={() => setEditing(false)} onSaved={() => { setEditing(false); load(); }} />}
             {hw.kind === "quran" ? <QuranReader data={hw.data as QuranData} mistakes={(d.sub?.mistakes || [])} /> : <Slides data={hw.data as GeneralData} />}
-            {!staff && <StudentWork key={d?.sub?.updated || 0} hw={hw} sub={d?.sub || null} reload={load} />}
+            {!staff && <StudentWork key={d?.sub?.updated || 0} hw={hw} sub={d?.sub || null} reload={load} chapters={chapters} />}
             {staff && (
               <section className="space-y-3">
                 <h2 className="text-xl font-bold">{tr("Submissions", "التسليمات")} ({d?.subs?.length || 0})</h2>
@@ -460,6 +462,31 @@ function QrLinks({ hwId, asAdmin }: { hwId: string; asAdmin: boolean }) {
           ))}
         </ul>
       )}
+    </details>
+  );
+}
+
+/** Staff override for the same-surah lock: see who is waiting on earlier verses and unlock (or re-lock) per student. */
+function LockList({ hwId, asAdmin }: { hwId: string; asAdmin: boolean }) {
+  const { tr } = useTr();
+  type L = Awaited<ReturnType<typeof lmsApi.hwLocks>>["locks"];
+  const [locks, setLocks] = useState<L | null>(null);
+  const act = (student: string, unlock: boolean) => lmsApi.hwLocks(hwId, { student, unlock }, asAdmin).then((r) => setLocks(r.locks)).catch(() => undefined);
+  const shown = (locks || []).filter((l) => l.lockedBy || l.unlocked);
+  return (
+    <details className="w-full" onToggle={(e) => { if ((e.target as HTMLDetailsElement).open && !locks) lmsApi.hwLocks(hwId, {}, asAdmin).then((r) => setLocks(r.locks)).catch(() => setLocks([])); }} data-testid="hw-locks">
+      <summary className={smallBtn + " cursor-pointer"}>🔒 {tr("Locked students", "الطلاب المقفلون")}</summary>
+      {locks && (shown.length === 0 ? <p className="mt-2 text-sm opacity-70">{tr("Nobody is locked on this homework.", "لا يوجد طالب مقفل في هذا الواجب.")}</p> : (
+        <ul className="mt-2 divide-y divide-black/5 rounded-2xl border border-black/10 text-sm dark:divide-white/10 dark:border-white/15">
+          {shown.map((l) => (
+            <li key={l.student} className="flex flex-wrap items-center gap-2 px-3 py-2">
+              <span className="flex-1" dir="auto"><b>{l.name}</b> <span className="opacity-60">{l.section}</span><br /><span className="text-xs opacity-70">{l.lockedBy ? tr(`Waiting on Surah ${l.lockedBy.surah}, verses ${l.lockedBy.from}–${l.lockedBy.to}`, `ينتظر سورة ${l.lockedBy.surah}، الآيات ${l.lockedBy.from}–${l.lockedBy.to}`) : tr("Unlocked by staff", "فتحه المعلم")}</span></span>
+              {l.lockedBy ? <button type="button" className={smallBtn} onClick={() => act(l.student, true)} data-testid="hw-unlock">🔓 {tr("Unlock", "فتح")}</button>
+                : <button type="button" className={smallBtn} onClick={() => act(l.student, false)}>🔒 {tr("Lock again", "أعد القفل")}</button>}
+            </li>
+          ))}
+        </ul>
+      ))}
     </details>
   );
 }
