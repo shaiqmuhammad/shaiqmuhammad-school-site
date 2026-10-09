@@ -9,6 +9,7 @@ import { QuizReview } from "@/components/QuizReview";
 import { localizedDescription, localizedTitle, useAssessmentText } from "@/lib/assessmentI18n";
 import { downloadCertificatePdf } from "@/lib/certificatePdf";
 import { newId } from "@/lib/content";
+import { recordAttempt } from "@/lib/resultsRecord";
 import {
   appendLocalResult,
   computeRank,
@@ -77,6 +78,7 @@ export function QuizPlayer({ quiz, initialTemplate, initialResults }: Props) {
   const [showMissing, setShowMissing] = useState(false);
   const answersRef = useRef(answers);
   const submittedRef = useRef(false);
+  const startedAtRef = useRef<number | null>(null);
 
   const title = localizedTitle(quiz, lang);
   const total = quiz.questions.length;
@@ -113,6 +115,15 @@ export function QuizPlayer({ quiz, initialTemplate, initialResults }: Props) {
       } catch {
         // storage unavailable — still show the result
       }
+      // Permanent server record for the teacher's Results tab (best effort).
+      void recordAttempt({
+        quiz,
+        name: r.name,
+        score,
+        maxScore: max,
+        answers: answersRef.current,
+        timeSec: startedAtRef.current ? Math.round((Date.now() - startedAtRef.current) / 1000) : null,
+      });
       setFinalAnswers(answersRef.current);
       setResult(r);
       setRank(computeRank(published, quiz.id, r));
@@ -146,6 +157,7 @@ export function QuizPlayer({ quiz, initialTemplate, initialResults }: Props) {
     setCurrent(0);
     setEndAt(quiz.timeLimitMinutes > 0 ? Date.now() + quiz.timeLimitMinutes * 60_000 : null);
     setNow(Date.now());
+    startedAtRef.current = Date.now();
     setPhase("running");
   }
 
@@ -231,13 +243,16 @@ export function QuizPlayer({ quiz, initialTemplate, initialResults }: Props) {
               </p>
             )}
             <div className="mt-6 flex flex-wrap gap-3">
-              <button
-                type="button"
-                onClick={() => downloadCertificatePdf({ template, result, quizTitle: quiz.title, positionLabel: positionLabel() })}
-                className={primaryBtn}
-              >
-                {a("downloadCertificate")}
-              </button>
+              {quiz.certificateIndividual && (
+                <button
+                  type="button"
+                  onClick={() => downloadCertificatePdf({ template, result, quizTitle: quiz.title, positionLabel: positionLabel() })}
+                  className={primaryBtn}
+                  data-testid="download-certificate"
+                >
+                  {a("downloadCertificate")}
+                </button>
+              )}
               <Link href="/assessments" className={ghostBtn}>
                 {a("allAssessments")}
               </Link>
