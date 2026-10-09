@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
 import { AssessmentShell, primaryBtn } from "@/components/assessment/AssessmentShell";
 import { downloadCredentials, downloadUsersTemplate, exportAllHomeworkZip, parseUsersXlsx } from "@/components/lms/lmsFiles";
 import { card, inputCls, smallBtn, useLmsActor, useTr } from "@/components/lms/useLms";
@@ -70,7 +71,7 @@ export function LmsAdmin() {
   const errText = (e: string) => ({ username: tr("username must be 3+ letters/numbers", "اسم المستخدم 3 أحرف على الأقل"), username_taken: tr("username already used", "اسم المستخدم مستخدم"), name: tr("name missing", "الاسم مفقود"), pin_digits: tr("PIN must be 4–8 digits", "الرقم السري من 4 إلى 8 أرقام"), admin_only: tr("only the admin can edit teachers", "فقط المدير يعدّل المعلمين"), full: tr("user limit reached", "تم بلوغ الحد") })[e] || e;
 
   return (
-    <AssessmentShell title={tr("Students & teachers", "الطلاب والمعلمون")} exitHref={asAdmin ? "/admin" : "/lms"} wide>
+    <AssessmentShell title={tr("Students & teachers", "الطلاب والمعلمون")} exitHref={asAdmin ? "/admin" : "/lms"} wide toolbar={<LmsStaffToolbar />}>
       <div className="mx-auto w-full max-w-6xl flex-1 space-y-5 px-3 py-5 sm:px-6" data-testid="lms-admin">
         {err && <p className="rounded-xl bg-rose-100 px-4 py-2 text-rose-800" role="alert">{err}</p>}
 

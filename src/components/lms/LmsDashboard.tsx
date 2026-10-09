@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
 import { AssessmentShell, primaryBtn } from "@/components/assessment/AssessmentShell";
 import { HomeworkEditor } from "@/components/lms/HomeworkEditor";
 import { exportAllHomeworkZip } from "@/components/lms/lmsFiles";
@@ -52,8 +53,9 @@ export function LmsDashboard() {
       title={staff ? tr("Teacher dashboard", "لوحة المعلم") : tr("My homework", "واجباتي")}
       exitHref={asAdmin ? "/admin" : "/"}
       wide
+      toolbar={staff ? <LmsStaffToolbar /> : undefined}
       actions={
-        actor && !asAdmin ? (
+        actor && !asAdmin && !staff ? (
           <button type="button" className="rounded-full border border-white/25 px-3 py-1 text-sm font-semibold text-white hover:bg-white/10" onClick={() => { lmsSignOut(); router.push("/lms/login"); }} data-testid="lms-signout">
             {tr("Sign out", "خروج")}
           </button>
