@@ -15,6 +15,7 @@ import {
 import { type ForumData, type ForumThread, emptyForum, loadForumData, mergeForumLocal, normalizeForum } from "@/lib/forum";
 import { AdminForumQueue } from "@/components/AdminForumQueue";
 import { AdminResults } from "@/components/AdminResults";
+import { AdminActivities } from "@/components/AdminActivities";
 import { forumPendingCount } from "@/lib/adminServer";
 import AdminQuizzes from "@/components/AdminQuizzes";
 import AdminCertificate from "@/components/AdminCertificate";
@@ -36,7 +37,7 @@ import { AdminHome } from "@/components/AdminHome";
 import AdminSettings from "@/components/AdminSettings";
 import { useI18n } from "@/lib/i18n";
 
-type Tab = "home" | "pages" | "videos" | "quizzes" | "certificate" | "banners" | "announcements" | "teacher" | "forum" | "results" | "settings";
+type Tab = "home" | "pages" | "videos" | "quizzes" | "certificate" | "banners" | "announcements" | "teacher" | "forum" | "results" | "activities" | "settings";
 const emptyPage = (): ContentPage => ({ id: newId("page"), slug: "", title: "", excerpt: "", body: "", published: true, updatedAt: new Date().toISOString() });
 const emptyVideo = (): ContentVideo => ({ id: newId("video"), title: "", youtubeId: "", description: "", published: true, updatedAt: new Date().toISOString() });
 
@@ -377,6 +378,7 @@ export default function AdminCms() {
           </form>
         )}
         {tab==="results" && <AdminResults quizzes={quizzesData.quizzes} />}
+        {tab==="activities" && <AdminActivities />}
         {tab==="forum" && (
           <section className="space-y-4">
             <div className="flex flex-wrap justify-between gap-2">
