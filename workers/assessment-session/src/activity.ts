@@ -289,6 +289,10 @@ export class ClassActivity extends DurableObject<ActivityEnv> {
           const nItems = Number(this.sql.exec(`SELECT COUNT(*) AS n FROM items`).one().n);
           if (nItems >= MAX_ITEMS) return { status: 409, body: { error: "full" } };
           this.sql.exec(`INSERT INTO items (id, pid, kind, data, status, created) VALUES (?, ?, 'word', ?, 'approved', ?)`, rand(12), me.id, JSON.stringify(r), Date.now());
+        } else if (m.type === "tps") {
+          // Private "think" note: one per student, visible to the student, their partner and the teacher.
+          this.sql.exec(`DELETE FROM items WHERE pid=? AND kind='think'`, me.id);
+          this.sql.exec(`INSERT INTO items (id, pid, kind, data, status, created) VALUES (?, ?, 'think', ?, 'approved', ?)`, rand(12), me.id, JSON.stringify(r), Date.now());
         } else {
           // One response per student (poll / vote / survey): replace the previous one.
           this.sql.exec(`DELETE FROM items WHERE pid=? AND kind='response'`, me.id);
@@ -433,6 +437,12 @@ export class ClassActivity extends DurableObject<ActivityEnv> {
       });
       return { answers: out };
     }
+    if (m.type === "tps") {
+      const text = str(d.text, 600);
+      if (!text) return { error: "empty" };
+      if (isProfane(text)) return { error: "language" };
+      return { text };
+    }
     return { error: "not_supported" };
   }
 
@@ -471,14 +481,19 @@ export class ClassActivity extends DurableObject<ActivityEnv> {
     }
     // Poll/vote/survey: students only see their own response; results are summarised for everyone when shown.
     const rows = this.sql.exec(`SELECT * FROM items ORDER BY created`).toArray();
+    const opts = m.settings.options as Json;
+    const pairs = Array.isArray(opts.pairs) ? (opts.pairs as unknown[]).filter(Array.isArray).map((g) => (g as unknown[]).map(String)) : [];
+    const partners = new Set<string>(pairs.find((g) => g.includes(meId)) ?? [meId]);
+    const anonymous = m.type === "vote" && opts.anonymous === true;
     const items = rows
       .filter((r) => isHost || r.status === "approved" || r.pid === meId)
       .filter((r) => isHost || r.kind !== "response" || r.pid === meId)
+      .filter((r) => isHost || r.kind !== "think" || partners.has(String(r.pid)))
       .map((r) => ({
         id: String(r.id),
-        pid: String(r.pid),
+        pid: anonymous && r.kind === "response" && r.pid !== meId ? "" : String(r.pid),
         mine: r.pid === meId,
-        author: r.pid === "host" ? "Teacher" : nameOf.get(String(r.pid)) ?? "Student",
+        author: anonymous && r.kind === "response" ? "Anonymous" : r.pid === "host" ? "Teacher" : nameOf.get(String(r.pid)) ?? "Student",
         kind: String(r.kind),
         data: JSON.parse(String(r.data || "{}")),
         status: String(r.status),
