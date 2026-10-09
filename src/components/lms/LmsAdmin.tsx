@@ -112,6 +112,7 @@ export function LmsAdmin({ role = "student", embedded = false }: { role?: Role; 
   const [copied, setCopied] = useState("");
   const [errors, setErrors] = useState<{ row: number; username: string; error: string }[]>([]);
   const [preview, setPreview] = useState<Row[] | null>(null);
+  const [drawer, setDrawer] = useState<"add" | "bulk" | null>(null);
   const [progress, setProgress] = useState("");
   const [edit, setEdit] = useState<string | null>(null);
   const [prog, setProg] = useState<string | null>(null);
@@ -197,7 +198,7 @@ export function LmsAdmin({ role = "student", embedded = false }: { role?: Role; 
   const PAGE = 25;
   const pages = Math.max(1, Math.ceil(sorted.length / PAGE));
   const pageRows = sorted.slice(Math.min(page, pages - 1) * PAGE, Math.min(page, pages - 1) * PAGE + PAGE);
-  const iconBtn = "inline-flex h-8 w-8 items-center justify-center rounded-full hover:bg-black/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 dark:hover:bg-white/10";
+  const iconBtn = "inline-flex h-7 w-7 text-[13px] items-center justify-center rounded-full hover:bg-black/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 dark:hover:bg-white/10";
   const bulk = async (disabled: boolean) => {
     await lmsApi.setStatus([...sel], disabled, asAdmin).catch((e) => setErr(lmsErrorText(e, tr)));
     setSel(new Set());
@@ -207,9 +208,8 @@ export function LmsAdmin({ role = "student", embedded = false }: { role?: Role; 
 
   return (
     <Frame embedded={embedded} title={title}>
-      <div className={embedded ? "space-y-5" : "mx-auto w-full max-w-6xl flex-1 space-y-5 px-3 py-5 sm:px-6"} data-testid="lms-admin" data-role={role}>
+      <div className={embedded ? "w-full space-y-4" : "w-full flex-1 space-y-4 px-3 py-5 sm:px-6"} data-testid="lms-admin" data-role={role}>
         {err && <p className="rounded-xl bg-rose-100 px-4 py-2 text-rose-800" role="alert">{err}</p>}
-        {embedded ? <h2 className="text-2xl font-extrabold" data-testid="admin-lms-heading">{title}</h2> : <nav className="flex flex-wrap gap-2 text-sm"><a className={smallBtn} href="/lms">📚 {tr("Homework", "الواجبات")}</a></nav>}
 
         {pins.length > 0 && (
           <section className="rounded-3xl border-2 border-amber-400 bg-amber-50 p-4 dark:bg-amber-900/30" data-testid="lms-pins">
@@ -224,47 +224,73 @@ export function LmsAdmin({ role = "student", embedded = false }: { role?: Role; 
           </section>
         )}
 
-        <details className={card + " space-y-3 [&[open]>summary]:mb-3"}>
-          <summary className="cursor-pointer text-lg font-bold marker:text-primary" data-testid="lms-toggle-add">+ {role === "teacher" ? tr("Add a teacher", "إضافة معلم") : tr("Add a student", "إضافة طالب")}</summary>
-          <PersonForm role={role} catalog={catalog} onSave={async (r) => { await saveMany([r]); }} submitLabel={"+ " + tr("Add", "إضافة")} testPrefix="lms-new" />
-        </details>
-
-        <details className={card + " space-y-3 [&[open]>summary]:mb-3"}>
-          <summary className="cursor-pointer text-lg font-bold marker:text-primary" data-testid="lms-toggle-bulk">{tr("Bulk upload (Excel)", "رفع جماعي (إكسل)")}</summary>
-          <div className="flex flex-wrap items-center gap-2">
-            <button type="button" className={smallBtn} onClick={() => downloadUsersTemplate(role, catalog)} data-testid="lms-template">⬇ {role === "teacher" ? tr("Teachers template", "قالب المعلمين") : tr("Students template", "قالب الطلاب")}</button>
-            <label className={smallBtn + " cursor-pointer"}>
-              ⬆ {tr("Upload .xlsx", "رفع ملف .xlsx")}
-              <input type="file" accept=".xlsx" className="sr-only" data-testid="lms-upload" onChange={async (e) => { const f = e.target.files?.[0]; e.target.value = ""; if (!f) return; try { setPreview(await parseUsersXlsx(f, role, catalog)); } catch { setErr(tr("That file couldn't be read — use the template.", "تعذرت قراءة الملف — استخدم القالب.")); } }} />
-            </label>
-            {progress && <span className="font-semibold" data-testid="lms-progress">{tr("Saving", "جارٍ الحفظ")} {progress}…</span>}
+        <header className="flex flex-wrap items-center gap-3" data-testid="lms-page-head">
+          <div className="min-w-0 flex-1">
+            <h2 className="text-2xl font-extrabold tracking-tight" data-testid="admin-lms-heading">{title}</h2>
+            <p className="text-sm opacity-70">{tr(`${people.length} total · ${filtered.length} shown`, `${people.length} إجمالي · ${filtered.length} معروض`)}</p>
           </div>
-          {preview && (
-            <div className="space-y-2" data-testid="lms-preview">
-              <p className="font-semibold">{tr(`${preview.length} rows ready`, `${preview.length} صفًا جاهزًا`)}</p>
-              <div className="max-h-60 overflow-auto rounded-xl border border-black/10 dark:border-white/15">
-                <table className="w-full text-sm">
-                  <tbody>{preview.map((r, i) => (<tr key={i} className="border-t border-black/5 dark:border-white/10"><td className="p-1.5" dir="auto">{r.name}</td><td className="p-1.5 font-mono">{r.username}</td><td className="p-1.5">{role === "student" ? [r.cls, r.section].filter(Boolean).join(" · ") : `${(r.subjects || []).join(", ")} — ${(r.scope || []).map(scopeLabel).join(", ")}`}</td><td className="p-1.5">{r.pin ? "••••" : tr("auto", "تلقائي")}</td></tr>))}</tbody>
-                </table>
-              </div>
-              <div className="flex gap-2">
-                <button type="button" className={primaryBtn} disabled={!!progress} onClick={async () => { const rows = preview; setPreview(null); await saveMany(rows); }} data-testid="lms-import">{tr("Import", "استيراد")}</button>
-                <button type="button" className={smallBtn} onClick={() => setPreview(null)}>{tr("Cancel", "إلغاء")}</button>
-              </div>
-            </div>
-          )}
-          {errors.length > 0 && <ul className="space-y-1 text-sm text-rose-700 dark:text-rose-300" data-testid="lms-import-errors">{errors.map((e, i) => <li key={i}>{tr("Row", "صف")} {e.row} ({e.username || "—"}): {errText(e.error)}</li>)}</ul>}
-        </details>
-
-        <section className={card + " space-y-3"}>
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-xl font-bold">{title} ({filtered.length}{filtered.length !== people.length ? ` / ${people.length}` : ""})</h2>
-            <span className="flex-1" />
-            {asAdmin && <button type="button" className={smallBtn} onClick={async () => { try { await downloadSignInSheet(sorted, await allPins(), role); } catch (e) { setErr(lmsErrorText(e, tr)); } }} data-testid="lms-signin-sheet">⬇ {tr("Sign-in sheet", "ورقة الدخول")}</button>}
-            {asAdmin && role === "student" && <button type="button" className={smallBtn} onClick={() => exportAllHomeworkZip(asAdmin).catch((e) => setErr(lmsErrorText(e, tr)))} data-testid="lms-admin-export">⬇ {tr("All homework (ZIP)", "كل الواجبات (ZIP)")}</button>}
+          <div className="flex flex-wrap items-center gap-1.5" role="toolbar" aria-label={tr("Actions", "إجراءات")}>
+            <HeadBtn label={role === "teacher" ? tr("Add teacher", "إضافة معلم") : tr("Add student", "إضافة طالب")} text={tr("Add", "إضافة")} primary onClick={() => setDrawer("add")} testId="lms-toggle-add" icon={<path d="M15 19a6 6 0 0 0-12 0M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm10-3v6m3-3h-6" />} />
+            <HeadBtn label={tr("Bulk add from Excel", "إضافة جماعية من إكسل")} text={tr("Bulk add", "إضافة جماعية")} onClick={() => setDrawer("bulk")} testId="lms-toggle-bulk" icon={<path d="M12 16V4m0 0-4 4m4-4 4 4M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" />} />
+            <HeadBtn label={role === "teacher" ? tr("Teachers template (Excel)", "قالب المعلمين (إكسل)") : tr("Students template (Excel)", "قالب الطلاب (إكسل)")} text={tr("Template", "القالب")} onClick={() => downloadUsersTemplate(role, catalog)} testId="lms-template" icon={<path d="M12 4v12m0 0-4-4m4 4 4-4M4 20h16" />} />
+            {asAdmin && <HeadBtn label={tr("Download sign-in sheet (shown rows)", "تنزيل ورقة الدخول (الصفوف المعروضة)")} text={tr("Sign-in sheet", "ورقة الدخول")} onClick={async () => { try { await downloadSignInSheet(sorted, await allPins(), role); } catch (e) { setErr(lmsErrorText(e, tr)); } }} testId="lms-signin-sheet" icon={<path d="M6 3h9l4 4v14H6zM14 3v5h5M9 13h7M9 17h7M9 9h2" />} />}
+            {asAdmin && role === "student" && <HeadBtn label={tr("All homework (ZIP)", "كل الواجبات (ZIP)")} text="ZIP" onClick={() => exportAllHomeworkZip(asAdmin).catch((e) => setErr(lmsErrorText(e, tr)))} testId="lms-admin-export" icon={<path d="M4 7h16v13H4zM4 7l2-3h12l2 3M10 11h4" />} />}
           </div>
+        </header>
+
+        <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1" data-testid="lms-stats">
+          <Stat label={tr("Total", "الإجمالي")} value={people.length} onClick={() => setFStatus("")} active={!fStatus} />
+          <Stat label={tr("Active", "نشط")} value={people.filter((u) => !u.disabled).length} tone="ok" onClick={() => setFStatus("active")} active={fStatus === "active"} />
+          <Stat label={tr("Blocked", "موقوف")} value={people.filter((u) => u.disabled).length} tone="bad" onClick={() => setFStatus("blocked")} active={fStatus === "blocked"} />
+          {role === "student" && catalog.classes.map((c) => ({ c, n: people.filter((u) => u.cls === c.name).length })).filter((x) => x.n > 0).map(({ c, n }) => (
+            <Stat key={c.id} label={c.name} value={n} onClick={() => { setFCls(fCls === c.name ? "" : c.name); setFSec(""); setPage(0); }} active={fCls === c.name} small />
+          ))}
+        </div>
+
+        {drawer && (
+          <div className="fixed inset-0 z-[70] flex justify-end bg-black/40 backdrop-blur-[2px]" onClick={() => setDrawer(null)} data-testid="lms-drawer-backdrop">
+            <aside role="dialog" aria-modal="true" aria-label={drawer === "add" ? tr("Add", "إضافة") : tr("Bulk add", "إضافة جماعية")} className="flex h-full w-full max-w-md flex-col overflow-y-auto bg-white p-5 shadow-2xl dark:bg-[#0f1a26] sm:rounded-s-3xl" onClick={(e) => e.stopPropagation()} data-testid="lms-drawer">
+              <div className="mb-4 flex items-center gap-2">
+                <h3 className="flex-1 text-lg font-extrabold">{drawer === "add" ? (role === "teacher" ? tr("Add a teacher", "إضافة معلم") : tr("Add a student", "إضافة طالب")) : tr("Bulk add (Excel)", "إضافة جماعية (إكسل)")}</h3>
+                <button type="button" className={iconBtn} onClick={() => setDrawer(null)} aria-label={tr("Close", "إغلاق")} title={tr("Close", "إغلاق")} data-testid="lms-drawer-close">✕</button>
+              </div>
+              {drawer === "add" ? (
+                <PersonForm role={role} catalog={catalog} onSave={async (r) => { if (await saveMany([r])) setDrawer(null); }} submitLabel={"+ " + tr("Add", "إضافة")} testPrefix="lms-new" />
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-sm opacity-75">{tr("1. Download the template · 2. Fill one row per person · 3. Upload it here and check the preview.", "١. نزّل القالب · ٢. صف لكل شخص · ٣. ارفعه هنا وراجع المعاينة.")}</p>
+          <div className="flex flex-wrap items-center gap-2">
+                    <button type="button" className={smallBtn} onClick={() => downloadUsersTemplate(role, catalog)} data-testid="lms-template">⬇ {role === "teacher" ? tr("Teachers template", "قالب المعلمين") : tr("Students template", "قالب الطلاب")}</button>
+                    <label className={smallBtn + " cursor-pointer"}>
+                      ⬆ {tr("Upload .xlsx", "رفع ملف .xlsx")}
+                      <input type="file" accept=".xlsx" className="sr-only" data-testid="lms-upload" onChange={async (e) => { const f = e.target.files?.[0]; e.target.value = ""; if (!f) return; try { setPreview(await parseUsersXlsx(f, role, catalog)); } catch { setErr(tr("That file couldn't be read — use the template.", "تعذرت قراءة الملف — استخدم القالب.")); } }} />
+                    </label>
+                    {progress && <span className="font-semibold" data-testid="lms-progress">{tr("Saving", "جارٍ الحفظ")} {progress}…</span>}
+                  </div>
+                  {preview && (
+                    <div className="space-y-2" data-testid="lms-preview">
+                      <p className="font-semibold">{tr(`${preview.length} rows ready`, `${preview.length} صفًا جاهزًا`)}</p>
+                      <div className="max-h-60 overflow-auto rounded-xl border border-black/10 dark:border-white/15">
+                        <table className="w-full text-sm">
+                          <tbody>{preview.map((r, i) => (<tr key={i} className="border-t border-black/5 dark:border-white/10"><td className="p-1.5" dir="auto">{r.name}</td><td className="p-1.5 font-mono">{r.username}</td><td className="p-1.5">{role === "student" ? [r.cls, r.section].filter(Boolean).join(" · ") : `${(r.subjects || []).join(", ")} — ${(r.scope || []).map(scopeLabel).join(", ")}`}</td><td className="p-1.5">{r.pin ? "••••" : tr("auto", "تلقائي")}</td></tr>))}</tbody>
+                        </table>
+                      </div>
+                      <div className="flex gap-2">
+                        <button type="button" className={primaryBtn} disabled={!!progress} onClick={async () => { const rows = preview; setPreview(null); await saveMany(rows); }} data-testid="lms-import">{tr("Import", "استيراد")}</button>
+                        <button type="button" className={smallBtn} onClick={() => setPreview(null)}>{tr("Cancel", "إلغاء")}</button>
+                      </div>
+                    </div>
+                  )}
+                  {errors.length > 0 && <ul className="space-y-1 text-sm text-rose-700 dark:text-rose-300" data-testid="lms-import-errors">{errors.map((e, i) => <li key={i}>{tr("Row", "صف")} {e.row} ({e.username || "—"}): {errText(e.error)}</li>)}</ul>}
+                </div>
+              )}
+            </aside>
+          </div>
+        )}
+
+        <section className={card + " space-y-3 p-3 sm:p-4"}>
           <div className="flex flex-wrap gap-2">
-            <input className={inputCls + " mt-0 max-w-xs"} placeholder={tr("Search name or username…", "ابحث بالاسم أو المستخدم…")} value={q} onChange={(e) => setQ(e.target.value)} data-testid="lms-search" aria-label={tr("Search", "بحث")} />
+            <input className={inputCls + " mt-0 min-w-[12rem] flex-1 sm:max-w-sm"} placeholder={tr("Search name or username…", "ابحث بالاسم أو المستخدم…")} value={q} onChange={(e) => setQ(e.target.value)} data-testid="lms-search" aria-label={tr("Search", "بحث")} />
             {role === "teacher" && (
               <select className={inputCls + " mt-0 w-auto! min-w-[9rem]"} value={fSub} onChange={(e) => setFSub(e.target.value)} data-testid="lms-filter-subject" aria-label={tr("Subject", "المادة")}>
                 <option value="">{tr("All subjects", "كل المواد")}</option>
@@ -293,7 +319,7 @@ export function LmsAdmin({ role = "student", embedded = false }: { role?: Role; 
               <button type="button" className={smallBtn} onClick={() => setSel(new Set())}>{tr("Clear", "مسح")}</button>
             </div>
           )}
-          <div className="max-h-[70vh] overflow-auto rounded-2xl border border-black/10 dark:border-white/15" data-testid="lms-table-wrap">
+          <div className="max-h-[calc(100vh-17rem)] min-h-[20rem] overflow-auto rounded-2xl border border-black/10 dark:border-white/15" data-testid="lms-table-wrap">
             <table className="w-full min-w-[760px] border-separate border-spacing-0 text-sm" data-testid="lms-table">
               <thead className="sticky top-0 z-20">
                 <tr className="bg-header text-start text-xs uppercase tracking-wide text-white">
@@ -314,13 +340,13 @@ export function LmsAdmin({ role = "student", embedded = false }: { role?: Role; 
                   const pin = known?.[u.id];
                   const open = shown.has(u.id);
                   const zebra = i % 2 ? "bg-black/[0.025] dark:bg-white/[0.04]" : "bg-white dark:bg-[#0f1a26]";
-                  const td = "border-t border-black/5 px-3 py-2 align-middle dark:border-white/10";
+                  const td = "border-t border-black/5 px-2.5 py-2 align-middle dark:border-white/10";
                   return (
                     <Fragment key={u.id}>
                       <tr className={`${zebra} transition hover:bg-sky-50 dark:hover:bg-sky-900/20`} data-testid="lms-user">
                         <td className={`${td} sticky start-0 z-10 ${zebra}`}><input type="checkbox" checked={sel.has(u.id)} onChange={(e) => setSel((x) => { const n = new Set(x); if (e.target.checked) n.add(u.id); else n.delete(u.id); return n; })} aria-label={tr(`Select ${u.name}`, `تحديد ${u.name}`)} data-testid="lms-select" /></td>
-                        <td className={`${td} sticky start-10 z-10 whitespace-nowrap font-semibold ${zebra}`} dir="auto" data-testid="col-name">{u.name}</td>
-                        <td className={`${td} font-mono`} dir="ltr" data-testid="col-username">{u.username}</td>
+                        <td className={`${td} sticky start-10 z-10 min-w-[9rem] max-w-[14rem] font-semibold leading-snug ${zebra}`} dir="auto" data-testid="col-name">{u.name}</td>
+                        <td className={`${td} max-w-[11rem] truncate font-mono text-[13px]`} dir="ltr" title={u.username} data-testid="col-username">{u.username}</td>
                         {asAdmin && (
                           <td className={td} data-testid="lms-pin-cell">
                             {!u.hasPin ? (
@@ -409,5 +435,26 @@ function ViewAsLog() {
         <ul className="mt-2 max-h-64 space-y-1 overflow-y-auto text-sm">{items.map((x, i) => <li key={i}><span dir="auto">{x.name}</span> <span className="opacity-60">({x.role}) · {new Date(x.at).toLocaleString("en-GB")}</span></li>)}</ul>
       )}
     </details>
+  );
+}
+
+function HeadBtn({ label, text, icon, onClick, primary, testId }: { label: string; text: string; icon: React.ReactNode; onClick: () => void; primary?: boolean; testId: string }) {
+  return (
+    <button type="button" onClick={onClick} title={label} aria-label={label} data-testid={testId}
+      className={`inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${primary ? "bg-sun text-[#0b1b2b] shadow-sm hover:brightness-105" : "border border-black/10 bg-white/70 hover:bg-black/5 dark:border-white/15 dark:bg-white/5 dark:hover:bg-white/10"}`}>
+      <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>{icon}</svg>
+      <span className="hidden md:inline">{text}</span>
+    </button>
+  );
+}
+
+function Stat({ label, value, tone, onClick, active, small }: { label: string; value: number; tone?: "ok" | "bad"; onClick: () => void; active?: boolean; small?: boolean }) {
+  const dot = tone === "ok" ? "bg-emerald-500" : tone === "bad" ? "bg-rose-500" : "bg-sun";
+  return (
+    <button type="button" onClick={onClick} aria-pressed={!!active} data-testid="lms-stat"
+      className={`flex shrink-0 items-center gap-2 rounded-2xl border px-3 text-start transition ${small ? "py-1.5" : "py-2"} ${active ? "border-sun bg-sun/15" : "border-black/10 bg-white/70 hover:bg-black/5 dark:border-white/15 dark:bg-white/5 dark:hover:bg-white/10"}`}>
+      <span className={`h-2 w-2 shrink-0 rounded-full ${dot}`} aria-hidden />
+      <span className="min-w-0"><span className={`block font-extrabold leading-tight ${small ? "text-base" : "text-xl"}`}>{value}</span><span className="block truncate text-xs opacity-70">{label}</span></span>
+    </button>
   );
 }

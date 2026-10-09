@@ -59,6 +59,9 @@ const Icon = ({ children, className = "h-5 w-5 shrink-0" }: { children: ReactNod
  * Phones / tablets: compact top bar with a menu button that slides the same menu in as a drawer.
  * The round logo is the "home" button: it returns to the dashboard and re-fetches published content.
  */
+/** Data-heavy tabs use the full width of the main area. */
+const WIDE = ["students", "teachers", "classes", "lmshw", "mail", "home", "homepage"];
+
 export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPublishAll, onLogout, pendingCount = 0, onBell, children }: Props) {
   const { t, lang } = useI18n();
   const tr = (en: string, ar: string) => (lang === "ar" ? ar : en);
@@ -265,7 +268,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
       )}
 
       <main className="min-w-0 flex-1">
-        <div className={`mx-auto px-4 py-6 sm:px-8 lg:py-10 ${collapsed ? "max-w-5xl" : "max-w-4xl"}`}>
+        <div className={`mx-auto px-4 py-6 sm:px-8 lg:py-8 ${WIDE.includes(tab) ? "max-w-none" : collapsed ? "max-w-5xl" : "max-w-4xl"}`}>
           <div className="mb-4 hidden justify-end lg:flex" data-testid="admin-toolbar-wrap">
             <AdminToolbar onLogout={onLogout} bell={<LmsBell asAdmin testId="admin-bell" variant={"glass"} extra={onBell ? { count: pendingCount, label: tr(`${pendingCount} forum post${pendingCount === 1 ? "" : "s"} waiting for approval`, `${pendingCount} مشاركة في المنتدى بانتظار الموافقة`), onClick: onBell } : undefined} />} />
           </div>
