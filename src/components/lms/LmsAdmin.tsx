@@ -1,6 +1,7 @@
 "use client";
 
 import { mailApi } from "@/lib/mail";
+import { listPublishedQuizzes, loadQuizzesData, type Quiz } from "@/lib/quiz";
 import { StudentProgress } from "@/components/lms/Progress";
 import { Fragment, useCallback, useEffect, useState } from "react";
 import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
@@ -73,6 +74,7 @@ function PersonForm({ role, catalog, initial, onSave, submitLabel, testPrefix }:
           <div className="flex flex-wrap gap-3 text-sm">
             {PERMS.map((p) => <label key={p} className="flex items-center gap-1.5"><input type="checkbox" checked={f.perms.includes(p)} onChange={() => toggle("perms", p)} data-testid={`lms-perm-${p}`} /> {tr(PERM_LABEL[p][0], PERM_LABEL[p][1])}</label>)}
           </div>
+          <ClassroomAccess perms={f.perms} toggle={(v) => toggle("perms", v)} chip={chip} />
         </div>
       )}
       {initial && <label className="flex items-center gap-2 text-sm sm:col-span-3"><input type="checkbox" checked={f.disabled} onChange={(e) => setF({ ...f, disabled: e.target.checked })} /> {tr("Disabled (can't sign in)", "معطّل (لا يمكنه الدخول)")}</label>}
@@ -456,5 +458,29 @@ function Stat({ label, value, tone, onClick, active, small }: { label: string; v
       <span className={`h-2 w-2 shrink-0 rounded-full ${dot}`} aria-hidden />
       <span className="min-w-0"><span className={`block font-extrabold leading-tight ${small ? "text-base" : "text-xl"}`}>{value}</span><span className="block truncate text-xs opacity-70">{label}</span></span>
     </button>
+  );
+}
+
+const ACTS: [string, string, string][] = [["wall", "Shared Wall", "الجدار المشترك"], ["wheel", "Wheel", "العجلة"], ["randomiser", "Randomiser", "العشوائي"], ["wordcloud", "Word Cloud", "سحابة الكلمات"], ["poll", "Poll", "استطلاع"], ["survey", "Survey", "استبيان"], ["tps", "Think/Pair/Share", "فكّر/شارك"], ["vote", "Vote", "تصويت"]];
+
+/** Admin → teacher form: which Classroom Activities and assessments this teacher may host from their own login. */
+function ClassroomAccess({ perms, toggle, chip }: { perms: string[]; toggle: (v: string) => void; chip: (on: boolean) => string }) {
+  const { tr } = useTr();
+  const [quizzes, setQuizzes] = useState<Quiz[]>([]);
+  useEffect(() => { loadQuizzesData().then((d) => setQuizzes(listPublishedQuizzes(d))).catch(() => undefined); }, []);
+  const allA = perms.includes("act:*");
+  const allH = perms.includes("host:*");
+  return (
+    <div className="space-y-2 rounded-2xl border border-dashed border-black/15 p-3 dark:border-white/20" data-testid="lms-classroom-access">
+      <p className="text-sm font-bold">🎲 {tr("Classroom access", "صلاحيات الصف")}</p>
+      <div className="flex flex-wrap gap-1.5">
+        <button type="button" aria-pressed={allA} className={chip(allA)} onClick={() => toggle("act:*")} data-testid="lms-act-all">{tr("All activities", "كل الأنشطة")}</button>
+        {ACTS.map(([k, en, ar]) => <button key={k} type="button" disabled={allA} aria-pressed={allA || perms.includes(`act:${k}`)} className={chip(allA || perms.includes(`act:${k}`)) + " disabled:opacity-60"} onClick={() => toggle(`act:${k}`)} data-testid={`lms-act-${k}`}>{tr(en, ar)}</button>)}
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        <button type="button" aria-pressed={allH} className={chip(allH)} onClick={() => toggle("host:*")} data-testid="lms-host-all">{tr("Host all assessments", "استضافة كل التقييمات")}</button>
+        {quizzes.map((q) => <button key={q.slug} type="button" disabled={allH} aria-pressed={allH || perms.includes(`host:${q.slug}`)} className={chip(allH || perms.includes(`host:${q.slug}`)) + " max-w-[16rem] truncate disabled:opacity-60"} onClick={() => toggle(`host:${q.slug}`)} title={q.title}>{q.title}</button>)}
+      </div>
+    </div>
   );
 }

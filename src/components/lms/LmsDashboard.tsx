@@ -161,6 +161,7 @@ export function LmsDashboard() {
               >
                 ⬇ {busy ? "…" : tr("Export all homework (ZIP)", "تصدير كل الواجبات (ZIP)")}
               </button>
+              <a className={smallBtn} href="/lms/activities" data-testid="lms-classroom-link">🎲 {tr("Classroom activities", "الأنشطة الصفية")}</a>
               <a className={smallBtn} href="/lms/map" data-testid="lms-map-link">🗺️ {tr("Class Quran map", "خريطة القرآن للصف")}</a>
               <span className="text-sm opacity-70">{(dash.classes || []).map((c) => `${c.cls || "—"}: ${c.students}`).join(" · ")}</span>
             </div>
