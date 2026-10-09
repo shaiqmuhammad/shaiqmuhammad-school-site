@@ -9,6 +9,8 @@ import { ResultsBoard } from "@/components/assessment/ResultsBoard";
 import { Podium, ResultsCharts } from "@/components/assessment/ResultsVisuals";
 import { initialAnswers } from "@/components/QuizPlayer";
 import { useAssessmentText } from "@/lib/assessmentI18n";
+import { downloadCertificatePdf } from "@/lib/certificatePdf";
+import { loadCertificateTemplate } from "@/lib/quiz";
 import {
   clockOffset,
   deviceId,
@@ -356,6 +358,7 @@ export function GroupJoin() {
           <h1 className="text-3xl font-bold text-teal-950 dark:text-white sm:text-4xl">🏆 {a("resultsBoard")}</h1>
           <Podium rows={results.rows} lang={lang} />
           <ResultsCharts rows={results.rows} lang={lang} />
+          <GroupCertificate results={results} me={me} />
           <ResultsBoard rows={results.rows} questionCount={results.questionCount} highlightName={me.name} summary={results.summary} quiz={results.quiz} />
         </div>
       </AssessmentShell>
@@ -466,5 +469,49 @@ export function GroupJoin() {
         {netIssue && <p className="text-sm text-rose-700 dark:text-rose-300">{a("networkError")}</p>}
       </div>
     </AssessmentShell>
+  );
+}
+
+/** Certificate for the student's own row (with class position), when the teacher left "Certificate (group)" on. */
+function GroupCertificate({ results, me }: { results: SessionResults; me: StoredParticipant }) {
+  const { a } = useAssessmentText();
+  const [busy, setBusy] = useState(false);
+  const row = results.rows.find((r) => r.isSelf) ?? results.rows.find((r) => (r.id ? r.id === me.pid : r.name === me.name));
+  if (!row || !results.quiz || results.quiz.certificateGroup === false) return null;
+  const quiz = results.quiz;
+  return (
+    <div className="flex justify-center">
+      <button
+        type="button"
+        disabled={busy}
+        data-testid="group-certificate"
+        className={primaryBtn}
+        onClick={async () => {
+          setBusy(true);
+          try {
+            const template = await loadCertificateTemplate();
+            await downloadCertificatePdf({
+              template,
+              result: {
+                id: `group_${results.code}_${row.id ?? row.name}`,
+                quizId: quiz.id,
+                quizSlug: quiz.slug,
+                name: me.name,
+                score: row.score,
+                maxScore: row.maxScore,
+                percentage: row.percentage,
+                finishedAt: new Date(row.finishedAt ?? Date.now()).toISOString(),
+              },
+              quizTitle: quiz.title,
+              positionLabel: template.showPosition ? `${row.rank} of ${results.rows.length}` : "",
+            });
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        {a("downloadCertificate")}
+      </button>
+    </div>
   );
 }

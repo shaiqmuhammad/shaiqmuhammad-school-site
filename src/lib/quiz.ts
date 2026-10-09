@@ -518,7 +518,7 @@ export function scoreQuestion(question: QuizQuestion, answer: unknown): number {
       const n = question.options.length;
       const given = numList(answer);
       if (n < 2 || given.length !== n) return 0;
-      return given.every((idx, pos) => normText(question.options[idx] ?? "\\u0000") === normText(question.options[pos]))
+      return given.every((idx, pos) => normText(question.options[idx] ?? "\u0000") === normText(question.options[pos]))
         ? pts
         : 0;
     }
@@ -566,7 +566,7 @@ export function describeAnswer(q: QuizQuestion, answer: unknown): ReviewLine[] {
       const pairs = q.pairs || [];
       const given = numList(answer);
       if (!given.some((n) => n >= 0)) return [];
-      return pairs.map((p, i) => ({ text: `${p.left} \\u2192 ${pairs[given[i]]?.right ?? "(no answer)"}` }));
+      return pairs.map((p, i) => ({ text: `${p.left} \u2192 ${pairs[given[i]]?.right ?? "(no answer)"}` }));
     }
     case "fill_blank": {
       const given = Array.isArray(answer) ? answer.map((a) => String(a ?? "").trim()) : [];
@@ -590,7 +590,7 @@ export function describeCorrect(q: QuizQuestion): ReviewLine[] {
     case "short_answer":
       return [{ text: (q.correct as string[]).filter((a) => a.trim()).join(" / ") }];
     case "matching":
-      return (q.pairs || []).map((p) => ({ text: `${p.left} \\u2192 ${p.right}` }));
+      return (q.pairs || []).map((p) => ({ text: `${p.left} \u2192 ${p.right}` }));
     case "fill_blank":
       return Array.from({ length: countBlanks(q.prompt) }, (_, i) => ({
         text: `Blank ${i + 1}: ${(q.blanks?.[i] || []).filter((a) => a.trim()).join(" / ")}`,
