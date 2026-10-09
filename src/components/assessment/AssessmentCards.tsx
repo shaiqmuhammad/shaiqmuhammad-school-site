@@ -4,11 +4,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Card } from "@/components/Card";
+import { CardCarousel } from "@/components/CardCarousel";
 import { localizedDescription, localizedTitle, useAssessmentText } from "@/lib/assessmentI18n";
 import { quizMaxScore, type Quiz } from "@/lib/quiz";
 
 /** Assessment cards (localized) — used on /assessments and the home page. */
-export function AssessmentCards({ quizzes, showJoin = false, yearFilter = false }: { quizzes: Quiz[]; showJoin?: boolean; yearFilter?: boolean }) {
+export function AssessmentCards({ quizzes, showJoin = false, yearFilter = false, carousel = false }: { quizzes: Quiz[]; showJoin?: boolean; yearFilter?: boolean; carousel?: boolean }) {
   const { a, lang } = useAssessmentText();
   const years = [...new Set(quizzes.map((q) => q.year).filter((y): y is number => typeof y === "number"))].sort((x, y) => x - y);
   const [year, setYear] = useState<number | "all">("all");
@@ -33,9 +34,8 @@ export function AssessmentCards({ quizzes, showJoin = false, yearFilter = false 
         ))}
       </div>
     )}
-    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-      {showJoin && <JoinCard />}
-      {shown.map((quiz) => (
+    {(() => {
+      const cards = shown.map((quiz) => (
         <Card key={quiz.id} className={`flex h-full flex-col overflow-hidden p-0! transition ${quiz.active ? "hover:-translate-y-0.5 hover:border-sun-border" : ""}`}>
           <div className="relative aspect-[16/10] bg-cream">
             {quiz.cardImage ? (
@@ -75,8 +75,21 @@ export function AssessmentCards({ quizzes, showJoin = false, yearFilter = false 
             </div>
           </div>
         </Card>
-      ))}
-    </div>
+      ));
+      if (carousel) {
+        return (
+          <CardCarousel label="Assessments" labelAr="التقييمات" testId="home-assessments-carousel">
+            {showJoin ? [<JoinCard key="join" />, ...cards] : cards}
+          </CardCarousel>
+        );
+      }
+      return (
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {showJoin && <JoinCard />}
+          {cards}
+        </div>
+      );
+    })()}
     </div>
   );
 }

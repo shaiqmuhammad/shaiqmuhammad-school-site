@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AssessmentCards, HomeAssessmentsHeading } from "@/components/assessment/AssessmentCards";
 import { BannerCarousel } from "@/components/BannerCarousel";
 import { Card } from "@/components/Card";
+import { CardCarousel, ShowMoreLink } from "@/components/CardCarousel";
 import { EncyclopediaCards } from "@/components/EncyclopediaCards";
 import { TeacherProfileCard } from "@/components/TeacherProfileCard";
 import { Section } from "@/components/Section";
@@ -19,8 +20,8 @@ import { loadQuizzesSync } from "@/lib/quizServer";
 
 export default function HomePage() {
   const data = loadContentDataSync();
-  const videos = listPublishedVideos(data).slice(0, 3);
-  const pages = listPublishedPages(data).slice(0, 4);
+  const videos = listPublishedVideos(data).slice(0, 9);
+  const pages = listPublishedPages(data).slice(0, 9);
   const banners = listPublishedBanners(loadBannersSync());
   const quizzes = listPublishedQuizzes(loadQuizzesSync());
 
@@ -68,7 +69,9 @@ export default function HomePage() {
       {quizzes.length > 0 && (
         <Section id="assessments">
           <HomeAssessmentsHeading />
-          <AssessmentCards quizzes={quizzes} />
+          {/* Slider of the most recent visible assessments (inactive ones stay locked as before). */}
+          <AssessmentCards quizzes={quizzes.slice(0, 9)} carousel />
+          <ShowMoreLink href="/assessments" testId="home-assessments-more" />
         </Section>
       )}
 
@@ -94,12 +97,11 @@ export default function HomePage() {
               <p className="eyebrow">Video lessons</p>
               <h2 className="mt-2 text-2xl font-extrabold tracking-tight">Latest from your teacher</h2>
             </div>
-            <Link href="/videos" className="text-sm font-medium text-primary hover:underline">All videos →</Link>
           </div>
           {videos.length === 0 ? (
             <p className="text-sm text-muted">No published videos yet. Check back soon.</p>
           ) : (
-            <div className="grid gap-6 md:grid-cols-3">
+            <CardCarousel label="Video lessons" labelAr="دروس الفيديو" testId="home-videos-carousel">
               {videos.map((video) => (
                 <Link key={video.id} href={`/videos#${video.id}`} className="group">
                   <Card className="h-full overflow-hidden p-0! transition group-hover:-translate-y-0.5 group-hover:border-sun-border">
@@ -118,8 +120,9 @@ export default function HomePage() {
                   </Card>
                 </Link>
               ))}
-            </div>
+            </CardCarousel>
           )}
+          <ShowMoreLink href="/videos" testId="home-videos-more" />
         </div>
       </section>
 
@@ -129,12 +132,11 @@ export default function HomePage() {
             <p className="eyebrow">Resources</p>
             <h2 className="mt-2 text-2xl font-extrabold tracking-tight">Learning pages</h2>
           </div>
-          <Link href="/lessons" className="text-sm font-medium text-primary hover:underline">All lessons →</Link>
         </div>
         {pages.length === 0 ? (
           <p className="text-sm text-muted">No published lessons yet.</p>
         ) : (
-          <div className="grid gap-5 sm:grid-cols-2">
+          <CardCarousel label="Learning pages" labelAr="صفحات التعلّم" testId="home-lessons-carousel">
             {pages.map((page) => (
               <Link key={page.id} href={`/lessons/${page.slug}`} className="group">
                 <Card className="h-full transition group-hover:-translate-y-0.5 group-hover:border-sun-border">
@@ -144,8 +146,9 @@ export default function HomePage() {
                 </Card>
               </Link>
             ))}
-          </div>
+          </CardCarousel>
         )}
+        <ShowMoreLink href="/lessons" testId="home-lessons-more" />
       </Section>
 
     </>
