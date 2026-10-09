@@ -25,6 +25,10 @@ class_name = "ResultsStore"
 name = "ACTIVITIES"
 class_name = "ClassActivity"
 
+[[durable_objects.bindings]]
+name = "LMS"
+class_name = "LmsStore"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["AssessmentSession"]
@@ -48,6 +52,10 @@ new_sqlite_classes = ["ResultsStore"]
 [[migrations]]
 tag = "v5"
 new_sqlite_classes = ["ClassActivity"]
+
+[[migrations]]
+tag = "v6"
+new_sqlite_classes = ["LmsStore"]
 
 # Admin publishing secrets (never committed):
 #   npx wrangler secret put GITHUB_PAT              (fine-grained token: Contents read/write on this repo)
