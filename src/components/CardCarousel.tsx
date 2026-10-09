@@ -5,14 +5,33 @@ import { Children, useCallback, useEffect, useRef, useState, type KeyboardEvent,
 import { useI18n } from "@/lib/i18n";
 
 const arrowBtn =
-  "glass glass-emph inline-flex h-11 w-11 items-center justify-center rounded-full text-lg font-extrabold text-heading transition hover:bg-[var(--cta)] hover:text-[var(--cta-foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sun disabled:pointer-events-none disabled:opacity-35";
+  "glass glass-emph inline-flex h-8 w-8 items-center justify-center rounded-full text-sm font-extrabold text-heading transition hover:bg-[var(--cta)] hover:text-[var(--cta-foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sun disabled:pointer-events-none disabled:opacity-35";
 
 /**
  * Horizontal card slider built on CSS scroll-snap (no dependencies).
  * 1 card + a peek of the next on phones, 2 on tablets, 3 on desktop.
- * Swipe / trackpad / mouse-drag, yellow glass prev/next buttons, arrow keys, dots. Works in RTL.
+ * Swipe / trackpad / mouse-drag, small yellow-glass prev/next buttons in the heading row, arrow keys,
+ * tiny progress dots. Works in RTL.
  */
-export function CardCarousel({ children, label, labelAr, testId }: { children: ReactNode; label: string; labelAr?: string; testId?: string }) {
+export function CardCarousel({
+  children,
+  label,
+  labelAr,
+  testId,
+  heading,
+  moreHref,
+  moreTestId,
+}: {
+  children: ReactNode;
+  label: string;
+  labelAr?: string;
+  testId?: string;
+  /** Section heading shown at the start of the control row. */
+  heading?: ReactNode;
+  /** Small "Show more →" link in the heading row. */
+  moreHref?: string;
+  moreTestId?: string;
+}) {
   const { lang } = useI18n();
   const ar = lang === "ar";
   const items = Children.toArray(children);
@@ -48,14 +67,6 @@ export function CardCarousel({ children, label, labelAr, testId }: { children: R
     if (!el) return;
     const sign = getComputedStyle(el).direction === "rtl" ? -1 : 1;
     el.scrollBy({ left: dir * sign * el.clientWidth * 0.9, behavior: "smooth" });
-  };
-
-  const toPage = (p: number) => {
-    const el = track.current;
-    if (!el) return;
-    const sign = getComputedStyle(el).direction === "rtl" ? -1 : 1;
-    const max = el.scrollWidth - el.clientWidth;
-    el.scrollTo({ left: sign * Math.min(max, (max / Math.max(1, state.pages - 1)) * p), behavior: "smooth" });
   };
 
   const onKey = (e: KeyboardEvent) => {
@@ -98,8 +109,30 @@ export function CardCarousel({ children, label, labelAr, testId }: { children: R
 
   const showNav = !(state.atStart && state.atEnd);
 
+  const controls = (
+    <div className="flex shrink-0 items-center gap-2">
+      {moreHref && <ShowMoreLink href={moreHref} testId={moreTestId} />}
+      {showNav && (
+        <div className="flex gap-1.5">
+          <button type="button" className={arrowBtn} onClick={() => go(-1)} disabled={state.atStart} aria-label={ar ? "السابق" : "Previous"} data-testid={testId ? `${testId}-prev` : undefined}>
+            <span className="inline-block rtl:rotate-180" aria-hidden>←</span>
+          </button>
+          <button type="button" className={arrowBtn} onClick={() => go(1)} disabled={state.atEnd} aria-label={ar ? "التالي" : "Next"} data-testid={testId ? `${testId}-next` : undefined}>
+            <span className="inline-block rtl:rotate-180" aria-hidden>→</span>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div role="region" aria-roledescription={ar ? "شريط عرض" : "carousel"} aria-label={ar && labelAr ? labelAr : label} data-testid={testId} onKeyDown={onKey}>
+      {(heading || moreHref || showNav) && (
+        <div className={`flex items-end gap-x-4 gap-y-2 ${heading ? "mb-6 justify-between" : "mb-3 justify-end"}`}>
+          {heading && <div className="min-w-0">{heading}</div>}
+          {controls}
+        </div>
+      )}
       <div
         ref={track}
         tabIndex={0}
@@ -108,7 +141,7 @@ export function CardCarousel({ children, label, labelAr, testId }: { children: R
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}
         onPointerLeave={endDrag}
-        className="-mx-4 flex snap-x snap-mandatory scroll-px-4 gap-6 overflow-x-auto scroll-smooth px-4 pb-4 pt-1 [scrollbar-width:none] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sun sm:-mx-1 sm:scroll-px-1 sm:px-1 [&::-webkit-scrollbar]:hidden"
+        className="-mx-4 flex snap-x snap-mandatory scroll-px-4 gap-6 overflow-x-auto scroll-smooth px-4 pb-3 pt-1 [scrollbar-width:none] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sun sm:-mx-1 sm:scroll-px-1 sm:px-1 [&::-webkit-scrollbar]:hidden"
         data-testid={testId ? `${testId}-track` : undefined}
       >
         {items.map((child, i) => (
@@ -123,43 +156,28 @@ export function CardCarousel({ children, label, labelAr, testId }: { children: R
           </div>
         ))}
       </div>
-      {showNav && (
-        <div className="mt-3 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-1.5" aria-hidden={state.pages <= 1}>
-            {state.pages > 1 &&
-              Array.from({ length: state.pages }, (_, p) => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => toPage(p)}
-                  aria-label={ar ? `الصفحة ${p + 1} من ${state.pages}` : `Page ${p + 1} of ${state.pages}`}
-                  aria-current={p === state.page ? "true" : undefined}
-                  className={`h-2.5 rounded-full transition-all ${p === state.page ? "w-6 bg-[var(--cta)]" : "w-2.5 bg-[var(--card-border)] hover:bg-[var(--yellow-border)]"}`}
-                />
-              ))}
-          </div>
-          <div className="flex gap-2">
-            <button type="button" className={arrowBtn} onClick={() => go(-1)} disabled={state.atStart} aria-label={ar ? "السابق" : "Previous"} data-testid={testId ? `${testId}-prev` : undefined}>
-              <span className="inline-block rtl:rotate-180" aria-hidden>←</span>
-            </button>
-            <button type="button" className={arrowBtn} onClick={() => go(1)} disabled={state.atEnd} aria-label={ar ? "التالي" : "Next"} data-testid={testId ? `${testId}-next` : undefined}>
-              <span className="inline-block rtl:rotate-180" aria-hidden>→</span>
-            </button>
-          </div>
+      {showNav && state.pages > 1 && (
+        // Tiny position indicator only; the arrows, keys and swipe do the navigating.
+        <div className="mt-1 flex justify-center gap-1" aria-hidden data-testid={testId ? `${testId}-dots` : undefined}>
+          {Array.from({ length: state.pages }, (_, p) => (
+            <span key={p} className={`h-1.5 rounded-full transition-all ${p === state.page ? "w-4 bg-[var(--cta)]" : "w-1.5 bg-[var(--card-border)]"}`} />
+          ))}
         </div>
       )}
     </div>
   );
 }
 
-/** Yellow pill link under a home section ("Show More" / «عرض المزيد»). */
+/** Small "Show more →" text link for a section's heading row (tap area ≥ 32px). */
 export function ShowMoreLink({ href, testId }: { href: string; testId?: string }) {
   const { lang } = useI18n();
   return (
-    <div className="mt-6 flex justify-center">
-      <Link href={href} className="btn-cta px-6 py-2.5 text-sm" data-testid={testId}>
-        {lang === "ar" ? "عرض المزيد" : "Show More"} <span className="inline-block rtl:rotate-180" aria-hidden>→</span>
-      </Link>
-    </div>
+    <Link
+      href={href}
+      className="inline-flex h-8 items-center gap-1 whitespace-nowrap rounded-full px-2 text-sm font-semibold text-primary transition hover:bg-[var(--cta)] hover:text-[var(--cta-foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sun"
+      data-testid={testId}
+    >
+      {lang === "ar" ? "عرض المزيد" : "Show more"} <span className="inline-block rtl:rotate-180" aria-hidden>→</span>
+    </Link>
   );
 }

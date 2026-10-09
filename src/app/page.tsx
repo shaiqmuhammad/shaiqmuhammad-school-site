@@ -2,7 +2,7 @@ import Link from "next/link";
 import { AssessmentCards, HomeAssessmentsHeading } from "@/components/assessment/AssessmentCards";
 import { BannerCarousel } from "@/components/BannerCarousel";
 import { Card } from "@/components/Card";
-import { CardCarousel, ShowMoreLink } from "@/components/CardCarousel";
+import { CardCarousel } from "@/components/CardCarousel";
 import { EncyclopediaCards } from "@/components/EncyclopediaCards";
 import { TeacherProfileCard } from "@/components/TeacherProfileCard";
 import { Section } from "@/components/Section";
@@ -68,22 +68,24 @@ export default function HomePage() {
 
       {quizzes.length > 0 && (
         <Section id="assessments">
-          <HomeAssessmentsHeading />
           {/* Slider of the most recent visible assessments (inactive ones stay locked as before). */}
-          <AssessmentCards quizzes={quizzes.slice(0, 9)} carousel />
-          <ShowMoreLink href="/assessments" testId="home-assessments-more" />
+          <AssessmentCards quizzes={quizzes.slice(0, 9)} carousel heading={<HomeAssessmentsHeading />} moreHref="/assessments" />
         </Section>
       )}
 
       <Section id="libraries">
-        <div className="mb-8">
-          <p className="eyebrow">Learning libraries</p>
-          <h2 className="mt-2 text-2xl font-extrabold tracking-tight sm:text-3xl">Trusted encyclopedias</h2>
-          <p className="mt-2 max-w-2xl text-muted">
-            Open these on this site while you study — encyclopedias stay embedded on the page.
-          </p>
-        </div>
-        <EncyclopediaCards />
+        <EncyclopediaCards
+          carousel
+          heading={
+            <div>
+              <p className="eyebrow">Learning libraries</p>
+              <h2 className="mt-2 text-2xl font-extrabold tracking-tight sm:text-3xl">Trusted encyclopedias</h2>
+              <p className="mt-2 max-w-2xl text-muted max-sm:hidden">
+                Open these on this site while you study — encyclopedias stay embedded on the page.
+              </p>
+            </div>
+          }
+        />
       </Section>
 
       <Section className="pt-0">
@@ -92,16 +94,28 @@ export default function HomePage() {
 
       <section className="band-cream border-y border-sun-border/30">
         <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
-          <div className="mb-8 flex items-end justify-between gap-4">
-            <div>
-              <p className="eyebrow">Video lessons</p>
-              <h2 className="mt-2 text-2xl font-extrabold tracking-tight">Latest from your teacher</h2>
-            </div>
-          </div>
           {videos.length === 0 ? (
-            <p className="text-sm text-muted">No published videos yet. Check back soon.</p>
+            <>
+              <div className="mb-8">
+                <p className="eyebrow">Video lessons</p>
+                <h2 className="mt-2 text-2xl font-extrabold tracking-tight">Latest from your teacher</h2>
+              </div>
+              <p className="text-sm text-muted">No published videos yet. Check back soon.</p>
+            </>
           ) : (
-            <CardCarousel label="Video lessons" labelAr="دروس الفيديو" testId="home-videos-carousel">
+            <CardCarousel
+              label="Video lessons"
+              labelAr="دروس الفيديو"
+              testId="home-videos-carousel"
+              moreHref="/videos"
+              moreTestId="home-videos-more"
+              heading={
+                <div>
+                  <p className="eyebrow">Video lessons</p>
+                  <h2 className="mt-2 text-2xl font-extrabold tracking-tight">Latest from your teacher</h2>
+                </div>
+              }
+            >
               {videos.map((video) => (
                 <Link key={video.id} href={`/videos#${video.id}`} className="group">
                   <Card className="h-full overflow-hidden p-0! transition group-hover:-translate-y-0.5 group-hover:border-sun-border">
@@ -122,21 +136,32 @@ export default function HomePage() {
               ))}
             </CardCarousel>
           )}
-          <ShowMoreLink href="/videos" testId="home-videos-more" />
         </div>
       </section>
 
       <Section>
-        <div className="mb-8 flex items-end justify-between gap-4">
-          <div>
-            <p className="eyebrow">Resources</p>
-            <h2 className="mt-2 text-2xl font-extrabold tracking-tight">Learning pages</h2>
-          </div>
-        </div>
         {pages.length === 0 ? (
-          <p className="text-sm text-muted">No published lessons yet.</p>
+          <>
+            <div className="mb-8">
+              <p className="eyebrow">Resources</p>
+              <h2 className="mt-2 text-2xl font-extrabold tracking-tight">Learning pages</h2>
+            </div>
+            <p className="text-sm text-muted">No published lessons yet.</p>
+          </>
         ) : (
-          <CardCarousel label="Learning pages" labelAr="صفحات التعلّم" testId="home-lessons-carousel">
+          <CardCarousel
+            label="Learning pages"
+            labelAr="صفحات التعلّم"
+            testId="home-lessons-carousel"
+            moreHref="/lessons"
+            moreTestId="home-lessons-more"
+            heading={
+              <div>
+                <p className="eyebrow">Resources</p>
+                <h2 className="mt-2 text-2xl font-extrabold tracking-tight">Learning pages</h2>
+              </div>
+            }
+          >
             {pages.map((page) => (
               <Link key={page.id} href={`/lessons/${page.slug}`} className="group">
                 <Card className="h-full transition group-hover:-translate-y-0.5 group-hover:border-sun-border">
@@ -148,7 +173,6 @@ export default function HomePage() {
             ))}
           </CardCarousel>
         )}
-        <ShowMoreLink href="/lessons" testId="home-lessons-more" />
       </Section>
 
     </>

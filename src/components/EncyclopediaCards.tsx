@@ -1,4 +1,6 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
+import { CardCarousel } from "@/components/CardCarousel";
 import { encyclopediaLinks } from "@/content/site";
 import { HadithScrollIcon, QuranBookIcon } from "@/components/EncyclopediaIcons";
 
@@ -9,12 +11,15 @@ const icons = {
 
 export function EncyclopediaCards({
   compact = false,
+  carousel = false,
+  heading,
 }: {
   compact?: boolean;
+  /** Home page: show the library cards in the same slider as the other sections. */
+  carousel?: boolean;
+  heading?: ReactNode;
 }) {
-  return (
-    <div className={`grid gap-5 ${compact ? "sm:grid-cols-2" : "md:grid-cols-2"}`}>
-      {encyclopediaLinks.map((item) => {
+  const cards = encyclopediaLinks.map((item) => {
         const Icon = icons[item.kind];
         return (
           <Link
@@ -43,7 +48,13 @@ export function EncyclopediaCards({
             </div>
           </Link>
         );
-      })}
-    </div>
-  );
+      });
+  if (carousel) {
+    return (
+      <CardCarousel label="Learning libraries" labelAr="المكتبات التعليمية" testId="home-libraries-carousel" heading={heading}>
+        {cards}
+      </CardCarousel>
+    );
+  }
+  return <div className={`grid gap-5 ${compact ? "sm:grid-cols-2" : "md:grid-cols-2"}`}>{cards}</div>;
 }
