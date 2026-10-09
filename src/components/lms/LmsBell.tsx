@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { mailApi } from "@/lib/mail";
 import { lmsApi, type Note } from "@/lib/lms";
 import { useI18n } from "@/lib/i18n";
 
@@ -16,6 +17,7 @@ export function LmsBell({ asAdmin = false, variant = "navy", extra, testId = "lm
   const tr = (en: string, a: string) => (ar ? a : en);
   const [items, setItems] = useState<Note[]>([]);
   const [unread, setUnread] = useState(0);
+  const [mail, setMail] = useState(0);
   const [open, setOpen] = useState(false);
   const [now, setNow] = useState(0);
   const box = useRef<HTMLDivElement>(null);
@@ -23,6 +25,8 @@ export function LmsBell({ asAdmin = false, variant = "navy", extra, testId = "lm
   const load = useCallback(() => {
     if (typeof document !== "undefined" && document.hidden) return;
     lmsApi.notes(asAdmin).then((r) => { setItems(r.items); setUnread(r.unread); setNow(Date.now()); }).catch(() => undefined);
+    // Admin: unread contact-form messages + unread emails in contact@ inbox.
+    if (asAdmin) Promise.all([mailApi.contacts().then((r) => r.unread).catch(() => 0), mailApi.status().then((r) => r.unread || 0).catch(() => 0)]).then(([a, b]) => setMail(a + b));
   }, [asAdmin]);
   useEffect(() => {
     load();
@@ -39,7 +43,7 @@ export function LmsBell({ asAdmin = false, variant = "navy", extra, testId = "lm
     return () => { document.removeEventListener("mousedown", close); document.removeEventListener("keydown", close); };
   }, [open]);
 
-  const total = unread + (extra?.count || 0);
+  const total = unread + (extra?.count || 0) + mail;
   const text = (n: Note) => {
     const t = n.data.title ? `“${n.data.title}”` : "";
     switch (n.kind) {
@@ -106,6 +110,13 @@ export function LmsBell({ asAdmin = false, variant = "navy", extra, testId = "lm
                 </button>
               </li>
             )}
+            {mail > 0 && (
+              <li>
+                <a href="/admin#mail" className="flex w-full items-start gap-2 bg-sky-50 px-4 py-2.5 text-start font-semibold hover:bg-sky-100 dark:bg-sky-900/30" onClick={() => { setOpen(false); window.dispatchEvent(new HashChangeEvent("hashchange")); }} data-testid={`${testId}-mail`}>
+                  <span aria-hidden>✉️</span><span>{tr(`${mail} unread message${mail === 1 ? "" : "s"} (email / contact form)`, `${mail} رسالة غير مقروءة (البريد / نموذج التواصل)`)}</span>
+                </a>
+              </li>
+            )}
             {items.map((n) => (
               <li key={n.id}>
                 <a href={href(n)} className={`flex items-start gap-2 px-4 py-2.5 hover:bg-black/5 dark:hover:bg-white/5 ${n.read ? "" : "bg-sky-50 font-semibold dark:bg-sky-900/30"}`} onClick={() => setOpen(false)} data-testid={`${testId}-item`}>
@@ -115,7 +126,7 @@ export function LmsBell({ asAdmin = false, variant = "navy", extra, testId = "lm
                 </a>
               </li>
             ))}
-            {!items.length && !(extra && extra.count > 0) && <li className="px-4 py-6 text-center opacity-60">{tr("Nothing new.", "لا جديد.")}</li>}
+            {!items.length && !mail && !(extra && extra.count > 0) && <li className="px-4 py-6 text-center opacity-60">{tr("Nothing new.", "لا جديد.")}</li>}
           </ul>
         </div>
       )}
