@@ -16,7 +16,7 @@ const Svg = ({ children }: { children: ReactNode }) => (
  * Compact round icon toolbar: [bell] · light/dark · EN/ع · View website · Log out (confirm).
  * "glass" for the light admin main area, "navy" for the dark top bars.
  */
-export function AdminToolbar({ onLogout, variant = "glass", className = "", pending = 0, onBell }: { onLogout: () => void; variant?: "glass" | "navy"; className?: string; pending?: number; onBell?: () => void }) {
+export function AdminToolbar({ onLogout, variant = "glass", className = "", pending = 0, onBell, bell }: { onLogout: () => void; variant?: "glass" | "navy"; className?: string; pending?: number; onBell?: () => void; bell?: ReactNode }) {
   const { lang, toggleLang } = useI18n();
   const { theme, resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
@@ -35,7 +35,8 @@ export function AdminToolbar({ onLogout, variant = "glass", className = "", pend
   const bellL = pending > 0 ? tr(`${pending} forum post${pending === 1 ? "" : "s"} waiting for approval`, `${pending} مشاركة بانتظار الموافقة`) : tr("No forum posts waiting", "لا توجد مشاركات بانتظار الموافقة");
   return (
     <div className={`flex items-center gap-1.5 ${className}`} role="toolbar" aria-label={tr("Quick actions", "إجراءات سريعة")} data-testid="admin-toolbar">
-      {onBell && (
+      {bell}
+      {!bell && onBell && (
         <button type="button" className={btn + " relative"} title={bellL} aria-label={bellL} data-testid="admin-bell" onClick={onBell}>
           <Svg><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" /></Svg>
           {pending > 0 && (

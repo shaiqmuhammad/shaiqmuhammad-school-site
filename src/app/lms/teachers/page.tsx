@@ -1,16 +1,8 @@
 import type { Metadata } from "next";
-import { Suspense } from "react";
-import { LmsAdmin } from "@/components/lms/LmsAdmin";
+import { ToAdmin } from "@/components/lms/ToAdmin";
 
-export const metadata: Metadata = {
-  title: "Teachers — admin",
-  robots: { index: false, follow: false },
-};
+export const metadata: Metadata = { title: "Admin", robots: { index: false, follow: false } };
 
 export default function Page() {
-  return (
-    <Suspense fallback={null}>
-      <LmsAdmin role="teacher" />
-    </Suspense>
-  );
+  return <ToAdmin tab="teachers" />;
 }
