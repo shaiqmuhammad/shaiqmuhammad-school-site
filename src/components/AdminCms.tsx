@@ -46,6 +46,11 @@ export default function AdminCms() {
   const { t, lang } = useI18n();
   const [ready, setReady] = useState(false);
   const [tab, setTab] = useState<Tab>("home");
+  // "/admin#forum" (bell on the LMS pages) opens the forum approval queue.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- the URL hash is only readable after hydration
+    if (window.location.hash === "#forum") setTab("forum");
+  }, []);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshedAt, setRefreshedAt] = useState<Date | null>(null);
   const [data, setData] = useState<ContentData>(normalizeContentData(null));

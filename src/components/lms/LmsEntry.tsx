@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AdminToolbar } from "@/components/AdminToolbar";
-import { clearServerSession } from "@/lib/adminServer";
+import { clearServerSession, forumPendingCount, getServerSession } from "@/lib/adminServer";
 import { lmsSession, lmsSignOut } from "@/lib/lms";
 import { useI18n } from "@/lib/i18n";
 
@@ -65,12 +65,30 @@ export function LmsHomeCard() {
   );
 }
 
-/** Staff (teacher/admin) icon toolbar for the LMS top bar. Log out ends both the LMS and admin sessions on this device. */
+/** Staff (teacher/admin) icon toolbar for the LMS top bar. For the admin it also shows the forum bell
+ * (polled every 60 s, like the Admin page). Log out ends both the LMS and admin sessions on this device. */
 export function LmsStaffToolbar() {
   const router = useRouter();
+  const [admin, setAdmin] = useState(false);
+  const [pending, setPending] = useState(0);
+  useEffect(() => {
+    if (lmsSession() || !getServerSession()) return;
+    let stop = false;
+    const check = async () => {
+      const n = await forumPendingCount();
+      if (!stop && n !== null) setPending(n);
+    };
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- admin session is only readable after hydration
+    setAdmin(true);
+    void check();
+    const t = setInterval(check, 60_000);
+    return () => { stop = true; clearInterval(t); };
+  }, []);
   return (
     <AdminToolbar
       variant="navy"
+      pending={pending}
+      onBell={admin ? () => router.push("/admin#forum") : undefined}
       onLogout={() => {
         lmsSignOut();
         clearServerSession();

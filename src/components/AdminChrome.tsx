@@ -22,7 +22,7 @@ type Props = {
   children: ReactNode;
 };
 
-const ORDER: Tab[] = ["home", "quizzes", "results", "activities", "pages", "videos", "announcements", "banners", "forum", "certificate", "teacher", "settings"];
+const ORDER: Tab[] = ["quizzes", "results", "activities", "pages", "videos", "announcements", "banners", "forum", "certificate", "teacher", "settings"];
 const COLLAPSE_KEY = "sm-admin-sidebar-collapsed";
 
 /** Small line icons for the sidebar rail (24px grid, currentColor). */
@@ -111,19 +111,26 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
         {n > 99 ? "99+" : n}
       </span>
     ) : null;
-  const bellLabel =
-    pendingCount > 0
-      ? tr(`${pendingCount} forum post${pendingCount === 1 ? "" : "s"} waiting for approval`, `${pendingCount} مشاركة بانتظار الموافقة`)
-      : tr("No forum posts waiting", "لا توجد مشاركات بانتظار الموافقة");
-  const bell = onBell ? (
-    <button type="button" onClick={onBell} aria-label={bellLabel} title={bellLabel} data-testid="admin-bell" className="pill-on-navy relative h-9 w-9 shrink-0 justify-center">
-      <Icon className="h-4.5 w-4.5">
-        <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
-        <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
-      </Icon>
-      {pendingCount > 0 && <span className="absolute -end-1.5 -top-1.5">{badge(pendingCount, "admin-bell-badge")}</span>}
+  /** Same look as the public site header brand; the whole block is the admin "home" (dashboard + refresh). */
+  const brand = (
+    <button
+      type="button"
+      onClick={onHome}
+      aria-label={homeLabel}
+      title={homeLabel}
+      data-testid="admin-sidebar-brand"
+      className={`group flex items-center gap-2 rounded-full text-start outline-none focus-visible:ring-4 focus-visible:ring-primary/30 ${collapsed ? "" : "min-w-0 flex-1"}`}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={logoUrl} alt="" width={40} height={40} data-testid="admin-logo-home" className={`h-10 w-10 shrink-0 rounded-full border-2 border-sun bg-white object-cover shadow-sm ${refreshing ? "animate-pulse" : ""}`} />
+      {!collapsed && (
+        <span className="min-w-0 leading-tight">
+          <span className="block truncate text-base font-extrabold tracking-tight text-white group-hover:text-sun">Shaiq Muhammad</span>
+          <span className="block truncate text-xs text-white/70">{tr("Admin", "الإدارة")}</span>
+        </span>
+      )}
     </button>
-  ) : null;
+  );
 
   const publishLabel = busy ? t("admin.publishing") : t("admin.publishAll");
   const publishBtn = (iconOnly = false) => (
@@ -195,45 +202,32 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
     <div className="admin-calm min-h-screen lg:flex">
       {/* Sidebar (lg+): full width or a 64px icon rail */}
       <aside
-        className={`hidden bg-header text-white transition-[width] duration-200 lg:sticky lg:top-0 lg:flex lg:h-screen lg:shrink-0 lg:flex-col lg:py-6 ${collapsed ? "lg:w-16 lg:px-2" : "lg:w-64 lg:px-5"}`}
+        className={`hidden bg-header text-white transition-[width] duration-200 lg:sticky lg:top-0 lg:flex lg:h-screen lg:shrink-0 lg:flex-col lg:pb-6 lg:pt-3 ${collapsed ? "lg:w-16 lg:px-2" : "lg:w-64 lg:px-4"}`}
         data-testid="admin-sidebar"
         data-collapsed={collapsed ? "true" : "false"}
       >
-        <div className={`flex ${collapsed ? "justify-center" : "justify-end"}`}>
-          <button
-            type="button"
-            onClick={toggleCollapsed}
-            aria-label={collapseLabel}
-            title={collapseLabel}
-            aria-expanded={!collapsed}
-            data-testid="admin-sidebar-toggle"
-            className="pill-on-navy h-8 w-8 justify-center"
-          >
-            <Icon className={`h-4 w-4 transition ${collapsed ? "rotate-180 rtl:rotate-0" : "rtl:rotate-180"}`}>
-              <path d="M15 6l-6 6 6 6" />
-            </Icon>
-          </button>
-        </div>
-        {collapsed ? (
-          <div className="mt-3 flex flex-col items-center gap-3" data-testid="admin-sidebar-brand">
-            {logo("h-9 w-9")}
-            {bell}
-          </div>
-        ) : (
-          <div className="mt-2 flex items-center gap-2.5" data-testid="admin-sidebar-brand">
-            {logo("h-10 w-10")}
-            <div className="min-w-0 flex-1 text-start">
-              <p className="text-sm font-extrabold leading-tight text-white" dir="ltr"><span className="whitespace-nowrap">Shaiq Muhammad</span> — Admin</p>
-            </div>
-            {bell}
-          </div>
-        )}
-        <nav className={`flex-1 space-y-0.5 overflow-y-auto overflow-x-hidden ${collapsed ? "mt-5" : "mt-8"}`} aria-label={tr("Admin sections", "أقسام الإدارة")}>
+        <div className={`flex items-center ${collapsed ? "justify-center" : ""}`}>{brand}</div>
+        <nav className={`flex-1 space-y-0.5 overflow-y-auto overflow-x-hidden ${collapsed ? "mt-4" : "mt-6"}`} aria-label={tr("Admin sections", "أقسام الإدارة")}>
           {navItems({ rail: collapsed })}
           {lmsLinks({ rail: collapsed })}
         </nav>
         <div className={`space-y-3 pt-4 ${collapsed ? "flex flex-col items-center" : ""}`}>
-          {collapsed ? publishBtn(true) : <div className="w-full [&>button]:w-full">{publishBtn()}</div>}
+          <div className={`flex items-center gap-2 ${collapsed ? "flex-col" : ""}`}>
+            {collapsed ? publishBtn(true) : <div className="min-w-0 flex-1 [&>button]:w-full">{publishBtn()}</div>}
+            <button
+              type="button"
+              onClick={toggleCollapsed}
+              aria-label={collapseLabel}
+              title={collapseLabel}
+              aria-expanded={!collapsed}
+              data-testid="admin-sidebar-toggle"
+              className="pill-on-navy h-8 w-8 shrink-0 justify-center"
+            >
+              <Icon className={`h-4 w-4 transition ${collapsed ? "rotate-180 rtl:rotate-0" : "rtl:rotate-180"}`}>
+                <path d="M15 6l-6 6 6 6" />
+              </Icon>
+            </button>
+          </div>
         </div>
       </aside>
 
@@ -253,8 +247,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
           </button>
           {logo("h-9 w-9")}
           <p className="min-w-0 flex-1 truncate text-sm font-extrabold text-white">{label(tab)}</p>
-          {bell}
-          <AdminToolbar variant="navy" onLogout={onLogout} />
+          <AdminToolbar variant="navy" onLogout={onLogout} pending={pendingCount} onBell={onBell} />
         </div>
       </header>
       {drawer && (
@@ -290,7 +283,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
       <main className="min-w-0 flex-1">
         <div className={`mx-auto px-4 py-6 sm:px-8 lg:py-10 ${collapsed ? "max-w-5xl" : "max-w-4xl"}`}>
           <div className="mb-4 hidden justify-end lg:flex" data-testid="admin-toolbar-wrap">
-            <AdminToolbar onLogout={onLogout} />
+            <AdminToolbar onLogout={onLogout} pending={pendingCount} onBell={onBell} />
           </div>
           <div className="mb-6 flex items-center justify-between gap-3 lg:hidden">
             <h1 className="text-lg font-extrabold">{label(tab)}</h1>
