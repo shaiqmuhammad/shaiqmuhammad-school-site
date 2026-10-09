@@ -5,25 +5,15 @@ import { clearServerSession, getServerSession } from "@/lib/adminServer";
 import { lmsSession, type Actor } from "@/lib/lms";
 import { useI18n } from "@/lib/i18n";
 
-const ADMIN_ACTOR: Actor = { id: "admin", role: "admin", name: "Admin", cls: "", perms: ["assign", "review", "manageUsers", "viewAll"] };
-const at = (k: string) => Number(localStorage.getItem(k) || 0);
+export const ADMIN_ACTOR: Actor = { id: "admin", role: "admin", name: "Admin", cls: "", perms: ["assign", "review", "manageUsers", "viewAll"] };
 
-/**
- * Current LMS actor. With both an admin and a student/teacher session on one device, the most recent sign-in wins
- * (sessions from before this existed have no time → admin wins). `preferAdmin` (admin-only pages) always uses the
- * admin session when there is one.
- */
-export function useLmsActor(preferAdmin = false): { actor: Actor | null; asAdmin: boolean; ready: boolean } {
-  const [st, setSt] = useState<{ actor: Actor | null; asAdmin: boolean; ready: boolean }>({ actor: null, asAdmin: false, ready: false });
+/** The LMS (/lms) user: the signed-in student/teacher only. The admin session never counts here (Admin has its own pages). */
+export function useLmsActor(): { actor: Actor | null; asAdmin: false; ready: boolean; adminElsewhere: boolean } {
+  const [st, setSt] = useState<{ actor: Actor | null; asAdmin: false; ready: boolean; adminElsewhere: boolean }>({ actor: null, asAdmin: false, ready: false, adminElsewhere: false });
   useEffect(() => {
-    const s = lmsSession();
-    const admin = getServerSession();
-    const useAdmin = !!admin && (preferAdmin || !s || at("sm_admin_login_at") >= at("sm_lms_login_at"));
     // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage is only readable after hydration
-    if (useAdmin) setSt({ actor: ADMIN_ACTOR, asAdmin: true, ready: true });
-    else if (s) setSt({ actor: s.user, asAdmin: false, ready: true });
-    else setSt({ actor: null, asAdmin: false, ready: true });
-  }, [preferAdmin]);
+    setSt({ actor: lmsSession()?.user ?? null, asAdmin: false, ready: true, adminElsewhere: !!getServerSession() });
+  }, []);
   return st;
 }
 

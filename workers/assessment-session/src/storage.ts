@@ -51,3 +51,31 @@ function r2Store(bucket: R2Bucket): BlobStore {
 export function blobStore(env: StorageEnv): BlobStore {
   return env.FILES ? r2Store(env.FILES) : disabled;
 }
+
+/**
+ * Default store while R2 is off: files kept inside the LMS Durable Object's SQLite as ≤100 KB chunks.
+ * Same interface as R2, so binding FILES later switches new uploads to R2 without other changes.
+ */
+export function sqliteChunkStore(sql: SqlStorage, chunk = 100_000): BlobStore {
+  sql.exec(`CREATE TABLE IF NOT EXISTS blob_chunks (key TEXT, idx INTEGER, mime TEXT, data BLOB, PRIMARY KEY (key, idx))`);
+  return {
+    enabled: true,
+    async put(key, data, contentType) {
+      sql.exec(`DELETE FROM blob_chunks WHERE key=?`, key);
+      const bytes = new Uint8Array(data);
+      for (let i = 0, n = 0; i < bytes.length || n === 0; i += chunk, n++) sql.exec(`INSERT INTO blob_chunks (key, idx, mime, data) VALUES (?, ?, ?, ?)`, key, n, contentType, bytes.slice(i, i + chunk));
+    },
+    async get(key) {
+      const rows = sql.exec(`SELECT mime, data FROM blob_chunks WHERE key=? ORDER BY idx`, key).toArray();
+      if (!rows.length) return null;
+      const parts = rows.map((r) => new Uint8Array(r.data as ArrayBuffer));
+      const out = new Uint8Array(parts.reduce((s, p) => s + p.length, 0));
+      let o = 0;
+      for (const p of parts) { out.set(p, o); o += p.length; }
+      return { body: out.buffer, contentType: String(rows[0].mime) };
+    },
+    async delete(key) {
+      sql.exec(`DELETE FROM blob_chunks WHERE key=?`, key);
+    },
+  };
+}

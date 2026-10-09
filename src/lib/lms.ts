@@ -15,8 +15,9 @@ export type Slide = { title: string; text: string; image: string };
 export type QuranData = { surah: number; from: number; to: number; reciter: string; notes: string };
 export type GeneralData = { slides: Slide[]; question: string };
 export type Homework = { id: string; kind: "quran" | "general"; title: string; cls: string; section?: string; students: string[]; data: QuranData | GeneralData; due: number | null; createdBy: string; created: number };
-export type Comment = { by: string; text: string; at: number };
-export type Submission = { id: string; status: "draft" | "submitted" | "approved" | "returned"; text: string; practised: boolean; liked: boolean; comments: Comment[]; updated: number };
+export type Comment = { by: string; text: string; at: number; audio?: string };
+export type Note = { id: string; kind: "hw_new" | "sub_new" | "feedback" | "feedback_audio" | "approved" | "returned"; data: { hw?: string; title?: string; by?: string; student?: string }; created: number; read: boolean };
+export type Submission = { id: string; status: "draft" | "submitted" | "approved" | "returned"; text: string; practised: boolean; liked: boolean; comments: Comment[]; audio?: string; updated: number };
 export type TrackerRow = { surah: number; from: number; to: number; approved: number };
 
 export const PERMS = ["assign", "review", "manageUsers", "viewAll"] as const;
@@ -44,10 +45,9 @@ export function lmsSignOut() {
   localStorage.removeItem(SESSION_KEY);
 }
 
-/** Uses the student/teacher session, or the admin session when `asAdmin` (admin pages). */
+/** Admin pages send ONLY the admin token; the LMS (/lms) sends ONLY the student/teacher token. Never mixed. */
 function bearer(asAdmin = false): string | null {
-  if (asAdmin) return getServerSession()?.token ?? null;
-  return lmsSession()?.token ?? getServerSession()?.token ?? null;
+  return asAdmin ? (getServerSession()?.token ?? null) : (lmsSession()?.token ?? null);
 }
 
 async function call<T>(action: string, body?: unknown, opts: { asAdmin?: boolean; query?: Record<string, string> } = {}): Promise<T> {
@@ -82,6 +82,7 @@ export const lmsApi = {
     call<{ homework: (Homework & { sub?: Submission | null; counts?: Record<string, number>; assigned?: number })[]; tracker?: TrackerRow[]; classes?: { cls: string; students: number }[]; students?: DashStudent[]; catalog?: Catalog; scope?: string[] }>("dashboard", undefined, { asAdmin }),
   users: (asAdmin = true) => call<{ users: LmsUser[] }>("users", undefined, { asAdmin }),
   saveUsers: (users: Partial<LmsUser & { pin: string }>[], asAdmin = true) => call<{ saved: number; pins: { username: string; name: string; pin: string }[]; errors: { row: number; username: string; error: string }[] }>("users", { users }, { asAdmin }),
+  setStatus: (ids: string[], disabled: boolean, asAdmin = true) => call<{ ok: true; changed: number }>("users-status", { ids, disabled }, { asAdmin }),
   deleteUser: (id: string, asAdmin = true) => call<{ ok: true }>("user-delete", { id }, { asAdmin }),
   resetPin: (id: string, pin?: string, asAdmin = true) => call<{ pin: string }>("user-pin", { id, pin }, { asAdmin }),
   saveHomework: (hw: Partial<Homework>, asAdmin = false) => call<{ ok: true; id: string }>("hw-save", hw, { asAdmin }),
@@ -95,6 +96,31 @@ export const lmsApi = {
   catalogDelete: (id: string) => call<Catalog & { ok: true }>("catalog-delete", { id }, { asAdmin: true }),
   /** Admin only: decrypted PINs (null = stored before PIN viewing existed → reset to view). */
   pinsView: (ids?: string[]) => call<{ pins: Record<string, string | null> }>("pins-view", { ids }, { asAdmin: true }),
+  notes: (asAdmin = false) => call<{ items: Note[]; unread: number }>("notes", undefined, { asAdmin }),
+  notesRead: (ids?: string[], asAdmin = false) => call<{ ok: true }>("notes-read", { ids }, { asAdmin }),
+  audioDelete: (id: string, asAdmin = false) => call<{ ok: true }>("audio-delete", { id }, { asAdmin }),
+  /** Uploads a recording: student → {hw}, teacher → {sub}. Raw body, so not via call(). */
+  async audioUpload(target: { hw?: string; sub?: string }, blob: Blob, asAdmin = false) {
+    const tok = bearer(asAdmin);
+    const q = new URLSearchParams(target as Record<string, string>).toString();
+    let res: Response;
+    try {
+      res = await fetch(`${ASSESSMENT_API_BASE}/api/lms/audio-upload?${q}`, { method: "POST", headers: { "Content-Type": blob.type || "audio/webm", ...(tok ? { Authorization: `Bearer ${tok}` } : {}) }, body: blob });
+    } catch {
+      throw new LmsError("network", 0);
+    }
+    const data = (await res.json().catch(() => ({}))) as { error?: string; id?: string };
+    if (!res.ok) throw new LmsError(data.error || "error", res.status);
+    return data as { ok: true; id: string };
+  },
+  /** Fetches a recording (auth header) and returns an object URL for <audio> / download. */
+  async audioUrl(id: string, asAdmin = false) {
+    const tok = bearer(asAdmin);
+    const res = await fetch(`${ASSESSMENT_API_BASE}/api/lms/audio?id=${encodeURIComponent(id)}`, { headers: tok ? { Authorization: `Bearer ${tok}` } : {} }).catch(() => null);
+    if (!res?.ok) throw new LmsError(res ? "not_found" : "network", res?.status || 0);
+    const blob = await res.blob();
+    return { url: URL.createObjectURL(blob), type: blob.type };
+  },
   exportAll: (asAdmin = false) => call<{ exportedAt: number; homework: Homework[]; subs: (Submission & { hw: string; student: string })[]; users: { id: string; username: string; name: string; role: string; cls: string }[]; tracker: (TrackerRow & { student: string; hw: string })[] }>("export", undefined, { asAdmin }),
 };
 
@@ -102,6 +128,7 @@ export function lmsErrorText(e: unknown, tr: (en: string, ar: string) => string)
   const c = e instanceof LmsError ? e.code : "";
   const m: Record<string, [string, string]> = {
     bad_login: ["Wrong username or PIN.", "اسم المستخدم أو الرقم السري غير صحيح."],
+    blocked: ["Your account is blocked. Please contact your teacher.", "حسابك موقوف. يرجى التواصل مع معلمك."],
     too_many_attempts: ["Too many tries — wait 15 minutes and try again.", "محاولات كثيرة — انتظر 15 دقيقة ثم حاول."],
     unauthorized: ["Please sign in again.", "يرجى تسجيل الدخول مجددًا."],
     forbidden: ["You don't have permission for that.", "ليست لديك صلاحية لذلك."],
@@ -117,6 +144,10 @@ export function lmsErrorText(e: unknown, tr: (en: string, ar: string) => string)
     duplicate: ["That name already exists.", "هذا الاسم موجود."],
     admin_only: ["Only the admin can do that.", "فقط المدير يمكنه ذلك."],
     pin_key_missing: ["PIN viewing isn't set up on the server.", "عرض الرقم السري غير مُعدّ على الخادم."],
+    audio_too_long: ["That recording is too long (max 3 minutes).", "التسجيل طويل جدًا (3 دقائق كحد أقصى)."],
+    audio_user_full: ["Recording space for this account is full.", "مساحة التسجيل لهذا الحساب ممتلئة."],
+    audio_full: ["Recording storage is full — ask the admin.", "مساحة التسجيلات ممتلئة — أخبر المدير."],
+    audio_type: ["This browser's recording format isn't supported.", "صيغة التسجيل في هذا المتصفح غير مدعومة."],
     already_approved: ["Your teacher has already approved this.", "وافق المعلم على هذا مسبقًا."],
   };
   return m[c] ? tr(m[c][0], m[c][1]) : tr("Something went wrong.", "حدث خطأ ما.");

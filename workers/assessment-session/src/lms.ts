@@ -11,6 +11,7 @@
  *   GET  /api/lms/users            (admin | teacher+manageUsers)
  *   POST /api/lms/users            {users:[{id?, username, name, role, cls, perms, pin?, disabled?}]} -> {saved, pins:[{username,pin}]}
  *   POST /api/lms/user-delete      {id}
+ *   POST /api/lms/users-status     {ids, disabled} bulk Activate/Block (blocked users get "blocked" at login)
  *   POST /api/lms/user-pin         {id, pin?} -> {pin}
  *   POST /api/lms/hw-save          (admin | teacher+assign) {id?, kind, title, cls, students?, due?, data}
  *   POST /api/lms/hw-delete        {id}
@@ -23,13 +24,18 @@
  *   POST /api/lms/catalog-save     (admin) {kind: subject|class|section, id?, name, parent?}  (renames propagate)
  *   POST /api/lms/catalog-delete   (admin) {id}  (refused while in use)
  *   POST /api/lms/pins-view        (admin only) {ids?} -> {pins: {id: pin|null}}
+ *   POST /api/lms/audio-upload?hw= (student: recitation/answer for that homework, replaces the previous one)
+ *        /api/lms/audio-upload?sub= (teacher/admin: spoken feedback on a submission) — raw audio body, ≤1.6 MB
+ *   GET  /api/lms/audio?id=        the recording (student owner or staff)
+ *   POST /api/lms/audio-delete     {id}
+ *   GET  /api/lms/notes            {items, unread} · POST /api/lms/notes-read {ids?} (none = all)
  *
  * PINs: the PBKDF2 hash is what login checks. A copy is also kept AES-GCM encrypted with the LMS_PIN_KEY secret
  * (32 random bytes, base64) so the admin can look a PIN up. Users created before that show "reset to view".
  */
 import { DurableObject } from "cloudflare:workers";
 import { corsHeaders, reply, verifyToken, type AdminEnv } from "./admin";
-import { blobStore, type StorageEnv } from "./storage";
+import { blobStore, sqliteChunkStore, type BlobStore, type StorageEnv } from "./storage";
 
 export interface LmsEnv extends AdminEnv, StorageEnv {
   LMS: DurableObjectNamespace<LmsStore>;
@@ -48,6 +54,10 @@ const MAX_USERS = 3000;
 const MAX_HW = 2000;
 const FAIL_WINDOW = 15 * 60_000;
 const PERMS = ["assign", "review", "manageUsers", "viewAll"] as const;
+const MAX_AUDIO = 1_600_000; // ~3 min at 24 kbps + container overhead, with headroom
+const USER_AUDIO_CAP = 30_000_000;
+const TOTAL_AUDIO_CAP = 1_500_000_000;
+const AUDIO_TYPES = /^audio\/(webm|mp4|ogg|aac|mpeg|x-m4a)(;.*)?$/;
 const enc = new TextEncoder();
 
 const str = (v: unknown, max: number) => String(v ?? "").replace(/[\u0000-\u001f]/g, " ").trim().slice(0, max);
@@ -126,18 +136,25 @@ const isStaff = (a: Actor) => a.role === "admin" || a.role === "teacher";
 
 export class LmsStore extends DurableObject<LmsEnv> {
   private sql: SqlStorage;
+  private files: BlobStore;
   constructor(ctx: DurableObjectState, env: LmsEnv) {
     super(ctx, env);
     this.sql = ctx.storage.sql;
+    // Recordings: R2 when bound, else chunked inside this Durable Object's SQLite.
+    this.files = env.FILES ? blobStore(env) : sqliteChunkStore(this.sql);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, username TEXT UNIQUE, name TEXT, role TEXT, cls TEXT, salt TEXT, hash TEXT, perms TEXT, disabled INTEGER DEFAULT 0, created INTEGER, last_login INTEGER)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS homework (id TEXT PRIMARY KEY, kind TEXT, title TEXT, cls TEXT, students TEXT, data TEXT, due INTEGER, created_by TEXT, created INTEGER)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS subs (id TEXT PRIMARY KEY, hw TEXT, student TEXT, status TEXT, text TEXT, practised INTEGER DEFAULT 0, liked INTEGER DEFAULT 0, comments TEXT DEFAULT '[]', updated INTEGER, UNIQUE (hw, student))`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS tracker (id TEXT PRIMARY KEY, student TEXT, surah INTEGER, from_ayah INTEGER, to_ayah INTEGER, hw TEXT UNIQUE, approved INTEGER)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS fails (k TEXT, t INTEGER)`);
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS blobs (id TEXT PRIMARY KEY, owner TEXT, sub TEXT, kind TEXT, mime TEXT, size INTEGER, created INTEGER)`);
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS notes (id TEXT PRIMARY KEY, uid TEXT, kind TEXT, data TEXT, created INTEGER, read INTEGER DEFAULT 0)`);
+    this.sql.exec(`CREATE INDEX IF NOT EXISTS notes_uid ON notes (uid, created)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS catalog (id TEXT PRIMARY KEY, kind TEXT, name TEXT, parent TEXT DEFAULT '', ord INTEGER DEFAULT 0)`);
     const cols = (t: string) => new Set(this.sql.exec(`PRAGMA table_info(${t})`).toArray().map((r) => String(r.name)));
     const uc = cols("users");
     for (const [c, def] of [["section", "TEXT DEFAULT ''"], ["subjects", "TEXT DEFAULT '[]'"], ["scope", "TEXT DEFAULT '[]'"], ["pin_enc", "TEXT"]] as const) if (!uc.has(c)) this.sql.exec(`ALTER TABLE users ADD COLUMN ${c} ${def}`);
+    if (!cols("subs").has("audio")) this.sql.exec(`ALTER TABLE subs ADD COLUMN audio TEXT DEFAULT ''`);
     if (!cols("homework").has("section")) this.sql.exec(`ALTER TABLE homework ADD COLUMN section TEXT DEFAULT ''`);
     // One-time migration: free-text class values become catalog classes (idempotent).
     for (const r of this.sql.exec(`SELECT DISTINCT cls FROM users WHERE cls != '' UNION SELECT DISTINCT cls FROM homework WHERE cls != ''`).toArray()) {
@@ -191,7 +208,10 @@ export class LmsStore extends DurableObject<LmsEnv> {
     const u = normUser(username);
     if (this.failCount(`u:${u}`) >= 5 || this.failCount(`ip:${ip}`) >= 25) return { status: 429, body: { error: "too_many_attempts" } };
     const r = this.userRow("username=?", u);
-    const ok = r && !r.disabled && safeEqual(await hashPin(pin, fromB64url(String(r.salt))), String(r.hash));
+    const pinOk = !!r && safeEqual(await hashPin(pin, fromB64url(String(r.salt))), String(r.hash));
+    // Blocked accounts are told so — only after a correct PIN, so it can't be used to probe usernames.
+    if (pinOk && r.disabled) return { status: 403, body: { error: "blocked" } };
+    const ok = pinOk;
     if (!ok) {
       this.sql.exec(`INSERT INTO fails (k, t) VALUES (?, ?), (?, ?)`, `u:${u}`, Date.now(), `ip:${ip}`, Date.now());
       return { status: 401, body: { error: "bad_login" } };
@@ -199,6 +219,77 @@ export class LmsStore extends DurableObject<LmsEnv> {
     this.sql.exec(`DELETE FROM fails WHERE k=?`, `u:${u}`);
     this.sql.exec(`UPDATE users SET last_login=? WHERE id=?`, Date.now(), String(r.id));
     return { status: 200, body: { uid: String(r.id), user: this.publicUser(r) } };
+  }
+
+  /** In-app notifications (bell). uid "admin" is the admin. Keeps the newest 100 per person, 60 days. */
+  private notify(uids: string[], kind: string, data: Json) {
+    const now = Date.now();
+    for (const uid of [...new Set(uids)].filter(Boolean)) {
+      this.sql.exec(`INSERT INTO notes (id, uid, kind, data, created) VALUES (?, ?, ?, ?, ?)`, rid("n"), uid, kind, JSON.stringify(data), now);
+      this.sql.exec(`DELETE FROM notes WHERE uid=? AND id NOT IN (SELECT id FROM notes WHERE uid=? ORDER BY created DESC LIMIT 100)`, uid, uid);
+    }
+    this.sql.exec(`DELETE FROM notes WHERE created < ?`, now - 60 * 864e5);
+  }
+  private studentName(id: string) {
+    return String(this.userRow("id=?", id)?.name ?? "?");
+  }
+
+  /** Raw audio upload (see header). Body is the recording; caps per person and in total. */
+  async audioUpload(a: Actor, q: Json, data: ArrayBuffer, mime: string): Promise<Reply> {
+    if (!AUDIO_TYPES.test(mime)) return { status: 415, body: { error: "audio_type" } };
+    if (!data.byteLength) return { status: 400, body: { error: "empty" } };
+    if (data.byteLength > MAX_AUDIO) return { status: 413, body: { error: "audio_too_long" } };
+    const used = Number(this.sql.exec(`SELECT COALESCE(SUM(size),0) AS n FROM blobs WHERE owner=?`, a.id).one().n);
+    const total = Number(this.sql.exec(`SELECT COALESCE(SUM(size),0) AS n FROM blobs`).one().n);
+    if (used + data.byteLength > USER_AUDIO_CAP) return { status: 409, body: { error: "audio_user_full" } };
+    if (total + data.byteLength > TOTAL_AUDIO_CAP) return { status: 409, body: { error: "audio_full" } };
+    const id = rid("a");
+    const type = mime.split(";")[0];
+    if (a.role === "student") {
+      const h = this.allHomework(str(q.hw, 40))[0];
+      if (!h || !this.assignees(h).includes(a.id)) return { status: 404, body: { error: "not_found" } };
+      let cur = this.sql.exec(`SELECT * FROM subs WHERE hw=? AND student=?`, h.id, a.id).toArray()[0];
+      if (cur?.status === "approved") return { status: 409, body: { error: "already_approved" } };
+      if (!cur) {
+        this.sql.exec(`INSERT INTO subs (id, hw, student, status, text, practised, updated) VALUES (?, ?, ?, 'draft', '', 0, ?)`, rid("s"), h.id, a.id, Date.now());
+        cur = this.sql.exec(`SELECT * FROM subs WHERE hw=? AND student=?`, h.id, a.id).toArray()[0];
+      }
+      if (cur.audio) await this.dropBlob(String(cur.audio));
+      await this.files.put(id, data, type);
+      this.sql.exec(`INSERT INTO blobs (id, owner, sub, kind, mime, size, created) VALUES (?, ?, ?, 'rec', ?, ?, ?)`, id, a.id, String(cur.id), type, data.byteLength, Date.now());
+      this.sql.exec(`UPDATE subs SET audio=?, updated=? WHERE id=?`, id, Date.now(), String(cur.id));
+      return { status: 200, body: { ok: true, id, sub: this.sub(h.id, a.id) } };
+    }
+    if (!can(a, "review")) return { status: 403, body: { error: "forbidden" } };
+    const r = this.sql.exec(`SELECT * FROM subs WHERE id=?`, str(q.sub, 40)).toArray()[0];
+    if (!r) return { status: 404, body: { error: "not_found" } };
+    await this.files.put(id, data, type);
+    this.sql.exec(`INSERT INTO blobs (id, owner, sub, kind, mime, size, created) VALUES (?, ?, ?, 'fb', ?, ?, ?)`, id, a.id, String(r.id), type, data.byteLength, Date.now());
+    const comments = JSON.parse(String(r.comments || "[]")) as Json[];
+    comments.push({ by: a.name, text: "", audio: id, at: Date.now() });
+    this.sql.exec(`UPDATE subs SET comments=?, updated=? WHERE id=?`, JSON.stringify(comments.slice(-50)), Date.now(), String(r.id));
+    const h = this.allHomework(String(r.hw))[0];
+    this.notify([String(r.student)], "feedback_audio", { hw: String(r.hw), title: h?.title || "", by: a.name });
+    return { status: 200, body: { ok: true, id } };
+  }
+
+  async audioGet(a: Actor, id: string): Promise<{ status: number; mime?: string; data?: ArrayBuffer; error?: string }> {
+    const b = this.sql.exec(`SELECT * FROM blobs WHERE id=?`, id).toArray()[0];
+    if (!b) return { status: 404, error: "not_found" };
+    const sub = this.sql.exec(`SELECT student FROM subs WHERE id=?`, String(b.sub)).toArray()[0];
+    if (!isStaff(a) && sub?.student !== a.id) return { status: 403, error: "forbidden" };
+    const f = await this.files.get(id);
+    if (!f) return { status: 404, error: "not_found" };
+    const data = f.body instanceof ArrayBuffer ? f.body : await new Response(f.body).arrayBuffer();
+    return { status: 200, mime: String(b.mime), data };
+  }
+
+  private async dropBlob(id: string) {
+    await this.files.delete(id);
+    this.sql.exec(`DELETE FROM blobs WHERE id=?`, id);
+  }
+  private async dropBlobsOfSubs(subIds: string[]) {
+    for (const s of subIds) for (const b of this.sql.exec(`SELECT id FROM blobs WHERE sub=?`, s).toArray()) await this.dropBlob(String(b.id));
   }
 
   async handle(action: string, a: Actor, input: Json): Promise<Reply> {
@@ -252,12 +343,29 @@ export class LmsStore extends DurableObject<LmsEnv> {
         return { status: 200, body: { saved, pins, errors } };
       }
 
+      case "users-status": {
+        // Bulk Activate / Block. Teachers can only be changed by the admin.
+        if (!can(a, "manageUsers")) return { status: 403, body: { error: "forbidden" } };
+        const ids = strList(input.ids, 1000);
+        const off = input.disabled ? 1 : 0;
+        let changed = 0;
+        for (const id of ids) {
+          const r = this.userRow("id=?", id);
+          if (!r || (r.role === "teacher" && a.role !== "admin")) continue;
+          this.sql.exec(`UPDATE users SET disabled=? WHERE id=?`, off, id);
+          changed++;
+        }
+        return { status: 200, body: { ok: true, changed } };
+      }
+
       case "user-delete": {
         if (!can(a, "manageUsers")) return { status: 403, body: { error: "forbidden" } };
         const r = this.userRow("id=?", str(input.id, 40));
         if (!r) return { status: 404, body: { error: "not_found" } };
         if (r.role === "teacher" && a.role !== "admin") return { status: 403, body: { error: "admin_only" } };
         this.sql.exec(`DELETE FROM users WHERE id=?`, String(r.id));
+        await this.dropBlobsOfSubs(this.sql.exec(`SELECT id FROM subs WHERE student=?`, String(r.id)).toArray().map((x) => String(x.id)));
+        this.sql.exec(`DELETE FROM notes WHERE uid=?`, String(r.id));
         this.sql.exec(`DELETE FROM subs WHERE student=?`, String(r.id));
         this.sql.exec(`DELETE FROM tracker WHERE student=?`, String(r.id));
         return { status: 200, body: { ok: true } };
@@ -276,6 +384,35 @@ export class LmsStore extends DurableObject<LmsEnv> {
 
       case "catalog":
         return { status: 200, body: this.catalog() };
+
+      case "notes": {
+        const items = this.sql.exec(`SELECT * FROM notes WHERE uid=? ORDER BY created DESC LIMIT 30`, a.id).toArray().map((r) => ({ id: String(r.id), kind: String(r.kind), data: JSON.parse(String(r.data || "{}")) as Json, created: Number(r.created), read: Boolean(r.read) }));
+        const unread = Number(this.sql.exec(`SELECT COUNT(*) AS n FROM notes WHERE uid=? AND read=0`, a.id).one().n);
+        return { status: 200, body: { items, unread } };
+      }
+
+      case "notes-read": {
+        const ids = strList(input.ids, 100);
+        if (ids.length) for (const id of ids) this.sql.exec(`UPDATE notes SET read=1 WHERE uid=? AND id=?`, a.id, id);
+        else this.sql.exec(`UPDATE notes SET read=1 WHERE uid=?`, a.id);
+        return { status: 200, body: { ok: true } };
+      }
+
+      case "audio-delete": {
+        const b = this.sql.exec(`SELECT * FROM blobs WHERE id=?`, str(input.id, 40)).toArray()[0];
+        if (!b) return { status: 404, body: { error: "not_found" } };
+        const r = this.sql.exec(`SELECT * FROM subs WHERE id=?`, String(b.sub)).toArray()[0];
+        if (b.kind === "rec") {
+          if (!(a.role === "student" && r?.student === a.id) && a.role !== "admin") return { status: 403, body: { error: "forbidden" } };
+          if (a.role === "student" && r?.status === "approved") return { status: 409, body: { error: "already_approved" } };
+          if (r) this.sql.exec(`UPDATE subs SET audio='' WHERE id=?`, String(r.id));
+        } else {
+          if (b.owner !== a.id && a.role !== "admin") return { status: 403, body: { error: "forbidden" } };
+          if (r) this.sql.exec(`UPDATE subs SET comments=? WHERE id=?`, JSON.stringify((JSON.parse(String(r.comments || "[]")) as Json[]).filter((c) => c.audio !== b.id)), String(r.id));
+        }
+        await this.dropBlob(String(b.id));
+        return { status: 200, body: { ok: true } };
+      }
 
       case "catalog-save": {
         if (a.role !== "admin") return { status: 403, body: { error: "admin_only" } };
@@ -368,6 +505,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         if (Number(this.sql.exec(`SELECT COUNT(*) AS n FROM homework`).one().n) >= MAX_HW) return { status: 409, body: { error: "full" } };
         const id = rid("hw");
         this.sql.exec(`INSERT INTO homework (id, kind, title, cls, section, students, data, due, created_by, created) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, id, kind, title, cls, section, JSON.stringify(students), blob, due, a.id, Date.now());
+        this.notify(this.assignees({ cls, section, students }), "hw_new", { hw: id, title, by: a.name });
         return { status: 200, body: { ok: true, id } };
       }
 
@@ -378,6 +516,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         if (!r) return { status: 404, body: { error: "not_found" } };
         if (a.role !== "admin" && r.created_by !== a.id && !a.perms.includes("viewAll")) return { status: 403, body: { error: "forbidden" } };
         this.sql.exec(`DELETE FROM homework WHERE id=?`, id);
+        await this.dropBlobsOfSubs(this.sql.exec(`SELECT id FROM subs WHERE hw=?`, id).toArray().map((x) => String(x.id)));
         this.sql.exec(`DELETE FROM subs WHERE hw=?`, id);
         this.sql.exec(`DELETE FROM tracker WHERE hw=?`, id);
         return { status: 200, body: { ok: true } };
@@ -424,6 +563,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         const practised = input.practised === true ? 1 : 0;
         if (cur) this.sql.exec(`UPDATE subs SET status=?, text=?, practised=?, updated=? WHERE id=?`, status, text, practised, Date.now(), String(cur.id));
         else this.sql.exec(`INSERT INTO subs (id, hw, student, status, text, practised, updated) VALUES (?, ?, ?, ?, ?, ?, ?)`, rid("s"), h.id, a.id, status, text, practised, Date.now());
+        if (status === "submitted" && cur?.status !== "submitted") this.notify([h.createdBy, "admin"], "sub_new", { hw: h.id, title: h.title, student: a.name });
         return { status: 200, body: { ok: true, sub: this.sub(h.id, a.id) } };
       }
 
@@ -437,6 +577,12 @@ export class LmsStore extends DurableObject<LmsEnv> {
         const liked = typeof input.like === "boolean" ? (input.like ? 1 : 0) : Number(r.liked);
         const status = input.status === "approved" || input.status === "returned" ? String(input.status) : String(r.status);
         this.sql.exec(`UPDATE subs SET comments=?, liked=?, status=?, updated=? WHERE id=?`, JSON.stringify(comments.slice(-50)), liked, status, Date.now(), String(r.id));
+        {
+          const hh = this.allHomework(String(r.hw))[0];
+          const nd = { hw: String(r.hw), title: hh?.title || "", by: a.name };
+          if (status !== String(r.status) && (status === "approved" || status === "returned")) this.notify([String(r.student)], status, nd);
+          else if (c) this.notify([String(r.student)], "feedback", nd);
+        }
         // Approving a Quran homework updates the student's tracker automatically.
         const h = this.allHomework(String(r.hw))[0];
         if (h?.kind === "quran") {
@@ -511,7 +657,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     return this.allHomework().filter((h) => (h.students.length ? h.students.includes(a.id) : !h.cls || (h.cls === a.cls && (!h.section || h.section === sec))));
   }
   private subOut(r: Record<string, unknown>) {
-    return { id: String(r.id), status: String(r.status), text: String(r.text || ""), practised: Boolean(r.practised), liked: Boolean(r.liked), comments: JSON.parse(String(r.comments || "[]")) as { by: string; text: string; at: number }[], updated: Number(r.updated) };
+    return { id: String(r.id), status: String(r.status), text: String(r.text || ""), practised: Boolean(r.practised), liked: Boolean(r.liked), comments: JSON.parse(String(r.comments || "[]")) as { by: string; text: string; at: number; audio?: string }[], audio: String(r.audio || ""), updated: Number(r.updated) };
   }
   private sub(hw: string, student: string) {
     const r = this.sql.exec(`SELECT * FROM subs WHERE hw=? AND student=?`, hw, student).toArray()[0];
@@ -526,6 +672,21 @@ export async function handleLms(request: Request, env: LmsEnv, action: string): 
   const origin = request.headers.get("Origin");
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders(origin) });
   const store = env.LMS.get(env.LMS.idFromName("main"));
+  if (action === "audio-upload" || action === "audio") {
+    const a = await lmsActor(request, env, store);
+    if (!a) return reply(origin, { error: "unauthorized" }, 401);
+    const q = Object.fromEntries(new URL(request.url).searchParams) as Json;
+    if (action === "audio") {
+      const r = (await store.audioGet(a, str(q.id, 40))) as unknown as { status: number; mime?: string; data?: ArrayBuffer; error?: string };
+      if (r.status !== 200 || !r.data) return reply(origin, { error: r.error }, r.status);
+      return new Response(r.data, { headers: { ...corsHeaders(origin), "Content-Type": r.mime || "application/octet-stream", "Cache-Control": "private, max-age=86400" } });
+    }
+    if (request.method !== "POST") return reply(origin, { error: "method" }, 405);
+    if (Number(request.headers.get("Content-Length") || 0) > MAX_AUDIO) return reply(origin, { error: "audio_too_long" }, 413);
+    const buf = await request.arrayBuffer();
+    const r = (await store.audioUpload(a, q, buf, request.headers.get("Content-Type") || "")) as unknown as Reply;
+    return reply(origin, r.body, r.status);
+  }
   let body: Json = {};
   if (request.method === "POST") {
     const text = await request.text();
@@ -551,16 +712,17 @@ export async function handleLms(request: Request, env: LmsEnv, action: string): 
     if (!blobStore(env).enabled) return reply(origin, { error: "storage_not_configured" }, 501);
     return reply(origin, { error: "not_implemented" }, 501);
   }
-  const auth = request.headers.get("Authorization");
-  let actor: Actor | null = null;
-  if (await verifyToken(env, auth)) actor = { id: "admin", role: "admin", name: "Admin", cls: "", perms: [...PERMS] };
-  else {
-    const uid = await verifyUserToken(env, auth);
-    if (uid) actor = (await store.actor(uid)) as unknown as Actor | null;
-  }
+  const actor = await lmsActor(request, env, store);
   if (!actor) return reply(origin, { error: "unauthorized" }, 401);
   const url = new URL(request.url);
   const input: Json = { ...Object.fromEntries(url.searchParams), ...body, __method: request.method };
   const r = (await store.handle(action, actor, input)) as unknown as Reply;
   return reply(origin, r.body, r.status);
+}
+
+async function lmsActor(request: Request, env: LmsEnv, store: DurableObjectStub<LmsStore>): Promise<Actor | null> {
+  const auth = request.headers.get("Authorization");
+  if (await verifyToken(env, auth)) return { id: "admin", role: "admin", name: "Admin", cls: "", perms: [...PERMS] };
+  const uid = await verifyUserToken(env, auth);
+  return uid ? ((await store.actor(uid)) as unknown as Actor | null) : null;
 }
