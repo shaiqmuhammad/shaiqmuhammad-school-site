@@ -5,12 +5,16 @@ import { ASSESSMENT_API_BASE } from "@/lib/groupSession";
 
 /** LMS phase 1 client (see workers/assessment-session/src/lms.ts). */
 export type Role = "student" | "teacher";
-export type LmsUser = { id: string; username: string; name: string; role: Role; cls: string; perms: string[]; disabled: boolean; created: number; lastLogin: number | null };
+export type LmsUser = { id: string; username: string; name: string; role: Role; cls: string; section: string; subjects: string[]; scope: string[]; perms: string[]; disabled: boolean; hasPin: boolean; created: number; lastLogin: number | null };
+export type Catalog = { subjects: { id: string; name: string }[]; classes: { id: string; name: string }[]; sections: { id: string; name: string; classId: string; cls: string }[] };
+export type DashStudent = { id: string; name: string; cls: string; section: string };
+/** Teacher scope entry: "Year 2" (whole class) or "Year 2|2A" (one section). */
+export const scopeLabel = (s: string) => s.replace("|", " · ");
 export type Actor = { id: string; role: Role | "admin"; name: string; cls: string; perms: string[] };
 export type Slide = { title: string; text: string; image: string };
 export type QuranData = { surah: number; from: number; to: number; reciter: string; notes: string };
 export type GeneralData = { slides: Slide[]; question: string };
-export type Homework = { id: string; kind: "quran" | "general"; title: string; cls: string; students: string[]; data: QuranData | GeneralData; due: number | null; createdBy: string; created: number };
+export type Homework = { id: string; kind: "quran" | "general"; title: string; cls: string; section?: string; students: string[]; data: QuranData | GeneralData; due: number | null; createdBy: string; created: number };
 export type Comment = { by: string; text: string; at: number };
 export type Submission = { id: string; status: "draft" | "submitted" | "approved" | "returned"; text: string; practised: boolean; liked: boolean; comments: Comment[]; updated: number };
 export type TrackerRow = { surah: number; from: number; to: number; approved: number };
@@ -74,7 +78,7 @@ export const lmsApi = {
   },
   me: () => call<{ user: Actor }>("me"),
   dashboard: (asAdmin = false) =>
-    call<{ homework: (Homework & { sub?: Submission | null; counts?: Record<string, number>; assigned?: number })[]; tracker?: TrackerRow[]; classes?: { cls: string; students: number }[]; students?: { id: string; name: string; cls: string }[] }>("dashboard", undefined, { asAdmin }),
+    call<{ homework: (Homework & { sub?: Submission | null; counts?: Record<string, number>; assigned?: number })[]; tracker?: TrackerRow[]; classes?: { cls: string; students: number }[]; students?: DashStudent[]; catalog?: Catalog; scope?: string[] }>("dashboard", undefined, { asAdmin }),
   users: (asAdmin = true) => call<{ users: LmsUser[] }>("users", undefined, { asAdmin }),
   saveUsers: (users: Partial<LmsUser & { pin: string }>[], asAdmin = true) => call<{ saved: number; pins: { username: string; name: string; pin: string }[]; errors: { row: number; username: string; error: string }[] }>("users", { users }, { asAdmin }),
   deleteUser: (id: string, asAdmin = true) => call<{ ok: true }>("user-delete", { id }, { asAdmin }),
@@ -85,6 +89,11 @@ export const lmsApi = {
     call<{ homework: Homework; sub?: Submission | null; subs?: (Submission & { student: string; name: string; cls: string })[]; notStarted?: { id: string; name: string }[] }>("hw", undefined, { asAdmin, query: { id } }),
   saveSub: (hw: string, text: string, practised: boolean, submit: boolean) => call<{ ok: true; sub: Submission }>("sub-save", { hw, text, practised, submit }),
   review: (id: string, patch: { comment?: string; like?: boolean; status?: "approved" | "returned" }, asAdmin = false) => call<{ ok: true }>("sub-review", { id, ...patch }, { asAdmin }),
+  catalog: (asAdmin = false) => call<Catalog>("catalog", undefined, { asAdmin }),
+  catalogSave: (item: { kind: "subject" | "class" | "section"; id?: string; name: string; parent?: string }) => call<Catalog & { ok: true; id: string }>("catalog-save", item, { asAdmin: true }),
+  catalogDelete: (id: string) => call<Catalog & { ok: true }>("catalog-delete", { id }, { asAdmin: true }),
+  /** Admin only: decrypted PINs (null = stored before PIN viewing existed → reset to view). */
+  pinsView: (ids?: string[]) => call<{ pins: Record<string, string | null> }>("pins-view", { ids }, { asAdmin: true }),
   exportAll: (asAdmin = false) => call<{ exportedAt: number; homework: Homework[]; subs: (Submission & { hw: string; student: string })[]; users: { id: string; username: string; name: string; role: string; cls: string }[]; tracker: (TrackerRow & { student: string; hw: string })[] }>("export", undefined, { asAdmin }),
 };
 
@@ -98,6 +107,15 @@ export function lmsErrorText(e: unknown, tr: (en: string, ar: string) => string)
     network: ["No connection — try again.", "لا يوجد اتصال — حاول مرة أخرى."],
     verses: ["Check the surah and verse range.", "تحقق من السورة ونطاق الآيات."],
     title: ["Add a title.", "أضف عنوانًا."],
+    unknown_class: ["Pick a class from the list (Classes & Subjects).", "اختر صفًا من القائمة (الصفوف والمواد)."],
+    unknown_section: ["That section isn't in this class.", "هذه الشعبة ليست في هذا الصف."],
+    unknown_subject: ["Pick subjects from the list.", "اختر المواد من القائمة."],
+    unknown_scope: ["Pick classes/sections from the list.", "اختر الصفوف/الشعب من القائمة."],
+    out_of_scope: ["You can only assign to your own classes/sections.", "يمكنك الإسناد لصفوفك وشعبك فقط."],
+    in_use: ["Still in use — move the students/teachers/homework first.", "ما زال مستخدمًا — انقل الطلاب/المعلمين/الواجبات أولًا."],
+    duplicate: ["That name already exists.", "هذا الاسم موجود."],
+    admin_only: ["Only the admin can do that.", "فقط المدير يمكنه ذلك."],
+    pin_key_missing: ["PIN viewing isn't set up on the server.", "عرض الرقم السري غير مُعدّ على الخادم."],
     already_approved: ["Your teacher has already approved this.", "وافق المعلم على هذا مسبقًا."],
   };
   return m[c] ? tr(m[c][0], m[c][1]) : tr("Something went wrong.", "حدث خطأ ما.");

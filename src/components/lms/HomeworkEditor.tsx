@@ -3,15 +3,26 @@
 import { useEffect, useState } from "react";
 import { primaryBtn } from "@/components/assessment/AssessmentShell";
 import { card, inputCls, smallBtn, useTr } from "@/components/lms/useLms";
-import { lmsApi, lmsErrorText, quranChapters, RECITERS, type Chapter, type GeneralData, type Homework, type QuranData, type Slide } from "@/lib/lms";
+import { lmsApi, lmsErrorText, quranChapters, RECITERS, type Chapter, type GeneralData, type Homework, type QuranData, type Slide, type Catalog, type DashStudent } from "@/lib/lms";
 
 /** Create / edit a homework (Quran verses or general slides) for a class or chosen students. */
-export function HomeworkEditor({ initial, classes, students, asAdmin, onSaved, onCancel }: { initial?: Homework; classes: { cls: string; students: number }[]; students: { id: string; name: string; cls: string }[]; asAdmin: boolean; onSaved: (id: string) => void; onCancel: () => void }) {
+export function HomeworkEditor({ initial, classes, students, catalog, scope = [], asAdmin, onSaved, onCancel }: { initial?: Homework; classes: { cls: string; students: number }[]; students: DashStudent[]; catalog?: Catalog; scope?: string[]; asAdmin: boolean; onSaved: (id: string) => void; onCancel: () => void }) {
   const { tr } = useTr();
   const [kind, setKind] = useState<"quran" | "general">(initial?.kind || "quran");
   const [title, setTitle] = useState(initial?.title || "");
-  const [cls, setCls] = useState(initial?.cls ?? (classes[0]?.cls || ""));
+  const [cls, setCls] = useState(initial?.cls ?? (scope[0]?.split("|")[0] || ""));
   const [pick, setPick] = useState<string[]>(initial?.students || []);
+  const [section, setSection] = useState(initial?.section ?? "");
+  const [who, setWho] = useState<"class" | "students">(initial?.students?.length ? "students" : "class");
+  const [fCls, setFCls] = useState("");
+  const [fSec, setFSec] = useState("");
+  // Classes from the catalog (plus any older free-text ones), narrowed to a teacher's scope when set.
+  const counts = new Map(classes.map((c) => [c.cls, c.students]));
+  const inScope = (c: string, sec = "") => !scope.length || scope.some((x) => { const [k, s2] = x.split("|"); return k === c && (!s2 || !sec || s2 === sec); });
+  const classNames = [...new Set([...(catalog?.classes || []).map((c) => c.name), ...classes.map((c) => c.cls).filter(Boolean)])].filter((c) => inScope(c));
+  const sectionsOf = (c: string) => (catalog?.sections || []).filter((x) => x.cls === c && inScope(c, x.name)).map((x) => x.name);
+  const wholeClassOk = (c: string) => !scope.length || scope.includes(c);
+  const shownStudents = students.filter((s) => inScope(s.cls, s.section) && (!fCls || s.cls === fCls) && (!fSec || s.section === fSec));
   const [due, setDue] = useState(initial?.due ? new Date(initial.due).toISOString().slice(0, 10) : "");
   const q0 = (initial?.kind === "quran" ? initial.data : {}) as Partial<QuranData>;
   const g0 = (initial?.kind === "general" ? initial.data : {}) as Partial<GeneralData>;
@@ -41,7 +52,7 @@ export function HomeworkEditor({ initial, classes, students, asAdmin, onSaved, o
         setErr("");
         try {
           const data = kind === "quran" ? { surah, from, to: Math.max(from, to), reciter, notes } : { slides: slides.filter((s) => s.title || s.text || s.image), question };
-          const r = await lmsApi.saveHomework({ id: initial?.id, kind, title: title.trim() || (kind === "quran" && ch ? `${ch.name_simple} ${from}–${to}` : ""), cls: pick.length ? "" : cls, students: pick, due: due ? new Date(due + "T23:59:00").getTime() : null, data: data as QuranData | GeneralData }, asAdmin);
+          const r = await lmsApi.saveHomework({ id: initial?.id, kind, title: title.trim() || (kind === "quran" && ch ? `${ch.name_simple} ${from}–${to}` : ""), cls: who === "students" ? "" : cls, section: who === "students" ? "" : section || (cls && !wholeClassOk(cls) ? sectionsOf(cls)[0] || "" : ""), students: who === "students" ? pick : [], due: due ? new Date(due + "T23:59:00").getTime() : null, data: data as QuranData | GeneralData }, asAdmin);
           onSaved(r.id);
         } catch (x) {
           setErr(lmsErrorText(x, tr));
@@ -116,30 +127,58 @@ export function HomeworkEditor({ initial, classes, students, asAdmin, onSaved, o
       )}
 
       <div className="grid gap-3 sm:grid-cols-3">
-        <label className="block text-sm font-semibold">
-          {tr("Class", "الصف")}
-          <select className={inputCls} value={cls} onChange={(e) => setCls(e.target.value)} disabled={pick.length > 0} data-testid="hw-class">
-            <option value="">{tr("All students", "كل الطلاب")}</option>
-            {classes.map((c) => (
-              <option key={c.cls} value={c.cls}>{c.cls || tr("(no class)", "(بدون صف)")} · {c.students}</option>
+        <fieldset className="space-y-2 text-sm sm:col-span-2">
+          <legend className="font-semibold">{tr("Assign to", "إسناد إلى")}</legend>
+          <div className="flex flex-wrap gap-2" role="radiogroup">
+            {(["class", "students"] as const).map((k) => (
+              <button key={k} type="button" role="radio" aria-checked={who === k} onClick={() => setWho(k)} className={`rounded-full px-3 py-1.5 font-bold ${who === k ? "bg-header text-sun" : "glass"}`} data-testid={`hw-who-${k}`}>
+                {k === "class" ? tr("Class / section", "صف / شعبة") : tr("Group or individual students", "مجموعة أو طلاب محددون")}
+              </button>
             ))}
-          </select>
-        </label>
+          </div>
+          {who === "class" ? (
+            <div className="grid gap-2 sm:grid-cols-2">
+              <select className={inputCls} value={cls} onChange={(e) => { setCls(e.target.value); setSection(""); }} data-testid="hw-class" aria-label={tr("Class", "الصف")}>
+                {!scope.length && <option value="">{tr("All students", "كل الطلاب")}</option>}
+                {classNames.map((c) => (
+                  <option key={c} value={c}>{c}{counts.has(c) ? ` · ${counts.get(c)}` : ""}</option>
+                ))}
+              </select>
+              <select className={inputCls} value={section} onChange={(e) => setSection(e.target.value)} disabled={!cls || !sectionsOf(cls).length} data-testid="hw-section" aria-label={tr("Section", "الشعبة")}>
+                {(!cls || wholeClassOk(cls)) && <option value="">{tr("Whole class", "الصف كله")}</option>}
+                {cls && sectionsOf(cls).map((x) => <option key={x} value={x}>{x}</option>)}
+              </select>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <div className="flex flex-wrap gap-2">
+                <select className={inputCls + " mt-0 w-auto"} value={fCls} onChange={(e) => { setFCls(e.target.value); setFSec(""); }} aria-label={tr("Filter class", "تصفية الصف")}>
+                  <option value="">{tr("All classes", "كل الصفوف")}</option>
+                  {classNames.map((c) => <option key={c}>{c}</option>)}
+                </select>
+                <select className={inputCls + " mt-0 w-auto"} value={fSec} onChange={(e) => setFSec(e.target.value)} disabled={!fCls} aria-label={tr("Filter section", "تصفية الشعبة")}>
+                  <option value="">{tr("All sections", "كل الشعب")}</option>
+                  {fCls && sectionsOf(fCls).map((x) => <option key={x}>{x}</option>)}
+                </select>
+                <button type="button" className="rounded-full px-3 py-1 font-semibold glass" onClick={() => setPick([...new Set([...pick, ...shownStudents.map((s) => s.id)])])} data-testid="hw-pick-all">{tr("Select all shown", "تحديد الظاهرين")}</button>
+                {pick.length > 0 && <button type="button" className="rounded-full px-3 py-1 font-semibold glass" onClick={() => setPick([])}>{tr("Clear", "مسح")} ({pick.length})</button>}
+              </div>
+              <div className="max-h-48 space-y-1 overflow-auto rounded-xl border border-black/10 p-2 dark:border-white/15">
+                {shownStudents.map((s) => (
+                  <label key={s.id} className="flex items-center gap-2">
+                    <input type="checkbox" checked={pick.includes(s.id)} onChange={(e) => setPick(e.target.checked ? [...pick, s.id] : pick.filter((x) => x !== s.id))} data-testid="hw-pick" />
+                    <span dir="auto">{s.name}</span> <span className="opacity-60">{[s.cls, s.section].filter(Boolean).join(" · ")}</span>
+                  </label>
+                ))}
+                {!shownStudents.length && <p className="opacity-60">{tr("No students here.", "لا يوجد طلاب.")}</p>}
+              </div>
+            </div>
+          )}
+        </fieldset>
         <label className="block text-sm font-semibold">
           {tr("Due date (optional)", "تاريخ التسليم (اختياري)")}
           <input type="date" className={inputCls} value={due} onChange={(e) => setDue(e.target.value)} />
         </label>
-        <details className="text-sm sm:pt-6">
-          <summary className="cursor-pointer font-semibold">{tr("…or choose students", "…أو اختر طلابًا")} {pick.length > 0 && `(${pick.length})`}</summary>
-          <div className="mt-2 max-h-48 space-y-1 overflow-auto rounded-xl border border-black/10 p-2 dark:border-white/15">
-            {students.map((s) => (
-              <label key={s.id} className="flex items-center gap-2">
-                <input type="checkbox" checked={pick.includes(s.id)} onChange={(e) => setPick(e.target.checked ? [...pick, s.id] : pick.filter((x) => x !== s.id))} />
-                <span dir="auto">{s.name}</span> <span className="opacity-60">{s.cls}</span>
-              </label>
-            ))}
-          </div>
-        </details>
       </div>
       {err && <p className="rounded-xl bg-rose-100 px-4 py-2 text-rose-800 dark:bg-rose-900/40 dark:text-rose-100" role="alert">{err}</p>}
       <div className="flex flex-wrap gap-2">

@@ -2,43 +2,74 @@
 
 import { downloadBlob, safeFileName } from "@/lib/exportUtils";
 import { qrImageUrl } from "@/lib/groupSession";
-import { homeworkUrl, lmsApi, type GeneralData, type Homework, type LmsUser, type QuranData } from "@/lib/lms";
+import { homeworkUrl, lmsApi, type Catalog, type GeneralData, type Homework, type LmsUser, type QuranData, type Role } from "@/lib/lms";
 import { makeZip } from "@/lib/zip";
 
 const XLSX_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 const excel = async () => (await import("exceljs")).default;
 
-/** Template for bulk user upload. */
-export async function downloadUsersTemplate() {
+type Row = Partial<LmsUser & { pin: string }>;
+/** Scope in Excel is written "Year 2/2A" (or just "Year 2"); stored as "Year 2|2A". */
+const scopeToCell = (l: string[]) => l.map((x) => x.replace("|", "/")).join(", ");
+const cellToScope = (v: string) => v.split(",").map((x) => x.trim()).filter(Boolean).map((x) => { const i = x.lastIndexOf("/"); return i > 0 ? `${x.slice(0, i).trim()}|${x.slice(i + 1).trim()}` : x; });
+
+/** Bulk-upload template for one role, with dropdowns from Classes & Subjects. */
+export async function downloadUsersTemplate(role: Role = "student", catalog?: Catalog) {
   const ExcelJS = await excel();
   const wb = new ExcelJS.Workbook();
-  const ws = wb.addWorksheet("Users");
-  ws.columns = [
-    { header: "username", key: "username", width: 18 },
-    { header: "name", key: "name", width: 26 },
-    { header: "role", key: "role", width: 10 },
-    { header: "class", key: "cls", width: 10 },
-    { header: "pin", key: "pin", width: 10 },
-    { header: "permissions", key: "perms", width: 30 },
-  ];
+  const ws = wb.addWorksheet(role === "teacher" ? "Teachers" : "Students");
+  const lists = wb.addWorksheet("Lists");
+  const classes = catalog?.classes.map((c) => c.name) || [];
+  const sections = [...new Set(catalog?.sections.map((c) => c.name) || [])];
+  const subjects = catalog?.subjects.map((c) => c.name) || [];
+  lists.getColumn(1).values = ["Classes", ...classes];
+  lists.getColumn(2).values = ["Sections", ...sections];
+  lists.getColumn(3).values = ["Subjects", ...subjects];
+  lists.getColumn(4).values = ["Class/Section (teachers)", ...classes, ...(catalog?.sections.map((x) => `${x.cls}/${x.name}`) || [])];
+  [1, 2, 3, 4].forEach((i) => (lists.getColumn(i).width = 24));
+  lists.getRow(1).font = { bold: true };
+  const c1 = catalog?.classes[0]?.name || "Year 3";
+  const s1 = catalog?.sections.find((x) => x.cls === c1)?.name || "";
+  if (role === "student") {
+    ws.columns = [
+      { header: "username", key: "username", width: 18 },
+      { header: "name", key: "name", width: 26 },
+      { header: "class", key: "cls", width: 14 },
+      { header: "section", key: "section", width: 12 },
+      { header: "pin", key: "pin", width: 10 },
+    ];
+    ws.addRow({ username: "aisha.k", name: "Aisha Khan", cls: c1, section: s1, pin: "" });
+    ws.addRow({ username: "omar.s", name: "Omar Saleh", cls: c1, section: s1, pin: "4821" });
+    for (let r = 2; r <= 1000; r++) {
+      if (classes.length) ws.getCell(`C${r}`).dataValidation = { type: "list", allowBlank: true, formulae: [`Lists!$A$2:$A$${classes.length + 1}`], showErrorMessage: true, error: "Pick a class from the list" };
+      if (sections.length) ws.getCell(`D${r}`).dataValidation = { type: "list", allowBlank: true, formulae: [`Lists!$B$2:$B$${sections.length + 1}`], showErrorMessage: true, error: "Pick a section from the list" };
+    }
+  } else {
+    ws.columns = [
+      { header: "username", key: "username", width: 18 },
+      { header: "name", key: "name", width: 26 },
+      { header: "subjects", key: "subjects", width: 26 },
+      { header: "classes/sections", key: "scope", width: 30 },
+      { header: "pin", key: "pin", width: 10 },
+      { header: "permissions", key: "perms", width: 30 },
+    ];
+    ws.addRow({ username: "ms.huda", name: "Ms Huda", subjects: subjects.slice(0, 2).join(", ") || "Quran", scope: s1 ? `${c1}/${s1}` : c1, pin: "", perms: "assign, review" });
+  }
   ws.getRow(1).font = { bold: true };
-  ws.addRow({ username: "aisha.k", name: "Aisha Khan", role: "student", cls: "3A", pin: "", perms: "" });
-  ws.addRow({ username: "omar.s", name: "Omar Saleh", role: "student", cls: "3A", pin: "4821", perms: "" });
-  ws.addRow({ username: "ms.huda", name: "Ms Huda", role: "teacher", cls: "3A", pin: "", perms: "assign, review" });
   const help = wb.addWorksheet("Help");
   [
     "username: 3–40 characters, letters/numbers/dot/dash, unique (stored in lower case).",
-    "role: student or teacher. class: e.g. 3A — homework can be assigned to a whole class.",
-    "pin: 4–8 digits. Leave empty to generate a random 6-digit PIN (shown once after import).",
-    "permissions (teachers only, comma separated): assign, review, manageUsers, viewAll.",
+    role === "student" ? "class and section: pick from the dropdowns (they come from Admin → Classes & Subjects)." : "subjects: comma separated, from the Lists sheet. classes/sections: comma separated, e.g. \"Year 2\" (whole class) or \"Year 2/2A\" (one section). Leave empty for no restriction.",
+    "pin: 4–8 digits. Leave empty to generate a random 6-digit PIN.",
+    role === "teacher" ? "permissions (comma separated): assign, review, manageUsers, viewAll." : "",
     "Existing usernames are updated (a PIN is only changed when you fill it in).",
-  ].forEach((t) => help.addRow([t]));
-  help.getColumn(1).width = 110;
-  downloadBlob(new Blob([await wb.xlsx.writeBuffer()], { type: XLSX_TYPE }), "users-template.xlsx");
+  ].filter(Boolean).forEach((t) => help.addRow([t]));
+  help.getColumn(1).width = 120;
+  downloadBlob(new Blob([await wb.xlsx.writeBuffer()], { type: XLSX_TYPE }), `${role === "teacher" ? "teachers" : "students"}-template.xlsx`);
 }
 
-/** Reads the uploaded .xlsx into user rows (header names as in the template). */
-export async function parseUsersXlsx(file: File): Promise<Partial<LmsUser & { pin: string }>[]> {
+/** Reads an uploaded template into rows for one role. */
+export async function parseUsersXlsx(file: File, role: Role = "student"): Promise<Row[]> {
   const ExcelJS = await excel();
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.load(await file.arrayBuffer());
@@ -46,22 +77,37 @@ export async function parseUsersXlsx(file: File): Promise<Partial<LmsUser & { pi
   if (!ws) return [];
   const head: Record<number, string> = {};
   ws.getRow(1).eachCell((c, i) => (head[i] = String(c.text || "").trim().toLowerCase()));
-  const rows: Partial<LmsUser & { pin: string }>[] = [];
+  const rows: Row[] = [];
   ws.eachRow((row, n) => {
     if (n === 1) return;
     const r: Record<string, string> = {};
     row.eachCell((c, i) => (r[head[i]] = String(c.text ?? "").trim()));
     if (!r.username && !r.name) return;
-    rows.push({
-      username: r.username,
-      name: r.name,
-      role: r.role?.toLowerCase() === "teacher" ? "teacher" : "student",
-      cls: r.class || r.cls || "",
-      pin: r.pin || undefined,
-      perms: (r.permissions || r.perms || "").split(/[,\s]+/).filter(Boolean),
-    });
+    rows.push(
+      role === "teacher"
+        ? { username: r.username, name: r.name, role, cls: "", subjects: (r.subjects || "").split(",").map((x) => x.trim()).filter(Boolean), scope: cellToScope(r["classes/sections"] || r.classes || ""), pin: r.pin || undefined, perms: (r.permissions || r.perms || "assign, review").split(/[,\s]+/).filter(Boolean) }
+        : { username: r.username, name: r.name, role, cls: r.class || r.cls || "", section: r.section || "", pin: r.pin || undefined, perms: [] },
+    );
   });
   return rows;
+}
+
+/** Sign-in sheet for a list of people. PINs come from the admin-only lookup (null = reset to view). */
+export async function downloadSignInSheet(users: LmsUser[], pins: Record<string, string | null>, role: Role) {
+  const ExcelJS = await excel();
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet("Sign-in sheet");
+  const url = `${window.location.origin}/lms/login`;
+  ws.columns = [
+    { header: "Name", key: "name", width: 28 },
+    { header: "Username", key: "username", width: 20 },
+    { header: "PIN", key: "pin", width: 18 },
+    ...(role === "student" ? [{ header: "Class", key: "cls", width: 14 }, { header: "Section", key: "section", width: 12 }] : [{ header: "Subjects", key: "subjects", width: 26 }, { header: "Classes/sections", key: "scope", width: 30 }]),
+    { header: "Sign in at", key: "url", width: 40 },
+  ];
+  ws.getRow(1).font = { bold: true };
+  for (const u of users) ws.addRow({ name: u.name, username: u.username, pin: pins[u.id] ?? "(reset PIN to view)", cls: u.cls, section: u.section, subjects: u.subjects.join(", "), scope: scopeToCell(u.scope), url });
+  downloadBlob(new Blob([await wb.xlsx.writeBuffer()], { type: XLSX_TYPE }), `${role === "teacher" ? "teachers" : "students"}-sign-in-${new Date().toISOString().slice(0, 10)}.xlsx`);
 }
 
 /** Sign-in cards for newly created users (the only time PINs are visible). */

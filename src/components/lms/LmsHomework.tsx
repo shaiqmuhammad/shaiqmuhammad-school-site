@@ -7,7 +7,7 @@ import { AssessmentShell, primaryBtn } from "@/components/assessment/AssessmentS
 import { HomeworkEditor } from "@/components/lms/HomeworkEditor";
 import { homeworkQrPdf } from "@/components/lms/lmsFiles";
 import { STATUS_STYLE, card, inputCls, smallBtn, statusLabel, useLmsActor, useTr } from "@/components/lms/useLms";
-import { ayahAudio, lmsApi, lmsErrorText, quranChapters, quranVerses, type Chapter, type GeneralData, type QuranData, type Submission } from "@/lib/lms";
+import { ayahAudio, lmsApi, lmsErrorText, quranChapters, quranVerses, type Chapter, type GeneralData, type QuranData, type Submission, type Catalog, type DashStudent } from "@/lib/lms";
 
 type Data = Awaited<ReturnType<typeof lmsApi.homework>>;
 
@@ -189,7 +189,7 @@ export function LmsHomework() {
   const [d, setD] = useState<Data | null>(null);
   const [err, setErr] = useState("");
   const [editing, setEditing] = useState(false);
-  const [extra, setExtra] = useState<{ classes: { cls: string; students: number }[]; students: { id: string; name: string; cls: string }[] }>({ classes: [], students: [] });
+  const [extra, setExtra] = useState<{ classes: { cls: string; students: number }[]; students: DashStudent[]; catalog?: Catalog; scope?: string[] }>({ classes: [], students: [] });
   const [chapters, setChapters] = useState<Chapter[]>([]);
 
   const load = useCallback(() => {
@@ -235,7 +235,7 @@ export function LmsHomework() {
                   className={smallBtn}
                   onClick={async () => {
                     const dd = await lmsApi.dashboard(asAdmin).catch(() => null);
-                    if (dd) setExtra({ classes: dd.classes || [], students: dd.students || [] });
+                    if (dd) setExtra({ classes: dd.classes || [], students: dd.students || [], catalog: dd.catalog, scope: dd.scope });
                     setEditing(true);
                   }}
                   data-testid="hw-edit"
@@ -256,7 +256,7 @@ export function LmsHomework() {
                 </button>
               </div>
             )}
-            {editing && <HomeworkEditor initial={hw} classes={extra.classes} students={extra.students} asAdmin={asAdmin} onCancel={() => setEditing(false)} onSaved={() => { setEditing(false); load(); }} />}
+            {editing && <HomeworkEditor initial={hw} classes={extra.classes} students={extra.students} catalog={extra.catalog} scope={extra.scope} asAdmin={asAdmin} onCancel={() => setEditing(false)} onSaved={() => { setEditing(false); load(); }} />}
             {hw.kind === "quran" ? <QuranReader data={hw.data as QuranData} /> : <Slides data={hw.data as GeneralData} />}
             {!staff && <StudentWork key={d?.sub?.updated || 0} hw={hw} sub={d?.sub || null} reload={load} />}
             {staff && (
