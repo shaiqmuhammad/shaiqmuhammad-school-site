@@ -80,6 +80,10 @@ export type Quiz = {
   timeLimitMinutes: number;
   /** Show the review screen (student answer, correct answer, explanation) after submitting */
   showAnswers: boolean;
+  /** Offer the PDF certificate after an individual attempt (missing in older data = on). */
+  certificateIndividual: boolean;
+  /** Offer the PDF certificate (with class position) after a live group session (missing in older data = on). */
+  certificateGroup: boolean;
   /**
    * "Show on website": listed on /assessments and the home page. Hidden assessments stay in Admin and the
    * teacher can still run them as a live group session. Missing in older data = shown.
@@ -272,6 +276,8 @@ export function normalizeQuiz(raw: Partial<Quiz>): Quiz {
     cardImage: String(raw.cardImage || "").trim(),
     timeLimitMinutes: typeof raw.timeLimitMinutes === "number" && raw.timeLimitMinutes >= 0 ? raw.timeLimitMinutes : 10,
     showAnswers: raw.showAnswers !== false,
+    certificateIndividual: raw.certificateIndividual !== false,
+    certificateGroup: raw.certificateGroup !== false,
     visible: typeof raw.visible === "boolean" ? raw.visible : true,
     active,
     published: active,
@@ -512,7 +518,7 @@ export function scoreQuestion(question: QuizQuestion, answer: unknown): number {
       const n = question.options.length;
       const given = numList(answer);
       if (n < 2 || given.length !== n) return 0;
-      return given.every((idx, pos) => normText(question.options[idx] ?? "\u0000") === normText(question.options[pos]))
+      return given.every((idx, pos) => normText(question.options[idx] ?? "\\u0000") === normText(question.options[pos]))
         ? pts
         : 0;
     }
@@ -560,7 +566,7 @@ export function describeAnswer(q: QuizQuestion, answer: unknown): ReviewLine[] {
       const pairs = q.pairs || [];
       const given = numList(answer);
       if (!given.some((n) => n >= 0)) return [];
-      return pairs.map((p, i) => ({ text: `${p.left} \u2192 ${pairs[given[i]]?.right ?? "(no answer)"}` }));
+      return pairs.map((p, i) => ({ text: `${p.left} \\u2192 ${pairs[given[i]]?.right ?? "(no answer)"}` }));
     }
     case "fill_blank": {
       const given = Array.isArray(answer) ? answer.map((a) => String(a ?? "").trim()) : [];
@@ -584,7 +590,7 @@ export function describeCorrect(q: QuizQuestion): ReviewLine[] {
     case "short_answer":
       return [{ text: (q.correct as string[]).filter((a) => a.trim()).join(" / ") }];
     case "matching":
-      return (q.pairs || []).map((p) => ({ text: `${p.left} \u2192 ${p.right}` }));
+      return (q.pairs || []).map((p) => ({ text: `${p.left} \\u2192 ${p.right}` }));
     case "fill_blank":
       return Array.from({ length: countBlanks(q.prompt) }, (_, i) => ({
         text: `Blank ${i + 1}: ${(q.blanks?.[i] || []).filter((a) => a.trim()).join(" / ")}`,
@@ -667,6 +673,8 @@ export function emptyQuiz(): Quiz {
     cardImage: "",
     timeLimitMinutes: 5,
     showAnswers: true,
+    certificateIndividual: true,
+    certificateGroup: true,
     visible: true,
     active: true,
     published: true,
