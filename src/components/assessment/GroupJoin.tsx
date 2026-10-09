@@ -252,6 +252,11 @@ export function GroupJoin() {
             onSubmit={(e) => {
               e.preventDefault();
               const c = cleanCode(codeInput);
+              if (c.length === 5) {
+                // Classroom activities use 5-character codes (see JoinRouter).
+                window.location.assign(`/join?code=${c}`);
+                return;
+              }
               if (c.length >= 4) {
                 setError("");
                 setInfo(null);
