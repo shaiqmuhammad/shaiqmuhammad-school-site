@@ -7,7 +7,7 @@ import { LmsBell } from "@/components/lms/LmsBell";
 import { mailApi } from "@/lib/mail";
 import { useI18n } from "@/lib/i18n";
 
-type Tab = "home" | "pages" | "videos" | "quizzes" | "certificate" | "banners" | "announcements" | "teacher" | "forum" | "results" | "activities" | "settings" | "students" | "teachers" | "setup" | "lmshw" | "classes" | "mail";
+type Tab = "home" | "pages" | "videos" | "quizzes" | "certificate" | "banners" | "announcements" | "teacher" | "forum" | "results" | "activities" | "settings" | "students" | "teachers" | "setup" | "lmshw" | "classes" | "mail" | "homepage";
 
 type Props = {
   busy: boolean;
@@ -23,7 +23,7 @@ type Props = {
   children: ReactNode;
 };
 
-const ORDER: Tab[] = ["quizzes", "results", "activities", "pages", "videos", "announcements", "banners", "forum", "certificate", "teacher", "settings", "students", "teachers", "setup", "classes", "lmshw", "mail"];
+const ORDER: Tab[] = ["quizzes", "results", "activities", "homepage", "pages", "videos", "announcements", "banners", "forum", "certificate", "teacher", "settings", "students", "teachers", "setup", "classes", "lmshw", "mail"];
 const LMS_IDS: Partial<Record<Tab, string>> = { students: "admin-nav-lms-students", teachers: "admin-nav-lms-teachers", setup: "admin-nav-lms-setup", lmshw: "admin-nav-lms-homework" };
 const COLLAPSE_KEY = "sm-admin-sidebar-collapsed";
 
@@ -44,6 +44,7 @@ const ICONS: Record<Tab, ReactNode> = {
   teachers: <><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20a6.5 6.5 0 0 1 13 0M15 4h7v6h-7" /></>,
   setup: <><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></>,
   classes: <><path d="M3 21h18M5 21V8l7-5 7 5v13" /><path d="M9 21v-6h6v6" /></>,
+  homepage: <><path d="M3 11 12 4l9 7" /><path d="M5 10v10h14V10" /><path d="M9 20v-6h6v6" /></>,
   mail: <><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3 7 9 6 9-6" /></>,
   lmshw: <><path d="M4 4h12l4 4v12H4z" /><path d="M8 12h8M8 16h5M8 8h4" /></>,
   settings: <><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" /></>,
@@ -89,7 +90,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
   const drawerRef = useRef<HTMLDivElement>(null);
   const homeLabel = tr("Admin home — refresh content", "الرئيسية وتحديث المحتوى");
   const label = (id: Tab) =>
-    id === "home" ? tr("Home", "الرئيسية") : id === "announcements" ? tr("Announcements", "الإعلانات") : id === "results" ? tr("Results", "النتائج") : id === "activities" ? tr("Activities", "الأنشطة") : id === "students" ? tr("Students", "الطلاب") : id === "teachers" ? tr("Teachers", "المعلمون") : id === "setup" ? tr("Classes & Subjects", "الصفوف والمواد") : id === "lmshw" ? tr("Homework", "الواجبات") : id === "mail" ? tr("Mail", "البريد") : id === "classes" ? tr("Classes", "الصفوف") : t(`admin.tab.${id}`);
+    id === "home" ? tr("Home", "الرئيسية") : id === "announcements" ? tr("Announcements", "الإعلانات") : id === "results" ? tr("Results", "النتائج") : id === "activities" ? tr("Activities", "الأنشطة") : id === "students" ? tr("Students", "الطلاب") : id === "teachers" ? tr("Teachers", "المعلمون") : id === "setup" ? tr("Classes & Subjects", "الصفوف والمواد") : id === "lmshw" ? tr("Homework", "الواجبات") : id === "mail" ? tr("Mail", "البريد") : id === "homepage" ? tr("Homepage", "الصفحة الرئيسية") : id === "classes" ? tr("Classes", "الصفوف") : t(`admin.tab.${id}`);
 
   useEffect(() => {
     try {

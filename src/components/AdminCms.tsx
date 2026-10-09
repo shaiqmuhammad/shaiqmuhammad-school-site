@@ -25,6 +25,8 @@ import { AdminClasses } from "@/components/lms/AdminClasses";
 import AdminQuizzes from "@/components/AdminQuizzes";
 import AdminCertificate from "@/components/AdminCertificate";
 import AdminBanners from "@/components/AdminBanners";
+import AdminHomepage from "@/components/AdminHomepage";
+import { defaultHomepage, GITHUB_HOMEPAGE_PATH, loadHomepageData, normalizeHomepage, type HomepageData } from "@/lib/homepage";
 import AdminAnnouncements from "@/components/AdminAnnouncements";
 import { builtAnnouncements, GITHUB_ANNOUNCEMENTS_PATH, loadAnnouncementsData, normalizeAnnouncements, type AnnouncementsData } from "@/lib/announcements";
 import { GITHUB_BANNERS_PATH, loadBannersData, normalizeBanners, type BannersData } from "@/lib/banners";
@@ -42,8 +44,8 @@ import { AdminHome } from "@/components/AdminHome";
 import AdminSettings from "@/components/AdminSettings";
 import { useI18n } from "@/lib/i18n";
 
-type Tab = "home" | "pages" | "videos" | "quizzes" | "certificate" | "banners" | "announcements" | "teacher" | "forum" | "results" | "activities" | "settings" | "students" | "teachers" | "setup" | "lmshw" | "classes" | "mail";
-const HASH_TABS: Tab[] = ["pages", "videos", "quizzes", "certificate", "banners", "announcements", "teacher", "forum", "results", "activities", "settings", "students", "teachers", "setup", "classes", "lmshw", "mail"];
+type Tab = "home" | "pages" | "videos" | "quizzes" | "certificate" | "banners" | "announcements" | "teacher" | "forum" | "results" | "activities" | "settings" | "students" | "teachers" | "setup" | "lmshw" | "classes" | "mail" | "homepage";
+const HASH_TABS: Tab[] = ["pages", "videos", "quizzes", "certificate", "banners", "announcements", "teacher", "forum", "results", "activities", "settings", "students", "teachers", "setup", "classes", "lmshw", "mail", "homepage"];
 const emptyPage = (): ContentPage => ({ id: newId("page"), slug: "", title: "", excerpt: "", body: "", published: true, updatedAt: new Date().toISOString() });
 const emptyVideo = (): ContentVideo => ({ id: newId("video"), title: "", youtubeId: "", description: "", published: true, updatedAt: new Date().toISOString() });
 
@@ -88,6 +90,7 @@ export default function AdminCms() {
   const [loaded, setLoaded] = useState<Record<string, boolean>>({});
   const markLoaded = useCallback((k: string) => setLoaded((prev) => ({ ...prev, [k]: true })), []);
   const [bannersData, setBannersData] = useState<BannersData>({ banners: [] });
+  const [homepageData, setHomepageData] = useState<HomepageData>(defaultHomepage());
   const [announcementsData, setAnnouncementsData] = useState<AnnouncementsData>(builtAnnouncements);
   const [siteSettings, setSiteSettings] = useState<SiteSettings>(emptySettings);
   const [publishedSnapshot, setPublishedSnapshot] = useState<string | null>(null);
@@ -150,6 +153,7 @@ export default function AdminCms() {
       loadQuizResultsData().then((d) => { setQuizResults(d); snap.results = JSON.stringify(d); markLoaded("quiz-results.json"); }).catch(() => undefined),
       loadCertificateTemplate().then((d) => { setCertificate(d); snap.certificate = JSON.stringify(d); markLoaded("certificate.json"); }).catch(() => undefined),
       loadBannersData().then((d) => { setBannersData(d); snap.banners = JSON.stringify(d); markLoaded("banners.json"); }).catch(() => undefined),
+      loadHomepageData().then((d) => { setHomepageData(d); snap.homepage = JSON.stringify(d); markLoaded("homepage.json"); }).catch(() => undefined),
       loadAnnouncementsData().then((d) => { setAnnouncementsData(d); snap.announcements = JSON.stringify(d); markLoaded("announcements.json"); }).catch(() => undefined),
       loadSiteSettings().then((d) => { setSiteSettings(d); snap.settings = JSON.stringify(d); markLoaded("settings.json"); }).catch(() => undefined),
     ]);
@@ -263,6 +267,7 @@ export default function AdminCms() {
       { label: "quiz-results.json", run: () => publishJsonToGithub(GITHUB_QUIZ_RESULTS_PATH, normalizeResults(quizResults), token, "chore(quiz): publish quiz-results.json") },
       { label: "certificate.json", run: () => publishJsonToGithub(GITHUB_CERTIFICATE_PATH, normalizeCertificate(certificate), token, "chore(quiz): publish certificate.json") },
       { label: "banners.json", run: () => publishJsonToGithub(GITHUB_BANNERS_PATH, normalizeBanners(bannersData), token, "chore(banners): publish banners.json") },
+      { label: "homepage.json", run: () => publishJsonToGithub(GITHUB_HOMEPAGE_PATH, normalizeHomepage(homepageData), token, "chore(home): publish homepage.json") },
       { label: "announcements.json", run: () => publishJsonToGithub(GITHUB_ANNOUNCEMENTS_PATH, normalizeAnnouncements(announcementsData), token, "chore(announcements): publish announcements.json") },
       { label: "settings.json", run: () => publishJsonToGithub(GITHUB_SETTINGS_PATH, normalizeSettings(siteSettings), token, "chore(settings): publish settings.json") },
     ];
@@ -387,6 +392,7 @@ export default function AdminCms() {
         {tab==="quizzes" && <AdminQuizzes setStatus={setStatus} onNeedToken={()=>setTab("settings")} data={quizzesData} setData={setQuizzesData} results={quizResults} setResults={setQuizResults} />}
         {tab==="certificate" && <AdminCertificate setStatus={setStatus} onNeedToken={()=>setTab("settings")} tpl={certificate} setTpl={setCertificate} />}
         {tab==="announcements" && <AdminAnnouncements setStatus={setStatus} onNeedToken={()=>setTab("settings")} data={announcementsData} setData={setAnnouncementsData} />}
+        {tab==="homepage" && <AdminHomepage setStatus={setStatus} onNeedToken={()=>setTab("settings")} data={homepageData} setData={setHomepageData} />}
         {tab==="banners" && <AdminBanners setStatus={setStatus} onNeedToken={()=>setTab("settings")} data={bannersData} setData={setBannersData} />}
         {tab==="teacher" && (
           <form onSubmit={saveTeacher} className="space-y-3 rounded-2xl border border-card-border bg-card p-5">
