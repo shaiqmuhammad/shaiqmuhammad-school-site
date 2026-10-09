@@ -6,7 +6,7 @@
       "text": "Welcome students — open the Encyclopedia of Quran and Hadith from Home or the nav",
       "textAr": "أهلًا بالطلاب — افتحوا موسوعة القرآن وموسوعة الحديث من الصفحة الرئيسية أو القائمة",
       "href": "/encyclopedia/quran",
-      "hidden": false,
+      "hidden": true,
       "order": 0
     },
     {
@@ -14,7 +14,7 @@
       "text": "New video lessons and written pages are published regularly — check Lessons & Videos",
       "textAr": "تُنشر دروس فيديو وصفحات مكتوبة جديدة بانتظام — تابعوا الدروس والفيديوهات",
       "href": "/lessons",
-      "hidden": true,
+      "hidden": false,
       "order": 1
     }
   ]
