@@ -32,13 +32,18 @@ export function AudioRecorder({ label, onSave, testId = "rec" }: { label: string
     setErr("");
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") { setErr(tr("Recording isn't supported in this browser.", "التسجيل غير مدعوم في هذا المتصفح.")); return; }
     try {
-      const s = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } });
+      // Only the student's voice: stop/mute the reciter and any other audio before the mic opens.
+      window.dispatchEvent(new Event("lms-rec-start"));
+      document.querySelectorAll("audio").forEach((el) => { el.pause(); el.muted = true; });
+      const s = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
       stream.current = s;
       const mime = pickMime();
       const r = new MediaRecorder(s, { ...(mime ? { mimeType: mime } : {}), audioBitsPerSecond: 24000 });
       const parts: Blob[] = [];
       r.ondataavailable = (e) => { if (e.data.size) parts.push(e.data); };
       r.onstop = () => {
+        window.dispatchEvent(new Event("lms-rec-stop"));
+        document.querySelectorAll("audio").forEach((el) => { el.muted = false; });
         if (timer.current) clearInterval(timer.current);
         s.getTracks().forEach((t) => t.stop());
         const b = new Blob(parts, { type: (r.mimeType || mime || "audio/webm").split(";")[0] });
@@ -57,6 +62,8 @@ export function AudioRecorder({ label, onSave, testId = "rec" }: { label: string
         if (sec >= MAX_SECONDS) stop();
       }, 250);
     } catch {
+      window.dispatchEvent(new Event("lms-rec-stop"));
+      document.querySelectorAll("audio").forEach((el) => { el.muted = false; });
       setErr(tr("Microphone permission is needed to record.", "يلزم السماح باستخدام الميكروفون للتسجيل."));
     }
   };

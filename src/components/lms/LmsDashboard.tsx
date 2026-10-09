@@ -7,7 +7,7 @@ import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
 import { AssessmentShell, primaryBtn } from "@/components/assessment/AssessmentShell";
 import { HomeworkEditor } from "@/components/lms/HomeworkEditor";
 import { exportAllHomeworkZip } from "@/components/lms/lmsFiles";
-import { STATUS_STYLE, card, smallBtn, statusLabel, useLmsActor, useTr } from "@/components/lms/useLms";
+import { STATUS_STYLE, card, smallBtn, statusLabel, useLmsActor, useTr, GRADE_STYLE, gradeLabel } from "@/components/lms/useLms";
 import { lmsApi, lmsErrorText, lmsSignOut, quranChapters, type Chapter, type QuranData } from "@/lib/lms";
 
 type Dash = Awaited<ReturnType<typeof lmsApi.dashboard>>;
@@ -98,7 +98,7 @@ export function LmsDashboard() {
                             {h.kind === "quran" && <p className="text-sm opacity-80">{surahName(q.surah)} · {q.from}–{q.to}</p>}
                             {h.due && <p className="text-sm opacity-70">{tr("Due", "التسليم")} {new Date(h.due).toLocaleDateString(lang === "ar" ? "ar" : "en-GB")}</p>}
                           </div>
-                          <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${STATUS_STYLE[st]}`} data-testid="lms-hw-status">{statusLabel(st, tr)}</span>
+                          {h.locked ? <span className="shrink-0 rounded-full bg-black/10 px-2.5 py-1 text-xs font-bold dark:bg-white/15" data-testid="lms-hw-locked">🔒 {tr("Locked", "مقفل")}</span> : h.sub?.grade ? <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${GRADE_STYLE[h.sub.grade]}`} data-testid="lms-hw-grade">{h.sub.grade === "red" ? tr("Practise again", "تدرّب مجددًا") : gradeLabel(h.sub.grade, tr)}</span> : <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${STATUS_STYLE[st]}`} data-testid="lms-hw-status">{statusLabel(st, tr)}</span>}
                         </div>
                         {h.sub?.liked && <p className="mt-2 text-sm">❤️ {tr("Your teacher liked this", "أعجب معلمك بهذا")}</p>}
                       </a>
@@ -114,8 +114,8 @@ export function LmsDashboard() {
               ) : (
                 <ul className="mt-3 flex flex-wrap gap-2" data-testid="lms-tracker">
                   {dash.tracker!.map((t, i) => (
-                    <li key={i} className="rounded-2xl bg-emerald-100 px-3 py-2 text-sm font-semibold text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-100">
-                      ✅ {surahName(t.surah)} {t.from}–{t.to}
+                    <li key={i} className={`rounded-2xl px-3 py-2 text-sm font-semibold ${GRADE_STYLE[t.grade || "green"]}`} title={gradeLabel(t.grade || "green", tr)} data-testid="lms-tracker-row" data-grade={t.grade || "green"}>
+                      {t.grade === "red" ? "🔴" : t.grade === "yellow" ? "🟡" : "🟢"} {surahName(t.surah)} {t.from}–{t.to}
                     </li>
                   ))}
                 </ul>

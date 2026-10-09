@@ -30,6 +30,8 @@ export function HomeworkEditor({ initial, classes, students, catalog, scope = []
   const [from, setFrom] = useState(q0.from || 1);
   const [to, setTo] = useState(q0.to || 7);
   const [reciter, setReciter] = useState(q0.reciter || "Alafasy_128kbps");
+  const [translit, setTranslit] = useState(!!q0.translit);
+  const [translation, setTranslation] = useState(!!q0.translation);
   const [notes, setNotes] = useState(q0.notes || "");
   const [slides, setSlides] = useState<Slide[]>(g0.slides?.length ? g0.slides : [{ title: "", text: "", image: "" }]);
   const [question, setQuestion] = useState(g0.question || "");
@@ -51,7 +53,7 @@ export function HomeworkEditor({ initial, classes, students, catalog, scope = []
         setBusy(true);
         setErr("");
         try {
-          const data = kind === "quran" ? { surah, from, to: Math.max(from, to), reciter, notes } : { slides: slides.filter((s) => s.title || s.text || s.image), question };
+          const data = kind === "quran" ? { surah, from, to: Math.max(from, to), reciter, notes, translit, translation } : { slides: slides.filter((s) => s.title || s.text || s.image), question };
           const r = await lmsApi.saveHomework({ id: initial?.id, kind, title: title.trim() || (kind === "quran" && ch ? `${ch.name_simple} ${from}–${to}` : ""), cls: who === "students" ? "" : cls, section: who === "students" ? "" : section || (cls && !wholeClassOk(cls) ? sectionsOf(cls)[0] || "" : ""), students: who === "students" ? pick : [], due: due ? new Date(due + "T23:59:00").getTime() : null, data: data as QuranData | GeneralData }, asAdmin);
           onSaved(r.id);
         } catch (x) {
@@ -99,6 +101,10 @@ export function HomeworkEditor({ initial, classes, students, catalog, scope = []
               ))}
             </select>
           </label>
+          <div className="flex flex-wrap gap-4 text-sm font-semibold sm:col-span-2">
+            <label className="flex items-center gap-2"><input type="checkbox" className="h-5 w-5" checked={translit} onChange={(e) => setTranslit(e.target.checked)} data-testid="hw-translit" /> {tr("Show transliteration", "إظهار النطق بالحروف اللاتينية")}</label>
+            <label className="flex items-center gap-2"><input type="checkbox" className="h-5 w-5" checked={translation} onChange={(e) => setTranslation(e.target.checked)} data-testid="hw-translation" /> {tr("Show translation", "إظهار الترجمة / التفسير الميسر")}</label>
+          </div>
           <label className="block text-sm font-semibold sm:col-span-2">
             {tr("Notes for students", "ملاحظات للطلاب")}
             <input className={inputCls} value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={1000} dir="auto" />
