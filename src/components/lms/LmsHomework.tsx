@@ -1,13 +1,15 @@
 "use client";
 
-import { isAdminAuthenticated } from "@/lib/adminAuth";
+
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
+import { NeedLogin } from "@/components/lms/LmsDashboard";
+import { AudioClip, AudioRecorder } from "@/components/lms/Audio";
 import { AssessmentShell, primaryBtn } from "@/components/assessment/AssessmentShell";
 import { HomeworkEditor } from "@/components/lms/HomeworkEditor";
 import { homeworkQrPdf } from "@/components/lms/lmsFiles";
-import { adminRelogin, STATUS_STYLE, card, inputCls, smallBtn, statusLabel, useLmsActor, useTr } from "@/components/lms/useLms";
+import { STATUS_STYLE, card, inputCls, smallBtn, statusLabel, useLmsActor, useTr } from "@/components/lms/useLms";
 import { ayahAudio, lmsApi, lmsErrorText, quranChapters, quranVerses, type Chapter, type GeneralData, type QuranData, type Submission, type Catalog, type DashStudent } from "@/lib/lms";
 
 type Data = Awaited<ReturnType<typeof lmsApi.homework>>;
@@ -94,7 +96,7 @@ function Comments({ sub }: { sub: Submission }) {
     <div className="mt-3 space-y-2">
       {sub.liked && <p className="font-semibold" data-testid="hw-liked">❤️ {tr("Your teacher liked this", "أعجب معلمك بهذا")}</p>}
       {sub.comments.map((c, i) => (
-        <p key={i} className="rounded-2xl bg-sky-50 px-3 py-2 dark:bg-sky-900/30" dir="auto" data-testid="hw-comment"><b>{c.by}:</b> {c.text}</p>
+        <div key={i} className="rounded-2xl bg-sky-50 px-3 py-2 dark:bg-sky-900/30" dir="auto" data-testid="hw-comment"><b>{c.by}:</b> {c.text}{c.audio && <AudioClip id={c.audio} label={"🎙️ " + tr("Voice feedback", "تعليق صوتي")} testId="fb-clip" />}</div>
       ))}
     </div>
   );
@@ -131,10 +133,17 @@ function StudentWork({ hw, sub, reload }: { hw: Data["homework"]; sub: Submissio
           <label className="flex items-center gap-2 text-lg font-semibold">
             <input type="checkbox" className="h-6 w-6" checked={practised} disabled={locked} onChange={(e) => setPractised(e.target.checked)} data-testid="hw-practised" /> {tr("I have practised these verses", "تدرّبت على هذه الآيات")}
           </label>
-          <p className="rounded-2xl border border-dashed border-black/20 px-3 py-2 text-sm opacity-80 dark:border-white/25">🎙️ {tr("Recording your recitation will be available soon.", "تسجيل تلاوتك سيتوفر قريبًا.")}</p>
+          {sub?.audio ? (
+            <AudioClip id={sub.audio} label={"🎙️ " + tr("My recitation", "تلاوتي")} testId="my-rec" onDelete={locked ? undefined : async () => { if (confirm(tr("Delete this recording?", "حذف هذا التسجيل؟"))) { await lmsApi.audioDelete(sub.audio!).catch(() => undefined); reload(); } }} />
+          ) : null}
+          {!locked && <AudioRecorder label={sub?.audio ? tr("Record again (replaces the old one)", "سجّل مجددًا (يستبدل القديم)") : tr("Record your recitation (up to 3 minutes)", "سجّل تلاوتك (حتى 3 دقائق)")} testId="rec-student" onSave={async (b) => { await lmsApi.audioUpload({ hw: hw.id }, b); reload(); }} />}
         </>
       ) : (
-        (hw.data as GeneralData).question && <p className="text-lg font-semibold" dir="auto">{(hw.data as GeneralData).question}</p>
+        <>
+          {(hw.data as GeneralData).question && <p className="text-lg font-semibold" dir="auto">{(hw.data as GeneralData).question}</p>}
+          {sub?.audio && <AudioClip id={sub.audio} label={"🎙️ " + tr("My audio answer", "إجابتي الصوتية")} testId="my-rec" onDelete={locked ? undefined : async () => { if (confirm(tr("Delete this recording?", "حذف هذا التسجيل؟"))) { await lmsApi.audioDelete(sub.audio!).catch(() => undefined); reload(); } }} />}
+          {!locked && <AudioRecorder label={tr("Audio answer (optional, up to 3 minutes)", "إجابة صوتية (اختياري، حتى 3 دقائق)")} testId="rec-student" onSave={async (b) => { await lmsApi.audioUpload({ hw: hw.id }, b); reload(); }} />}
+        </>
       )}
       <textarea className={inputCls + " min-h-28"} value={text} onChange={(e) => setText(e.target.value)} disabled={locked} maxLength={4000} dir="auto" placeholder={hw.kind === "quran" ? tr("A note for your teacher (optional)", "ملاحظة لمعلمك (اختياري)") : tr("Your answer", "إجابتك")} data-testid="hw-text" />
       {!locked && (
@@ -170,9 +179,11 @@ function Review({ s, asAdmin, reload }: { s: NonNullable<Data["subs"]>[number]; 
         {s.status !== "returned" && <button type="button" className={smallBtn} onClick={() => act({ status: "returned" })} data-testid="hw-return">↺ {tr("Ask to try again", "اطلب المحاولة مجددًا")}</button>}
       </div>
       {s.text && <p className="whitespace-pre-wrap rounded-2xl bg-white/80 px-3 py-2 dark:bg-white/5" dir="auto">{s.text}</p>}
+      {s.audio && <AudioClip id={s.audio} asAdmin={asAdmin} label={"🎙️ " + tr("Student recording", "تسجيل الطالب")} testId="sub-clip" />}
       {s.comments.map((x, i) => (
-        <p key={i} className="text-sm" dir="auto"><b>{x.by}:</b> {x.text}</p>
+        <div key={i} className="text-sm" dir="auto"><b>{x.by}:</b> {x.text}{x.audio && <AudioClip id={x.audio} asAdmin={asAdmin} label={"🎙️ " + tr("Voice feedback", "تعليق صوتي")} testId="fb-clip" onDelete={async () => { if (confirm(tr("Delete this voice feedback?", "حذف هذا التعليق الصوتي؟"))) { await lmsApi.audioDelete(x.audio!, asAdmin).catch(() => undefined); reload(); } }} />}</div>
       ))}
+      <AudioRecorder label={tr("Record voice feedback (up to 3 minutes)", "سجّل تعليقًا صوتيًا (حتى 3 دقائق)")} testId="rec-teacher" onSave={async (b) => { await lmsApi.audioUpload({ sub: s.id }, b, asAdmin); reload(); }} />
       <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); if (c.trim()) act({ comment: c.trim() }); }}>
         <input className={inputCls + " mt-0"} value={c} onChange={(e) => setC(e.target.value)} placeholder={tr("Write a comment…", "اكتب تعليقًا…")} dir="auto" data-testid="hw-comment-input" />
         <button type="submit" className={smallBtn} disabled={!c.trim()}>{tr("Send", "أرسل")}</button>
@@ -186,7 +197,7 @@ export function LmsHomework() {
   const { tr, lang } = useTr();
   const router = useRouter();
   const id = useSearchParams().get("id") || "";
-  const { actor, asAdmin, ready } = useLmsActor();
+  const { actor, asAdmin, ready, adminElsewhere } = useLmsActor();
   const [d, setD] = useState<Data | null>(null);
   const [err, setErr] = useState("");
   const [editing, setEditing] = useState(false);
@@ -194,15 +205,11 @@ export function LmsHomework() {
   const [chapters, setChapters] = useState<Chapter[]>([]);
 
   const load = useCallback(() => {
-    lmsApi.homework(id, asAdmin).then(setD).catch((e) => { if (asAdmin && (e as { status?: number }).status === 401) adminRelogin(); else setErr(lmsErrorText(e, tr)); });
+    lmsApi.homework(id, asAdmin).then(setD).catch((e) => setErr(lmsErrorText(e, tr)));
   }, [id, asAdmin, tr]);
   useEffect(() => {
     if (!ready) return;
-    if (!actor) {
-      if (isAdminAuthenticated() && adminRelogin()) return;
-      router.replace(`/lms/login?next=${encodeURIComponent(`/lms/homework?id=${id}`)}`);
-      return;
-    }
+    if (!actor) return;
     load();
     quranChapters().then(setChapters);
   }, [ready, actor, id, load, router]);
@@ -213,8 +220,10 @@ export function LmsHomework() {
   const ch = q ? chapters.find((c) => c.id === q.surah) : undefined;
   const subtitle = hw?.kind === "quran" && q ? `${ch?.name_simple || `Surah ${q.surah}`} ${ch?.name_arabic || ""} · ${q.from}–${q.to}` : hw?.cls || "";
 
+  if (ready && !actor) return <NeedLogin adminElsewhere={adminElsewhere} />;
+
   return (
-    <AssessmentShell title={hw?.title || tr("Homework", "واجب")} exitHref="/lms" wide={staff} toolbar={staff ? <LmsStaffToolbar /> : undefined}>
+    <AssessmentShell title={hw?.title || tr("Homework", "واجب")} exitHref="/lms" wide={staff} toolbar={actor ? <LmsStaffToolbar /> : undefined}>
       <div className="mx-auto w-full max-w-5xl flex-1 space-y-4 px-3 py-5 sm:px-6" data-testid="lms-homework">
         {err && <p className="rounded-xl bg-rose-100 px-4 py-2 text-rose-800" role="alert">{err}</p>}
         {!hw ? (

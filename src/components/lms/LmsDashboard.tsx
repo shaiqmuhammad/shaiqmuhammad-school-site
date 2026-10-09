@@ -1,22 +1,41 @@
 "use client";
 
-import { isAdminAuthenticated } from "@/lib/adminAuth";
+
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
 import { AssessmentShell, primaryBtn } from "@/components/assessment/AssessmentShell";
 import { HomeworkEditor } from "@/components/lms/HomeworkEditor";
 import { exportAllHomeworkZip } from "@/components/lms/lmsFiles";
-import { adminRelogin, STATUS_STYLE, card, smallBtn, statusLabel, useLmsActor, useTr } from "@/components/lms/useLms";
+import { STATUS_STYLE, card, smallBtn, statusLabel, useLmsActor, useTr } from "@/components/lms/useLms";
 import { lmsApi, lmsErrorText, lmsSignOut, quranChapters, type Chapter, type QuranData } from "@/lib/lms";
 
 type Dash = Awaited<ReturnType<typeof lmsApi.dashboard>>;
 
 /** Student dashboard (homework + Quran tracker) or teacher/admin dashboard (assign + review). */
+export function NeedLogin({ adminElsewhere }: { adminElsewhere: boolean }) {
+  const { tr } = useTr();
+  return (
+    <AssessmentShell title={tr("Student / Teacher area", "منطقة الطلاب والمعلمين")} exitHref="/">
+      <div className="mx-auto max-w-lg flex-1 space-y-3 p-8 text-center" data-testid="lms-need-login">
+        <p className={card}>
+          {tr("Please sign in with your student or teacher username and PIN.", "سجّل الدخول باسم المستخدم والرقم السري للطالب أو المعلم.")}{" "}
+          <a className="font-bold underline" href={`/lms/login?next=${encodeURIComponent(typeof window !== "undefined" ? window.location.pathname + window.location.search : "/lms")}`} data-testid="lms-need-login-link">{tr("Student / Teacher login", "دخول الطلاب والمعلمين")}</a>
+        </p>
+        {adminElsewhere && (
+          <p className="text-sm opacity-80">
+            {tr("You're signed in as Admin on this device — admin tools are in", "أنت مسجّل كمدير على هذا الجهاز — أدوات الإدارة في")} <a className="font-bold underline" href="/admin#lmshw">{tr("Admin → Homework", "الإدارة ← الواجبات")}</a>.
+          </p>
+        )}
+      </div>
+    </AssessmentShell>
+  );
+}
+
 export function LmsDashboard() {
   const { tr, lang } = useTr();
   const router = useRouter();
-  const { actor, asAdmin, ready } = useLmsActor();
+  const { actor, asAdmin, ready, adminElsewhere } = useLmsActor();
   const [dash, setDash] = useState<Dash | null>(null);
   const [err, setErr] = useState("");
   const [creating, setCreating] = useState(false);
@@ -29,22 +48,15 @@ export function LmsDashboard() {
       .then(setDash)
       .catch((e) => {
         if ((e as { status?: number }).status === 401) {
-          if (asAdmin) adminRelogin();
-          else {
-            lmsSignOut();
-            router.push("/lms/login");
-          }
+          lmsSignOut();
+          router.push("/lms/login");
         } else setErr(lmsErrorText(e, tr));
       });
   }, [asAdmin, router, tr]);
 
   useEffect(() => {
     if (!ready) return;
-    if (!actor) {
-      // Signed in to /admin but its server session is missing/old → admin sign-in (then back here), not the student login.
-      if (!(isAdminAuthenticated() && adminRelogin())) router.replace("/lms/login");
-      return;
-    }
+    if (!actor) return;
     load();
     quranChapters().then(setChapters);
   }, [ready, actor, load, router]);
@@ -53,19 +65,14 @@ export function LmsDashboard() {
   const staff = actor?.role === "teacher" || actor?.role === "admin";
   const canAssign = actor?.role === "admin" || actor?.perms.includes("assign");
 
+  if (ready && !actor) return <NeedLogin adminElsewhere={adminElsewhere} />;
+
   return (
     <AssessmentShell
       title={staff ? tr("Teacher dashboard", "لوحة المعلم") : tr("My homework", "واجباتي")}
-      exitHref={asAdmin ? "/admin" : "/"}
+      exitHref="/"
       wide
-      toolbar={staff ? <LmsStaffToolbar /> : undefined}
-      actions={
-        actor && !asAdmin && !staff ? (
-          <button type="button" className="rounded-full border border-white/25 px-3 py-1 text-sm font-semibold text-white hover:bg-white/10" onClick={() => { lmsSignOut(); router.push("/lms/login"); }} data-testid="lms-signout">
-            {tr("Sign out", "خروج")}
-          </button>
-        ) : null
-      }
+      toolbar={actor ? <LmsStaffToolbar /> : undefined}
     >
       <div className="mx-auto w-full max-w-6xl flex-1 space-y-5 px-3 py-5 sm:px-6" data-testid="lms-dashboard">
         {actor && <p className="text-2xl font-bold" data-testid="lms-hello">{tr("Assalamu alaikum", "السلام عليكم")}, <span dir="auto">{actor.name}</span> 👋</p>}
@@ -132,9 +139,7 @@ export function LmsDashboard() {
               >
                 ⬇ {busy ? "…" : tr("Export all homework (ZIP)", "تصدير كل الواجبات (ZIP)")}
               </button>
-              {(asAdmin || actor?.perms.includes("manageUsers")) && <a className={smallBtn} href="/lms/students">🎒 {tr("Students", "الطلاب")}</a>}
-              {asAdmin && <a className={smallBtn} href="/lms/teachers">🧑‍🏫 {tr("Teachers", "المعلمون")}</a>}
-              {asAdmin && <a className={smallBtn} href="/lms/setup">🏫 {tr("Classes & subjects", "الصفوف والمواد")}</a>}
+              {actor?.perms.includes("manageUsers") && <a className={smallBtn} href="/lms/students">🎒 {tr("Students", "الطلاب")}</a>}
               <span className="text-sm opacity-70">{(dash.classes || []).map((c) => `${c.cls || "—"}: ${c.students}`).join(" · ")}</span>
             </div>
             {creating && (

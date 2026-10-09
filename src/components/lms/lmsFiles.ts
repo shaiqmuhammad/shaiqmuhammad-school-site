@@ -10,7 +10,6 @@ const excel = async () => (await import("exceljs")).default;
 
 type Row = Partial<LmsUser & { pin: string }>;
 /** Scope in Excel is written "Year 2/2A" (or just "Year 2"); stored as "Year 2|2A". */
-const scopeToCell = (l: string[]) => l.map((x) => x.replace("|", "/")).join(", ");
 const cellToScope = (v: string) => v.split(",").map((x) => x.trim()).filter(Boolean).map((x) => { const i = x.lastIndexOf("/"); return i > 0 ? `${x.slice(0, i).trim()}|${x.slice(i + 1).trim()}` : x; });
 
 /** Bulk-upload template for one role, with dropdowns from Classes & Subjects. */
@@ -49,17 +48,18 @@ export async function downloadUsersTemplate(role: Role = "student", catalog?: Ca
       { header: "username", key: "username", width: 18 },
       { header: "name", key: "name", width: 26 },
       { header: "subjects", key: "subjects", width: 26 },
-      { header: "classes/sections", key: "scope", width: 30 },
+      { header: "classes", key: "classes", width: 22 },
+      { header: "sections", key: "sections", width: 22 },
       { header: "pin", key: "pin", width: 10 },
       { header: "permissions", key: "perms", width: 30 },
     ];
-    ws.addRow({ username: "ms.huda", name: "Ms Huda", subjects: subjects.slice(0, 2).join(", ") || "Quran", scope: s1 ? `${c1}/${s1}` : c1, pin: "", perms: "assign, review" });
+    ws.addRow({ username: "ms.huda", name: "Ms Huda", subjects: subjects.slice(0, 2).join(", ") || "Quran", classes: s1 ? "" : c1, sections: s1, pin: "", perms: "assign, review" });
   }
   ws.getRow(1).font = { bold: true };
   const help = wb.addWorksheet("Help");
   [
     "username: 3–40 characters, letters/numbers/dot/dash, unique (stored in lower case).",
-    role === "student" ? "class and section: pick from the dropdowns (they come from Admin → Classes & Subjects)." : "subjects: comma separated, from the Lists sheet. classes/sections: comma separated, e.g. \"Year 2\" (whole class) or \"Year 2/2A\" (one section). Leave empty for no restriction.",
+    role === "student" ? "class and section: pick from the dropdowns (they come from Admin → Classes & Subjects)." : "subjects, classes, sections: comma separated, from the Lists sheet. classes = whole classes taught (e.g. Year 2); sections = single sections (e.g. 2A). Leave both empty for no restriction.",
     "pin: 4–8 digits. Leave empty to generate a random 6-digit PIN.",
     role === "teacher" ? "permissions (comma separated): assign, review, manageUsers, viewAll." : "",
     "Existing usernames are updated (a PIN is only changed when you fill it in).",
@@ -69,7 +69,10 @@ export async function downloadUsersTemplate(role: Role = "student", catalog?: Ca
 }
 
 /** Reads an uploaded template into rows for one role. */
-export async function parseUsersXlsx(file: File, role: Role = "student"): Promise<Row[]> {
+export async function parseUsersXlsx(file: File, role: Role = "student", catalog?: Catalog): Promise<Row[]> {
+  const list = (v = "") => v.split(",").map((x) => x.trim()).filter(Boolean);
+  // A section name maps to "Class|Section" through Classes & Subjects ("Class/Section" also accepted).
+  const secScope = (v: string) => (v.includes("/") ? cellToScope(v)[0] : (catalog?.sections.filter((x) => x.name === v).map((x) => `${x.cls}|${x.name}`)[0] ?? v));
   const ExcelJS = await excel();
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.load(await file.arrayBuffer());
@@ -85,7 +88,7 @@ export async function parseUsersXlsx(file: File, role: Role = "student"): Promis
     if (!r.username && !r.name) return;
     rows.push(
       role === "teacher"
-        ? { username: r.username, name: r.name, role, cls: "", subjects: (r.subjects || "").split(",").map((x) => x.trim()).filter(Boolean), scope: cellToScope(r["classes/sections"] || r.classes || ""), pin: r.pin || undefined, perms: (r.permissions || r.perms || "assign, review").split(/[,\s]+/).filter(Boolean) }
+        ? { username: r.username, name: r.name, role, cls: "", subjects: (r.subjects || "").split(",").map((x) => x.trim()).filter(Boolean), scope: r["classes/sections"] ? cellToScope(r["classes/sections"]) : [...list(r.classes), ...list(r.sections).map(secScope)], pin: r.pin || undefined, perms: (r.permissions || r.perms || "assign, review").split(/[,\s]+/).filter(Boolean) }
         : { username: r.username, name: r.name, role, cls: r.class || r.cls || "", section: r.section || "", pin: r.pin || undefined, perms: [] },
     );
   });
@@ -102,11 +105,14 @@ export async function downloadSignInSheet(users: LmsUser[], pins: Record<string,
     { header: "Name", key: "name", width: 28 },
     { header: "Username", key: "username", width: 20 },
     { header: "PIN", key: "pin", width: 18 },
-    ...(role === "student" ? [{ header: "Class", key: "cls", width: 14 }, { header: "Section", key: "section", width: 12 }] : [{ header: "Subjects", key: "subjects", width: 26 }, { header: "Classes/sections", key: "scope", width: 30 }]),
+    ...(role === "student"
+      ? [{ header: "Class", key: "cls", width: 14 }, { header: "Section", key: "section", width: 12 }]
+      : [{ header: "Subjects", key: "subjects", width: 26 }, { header: "Classes", key: "classes", width: 22 }, { header: "Sections", key: "sections", width: 22 }]),
+    { header: "Status", key: "status", width: 10 },
     { header: "Sign in at", key: "url", width: 40 },
   ];
   ws.getRow(1).font = { bold: true };
-  for (const u of users) ws.addRow({ name: u.name, username: u.username, pin: pins[u.id] ?? "(reset PIN to view)", cls: u.cls, section: u.section, subjects: u.subjects.join(", "), scope: scopeToCell(u.scope), url });
+  for (const u of users) ws.addRow({ name: u.name, username: u.username, pin: pins[u.id] ?? "(reset PIN to view)", cls: u.cls, section: u.section, subjects: u.subjects.join(", "), classes: [...new Set(u.scope.map((x) => x.split("|")[0]))].join(", "), sections: u.scope.filter((x) => x.includes("|")).map((x) => x.split("|")[1]).join(", "), status: u.disabled ? "Blocked" : "Active", url });
   downloadBlob(new Blob([await wb.xlsx.writeBuffer()], { type: XLSX_TYPE }), `${role === "teacher" ? "teachers" : "students"}-sign-in-${new Date().toISOString().slice(0, 10)}.xlsx`);
 }
 
