@@ -8,7 +8,7 @@ const ago = (ts: number, ar: boolean) => new Date(ts).toLocaleString(ar ? "ar" :
 const initials = (n: string) => n.split(/\s+/).map((x) => x[0]).slice(0, 2).join("").toUpperCase();
 
 /** Header icon with unread message count (polls every 60 s). */
-export function MsgIcon({ asAdmin = false, href, onClick }: { asAdmin?: boolean; href?: string; onClick?: () => void }) {
+export function MsgIcon({ asAdmin = false, href, onClick, variant = "navy" }: { asAdmin?: boolean; href?: string; onClick?: () => void; variant?: "navy" | "glass" }) {
   const { tr } = useTr();
   const [n, setN] = useState(0);
   useEffect(() => {
@@ -24,7 +24,7 @@ export function MsgIcon({ asAdmin = false, href, onClick }: { asAdmin?: boolean;
       {n > 0 && <span className="absolute -end-1.5 -top-1.5 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-extrabold text-white" data-testid="msg-badge">{n > 99 ? "99+" : n}</span>}
     </>
   );
-  const cls = "pill-on-navy relative !p-0 inline-flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full transition hover:scale-105";
+  const cls = (variant === "glass" ? "glass text-heading hover:ring-2 hover:ring-[var(--yellow-border)]" : "pill-on-navy !p-0") + " relative inline-flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full transition hover:scale-105";
   return href ? <a href={href} className={cls} title={label} aria-label={label} data-testid="msg-icon">{inner}</a> : <button type="button" onClick={onClick} className={cls} title={label} aria-label={label} data-testid="msg-icon">{inner}</button>;
 }
 

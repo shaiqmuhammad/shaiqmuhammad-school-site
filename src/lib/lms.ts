@@ -146,7 +146,7 @@ export const lmsApi = {
   pinsView: (ids?: string[]) => call<{ pins: Record<string, string | null> }>("pins-view", { ids }, { asAdmin: true }),
   notes: (asAdmin = false) => call<{ items: Note[]; unread: number }>("notes", undefined, { asAdmin }),
   notesRead: (ids?: string[], asAdmin = false) => call<{ ok: true }>("notes-read", { ids }, { asAdmin }),
-  adminPrefs: (quick?: { tab: string; label: string }[]) => call<{ quick: { tab: string; label: string }[] | null }>("admin-prefs", quick ? { quick } : undefined, { asAdmin: true }),
+  adminPrefs: (p?: { quick: { tab: string; label: string; icon?: string }[]; dashIcon?: string }) => call<{ quick: { tab: string; label: string; icon?: string }[] | null; dashIcon: string }>("admin-prefs", p, { asAdmin: true }),
   annList: (asAdmin = false) => call<{ items: Announcement[] }>("ann-list", undefined, { asAdmin }),
   annSave: (a: { title: string; body: string; aud: Announcement["aud"]; cls?: string; section?: string }) => call<{ ok: true; sent: number }>("ann-save", a, { asAdmin: true }),
   annDelete: (id: string) => call<{ ok: true }>("ann-delete", { id }, { asAdmin: true }),

@@ -60,9 +60,10 @@ const DESC: Partial<Record<Tab, [string, string]>> = {
   settings: ["Site settings, integrations and publishing.", "إعدادات الموقع والتكاملات والنشر."],
 };
 const LMS_IDS: Partial<Record<Tab, string>> = { students: "admin-nav-lms-students", teachers: "admin-nav-lms-teachers", setup: "admin-nav-lms-setup", lmshw: "admin-nav-lms-homework" };
+const BOLT = <path d="M13 2 4 14h7l-1 8 9-12h-7z" />;
 const GROUPS_KEY = "sm-admin-groups-closed";
 const QUICK_KEY = "sm-admin-quick";
-type QuickItem = { tab: string; label: string };
+type QuickItem = { tab: string; label: string; icon?: string };
 const DEFAULT_QUICK: QuickItem[] = [{ tab: "students", label: "" }, { tab: "lmshw", label: "" }, { tab: "quizzes", label: "" }, { tab: "mail", label: "" }, { tab: "messages", label: "" }];
 const COLLAPSE_KEY = "sm-admin-sidebar-collapsed";
 
@@ -106,7 +107,7 @@ const Icon = ({ children, className = "h-5 w-5 shrink-0" }: { children: ReactNod
 /** Data-heavy tabs use the full width of the main area. */
 function MailIcon({ unread, onClick, label }: { unread: number; onClick: () => void; label: string }) {
   return (
-    <button type="button" onClick={onClick} title={label} aria-label={label} className="pill-on-navy relative !p-0 inline-flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full" data-testid="admin-mail-icon">
+    <button type="button" onClick={onClick} title={label} aria-label={label} className="glass text-heading relative inline-flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full hover:ring-2 hover:ring-[var(--yellow-border)]" data-testid="admin-mail-icon">
       <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3 7 9 6 9-6" /></svg>
       {unread > 0 && <span className="absolute -end-1.5 -top-1.5 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-extrabold text-white" data-testid="admin-mail-badge">{unread > 99 ? "99+" : unread}</span>}
     </button>
@@ -138,13 +139,14 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
   const toggleGroup = (id: string) => setShut((m) => { const n = { ...m, [id]: !m[id] }; try { localStorage.setItem(GROUPS_KEY, JSON.stringify(n)); } catch { /* ignore */ } return n; });
   // Quick-access bar: server-side admin setting (works on any computer), localStorage fallback.
   const [quick, setQuickState] = useState<QuickItem[]>(DEFAULT_QUICK);
-  const [customize, setCustomize] = useState(false);
   useEffect(() => {
   // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage/server prefs load after hydration
     try { const l = JSON.parse(localStorage.getItem(QUICK_KEY) || "null"); if (Array.isArray(l)) setQuickState(l); } catch { /* ignore */ }
     lmsApi.adminPrefs().then((r) => { if (Array.isArray(r.quick)) { setQuickState(r.quick as QuickItem[]); try { localStorage.setItem(QUICK_KEY, JSON.stringify(r.quick)); } catch { /* ignore */ } } }).catch(() => undefined);
   }, []);
-  const setQuick = (q: QuickItem[]) => { setQuickState(q); try { localStorage.setItem(QUICK_KEY, JSON.stringify(q)); } catch { /* ignore */ } lmsApi.adminPrefs(q).catch(() => undefined); };
+  // Managed only with the stars: star a page to add it, unstar to remove it.
+  const setQuick = (q: QuickItem[]) => { setQuickState(q); try { localStorage.setItem(QUICK_KEY, JSON.stringify(q)); } catch { /* ignore */ } lmsApi.adminPrefs({ quick: q }).catch(() => undefined); };
+  const qIcon = (q: QuickItem) => ICONS[q.tab as Tab];
   const starred = (id: Tab) => quick.some((q) => q.tab === id);
   const toggleStar = (id: Tab) => setQuick(starred(id) ? quick.filter((q) => q.tab !== id) : [...quick, { tab: id, label: "" }]);
   const qLabel = (q: QuickItem) => q.label || label(q.tab as Tab);
@@ -156,38 +158,16 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
   const quickBar = () => (
     <div className="glass mb-5 rounded-3xl p-3" data-testid="quick-bar">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="px-1 text-[11px] font-bold uppercase tracking-[0.12em] text-primary/80">⚡ {tr("Quick access", "وصول سريع")}</span>
+        <span className="inline-flex items-center gap-2 px-1 text-base font-extrabold" data-testid="dash-title"><span className="grid h-8 w-8 place-items-center rounded-full bg-sun text-[#0b1b2b]"><Icon className="h-4 w-4">{BOLT}</Icon></span>{tr("Dashboard", "لوحة التحكم")}</span>
         {quick.map((q) => (
           <button key={q.tab} type="button" onClick={() => onTab(q.tab as Tab)} className="inline-flex items-center gap-2 rounded-full bg-header px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#1d3d5c]" data-testid="quick-item">
-            <Icon className="h-4 w-4 text-sun">{ICONS[q.tab as Tab]}</Icon>{qLabel(q)}
+            <Icon className="h-4 w-4 text-sun">{qIcon(q)}</Icon>{qLabel(q)}
           </button>
         ))}
         {!quick.length && <span className="text-sm opacity-70">{tr("Star ☆ any page to pin it here.", "ضع نجمة ☆ على أي صفحة لتثبيتها هنا.")}</span>}
+        {quick.length > 0 && <span className="ms-auto text-[11px] opacity-60">{tr("Star ☆ / unstar pages to add or remove", "ضع نجمة ☆ أو أزلها لإضافة صفحة أو إزالتها")}</span>}
         <span className="flex-1" />
-        <button type="button" onClick={() => setCustomize(!customize)} aria-expanded={customize} className="rounded-full border border-black/10 px-3 py-1.5 text-xs font-bold transition hover:bg-sun/30 dark:border-white/15" data-testid="quick-customize">⚙️ {tr("Customize", "تخصيص")}</button>
       </div>
-      {customize && (
-        <div className="mt-3 space-y-2 border-t border-black/5 pt-3 dark:border-white/10" data-testid="quick-editor">
-          {quick.map((q, i) => (
-            <div key={q.tab} className="flex flex-wrap items-center gap-2">
-              <Icon className="h-4 w-4 opacity-70">{ICONS[q.tab as Tab]}</Icon>
-              <span className="w-32 truncate text-xs opacity-60">{label(q.tab as Tab)}</span>
-              <input className="min-w-[8rem] flex-1 rounded-full border border-black/10 bg-white/80 px-3 py-1 text-sm dark:border-white/15 dark:bg-white/5" value={q.label} placeholder={label(q.tab as Tab)} onChange={(e) => setQuick(quick.map((x, j) => (j === i ? { ...x, label: e.target.value.slice(0, 40) } : x)))} aria-label={tr("Label", "الاسم")} data-testid="quick-label" />
-              <button type="button" disabled={!i} className="rounded-full px-2 py-1 text-sm disabled:opacity-30" onClick={() => { const n = [...quick]; [n[i - 1], n[i]] = [n[i], n[i - 1]]; setQuick(n); }} aria-label={tr("Move up", "تحريك لأعلى")} data-testid="quick-up">↑</button>
-              <button type="button" disabled={i === quick.length - 1} className="rounded-full px-2 py-1 text-sm disabled:opacity-30" onClick={() => { const n = [...quick]; [n[i + 1], n[i]] = [n[i], n[i + 1]]; setQuick(n); }} aria-label={tr("Move down", "تحريك لأسفل")}>↓</button>
-              <button type="button" className="rounded-full px-2 py-1 text-sm text-rose-600" onClick={() => setQuick(quick.filter((_, j) => j !== i))} aria-label={tr("Remove", "إزالة")} data-testid="quick-remove">✕</button>
-            </div>
-          ))}
-          <div className="flex flex-wrap items-center gap-2 pt-1">
-            <select className="rounded-full border border-black/10 bg-white/80 px-3 py-1.5 text-sm dark:border-white/15 dark:bg-white/5" value="" onChange={(e) => e.target.value && setQuick([...quick, { tab: e.target.value, label: "" }])} data-testid="quick-add">
-              <option value="">＋ {tr("Add a page…", "أضف صفحة…")}</option>
-              {GROUPS.map((g) => <optgroup key={g.id} label={tr(g.en, g.ar)}>{g.ids.filter((id) => !starred(id)).map((id) => <option key={id} value={id}>{label(id)}</option>)}</optgroup>)}
-            </select>
-            <button type="button" className="text-xs underline opacity-70" onClick={() => setQuick(DEFAULT_QUICK)}>{tr("Reset to defaults", "استعادة الافتراضي")}</button>
-            <span className="text-[11px] opacity-60">{tr("Saved to your admin account.", "يُحفظ في حساب الإدارة.")}</span>
-          </div>
-        </div>
-      )}
     </div>
   );
   const drawerRef = useRef<HTMLDivElement>(null);
@@ -358,7 +338,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
       </aside>
 
       {/* Top bar (phones / tablets) with a slide-in drawer */}
-      <header className="sticky top-0 z-30 bg-header text-white shadow-[0_6px_20px_-10px_rgba(10,25,40,0.6)] lg:hidden">
+      <header className="sticky top-0 z-30 border-b border-black/5 bg-white/95 text-heading shadow-[0_4px_16px_-12px_rgba(10,25,40,0.35)] backdrop-blur dark:border-white/10 dark:bg-[#0f1f30]/95 lg:hidden">
         <div className="flex items-center gap-2 px-3 py-3 sm:gap-3 sm:px-4">
           <button
             type="button"
@@ -367,15 +347,15 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
             aria-expanded={drawer}
             aria-controls="admin-drawer"
             data-testid="admin-menu-button"
-            className="pill-on-navy h-9 w-9 shrink-0 justify-center"
+            className="glass inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
           >
             <Icon className="h-5 w-5"><path d="M4 7h16M4 12h16M4 17h16" /></Icon>
           </button>
           {logo("h-9 w-9")}
-          <p className="min-w-0 flex-1 truncate text-sm font-extrabold text-white">{label(tab)}</p>
-          <MsgIcon asAdmin onClick={() => onTab("messages")} />
+          <p className="min-w-0 flex-1 truncate text-sm font-extrabold">{label(tab)}</p>
+          <MsgIcon variant="glass" asAdmin onClick={() => onTab("messages")} />
           <MailIcon unread={mailUnread} onClick={() => onTab("mail")} label={tr("Mailbox", "البريد")} />
-          <AdminToolbar variant="navy" onLogout={onLogout} bell={<LmsBell asAdmin testId="admin-bell" variant={"navy"} extra={onBell ? { count: pendingCount, label: tr(`${pendingCount} forum post${pendingCount === 1 ? "" : "s"} waiting for approval`, `${pendingCount} مشاركة في المنتدى بانتظار الموافقة`), onClick: onBell } : undefined} />} />
+          <AdminToolbar variant="glass" onLogout={onLogout} bell={<LmsBell asAdmin testId="admin-bell" variant={"glass"} extra={onBell ? { count: pendingCount, label: tr(`${pendingCount} forum post${pendingCount === 1 ? "" : "s"} waiting for approval`, `${pendingCount} مشاركة في المنتدى بانتظار الموافقة`), onClick: onBell } : undefined} />} />
         </div>
       </header>
       {drawer && (
@@ -408,22 +388,13 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
       )}
 
       <main className="min-w-0 flex-1">
-        <div className={`mx-auto px-4 py-6 sm:px-8 lg:py-8 ${WIDE.includes(tab) ? "max-w-none" : collapsed ? "max-w-5xl" : "max-w-4xl"}`}>
-          <div className="mb-6 hidden items-center gap-3 rounded-2xl bg-header px-4 py-2.5 text-white shadow-[0_10px_30px_-15px_rgba(10,25,40,0.7)] lg:flex" data-testid="admin-toolbar-wrap">
-            <p className="min-w-0 flex-1 truncate text-sm font-semibold text-white/70" data-testid="admin-breadcrumb">{tr("Admin", "الإدارة")}{GROUPS.find((g) => g.ids.includes(tab)) ? ` / ${tr(GROUPS.find((g) => g.ids.includes(tab))!.en, GROUPS.find((g) => g.ids.includes(tab))!.ar)}` : ""} / <b className="text-white">{label(tab) || tr("Dashboard", "لوحة التحكم")}</b></p>
-            <nav className="flex items-center gap-1" aria-label={tr("Quick links", "روابط سريعة")}>
-              {quick.slice(0, 6).map((q) => (
-                <button key={q.tab} type="button" onClick={() => onTab(q.tab as Tab)} className={`inline-flex h-[34px] items-center gap-1.5 rounded-full px-3 text-xs font-bold transition ${tab === q.tab ? "bg-sun text-[#0b1b2b]" : "bg-white/10 hover:bg-white/20"}`} title={qLabel(q)} data-testid={`admin-quick-${q.tab}`}>
-                  <Icon className="h-4 w-4">{ICONS[q.tab as Tab]}</Icon>
-                  <span className="hidden xl:inline">{qLabel(q)}</span>
-                </button>
-              ))}
-            </nav>
-            <span className="h-6 w-px bg-white/20" aria-hidden />
-            <MsgIcon asAdmin onClick={() => onTab("messages")} />
+        <div className="sticky top-0 z-30 hidden items-center gap-3 border-b border-black/5 bg-white/90 px-6 py-2.5 shadow-[0_4px_18px_-14px_rgba(10,25,40,0.35)] backdrop-blur dark:border-white/10 dark:bg-[#0f1f30]/90 lg:flex" data-testid="admin-toolbar-wrap">
+          <p className="min-w-0 flex-1 truncate text-sm font-semibold text-muted" data-testid="admin-breadcrumb">{tr("Admin", "الإدارة")}{GROUPS.find((g) => g.ids.includes(tab)) ? ` / ${tr(GROUPS.find((g) => g.ids.includes(tab))!.en, GROUPS.find((g) => g.ids.includes(tab))!.ar)}` : ""} / <b className="text-heading">{label(tab) || tr("Dashboard", "لوحة التحكم")}</b></p>
+          <MsgIcon variant="glass" asAdmin onClick={() => onTab("messages")} />
           <MailIcon unread={mailUnread} onClick={() => onTab("mail")} label={tr(`Mailbox${mailUnread ? ` (${mailUnread} unread)` : ""}`, `البريد${mailUnread ? ` (${mailUnread} غير مقروءة)` : ""}`)} />
-            <AdminToolbar variant="navy" onLogout={onLogout} bell={<LmsBell asAdmin testId="admin-bell" variant={"navy"} extra={onBell ? { count: pendingCount, label: tr(`${pendingCount} forum post${pendingCount === 1 ? "" : "s"} waiting for approval`, `${pendingCount} مشاركة في المنتدى بانتظار الموافقة`), onClick: onBell } : undefined} />} />
-          </div>
+            <AdminToolbar variant="glass" onLogout={onLogout} bell={<LmsBell asAdmin testId="admin-bell" variant={"glass"} extra={onBell ? { count: pendingCount, label: tr(`${pendingCount} forum post${pendingCount === 1 ? "" : "s"} waiting for approval`, `${pendingCount} مشاركة في المنتدى بانتظار الموافقة`), onClick: onBell } : undefined} />} />
+        </div>
+        <div className={`mx-auto px-4 py-6 sm:px-8 lg:py-8 ${WIDE.includes(tab) ? "max-w-none" : collapsed ? "max-w-5xl" : "max-w-4xl"}`}>
           <div className="mb-6 flex items-center justify-between gap-3 lg:hidden">
             <h1 className="text-lg font-extrabold">{label(tab)}</h1>
             {publishBtn()}

@@ -883,11 +883,12 @@ export class LmsStore extends DurableObject<LmsEnv> {
         // Admin dashboard preferences (quick-access bar), stored server-side so they follow the admin to any computer.
         if (a.role !== "admin" || a.viewAs) return { status: 403, body: { error: "admin_only" } };
         if (input.__method === "POST") {
-          const q = Array.isArray(input.quick) ? (input.quick as unknown[]).slice(0, 24).map((x) => { const o = (x || {}) as Record<string, unknown>; return { tab: str(o.tab, 30), label: str(o.label, 40) }; }).filter((x) => x.tab) : [];
+          const q = Array.isArray(input.quick) ? (input.quick as unknown[]).slice(0, 24).map((x) => { const o = (x || {}) as Record<string, unknown>; return { tab: str(o.tab, 30), label: str(o.label, 40), icon: str(o.icon, 30) }; }).filter((x) => x.tab) : [];
           this.sql.exec(`INSERT OR REPLACE INTO settings (k, v) VALUES ('admin_quick', ?)`, JSON.stringify(q));
+          if (typeof input.dashIcon === "string") this.sql.exec(`INSERT OR REPLACE INTO settings (k, v) VALUES ('admin_dash_icon', ?)`, str(input.dashIcon, 30));
         }
         const raw = this.setting("admin_quick", "");
-        return { status: 200, body: { quick: raw ? JSON.parse(raw) : null } };
+        return { status: 200, body: { quick: raw ? JSON.parse(raw) : null, dashIcon: this.setting("admin_dash_icon", "") } };
       }
       case "settings": {
         if (input.__method === "POST") {
