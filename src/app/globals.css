@@ -271,3 +271,12 @@ html[dir="rtl"] body {
 .dark .mushaf-ayah { color: #f1d58e; background: radial-gradient(circle, #2a2216 55%, #3a2e1b 100%); box-shadow: 0 0 0 2px #201a11, 0 0 0 3px color-mix(in srgb, var(--mushaf-gold) 55%, transparent); }
 .dark .mushaf-active { background: color-mix(in srgb, #d4ab4f 30%, transparent); }
 .mushaf-mistake { text-decoration: underline wavy #e11d48; text-decoration-thickness: 2px; text-underline-offset: 0.35em; background: color-mix(in srgb, #e11d48 12%, transparent); border-radius: 0.3em; }
+
+/* Admin: the shared page header carries the title, so hide each tab's own first title; its action buttons stay on the right. */
+.admin-calm .admin-tab > :first-child > h2:first-child,
+.admin-calm .admin-tab > :first-child > :first-child > h2:first-child,
+.admin-calm .admin-tab > :first-child > :first-child > :first-child > h2:first-child { display: none; }
+.admin-calm .admin-tab > :first-child:has(> h2:first-child:last-child) { display: none; }
+/* Consistent rhythm between blocks and a calm card look. */
+.admin-calm .admin-tab > * + * { margin-top: 1.25rem; }
+.admin-calm .admin-tab .admin-tab-title { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

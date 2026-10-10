@@ -65,7 +65,7 @@ export default function AdminAbout({ setStatus, onNeedToken, data, setData }: Pr
     <section className="space-y-5" data-testid="admin-about">
       <header className="flex flex-wrap items-center gap-2">
         <div className="min-w-0 flex-1">
-          <h2 className="text-2xl font-extrabold">{tr("About page", "صفحة نبذة عني")}</h2>
+          <h2 className="admin-tab-title text-2xl font-extrabold">{tr("About page", "صفحة نبذة عني")}</h2>
           <p className="text-sm opacity-70">{tr("Everything on /about: your intro and each section (experience, education…). Publish to go live.", "كل ما في صفحة /about: التعريف وكل قسم (الخبرات، التعليم…). انشر لتظهر التغييرات.")}</p>
         </div>
         <button type="button" className={pill} onClick={() => { if (confirm(tr("Reset to the CV version?", "إعادة إلى نسخة السيرة الذاتية؟"))) setData(defaultAbout()); }}>↺ {tr("Reset", "إعادة ضبط")}</button>

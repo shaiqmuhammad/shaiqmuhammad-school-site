@@ -30,6 +30,27 @@ const GROUPS: { id: string; en: string; ar: string; ids: Tab[] }[] = [
   { id: "community", en: "Community", ar: "التواصل", ids: ["forum", "mail"] },
   { id: "settings", en: "Settings", ar: "الإعدادات", ids: ["settings"] },
 ];
+/** Short description under each page title (consistent page header, Arabz Mart style). */
+const DESC: Partial<Record<Tab, [string, string]>> = {
+  homepage: ["Arrange, show or hide and edit the sections of the public home page.", "رتّب أقسام الصفحة الرئيسية وأظهرها أو أخفها وعدّلها."],
+  pages: ["Lesson and library pages shown on the website.", "صفحات الدروس والمكتبة المعروضة على الموقع."],
+  banners: ["Slides at the top of the home page.", "الشرائح أعلى الصفحة الرئيسية."],
+  announcements: ["The scrolling ticker and news items.", "الشريط المتحرك والأخبار."],
+  teacher: ["Your public About page: profile, experience, education and more.", "صفحة نبذة عني العامة: الملف والخبرات والتعليم وغيرها."],
+  videos: ["YouTube videos listed on the website.", "مقاطع يوتيوب المعروضة على الموقع."],
+  quizzes: ["Create, enable and host assessments.", "أنشئ التقييمات وفعّلها واستضفها."],
+  activities: ["Live classroom activities: wall, wheel, polls, votes and more.", "أنشطة صفية مباشرة: الجدار والعجلة والاستطلاعات والتصويت."],
+  lmshw: ["All homework and submissions across classes.", "كل الواجبات والتسليمات في جميع الصفوف."],
+  results: ["Assessment results, exports and printouts.", "نتائج التقييمات والتصدير والطباعة."],
+  certificate: ["Design of the certificate students receive.", "تصميم الشهادة التي يحصل عليها الطلاب."],
+  students: ["Student accounts, PINs, classes and status.", "حسابات الطلاب والأرقام السرية والصفوف والحالة."],
+  teachers: ["Teacher accounts, subjects, classes and permissions.", "حسابات المعلمين والمواد والصفوف والصلاحيات."],
+  setup: ["Subjects, classes and sections used across the LMS.", "المواد والصفوف والشعب المستخدمة في المنصة."],
+  classes: ["Pick a class or section to see students, homework and the Quran map.", "اختر صفًا أو شعبة لعرض الطلاب والواجبات وخريطة القرآن."],
+  forum: ["Approve and manage forum posts.", "اعتمد مشاركات المنتدى وأدرها."],
+  mail: ["contact@shaiqmuhammad.com inbox and contact-form messages.", "بريد contact@shaiqmuhammad.com ورسائل نموذج التواصل."],
+  settings: ["Site settings, integrations and publishing.", "إعدادات الموقع والتكاملات والنشر."],
+};
 const LMS_IDS: Partial<Record<Tab, string>> = { students: "admin-nav-lms-students", teachers: "admin-nav-lms-teachers", setup: "admin-nav-lms-setup", lmshw: "admin-nav-lms-homework" };
 const COLLAPSE_KEY = "sm-admin-sidebar-collapsed";
 
@@ -302,7 +323,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
       <main className="min-w-0 flex-1">
         <div className={`mx-auto px-4 py-6 sm:px-8 lg:py-8 ${WIDE.includes(tab) ? "max-w-none" : collapsed ? "max-w-5xl" : "max-w-4xl"}`}>
           <div className="mb-6 hidden items-center gap-3 rounded-2xl bg-header px-4 py-2.5 text-white shadow-[0_10px_30px_-15px_rgba(10,25,40,0.7)] lg:flex" data-testid="admin-toolbar-wrap">
-            <h1 className="min-w-0 flex-1 truncate text-lg font-extrabold !text-white" data-testid="admin-page-title">{label(tab) || tr("Dashboard", "لوحة التحكم")}</h1>
+            <p className="min-w-0 flex-1 truncate text-sm font-semibold text-white/70" data-testid="admin-breadcrumb">{tr("Admin", "الإدارة")}{GROUPS.find((g) => g.ids.includes(tab)) ? ` / ${tr(GROUPS.find((g) => g.ids.includes(tab))!.en, GROUPS.find((g) => g.ids.includes(tab))!.ar)}` : ""} / <b className="text-white">{label(tab) || tr("Dashboard", "لوحة التحكم")}</b></p>
             <nav className="flex items-center gap-1" aria-label={tr("Quick links", "روابط سريعة")}>
               {([["quizzes", tr("Assessments", "التقييمات"), "M4 5h16v14H4zM8 9h8M8 13h5"], ["lmshw", tr("Homework", "الواجبات"), "M5 4h11l3 3v13H5zM9 12l2 2 4-4"], ["students", tr("Students", "الطلاب"), "M12 3 2 8l10 5 10-5-10-5Zm-6 7v5c3 2 9 2 12 0v-5"]] as const).map(([k, l, d]) => (
                 <button key={k} type="button" onClick={() => onTab(k)} className={`inline-flex h-[34px] items-center gap-1.5 rounded-full px-3 text-xs font-bold transition ${tab === k ? "bg-sun text-[#0b1b2b]" : "bg-white/10 hover:bg-white/20"}`} title={l} data-testid={`admin-quick-${k}`}>
@@ -319,7 +340,16 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
             <h1 className="text-lg font-extrabold">{label(tab)}</h1>
             {publishBtn()}
           </div>
-          {children}
+          {tab !== "home" && (
+            <header className="admin-page-head mb-5 flex flex-wrap items-end gap-3 border-b border-black/5 pb-4 dark:border-white/10" data-testid="admin-page-header">
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-primary/80">{(() => { const g = GROUPS.find((x) => x.ids.includes(tab)); return g ? tr(g.en, g.ar) : ""; })()}</p>
+                <h1 className="mt-0.5 text-2xl font-extrabold tracking-tight sm:text-[1.75rem]" data-testid="admin-page-title">{label(tab)}</h1>
+                {DESC[tab] && <p className="mt-1 max-w-3xl text-sm text-muted">{tr(DESC[tab]![0], DESC[tab]![1])}</p>}
+              </div>
+            </header>
+          )}
+          <div className="admin-tab">{children}</div>
         </div>
       </main>
     </div>

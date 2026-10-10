@@ -125,7 +125,7 @@ export default function AdminHomepage({ setStatus, onNeedToken, data, setData }:
     <section className="space-y-5" data-testid="admin-homepage">
       <header className="flex flex-wrap items-center gap-2">
         <div className="min-w-0 flex-1">
-          <h2 className="text-2xl font-extrabold">{tr("Homepage builder", "منشئ الصفحة الرئيسية")}</h2>
+          <h2 className="admin-tab-title text-2xl font-extrabold">{tr("Homepage builder", "منشئ الصفحة الرئيسية")}</h2>
           <p className="text-sm opacity-70">{tr("Order, show/hide and edit the sections of the home page, or add your own. Changes go live after Publish.", "رتّب أقسام الصفحة الرئيسية وأظهرها أو أخفها وعدّلها أو أضف أقسامك. تظهر التغييرات بعد النشر.")}</p>
         </div>
         <button type="button" className={pill} onClick={() => setAdding(!adding)} data-testid="home-add">＋ {tr("Add section", "إضافة قسم")}</button>
