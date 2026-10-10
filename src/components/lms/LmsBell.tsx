@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { mailApi } from "@/lib/mail";
 import { lmsApi, type Note } from "@/lib/lms";
 import { useI18n } from "@/lib/i18n";
@@ -21,6 +22,8 @@ export function LmsBell({ asAdmin = false, variant = "navy", extra, testId = "lm
   const [open, setOpen] = useState(false);
   const [now, setNow] = useState(0);
   const box = useRef<HTMLDivElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number; right: number; mobile: boolean } | null>(null);
 
   const load = useCallback(() => {
     if (typeof document !== "undefined" && document.hidden) return;
@@ -37,10 +40,14 @@ export function LmsBell({ asAdmin = false, variant = "navy", extra, testId = "lm
   }, [load]);
   useEffect(() => {
     if (!open) return;
-    const close = (e: MouseEvent | KeyboardEvent) => { if (e instanceof KeyboardEvent ? e.key === "Escape" : !box.current?.contains(e.target as Node)) setOpen(false); };
+    const close = (e: MouseEvent | KeyboardEvent) => { if (e instanceof KeyboardEvent ? e.key === "Escape" : !box.current?.contains(e.target as Node) && !panel.current?.contains(e.target as Node)) setOpen(false); };
+    const place = () => { const r = box.current?.getBoundingClientRect(); if (r) setPos({ top: r.bottom + 8, left: r.left, right: window.innerWidth - r.right, mobile: window.innerWidth < 640 }); };
+    place();
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
     document.addEventListener("mousedown", close);
     document.addEventListener("keydown", close);
-    return () => { document.removeEventListener("mousedown", close); document.removeEventListener("keydown", close); };
+    return () => { document.removeEventListener("mousedown", close); document.removeEventListener("keydown", close); window.removeEventListener("resize", place); window.removeEventListener("scroll", place, true); };
   }, [open]);
 
   const total = unread + (extra?.count || 0) + mail;
@@ -99,10 +106,11 @@ export function LmsBell({ asAdmin = false, variant = "navy", extra, testId = "lm
           </span>
         )}
       </button>
-      {open && (
-        <div className="absolute end-0 top-full z-50 mt-2 w-80 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-2xl border border-black/10 bg-white text-start text-sm text-heading shadow-2xl dark:border-white/15 dark:bg-[#13202e] dark:text-white" role="dialog" aria-label={tr("Notifications", "الإشعارات")} data-testid={`${testId}-panel`}>
+      {open && pos && createPortal(
+        // Portal on <body> with a top-layer z-index so page headers, drawers and sliders never cover it; full-width sheet on phones.
+        <div ref={panel} dir={ar ? "rtl" : "ltr"} style={pos.mobile ? { top: pos.top } : ar ? { top: pos.top, left: Math.max(8, pos.left) } : { top: pos.top, right: Math.max(8, pos.right) }} className={`fixed z-[2147483000] overflow-hidden ${pos.mobile ? "inset-x-2 rounded-2xl" : "w-80 rounded-2xl"} border border-black/10 bg-white text-start text-sm text-heading shadow-2xl dark:border-white/15 dark:bg-[#13202e] dark:text-white`} role="dialog" aria-label={tr("Notifications", "الإشعارات")} data-testid={`${testId}-panel`}>
           <p className="border-b border-black/5 px-4 py-2.5 font-bold dark:border-white/10">{tr("Notifications", "الإشعارات")}</p>
-          <ul className="max-h-96 overflow-y-auto">
+          <ul className="max-h-[min(24rem,70vh)] overflow-y-auto">
             {extra && extra.count > 0 && (
               <li>
                 <button type="button" className="flex w-full items-start gap-2 bg-amber-50 px-4 py-2.5 text-start hover:bg-amber-100 dark:bg-amber-900/30" onClick={() => { setOpen(false); extra.onClick(); }} data-testid={`${testId}-extra`}>
@@ -128,7 +136,8 @@ export function LmsBell({ asAdmin = false, variant = "navy", extra, testId = "lm
             ))}
             {!items.length && !mail && !(extra && extra.count > 0) && <li className="px-4 py-6 text-center opacity-60">{tr("Nothing new.", "لا جديد.")}</li>}
           </ul>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

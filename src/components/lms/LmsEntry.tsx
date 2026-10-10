@@ -87,7 +87,7 @@ export function LmsStaffToolbar() {
       )}
       {who && (
         <nav className="flex items-center gap-1" aria-label={ar ? "روابط سريعة" : "Quick links"}>
-          {([["/lms", ar ? "واجباتي" : "Homework", "M5 4h11l3 3v13H5zM9 12l2 2 4-4", "lms-quick-hw"], ["/assessments", ar ? "التقييمات" : "Assessments", "M4 5h16v14H4zM8 9h8M8 13h5", "lms-quick-assess"]] as const).map(([href, l, d, id]) => (
+          {([["/lms", ar ? "واجباتي" : "Homework", "M5 4h11l3 3v13H5zM9 12l2 2 4-4", "lms-quick-hw"], ["/lms/assessments", ar ? "التقييمات" : "Assessments", "M4 5h16v14H4zM8 9h8M8 13h5", "lms-quick-assess"]] as const).map(([href, l, d, id]) => (
             <a key={href} href={href} title={l} aria-label={l} data-testid={id} className="pill-on-navy inline-flex h-[34px] items-center gap-1.5 rounded-full px-2.5 text-xs font-bold">
               <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d={d} /></svg>
               <span className="hidden lg:inline">{l}</span>
