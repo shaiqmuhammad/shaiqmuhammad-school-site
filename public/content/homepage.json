@@ -16,18 +16,8 @@
       "hidden": false
     },
     {
-      "id": "assessments",
-      "kind": "assessments",
-      "hidden": false
-    },
-    {
       "id": "libraries",
       "kind": "libraries",
-      "hidden": false
-    },
-    {
-      "id": "teacher",
-      "kind": "teacher",
       "hidden": false
     },
     {
@@ -36,8 +26,18 @@
       "hidden": false
     },
     {
+      "id": "assessments",
+      "kind": "assessments",
+      "hidden": false
+    },
+    {
       "id": "videos",
       "kind": "videos",
+      "hidden": false
+    },
+    {
+      "id": "teacher",
+      "kind": "teacher",
       "hidden": false
     }
   ]
