@@ -1,6 +1,7 @@
 "use client";
 
 
+import { AnnFeed } from "@/components/lms/Messages";
 import { CriteriaChart, TrackerEntries } from "@/components/lms/QuranScores";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -84,6 +85,7 @@ export function LmsDashboard() {
             <p className="relative mt-1 text-sm text-white/75">{staff ? tr("Here is your class at a glance.", "هذه نظرة سريعة على صفك.") : tr("Keep going — every verse counts.", "استمر — كل آية لها أجر.")}</p>
           </div>
         )}
+        {dash && <AnnFeed />}
         {dash && <DashStats items={staff ? [
           { label: tr("Students", "الطلاب"), value: (dash.students || []).length, icon: "🎒" },
           { label: tr("Classes", "الصفوف"), value: (dash.classes || []).length, icon: "🏫" },
