@@ -47,7 +47,7 @@ export interface LmsEnv extends AdminEnv, StorageEnv, MailEnv {
 
 type Json = Record<string, unknown>;
 /** Actions allowed in admin read-only "view as" mode. */
-const VIEW_AS_READ = new Set(["dashboard", "hw", "progress", "quran-map", "leaderboard", "notes", "catalog", "me", "ann-list", "msg-threads", "msg-thread", "msg-contacts"]);
+const VIEW_AS_READ = new Set(["dashboard", "hw", "progress", "quran-map", "leaderboard", "notes", "catalog", "me", "ann-list", "msg-threads", "msg-thread", "msg-contacts", "assess-list", "tquiz-get", "tquiz-list"]);
 
 /** Which LMS notifications also go out by email (when the user has an email and mail is configured). */
 const EMAIL_KINDS: Record<string, [string, string]> = {
@@ -208,6 +208,9 @@ export class LmsStore extends DurableObject<LmsEnv> {
     this.sql.exec(`CREATE TABLE IF NOT EXISTS ann (id TEXT PRIMARY KEY, title TEXT, body TEXT, aud TEXT, cls TEXT DEFAULT '', section TEXT DEFAULT '', by TEXT, created INTEGER)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS msgs (id TEXT PRIMARY KEY, thread TEXT, sender TEXT, recipient TEXT, body TEXT, created INTEGER, read INTEGER DEFAULT 0)`);
     this.sql.exec(`CREATE INDEX IF NOT EXISTS msgs_thread ON msgs (thread, created)`);
+    // Assessment assignments (class/section/students, individual or teacher-led group) + teacher-made assessments.
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS qassign (id TEXT PRIMARY KEY, quiz TEXT, title TEXT, mode TEXT, cls TEXT DEFAULT '', section TEXT DEFAULT '', students TEXT DEFAULT '[]', due INTEGER, by TEXT, owner TEXT, created INTEGER)`);
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS tquiz (id TEXT PRIMARY KEY, owner TEXT, owner_name TEXT, title TEXT, data TEXT, updated INTEGER)`);
     if (!cols("tracker").has("rev_count")) this.sql.exec(`ALTER TABLE tracker ADD COLUMN rev_count INTEGER DEFAULT 0`);
     if (!cols("tracker").has("rev_at")) this.sql.exec(`ALTER TABLE tracker ADD COLUMN rev_at INTEGER DEFAULT 0`);
     if (!cols("homework").has("section")) this.sql.exec(`ALTER TABLE homework ADD COLUMN section TEXT DEFAULT ''`);
@@ -491,6 +494,81 @@ export class LmsStore extends DurableObject<LmsEnv> {
       case "ann-delete": {
         if (a.role !== "admin") return { status: 403, body: { error: "admin_only" } };
         this.sql.exec(`DELETE FROM ann WHERE id=?`, str(input.id, 40));
+        return { status: 200, body: { ok: true } };
+      }
+
+      case "assess-list": {
+        // Students: assessments assigned to them. Staff: assignments they made (admin: all).
+        const rows = this.sql.exec(`SELECT * FROM qassign ORDER BY created DESC LIMIT 300`).toArray();
+        const out = (r: Record<string, unknown>) => ({ id: String(r.id), quiz: String(r.quiz), title: String(r.title), mode: String(r.mode), cls: String(r.cls || ""), section: String(r.section || ""), students: JSON.parse(String(r.students || "[]")) as string[], due: r.due ? Number(r.due) : null, by: String(r.by), created: Number(r.created) });
+        if (a.role === "student") {
+          const u = this.userRow("id=?", a.id);
+          const mine = rows.filter((r) => { const st = JSON.parse(String(r.students || "[]")) as string[]; return st.includes(a.id) || (!st.length && r.cls && String(r.cls) === String(u?.cls || "") && (!r.section || String(r.section) === String(u?.section || ""))); });
+          return { status: 200, body: { items: mine.map(out) } };
+        }
+        return { status: 200, body: { items: rows.filter((r) => a.role === "admin" || r.owner === a.id).map(out) } };
+      }
+      case "assess-assign": {
+        if (a.role !== "admin" && !can(a, "assign")) return { status: 403, body: { error: "forbidden" } };
+        const quiz = str(input.quiz, 80), title = str(input.title, 140);
+        if (!quiz) return { status: 400, body: { error: "quiz_required" } };
+        if (a.role === "teacher" && !quiz.startsWith("tq_") && !(a.perms.includes("host:*") || a.perms.includes(`host:${quiz}`))) return { status: 403, body: { error: "not_allowed" } };
+        if (quiz.startsWith("tq_") && a.role !== "admin") { const t = this.sql.exec(`SELECT owner FROM tquiz WHERE id=?`, quiz).toArray()[0]; if (!t || t.owner !== a.id) return { status: 403, body: { error: "not_allowed" } }; }
+        const cls = str(input.cls, 80), section = str(input.section, 80);
+        const students = strList(input.students, 200).filter((sid) => this.canSeeStudent(a, sid));
+        if (!students.length && !cls) return { status: 400, body: { error: "target_required" } };
+        if (a.role === "teacher" && cls && a.scope?.length && !a.scope.some((x) => { const [k, s2] = x.split("|"); return k === cls && (!s2 || !section || s2 === section); })) return { status: 403, body: { error: "not_your_class" } };
+        const mode = input.mode === "group" ? "group" : "individual";
+        const due = Number(input.due) > 0 ? Number(input.due) : null;
+        const id = rid("qa");
+        this.sql.exec(`INSERT INTO qassign (id, quiz, title, mode, cls, section, students, due, by, owner, created) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, id, quiz, title, mode, students.length ? "" : cls, students.length ? "" : section, JSON.stringify(students), due, a.name, a.id, Date.now());
+        const targets = students.length ? students : this.sql.exec(`SELECT id FROM users WHERE role='student' AND disabled=0 AND cls=?`, cls).toArray().filter((u) => !section || this.userRow("id=?", String(u.id))?.section === section).map((u) => String(u.id));
+        this.notify(targets, "hw_new", { title: title || quiz, assess: id });
+        return { status: 200, body: { ok: true, id, sent: targets.length } };
+      }
+      case "assess-unassign": {
+        const r = this.sql.exec(`SELECT owner FROM qassign WHERE id=?`, str(input.id, 40)).toArray()[0];
+        if (!r || (a.role !== "admin" && r.owner !== a.id)) return { status: 403, body: { error: "forbidden" } };
+        this.sql.exec(`DELETE FROM qassign WHERE id=?`, str(input.id, 40));
+        return { status: 200, body: { ok: true } };
+      }
+      case "tquiz-list": {
+        if (a.role === "student") return { status: 403, body: { error: "forbidden" } };
+        const rows = this.sql.exec(`SELECT id, owner, owner_name, title, updated FROM tquiz ORDER BY updated DESC`).toArray().filter((r) => a.role === "admin" || r.owner === a.id);
+        return { status: 200, body: { items: rows.map((r) => ({ id: String(r.id), owner: String(r.owner), ownerName: String(r.owner_name), title: String(r.title), updated: Number(r.updated) })) } };
+      }
+      case "tquiz-get": {
+        const id = str(input.id, 40);
+        const r = this.sql.exec(`SELECT * FROM tquiz WHERE id=?`, id).toArray()[0];
+        if (!r) return { status: 404, body: { error: "not_found" } };
+        if (a.role === "student") {
+          // Students may load it only when it is assigned to them.
+          const u = this.userRow("id=?", a.id);
+          const ok = this.sql.exec(`SELECT students, cls, section FROM qassign WHERE quiz=?`, id).toArray().some((x) => { const st = JSON.parse(String(x.students || "[]")) as string[]; return st.includes(a.id) || (!st.length && x.cls === String(u?.cls || "") && (!x.section || x.section === String(u?.section || ""))); });
+          if (!ok) return { status: 403, body: { error: "forbidden" } };
+        } else if (a.role !== "admin" && r.owner !== a.id && !this.sql.exec(`SELECT 1 FROM qassign WHERE quiz=?`, id).toArray().length) return { status: 403, body: { error: "forbidden" } };
+        return { status: 200, body: { quiz: JSON.parse(String(r.data)) } };
+      }
+      case "tquiz-save": {
+        if (a.role !== "admin" && a.role !== "teacher") return { status: 403, body: { error: "forbidden" } };
+        const q = (input.quiz || {}) as Record<string, unknown>;
+        const raw = JSON.stringify(q);
+        if (raw.length > 900_000) return { status: 413, body: { error: "too_large" } };
+        let id = str(q.id, 40);
+        const existing = id ? this.sql.exec(`SELECT owner FROM tquiz WHERE id=?`, id).toArray()[0] : undefined;
+        if (existing && a.role !== "admin" && existing.owner !== a.id) return { status: 403, body: { error: "forbidden" } };
+        if (!existing) id = rid("tq");
+        const data = JSON.stringify({ ...q, id, slug: id });
+        if (existing) this.sql.exec(`UPDATE tquiz SET title=?, data=?, updated=? WHERE id=?`, str(q.title, 140), data, Date.now(), id);
+        else this.sql.exec(`INSERT INTO tquiz (id, owner, owner_name, title, data, updated) VALUES (?, ?, ?, ?, ?, ?)`, id, a.id, a.name, str(q.title, 140), data, Date.now());
+        return { status: 200, body: { ok: true, id } };
+      }
+      case "tquiz-delete": {
+        const id = str(input.id, 40);
+        const r = this.sql.exec(`SELECT owner FROM tquiz WHERE id=?`, id).toArray()[0];
+        if (!r || (a.role !== "admin" && r.owner !== a.id)) return { status: 403, body: { error: "forbidden" } };
+        this.sql.exec(`DELETE FROM tquiz WHERE id=?`, id);
+        this.sql.exec(`DELETE FROM qassign WHERE quiz=?`, id);
         return { status: 200, body: { ok: true } };
       }
 
