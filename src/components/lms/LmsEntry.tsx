@@ -2,7 +2,8 @@
 
 import { MsgIcon } from "@/components/lms/Messages";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { AdminToolbar } from "@/components/AdminToolbar";
 import { LmsBell } from "@/components/lms/LmsBell";
@@ -120,6 +121,18 @@ function TeacherMenu({ ar }: { ar: boolean }) {
   const [shut, setShut] = useState<Record<string, boolean>>({});
   // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage is only readable after hydration
   useEffect(() => { try { setShut(JSON.parse(localStorage.getItem("sm-teacher-groups-closed") || "{}")); } catch { /* ignore */ } }, []);
+  const box = useRef<HTMLDivElement>(null);
+  const panel = useRef<HTMLElement>(null);
+  const [pos, setPos] = useState<{ top: number; right: number; left: number; mobile: boolean } | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    const r = box.current?.getBoundingClientRect();
+    if (r) setPos({ top: r.bottom + 8, right: window.innerWidth - r.right, left: r.left, mobile: window.innerWidth < 640 });
+    const close = (e: MouseEvent | KeyboardEvent) => { if (e instanceof KeyboardEvent ? e.key === "Escape" : !box.current?.contains(e.target as Node) && !panel.current?.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", close);
+    return () => { document.removeEventListener("mousedown", close); document.removeEventListener("keydown", close); };
+  }, [open]);
   const toggle = (g: string) => setShut((m) => { const n = { ...m, [g]: !m[g] }; try { localStorage.setItem("sm-teacher-groups-closed", JSON.stringify(n)); } catch { /* ignore */ } return n; });
   useEffect(() => { if (open && !perms.length) lmsApi.me().then((r) => setPerms(r.user.perms || [])).catch(() => undefined); }, [open, perms.length]);
   const t = (en: string, a: string) => (ar ? a : en);
@@ -131,15 +144,13 @@ function TeacherMenu({ ar }: { ar: boolean }) {
     ...(tools ? [[t("Teaching Tools", "أدوات التدريس"), [["/lms/activities", t("Classroom activities", "أنشطة الصف")]]]] as [string, [string, string][]][] : []),
   ];
   return (
-    <div className="relative">
+    <div className="relative" ref={box}>
       <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="pill-on-navy inline-flex h-[34px] items-center gap-1.5 rounded-full px-2.5 text-xs font-bold" data-testid="lms-teacher-menu">
         <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden><path d="M4 7h16M4 12h16M4 17h16" /></svg>
         <span className="hidden lg:inline">{t("Menu", "القائمة")}</span>
       </button>
-      {open && (
-        <>
-          <button type="button" className="fixed inset-0 z-[2147482999] cursor-default" aria-label={t("Close", "إغلاق")} onClick={() => setOpen(false)} />
-          <nav className="fixed inset-x-2 top-16 z-[2147483000] rounded-2xl bg-header p-3 text-white shadow-2xl sm:absolute sm:inset-x-auto sm:end-0 sm:top-full sm:mt-2 sm:w-64" data-testid="lms-teacher-menu-panel">
+      {open && pos && createPortal(
+        <nav ref={panel} dir={ar ? "rtl" : "ltr"} style={pos.mobile ? { top: pos.top } : ar ? { top: pos.top, left: pos.left } : { top: pos.top, right: pos.right }} className={`fixed z-[2147483000] rounded-2xl bg-header p-3 text-white shadow-2xl ${pos.mobile ? "inset-x-2" : "w-64"}`} data-testid="lms-teacher-menu-panel">
             {groups.map(([g, items]) => (
               <div key={g} className="pb-2 last:pb-0">
                 <button type="button" onClick={() => toggle(g)} aria-expanded={!shut[g]} className="flex w-full items-center px-2 pb-1 text-[11px] font-bold uppercase tracking-[0.12em] text-white/55 hover:text-white" data-testid="lms-teacher-group">
@@ -149,8 +160,8 @@ function TeacherMenu({ ar }: { ar: boolean }) {
                 {!shut[g] && items.map(([href, l]) => <a key={href + l} href={href} className="block rounded-xl px-2 py-1.5 text-sm hover:bg-white/10 hover:text-sun">{l}</a>)}
               </div>
             ))}
-          </nav>
-        </>
+          </nav>,
+        document.body,
       )}
     </div>
   );

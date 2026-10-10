@@ -286,4 +286,4 @@ a.glass:hover, button.glass:hover, li.glass:hover { transform: translateY(-2px);
 @media (prefers-reduced-motion: no-preference) {
   [data-testid="lms-dashboard"] > *, .admin-tab > * { animation: sm-fade-up .35s ease both; }
 }
-@keyframes sm-fade-up { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes sm-fade-up { from { opacity: 0; } to { opacity: 1; } }
