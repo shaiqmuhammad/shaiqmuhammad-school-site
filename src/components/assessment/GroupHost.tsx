@@ -22,6 +22,7 @@ import {
   type SessionResults,
   type StoredHost,
 } from "@/lib/groupSession";
+import { lmsSession } from "@/lib/lms";
 import { loadQuizzesData, normalizeQuiz, type Quiz } from "@/lib/quiz";
 
 /** Default live-session length (5 minutes = 300 s) when an assessment has no time limit. */
@@ -46,7 +47,8 @@ export function GroupHost() {
 
   useEffect(() => {
     const authTimer = setTimeout(() => {
-      setAuthed(isAdminAuthenticated());
+      // Admin, or a signed-in LMS teacher (limited to assessments the admin allowed + their own).
+      setAuthed(isAdminAuthenticated() || lmsSession()?.user.role === "teacher");
       const saved = loadHost();
       if (saved) setHost(saved);
     }, 0);
@@ -59,7 +61,9 @@ export function GroupHost() {
     }
     loadQuizzesData()
       .then((d) => {
-        const list = d.quizzes.filter((q) => q.questions.length > 0);
+        const t = !isAdminAuthenticated() ? lmsSession() : null;
+        const hosts = (t?.user.perms || []).filter((p) => p.startsWith("host:")).map((p) => p.slice(5));
+        const list = d.quizzes.filter((q) => q.questions.length > 0 && (!t || hosts.includes("*") || hosts.includes(q.slug) || hosts.includes(q.id)));
         const merged = draft ? [draft, ...list.filter((q) => q.id !== draft!.id)] : list;
         setQuizzes(merged);
         setSlug((s) => {
