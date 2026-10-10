@@ -7,7 +7,7 @@ import { LmsBell } from "@/components/lms/LmsBell";
 import { mailApi } from "@/lib/mail";
 import { useI18n } from "@/lib/i18n";
 
-type Tab = "home" | "pages" | "videos" | "quizzes" | "certificate" | "banners" | "announcements" | "teacher" | "forum" | "results" | "activities" | "settings" | "students" | "teachers" | "setup" | "lmshw" | "classes" | "mail" | "homepage";
+type Tab = "home" | "pages" | "videos" | "quizzes" | "certificate" | "banners" | "announcements" | "teacher" | "forum" | "results" | "activities" | "settings" | "students" | "teachers" | "setup" | "lmshw" | "classes" | "mail" | "homepage" | "staff";
 
 type Props = {
   busy: boolean;
@@ -24,15 +24,19 @@ type Props = {
 };
 
 const GROUPS: { id: string; en: string; ar: string; ids: Tab[] }[] = [
-  { id: "content", en: "Content", ar: "المحتوى", ids: ["homepage", "pages", "banners", "announcements", "teacher", "videos"] },
-  { id: "learning", en: "Learning", ar: "التعلّم", ids: ["quizzes", "activities", "lmshw", "results", "certificate"] },
-  { id: "people", en: "People", ar: "الأشخاص", ids: ["students", "teachers", "setup", "classes"] },
+  { id: "site", en: "Settings", ar: "إعدادات الموقع", ids: ["homepage", "teacher", "banners", "announcements", "videos", "settings"] },
+  { id: "teach", en: "Teaching and Learning", ar: "التعليم والتعلّم", ids: ["setup", "pages", "classes"] },
+  { id: "members", en: "Members", ar: "الأعضاء", ids: ["students", "teachers", "staff"] },
+  { id: "assess", en: "Assessment", ar: "التقييم", ids: ["quizzes", "lmshw", "certificate", "results"] },
+  { id: "tools", en: "Teaching Tools", ar: "أدوات التدريس", ids: ["activities"] },
   { id: "community", en: "Community", ar: "التواصل", ids: ["forum", "mail"] },
-  { id: "settings", en: "Settings", ar: "الإعدادات", ids: ["settings"] },
 ];
+/** Classroom tools listed under Activities in the sidebar (all open the Activities tab). */
+const TOOLS: [string, string][] = [["Shared Wall", "الجدار المشترك"], ["Wheel", "العجلة"], ["Randomiser", "الاختيار العشوائي"], ["Word Cloud", "سحابة الكلمات"], ["Poll", "استطلاع"], ["Survey", "استبيان"], ["Think/Pair/Share", "فكّر/زاوج/شارك"], ["Vote", "تصويت"]];
 /** Short description under each page title (consistent page header, Arabz Mart style). */
 const DESC: Partial<Record<Tab, [string, string]>> = {
   homepage: ["Arrange, show or hide and edit the sections of the public home page.", "رتّب أقسام الصفحة الرئيسية وأظهرها أو أخفها وعدّلها."],
+  staff: ["Staff accounts: permissions like teachers, no class teaching required.", "حسابات الموظفين: صلاحيات مثل المعلمين دون تدريس صفوف."],
   pages: ["Lesson and library pages shown on the website.", "صفحات الدروس والمكتبة المعروضة على الموقع."],
   banners: ["Slides at the top of the home page.", "الشرائح أعلى الصفحة الرئيسية."],
   announcements: ["The scrolling ticker and news items.", "الشريط المتحرك والأخبار."],
@@ -68,6 +72,7 @@ const ICONS: Record<Tab, ReactNode> = {
   certificate: <><circle cx="12" cy="9" r="5" /><path d="M9 13.5L8 21l4-2 4 2-1-7.5" /></>,
   teacher: <><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></>,
   students: <><path d="M2 9l10-5 10 5-10 5z" /><path d="M6 11v5c3 2.5 9 2.5 12 0v-5" /></>,
+  staff: <><circle cx="12" cy="7" r="3.5" /><path d="M5 21a7 7 0 0 1 14 0M9 14l3 3 3-3" /></>,
   teachers: <><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20a6.5 6.5 0 0 1 13 0M15 4h7v6h-7" /></>,
   setup: <><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></>,
   classes: <><path d="M3 21h18M5 21V8l7-5 7 5v13" /><path d="M9 21v-6h6v6" /></>,
@@ -117,7 +122,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
   const drawerRef = useRef<HTMLDivElement>(null);
   const homeLabel = tr("Admin home — refresh content", "الرئيسية وتحديث المحتوى");
   const label = (id: Tab) =>
-    id === "home" ? tr("Home", "الرئيسية") : id === "announcements" ? tr("Announcements", "الإعلانات") : id === "results" ? tr("Results", "النتائج") : id === "activities" ? tr("Activities", "الأنشطة") : id === "students" ? tr("Students", "الطلاب") : id === "teachers" ? tr("Teachers", "المعلمون") : id === "setup" ? tr("Classes & Subjects", "الصفوف والمواد") : id === "lmshw" ? tr("Homework", "الواجبات") : id === "mail" ? tr("Mail", "البريد") : id === "homepage" ? tr("Homepage", "الصفحة الرئيسية") : id === "classes" ? tr("Classes", "الصفوف") : t(`admin.tab.${id}`);
+    id === "home" ? tr("Home", "الرئيسية") : id === "announcements" ? tr("Announcements", "الإعلانات") : id === "results" ? tr("Results", "النتائج") : id === "activities" ? tr("Activities", "الأنشطة") : id === "students" ? tr("Students", "الطلاب") : id === "teachers" ? tr("Teachers", "المعلمون") : id === "setup" ? tr("Classes & Subjects", "الصفوف والمواد") : id === "lmshw" ? tr("Homework", "الواجبات") : id === "mail" ? tr("Mail", "البريد") : id === "homepage" ? tr("Homepage", "الصفحة الرئيسية") : id === "classes" ? tr("Classes", "الصفوف") : id === "staff" ? tr("Staff", "الموظفون") : id === "pages" ? tr("Learning Pages", "صفحات التعلّم") : t(`admin.tab.${id}`);
 
   useEffect(() => {
     try {
@@ -234,6 +239,11 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
           )}
         </button>
         ))}
+        {g.id === "tools" && !opts.rail && (
+          <ul className="ms-11 mt-0.5 space-y-0.5 border-s border-white/10 ps-3 text-xs text-white/65" data-testid="admin-nav-tools">
+            {TOOLS.map(([en, ar]) => <li key={en}><button type="button" className="py-0.5 text-start hover:text-sun" onClick={() => { onTab("activities"); opts.onPick?.(); }}>{tr(en, ar)}</button></li>)}
+          </ul>
+        )}
       </div>
     ));
 

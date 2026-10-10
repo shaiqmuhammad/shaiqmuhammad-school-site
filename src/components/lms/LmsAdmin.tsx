@@ -21,9 +21,9 @@ const PERM_LABEL: Record<string, [string, string]> = {
 const EMPTY: Catalog = { subjects: [], classes: [], sections: [] };
 
 /** Add / edit one student or teacher, with dropdowns from Classes & Subjects. */
-function PersonForm({ role, catalog, initial, onSave, submitLabel, testPrefix }: { role: Role; catalog: Catalog; initial?: LmsUser; onSave: (r: Row) => Promise<void>; submitLabel: string; testPrefix: string }) {
+function PersonForm({ role, catalog, initial, onSave, submitLabel, testPrefix, staff = false }: { staff?: boolean; role: Role; catalog: Catalog; initial?: LmsUser; onSave: (r: Row) => Promise<void>; submitLabel: string; testPrefix: string }) {
   const { tr } = useTr();
-  const [f, setF] = useState({ name: initial?.name || "", username: initial?.username || "", cls: initial?.cls || "", section: initial?.section || "", pin: "", email: initial?.email || "", subjects: initial?.subjects || [], scope: initial?.scope || [], perms: initial?.perms || ["assign", "review"], disabled: initial?.disabled || false });
+  const [f, setF] = useState({ name: initial?.name || "", username: initial?.username || "", cls: initial?.cls || "", section: initial?.section || "", pin: "", email: initial?.email || "", subjects: initial?.subjects || [], scope: initial?.scope || [], perms: initial?.perms || (staff ? ["staff", "review"] : ["assign", "review"]), disabled: initial?.disabled || false });
   const [busy, setBusy] = useState(false);
   const toggle = (k: "subjects" | "scope" | "perms", v: string) => setF((x) => ({ ...x, [k]: x[k].includes(v) ? x[k].filter((y) => y !== v) : [...x[k], v] }));
   const secs = catalog.sections.filter((s) => s.cls === f.cls);
@@ -94,7 +94,7 @@ function Frame({ embedded, title, children }: { embedded: boolean; title: string
 }
 
 /** Admin: Students page or Teachers page (list, search, filters, add, bulk upload, sign-in sheet, PINs). */
-export function LmsAdmin({ role = "student", embedded = false }: { role?: Role; embedded?: boolean }) {
+export function LmsAdmin({ role = "student", embedded = false, staff = false }: { role?: Role; embedded?: boolean; staff?: boolean }) {
   const { tr } = useTr();
   // Inside Admin (embedded): the admin session only. On /lms: a teacher with "manage students" only.
   const lms = useLmsActor();
@@ -123,7 +123,7 @@ export function LmsAdmin({ role = "student", embedded = false }: { role?: Role; 
   const [page, setPage] = useState(0);
   const [sel, setSel] = useState<Set<string>>(new Set());
   const allowed = embedded || (role === "student" && actor?.role === "teacher" && actor.perms.includes("manageUsers"));
-  const title = role === "teacher" ? tr("Teachers", "المعلمون") : tr("Students", "الطلاب");
+  const title = staff ? tr("Staff", "الموظفون") : role === "teacher" ? tr("Teachers", "المعلمون") : tr("Students", "الطلاب");
 
   const load = useCallback(() => {
     lmsApi.users(asAdmin).then((r) => { setUsers(r.users); setKnown(null); }).catch((e) => { if (asAdmin && (e as { status?: number }).status === 401 && adminRelogin()) return; setErr(lmsErrorText(e, tr)); });
@@ -174,7 +174,8 @@ export function LmsAdmin({ role = "student", embedded = false }: { role?: Role; 
     );
   }
 
-  const people = (users || []).filter((u) => u.role === role);
+  // Staff = teacher accounts flagged "staff" (permissions like teachers, no class teaching required).
+  const people = (users || []).filter((u) => u.role === role && (role !== "teacher" || (u.perms || []).includes("staff") === staff));
   const list = people.filter((u) => {
     if (q && !`${u.name} ${u.username}`.toLowerCase().includes(q.toLowerCase())) return false;
     if (role === "student") return (!fCls || u.cls === fCls) && (!fSec || u.section === fSec);
@@ -257,7 +258,7 @@ export function LmsAdmin({ role = "student", embedded = false }: { role?: Role; 
                 <button type="button" className={iconBtn} onClick={() => setDrawer(null)} aria-label={tr("Close", "إغلاق")} title={tr("Close", "إغلاق")} data-testid="lms-drawer-close">✕</button>
               </div>
               {drawer === "add" ? (
-                <PersonForm role={role} catalog={catalog} onSave={async (r) => { if (await saveMany([r])) setDrawer(null); }} submitLabel={"+ " + tr("Add", "إضافة")} testPrefix="lms-new" />
+                <PersonForm staff={staff} role={role} catalog={catalog} onSave={async (r) => { if (await saveMany([r])) setDrawer(null); }} submitLabel={"+ " + tr("Add", "إضافة")} testPrefix="lms-new" />
               ) : (
                 <div className="space-y-3">
                   <p className="text-sm opacity-75">{tr("1. Download the template · 2. Fill one row per person · 3. Upload it here and check the preview.", "١. نزّل القالب · ٢. صف لكل شخص · ٣. ارفعه هنا وراجع المعاينة.")}</p>
@@ -399,7 +400,7 @@ export function LmsAdmin({ role = "student", embedded = false }: { role?: Role; 
                       {edit === u.id && (
                         <tr>
                           <td colSpan={cols.length + 1} className="border-t border-black/5 bg-black/[0.03] p-3 dark:border-white/10 dark:bg-white/5">
-                            <PersonForm role={role} catalog={catalog} initial={u} onSave={async (r) => { if (await saveMany([r])) setEdit(null); }} submitLabel={tr("Save", "حفظ")} testPrefix="lms-edit" />
+                            <PersonForm staff={staff} role={role} catalog={catalog} initial={u} onSave={async (r) => { if (await saveMany([r])) setEdit(null); }} submitLabel={tr("Save", "حفظ")} testPrefix="lms-edit" />
                           </td>
                         </tr>
                       )}
