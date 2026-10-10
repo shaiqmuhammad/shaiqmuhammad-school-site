@@ -68,7 +68,7 @@ const TOKEN_DAYS = 30;
 const MAX_USERS = 3000;
 const MAX_HW = 2000;
 const FAIL_WINDOW = 15 * 60_000;
-const PERMS = ["assign", "review", "manageUsers", "viewAll"] as const;
+const PERMS = ["assign", "review", "manageUsers", "viewAll", "staff"] as const;
 /** Spaced revision after a pass: 1, 3, 7, 14, 30, then every 60 days. */
 const REVISION_DAYS = [1, 3, 7, 14, 30, 60];
 const MAX_AUDIO = 1_600_000; // ~3 min at 24 kbps + container overhead, with headroom
