@@ -155,19 +155,16 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
       <svg viewBox="0 0 24 24" className="h-4 w-4" fill={starred(id) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" aria-hidden><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z" /></svg>
     </span>
   );
-  const quickBar = () => (
-    <div className="glass mb-5 rounded-3xl p-3" data-testid="quick-bar">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="inline-flex items-center gap-2 px-1 text-base font-extrabold" data-testid="dash-title"><span className="grid h-8 w-8 place-items-center rounded-full bg-sun text-[#0b1b2b]"><Icon className="h-4 w-4">{BOLT}</Icon></span>{tr("Dashboard", "لوحة التحكم")}</span>
-        {quick.map((q) => (
-          <button key={q.tab} type="button" onClick={() => onTab(q.tab as Tab)} className="inline-flex items-center gap-2 rounded-full bg-header px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#1d3d5c]" data-testid="quick-item">
-            <Icon className="h-4 w-4 text-sun">{qIcon(q)}</Icon>{qLabel(q)}
-          </button>
-        ))}
-        {!quick.length && <span className="text-sm opacity-70">{tr("Star ☆ any page to pin it here.", "ضع نجمة ☆ على أي صفحة لتثبيتها هنا.")}</span>}
-        {quick.length > 0 && <span className="ms-auto text-[11px] opacity-60">{tr("Star ☆ / unstar pages to add or remove", "ضع نجمة ☆ أو أزلها لإضافة صفحة أو إزالتها")}</span>}
-        <span className="flex-1" />
-      </div>
+  // One sticky white strip: "Dashboard" + starred quick-access items (left), toolbar icons (right).
+  const quickStrip = (mobile = false) => (
+    <div className="flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none]" data-testid={mobile ? "quick-bar-m" : "quick-bar"}>
+      {!mobile && <button type="button" onClick={() => onTab("home")} aria-current={tab === "home" ? "page" : undefined} className="me-1 inline-flex shrink-0 items-center gap-2 text-base font-extrabold" data-testid="dash-title"><span className="grid h-7 w-7 place-items-center rounded-full bg-sun text-[#0b1b2b]"><Icon className="h-3.5 w-3.5">{BOLT}</Icon></span>{tr("Dashboard", "لوحة التحكم")}</button>}
+      {quick.map((q) => (
+        <button key={q.tab} type="button" onClick={() => onTab(q.tab as Tab)} aria-current={tab === q.tab ? "page" : undefined} className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition ${tab === q.tab ? "bg-header text-white" : "bg-black/[0.04] text-heading hover:bg-black/[0.08] dark:bg-white/10 dark:text-white"}`} data-testid="quick-item">
+          <Icon className="h-3.5 w-3.5">{qIcon(q)}</Icon>{qLabel(q)}
+        </button>
+      ))}
+      {!quick.length && !mobile && <span className="truncate text-xs text-muted">{tr("Star ☆ a page in the menu to pin it here", "ضع نجمة ☆ على صفحة لتثبيتها هنا")}</span>}
     </div>
   );
   const drawerRef = useRef<HTMLDivElement>(null);
@@ -352,11 +349,12 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
             <Icon className="h-5 w-5"><path d="M4 7h16M4 12h16M4 17h16" /></Icon>
           </button>
           {logo("h-9 w-9")}
-          <p className="min-w-0 flex-1 truncate text-sm font-extrabold">{label(tab)}</p>
+          <button type="button" onClick={() => onTab("home")} className="min-w-0 flex-1 truncate text-start text-sm font-extrabold" data-testid="dash-title-m">{tr("Dashboard", "لوحة التحكم")}</button>
           <MsgIcon variant="glass" asAdmin onClick={() => onTab("messages")} />
           <MailIcon unread={mailUnread} onClick={() => onTab("mail")} label={tr("Mailbox", "البريد")} />
           <AdminToolbar variant="glass" onLogout={onLogout} bell={<LmsBell asAdmin testId="admin-bell" variant={"glass"} extra={onBell ? { count: pendingCount, label: tr(`${pendingCount} forum post${pendingCount === 1 ? "" : "s"} waiting for approval`, `${pendingCount} مشاركة في المنتدى بانتظار الموافقة`), onClick: onBell } : undefined} />} />
         </div>
+        {quick.length > 0 && <div className="border-t border-black/5 px-3 pb-2 pt-1.5 dark:border-white/10">{quickStrip(true)}</div>}
       </header>
       {drawer && (
         <div className="fixed inset-0 z-50 lg:hidden" data-testid="admin-drawer-wrap">
@@ -389,7 +387,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
 
       <main className="min-w-0 flex-1">
         <div className="sticky top-0 z-30 hidden items-center gap-3 border-b border-black/5 bg-white/90 px-6 py-2.5 shadow-[0_4px_18px_-14px_rgba(10,25,40,0.35)] backdrop-blur dark:border-white/10 dark:bg-[#0f1f30]/90 lg:flex" data-testid="admin-toolbar-wrap">
-          <p className="min-w-0 flex-1 truncate text-sm font-semibold text-muted" data-testid="admin-breadcrumb">{tr("Admin", "الإدارة")}{GROUPS.find((g) => g.ids.includes(tab)) ? ` / ${tr(GROUPS.find((g) => g.ids.includes(tab))!.en, GROUPS.find((g) => g.ids.includes(tab))!.ar)}` : ""} / <b className="text-heading">{label(tab) || tr("Dashboard", "لوحة التحكم")}</b></p>
+          <div className="min-w-0 flex-1">{quickStrip()}</div>
           <MsgIcon variant="glass" asAdmin onClick={() => onTab("messages")} />
           <MailIcon unread={mailUnread} onClick={() => onTab("mail")} label={tr(`Mailbox${mailUnread ? ` (${mailUnread} unread)` : ""}`, `البريد${mailUnread ? ` (${mailUnread} غير مقروءة)` : ""}`)} />
             <AdminToolbar variant="glass" onLogout={onLogout} bell={<LmsBell asAdmin testId="admin-bell" variant={"glass"} extra={onBell ? { count: pendingCount, label: tr(`${pendingCount} forum post${pendingCount === 1 ? "" : "s"} waiting for approval`, `${pendingCount} مشاركة في المنتدى بانتظار الموافقة`), onClick: onBell } : undefined} />} />
@@ -409,7 +407,6 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
               {star(tab, "!h-9 !w-9 border border-black/10 dark:border-white/15")}
             </header>
           )}
-          {tab === "home" && quickBar()}
           <div className="admin-tab">{children}</div>
         </div>
       </main>
