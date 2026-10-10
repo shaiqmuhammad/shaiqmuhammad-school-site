@@ -11,6 +11,7 @@ import { AudioClip, AudioRecorder } from "@/components/lms/Audio";
 import { AssessmentShell, primaryBtn } from "@/components/assessment/AssessmentShell";
 import { HomeworkEditor } from "@/components/lms/HomeworkEditor";
 import { studentQrCardsPdf } from "@/components/lms/lmsFiles";
+import { FeedbackText, ScoreBadges, ScoreGrader } from "@/components/lms/QuranScores";
 import { GRADE_STYLE, STATUS_STYLE, card, gradeLabel, inputCls, smallBtn, statusLabel, useLmsActor, useTr } from "@/components/lms/useLms";
 import { quranExtras, ayahAudio, lmsApi, lmsErrorText, quranChapters, quranVerses, type Chapter, type GeneralData, type QuranData, type Submission, type Attempt, type Mistake, type QrLink, type Catalog, type DashStudent } from "@/lib/lms";
 
@@ -209,9 +210,11 @@ function StudentWork({ hw, sub, reload, chapters = [] }: { hw: Data["homework"];
         <h2 className="text-xl font-bold">{tr("My work", "عملي")}</h2>
         <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${STATUS_STYLE[sub?.status || "none"]}`} data-testid="hw-status">{statusLabel(sub?.status || "none", tr)}</span>
         {sub?.grade && <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${GRADE_STYLE[sub.grade]}`} data-testid="hw-grade">{gradeLabel(sub.grade, tr)}</span>}
+        {sub?.scores && <ScoreBadges s={sub.scores} />}
       </div>
       {hw.locked && <p className="rounded-2xl bg-black/5 px-3 py-2 font-semibold dark:bg-white/10" data-testid="hw-locked">🔒 {hw.lockedBy ? tr(`Finish Surah ${lockName(hw.lockedBy.surah, "en")} verses ${hw.lockedBy.from}–${hw.lockedBy.to} first — your teacher must pass them (green or yellow).`, `أكمل سورة ${lockName(hw.lockedBy.surah, "ar")} الآيات ${hw.lockedBy.from}–${hw.lockedBy.to} أولًا — يجب أن يجتازها معلمك (أخضر أو أصفر).`) : tr("Finish the earlier verses first — your teacher must pass them (green or yellow).", "أكمل الآيات السابقة أولًا — يجب أن يجتازها معلمك (أخضر أو أصفر).")}</p>}
       {again && <p className="rounded-2xl bg-rose-50 px-3 py-2 font-semibold text-rose-900 dark:bg-rose-900/30 dark:text-rose-100" data-testid="hw-practise-again">🔴 {tr("Practise again: same verses. Listen to your teacher's feedback, practise, then record again and hand in.", "تدرّب مجددًا: نفس الآيات. استمع لتعليق معلمك، تدرّب، ثم سجّل مجددًا وسلّم.")}</p>}
+      {sub?.scores && sub.status !== "submitted" && <FeedbackText s={sub.scores} />}
       {sub?.status === "approved" && sub.grade && <p className="rounded-2xl bg-emerald-50 px-3 py-2 font-semibold text-emerald-900 dark:bg-emerald-900/30 dark:text-emerald-100" data-testid="hw-passed">🎉 {tr("Passed! You can move on to the next verses.", "نجحت! يمكنك الانتقال إلى الآيات التالية.")}</p>}
       {hw.kind === "quran" ? (
         <>
@@ -256,6 +259,7 @@ function Attempts({ list, asAdmin = false }: { list: Attempt[]; asAdmin?: boolea
           <li key={x.n} className="flex flex-wrap items-center gap-2 text-sm" data-testid="hw-attempt">
             <b>#{x.n}</b>
             <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${GRADE_STYLE[x.grade]}`}>{gradeLabel(x.grade, tr)}</span>
+            <ScoreBadges s={x.scores} compact />
             <span className="opacity-60">{x.by} · {new Date(x.at).toLocaleDateString()}</span>
             {x.audio && <AudioClip id={x.audio} asAdmin={asAdmin} testId="attempt-clip" />}
           </li>
@@ -308,15 +312,12 @@ function Review({ s, asAdmin, reload, quran, qdata }: { s: NonNullable<Data["sub
         {s.grade && <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${GRADE_STYLE[s.grade]}`} data-testid="hw-sub-grade">{gradeLabel(s.grade, tr)}</span>}
         {quran ? (
           s.status === "submitted" && (
-            <span className="inline-flex flex-wrap gap-1" role="group" aria-label={tr("Grade", "التقييم")}>
-              <button type="button" className={`rounded-full px-3 py-1.5 text-sm font-bold ${GRADE_STYLE.green}`} onClick={() => act({ grade: "green" })} title={tr("Memorised perfectly — passed", "محفوظ تمامًا — ناجح")} data-testid="hw-grade-green">🟢 {tr("Green", "أخضر")}</button>
-              <button type="button" className={`rounded-full px-3 py-1.5 text-sm font-bold ${GRADE_STYLE.yellow}`} onClick={() => act({ grade: "yellow" })} title={tr("Good, minor improvement — passed", "جيد مع تحسين بسيط — ناجح")} data-testid="hw-grade-yellow">🟡 {tr("Yellow", "أصفر")}</button>
-              <button type="button" className={`rounded-full px-3 py-1.5 text-sm font-bold ${GRADE_STYLE.red}`} onClick={() => act({ grade: "red" })} title={tr("Needs practice — back to the student", "يحتاج تدريبًا — يعود للطالب")} data-testid="hw-grade-red">🔴 {tr("Red", "أحمر")}</button>
-            </span>
+            <ScoreGrader onSubmit={(sc) => act({ scores: sc })} />
           )
         ) : s.status !== "approved" && <button type="button" className="rounded-full bg-emerald-600 px-3 py-1.5 text-sm font-bold text-white" onClick={() => act({ status: "approved" })} data-testid="hw-approve">✓ {tr("Approve", "قبول")}</button>}
         {!quran && s.status !== "returned" && <button type="button" className={smallBtn} onClick={() => act({ status: "returned" })} data-testid="hw-return">↺ {tr("Ask to try again", "اطلب المحاولة مجددًا")}</button>}
       </div>
+      {quran && s.scores && s.status !== "submitted" && <div className="space-y-1.5" data-testid="hw-sub-scores"><ScoreBadges s={s.scores} /><FeedbackText s={s.scores} /></div>}
       {s.text && <p className="whitespace-pre-wrap rounded-2xl bg-white/80 px-3 py-2 dark:bg-white/5" dir="auto">{s.text}</p>}
       {s.audio && <AudioClip id={s.audio} asAdmin={asAdmin} label={"🎙️ " + tr("Student recording", "تسجيل الطالب")} testId="sub-clip" />}
       {s.comments.map((x, i) => (

@@ -1,5 +1,6 @@
 "use client";
 
+import { FeedbackText, ScoreBadges, TrackerEntries } from "@/components/lms/QuranScores";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { QuranReader } from "@/components/lms/LmsHomework";
@@ -44,6 +45,7 @@ export function QrPage() {
                 {d.homework.kind === "quran" && ch ? `${lang === "ar" ? `سورة ${ch.name_arabic}` : `Surah ${ch.name_simple}`} · ${tr("verses", "الآيات")} ${q?.from}–${q?.to}` : d.homework.title}
               </p>
               {d.grade ? <span className={`mt-3 inline-block rounded-full px-3 py-1 text-sm font-bold ${GRADE_STYLE[d.grade]}`} data-testid="qr-grade">{gradeLabel(d.grade, tr)}</span> : null}
+              {d.scores && <div className="mt-3 space-y-2"><ScoreBadges s={d.scores} /><FeedbackText s={d.scores} /></div>}
             </header>
             {d.homework.kind === "quran" && q?.surah && <QuranReader data={q} />}
             <section className={card + " space-y-3"}>
@@ -63,9 +65,7 @@ export function QrPage() {
               <section className={card + " space-y-2"}>
                 <h2 className="text-xl font-bold">📈 {tr("Tracker", "متابعة الحفظ")}</h2>
                 {d.tracker.length ? (
-                  <ul className="flex flex-wrap gap-2" data-testid="qr-tracker">
-                    {d.tracker.map((r, i) => <li key={i} className={`rounded-2xl px-3 py-1.5 text-sm font-semibold ${GRADE_STYLE[r.grade || "green"]}`}>{r.grade === "red" ? "🔴" : r.grade === "yellow" ? "🟡" : "🟢"} {ch?.name_simple || ""} {r.from}–{r.to}</li>)}
-                  </ul>
+                  <div data-testid="qr-tracker"><TrackerEntries rows={d.tracker} surahName={() => ch?.name_simple || ""} /></div>
                 ) : <p className="opacity-70">{tr("Not graded yet.", "لم يُقيّم بعد.")}</p>}
               </section>
             )}

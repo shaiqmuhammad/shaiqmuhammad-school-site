@@ -1,6 +1,7 @@
 "use client";
 
 
+import { CriteriaChart, TrackerEntries } from "@/components/lms/QuranScores";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
@@ -132,13 +133,7 @@ export function LmsDashboard() {
               {(dash.tracker || []).length === 0 ? (
                 <p className="mt-2 opacity-70">{tr("Approved Quran homework will appear here.", "سيظهر هنا واجب القرآن المقبول.")}</p>
               ) : (
-                <ul className="mt-3 flex flex-wrap gap-2" data-testid="lms-tracker">
-                  {dash.tracker!.map((t, i) => (
-                    <li key={i} className={`rounded-2xl px-3 py-2 text-sm font-semibold ${GRADE_STYLE[t.grade || "green"]}`} title={gradeLabel(t.grade || "green", tr)} data-testid="lms-tracker-row" data-grade={t.grade || "green"}>
-                      {t.grade === "red" ? "🔴" : t.grade === "yellow" ? "🟡" : "🟢"} {surahName(t.surah)} {t.from}–{t.to}
-                    </li>
-                  ))}
-                </ul>
+                <div className="mt-3 space-y-3"><TrackerEntries rows={dash.tracker!} surahName={surahName} /><CriteriaChart rows={dash.tracker!} /></div>
               )}
             </section>
             <Certificates tracker={dash.tracker || []} student={actor?.name || ""} />
