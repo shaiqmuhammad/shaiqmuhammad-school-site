@@ -158,6 +158,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
   // One sticky white strip: "Dashboard" + starred quick-access items (left), toolbar icons (right).
   const quickStrip = (mobile = false) => (
     <div className="flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none]" data-testid={mobile ? "quick-bar-m" : "quick-bar"}>
+      {mobile && <button type="button" onClick={() => onTab("home")} className="inline-flex shrink-0 items-center gap-1.5 pe-1 text-sm font-extrabold" data-testid="dash-title-m"><span className="grid h-6 w-6 place-items-center rounded-full bg-sun text-[#0b1b2b]"><Icon className="h-3 w-3">{BOLT}</Icon></span>{tr("Dashboard", "لوحة التحكم")}</button>}
       {!mobile && <button type="button" onClick={() => onTab("home")} aria-current={tab === "home" ? "page" : undefined} className="me-1 inline-flex shrink-0 items-center gap-2 text-base font-extrabold" data-testid="dash-title"><span className="grid h-7 w-7 place-items-center rounded-full bg-sun text-[#0b1b2b]"><Icon className="h-3.5 w-3.5">{BOLT}</Icon></span>{tr("Dashboard", "لوحة التحكم")}</button>}
       {quick.map((q) => (
         <button key={q.tab} type="button" onClick={() => onTab(q.tab as Tab)} aria-current={tab === q.tab ? "page" : undefined} className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition ${tab === q.tab ? "bg-header text-white" : "bg-black/[0.04] text-heading hover:bg-black/[0.08] dark:bg-white/10 dark:text-white"}`} data-testid="quick-item">
@@ -349,12 +350,12 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
             <Icon className="h-5 w-5"><path d="M4 7h16M4 12h16M4 17h16" /></Icon>
           </button>
           {logo("h-9 w-9")}
-          <button type="button" onClick={() => onTab("home")} className="min-w-0 flex-1 truncate text-start text-sm font-extrabold" data-testid="dash-title-m">{tr("Dashboard", "لوحة التحكم")}</button>
+          <span className="flex-1" />
           <MsgIcon variant="glass" asAdmin onClick={() => onTab("messages")} />
           <MailIcon unread={mailUnread} onClick={() => onTab("mail")} label={tr("Mailbox", "البريد")} />
           <AdminToolbar variant="glass" onLogout={onLogout} bell={<LmsBell asAdmin testId="admin-bell" variant={"glass"} extra={onBell ? { count: pendingCount, label: tr(`${pendingCount} forum post${pendingCount === 1 ? "" : "s"} waiting for approval`, `${pendingCount} مشاركة في المنتدى بانتظار الموافقة`), onClick: onBell } : undefined} />} />
         </div>
-        {quick.length > 0 && <div className="border-t border-black/5 px-3 pb-2 pt-1.5 dark:border-white/10">{quickStrip(true)}</div>}
+        {<div className="border-t border-black/5 px-3 pb-2 pt-1.5 dark:border-white/10">{quickStrip(true)}</div>}
       </header>
       {drawer && (
         <div className="fixed inset-0 z-50 lg:hidden" data-testid="admin-drawer-wrap">
