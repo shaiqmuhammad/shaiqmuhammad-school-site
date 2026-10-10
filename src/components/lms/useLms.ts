@@ -73,5 +73,5 @@ export const GRADE_STYLE: Record<string, string> = {
   red: "bg-rose-600 text-white",
 };
 export function gradeLabel(g: string, tr: (en: string, ar: string) => string): string {
-  return g === "green" ? tr("Green · memorised", "أخضر · محفوظ") : g === "yellow" ? tr("Yellow · good, minor fixes", "أصفر · جيد مع تحسين بسيط") : g === "red" ? tr("Red · needs practice", "أحمر · يحتاج تدريبًا") : "";
+  return g === "green" ? tr("Excellent — Memorised", "ممتاز — محفوظ") : g === "yellow" ? tr("Good — Minor corrections", "جيد — تصحيحات بسيطة") : g === "red" ? tr("Needs practice — Try again", "يحتاج تدريبًا — حاول مجددًا") : "";
 }
