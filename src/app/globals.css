@@ -280,3 +280,10 @@ html[dir="rtl"] body {
 /* Consistent rhythm between blocks and a calm card look. */
 .admin-calm .admin-tab > * + * { margin-top: 1.25rem; }
 .admin-calm .admin-tab .admin-tab-title { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+/* Friendly micro-interactions: glass cards lift softly on hover; sections fade in. */
+.glass { transition: transform .18s ease, box-shadow .18s ease; }
+a.glass:hover, button.glass:hover, li.glass:hover { transform: translateY(-2px); box-shadow: 0 14px 34px -18px rgba(10, 25, 40, .45); }
+@media (prefers-reduced-motion: no-preference) {
+  [data-testid="lms-dashboard"] > *, .admin-tab > * { animation: sm-fade-up .35s ease both; }
+}
+@keyframes sm-fade-up { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
