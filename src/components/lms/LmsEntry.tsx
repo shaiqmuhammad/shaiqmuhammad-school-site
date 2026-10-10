@@ -116,6 +116,11 @@ export function LmsStaffToolbar() {
 function TeacherMenu({ ar }: { ar: boolean }) {
   const [open, setOpen] = useState(false);
   const [perms, setPerms] = useState<string[]>([]);
+  // Collapsible groups, remembered per browser.
+  const [shut, setShut] = useState<Record<string, boolean>>({});
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage is only readable after hydration
+  useEffect(() => { try { setShut(JSON.parse(localStorage.getItem("sm-teacher-groups-closed") || "{}")); } catch { /* ignore */ } }, []);
+  const toggle = (g: string) => setShut((m) => { const n = { ...m, [g]: !m[g] }; try { localStorage.setItem("sm-teacher-groups-closed", JSON.stringify(n)); } catch { /* ignore */ } return n; });
   useEffect(() => { if (open && !perms.length) lmsApi.me().then((r) => setPerms(r.user.perms || [])).catch(() => undefined); }, [open, perms.length]);
   const t = (en: string, a: string) => (ar ? a : en);
   const tools = perms.some((p) => p.startsWith("act:"));
@@ -137,8 +142,11 @@ function TeacherMenu({ ar }: { ar: boolean }) {
           <nav className="fixed inset-x-2 top-16 z-[2147483000] rounded-2xl bg-header p-3 text-white shadow-2xl sm:absolute sm:inset-x-auto sm:end-0 sm:top-full sm:mt-2 sm:w-64" data-testid="lms-teacher-menu-panel">
             {groups.map(([g, items]) => (
               <div key={g} className="pb-2 last:pb-0">
-                <p className="px-2 pb-1 text-[11px] font-bold uppercase tracking-[0.12em] text-white/55">{g}</p>
-                {items.map(([href, l]) => <a key={href + l} href={href} className="block rounded-xl px-2 py-1.5 text-sm hover:bg-white/10 hover:text-sun">{l}</a>)}
+                <button type="button" onClick={() => toggle(g)} aria-expanded={!shut[g]} className="flex w-full items-center px-2 pb-1 text-[11px] font-bold uppercase tracking-[0.12em] text-white/55 hover:text-white" data-testid="lms-teacher-group">
+                  <span className="flex-1 text-start">{g}</span>
+                  <svg viewBox="0 0 24 24" className={`h-3.5 w-3.5 transition-transform ${shut[g] ? "-rotate-90 rtl:rotate-90" : ""}`} fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="m6 9 6 6 6-6" /></svg>
+                </button>
+                {!shut[g] && items.map(([href, l]) => <a key={href + l} href={href} className="block rounded-xl px-2 py-1.5 text-sm hover:bg-white/10 hover:text-sun">{l}</a>)}
               </div>
             ))}
           </nav>

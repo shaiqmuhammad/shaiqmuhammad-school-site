@@ -4,6 +4,7 @@ import { useLogoUrl } from "@/components/SiteBrand";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AdminToolbar } from "@/components/AdminToolbar";
 import { MsgIcon } from "@/components/lms/Messages";
+import { lmsApi } from "@/lib/lms";
 import { LmsBell } from "@/components/lms/LmsBell";
 import { mailApi } from "@/lib/mail";
 import { useI18n } from "@/lib/i18n";
@@ -59,6 +60,10 @@ const DESC: Partial<Record<Tab, [string, string]>> = {
   settings: ["Site settings, integrations and publishing.", "إعدادات الموقع والتكاملات والنشر."],
 };
 const LMS_IDS: Partial<Record<Tab, string>> = { students: "admin-nav-lms-students", teachers: "admin-nav-lms-teachers", setup: "admin-nav-lms-setup", lmshw: "admin-nav-lms-homework" };
+const GROUPS_KEY = "sm-admin-groups-closed";
+const QUICK_KEY = "sm-admin-quick";
+type QuickItem = { tab: string; label: string };
+const DEFAULT_QUICK: QuickItem[] = [{ tab: "students", label: "" }, { tab: "lmshw", label: "" }, { tab: "quizzes", label: "" }, { tab: "mail", label: "" }, { tab: "messages", label: "" }];
 const COLLAPSE_KEY = "sm-admin-sidebar-collapsed";
 
 /** Small line icons for the sidebar rail (24px grid, currentColor). */
@@ -124,10 +129,71 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
     return () => { on = false; clearInterval(t); };
   }, []);
   const [drawer, setDrawer] = useState(false);
+  // Collapsible sidebar groups (remembered per browser); the active tab's group always opens.
+  const [shut, setShut] = useState<Record<string, boolean>>({});
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage/server prefs load after hydration
+  useEffect(() => { try { setShut(JSON.parse(localStorage.getItem(GROUPS_KEY) || "{}")); } catch { /* ignore */ } }, []);
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage/server prefs load after hydration
+  useEffect(() => { const g = GROUPS.find((x) => x.ids.includes(tab)); if (g) setShut((m) => (m[g.id] ? { ...m, [g.id]: false } : m)); }, [tab]);
+  const toggleGroup = (id: string) => setShut((m) => { const n = { ...m, [id]: !m[id] }; try { localStorage.setItem(GROUPS_KEY, JSON.stringify(n)); } catch { /* ignore */ } return n; });
+  // Quick-access bar: server-side admin setting (works on any computer), localStorage fallback.
+  const [quick, setQuickState] = useState<QuickItem[]>(DEFAULT_QUICK);
+  const [customize, setCustomize] = useState(false);
+  useEffect(() => {
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage/server prefs load after hydration
+    try { const l = JSON.parse(localStorage.getItem(QUICK_KEY) || "null"); if (Array.isArray(l)) setQuickState(l); } catch { /* ignore */ }
+    lmsApi.adminPrefs().then((r) => { if (Array.isArray(r.quick)) { setQuickState(r.quick as QuickItem[]); try { localStorage.setItem(QUICK_KEY, JSON.stringify(r.quick)); } catch { /* ignore */ } } }).catch(() => undefined);
+  }, []);
+  const setQuick = (q: QuickItem[]) => { setQuickState(q); try { localStorage.setItem(QUICK_KEY, JSON.stringify(q)); } catch { /* ignore */ } lmsApi.adminPrefs(q).catch(() => undefined); };
+  const starred = (id: Tab) => quick.some((q) => q.tab === id);
+  const toggleStar = (id: Tab) => setQuick(starred(id) ? quick.filter((q) => q.tab !== id) : [...quick, { tab: id, label: "" }]);
+  const qLabel = (q: QuickItem) => q.label || label(q.tab as Tab);
+  const star = (id: Tab, cls = "") => (
+    <span role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); toggleStar(id); } }} onClick={(e) => { e.stopPropagation(); toggleStar(id); }} aria-pressed={starred(id)} title={starred(id) ? tr("Remove from quick access", "إزالة من الوصول السريع") : tr("Add to quick access", "إضافة إلى الوصول السريع")} aria-label={starred(id) ? tr("Remove from quick access", "إزالة من الوصول السريع") : tr("Add to quick access", "إضافة إلى الوصول السريع")} className={`inline-grid h-7 w-7 place-items-center rounded-full transition hover:scale-110 ${starred(id) ? "text-sun" : "opacity-50 hover:opacity-100"} ${cls}`} data-testid={`star-${id}`}>
+      <svg viewBox="0 0 24 24" className="h-4 w-4" fill={starred(id) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" aria-hidden><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z" /></svg>
+    </span>
+  );
+  const quickBar = (
+    <div className="glass mb-5 rounded-3xl p-3" data-testid="quick-bar">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="px-1 text-[11px] font-bold uppercase tracking-[0.12em] text-primary/80">⚡ {tr("Quick access", "وصول سريع")}</span>
+        {quick.map((q) => (
+          <button key={q.tab} type="button" onClick={() => onTab(q.tab as Tab)} className="inline-flex items-center gap-2 rounded-full bg-header px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#1d3d5c]" data-testid="quick-item">
+            <Icon className="h-4 w-4 text-sun">{ICONS[q.tab as Tab]}</Icon>{qLabel(q)}
+          </button>
+        ))}
+        {!quick.length && <span className="text-sm opacity-70">{tr("Star ☆ any page to pin it here.", "ضع نجمة ☆ على أي صفحة لتثبيتها هنا.")}</span>}
+        <span className="flex-1" />
+        <button type="button" onClick={() => setCustomize(!customize)} aria-expanded={customize} className="rounded-full border border-black/10 px-3 py-1.5 text-xs font-bold transition hover:bg-sun/30 dark:border-white/15" data-testid="quick-customize">⚙️ {tr("Customize", "تخصيص")}</button>
+      </div>
+      {customize && (
+        <div className="mt-3 space-y-2 border-t border-black/5 pt-3 dark:border-white/10" data-testid="quick-editor">
+          {quick.map((q, i) => (
+            <div key={q.tab} className="flex flex-wrap items-center gap-2">
+              <Icon className="h-4 w-4 opacity-70">{ICONS[q.tab as Tab]}</Icon>
+              <span className="w-32 truncate text-xs opacity-60">{label(q.tab as Tab)}</span>
+              <input className="min-w-[8rem] flex-1 rounded-full border border-black/10 bg-white/80 px-3 py-1 text-sm dark:border-white/15 dark:bg-white/5" value={q.label} placeholder={label(q.tab as Tab)} onChange={(e) => setQuick(quick.map((x, j) => (j === i ? { ...x, label: e.target.value.slice(0, 40) } : x)))} aria-label={tr("Label", "الاسم")} data-testid="quick-label" />
+              <button type="button" disabled={!i} className="rounded-full px-2 py-1 text-sm disabled:opacity-30" onClick={() => { const n = [...quick]; [n[i - 1], n[i]] = [n[i], n[i - 1]]; setQuick(n); }} aria-label={tr("Move up", "تحريك لأعلى")} data-testid="quick-up">↑</button>
+              <button type="button" disabled={i === quick.length - 1} className="rounded-full px-2 py-1 text-sm disabled:opacity-30" onClick={() => { const n = [...quick]; [n[i + 1], n[i]] = [n[i], n[i + 1]]; setQuick(n); }} aria-label={tr("Move down", "تحريك لأسفل")}>↓</button>
+              <button type="button" className="rounded-full px-2 py-1 text-sm text-rose-600" onClick={() => setQuick(quick.filter((_, j) => j !== i))} aria-label={tr("Remove", "إزالة")} data-testid="quick-remove">✕</button>
+            </div>
+          ))}
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            <select className="rounded-full border border-black/10 bg-white/80 px-3 py-1.5 text-sm dark:border-white/15 dark:bg-white/5" value="" onChange={(e) => e.target.value && setQuick([...quick, { tab: e.target.value, label: "" }])} data-testid="quick-add">
+              <option value="">＋ {tr("Add a page…", "أضف صفحة…")}</option>
+              {GROUPS.map((g) => <optgroup key={g.id} label={tr(g.en, g.ar)}>{g.ids.filter((id) => !starred(id)).map((id) => <option key={id} value={id}>{label(id)}</option>)}</optgroup>)}
+            </select>
+            <button type="button" className="text-xs underline opacity-70" onClick={() => setQuick(DEFAULT_QUICK)}>{tr("Reset to defaults", "استعادة الافتراضي")}</button>
+            <span className="text-[11px] opacity-60">{tr("Saved to your admin account.", "يُحفظ في حساب الإدارة.")}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
   const drawerRef = useRef<HTMLDivElement>(null);
   const homeLabel = tr("Admin home — refresh content", "الرئيسية وتحديث المحتوى");
   const label = (id: Tab) =>
-    id === "home" ? tr("Home", "الرئيسية") : id === "announcements" ? tr("Announcements", "الإعلانات") : id === "results" ? tr("Results", "النتائج") : id === "activities" ? tr("Activities", "الأنشطة") : id === "students" ? tr("Students", "الطلاب") : id === "teachers" ? tr("Teachers", "المعلمون") : id === "setup" ? tr("Classes & Subjects", "الصفوف والمواد") : id === "lmshw" ? tr("Homework", "الواجبات") : id === "mail" ? tr("Mail", "البريد") : id === "homepage" ? tr("Homepage", "الصفحة الرئيسية") : id === "classes" ? tr("Classes", "الصفوف") : id === "staff" ? tr("Staff", "الموظفون") : id === "messages" ? tr("Messages", "الرسائل") : id === "notices" ? tr("Class announcements", "إعلانات الصفوف") : id === "pages" ? tr("Learning Pages", "صفحات التعلّم") : t(`admin.tab.${id}`);
+    id === "home" ? tr("Dashboard", "لوحة التحكم") : id === "announcements" ? tr("Announcements", "الإعلانات") : id === "results" ? tr("Results", "النتائج") : id === "activities" ? tr("Activities", "الأنشطة") : id === "students" ? tr("Students", "الطلاب") : id === "teachers" ? tr("Teachers", "المعلمون") : id === "setup" ? tr("Classes & Subjects", "الصفوف والمواد") : id === "lmshw" ? tr("Homework", "الواجبات") : id === "mail" ? tr("Mail", "البريد") : id === "homepage" ? tr("Homepage", "الصفحة الرئيسية") : id === "classes" ? tr("Classes", "الصفوف") : id === "staff" ? tr("Staff", "الموظفون") : id === "messages" ? tr("Messages", "الرسائل") : id === "notices" ? tr("Class announcements", "إعلانات الصفوف") : id === "pages" ? tr("Learning Pages", "صفحات التعلّم") : t(`admin.tab.${id}`);
 
   useEffect(() => {
     try {
@@ -224,8 +290,13 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
   const navItems = (opts: { rail?: boolean; onPick?: () => void }) =>
     GROUPS.map((g) => (
       <div key={g.id} className={opts.rail ? "pt-2" : "pt-3 first:pt-0"} data-testid="admin-nav-group">
-        {opts.rail ? <span aria-hidden className="mx-auto mb-2 block h-px w-8 bg-white/15" /> : <p className="mb-1 px-4 text-[11px] font-bold uppercase tracking-[0.12em] text-white/55">{tr(g.en, g.ar)}</p>}
-        {g.ids.map((id) => (
+        {opts.rail ? <span aria-hidden className="mx-auto mb-2 block h-px w-8 bg-white/15" /> : (
+          <button type="button" onClick={() => toggleGroup(g.id)} aria-expanded={!shut[g.id]} className="mb-1 flex w-full items-center gap-1 px-4 text-[11px] font-bold uppercase tracking-[0.12em] text-white/55 transition hover:text-white" data-testid={`admin-group-${g.id}`}>
+            <span className="flex-1 text-start">{tr(g.en, g.ar)}</span>
+            <Icon className={`h-3.5 w-3.5 transition-transform ${shut[g.id] ? "-rotate-90 rtl:rotate-90" : ""}`}><path d="m6 9 6 6 6-6" /></Icon>
+          </button>
+        )}
+        {(opts.rail || !shut[g.id]) && g.ids.map((id) => (
       <button
           key={id}
           type="button"
@@ -234,17 +305,17 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
           aria-label={opts.rail ? label(id) : undefined}
           title={opts.rail ? label(id) : undefined}
           data-testid={LMS_IDS[id] || `admin-nav-${id}`}
-          className={`nav-link-navy relative flex w-full items-center gap-3 py-2 text-start text-sm transition ${opts.rail ? "justify-center px-0" : "px-4"}`}
+          className={`group/nav nav-link-navy relative flex w-full items-center gap-3 py-2 text-start text-sm transition ${opts.rail ? "justify-center px-0" : "px-4"}`}
         >
           <Icon>{ICONS[id]}</Icon>
           {opts.rail ? (
             id === "forum" && pendingCount > 0 ? <span className="absolute end-0.5 top-0.5">{badge(pendingCount)}</span> : null
           ) : (
-            <span className="inline-flex items-center gap-2">{label(id)}{id === "forum" ? badge(pendingCount) : null}</span>
+            <><span className="inline-flex flex-1 items-center gap-2">{label(id)}{id === "forum" ? badge(pendingCount) : null}</span><span className={starred(id) ? "" : "opacity-0 group-hover/nav:opacity-100"}>{star(id, "!h-6 !w-6")}</span></>
           )}
         </button>
         ))}
-        {g.id === "tools" && !opts.rail && (
+        {g.id === "tools" && !opts.rail && !shut[g.id] && (
           <ul className="ms-11 mt-0.5 space-y-0.5 border-s border-white/10 ps-3 text-xs text-white/65" data-testid="admin-nav-tools">
             {TOOLS.map(([en, ar]) => <li key={en}><button type="button" className="py-0.5 text-start hover:text-sun" onClick={() => { onTab("activities"); opts.onPick?.(); }}>{tr(en, ar)}</button></li>)}
           </ul>
@@ -341,10 +412,10 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
           <div className="mb-6 hidden items-center gap-3 rounded-2xl bg-header px-4 py-2.5 text-white shadow-[0_10px_30px_-15px_rgba(10,25,40,0.7)] lg:flex" data-testid="admin-toolbar-wrap">
             <p className="min-w-0 flex-1 truncate text-sm font-semibold text-white/70" data-testid="admin-breadcrumb">{tr("Admin", "الإدارة")}{GROUPS.find((g) => g.ids.includes(tab)) ? ` / ${tr(GROUPS.find((g) => g.ids.includes(tab))!.en, GROUPS.find((g) => g.ids.includes(tab))!.ar)}` : ""} / <b className="text-white">{label(tab) || tr("Dashboard", "لوحة التحكم")}</b></p>
             <nav className="flex items-center gap-1" aria-label={tr("Quick links", "روابط سريعة")}>
-              {([["quizzes", tr("Assessments", "التقييمات"), "M4 5h16v14H4zM8 9h8M8 13h5"], ["lmshw", tr("Homework", "الواجبات"), "M5 4h11l3 3v13H5zM9 12l2 2 4-4"], ["students", tr("Students", "الطلاب"), "M12 3 2 8l10 5 10-5-10-5Zm-6 7v5c3 2 9 2 12 0v-5"]] as const).map(([k, l, d]) => (
-                <button key={k} type="button" onClick={() => onTab(k)} className={`inline-flex h-[34px] items-center gap-1.5 rounded-full px-3 text-xs font-bold transition ${tab === k ? "bg-sun text-[#0b1b2b]" : "bg-white/10 hover:bg-white/20"}`} title={l} data-testid={`admin-quick-${k}`}>
-                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d={d} /></svg>
-                  <span className="hidden xl:inline">{l}</span>
+              {quick.slice(0, 6).map((q) => (
+                <button key={q.tab} type="button" onClick={() => onTab(q.tab as Tab)} className={`inline-flex h-[34px] items-center gap-1.5 rounded-full px-3 text-xs font-bold transition ${tab === q.tab ? "bg-sun text-[#0b1b2b]" : "bg-white/10 hover:bg-white/20"}`} title={qLabel(q)} data-testid={`admin-quick-${q.tab}`}>
+                  <Icon className="h-4 w-4">{ICONS[q.tab as Tab]}</Icon>
+                  <span className="hidden xl:inline">{qLabel(q)}</span>
                 </button>
               ))}
             </nav>
@@ -364,8 +435,10 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
                 <h1 className="mt-0.5 text-2xl font-extrabold tracking-tight sm:text-[1.75rem]" data-testid="admin-page-title">{label(tab)}</h1>
                 {DESC[tab] && <p className="mt-1 max-w-3xl text-sm text-muted">{tr(DESC[tab]![0], DESC[tab]![1])}</p>}
               </div>
+              {star(tab, "!h-9 !w-9 border border-black/10 dark:border-white/15")}
             </header>
           )}
+          {tab === "home" && quickBar}
           <div className="admin-tab">{children}</div>
         </div>
       </main>
