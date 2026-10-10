@@ -23,7 +23,13 @@ type Props = {
   children: ReactNode;
 };
 
-const ORDER: Tab[] = ["quizzes", "results", "activities", "homepage", "pages", "videos", "announcements", "banners", "forum", "certificate", "teacher", "settings", "students", "teachers", "setup", "classes", "lmshw", "mail"];
+const GROUPS: { id: string; en: string; ar: string; ids: Tab[] }[] = [
+  { id: "content", en: "Content", ar: "المحتوى", ids: ["homepage", "pages", "banners", "announcements", "teacher", "videos"] },
+  { id: "learning", en: "Learning", ar: "التعلّم", ids: ["quizzes", "activities", "lmshw", "results", "certificate"] },
+  { id: "people", en: "People", ar: "الأشخاص", ids: ["students", "teachers", "setup", "classes"] },
+  { id: "community", en: "Community", ar: "التواصل", ids: ["forum", "mail"] },
+  { id: "settings", en: "Settings", ar: "الإعدادات", ids: ["settings"] },
+];
 const LMS_IDS: Partial<Record<Tab, string>> = { students: "admin-nav-lms-students", teachers: "admin-nav-lms-teachers", setup: "admin-nav-lms-setup", lmshw: "admin-nav-lms-homework" };
 const COLLAPSE_KEY = "sm-admin-sidebar-collapsed";
 
@@ -183,25 +189,31 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
     </button>
   );
 
+  // Grouped like the Arabz Mart admin: small uppercase headings; a thin divider in the collapsed rail.
   const navItems = (opts: { rail?: boolean; onPick?: () => void }) =>
-    ORDER.map((id) => (
+    GROUPS.map((g) => (
+      <div key={g.id} className={opts.rail ? "pt-2" : "pt-3 first:pt-0"} data-testid="admin-nav-group">
+        {opts.rail ? <span aria-hidden className="mx-auto mb-2 block h-px w-8 bg-white/15" /> : <p className="mb-1 px-4 text-[11px] font-bold uppercase tracking-[0.12em] text-white/55">{tr(g.en, g.ar)}</p>}
+        {g.ids.map((id) => (
       <button
-        key={id}
-        type="button"
-        onClick={() => { onTab(id); opts.onPick?.(); }}
-        aria-current={tab === id ? "page" : undefined}
-        aria-label={opts.rail ? label(id) : undefined}
-        title={opts.rail ? label(id) : undefined}
-        data-testid={LMS_IDS[id] || `admin-nav-${id}`}
-        className={`nav-link-navy relative flex w-full items-center gap-3 py-2 text-start text-sm transition ${opts.rail ? "justify-center px-0" : "px-4"}`}
-      >
-        <Icon>{ICONS[id]}</Icon>
-        {opts.rail ? (
-          id === "forum" && pendingCount > 0 ? <span className="absolute end-0.5 top-0.5">{badge(pendingCount)}</span> : null
-        ) : (
-          <span className="inline-flex items-center gap-2">{label(id)}{id === "forum" ? badge(pendingCount) : null}</span>
-        )}
-      </button>
+          key={id}
+          type="button"
+          onClick={() => { onTab(id); opts.onPick?.(); }}
+          aria-current={tab === id ? "page" : undefined}
+          aria-label={opts.rail ? label(id) : undefined}
+          title={opts.rail ? label(id) : undefined}
+          data-testid={LMS_IDS[id] || `admin-nav-${id}`}
+          className={`nav-link-navy relative flex w-full items-center gap-3 py-2 text-start text-sm transition ${opts.rail ? "justify-center px-0" : "px-4"}`}
+        >
+          <Icon>{ICONS[id]}</Icon>
+          {opts.rail ? (
+            id === "forum" && pendingCount > 0 ? <span className="absolute end-0.5 top-0.5">{badge(pendingCount)}</span> : null
+          ) : (
+            <span className="inline-flex items-center gap-2">{label(id)}{id === "forum" ? badge(pendingCount) : null}</span>
+          )}
+        </button>
+        ))}
+      </div>
     ));
 
   const collapseLabel = collapsed ? tr("Expand menu", "توسيع القائمة") : tr("Collapse menu", "تصغير القائمة");
@@ -215,7 +227,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
         data-collapsed={collapsed ? "true" : "false"}
       >
         <div className={`flex items-center ${collapsed ? "justify-center" : ""}`}>{brand}</div>
-        <nav className={`flex-1 space-y-0.5 overflow-y-auto overflow-x-hidden ${collapsed ? "mt-4" : "mt-6"}`} aria-label={tr("Admin sections", "أقسام الإدارة")}>
+        <nav className={`flex-1 overflow-y-auto overflow-x-hidden ${collapsed ? "mt-3" : "mt-5"}`} aria-label={tr("Admin sections", "أقسام الإدارة")}>
           {navItems({ rail: collapsed })}
         </nav>
         <div className={`space-y-3 pt-4 ${collapsed ? "flex flex-col items-center" : ""}`}>
@@ -277,7 +289,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
                 <Icon className="h-4 w-4"><path d="M6 6l12 12M18 6L6 18" /></Icon>
               </button>
             </div>
-            <nav className="mt-5 flex-1 space-y-0.5 overflow-y-auto" aria-label={tr("Admin sections", "أقسام الإدارة")}>
+            <nav className="mt-5 flex-1 overflow-y-auto" aria-label={tr("Admin sections", "أقسام الإدارة")}>
               {navItems({ onPick: () => setDrawer(false) })}
             </nav>
             <div className="space-y-3 pt-4">
