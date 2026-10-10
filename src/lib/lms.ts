@@ -16,7 +16,11 @@ export type QuranData = { surah: number; from: number; to: number; reciter: stri
 export type GeneralData = { slides: Slide[]; question: string };
 export type Homework = { id: string; kind: "quran" | "general"; title: string; cls: string; section?: string; students: string[]; data: QuranData | GeneralData; due: number | null; createdBy: string; created: number; locked?: boolean; lockedBy?: { surah: number; from: number; to: number; title: string } | null; late?: boolean };
 export type Comment = { by: string; text: string; at: number; audio?: string };
-export type Note = { id: string; kind: "hw_new" | "sub_new" | "feedback" | "feedback_audio" | "approved" | "returned" | "graded" | "reminder" | "revise" | "mistakes"; data: { hw?: string; title?: string; by?: string; student?: string; grade?: Grade; overdue?: boolean; count?: number; surah?: number }; created: number; read: boolean };
+export type Announcement = { id: string; title: string; body: string; aud: "all" | "students" | "teachers" | "class"; cls: string; section: string; by: string; created: number };
+export type MsgContact = { id: string; name: string; role: string; cls: string };
+export type MsgThread = { thread: string; with: string; withName: string; people: string[]; mine: boolean; last: number; preview: string; unread: number };
+export type Msg = { id: string; sender: string; body: string; created: number; mine: boolean };
+export type Note = { id: string; kind: "hw_new" | "sub_new" | "feedback" | "feedback_audio" | "approved" | "returned" | "graded" | "reminder" | "revise" | "mistakes" | "announcement" | "message"; data: { hw?: string; title?: string; by?: string; student?: string; grade?: Grade; overdue?: boolean; count?: number; surah?: number }; created: number; read: boolean };
 export type Level = 1 | 2 | 3;
 /** Makharij / Tajweed / Recitation levels (1 Needs practice · 2 Good · 3 Excellent) + generated feedback. */
 export type Scores = { m: Level; t: Level; r: Level; notes?: { m?: string; t?: string; r?: string }; fb?: { en: string; ar: string } };
@@ -142,6 +146,14 @@ export const lmsApi = {
   pinsView: (ids?: string[]) => call<{ pins: Record<string, string | null> }>("pins-view", { ids }, { asAdmin: true }),
   notes: (asAdmin = false) => call<{ items: Note[]; unread: number }>("notes", undefined, { asAdmin }),
   notesRead: (ids?: string[], asAdmin = false) => call<{ ok: true }>("notes-read", { ids }, { asAdmin }),
+  annList: (asAdmin = false) => call<{ items: Announcement[] }>("ann-list", undefined, { asAdmin }),
+  annSave: (a: { title: string; body: string; aud: Announcement["aud"]; cls?: string; section?: string }) => call<{ ok: true; sent: number }>("ann-save", a, { asAdmin: true }),
+  annDelete: (id: string) => call<{ ok: true }>("ann-delete", { id }, { asAdmin: true }),
+  msgContacts: (asAdmin = false) => call<{ items: MsgContact[] }>("msg-contacts", undefined, { asAdmin }),
+  msgThreads: (asAdmin = false) => call<{ items: MsgThread[]; unread: number }>("msg-threads", undefined, { asAdmin }),
+  msgThread: (q: { thread?: string; with?: string }, asAdmin = false) => call<{ thread: string; items: Msg[] }>("msg-thread", q, { asAdmin }),
+  msgSend: (to: string, body: string, asAdmin = false) => call<{ ok: true; thread: string }>("msg-send", { to, body }, { asAdmin }),
+  msgDelete: (id: string) => call<{ ok: true }>("msg-delete", { id }, { asAdmin: true }),
   audioDelete: (id: string, asAdmin = false) => call<{ ok: true }>("audio-delete", { id }, { asAdmin }),
   /** Uploads a recording: student → {hw}, teacher → {sub}. Raw body, so not via call(). */
   async audioUpload(target: { hw?: string; sub?: string }, blob: Blob, asAdmin = false) {

@@ -47,7 +47,7 @@ export interface LmsEnv extends AdminEnv, StorageEnv, MailEnv {
 
 type Json = Record<string, unknown>;
 /** Actions allowed in admin read-only "view as" mode. */
-const VIEW_AS_READ = new Set(["dashboard", "hw", "progress", "quran-map", "leaderboard", "notes", "catalog", "me"]);
+const VIEW_AS_READ = new Set(["dashboard", "hw", "progress", "quran-map", "leaderboard", "notes", "catalog", "me", "ann-list", "msg-threads", "msg-thread", "msg-contacts"]);
 
 /** Which LMS notifications also go out by email (when the user has an email and mail is configured). */
 const EMAIL_KINDS: Record<string, [string, string]> = {
@@ -204,6 +204,10 @@ export class LmsStore extends DurableObject<LmsEnv> {
         this.sql.exec(`UPDATE ${tb} SET scores=? WHERE id=?`, JSON.stringify({ ...sc, fb: buildFeedback(sc) }), String(r.id));
       }
     }
+    // Targeted announcements (admin → students / teachers / a class or section) and 1:1 messages.
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS ann (id TEXT PRIMARY KEY, title TEXT, body TEXT, aud TEXT, cls TEXT DEFAULT '', section TEXT DEFAULT '', by TEXT, created INTEGER)`);
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS msgs (id TEXT PRIMARY KEY, thread TEXT, sender TEXT, recipient TEXT, body TEXT, created INTEGER, read INTEGER DEFAULT 0)`);
+    this.sql.exec(`CREATE INDEX IF NOT EXISTS msgs_thread ON msgs (thread, created)`);
     if (!cols("tracker").has("rev_count")) this.sql.exec(`ALTER TABLE tracker ADD COLUMN rev_count INTEGER DEFAULT 0`);
     if (!cols("tracker").has("rev_at")) this.sql.exec(`ALTER TABLE tracker ADD COLUMN rev_at INTEGER DEFAULT 0`);
     if (!cols("homework").has("section")) this.sql.exec(`ALTER TABLE homework ADD COLUMN section TEXT DEFAULT ''`);
@@ -468,6 +472,66 @@ export class LmsStore extends DurableObject<LmsEnv> {
 
       case "catalog":
         return { status: 200, body: this.catalog() };
+
+      case "ann-list": {
+        const rows = this.sql.exec(`SELECT * FROM ann ORDER BY created DESC LIMIT 50`).toArray().filter((r) => a.role === "admin" || this.annFor(r, a));
+        return { status: 200, body: { items: rows.slice(0, a.role === "admin" ? 50 : 10).map((r) => ({ id: String(r.id), title: String(r.title), body: String(r.body), aud: String(r.aud), cls: String(r.cls || ""), section: String(r.section || ""), by: String(r.by), created: Number(r.created) })) } };
+      }
+      case "ann-save": {
+        if (a.role !== "admin") return { status: 403, body: { error: "admin_only" } };
+        const aud = ["all", "students", "teachers", "class"].includes(String(input.aud)) ? String(input.aud) : "all";
+        const title = str(input.title, 140), body = str(input.body, 2000);
+        if (!title) return { status: 400, body: { error: "title_required" } };
+        const row = { id: rid("a"), title, body, aud, cls: aud === "class" ? str(input.cls, 80) : "", section: aud === "class" ? str(input.section, 80) : "", by: a.name, created: Date.now() };
+        this.sql.exec(`INSERT INTO ann (id, title, body, aud, cls, section, by, created) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, row.id, row.title, row.body, row.aud, row.cls, row.section, row.by, row.created);
+        const users = this.sql.exec(`SELECT id, role, cls, section, scope FROM users WHERE disabled=0`).toArray().filter((u) => this.annFor(row, { id: String(u.id), role: String(u.role) as Role, name: "", cls: String(u.cls || ""), perms: [], scope: JSON.parse(String(u.scope || "[]")), section: String(u.section || "") } as Actor & { section: string }));
+        this.notify(users.map((u) => String(u.id)), "announcement", { title });
+        return { status: 200, body: { ok: true, sent: users.length } };
+      }
+      case "ann-delete": {
+        if (a.role !== "admin") return { status: 403, body: { error: "admin_only" } };
+        this.sql.exec(`DELETE FROM ann WHERE id=?`, str(input.id, 40));
+        return { status: 200, body: { ok: true } };
+      }
+
+      case "msg-contacts": {
+        return { status: 200, body: { items: this.msgContacts(a) } };
+      }
+      case "msg-threads": {
+        // Admin sees every thread (moderation); others only their own.
+        const rows = this.sql.exec(`SELECT thread, MAX(created) AS last, COUNT(*) AS n FROM msgs GROUP BY thread ORDER BY last DESC LIMIT 200`).toArray().filter((r) => a.role === "admin" || String(r.thread).split("~").includes(a.id));
+        const nameOf = (id: string) => (id === "admin" ? "Admin" : String(this.userRow("id=?", id)?.name || "—"));
+        const items = rows.map((r) => {
+          const ids = String(r.thread).split("~");
+          const lastMsg = this.sql.exec(`SELECT body, sender FROM msgs WHERE thread=? ORDER BY created DESC LIMIT 1`, String(r.thread)).one();
+          const unread = Number(this.sql.exec(`SELECT COUNT(*) AS n FROM msgs WHERE thread=? AND recipient=? AND read=0`, String(r.thread), a.id).one().n);
+          const other = ids.find((x) => x !== a.id) || ids[0];
+          return { thread: String(r.thread), with: other, withName: nameOf(other), people: ids.map(nameOf), mine: ids.includes(a.id), last: Number(r.last), preview: String(lastMsg.body).slice(0, 80), unread };
+        });
+        return { status: 200, body: { items, unread: items.reduce((x, t) => x + t.unread, 0) } };
+      }
+      case "msg-thread": {
+        const thread = str(input.thread, 120) || [a.id, str(input.with, 40)].sort().join("~");
+        if (a.role !== "admin" && !thread.split("~").includes(a.id)) return { status: 403, body: { error: "forbidden" } };
+        const items = this.sql.exec(`SELECT * FROM msgs WHERE thread=? ORDER BY created LIMIT 500`, thread).toArray().map((r) => ({ id: String(r.id), sender: String(r.sender), body: String(r.body), created: Number(r.created), mine: String(r.sender) === a.id }));
+        if (!a.viewAs) this.sql.exec(`UPDATE msgs SET read=1 WHERE thread=? AND recipient=?`, thread, a.id);
+        return { status: 200, body: { thread, items } };
+      }
+      case "msg-send": {
+        if (a.viewAs) return { status: 403, body: { error: "read_only" } };
+        const to = str(input.to, 40), body = str(input.body, 2000);
+        if (!body) return { status: 400, body: { error: "empty" } };
+        if (!this.msgContacts(a).some((c) => c.id === to)) return { status: 403, body: { error: "not_allowed" } };
+        const thread = [a.id, to].sort().join("~");
+        this.sql.exec(`INSERT INTO msgs (id, thread, sender, recipient, body, created) VALUES (?, ?, ?, ?, ?, ?)`, rid("m"), thread, a.id, to, body, Date.now());
+        this.notify([to], "message", { by: a.name, title: body.slice(0, 60), thread });
+        return { status: 200, body: { ok: true, thread } };
+      }
+      case "msg-delete": {
+        if (a.role !== "admin") return { status: 403, body: { error: "admin_only" } };
+        this.sql.exec(`DELETE FROM msgs WHERE id=?`, str(input.id, 40));
+        return { status: 200, body: { ok: true } };
+      }
 
       case "notes": {
         const items = this.sql.exec(`SELECT * FROM notes WHERE uid=? ORDER BY created DESC LIMIT 30`, a.id).toArray().map((r) => ({ id: String(r.id), kind: String(r.kind), data: JSON.parse(String(r.data || "{}")) as Json, created: Number(r.created), read: Boolean(r.read) }));
@@ -993,6 +1057,36 @@ export class LmsStore extends DurableObject<LmsEnv> {
         if (!sent.has(key)) this.notify([a.id], "revise", { hw: t.hw, title: `${t.surah}:${t.from}-${t.to}`, surah: t.surah, from: t.from, to: t.to, key });
       }
     }
+  }
+
+  /** Is this announcement meant for this person? */
+  private annFor(r: Record<string, unknown>, a: Actor & { section?: string }): boolean {
+    const aud = String(r.aud);
+    if (aud === "all") return true;
+    if (aud === "students") return a.role === "student";
+    if (aud === "teachers") return a.role === "teacher";
+    const cls = String(r.cls || ""), sec = String(r.section || "");
+    if (a.role === "student") {
+      const u = a.section !== undefined ? a : (this.userRow("id=?", a.id) as unknown as { cls: string; section: string } | null);
+      return !!u && String(u.cls || "") === cls && (!sec || String((u as { section?: string }).section || "") === sec);
+    }
+    if (a.role === "teacher") return !a.scope?.length || a.scope.some((x) => { const [k, s2] = x.split("|"); return k === cls && (!sec || !s2 || s2 === sec); });
+    return false;
+  }
+
+  /** Who may this person message? Students: their teachers + admin (never other students). Teachers: their students + admin. Admin: everyone. */
+  private msgContacts(a: Actor): { id: string; name: string; role: string; cls: string }[] {
+    const users = this.sql.exec(`SELECT id, name, role, cls, section, scope, perms FROM users WHERE disabled=0 ORDER BY role DESC, name`).toArray();
+    const out = (u: Record<string, unknown>) => ({ id: String(u.id), name: String(u.name), role: String(u.role), cls: [u.cls, u.section].filter(Boolean).join(" ") });
+    const admin = { id: "admin", name: "Admin", role: "admin", cls: "" };
+    if (a.role === "admin") return users.map(out);
+    if (a.role === "teacher") return [admin, ...users.filter((u) => u.role === "student" && this.canSeeStudent(a, String(u.id))).map(out)];
+    const teachers = users.filter((u) => {
+      if (u.role !== "teacher") return false;
+      const t: Actor = { id: String(u.id), role: "teacher", name: "", cls: "", perms: JSON.parse(String(u.perms || "[]")), scope: JSON.parse(String(u.scope || "[]")) };
+      return (t.scope || []).length > 0 && this.canSeeStudent(t, a.id);
+    });
+    return [admin, ...teachers.map(out)];
   }
 
   private canSeeStudent(a: Actor, sid: string): boolean {
