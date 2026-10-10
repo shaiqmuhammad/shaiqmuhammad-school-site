@@ -34,7 +34,7 @@ function Btn({ s, primary = true }: { s: HomeSection; primary?: boolean }) {
 
 /** Admin-made sections: text, image + text, call-to-action, YouTube, cards grid. */
 export function CustomSection({ s }: { s: HomeSection }) {
-  const wrap = "mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-12";
+  const wrap = "mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8";
   if (s.kind === "cta") return (
     <section className={wrap} data-testid="home-custom" data-kind="cta">
       <div className="relative overflow-hidden rounded-[24px] bg-header px-6 py-10 text-white shadow-lg sm:px-10">
@@ -96,7 +96,7 @@ export function CustomSection({ s }: { s: HomeSection }) {
 export function IntroBlock({ s, name, tagline }: { s: HomeSection; name: string; tagline: string }) {
   return (
     <section className="relative overflow-hidden">
-      <div className="relative mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-14">
+      <div className="relative mx-auto max-w-6xl px-4 py-7 sm:px-6 sm:py-9">
         <div className="glass glass-emph flex flex-col gap-5 rounded-[20px] px-6 py-10 sm:px-10 sm:py-12">
           <p className="eyebrow"><Bi en={s.eyebrow} ar={s.eyebrowAr} fallback={`For students of ${name}`} /></p>
           <h1 className="max-w-2xl text-4xl font-extrabold tracking-tight text-heading sm:text-5xl"><Bi en={s.title} ar={s.titleAr} fallback="Welcome to your learning home" /></h1>

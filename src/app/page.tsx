@@ -69,7 +69,7 @@ export default function HomePage() {
       );
       case "videos": return (
       <section className="band-cream border-y border-sun-border/30">
-        <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
+        <div className="mx-auto max-w-6xl px-4 py-7 sm:px-6 sm:py-10">
           {videos.length === 0 ? (
             <>
               <div className="mb-8">

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { isImmersivePath } from "@/lib/immersive";
 import { loadSiteSettingsCached, resolveTawkIds } from "@/lib/siteSettings";
+import { lmsSession } from "@/lib/lms";
 
 declare global {
   interface Window {
@@ -23,23 +24,36 @@ export function ChatWidget() {
   const [propertyId, setPropertyId] = useState("");
   const [widgetId, setWidgetId] = useState("");
 
-  const immersive = isImmersivePath(usePathname());
+  const pathname = usePathname() || "";
+  // Admin and signed-in LMS pages: load Tawk for the visitor monitor but keep the bubble hidden.
+  const [lmsUser, setLmsUser] = useState<ReturnType<typeof lmsSession>>(null);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { setLmsUser(lmsSession()); }, [pathname]);
+  const isLms = /^\/lms(\/|$)/.test(pathname);
+  const tracked = /^\/admin(\/|$)/.test(pathname) || (isLms && !!lmsUser);
+  // Fully off on assessment / join / activity / QR screens (and LMS when nobody is signed in).
+  const immersive = !tracked && isImmersivePath(pathname);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => setMounted(true), []);
 
-  // Hide the Tawk bubble on full-screen assessment screens.
+  // Hide the bubble on tracked (admin/LMS) and immersive screens; show it on public pages.
   useEffect(() => {
-    const api = window.Tawk_API;
-    try {
-      if (immersive) api?.hideWidget?.();
-      else api?.showWidget?.();
-    } catch {
-      // widget not ready yet
-    }
-    if (immersive && api) {
-      (api as Record<string, unknown>).onLoad = () => window.Tawk_API?.hideWidget?.();
-    }
-  }, [immersive]);
+    const hide = immersive || tracked;
+    const api = (window.Tawk_API = window.Tawk_API || {}) as Record<string, unknown> & { hideWidget?: () => void; showWidget?: () => void; setAttributes?: (a: Record<string, string>, cb?: (e?: unknown) => void) => void; addEvent?: (n: string, m?: Record<string, string>, cb?: () => void) => void };
+    const apply = () => {
+      try {
+        if (hide) api.hideWidget?.(); else api.showWidget?.();
+        // Visitor attributes for signed-in LMS users only (no PIN / token / sensitive data).
+        if (tracked && isLms && lmsUser) api.setAttributes?.({ name: String(lmsUser.user.name || ""), role: String(lmsUser.user.role || ""), class: [(lmsUser.user as { cls?: string }).cls, (lmsUser.user as { section?: string }).section].filter(Boolean).join(" ") }, () => undefined);
+        if (tracked) api.addEvent?.("page", { title: document.title.slice(0, 60), path: pathname.slice(0, 60) }, () => undefined);
+      } catch {
+        // widget not ready yet
+      }
+    };
+    apply();
+    api.onLoad = apply;
+  }, [immersive, tracked, isLms, lmsUser, pathname]);
 
   useEffect(() => {
     let cancelled = false;
