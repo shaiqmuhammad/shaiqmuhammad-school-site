@@ -2,35 +2,43 @@
   "sections": [
     {
       "id": "banners",
-      "kind": "banners"
+      "kind": "banners",
+      "hidden": false
     },
     {
       "id": "intro",
-      "kind": "intro"
+      "kind": "intro",
+      "hidden": true
     },
     {
       "id": "lms",
-      "kind": "lms"
+      "kind": "lms",
+      "hidden": false
     },
     {
       "id": "assessments",
-      "kind": "assessments"
+      "kind": "assessments",
+      "hidden": false
     },
     {
       "id": "libraries",
-      "kind": "libraries"
+      "kind": "libraries",
+      "hidden": false
     },
     {
       "id": "teacher",
-      "kind": "teacher"
-    },
-    {
-      "id": "videos",
-      "kind": "videos"
+      "kind": "teacher",
+      "hidden": false
     },
     {
       "id": "lessons",
-      "kind": "lessons"
+      "kind": "lessons",
+      "hidden": false
+    },
+    {
+      "id": "videos",
+      "kind": "videos",
+      "hidden": false
     }
   ]
 }
