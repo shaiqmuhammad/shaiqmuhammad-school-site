@@ -1,5 +1,6 @@
 "use client";
 
+import { useLmsExit } from "@/lib/useLmsExit";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AssessmentShell, fieldCls, ghostBtn, panelCls, primaryBtn } from "@/components/assessment/AssessmentShell";
@@ -61,6 +62,7 @@ export function initialAnswers(questions: QuizQuestion[]): { answers: Record<str
 
 /** Individual assessment: full-screen, one question per page, shared palette with group mode. */
 export function QuizPlayer({ quiz, initialTemplate, initialResults }: Props) {
+  const backTo = useLmsExit("/assessments");
   const { a, lang } = useAssessmentText();
   const [phase, setPhase] = useState<Phase>("intro");
   const [name, setName] = useState("");
@@ -253,7 +255,7 @@ export function QuizPlayer({ quiz, initialTemplate, initialResults }: Props) {
                   {a("downloadCertificate")}
                 </button>
               )}
-              <Link href="/assessments" className={ghostBtn}>
+              <Link href={backTo} className={ghostBtn}>
                 {a("allAssessments")}
               </Link>
             </div>

@@ -1,5 +1,6 @@
 "use client";
 
+import { useLmsExit } from "@/lib/useLmsExit";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { LanguageToggle } from "@/components/LanguageToggle";
@@ -30,6 +31,7 @@ type Props = {
  */
 export function AssessmentShell({ title, exitHref = "/assessments", onExit, secondsLeft, progress, actions, toolbar, wide = false, children }: Props) {
   const { a } = useAssessmentText();
+  const exitTo = useLmsExit(exitHref);
   const showTimer = typeof secondsLeft === "number";
   const low = showTimer && (secondsLeft as number) <= 30;
   const warn = showTimer && !low && (secondsLeft as number) <= 120;
@@ -44,7 +46,7 @@ export function AssessmentShell({ title, exitHref = "/assessments", onExit, seco
       <header className="relative z-10 bg-header text-white shadow-[0_6px_20px_-10px_rgba(10,25,40,0.6)]">
         <div className={`mx-auto flex ${wide ? "max-w-[1800px]" : "max-w-5xl"} items-center gap-3 px-3 py-2.5 sm:px-6`}>
           <Link
-            href={exitHref}
+            href={exitTo}
             onClick={(e) => {
               if (onExit && !onExit()) e.preventDefault();
             }}
