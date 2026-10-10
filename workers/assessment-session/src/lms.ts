@@ -33,6 +33,7 @@
  * PINs: the PBKDF2 hash is what login checks. A copy is also kept AES-GCM encrypted with the LMS_PIN_KEY secret
  * (32 random bytes, base64) so the admin can look a PIN up. Users created before that show "reset to view".
  */
+import { buildFeedback, fromGrade, overallOf, parseScores, type Scores } from "./quranScore";
 import { DurableObject } from "cloudflare:workers";
 import { corsHeaders, reply, verifyToken, type AdminEnv } from "./admin";
 import { sendAuto, type MailEnv } from "./mail/mailbox";
@@ -193,6 +194,15 @@ export class LmsStore extends DurableObject<LmsEnv> {
       this.sql.exec(`INSERT OR IGNORE INTO tracker_new SELECT id, student, surah, from_ayah, to_ayah, hw, approved, grade FROM tracker`);
       this.sql.exec(`DROP TABLE tracker`);
       this.sql.exec(`ALTER TABLE tracker_new RENAME TO tracker`);
+    }
+    // Three-criteria Quran scores (Makharij / Tajweed / Recitation). Older colour grades are backfilled as equal levels.
+    if (!cols("subs").has("scores")) this.sql.exec(`ALTER TABLE subs ADD COLUMN scores TEXT DEFAULT ''`);
+    if (!cols("tracker").has("scores")) this.sql.exec(`ALTER TABLE tracker ADD COLUMN scores TEXT DEFAULT ''`);
+    for (const tb of ["subs", "tracker"] as const) {
+      for (const r of this.sql.exec(`SELECT id, grade FROM ${tb} WHERE (scores IS NULL OR scores='') AND grade IN ('green','yellow','red')`).toArray()) {
+        const sc = fromGrade(String(r.grade))!;
+        this.sql.exec(`UPDATE ${tb} SET scores=? WHERE id=?`, JSON.stringify({ ...sc, fb: buildFeedback(sc) }), String(r.id));
+      }
     }
     if (!cols("tracker").has("rev_count")) this.sql.exec(`ALTER TABLE tracker ADD COLUMN rev_count INTEGER DEFAULT 0`);
     if (!cols("tracker").has("rev_at")) this.sql.exec(`ALTER TABLE tracker ADD COLUMN rev_at INTEGER DEFAULT 0`);
@@ -661,12 +671,16 @@ export class LmsStore extends DurableObject<LmsEnv> {
         if (c) comments.push({ by: a.name, text: c, at: Date.now() });
         const liked = typeof input.like === "boolean" ? (input.like ? 1 : 0) : Number(r.liked);
         const hq = this.allHomework(String(r.hw))[0];
-        const grade = hq?.kind === "quran" && ["green", "yellow", "red"].includes(String(input.grade)) ? String(input.grade) : "";
+        // Quran: three criteria (or a legacy colour) -> overall grade + generated feedback.
+        let scores: Scores | null = hq?.kind === "quran" ? parseScores(input.scores) || (["green", "yellow", "red"].includes(String(input.grade)) ? fromGrade(String(input.grade)) : null) : null;
+        const grade = scores ? overallOf(scores) : "";
+        if (scores) scores = { ...scores, fb: buildFeedback(scores, JSON.parse(String(r.mistakes || "[]")) as { text: string; note?: string }[], c) };
         // Green/Yellow = passed (approved); Red = back to the student to practise the same verses again.
         let status = input.status === "approved" || input.status === "returned" ? String(input.status) : String(r.status);
         if (grade) status = grade === "red" ? "returned" : "approved";
-        const attempts = JSON.parse(String(r.attempts || "[]")) as { n: number; audio: string; grade: string; by: string; at: number }[];
-        if (grade) attempts.push({ n: attempts.length + 1, audio: String(r.audio || ""), grade, by: a.name, at: Date.now() });
+        const attempts = JSON.parse(String(r.attempts || "[]")) as { n: number; audio: string; grade: string; by: string; at: number; scores?: Scores }[];
+        if (grade) attempts.push({ n: attempts.length + 1, audio: String(r.audio || ""), grade, by: a.name, at: Date.now(), scores: scores || undefined });
+        if (scores) this.sql.exec(`UPDATE subs SET scores=? WHERE id=?`, JSON.stringify(scores), String(r.id));
         this.sql.exec(`UPDATE subs SET comments=?, liked=?, status=?, grade=?, attempts=?, updated=? WHERE id=?`, JSON.stringify(comments.slice(-50)), liked, status, grade || String(r.grade || ""), JSON.stringify(attempts.slice(-30)), Date.now(), String(r.id));
         if (grade === "red") this.sql.exec(`UPDATE subs SET audio='', practised=0 WHERE id=?`, String(r.id));
         {
@@ -683,7 +697,8 @@ export class LmsStore extends DurableObject<LmsEnv> {
           const d = h.data as { surah: number; from: number; to: number };
           const g = grade || (status === "approved" ? "green" : "");
           this.sql.exec(`DELETE FROM tracker WHERE hw=? AND student=?`, h.id, String(r.student));
-          if (g) this.sql.exec(`INSERT INTO tracker (id, student, surah, from_ayah, to_ayah, hw, approved, grade) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, rid("t"), String(r.student), d.surah, d.from, d.to, h.id, Date.now(), g);
+          const sc = scores || parseScores(r.scores) || fromGrade(g);
+          if (g) this.sql.exec(`INSERT INTO tracker (id, student, surah, from_ayah, to_ayah, hw, approved, grade, scores) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, rid("t"), String(r.student), d.surah, d.from, d.to, h.id, Date.now(), g, sc ? JSON.stringify(sc.fb ? sc : { ...sc, fb: buildFeedback(sc) }) : "");
         }
         return { status: 200, body: { ok: true } };
       }
@@ -770,9 +785,11 @@ export class LmsStore extends DurableObject<LmsEnv> {
         const students = this.sql.exec(`SELECT * FROM users WHERE role='student' AND disabled=0 ORDER BY cls, section, name`).toArray().filter((u) => (!cls || u.cls === cls) && (!section || u.section === section) && this.canSeeStudent(a, String(u.id)));
         const rank: Record<string, number> = { red: 1, yellow: 2, green: 3 };
         const rows = students.map((u) => {
-          const cells: Record<number, { grade: string; verses: number }> = {};
+          const cells: Record<number, { grade: string; verses: number; m?: number; t?: number; r?: number }> = {};
           for (const t of this.trackerOf(String(u.id))) {
             const c = cells[t.surah] || { grade: "", verses: 0 };
+            // Per-criterion cell level = weakest level across that surah's passages (for the criterion filter).
+            if (t.scores) for (const k of ["m", "t", "r"] as const) c[k] = Math.min(c[k] ?? 3, t.scores[k]);
             if (t.grade !== "red") c.verses += t.to - t.from + 1;
             if ((rank[t.grade] || 0) > (rank[c.grade] || 0)) c.grade = t.grade;
             cells[t.surah] = c;
@@ -909,19 +926,19 @@ export class LmsStore extends DurableObject<LmsEnv> {
     return this.allHomework().filter((h) => (h.students.includes(a.id) || (h.cls ? h.cls === a.cls && (!h.section || h.section === sec) : !h.students.length)));
   }
   private subOut(r: Record<string, unknown>) {
-    return { id: String(r.id), status: String(r.status), text: String(r.text || ""), practised: Boolean(r.practised), liked: Boolean(r.liked), comments: JSON.parse(String(r.comments || "[]")) as { by: string; text: string; at: number; audio?: string }[], audio: String(r.audio || ""), grade: String(r.grade || ""), mistakes: JSON.parse(String(r.mistakes || "[]")) as { ayah: number; word: number; text: string; note: string }[], submittedAt: Number(r.submitted_at || 0), attempts: JSON.parse(String(r.attempts || "[]")) as { n: number; audio: string; grade: string; by: string; at: number }[], updated: Number(r.updated) };
+    return { id: String(r.id), status: String(r.status), text: String(r.text || ""), practised: Boolean(r.practised), liked: Boolean(r.liked), comments: JSON.parse(String(r.comments || "[]")) as { by: string; text: string; at: number; audio?: string }[], audio: String(r.audio || ""), grade: String(r.grade || ""), scores: parseScores(r.scores) || fromGrade(String(r.grade || "")), mistakes: JSON.parse(String(r.mistakes || "[]")) as { ayah: number; word: number; text: string; note: string }[], submittedAt: Number(r.submitted_at || 0), attempts: (JSON.parse(String(r.attempts || "[]")) as { n: number; audio: string; grade: string; by: string; at: number; scores?: Scores }[]).map((x) => ({ ...x, scores: x.scores || fromGrade(x.grade) || undefined })), updated: Number(r.updated) };
   }
   private sub(hw: string, student: string) {
     const r = this.sql.exec(`SELECT * FROM subs WHERE hw=? AND student=?`, hw, student).toArray()[0];
     return r ? this.subOut(r) : null;
   }
   private trackerOf(student: string) {
-    return this.sql.exec(`SELECT surah, from_ayah, to_ayah, approved, grade, hw, rev_count, rev_at FROM tracker WHERE student=? ORDER BY surah, from_ayah`, student).toArray().map((r) => {
+    return this.sql.exec(`SELECT surah, from_ayah, to_ayah, approved, grade, hw, rev_count, rev_at, scores FROM tracker WHERE student=? ORDER BY surah, from_ayah`, student).toArray().map((r) => {
       const revCount = Number(r.rev_count || 0);
       const last = Number(r.rev_at || 0) || Number(r.approved);
       const g = String(r.grade || "green");
       const revDue = g !== "red" ? last + REVISION_DAYS[Math.min(revCount, REVISION_DAYS.length - 1)] * 864e5 : 0;
-      return { surah: Number(r.surah), from: Number(r.from_ayah), to: Number(r.to_ayah), approved: Number(r.approved), grade: g, hw: String(r.hw), revCount, revDue };
+      return { surah: Number(r.surah), from: Number(r.from_ayah), to: Number(r.to_ayah), approved: Number(r.approved), grade: g, hw: String(r.hw), revCount, revDue, scores: parseScores(r.scores) || fromGrade(g) };
     });
   }
 
@@ -1027,8 +1044,8 @@ export class LmsStore extends DurableObject<LmsEnv> {
     return { status: 200, body: {
       student: String(u.name), cls: String(u.cls || ""), section: String(u.section || ""),
       homework: { title: h.title, kind: h.kind, data: h.kind === "quran" ? { surah: d.surah, from: d.from, to: d.to, reciter: d.reciter, translit: d.translit, translation: d.translation } : {} },
-      status: sb?.status || "none", grade: sb?.grade || "",
-      recordings: recs, attempts: (sb?.attempts || []).map((x) => ({ n: x.n, grade: x.grade, audio: x.audio, at: x.at })),
+      status: sb?.status || "none", grade: sb?.grade || "", scores: sb?.scores || null,
+      recordings: recs, attempts: (sb?.attempts || []).map((x) => ({ n: x.n, grade: x.grade, audio: x.audio, at: x.at, scores: x.scores })),
       feedback: (sb?.comments || []).map((c) => ({ by: c.by, text: c.text, audio: c.audio || "", at: c.at })),
       tracker,
     } };

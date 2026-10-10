@@ -17,10 +17,13 @@ export type GeneralData = { slides: Slide[]; question: string };
 export type Homework = { id: string; kind: "quran" | "general"; title: string; cls: string; section?: string; students: string[]; data: QuranData | GeneralData; due: number | null; createdBy: string; created: number; locked?: boolean; lockedBy?: { surah: number; from: number; to: number; title: string } | null; late?: boolean };
 export type Comment = { by: string; text: string; at: number; audio?: string };
 export type Note = { id: string; kind: "hw_new" | "sub_new" | "feedback" | "feedback_audio" | "approved" | "returned" | "graded" | "reminder" | "revise" | "mistakes"; data: { hw?: string; title?: string; by?: string; student?: string; grade?: Grade; overdue?: boolean; count?: number; surah?: number }; created: number; read: boolean };
-export type Submission = { id: string; status: "draft" | "submitted" | "approved" | "returned"; text: string; practised: boolean; liked: boolean; comments: Comment[]; audio?: string; grade?: Grade | ""; attempts?: Attempt[]; mistakes?: Mistake[]; submittedAt?: number; updated: number };
+export type Level = 1 | 2 | 3;
+/** Makharij / Tajweed / Recitation levels (1 Needs practice · 2 Good · 3 Excellent) + generated feedback. */
+export type Scores = { m: Level; t: Level; r: Level; notes?: { m?: string; t?: string; r?: string }; fb?: { en: string; ar: string } };
+export type Submission = { id: string; status: "draft" | "submitted" | "approved" | "returned"; text: string; practised: boolean; liked: boolean; comments: Comment[]; audio?: string; grade?: Grade | ""; scores?: Scores | null; attempts?: Attempt[]; mistakes?: Mistake[]; submittedAt?: number; updated: number };
 export type Grade = "green" | "yellow" | "red";
-export type Attempt = { n: number; audio: string; grade: Grade; by: string; at: number };
-export type TrackerRow = { surah: number; from: number; to: number; approved: number; grade?: Grade; hw?: string; revCount?: number; revDue?: number };
+export type Attempt = { n: number; audio: string; grade: Grade; by: string; at: number; scores?: Scores };
+export type TrackerRow = { surah: number; from: number; to: number; approved: number; grade?: Grade; hw?: string; revCount?: number; revDue?: number; scores?: Scores | null };
 export type Progress = { stars: number; streak: number; greens: number; yellows: number; handed: number; badges: string[]; activeDays: number };
 export type Mistake = { ayah: number; word: number; text: string; note: string };
 export type MapRow = { id: string; name: string; cls: string; section: string; cells: Record<number, { grade: string; verses: number }> };
@@ -52,7 +55,7 @@ export function lmsSignOut() {
 
 /** Admin read-only "view as" (this browser tab only; never touches the user's real LMS session). */
 export type QrLink = { student: string; name: string; cls: string; section: string; token: string };
-export type QrView = { student: string; cls: string; section: string; homework: { title: string; kind: "quran" | "general"; data: Partial<QuranData> }; status: string; grade: Grade | ""; recordings: string[]; attempts: { n: number; grade: Grade; audio: string; at: number }[]; feedback: { by: string; text: string; audio: string; at: number }[]; tracker: TrackerRow[] };
+export type QrView = { student: string; cls: string; section: string; homework: { title: string; kind: "quran" | "general"; data: Partial<QuranData> }; status: string; grade: Grade | ""; scores?: Scores | null; recordings: string[]; attempts: { n: number; grade: Grade; audio: string; at: number; scores?: Scores }[]; feedback: { by: string; text: string; audio: string; at: number }[]; tracker: TrackerRow[] };
 export type ViewAs = { id: string; name: string; role: "student" | "teacher"; cls: string };
 export function viewAs(): ViewAs | null {
   if (typeof window === "undefined") return null;
@@ -131,7 +134,7 @@ export const lmsApi = {
   homework: (id: string, asAdmin = false) =>
     call<{ homework: Homework; sub?: Submission | null; subs?: (Submission & { student: string; name: string; cls: string })[]; notStarted?: { id: string; name: string }[] }>("hw", undefined, { asAdmin, query: { id } }),
   saveSub: (hw: string, text: string, practised: boolean, submit: boolean) => call<{ ok: true; sub: Submission }>("sub-save", { hw, text, practised, submit }),
-  review: (id: string, patch: { comment?: string; like?: boolean; status?: "approved" | "returned"; grade?: Grade }, asAdmin = false) => call<{ ok: true }>("sub-review", { id, ...patch }, { asAdmin }),
+  review: (id: string, patch: { comment?: string; like?: boolean; status?: "approved" | "returned"; grade?: Grade; scores?: { m: Level; t: Level; r: Level; notes?: { m?: string; t?: string; r?: string } } }, asAdmin = false) => call<{ ok: true }>("sub-review", { id, ...patch }, { asAdmin }),
   catalog: (asAdmin = false) => call<Catalog>("catalog", undefined, { asAdmin }),
   catalogSave: (item: { kind: "subject" | "class" | "section"; id?: string; name: string; parent?: string }) => call<Catalog & { ok: true; id: string }>("catalog-save", item, { asAdmin: true }),
   catalogDelete: (id: string) => call<Catalog & { ok: true }>("catalog-delete", { id }, { asAdmin: true }),
