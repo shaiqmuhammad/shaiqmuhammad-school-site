@@ -13,7 +13,7 @@
     {
       "id": "lms",
       "kind": "lms",
-      "hidden": false
+      "hidden": true
     },
     {
       "id": "libraries",
