@@ -1,5 +1,6 @@
 "use client";
 
+import { LmsAssessAdmin } from "@/components/lms/LmsQuiz";
 import { LmsAnnounceAdmin, MessagesPanel } from "@/components/lms/Messages";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
@@ -396,6 +397,7 @@ export default function AdminCms() {
           />
         )}
         {tab==="quizzes" && <AdminQuizzes setStatus={setStatus} onNeedToken={()=>setTab("settings")} data={quizzesData} setData={setQuizzesData} results={quizResults} setResults={setQuizResults} />}
+        {tab==="quizzes" && <div className="mt-6"><LmsAssessAdmin quizzes={quizzesData.quizzes} /></div>}
         {tab==="certificate" && <AdminCertificate setStatus={setStatus} onNeedToken={()=>setTab("settings")} tpl={certificate} setTpl={setCertificate} />}
         {tab==="announcements" && <AdminAnnouncements setStatus={setStatus} onNeedToken={()=>setTab("settings")} data={announcementsData} setData={setAnnouncementsData} />}
         {tab==="homepage" && <AdminHomepage setStatus={setStatus} onNeedToken={()=>setTab("settings")} data={homepageData} setData={setHomepageData} />}
