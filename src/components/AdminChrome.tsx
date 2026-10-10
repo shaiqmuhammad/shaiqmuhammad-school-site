@@ -153,7 +153,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
       <svg viewBox="0 0 24 24" className="h-4 w-4" fill={starred(id) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" aria-hidden><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z" /></svg>
     </span>
   );
-  const quickBar = (
+  const quickBar = () => (
     <div className="glass mb-5 rounded-3xl p-3" data-testid="quick-bar">
       <div className="flex flex-wrap items-center gap-2">
         <span className="px-1 text-[11px] font-bold uppercase tracking-[0.12em] text-primary/80">⚡ {tr("Quick access", "وصول سريع")}</span>
@@ -438,7 +438,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
               {star(tab, "!h-9 !w-9 border border-black/10 dark:border-white/15")}
             </header>
           )}
-          {tab === "home" && quickBar}
+          {tab === "home" && quickBar()}
           <div className="admin-tab">{children}</div>
         </div>
       </main>
