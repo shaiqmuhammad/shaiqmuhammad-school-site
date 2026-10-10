@@ -228,7 +228,7 @@ export function LmsAdmin({ role = "student", embedded = false }: { role?: Role; 
 
         <header className="flex flex-wrap items-center gap-3" data-testid="lms-page-head">
           <div className="min-w-0 flex-1">
-            <h2 className="text-2xl font-extrabold tracking-tight" data-testid="admin-lms-heading">{title}</h2>
+            <h2 className="admin-tab-title text-2xl font-extrabold tracking-tight" data-testid="admin-lms-heading">{title}</h2>
             <p className="text-sm opacity-70">{tr(`${people.length} total · ${filtered.length} shown`, `${people.length} إجمالي · ${filtered.length} معروض`)}</p>
           </div>
           <div className="flex flex-wrap items-center gap-1.5" role="toolbar" aria-label={tr("Actions", "إجراءات")}>
