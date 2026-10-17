@@ -44,7 +44,7 @@ export function AssessmentShell({ title, exitHref = "/assessments", onExit, seco
         <div className="absolute -bottom-24 -end-16 h-80 w-80 rounded-full bg-sun/30 blur-3xl dark:bg-sun/10" />
       </div>
 
-      <header className="relative z-10 bg-header text-white shadow-[0_6px_20px_-10px_rgba(10,25,40,0.6)]">
+      <header className="relative z-20 bg-header text-white shadow-[0_6px_20px_-10px_rgba(10,25,40,0.6)]">
         <div className={`mx-auto flex ${wide ? "max-w-[1800px]" : "max-w-5xl"} items-center gap-3 px-3 py-2.5 sm:px-6`}>
           <Link
             href={exitTo}
