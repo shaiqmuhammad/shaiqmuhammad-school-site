@@ -71,7 +71,7 @@ export function LmsTabs() {
   const moreActive = tabs.some((t) => t.lvl > 0 && isActive(t));
   const base = "relative inline-flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap px-3 text-[13px] font-bold transition hover:text-sun";
   return (
-    <nav className="border-t border-white/10" aria-label={tr("Main sections", "الأقسام الرئيسية")} data-testid="lms-tabs">
+    <nav className="relative border-t border-white/10" aria-label={tr("Main sections", "الأقسام الرئيسية")} data-testid="lms-tabs">
       <div className="mx-auto flex max-w-[1800px] items-center gap-1 px-2 sm:px-5">
         <div className="flex min-w-0 items-center">
           {tabs.map((t) => (
@@ -80,12 +80,12 @@ export function LmsTabs() {
             </a>
           ))}
           {hasMore && (
-            <div className={`relative ${MORE_BTN[moreTo]}`} ref={box}>
+            <div className={`sm:relative ${MORE_BTN[moreTo]}`} ref={box}>
               <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} data-testid="lms-tab-more" className={`${base} ${moreActive ? "text-sun" : "text-white/85"}`}>
                 {tr("More", "المزيد")} <svg viewBox="0 0 24 24" className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="m6 9 6 6 6-6" /></svg>
               </button>
               {open && (
-                <div className="absolute start-0 top-full z-50 mt-1 w-56 rounded-2xl bg-header p-2 text-white shadow-2xl ring-1 ring-white/10" data-testid="lms-tab-more-panel">
+                <div className="absolute inset-x-2 top-full z-50 mt-1 rounded-2xl sm:inset-x-auto sm:start-0 sm:w-56 bg-header p-2 text-white shadow-2xl ring-1 ring-white/10" data-testid="lms-tab-more-panel">
                   {tabs.filter((t) => t.lvl > 0).map((t) => (
                     <a key={t.id} href={t.href + (t.hash || "")} onClick={() => setOpen(false)} aria-current={isActive(t) ? "page" : undefined} className={`${MORE_ITEM[t.lvl]} items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-semibold hover:bg-white/10 hover:text-sun ${isActive(t) ? "bg-white/15 text-sun" : ""}`} data-testid={`lms-more-${t.id}`}>
                       <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] shrink-0 text-sun" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d={t.icon} /></svg>{label(t)}
