@@ -19,6 +19,7 @@ import { type ForumData, type ForumThread, emptyForum, loadForumData, mergeForum
 import { AdminForumQueue } from "@/components/AdminForumQueue";
 import { AdminResults } from "@/components/AdminResults";
 import { AdminActivities } from "@/components/AdminActivities";
+import { AdminVideoComments } from "@/components/AdminVideoComments";
 import { forumPendingCount } from "@/lib/adminServer";
 import { LmsAdmin } from "@/components/lms/LmsAdmin";
 import { LmsSetup } from "@/components/lms/LmsSetup";
@@ -49,8 +50,8 @@ import { AdminHome } from "@/components/AdminHome";
 import AdminSettings from "@/components/AdminSettings";
 import { useI18n } from "@/lib/i18n";
 
-type Tab = "youtube" | "sitepages" | "home" | "pages" | "videos" | "quizzes" | "certificate" | "banners" | "announcements" | "teacher" | "forum" | "results" | "activities" | "settings" | "students" | "teachers" | "setup" | "lmshw" | "classes" | "mail" | "homepage" | "staff" | "messages" | "notices";
-const HASH_TABS: Tab[] = ["youtube", "sitepages", "pages", "videos", "quizzes", "certificate", "banners", "announcements", "teacher", "forum", "results", "activities", "settings", "students", "teachers", "setup", "classes", "lmshw", "mail", "homepage", "staff", "messages", "notices"];
+type Tab = "youtube" | "sitepages" | "home" | "pages" | "videos" | "quizzes" | "certificate" | "banners" | "announcements" | "teacher" | "forum" | "results" | "activities" | "settings" | "students" | "teachers" | "setup" | "lmshw" | "classes" | "mail" | "homepage" | "staff" | "messages" | "notices" | "vcomments";
+const HASH_TABS: Tab[] = ["youtube", "sitepages", "pages", "videos", "quizzes", "certificate", "banners", "announcements", "teacher", "forum", "results", "activities", "settings", "students", "teachers", "setup", "classes", "lmshw", "mail", "homepage", "staff", "messages", "notices", "vcomments"];
 const emptyPage = (): ContentPage => ({ id: newId("page"), slug: "", title: "", excerpt: "", body: "", published: true, updatedAt: new Date().toISOString() });
 const emptyVideo = (): ContentVideo => ({ id: newId("video"), title: "", youtubeId: "", description: "", published: true, updatedAt: new Date().toISOString() });
 
@@ -425,6 +426,7 @@ export default function AdminCms() {
         {tab==="teachers" && <LmsAdmin role="teacher" embedded />}
         {tab==="staff" && <LmsAdmin role="teacher" staff embedded />}
         {tab==="messages" && <MessagesPanel asAdmin />}
+        {tab==="vcomments" && <AdminVideoComments />}
         {tab==="notices" && <LmsAnnounceAdmin />}
         {tab==="setup" && <LmsSetup />}
         {tab==="lmshw" && <AdminLmsHomework />}
