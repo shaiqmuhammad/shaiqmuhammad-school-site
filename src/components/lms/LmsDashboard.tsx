@@ -67,13 +67,14 @@ export function LmsDashboard() {
 
   const surahName = (n: number) => chapters.find((c) => c.id === n)?.[lang === "ar" ? "name_arabic" : "name_simple"] || `${tr("Surah", "سورة")} ${n}`;
   const staff = actor?.role === "teacher" || actor?.role === "admin";
+  useEffect(() => { if (actor) document.title = `${staff ? tr("Teacher Dashboard", "لوحة المعلم") : tr("Student Dashboard", "لوحة الطالب")} | Shaiq Muhammad`; }, [actor, staff, tr]);
   const canAssign = actor?.role === "admin" || actor?.perms.includes("assign");
 
   if (ready && !actor) return <NeedLogin adminElsewhere={adminElsewhere} />;
 
   return (
     <AssessmentShell
-      title={staff ? tr("Teacher dashboard", "لوحة المعلم") : tr("My homework", "واجباتي")}
+      title={staff ? tr("Teacher Dashboard", "لوحة المعلم") : tr("Student Dashboard", "لوحة الطالب")}
       exitHref="/"
       wide
       toolbar={actor ? <LmsStaffToolbar /> : undefined}
@@ -107,7 +108,7 @@ export function LmsDashboard() {
           <>
             {dash.progress && <ProgressCard p={dash.progress} />}
             <RevisionList tracker={dash.tracker || []} onChange={(t) => setDash({ ...dash, tracker: t })} />
-            <section>
+            <section id="homework" className="scroll-mt-28">
               <h2 className="mb-3 text-xl font-bold">{tr("Homework", "الواجبات")}</h2>
               {dash.homework.length === 0 && <p className={card + " opacity-80"}>{tr("No homework yet — enjoy your day!", "لا توجد واجبات بعد — استمتع بيومك!")}</p>}
               <ul className="grid gap-3 sm:grid-cols-2">
@@ -133,7 +134,7 @@ export function LmsDashboard() {
                 })}
               </ul>
             </section>
-            <section className={card}>
+            <section id="tracker" className={card + " scroll-mt-28"}>
               <h2 className="text-xl font-bold">📈 {tr("My Quran tracker", "متابعة حفظي")}</h2>
               {(dash.tracker || []).length === 0 ? (
                 <p className="mt-2 opacity-70">{tr("Approved Quran homework will appear here.", "سيظهر هنا واجب القرآن المقبول.")}</p>
@@ -169,7 +170,7 @@ export function LmsDashboard() {
             {creating && (
               <HomeworkEditor classes={dash.classes || []} students={dash.students || []} catalog={dash.catalog} scope={dash.scope} asAdmin={asAdmin} onCancel={() => setCreating(false)} onSaved={(id) => router.push(`/lms/homework?id=${id}`)} />
             )}
-            <section>
+            <section id="homework" className="scroll-mt-28">
               <h2 className="mb-3 text-xl font-bold">{tr("Homework", "الواجبات")} ({dash.homework.length})</h2>
               {dash.homework.length === 0 && <p className={card + " opacity-80"}>{tr("No homework yet.", "لا توجد واجبات بعد.")}</p>}
               <ul className="space-y-2">

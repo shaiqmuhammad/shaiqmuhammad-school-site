@@ -1,5 +1,6 @@
 "use client";
 
+import { LmsTabs } from "@/components/lms/LmsTabs";
 import { useLmsExit } from "@/lib/useLmsExit";
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -91,6 +92,7 @@ export function AssessmentShell({ title, exitHref = "/assessments", onExit, seco
             </>
           )}
         </div>
+        {toolbar && !showTimer && <LmsTabs />}
         {progress && progress.total > 0 && (
           <div className="mx-auto flex max-w-5xl gap-1 px-3 pb-2.5 sm:px-6" aria-label={a("questionOf", { i: progress.current + 1, n: progress.total })}>
             {Array.from({ length: progress.total }, (_, i) => {

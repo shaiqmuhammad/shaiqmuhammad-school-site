@@ -18,7 +18,7 @@ function StaffFrame({ title, children }: { title: string; children: React.ReactN
   return (
     <AssessmentShell title={title} exitHref="/lms" wide toolbar={actor ? <LmsStaffToolbar /> : undefined}>
       <div className="mx-auto w-full max-w-6xl flex-1 space-y-4 px-3 py-5 sm:px-6">
-        <Link href="/lms" className={smallBtn}>← {tr("Dashboard", "اللوحة")}</Link>
+        <Link href="/lms" className={smallBtn}>← {tr("Teacher Dashboard", "لوحة المعلم")}</Link>
         {ready && actor && children}
       </div>
     </AssessmentShell>
