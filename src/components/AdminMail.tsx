@@ -123,7 +123,7 @@ function Inbox() {
 
   return (
     <>
-      <div className={`flex overflow-hidden rounded-3xl border border-black/10 bg-white shadow-sm dark:border-white/15 dark:bg-[#0f1a26] ${panel === "max" ? "fixed inset-0 z-[75] rounded-none" : "h-[calc(100vh-8.5rem)] min-h-[34rem]"}`} data-testid="mail-panel">
+      <div className={`flex overflow-hidden rounded-3xl border border-black/10 bg-white shadow-sm dark:border-white/15 dark:bg-[#0f1a26] ${panel === "max" ? "fixed inset-x-0 bottom-0 top-[6.5rem] z-[75] rounded-none lg:top-14" : "h-[calc(100vh-8.5rem)] min-h-[34rem]"}`} data-testid="mail-panel">
         {/* folders */}
         <nav className={`hidden shrink-0 flex-col border-e border-white/10 bg-header p-2 text-white transition-all md:flex ${foldersOpen ? "w-48 xl:w-56" : "w-14"}`} aria-label={tr("Folders", "المجلدات")}>
           <div className="mb-2 flex items-center gap-1">

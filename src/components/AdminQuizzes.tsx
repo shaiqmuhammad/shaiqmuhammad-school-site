@@ -89,13 +89,15 @@ export default function AdminQuizzes({ setStatus, onNeedToken, data, setData, re
   }
 
   /** Flip "Show on website" or "Active" for one assessment (local until "Publish assessments"). */
-  function toggleFlag(quiz: Quiz, flag: "visible" | "active") {
+  function toggleFlag(quiz: Quiz, flag: "visible" | "active" | "certificateIndividual" | "certificateGroup") {
     // updatedAt is left alone so the list (and the public card order) doesn't jump around.
     const next = normalizeQuiz({ ...quiz, [flag]: !quiz[flag] });
     setData((prev) => ({ quizzes: prev.quizzes.map((q) => (q.id === quiz.id ? next : q)) }));
     const what =
       flag === "visible"
         ? next.visible ? tr("shown on the website", "ظاهر على الموقع") : tr("hidden from the website", "مخفي من الموقع")
+        : flag === "certificateIndividual" ? (next.certificateIndividual ? tr("individual certificate ON", "الشهادة الفردية مفعّلة") : tr("individual certificate OFF", "الشهادة الفردية متوقفة"))
+        : flag === "certificateGroup" ? (next.certificateGroup ? tr("group certificate ON", "الشهادة الجماعية مفعّلة") : tr("group certificate OFF", "الشهادة الجماعية متوقفة"))
         : next.active ? tr("activated", "مفعّل") : tr("deactivated", "معطّل");
     setStatus(tr(`"${quiz.title}" ${what} locally. Click "Publish assessments" to apply it on the live site.`, `«${quiz.title}» ${what} محليًا. اضغط «نشر التقييمات» لتطبيقه على الموقع.`));
   }
@@ -236,6 +238,8 @@ export default function AdminQuizzes({ setStatus, onNeedToken, data, setData, re
                 title={tr("Active: inactive assessments show “Not available yet” and can't be started or joined.", "نشط: التقييمات غير النشطة تظهر «غير متاح بعد» ولا يمكن بدؤها أو الانضمام إليها.")}
                 testId="toggle-active"
               />
+              <FlagSwitch on={quiz.certificateIndividual} onClick={() => toggleFlag(quiz, "certificateIndividual")} label={tr("Certificate · individual", "شهادة · فردي")} onText={tr("On", "تشغيل")} offText={tr("Off", "إيقاف")} title={tr("Offer the PDF certificate after an individual attempt.", "تقديم الشهادة بعد المحاولة الفردية.")} testId="toggle-cert-individual" />
+              <FlagSwitch on={quiz.certificateGroup} onClick={() => toggleFlag(quiz, "certificateGroup")} label={tr("Certificate · group", "شهادة · جماعي")} onText={tr("On", "تشغيل")} offText={tr("Off", "إيقاف")} title={tr("Offer the PDF certificate (with class position) after a live group session.", "تقديم الشهادة بعد الجلسة الجماعية.")} testId="toggle-cert-group" />
               <button type="button" className="rounded-full bg-teal-700 px-3 py-1 text-xs font-semibold text-white disabled:opacity-50" disabled={!quiz.questions.length || !quiz.active} title={quiz.active ? undefined : tr("Activate it first", "فعّله أولًا")} onClick={() => startGroup(quiz)}>
                 👥 {tr("Start group session", "ابدأ جلسة جماعية")}
               </button>
