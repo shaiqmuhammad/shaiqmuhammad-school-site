@@ -24,6 +24,9 @@ const PERM_LABEL: Record<string, [string, string]> = {
 const EMPTY: Catalog = { subjects: [], classes: [], sections: [] };
 
 /** Add / edit one student or teacher, with dropdowns from Classes & Subjects. */
+/** Compact long lists (many classes/sections) so table rows stay short; full list in the tooltip. */
+const shortList = (xs: string[]) => { const u = [...new Set(xs.filter(Boolean))]; return u.length > 4 ? `${u.slice(0, 3).join(", ")} +${u.length - 3}` : u.join(", "); };
+
 function PersonForm({ role, catalog, initial, onSave, submitLabel, testPrefix, staff = false, admin = false }: { admin?: boolean; staff?: boolean; role: Role; catalog: Catalog; initial?: LmsUser; onSave: (r: Row) => Promise<void>; submitLabel: string; testPrefix: string }) {
   const { tr } = useTr();
   const [f, setF] = useState({ name: initial?.name || "", username: initial?.username || "", cls: initial?.cls || "", section: initial?.section || "", pin: "", email: initial?.email || "", gender: initial?.gender || "", first: initial?.firstName ?? (initial?.name || "").split(/\s+/)[0] ?? "", last: initial?.lastName ?? (initial?.name || "").split(/\s+/).slice(1).join(" "), dob: initial?.dob || "", phone: initial?.phone || "", semail: initial?.semail || "", parentName: initial?.parentName || "", nat: initial?.nationality || "", lang: initial?.prefLang || "", sen: !!initial?.sen, eal: !!initial?.eal, gt: !!initial?.gt, subjects: initial?.subjects || [], scope: initial?.scope || [], perms: initial?.perms || (staff ? ["staff", "review"] : ["assign", "review"]), disabled: initial?.disabled || false });
@@ -413,8 +416,8 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
                         ) : (
                           <>
                             <td className={td} data-testid="col-subjects">{u.subjects.join(", ") || "—"}</td>
-                            <td className={td} data-testid="col-classes">{teacherClasses(u).map(clsNum).join(", ") || tr("All", "الكل")}</td>
-                            <td className={td} data-testid="col-sections">{teacherSections(u).map(secLetter).join(", ") || "—"}</td>
+                            <td className={td} data-testid="col-classes" title={teacherClasses(u).map(clsNum).join(", ")}>{shortList(teacherClasses(u).map(clsNum)) || tr("All", "الكل")}</td>
+                            <td className={td} data-testid="col-sections" title={teacherSections(u).map(secLetter).join(", ")}>{shortList(teacherSections(u).map(secLetter)) || "—"}</td>
                           </>
                         )}
                         {extraOn.map((e) => <td key={e[0]} className={td + " whitespace-nowrap text-[13px]"} data-testid={`col-${e[0]}`} dir="auto">{e[3](u) || "—"}</td>)}
