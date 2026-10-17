@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useTr, useLmsActor } from "@/components/lms/useLms";
 
 type Tab = { id: string; href: string; hash?: string; en: string; ar: string; icon: string; lvl: 0 | 1 | 2 | 3 };
@@ -47,6 +48,8 @@ export function LmsTabs() {
   const [hash, setHash] = useState("");
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number; w: number; rtl: boolean }>({ top: 0, left: 0, w: 224, rtl: false });
   useEffect(() => {
     const upd = () => { setPath(window.location.pathname.replace(/\/$/, "") || "/"); setHash(window.location.hash); };
     upd();
@@ -55,9 +58,16 @@ export function LmsTabs() {
   }, []);
   useEffect(() => {
     if (!open) return;
-    const close = (e: MouseEvent | KeyboardEvent) => { if (e instanceof KeyboardEvent ? e.key === "Escape" : !box.current?.contains(e.target as Node)) setOpen(false); };
+    const close = (e: MouseEvent | KeyboardEvent) => { if (e instanceof KeyboardEvent ? e.key === "Escape" : !(box.current?.contains(e.target as Node) || panel.current?.contains(e.target as Node))) setOpen(false); };
+    const place = () => {
+      const r = box.current?.getBoundingClientRect(); if (!r) return;
+      const vw = window.innerWidth; const rtl = document.documentElement.dir === "rtl";
+      if (vw < 640) setPos({ top: r.bottom + 4, left: 8, w: vw - 16, rtl });
+      else setPos({ top: r.bottom + 4, left: rtl ? Math.max(8, r.right - 224) : Math.min(r.left, vw - 232), w: 224, rtl });
+    };
+    place(); window.addEventListener("resize", place); window.addEventListener("scroll", place, true);
     document.addEventListener("mousedown", close); document.addEventListener("keydown", close);
-    return () => { document.removeEventListener("mousedown", close); document.removeEventListener("keydown", close); };
+    return () => { document.removeEventListener("mousedown", close); document.removeEventListener("keydown", close); window.removeEventListener("resize", place); window.removeEventListener("scroll", place, true); };
   }, [open]);
   if (!ready || !actor || actor.viewAs) return null;
   const staff = actor.role !== "student";
@@ -84,15 +94,14 @@ export function LmsTabs() {
               <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} data-testid="lms-tab-more" className={`${base} ${moreActive ? "text-sun" : "text-white/85"}`}>
                 {tr("More", "المزيد")} <svg viewBox="0 0 24 24" className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="m6 9 6 6 6-6" /></svg>
               </button>
-              {open && (
-                <div className="absolute inset-x-2 top-full z-50 mt-1 rounded-2xl sm:inset-x-auto sm:start-0 sm:w-56 bg-header p-2 text-white shadow-2xl ring-1 ring-white/10" data-testid="lms-tab-more-panel">
+              {open && createPortal(
+                <div ref={panel} style={{ position: "fixed", top: pos.top, left: pos.left, width: pos.w, zIndex: 2147483000 }} className="rounded-2xl bg-header p-2 text-white shadow-2xl ring-1 ring-white/10" data-testid="lms-tab-more-panel">
                   {tabs.filter((t) => t.lvl > 0).map((t) => (
                     <a key={t.id} href={t.href + (t.hash || "")} onClick={() => setOpen(false)} aria-current={isActive(t) ? "page" : undefined} className={`${MORE_ITEM[t.lvl]} items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-semibold hover:bg-white/10 hover:text-sun ${isActive(t) ? "bg-white/15 text-sun" : ""}`} data-testid={`lms-more-${t.id}`}>
                       <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] shrink-0 text-sun" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d={t.icon} /></svg>{label(t)}
                     </a>
                   ))}
-                </div>
-              )}
+                </div>, document.body)}
             </div>
           )}
         </div>
