@@ -9,6 +9,7 @@ import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
 import { AssessmentShell, primaryBtn } from "@/components/assessment/AssessmentShell";
 import { exportStudentsXlsx, downloadCredentials, downloadSignInSheet, downloadUsersTemplate, exportAllHomeworkZip, parseUsersXlsx } from "@/components/lms/lmsFiles";
 import { ADMIN_ACTOR, adminRelogin, card, inputCls, smallBtn, useLmsActor, useTr } from "@/components/lms/useLms";
+import { clsNum, secLetter } from "@/lib/classFmt";
 import { lmsApi, lmsErrorText, PERMS, scopeLabel, type Catalog, type LmsUser, type Role } from "@/lib/lms";
 
 type Pins = { username: string; name: string; pin: string }[];
@@ -63,11 +64,11 @@ function PersonForm({ role, catalog, initial, onSave, submitLabel, testPrefix, s
         <>
           <select className={inputCls} value={f.cls} onChange={(e) => setF({ ...f, cls: e.target.value, section: "" })} data-testid={`${testPrefix}-class`} aria-label={tr("Class", "الصف")}>
             <option value="">{tr("Class…", "الصف…")}</option>
-            {classOpts.map((c) => <option key={c}>{c}</option>)}
+            {classOpts.map((c) => <option key={c} value={c}>{clsNum(c)}</option>)}
           </select>
           <select className={inputCls} value={f.section} onChange={(e) => setF({ ...f, section: e.target.value })} disabled={!secs.length} data-testid={`${testPrefix}-section`} aria-label={tr("Section", "الشعبة")}>
             <option value="">{tr("Section…", "الشعبة…")}</option>
-            {secs.map((s) => <option key={s.id}>{s.name}</option>)}
+            {secs.map((s) => <option key={s.id} value={s.name}>{secLetter(s.name)}</option>)}
           </select>
         </>
       ) : (
@@ -84,7 +85,7 @@ function PersonForm({ role, catalog, initial, onSave, submitLabel, testPrefix, s
           <p className="text-sm font-semibold">{tr("Classes / sections taught (empty = all)", "الصفوف / الشعب (فارغ = الكل)")}</p>
           <div className="flex flex-wrap gap-1.5">
             {catalog.classes.flatMap((c) => [c.name, ...catalog.sections.filter((s) => s.classId === c.id).map((s) => `${c.name}|${s.name}`)]).map((v) => (
-              <button key={v} type="button" aria-pressed={f.scope.includes(v)} className={chip(f.scope.includes(v))} onClick={() => toggle("scope", v)} data-testid={`${testPrefix}-scope`}>{scopeLabel(v)}</button>
+              <button key={v} type="button" aria-pressed={f.scope.includes(v)} className={chip(f.scope.includes(v))} onClick={() => toggle("scope", v)} data-testid={`${testPrefix}-scope`}>{v.includes("|") ? `${clsNum(v.split("|")[0])}${secLetter(v.split("|")[1])}` : tr("Class ", "الصف ") + clsNum(v)}</button>
             ))}
           </div>
           <div className="flex flex-wrap gap-3 text-sm">
@@ -276,7 +277,7 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
           <Stat label={tr("Active", "نشط")} value={people.filter((u) => !u.disabled).length} tone="ok" onClick={() => setFStatus("active")} active={fStatus === "active"} />
           <Stat label={tr("Blocked", "موقوف")} value={people.filter((u) => u.disabled).length} tone="bad" onClick={() => setFStatus("blocked")} active={fStatus === "blocked"} />
           {role === "student" && catalog.classes.map((c) => ({ c, n: people.filter((u) => u.cls === c.name).length })).filter((x) => x.n > 0).map(({ c, n }) => (
-            <Stat key={c.id} label={c.name} value={n} onClick={() => { setFCls(fCls === c.name ? "" : c.name); setFSec(""); setPage(0); }} active={fCls === c.name} small />
+            <Stat key={c.id} label={tr("Class ", "الصف ") + clsNum(c.name)} value={n} onClick={() => { setFCls(fCls === c.name ? "" : c.name); setFSec(""); setPage(0); }} active={fCls === c.name} small />
           ))}
         </div>
 
@@ -332,11 +333,11 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
             )}
             <select className={inputCls + " mt-0 w-auto! min-w-[9rem]"} value={fCls} onChange={(e) => { setFCls(e.target.value); setFSec(""); }} data-testid="lms-filter-class" aria-label={tr("Class", "الصف")}>
               <option value="">{tr("All classes", "كل الصفوف")}</option>
-              {catalog.classes.map((c) => <option key={c.id}>{c.name}</option>)}
+              {catalog.classes.map((c) => <option key={c.id} value={c.name}>{clsNum(c.name)}</option>)}
             </select>
             <select className={inputCls + " mt-0 w-auto! min-w-[9rem]"} value={fSec} onChange={(e) => setFSec(e.target.value)} disabled={!secOpts.length} data-testid="lms-filter-section" aria-label={tr("Section", "الشعبة")}>
               <option value="">{tr("All sections", "كل الشعب")}</option>
-              {secOpts.map((s) => <option key={s.id}>{s.name}</option>)}
+              {secOpts.map((s) => <option key={s.id} value={s.name}>{secLetter(s.name)}</option>)}
             </select>
             {EXTRA.length > 0 && <div className="relative"><button type="button" className={smallBtn} onClick={() => setColMenu(!colMenu)} aria-expanded={colMenu} data-testid="lms-cols-btn">▥ {tr("Columns", "الأعمدة")}</button>
               {colMenu && <div className="absolute end-0 z-40 mt-1 w-52 rounded-2xl border border-black/10 bg-white p-2 text-sm shadow-xl dark:border-white/15 dark:bg-[#13202e]" data-testid="lms-cols-menu">{EXTRA.map((e) => <label key={e[0]} className="flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-black/5 dark:hover:bg-white/10"><input type="checkbox" checked={showCols.includes(e[0])} onChange={() => toggleCol(e[0])} />{tr(e[1], e[2])}</label>)}</div>}</div>}
@@ -374,7 +375,7 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
                 {pageRows.map((u, i) => {
                   const pin = known?.[u.id];
                   const open = shown.has(u.id);
-                  const zebra = i % 2 ? "bg-black/[0.025] dark:bg-white/[0.04]" : "bg-white dark:bg-[#0f1a26]";
+                  const zebra = i % 2 ? "bg-[#f3f6f9] dark:bg-[#16222f]" : "bg-white dark:bg-[#0f1a26]";
                   const td = "border-t border-black/5 px-2.5 py-2 align-middle dark:border-white/10";
                   return (
                     <Fragment key={u.id}>
@@ -397,14 +398,14 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
                         )}
                         {role === "student" ? (
                           <>
-                            <td className={td} data-testid="col-class">{u.cls || "—"}</td>
-                            <td className={td} data-testid="col-section">{u.section || "—"}</td>
+                            <td className={td} data-testid="col-class">{clsNum(u.cls) || "—"}</td>
+                            <td className={td} data-testid="col-section">{secLetter(u.section) || "—"}</td>
                           </>
                         ) : (
                           <>
                             <td className={td} data-testid="col-subjects">{u.subjects.join(", ") || "—"}</td>
-                            <td className={td} data-testid="col-classes">{teacherClasses(u).join(", ") || tr("All", "الكل")}</td>
-                            <td className={td} data-testid="col-sections">{teacherSections(u).join(", ") || "—"}</td>
+                            <td className={td} data-testid="col-classes">{teacherClasses(u).map(clsNum).join(", ") || tr("All", "الكل")}</td>
+                            <td className={td} data-testid="col-sections">{teacherSections(u).map(secLetter).join(", ") || "—"}</td>
                           </>
                         )}
                         {extraOn.map((e) => <td key={e[0]} className={td + " whitespace-nowrap text-[13px]"} data-testid={`col-${e[0]}`} dir="auto">{e[3](u) || "—"}</td>)}
