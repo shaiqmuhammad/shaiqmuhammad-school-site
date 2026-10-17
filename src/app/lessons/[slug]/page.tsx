@@ -8,6 +8,7 @@ import {
   listPublishedPages,
 } from "@/lib/content";
 import { loadContentDataSync } from "@/lib/contentServer";
+import { RichHtml } from "@/components/YtPlayer";
 import { renderMarkdownLite } from "@/lib/markdownLite";
 
 type PageProps = {
@@ -39,10 +40,7 @@ export default async function LessonDetailPage({ params }: PageProps) {
         <Link href="/lessons" className="text-sm font-medium text-primary hover:underline">
           ← All lessons
         </Link>
-        <article
-          className="prose-lesson mt-8 max-w-3xl"
-          dangerouslySetInnerHTML={{ __html: html }}
-        />
+        <RichHtml className="prose-lesson mt-8 max-w-3xl" html={html} />
         <p className="mt-10 text-xs text-muted">
           Updated{" "}
           {new Date(page.updatedAt).toLocaleDateString("en-GB", {

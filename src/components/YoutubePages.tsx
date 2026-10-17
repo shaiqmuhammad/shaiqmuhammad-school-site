@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { PageHero } from "@/components/PageHero";
 import { Section } from "@/components/Section";
 import { YoutubeLibrary } from "@/components/YoutubeLibrary";
+import { RichHtml } from "@/components/YtPlayer";
 import { renderMarkdownLite } from "@/lib/markdownLite";
 import { useI18n } from "@/lib/i18n";
 import { ytApi, type PageRow } from "@/lib/yt";
@@ -36,7 +37,7 @@ export function CustomPage() {
       <PageHero eyebrow="" title={pg === undefined ? "…" : pg ? title : lang === "ar" ? "غير موجودة" : "Not found"} subtitle="" />
       <Section>
         {pg === null && <p className="text-muted">{lang === "ar" ? "هذه الصفحة غير موجودة." : "This page doesn't exist."}</p>}
-        {pg && <article className="lesson-body prose-sm max-w-3xl leading-relaxed" dir="auto" data-testid="custom-page" dangerouslySetInnerHTML={{ __html: renderMarkdownLite(body) }} />}
+        {pg && <RichHtml className="prose-lesson max-w-3xl leading-relaxed" dir="auto" data-testid="custom-page" html={renderMarkdownLite(body)} />}
       </Section>
     </>
   );

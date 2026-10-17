@@ -5,9 +5,9 @@ import { Section } from "@/components/Section";
 import {
   extractYouTubeId,
   listPublishedVideos,
-  youtubeEmbedUrl,
 } from "@/lib/content";
 import { loadContentDataSync } from "@/lib/contentServer";
+import { YtPlayer } from "@/components/YtPlayer";
 import { VideosEmpty } from "@/components/VideosEmpty";
 import { YoutubeLibrary } from "@/components/YoutubeLibrary";
 
@@ -40,17 +40,7 @@ export default function VideosPage() {
           <div className="space-y-10">
             {videos.map((video) => (
               <Card key={video.id} className="overflow-hidden p-0" id={video.id}>
-                <div className="aspect-video w-full bg-accent-soft">
-                  <iframe
-                    title={video.title}
-                    src={youtubeEmbedUrl(video.youtubeId)}
-                    className="h-full w-full border-0"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                    allowFullScreen
-                    loading="lazy"
-                    referrerPolicy="strict-origin-when-cross-origin"
-                  />
-                </div>
+                <YtPlayer id={video.youtubeId} title={video.title} />
                 <div className="p-6">
                   <h2 className="text-xl font-semibold">{video.title}</h2>
                   <p className="mt-2 text-sm text-muted leading-relaxed">{video.description}</p>

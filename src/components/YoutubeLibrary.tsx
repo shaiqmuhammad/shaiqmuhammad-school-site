@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useI18n } from "@/lib/i18n";
-import { embed, thumb, ytApi, type YtPlaylist, type YtVideo } from "@/lib/yt";
+import { YtPlayer } from "@/components/YtPlayer";
+import { thumb, ytApi, type YtPlaylist, type YtVideo } from "@/lib/yt";
 
 /** Videos page: every upload and playlist of the channel, played in-page (privacy-enhanced embed, no links out). */
 export function YoutubeLibrary({ playlistId, fallback }: { playlistId?: string; fallback?: React.ReactNode }) {
@@ -38,9 +39,7 @@ export function YoutubeLibrary({ playlistId, fallback }: { playlistId?: string; 
     <div className="space-y-6" data-testid="yt-library">
       {cur && (
         <div ref={player} className="glass overflow-hidden rounded-3xl" data-testid="yt-player">
-          <div className="aspect-video w-full bg-black">
-            <iframe key={cur.id} title={cur.title} src={embed(cur.id) + "&autoplay=1"} className="h-full w-full border-0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowFullScreen referrerPolicy="strict-origin-when-cross-origin" />
-          </div>
+          <YtPlayer key={cur.id} id={cur.id} title={cur.title} autoPlay />
           <div className="flex items-start gap-3 p-4"><h2 className="min-w-0 flex-1 text-lg font-bold" dir="auto">{cur.title}</h2><button type="button" className="btn-glass px-3 py-1 text-sm" onClick={() => setCur(null)}>✕ {tr("Close", "إغلاق")}</button></div>
         </div>
       )}
