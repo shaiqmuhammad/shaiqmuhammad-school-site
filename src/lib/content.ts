@@ -132,7 +132,7 @@ export function extractYouTubeId(input: string): string | null {
  */
 export function youtubeEmbedUrl(youtubeIdOrUrl: string): string {
   const id = extractYouTubeId(youtubeIdOrUrl) || youtubeIdOrUrl.trim();
-  return `https://www.youtube.com/embed/${id}`;
+  return `https://www.youtube-nocookie.com/embed/${id}?rel=0&modestbranding=1&iv_load_policy=3&fs=1&playsinline=1`;
 }
 
 export function youtubeThumbUrl(youtubeIdOrUrl: string): string {

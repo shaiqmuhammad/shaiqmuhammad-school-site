@@ -45,7 +45,7 @@ export const defaultAbout = (): AboutData => ({
       { id: "l1", title: "English", titleAr: "الإنجليزية" }, { id: "l2", title: "Arabic", titleAr: "العربية" }, { id: "l3", title: "Urdu / Hindi", titleAr: "الأردية / الهندية" },
     ] },
     { id: "creativity", kind: "links", title: "Samples of creativity within the subject", titleAr: "نماذج من الإبداع في المادة", icon: "🎬", items: [
-      { id: "c1", title: "YouTube — @almudarris_ins", titleAr: "يوتيوب — ‎@almudarris_ins", url: "https://youtube.com/@almudarris_ins", logo: fav("youtube.com") },
+      { id: "c1", title: "YouTube — @shaiqmuhammad", titleAr: "يوتيوب — ‎@shaiqmuhammad", url: "https://www.youtube.com/@shaiqmuhammad", logo: fav("youtube.com") },
       { id: "c2", title: "shaiqmuhammad.com", url: "https://shaiqmuhammad.com", logo: "/logo.svg" },
     ] },
   ],

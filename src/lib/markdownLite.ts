@@ -42,7 +42,7 @@ export function renderMarkdownLite(source: string): string {
       const id = extractYouTubeId(ytBlock[1]);
       if (id) {
         out.push(
-          `<div class="video-embed"><iframe title="YouTube video" src="https://www.youtube.com/embed/${id}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe></div>`,
+          `<div class="video-embed"><div class="yt-embed" data-yt="${id}"></div></div>`,
         );
       }
       continue;
