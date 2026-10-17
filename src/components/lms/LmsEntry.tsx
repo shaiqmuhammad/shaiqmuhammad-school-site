@@ -137,12 +137,15 @@ function TeacherMenu({ ar }: { ar: boolean }) {
   useEffect(() => { if (open && !perms.length) lmsApi.me().then((r) => setPerms(r.user.perms || [])).catch(() => undefined); }, [open, perms.length]);
   const t = (en: string, a: string) => (ar ? a : en);
   const tools = perms.some((p) => p.startsWith("act:"));
-  const groups: [string, [string, string][]][] = [
-    [t("Teaching and Learning", "التعليم والتعلّم"), [["/lms/map", t("Class Quran map", "خريطة القرآن للصف")]]],
-    [t("Members", "الأعضاء"), [["/lms/students", t("My students", "طلابي")]]],
-    [t("Assessment", "التقييم"), [["/lms", t("Homework", "الواجبات")], ["/lms/assessments", t("Assessments", "التقييمات")]]],
-    ...(tools ? [[t("Teaching Tools", "أدوات التدريس"), [["/lms/activities", t("Classroom activities", "أنشطة الصف")]]]] as [string, [string, string][]][] : []),
+  type Item = [string, string, string]; // href, label, icon path
+  const groups: [string, string, Item[]][] = [
+    ["learn", t("Teaching and Learning", "التعليم والتعلّم"), [["/lms/classes", t("My classes", "صفوفي"), "M4 6h16M4 12h16M4 18h10"], ["/lms/map", t("Class Quran map", "خريطة القرآن للصف"), "M4 5h16v14H4zM9 5v14M15 5v14"], ["/lms/points", t("Points report", "تقرير النقاط"), "M5 20V10m7 10V4m7 16v-7"]]],
+    ["members", t("Members", "الأعضاء"), [["/lms/students", t("My students", "طلابي"), "M16 11a4 4 0 1 0-8 0m-3 9a7 7 0 0 1 14 0"]]],
+    ["assess", t("Assessment", "التقييم"), [["/lms", t("Homework", "الواجبات"), "M6 4h12v16H6zM9 9h6M9 13h4"], ["/lms/assessments", t("Assessments", "التقييمات"), "M4 5h16v14H4zM8 9h8M8 13h5"]]],
+    ...(tools ? [["tools", t("Teaching Tools", "أدوات التدريس"), [["/lms/activities", t("Classroom activities", "أنشطة الصف"), "M12 3l2.5 5.5L20 9l-4 4 1 6-5-3-5 3 1-6-4-4 5.5-.5z"]]]] as [string, string, Item[]][] : []),
+    ["community", t("Community", "التواصل"), [["/lms/messages", t("Messages", "الرسائل"), "M4 5h16v11H8l-4 4z"]]],
   ];
+  const here = typeof window !== "undefined" ? window.location.pathname.replace(/\/$/, "") : "";
   return (
     <div className="relative" ref={box}>
       <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="pill-on-navy inline-flex h-[34px] items-center gap-1.5 rounded-full px-2.5 text-xs font-bold" data-testid="lms-teacher-menu">
@@ -150,14 +153,19 @@ function TeacherMenu({ ar }: { ar: boolean }) {
         <span className="hidden lg:inline">{t("Menu", "القائمة")}</span>
       </button>
       {open && pos && createPortal(
-        <nav ref={panel} dir={ar ? "rtl" : "ltr"} style={pos.mobile ? { top: pos.top } : ar ? { top: pos.top, left: pos.left } : { top: pos.top, right: pos.right }} className={`fixed z-[2147483000] rounded-2xl bg-header p-3 text-white shadow-2xl ${pos.mobile ? "inset-x-2" : "w-64"}`} data-testid="lms-teacher-menu-panel">
-            {groups.map(([g, items]) => (
-              <div key={g} className="pb-2 last:pb-0">
-                <button type="button" onClick={() => toggle(g)} aria-expanded={!shut[g]} className="flex w-full items-center px-2 pb-1 text-[11px] font-bold uppercase tracking-[0.12em] text-white/55 hover:text-white" data-testid="lms-teacher-group">
+        <nav ref={panel} dir={ar ? "rtl" : "ltr"} style={pos.mobile ? { top: pos.top } : ar ? { top: pos.top, left: pos.left } : { top: pos.top, right: pos.right }} className={`fixed z-[2147483000] rounded-2xl bg-header p-3 text-white shadow-2xl ${pos.mobile ? "inset-x-2 max-h-[80vh] overflow-y-auto" : "w-72 max-h-[80vh] overflow-y-auto"}`} data-testid="lms-teacher-menu-panel">
+            <p className="px-2 pb-2 text-xs font-bold uppercase tracking-[0.14em] text-sun">{t("Teacher menu", "قائمة المعلم")}</p>
+            {groups.map(([id, g, items]) => (
+              <div key={id} className="pb-1.5 last:pb-0" data-testid="lms-menu-group">
+                <button type="button" onClick={() => toggle(id)} aria-expanded={!shut[id]} className="flex w-full items-center rounded-lg px-2 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-white/55 hover:text-white">
                   <span className="flex-1 text-start">{g}</span>
-                  <svg viewBox="0 0 24 24" className={`h-3.5 w-3.5 transition-transform ${shut[g] ? "-rotate-90 rtl:rotate-90" : ""}`} fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="m6 9 6 6 6-6" /></svg>
+                  <svg viewBox="0 0 24 24" className={`h-3.5 w-3.5 transition-transform ${shut[id] ? "-rotate-90 rtl:rotate-90" : ""}`} fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="m6 9 6 6 6-6" /></svg>
                 </button>
-                {!shut[g] && items.map(([href, l]) => <a key={href + l} href={href} className="block rounded-xl px-2 py-1.5 text-sm hover:bg-white/10 hover:text-sun">{l}</a>)}
+                {!shut[id] && items.map(([href, l, ic]) => (
+                  <a key={href} href={href} aria-current={here === href ? "page" : undefined} className={`flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm font-semibold transition hover:bg-white/10 hover:text-sun ${here === href ? "bg-white/15 text-sun" : ""}`}>
+                    <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] shrink-0 text-sun" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d={ic} /></svg>{l}
+                  </a>
+                ))}
               </div>
             ))}
           </nav>,

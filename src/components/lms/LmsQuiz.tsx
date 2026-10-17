@@ -5,7 +5,7 @@ import { AssessmentShell } from "@/components/assessment/AssessmentShell";
 import { AdminQuestionEditor } from "@/components/AdminQuestionEditor";
 import { QuizPlayer } from "@/components/QuizPlayer";
 import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
-import { lmsApi, lmsErrorText, type Assignment, type Catalog, type MsgContact } from "@/lib/lms";
+import { lmsApi, lmsErrorText, type Assignment, type Catalog, type StudentGroup, type MsgContact } from "@/lib/lms";
 import { defaultCertificate, emptyQuestion, loadQuizzesData, normalizeQuiz, type Quiz } from "@/lib/quiz";
 import { useTr } from "@/components/lms/useLms";
 
@@ -86,6 +86,8 @@ export function AssignForm({ quiz, title, asAdmin = false, onDone }: { quiz: str
   const [people, setPeople] = useState<MsgContact[]>([]);
   const [f, setF] = useState({ mode: "individual" as "individual" | "group", cls: "", section: "", students: [] as string[], due: "" });
   const [msg, setMsg] = useState("");
+  const [groups, setGroups] = useState<StudentGroup[]>([]);
+  useEffect(() => { lmsApi.grpList(asAdmin).then((r) => setGroups(r.items)).catch(() => undefined); }, [asAdmin]);
   useEffect(() => { lmsApi.catalog(asAdmin).then(setCat).catch(() => undefined); lmsApi.msgContacts(asAdmin).then((r) => setPeople(r.items.filter((x) => x.role === "student"))).catch(() => undefined); }, [asAdmin]);
   const submit = async () => {
     try { const r = await lmsApi.assessAssign({ quiz, title, mode: f.mode, cls: f.cls, section: f.section, students: f.students, due: f.due ? new Date(f.due + "T23:59:00").getTime() : null }, asAdmin); setMsg(tr(`Assigned to ${r.sent} students ✓`, `أُسند إلى ${r.sent} طالبًا ✓`)); onDone(); } catch (e) { setMsg(lmsErrorText(e, tr)); }
@@ -100,6 +102,7 @@ export function AssignForm({ quiz, title, asAdmin = false, onDone }: { quiz: str
         <select className={inputCls} value={f.section} disabled={!f.cls} onChange={(e) => setF({ ...f, section: e.target.value })}><option value="">{tr("All sections", "كل الشعب")}</option>{(cat?.sections || []).filter((s) => s.cls === f.cls).map((s) => <option key={s.name}>{s.name}</option>)}</select>
         <label className="flex items-center gap-2">{tr("Due", "الموعد")}<input type="date" className={inputCls} value={f.due} onChange={(e) => setF({ ...f, due: e.target.value })} /></label>
       </div>
+      {groups.length > 0 && <select className={inputCls} value="" onChange={(e) => { const g = groups.find((x) => x.id === e.target.value); if (g) setF({ ...f, students: [...new Set([...f.students, ...g.students])] }); }} data-testid="assign-group"><option value="">{tr("＋ Add a custom group…", "＋ إضافة مجموعة مخصصة…")}</option>{groups.map((g) => <option key={g.id} value={g.id}>{g.name} ({g.students.length})</option>)}</select>}
       <details><summary className="cursor-pointer text-xs opacity-70">{tr("…or pick individual students", "…أو اختر طلابًا محددين")} {f.students.length ? `(${f.students.length})` : ""}</summary>
         <div className="mt-2 flex max-h-40 flex-wrap gap-1 overflow-y-auto">{people.map((p) => <button key={p.id} type="button" aria-pressed={f.students.includes(p.id)} onClick={() => setF({ ...f, students: f.students.includes(p.id) ? f.students.filter((x) => x !== p.id) : [...f.students, p.id] })} className={`rounded-full px-2 py-0.5 text-xs ring-1 ring-black/10 ${f.students.includes(p.id) ? "bg-sun text-[#0b1b2b]" : ""}`}>{p.name}</button>)}</div>
       </details>
