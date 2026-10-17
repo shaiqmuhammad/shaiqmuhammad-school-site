@@ -16,9 +16,6 @@ export function AdminMail() {
   return (
     <div className="space-y-3" data-testid="admin-mail">
       <div className="flex flex-wrap items-center gap-2">
-        <h2 className="text-2xl font-bold">✉️ {tr("Mail", "البريد")}</h2>
-        <span className="text-sm opacity-60">contact@shaiqmuhammad.com</span>
-        <span className="flex-1" />
         <button type="button" className={smallBtn} aria-pressed={view === "inbox"} onClick={() => setView("inbox")} data-testid="mail-tab-inbox">📥 {tr("Inbox", "الوارد")}</button>
         <button type="button" className={smallBtn} aria-pressed={view === "contact"} onClick={() => setView("contact")} data-testid="mail-tab-contact">📝 {tr("Contact form", "نموذج التواصل")}</button>
       </div>
@@ -75,6 +72,7 @@ function Inbox() {
   const [panel, setPanel] = useState<"normal" | "min" | "max">("normal");
   const [foldersOpen, setFoldersOpen] = useState(true);
   const [sigOpen, setSigOpen] = useState(false);
+  const [sel, setSel] = useState<number[] | null>(null);
   const [err, setErr] = useState("");
   const loadList = useCallback(() => { mailApi.list(folder, page).then(setList).catch((e) => setErr(String(e.message))); }, [folder, page]);
   useEffect(() => { mailApi.folders().then((r) => setFolders(r.folders)).catch((e) => setErr(String(e.message))); }, []);
@@ -85,6 +83,10 @@ function Inbox() {
   const ctl = "inline-flex h-8 w-8 items-center justify-center rounded-full hover:bg-black/10 dark:hover:bg-white/10";
   const name = (f: string) => f.replace(/<[^>]*>/, "").replace(/"/g, "").trim() || f;
   const initials = (f: string) => name(f).split(/\s+/).map((w) => w[0]).filter(Boolean).slice(0, 2).join("").toUpperCase();
+  const del = async (uids: number[]) => {
+    if (!uids.length || !confirm(tr(`Delete ${uids.length} message${uids.length === 1 ? "" : "s"}? ${/trash|deleted|junk|spam/i.test(folder) ? "This cannot be undone." : "They move to Trash."}`, `حذف ${uids.length} رسالة؟`))) return;
+    try { await mailApi.del(folder, uids); setSel(null); if (msg && uids.includes(msg.uid)) setMsg(null); setList(null); loadList(); mailApi.folders().then((r) => setFolders(r.folders)).catch(() => undefined); } catch (e) { setErr(String((e as Error).message)); }
+  };
   const curFolder = folders.find((f) => f.path === folder);
 
   const composeWin = compose && (
@@ -121,17 +123,17 @@ function Inbox() {
 
   return (
     <>
-      <div className={`flex overflow-hidden rounded-3xl border border-black/10 bg-white/80 shadow-sm backdrop-blur dark:border-white/15 dark:bg-white/5 ${panel === "max" ? "fixed inset-0 z-[75] rounded-none" : "h-[calc(100vh-11rem)] min-h-[32rem]"}`} data-testid="mail-panel">
+      <div className={`flex overflow-hidden rounded-3xl border border-black/10 bg-white shadow-sm dark:border-white/15 dark:bg-[#0f1a26] ${panel === "max" ? "fixed inset-0 z-[75] rounded-none" : "h-[calc(100vh-8.5rem)] min-h-[34rem]"}`} data-testid="mail-panel">
         {/* folders */}
-        <nav className={`hidden shrink-0 flex-col border-e border-black/10 p-2 transition-all dark:border-white/10 md:flex ${foldersOpen ? "w-48 xl:w-56" : "w-14"}`} aria-label={tr("Folders", "المجلدات")}>
+        <nav className={`hidden shrink-0 flex-col border-e border-white/10 bg-header p-2 text-white transition-all md:flex ${foldersOpen ? "w-48 xl:w-56" : "w-14"}`} aria-label={tr("Folders", "المجلدات")}>
           <div className="mb-2 flex items-center gap-1">
-            <button type="button" className={ctl} onClick={() => setFoldersOpen(!foldersOpen)} aria-expanded={foldersOpen} title={foldersOpen ? tr("Collapse folders", "تصغير المجلدات") : tr("Show folders", "إظهار المجلدات")} data-testid="mail-folders-toggle">☰</button>
+            <button type="button" className={ctl + " !text-white hover:!bg-white/15"} onClick={() => setFoldersOpen(!foldersOpen)} aria-expanded={foldersOpen} title={foldersOpen ? tr("Collapse folders", "تصغير المجلدات") : tr("Show folders", "إظهار المجلدات")} data-testid="mail-folders-toggle">☰</button>
             {foldersOpen && <button type="button" className="flex-1 rounded-full bg-sun px-3 py-2 text-sm font-bold text-[#0b1b2b] shadow-sm hover:brightness-105" onClick={() => newCompose({ to: "", subject: "", text: "" })} data-testid="mail-compose">✏️ {tr("Compose", "رسالة جديدة")}</button>}
           </div>
           {!foldersOpen && <button type="button" className={ctl + " mb-2 bg-sun text-[#0b1b2b]"} onClick={() => newCompose({ to: "", subject: "", text: "" })} title={tr("Compose", "رسالة جديدة")}>✏️</button>}
           <div className="min-h-0 flex-1 space-y-0.5 overflow-y-auto">
             {folders.map((f) => (
-              <button key={f.path} type="button" title={f.name} onClick={() => { setList(null); setFolder(f.path); setPage(0); setMsg(null); }} className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-start text-sm ${folder === f.path ? "bg-header font-bold text-white" : "hover:bg-black/5 dark:hover:bg-white/10"}`}>
+              <button key={f.path} type="button" title={f.name} onClick={() => { setList(null); setFolder(f.path); setPage(0); setMsg(null); }} className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-start text-sm ${folder === f.path ? "bg-sun font-bold text-[#0b1b2b]" : "text-white hover:bg-white/10"}`}>
                 <span aria-hidden>{/inbox/i.test(f.path) ? "📥" : /sent/i.test(f.path) ? "📤" : /draft/i.test(f.path) ? "📝" : /junk|spam/i.test(f.path) ? "⚠️" : /trash|deleted/i.test(f.path) ? "🗑" : /archive/i.test(f.path) ? "🗄" : "📁"}</span>
                 {foldersOpen && <span className="flex-1 truncate">{f.name}</span>}
                 {foldersOpen && f.unread > 0 && <span className="rounded-full bg-rose-600 px-1.5 text-xs font-bold text-white">{f.unread}</span>}
@@ -144,19 +146,26 @@ function Inbox() {
           <div className="flex items-center gap-1 border-b border-black/10 px-3 py-2 dark:border-white/10">
             <select className="rounded-full border border-black/10 bg-transparent px-2 py-1 text-sm md:hidden dark:border-white/15" value={folder} onChange={(e) => { setList(null); setFolder(e.target.value); setPage(0); }} aria-label={tr("Folder", "المجلد")}>{folders.map((f) => <option key={f.path} value={f.path}>{f.name}</option>)}</select>
             <b className="hidden flex-1 truncate md:block">{curFolder?.name || folder}</b><span className="flex-1 md:hidden" />
-            <button type="button" className={ctl + " md:hidden"} onClick={() => newCompose({ to: "", subject: "", text: "" })} aria-label={tr("Compose", "رسالة جديدة")}>✏️</button>
+            <button type="button" className={ctl + " bg-sun text-[#0b1b2b]"} onClick={() => newCompose({ to: "", subject: "", text: "" })} aria-label={tr("Compose", "رسالة جديدة")} title={tr("Compose", "رسالة جديدة")} data-testid="mail-compose-list">✏️</button>
+            <button type="button" className={ctl + (sel ? " bg-sky-100 dark:bg-sky-900/40" : "")} onClick={() => setSel(sel ? null : [])} aria-pressed={!!sel} title={tr("Select", "تحديد")} aria-label={tr("Select", "تحديد")} data-testid="mail-select-mode">☑</button>
             <button type="button" className={ctl} onClick={() => setSigOpen(true)} title={tr("Email signature", "توقيع البريد")} aria-label={tr("Email signature", "توقيع البريد")} data-testid="mail-sig-open">✍️</button>
             <button type="button" className={ctl} onClick={() => { setList(null); loadList(); }} title={tr("Refresh", "تحديث")} aria-label={tr("Refresh", "تحديث")}>↻</button>
             <button type="button" className={ctl} onClick={() => setPanel("min")} title={tr("Minimise mailbox", "تصغير صندوق البريد")} aria-label={tr("Minimise mailbox", "تصغير صندوق البريد")} data-testid="mail-panel-minimise">—</button>
             <button type="button" className={ctl} onClick={() => setPanel(panel === "max" ? "normal" : "max")} title={panel === "max" ? tr("Exit full screen", "إنهاء ملء الشاشة") : tr("Full screen", "ملء الشاشة")} aria-label={tr("Full screen", "ملء الشاشة")} data-testid="mail-panel-max">{panel === "max" ? "⤡" : "⤢"}</button>
           </div>
+          {sel && <div className="flex items-center gap-2 border-b border-black/10 bg-sky-50 px-3 py-1.5 text-sm dark:border-white/10 dark:bg-sky-900/20" data-testid="mail-bulk-bar">
+            <label className="flex items-center gap-1.5"><input type="checkbox" checked={!!list && sel.length === list.items.length && sel.length > 0} onChange={(e) => setSel(e.target.checked ? (list?.items.map((m) => m.uid) || []) : [])} data-testid="mail-select-all" />{tr("All", "الكل")}</label>
+            <span className="flex-1 opacity-70">{sel.length} {tr("selected", "محدد")}</span>
+            <button type="button" disabled={!sel.length} className="rounded-full bg-rose-600 px-3 py-1 text-xs font-bold text-white disabled:opacity-40" onClick={() => del(sel)} data-testid="mail-bulk-delete">🗑 {tr("Delete", "حذف")}</button>
+          </div>}
           {err && <p className="px-3 py-2 text-sm text-rose-700" role="alert">{err}</p>}
           {!list ? <p className="p-4 opacity-70">{tr("Loading…", "جارٍ التحميل…")}</p> : (
             <>
               <ul className="min-h-0 flex-1 divide-y divide-black/5 overflow-y-auto dark:divide-white/10" data-testid="mail-list">
                 {list.items.map((m) => (
-                  <li key={m.uid}>
-                    <button type="button" onClick={() => openMsg(m.uid)} className={`flex w-full gap-3 px-4 py-3 text-start transition hover:bg-black/[0.04] dark:hover:bg-white/5 ${msg?.uid === m.uid ? "bg-sun/20" : ""}`} data-testid="mail-row">
+                  <li key={m.uid} className="group relative flex items-stretch">
+                    {sel && <label className="flex shrink-0 items-center ps-3"><input type="checkbox" checked={sel.includes(m.uid)} onChange={() => setSel(sel.includes(m.uid) ? sel.filter((x) => x !== m.uid) : [...sel, m.uid])} aria-label={tr("Select message", "تحديد الرسالة")} data-testid="mail-row-check" /></label>}
+                    <button type="button" onClick={() => (sel ? setSel(sel.includes(m.uid) ? sel.filter((x) => x !== m.uid) : [...sel, m.uid]) : openMsg(m.uid))} className={`flex min-w-0 flex-1 gap-3 px-4 py-3 text-start transition hover:bg-black/[0.04] dark:hover:bg-white/5 ${msg?.uid === m.uid ? "bg-sun/20" : ""}`} data-testid="mail-row">
                       <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold ${m.seen ? "bg-black/10 dark:bg-white/10" : "bg-header text-white"}`} aria-hidden>{initials(m.from)}</span>
                       <span className="min-w-0 flex-1">
                         <span className="flex items-baseline gap-2"><span className={`flex-1 truncate ${m.seen ? "" : "font-extrabold"}`} dir="auto">{name(m.from)}</span><span className="shrink-0 text-xs opacity-60">{when(m.date)}</span></span>
@@ -164,6 +173,7 @@ function Inbox() {
                       </span>
                       {!m.seen && <span className="mt-2 h-2.5 w-2.5 shrink-0 rounded-full bg-sky-500" aria-label={tr("unread", "غير مقروءة")} />}
                     </button>
+                    {!sel && <button type="button" onClick={() => del([m.uid])} className="absolute end-2 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full bg-white/95 text-rose-600 opacity-0 shadow transition hover:bg-rose-50 group-hover:opacity-100 focus-visible:opacity-100 max-md:opacity-100 dark:bg-[#13202e]" title={tr("Delete", "حذف")} aria-label={tr("Delete", "حذف")} data-testid="mail-row-delete">🗑</button>}
                   </li>
                 ))}
                 {!list.items.length && <li className="p-6 text-center opacity-60">{tr("Nothing here.", "لا يوجد شيء.")}</li>}
@@ -193,6 +203,7 @@ function Inbox() {
                 <div className="flex flex-wrap gap-2 pt-1">
                   <button type="button" className={smallBtn} onClick={() => newCompose({ to: msg.replyTo || msg.fromAddr, subject: msg.subject.startsWith("Re:") ? msg.subject : `Re: ${msg.subject}`, text: `\n\n— ${msg.from} wrote on ${when(msg.date)}:\n> ${(msg.text || "").split("\n").slice(0, 40).join("\n> ")}`, inReplyTo: msg.messageId })} data-testid="mail-reply">↩ {tr("Reply", "رد")}</button>
                   <button type="button" className={smallBtn} onClick={() => newCompose({ to: "", subject: msg.subject.startsWith("Fwd:") ? msg.subject : `Fwd: ${msg.subject}`, text: `\n\n---------- Forwarded message ----------\nFrom: ${msg.from}\nDate: ${when(msg.date)}\nSubject: ${msg.subject}\n\n${msg.text || ""}` })}>↪ {tr("Forward", "إعادة توجيه")}</button>
+                  <button type="button" className={smallBtn + " text-rose-600"} onClick={() => del([msg.uid])} data-testid="mail-delete">🗑 {tr("Delete", "حذف")}</button>
                   <button type="button" className={smallBtn} onClick={() => mailApi.seen(folder, [msg.uid], false).then(loadList)}>● {tr("Mark unread", "غير مقروءة")}</button>
                 </div>
                 {msg.attachments.length > 0 && (
@@ -208,6 +219,7 @@ function Inbox() {
           )}
         </section>
       </div>
+      {panel === "max" && !compose && <button type="button" onClick={() => newCompose({ to: "", subject: "", text: "" })} className="fixed bottom-5 end-5 z-[78] inline-flex items-center gap-2 rounded-full bg-sun px-5 py-3 font-extrabold text-[#0b1b2b] shadow-2xl hover:brightness-105" data-testid="mail-compose-fab">✏️ {tr("Compose", "رسالة جديدة")}</button>}
       {composeWin}
       {sigOpen && <SignatureEditor onClose={() => setSigOpen(false)} />}
     </>

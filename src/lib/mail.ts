@@ -28,6 +28,7 @@ export const mailApi = {
   list: (folder: string, page = 0) => call<{ total: number; items: MailItem[] }>("/api/mail/list", { query: { folder, page } }),
   message: (folder: string, uid: number) => call<MailMessage>("/api/mail/message", { query: { folder, uid } }),
   seen: (folder: string, uids: number[], seen: boolean) => call<{ ok: true }>("/api/mail/seen", { body: { folder, uids, seen } }),
+  del: (folder: string, uids: number[]) => call<{ ok: true; deleted: number }>("/api/mail/delete", { body: { folder, uids } }),
   signature: (signature?: MailSignature) => call<{ signature: MailSignature; html: string }>("/api/mail/signature", signature ? { body: { signature } } : {}),
   send: (m: { to: string; cc?: string; subject: string; text: string; inReplyTo?: string; attachments?: OutAttachment[]; signature?: boolean }) => call<{ ok: true }>("/api/mail/send", { body: m }),
   async part(folder: string, uid: number, part: string, filename: string) {

@@ -642,7 +642,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         const title = kind === "quran" ? "Quran learning report" : "Points & behaviour report";
         const mail = { heading: `${title} — ${String(u.name)}`, paragraphs: ["Assalamu alaikum,", `Here is ${String(u.name)}'s ${title.toLowerCase()} from ${a.name}. The link opens a private, read-only page (no login needed). Please don't share it.`], button: { label: "View report", url }, note: "Automatic message — please don't reply. Questions: contact@shaiqmuhammad.com" };
         const subject = `${title} — ${String(u.name)}`;
-        if (input.preview === true) return { status: 200, body: { to, subject, ...mail, url } };
+        if (input.preview === true) return { status: 200, body: { to: a.role === "admin" ? to : to.replace(/^(.).*(@.*)$/, "$1•••$2"), subject, ...mail, url } };
         const ok = await sendAuto(this.env as LmsEnv, to, subject, mail).catch(() => false);
         this.sql.exec(`INSERT INTO rlog (id, student, kind, to_addr, by, at, ok) VALUES (?, ?, ?, ?, ?, ?, ?)`, rid("rl"), sid, kind, to, a.name, Date.now(), ok ? 1 : 0);
         return { status: ok ? 200 : 502, body: ok ? { ok: true } : { error: "mail_failed" } };
