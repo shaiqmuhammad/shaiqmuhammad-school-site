@@ -8,7 +8,8 @@ import {
   youtubeEmbedUrl,
 } from "@/lib/content";
 import { loadContentDataSync } from "@/lib/contentServer";
-import { VideosEmpty, WatchOnYouTube } from "@/components/VideosEmpty";
+import { VideosEmpty } from "@/components/VideosEmpty";
+import { YoutubeLibrary } from "@/components/YoutubeLibrary";
 
 export const metadata: Metadata = {
   title: "Videos",
@@ -31,6 +32,8 @@ export default function VideosPage() {
         subtitle="Watch explanations from your teacher. You can pause, rewind, and revisit anytime."
       />
       <Section>
+        <YoutubeLibrary
+          fallback={<>
         {videos.length === 0 ? (
           <VideosEmpty />
         ) : (
@@ -51,12 +54,13 @@ export default function VideosPage() {
                 <div className="p-6">
                   <h2 className="text-xl font-semibold">{video.title}</h2>
                   <p className="mt-2 text-sm text-muted leading-relaxed">{video.description}</p>
-                  <WatchOnYouTube youtubeId={video.youtubeId} />
                 </div>
               </Card>
             ))}
           </div>
         )}
+</>}
+        />
       </Section>
     </>
   );
