@@ -114,6 +114,16 @@ export async function setSeen(env: MailEnv, folder: string, uids: number[], seen
   return withImap(imapAcct(env), async (s) => { await s.select(folder); await s.store(uids, seen ? "+" : "-", ["\\Seen"]); });
 }
 
+/** Delete: move to Trash (or erase for good when already in Trash/Junk). Only touches the given UIDs of the given folder. */
+export async function deleteMsgs(env: MailEnv, folder: string, uids: number[]) {
+  return withImap(imapAcct(env), async (s) => {
+    await s.select(folder);
+    if (/trash|deleted|junk|spam/i.test(folder)) { await s.expungeUids(uids); return; }
+    const trash = (await s.list()).find((f) => /trash|deleted/i.test(f.path));
+    if (trash) await s.move(uids, trash.path); else await s.expungeUids(uids);
+  });
+}
+
 /** Personal mail from contact@ (compose/reply); a copy is saved to Sent. */
 export async function sendPersonal(env: MailEnv, m: { to: string[]; cc?: string[]; subject: string; text: string; inReplyTo?: string; attachments?: OutMail["attachments"]; sig?: { html: string; text: string } }) {
   const html = `<div style="font-family:Segoe UI,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6"><div style="white-space:pre-wrap">${m.text.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]!)}</div>${m.sig?.html || ""}</div>`;

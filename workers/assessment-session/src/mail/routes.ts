@@ -6,7 +6,7 @@ import { corsHeaders, reply, verifyToken } from "../admin";
 import type { LmsEnv } from "../lms";
 import { verifySmtp } from "./smtp";
 import { CONTACT, DEFAULT_SIG, parseSig, sigHtml, sigText, type Signature } from "./template";
-import { folders, getMessage, getPart, listMessages, mailReady, sendAuto, sendPersonal, sendToContact, setSeen, unreadInbox } from "./mailbox";
+import { folders, getMessage, getPart, listMessages, mailReady, sendAuto, sendPersonal, sendToContact, setSeen, deleteMsgs, unreadInbox } from "./mailbox";
 
 const str = (v: unknown, n: number) => String(v ?? "").trim().slice(0, n);
 const emailOk = (v: string) => /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]{2,}$/.test(v);
@@ -58,6 +58,11 @@ export async function handleMail(request: Request, env: LmsEnv, action: string, 
       case "seen": {
         await setSeen(env, str(body.folder || "INBOX", 200), (Array.isArray(body.uids) ? body.uids : []).map(Number).filter(Boolean), body.seen !== false);
         return reply(origin, { ok: true });
+      }
+      case "delete": {
+        const uids = (Array.isArray(body.uids) ? body.uids : []).map(Number).filter(Boolean).slice(0, 200);
+        await deleteMsgs(env, str(body.folder || "INBOX", 200), uids);
+        return reply(origin, { ok: true, deleted: uids.length });
       }
       case "send": {
         const to = list(body.to);
