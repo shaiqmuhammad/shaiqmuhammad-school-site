@@ -1,5 +1,6 @@
 "use client";
 
+import { PresenceDot } from "@/components/lms/Presence";
 import { mailApi } from "@/lib/mail";
 import { listPublishedQuizzes, loadQuizzesData, type Quiz } from "@/lib/quiz";
 import { StudentProgress } from "@/components/lms/Progress";
@@ -379,7 +380,7 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
                     <Fragment key={u.id}>
                       <tr className={`${zebra} transition hover:bg-sky-50 dark:hover:bg-sky-900/20`} data-testid="lms-user">
                         <td className={`${td} sticky start-0 z-10 ${zebra}`}><input type="checkbox" checked={sel.has(u.id)} onChange={(e) => setSel((x) => { const n = new Set(x); if (e.target.checked) n.add(u.id); else n.delete(u.id); return n; })} aria-label={tr(`Select ${u.name}`, `تحديد ${u.name}`)} data-testid="lms-select" /></td>
-                        <td className={`${td} sticky start-10 z-10 min-w-[9rem] max-w-[14rem] font-semibold leading-snug ${zebra}`} dir="auto" data-testid="col-name">{u.name}</td>
+                        <td className={`${td} sticky start-10 z-10 min-w-[9rem] max-w-[14rem] font-semibold leading-snug ${zebra}`} dir="auto" data-testid="col-name"><PresenceDot seen={u.lastSeen} className="me-1.5 align-middle" />{u.name}</td>
                         <td className={`${td} max-w-[11rem] truncate font-mono text-[13px]`} dir="ltr" title={u.username} data-testid="col-username">{u.username}</td>
                         {asAdmin && (
                           <td className={td} data-testid="lms-pin-cell">

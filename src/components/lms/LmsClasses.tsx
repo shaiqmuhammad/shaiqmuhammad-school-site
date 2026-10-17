@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AssessmentShell } from "@/components/assessment/AssessmentShell";
 import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
+import { PresenceDot } from "@/components/lms/Presence";
 import { Avatar } from "@/components/lms/Avatar";
 import { useTr } from "@/components/lms/useLms";
 import { lmsApi, lmsErrorText, lmsSession, type PointCat, type PointRow, type RosterStudent, type StudentGroup } from "@/lib/lms";
@@ -110,7 +111,7 @@ export function LmsClassesPage() {
             {shown.map((s) => (
               <li key={s.id} className="group relative" data-testid="cls-card">
                 <button type="button" onClick={() => { setWhole(false); setAward([s]); }} className="glass relative flex w-full flex-col items-center gap-2 rounded-3xl p-4 pt-5 text-center transition hover:-translate-y-1 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sun" aria-label={tr(`Award points to ${s.name}`, `منح نقاط لـ ${s.name}`)}>
-                  <Avatar code={s.avatar} size={72} className="ring-4 ring-white shadow dark:ring-white/10" />
+                  <span className="relative"><Avatar code={s.avatar} size={72} className="ring-4 ring-white shadow dark:ring-white/10" /><PresenceDot seen={s.seen} className="absolute bottom-1 end-0" /></span>
                   <span className="line-clamp-2 min-h-[2.5rem] text-sm font-bold leading-tight" dir="auto" data-testid="cls-name">{s.name}</span>
                   <span className={`rounded-full px-3 py-0.5 text-sm font-extrabold ${s.points < 0 ? "bg-rose-100 text-rose-800" : "bg-sun/80 text-[#0b1b2b]"}`} data-testid="cls-points">{s.points}</span>
                   <span className="h-1.5 w-full overflow-hidden rounded-full bg-black/10"><span className="block h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${Math.max(0, Math.round((s.points / maxPts) * 100))}%` }} /></span>
@@ -314,6 +315,44 @@ export function LmsPointsPage() {
           <div className="max-h-96 overflow-y-auto"><table className="w-full text-sm" data-testid="pts-history"><thead><tr className="text-start text-xs uppercase opacity-60"><th className="py-1 text-start">{tr("When", "متى")}</th><th className="text-start">{tr("Student", "الطالب")}</th><th className="text-start">{tr("Skill", "المهارة")}</th><th className="text-end">{tr("Pts", "نقاط")}</th><th className="text-start ps-3">{tr("By", "بواسطة")}</th></tr></thead>
             <tbody>{list.slice(0, 300).map((r) => <tr key={r.id} className="border-t border-black/5 dark:border-white/10"><td className="py-1 whitespace-nowrap">{fmt(r.at)}</td><td dir="auto">{r.name}</td><td>{r.icon} {r.label}</td><td className={`text-end font-bold ${r.pts < 0 ? "text-rose-600" : "text-emerald-600"}`}>{r.pts > 0 ? "+" : ""}{r.pts}</td><td className="ps-3 opacity-70">{r.by}</td></tr>)}</tbody></table></div></section>
         {log.length > 0 && <section className="glass rounded-3xl p-5 print:hidden"><h2 className="mb-2 font-extrabold">✉️ {tr("Parent reports sent", "التقارير المرسلة")}</h2><ul className="space-y-1 text-sm" data-testid="rep-log">{log.slice(0, 30).map((l) => <li key={l.id}>{fmt(l.at)} · <b dir="auto">{l.student}</b> · {l.kind === "quran" ? tr("Quran", "القرآن") : tr("Points", "النقاط")} · {l.by} · {l.ok ? "✓" : "✗"}</li>)}</ul></section>}
+      </div>
+    </Gate>
+  );
+}
+
+/* ---------- Teacher: results of their assessments ---------- */
+export function LmsResultsPage() {
+  const { tr, lang } = useTr();
+  const [rows, setRows] = useState<Awaited<ReturnType<typeof lmsApi.assessResults>>["items"] | null>(null);
+  const [quiz, setQuiz] = useState("");
+  const [mode, setMode] = useState("");
+  useEffect(() => { lmsApi.assessResults().then((r) => setRows(r.items)).catch(() => setRows([])); }, []);
+  const quizzes = [...new Set((rows || []).map((r) => r.quizTitle))];
+  const list = (rows || []).filter((r) => (!quiz || r.quizTitle === quiz) && (!mode || r.kind === mode));
+  const fmt = (n: number) => new Date(n).toLocaleString(lang === "ar" ? "ar" : "en-GB", { dateStyle: "medium", timeStyle: "short" });
+  const xlsx = async () => {
+    const ExcelJS = (await import("exceljs")).default;
+    const wb = new ExcelJS.Workbook(); const ws = wb.addWorksheet("Results");
+    ws.columns = [["Assessment", 30], ["Mode", 11], ["Student", 24], ["Score", 8], ["Max", 8], ["%", 7], ["Correct", 9], ["Wrong", 8], ["Rank", 7], ["Finished", 20]].map(([header, width]) => ({ header: String(header), width: Number(width) }));
+    list.forEach((r) => ws.addRow([r.quizTitle, r.kind, r.name, r.score, r.maxScore, r.percentage, r.correct, r.wrong, r.rank ?? "", new Date(r.finishedAt).toISOString().slice(0, 16).replace("T", " ")]));
+    ws.getRow(1).font = { bold: true };
+    const blob = new Blob([await wb.xlsx.writeBuffer()], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "my-assessment-results.xlsx"; a.click();
+  };
+  return (
+    <Gate title={tr("Assessment results", "نتائج التقييمات")}>
+      <div className="space-y-4" data-testid="lms-results">
+        <div className="flex flex-wrap items-center gap-2 print:hidden">
+          <h1 className="me-auto text-2xl font-extrabold">🏅 {tr("Assessment results", "نتائج التقييمات")}</h1>
+          <select className={inp + " !w-auto"} value={quiz} onChange={(e) => setQuiz(e.target.value)}><option value="">{tr("All assessments", "كل التقييمات")}</option>{quizzes.map((q) => <option key={q}>{q}</option>)}</select>
+          <select className={inp + " !w-auto"} value={mode} onChange={(e) => setMode(e.target.value)}><option value="">{tr("Individual + group", "فردي + جماعي")}</option><option value="individual">{tr("Individual", "فردي")}</option><option value="group">{tr("Group", "جماعي")}</option></select>
+          <button type="button" className={pill} onClick={xlsx} disabled={!list.length} data-testid="res-xlsx">⬇ Excel</button>
+          <button type="button" className={pill} onClick={() => window.print()}>🖨 PDF</button>
+        </div>
+        {rows === null ? <p className="opacity-70">{tr("Loading…", "جارٍ التحميل…")}</p> : !list.length ? <p className="glass rounded-3xl p-8 text-center opacity-80">{tr("No results yet.", "لا توجد نتائج بعد.")}</p> : (
+          <div className="glass overflow-x-auto rounded-3xl p-2"><table className="w-full text-sm" data-testid="res-table"><thead><tr className="text-xs uppercase opacity-60">{["Assessment", "Mode", "Student", "Score", "%", "Rank", "Finished"].map((h) => <th key={h} className="px-3 py-2 text-start">{h}</th>)}</tr></thead>
+            <tbody>{list.map((r) => <tr key={r.id} className="border-t border-black/5 dark:border-white/10"><td className="px-3 py-1.5">{r.quizTitle}</td><td className="px-3">{r.kind === "group" ? tr("Group", "جماعي") : tr("Individual", "فردي")}</td><td className="px-3" dir="auto">{r.name}</td><td className="px-3">{r.score}/{r.maxScore}</td><td className="px-3 font-bold">{r.percentage}%</td><td className="px-3">{r.rank ?? "—"}</td><td className="px-3 whitespace-nowrap">{fmt(r.finishedAt)}</td></tr>)}</tbody></table></div>
+        )}
       </div>
     </Gate>
   );
