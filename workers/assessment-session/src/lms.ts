@@ -70,8 +70,8 @@ const MAX_USERS = 3000;
 const MAX_HW = 2000;
 const FAIL_WINDOW = 15 * 60_000;
 const PERMS = ["assign", "review", "manageUsers", "viewAll", "staff"] as const;
-const STU_OPS = ["view", "edit", "block", "delete"] as const;
-const STU_PERM = /^stu:(view|edit|block|delete)$/;
+const STU_OPS = ["view", "add", "edit", "block", "delete"] as const;
+const STU_PERM = /^stu:(view|add|edit|block|delete)$/;
 /** Cartoon avatar code: stored reroll, else derived from id + gender (gender itself never leaves the server for non-admins). */
 function avatarOf(r: Record<string, unknown>): string {
   const g = r.gender === "b" || r.gender === "g" ? String(r.gender) : "n";
@@ -449,7 +449,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         return { status: 200, body: { user: a } };
 
       case "users": {
-        if (!stuCan(a, "view") && !(input.__method === "POST" && (stuCan(a, "edit")))) return { status: 403, body: { error: "forbidden" } };
+        if (!stuCan(a, "view") && !(input.__method === "POST" && (stuCan(a, "edit") || stuCan(a, "add")))) return { status: 403, body: { error: "forbidden" } };
         if (input.__method !== "POST") {
           return { status: 200, body: { users: this.sql.exec(`SELECT * FROM users ORDER BY role DESC, cls, name`).toArray().filter((r) => a.role === "admin" || (r.role === "student" && this.inScope(a, String(r.cls || ""), String(r.section || "")))).map((r) => (a.role === "admin" ? this.adminUser(r) : this.publicUser(r))), now: Date.now(), adminSeen: this.adminSeen() } };
         }
@@ -463,7 +463,6 @@ export class LmsStore extends DurableObject<LmsEnv> {
           const role: Role = raw.role === "teacher" ? "teacher" : "student";
           // Only the admin can create or edit teachers.
           if (role === "teacher" && a.role !== "admin") { errors.push({ row: i + 1, username, error: "admin_only" }); continue; }
-          if (a.role === "teacher" && !stuCan(a, "edit")) { errors.push({ row: i + 1, username, error: "no_edit_permission" }); continue; }
           const perms = role === "teacher" ? (Array.isArray(raw.perms) ? (raw.perms as unknown[]).map(String).filter((p) => (PERMS as readonly string[]).includes(p) || STU_PERM.test(p) || /^(act|host):[\w*-]{1,80}$/.test(p)).slice(0, 80) : ["assign", "review"]) : [];
           const cls = str(raw.cls, 40);
           const section = role === "student" ? str(raw.section, 40) : "";
@@ -477,6 +476,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
           const placement = this.checkPlacement(cls, section, subjects, scope);
           if (placement) { errors.push({ row: i + 1, username, error: placement }); continue; }
           const existing = raw.id ? this.userRow("id=?", String(raw.id)) : this.userRow("username=?", username);
+          if (a.role === "teacher" && !stuCan(a, existing ? "edit" : "add")) { errors.push({ row: i + 1, username, error: existing ? "no_edit_permission" : "no_add_permission" }); continue; }
           if (!username || username.length < 3) { errors.push({ row: i + 1, username, error: "username" }); continue; }
           if (!name) { errors.push({ row: i + 1, username, error: "name" }); continue; }
           const clash = this.userRow("username=?", username);
@@ -590,7 +590,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         const students = this.sql.exec(`SELECT id, name, first_name, last_name, cls, section, gender, avatar, email, last_seen FROM users WHERE role='student' AND disabled=0 ORDER BY cls, section, name`).toArray()
           .filter((r) => this.inScope(a, String(r.cls || ""), String(r.section || "")))
           .map((r) => ({ id: String(r.id), name: String(r.name), cls: String(r.cls || ""), section: String(r.section || ""), avatar: avatarOf(r), parentEmail: Boolean(r.email), seen: Number(r.last_seen || 0), points: tot.get(String(r.id)) || 0 }));
-        return { status: 200, body: { students, canManage: stuCan(a, "view"), stuPerms: { view: stuCan(a, "view"), edit: stuCan(a, "edit"), block: stuCan(a, "block"), delete: stuCan(a, "delete") }, now: Date.now() } };
+        return { status: 200, body: { students, canManage: stuCan(a, "view"), stuPerms: { view: stuCan(a, "view"), add: stuCan(a, "add"), edit: stuCan(a, "edit"), block: stuCan(a, "block"), delete: stuCan(a, "delete") }, now: Date.now() } };
       }
       case "act-publish": {
         // Teacher started a live activity for chosen students: it shows up on their LMS home with a one-tap Join (no code to type).

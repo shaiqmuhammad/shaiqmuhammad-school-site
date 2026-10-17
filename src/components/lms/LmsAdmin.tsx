@@ -96,7 +96,7 @@ function PersonForm({ role, catalog, initial, onSave, submitLabel, testPrefix, s
           {f.perms.includes("manageUsers") && (
             <div className="flex flex-wrap items-center gap-3 rounded-2xl bg-black/[0.04] px-3 py-2 text-sm dark:bg-white/5" data-testid="stu-switches">
               <b className="text-xs uppercase opacity-70">{tr("Student accounts (own classes)", "حسابات الطلاب (صفوفه فقط)")}</b>
-              {(["view", "edit", "block", "delete"] as const).map((op) => <label key={op} className="flex items-center gap-1.5"><input type="checkbox" checked={stuUi(f.perms, op)} onChange={() => setF((x) => { const has = x.perms.filter((q) => q.startsWith("stu:")); const cur = has.length ? has : ["view", "edit", "block", "delete"].map((o) => `stu:${o}`); const k = `stu:${op}`; const next = cur.includes(k) ? cur.filter((q) => q !== k) : [...cur, k]; return { ...x, perms: [...x.perms.filter((q) => !q.startsWith("stu:")), ...(next.length === 4 ? [] : next)] }; })} data-testid={`stu-${op}`} /> {op === "view" ? tr("View", "عرض") : op === "edit" ? tr("Edit", "تعديل") : op === "block" ? tr("Block", "إيقاف") : tr("Delete", "حذف")}</label>)}
+              {(["view", "add", "edit", "block", "delete"] as const).map((op) => <label key={op} className="flex items-center gap-1.5"><input type="checkbox" checked={stuUi(f.perms, op)} onChange={() => setF((x) => { const has = x.perms.filter((q) => q.startsWith("stu:")); const cur = has.length ? has : ["view", "add", "edit", "block", "delete"].map((o) => `stu:${o}`); const k = `stu:${op}`; const next = cur.includes(k) ? cur.filter((q) => q !== k) : [...cur, k]; return { ...x, perms: [...x.perms.filter((q) => !q.startsWith("stu:")), ...(next.length === 5 ? [] : next)] }; })} data-testid={`stu-${op}`} /> {op === "view" ? tr("View", "عرض") : op === "add" ? tr("Add students", "إضافة طلاب") : op === "edit" ? tr("Edit", "تعديل") : op === "block" ? tr("Block", "إيقاف") : tr("Delete", "حذف")}</label>)}
             </div>
           )}
           <ClassroomAccess perms={f.perms} toggle={(v) => toggle("perms", v)} chip={chip} />
@@ -150,7 +150,7 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
   const [sort, setSort] = useState<{ key: string; dir: 1 | -1 }>({ key: "name", dir: 1 });
   const [page, setPage] = useState(0);
   const [sel, setSel] = useState<Set<string>>(new Set());
-  const canOp = (op: "view" | "edit" | "block" | "delete") => asAdmin || stuUi(actor?.perms || [], op);
+  const canOp = (op: "view" | "add" | "edit" | "block" | "delete") => asAdmin || stuUi(actor?.perms || [], op);
   const allowed = embedded || (role === "student" && actor?.role === "teacher" && actor.perms.includes("manageUsers"));
   const title = staff ? tr("Staff", "الموظفون") : role === "teacher" ? tr("Teachers", "المعلمون") : tr("Students", "الطلاب");
 
@@ -272,8 +272,8 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
             <p className="text-sm opacity-70">{tr(`${people.length} total · ${filtered.length} shown`, `${people.length} إجمالي · ${filtered.length} معروض`)}</p>
           </div>
           <div className="flex flex-wrap items-center gap-1.5" role="toolbar" aria-label={tr("Actions", "إجراءات")}>
-            <HeadBtn label={role === "teacher" ? tr("Add teacher", "إضافة معلم") : tr("Add student", "إضافة طالب")} text={tr("Add", "إضافة")} primary onClick={() => setDrawer("add")} testId="lms-toggle-add" icon={<path d="M15 19a6 6 0 0 0-12 0M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm10-3v6m3-3h-6" />} />
-            <HeadBtn label={tr("Bulk add from Excel", "إضافة جماعية من إكسل")} text={tr("Bulk add", "إضافة جماعية")} onClick={() => setDrawer("bulk")} testId="lms-toggle-bulk" icon={<path d="M12 16V4m0 0-4 4m4-4 4 4M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" />} />
+            {(asAdmin || role !== "student" || canOp("add")) && <HeadBtn label={role === "teacher" ? tr("Add teacher", "إضافة معلم") : tr("Add student", "إضافة طالب")} text={tr("Add", "إضافة")} primary onClick={() => setDrawer("add")} testId="lms-toggle-add" icon={<path d="M15 19a6 6 0 0 0-12 0M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm10-3v6m3-3h-6" />} />}
+            {(asAdmin || role !== "student" || canOp("add")) && <HeadBtn label={tr("Bulk add from Excel", "إضافة جماعية من إكسل")} text={tr("Bulk add", "إضافة جماعية")} onClick={() => setDrawer("bulk")} testId="lms-toggle-bulk" icon={<path d="M12 16V4m0 0-4 4m4-4 4 4M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" />} />}
             <HeadBtn label={role === "teacher" ? tr("Teachers template (Excel)", "قالب المعلمين (إكسل)") : tr("Students template (Excel)", "قالب الطلاب (إكسل)")} text={tr("Template", "القالب")} onClick={() => downloadUsersTemplate(role, catalog)} testId="lms-template" icon={<path d="M12 4v12m0 0-4-4m4 4 4-4M4 20h16" />} />
             {asAdmin && role === "student" && <HeadBtn label={tr("Export all fields (Excel, admin only)", "تصدير كل الحقول (إكسل)")} text={tr("Export", "تصدير")} icon={<svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden><path d="M12 3v12m0 0-4-4m4 4 4-4M5 21h14" /></svg>} onClick={() => exportStudentsXlsx(people).catch((e) => setErr(lmsErrorText(e, tr)))} testId="lms-export-all" />}
             {asAdmin && <HeadBtn label={tr("Download sign-in sheet (shown rows)", "تنزيل ورقة الدخول (الصفوف المعروضة)")} text={tr("Sign-in sheet", "ورقة الدخول")} onClick={async () => { try { await downloadSignInSheet(sorted, await allPins(), role); } catch (e) { setErr(lmsErrorText(e, tr)); } }} testId="lms-signin-sheet" icon={<path d="M6 3h9l4 4v14H6zM14 3v5h5M9 13h7M9 17h7M9 9h2" />} />}

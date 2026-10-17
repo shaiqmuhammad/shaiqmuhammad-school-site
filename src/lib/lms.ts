@@ -44,7 +44,7 @@ export type Mistake = { ayah: number; word: number; text: string; note: string }
 export type MapRow = { id: string; name: string; cls: string; section: string; cells: Record<number, { grade: string; verses: number }> };
 
 /** Student-account switches. Legacy "Manage students" with none of the stu:* flags set means all four. */
-export const stuUi = (perms: string[], op: "view" | "edit" | "block" | "delete") => { if (!perms.includes("manageUsers") && !perms.some((p) => p.startsWith("stu:"))) return false; const has = perms.filter((p) => p.startsWith("stu:")); return has.length ? has.includes(`stu:${op}`) : true; };
+export const stuUi = (perms: string[], op: "view" | "add" | "edit" | "block" | "delete") => { if (!perms.includes("manageUsers") && !perms.some((p) => p.startsWith("stu:"))) return false; const has = perms.filter((p) => p.startsWith("stu:")); return has.length ? has.includes(`stu:${op}`) : true; };
 export const PERMS = ["assign", "review", "manageUsers", "viewAll"] as const;
 
 export class LmsError extends Error {
@@ -238,6 +238,7 @@ export function lmsErrorText(e: unknown, tr: (en: string, ar: string) => string)
   const m: Record<string, [string, string]> = {
     confirm_required: ["Please preview and confirm before sending.", "يرجى المعاينة والتأكيد قبل الإرسال."],
     mail_error: ["The email could not be sent. Try again later.", "تعذّر إرسال البريد. حاول لاحقًا."],
+    no_add_permission: ["You don't have permission to add students.", "ليست لديك صلاحية إضافة الطلاب."],
     no_edit_permission: ["You don't have permission to edit students.", "ليست لديك صلاحية تعديل الطلاب."],
     no_parent_email: ["No parent email on file for this student. Ask the admin to add one.", "لا يوجد بريد لولي الأمر. اطلب من المسؤول إضافته."],
     mail_failed: ["The email could not be sent. Try again later.", "تعذّر إرسال البريد. حاول لاحقًا."],

@@ -79,7 +79,7 @@ export async function downloadUsersTemplate(role: Role = "student", catalog?: Ca
     "username: 3–40 characters, letters/numbers/dot/dash, unique (stored in lower case).",
     role === "student" ? "class and section: pick from the dropdowns (they come from Admin → Classes & Subjects)." : "subjects, classes, sections: comma separated, from the Lists sheet. classes = class numbers taught (e.g. 2, 3); sections = section letters (e.g. A, B) within those classes; leave sections empty for whole classes, both empty for no restriction.",
     "pin: 4–8 digits. Leave empty to generate a random 6-digit PIN.",
-    role === "teacher" ? "permissions (comma separated): assign, review, manageUsers, viewAll; optional student switches: stu:view, stu:edit, stu:block, stu:delete (none = all four when manageUsers)." : "",
+    role === "teacher" ? "permissions (comma separated): assign, review, manageUsers, viewAll; optional student switches: stu:view, stu:add, stu:edit, stu:block, stu:delete (none = all four when manageUsers)." : "",
     "Existing usernames are updated (upsert). A PIN is only changed when you fill it in; empty cells leave stored values unchanged.",
     role === "student" ? "gender: Boy/Girl · dob: yyyy-mm-dd · SEN / EAL / gifted & talented: Yes or blank. These private fields are visible to admin only." : "",
   ].filter(Boolean).forEach((t) => help.addRow([t]));
