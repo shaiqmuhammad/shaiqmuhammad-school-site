@@ -176,7 +176,7 @@ async function ensureFont(def: FontDef) {
   if (loadedFonts.has(key) || typeof document === "undefined") return;
   loadedFonts.add(key);
   try {
-    const face = new FontFace(def.family, `url(/fonts/cert/${def.file}) format("woff2")`, { weight: def.weight, style: "normal" });
+    const face = new FontFace(def.family, `url(/uploads/certfonts/${def.file}) format("woff2")`, { weight: def.weight, style: "normal" });
     document.fonts.add(await face.load());
   } catch { loadedFonts.delete(key); }
 }
