@@ -1,6 +1,7 @@
 "use client";
 
 
+import { LiveActivityBanner } from "@/components/lms/LiveActivity";
 import { AnnFeed } from "@/components/lms/Messages";
 import { CriteriaChart, TrackerEntries } from "@/components/lms/QuranScores";
 import { useRouter } from "next/navigation";
@@ -85,6 +86,8 @@ export function LmsDashboard() {
             <p className="relative mt-1 text-sm text-white/75">{staff ? tr("Here is your class at a glance.", "هذه نظرة سريعة على صفك.") : tr("Keep going — every verse counts.", "استمر — كل آية لها أجر.")}</p>
           </div>
         )}
+        {!staff && actor && <LiveActivityBanner />}
+        {actor && <a href="/lms/wall" className="flex items-center gap-3 rounded-3xl border border-black/10 bg-white/70 px-5 py-3 font-bold shadow-sm backdrop-blur transition hover:bg-white dark:border-white/15 dark:bg-white/10" data-testid="lms-wall-link"><span className="text-2xl" aria-hidden>🧱</span>{tr("Class Wall", "جدار الصف")}<span className="ms-auto opacity-50">→</span></a>}
         {dash && <AnnFeed />}
         {dash && <DashStats items={staff ? [
           { label: tr("Students", "الطلاب"), value: (dash.students || []).length, icon: "🎒" },

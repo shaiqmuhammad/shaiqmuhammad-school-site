@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AssessmentShell, fieldCls, panelCls, primaryBtn } from "@/components/assessment/AssessmentShell";
 import { WallBoard, WallComposer, errorText } from "@/components/activity/WallBoard";
 import { ActivityStudentView } from "@/components/activity/ActivityViews";
 import { secondsLeft, useActivityState } from "@/components/activity/useActivityState";
 import { activityApi, ActivityError, ACTIVITY_LABELS, clearSeat, loadSeat, saveSeat, type ActivityInfo, type Seat } from "@/lib/activity";
+import { lmsSession } from "@/lib/lms";
 import { deviceId } from "@/lib/groupSession";
 import { useI18n } from "@/lib/i18n";
 
@@ -32,6 +33,16 @@ export function ActivityJoin({ code }: { code: string }) {
       alive = false;
     };
   }, [code]);
+
+  // Students sent here from their LMS home ("Join" button) enter automatically under their own name.
+  const autoTried = useRef(false);
+  useEffect(() => {
+    if (autoTried.current || seat || !info || info.ended || typeof window === "undefined") return;
+    const s = lmsSession();
+    if (!new URLSearchParams(window.location.search).get("auto") || !s || s.user.role !== "student") return;
+    autoTried.current = true;
+    activityApi.join(code, s.user.name, deviceId()).then((r) => { const seat2 = { code, pid: r.pid, token: r.token, name: r.name }; saveSeat(seat2); setSeat(seat2); }).catch((e) => setJoinError(errorText(e, tr)));
+  }, [info, seat, code]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const who = seat ? { pid: seat.pid, token: seat.token } : null;
   const { state, error, offline, reload, now } = useActivityState(code, who);

@@ -22,7 +22,7 @@ export function LmsActivitiesPage() {
     loadQuizzesData().then((d) => setQuizzes(listPublishedQuizzes(d))).catch(() => undefined);
   }, []);
   const acts = (perms || []).filter((p) => p.startsWith("act:")).map((p) => p.slice(4));
-  const allActs = acts.includes("*") ? ["wall", "wordcloud", "poll", "survey", "tps", "vote", "wheel", "randomiser"] : acts;
+  const allActs = role === "teacher" || acts.includes("*") ? ["wall", "wordcloud", "poll", "survey", "tps", "vote", "wheel", "randomiser"] : acts;
   const hosts = (perms || []).filter((p) => p.startsWith("host:")).map((p) => p.slice(5));
   const myQuizzes = hosts.includes("*") ? quizzes : quizzes.filter((q) => hosts.includes(q.slug));
   return (
