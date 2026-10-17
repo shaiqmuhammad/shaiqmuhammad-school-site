@@ -205,6 +205,8 @@ export class LmsStore extends DurableObject<LmsEnv> {
     this.sql.exec(`CREATE TABLE IF NOT EXISTS contacts (id TEXT PRIMARY KEY, name TEXT, email TEXT, subject TEXT, message TEXT, created INTEGER, read INTEGER DEFAULT 0, emailed INTEGER DEFAULT 0, ip TEXT)`);
     if (!cols("users").has("parent_token")) this.sql.exec(`ALTER TABLE users ADD COLUMN parent_token TEXT DEFAULT ''`);
     if (!cols("users").has("parent_name")) this.sql.exec(`ALTER TABLE users ADD COLUMN parent_name TEXT DEFAULT ''`);
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS vlikes (vid TEXT, who TEXT, at INTEGER, PRIMARY KEY (vid, who))`);
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS vcomments (id TEXT PRIMARY KEY, vid TEXT, who TEXT, name TEXT, role TEXT, body TEXT, created INTEGER, status TEXT, iph TEXT)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS pthreads (thread TEXT PRIMARY KEY, student TEXT, teacher TEXT, created INTEGER)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS pmsg (id TEXT PRIMARY KEY, thread TEXT, student TEXT, teacher TEXT, dir TEXT, subject TEXT, body TEXT, created INTEGER, msgid TEXT, read INTEGER DEFAULT 0)`);
     if (!cols("users").has("email")) this.sql.exec(`ALTER TABLE users ADD COLUMN email TEXT DEFAULT ''`);
@@ -932,6 +934,21 @@ export class LmsStore extends DurableObject<LmsEnv> {
         this.sql.exec(`DELETE FROM pmsg WHERE thread=?`, th); this.sql.exec(`DELETE FROM pthreads WHERE thread=?`, th);
         return { status: 200, body: { ok: true } };
       }
+      case "vid-admin-list": {
+        if (a.role !== "admin") return { status: 403, body: { error: "admin_only" } };
+        const st = str(input.status, 10);
+        const items = this.sql.exec(`SELECT id, vid, name, role, body, created, status FROM vcomments ${st ? "WHERE status=?" : "WHERE ?=?"} ORDER BY (status='pending') DESC, created DESC LIMIT 300`, ...(st ? [st] : ["1", "1"])).toArray().map((r) => ({ id: String(r.id), vid: String(r.vid), name: String(r.name), role: String(r.role), text: String(r.body), at: Number(r.created), status: String(r.status) }));
+        const pending = Number(this.sql.exec(`SELECT COUNT(*) AS n FROM vcomments WHERE status='pending'`).one().n);
+        return { status: 200, body: { items, pending } };
+      }
+      case "vid-admin-set": {
+        if (a.role !== "admin") return { status: 403, body: { error: "admin_only" } };
+        const cid = str(input.id, 40), st = str(input.status, 10);
+        if (st === "delete") this.sql.exec(`DELETE FROM vcomments WHERE id=?`, cid);
+        else if (st === "ok" || st === "hidden") this.sql.exec(`UPDATE vcomments SET status=? WHERE id=?`, st, cid);
+        else return { status: 400, body: { error: "bad_status" } };
+        return { status: 200, body: { ok: true } };
+      }
       case "msg-contacts": {
         return { status: 200, body: { items: this.msgContacts(a) } };
       }
@@ -1523,6 +1540,48 @@ export class LmsStore extends DurableObject<LmsEnv> {
     return false;
   }
 
+  /** Site-own video engagement (likes + comments), public endpoints. Visitor comments wait for admin approval. */
+  async vid(action: string, a: Actor | null, q: Json): Promise<Reply> {
+    const id = str(q.id, 20);
+    if (!/^[\w-]{6,20}$/.test(id)) return { status: 400, body: { error: "bad_id" } };
+    const cid = str(q.cid, 40).replace(/[^\w-]/g, "");
+    const who = a ? a.id : cid.length >= 8 ? `c:${cid}` : "";
+    if (action === "vid-pub-info") {
+      const likes = Number(this.sql.exec(`SELECT COUNT(*) AS n FROM vlikes WHERE vid=?`, id).one().n);
+      const liked = !!who && this.sql.exec(`SELECT 1 FROM vlikes WHERE vid=? AND who=?`, id, who).toArray().length > 0;
+      const comments = this.sql.exec(`SELECT name, role, body, created FROM vcomments WHERE vid=? AND status='ok' ORDER BY created DESC LIMIT 100`, id).toArray().map((r) => ({ name: String(r.name), role: String(r.role), text: String(r.body), at: Number(r.created) }));
+      const mine = who ? Number(this.sql.exec(`SELECT COUNT(*) AS n FROM vcomments WHERE vid=? AND who=? AND status='pending'`, id, who).one().n) : 0;
+      return { status: 200, body: { likes, liked, comments, pendingMine: mine } };
+    }
+    if (action === "vid-pub-like") {
+      if (!who) return { status: 400, body: { error: "no_identity" } };
+      const had = this.sql.exec(`SELECT 1 FROM vlikes WHERE vid=? AND who=?`, id, who).toArray().length > 0;
+      if (had) this.sql.exec(`DELETE FROM vlikes WHERE vid=? AND who=?`, id, who);
+      else {
+        if (Number(this.sql.exec(`SELECT COUNT(*) AS n FROM vlikes WHERE who=? AND at>?`, who, Date.now() - 3_600_000).one().n) >= 60) return { status: 429, body: { error: "slow_down" } };
+        this.sql.exec(`INSERT INTO vlikes (vid, who, at) VALUES (?, ?, ?)`, id, who, Date.now());
+      }
+      return { status: 200, body: { liked: !had, likes: Number(this.sql.exec(`SELECT COUNT(*) AS n FROM vlikes WHERE vid=?`, id).one().n) } };
+    }
+    if (action === "vid-pub-comment") {
+      if (str(q.website, 100)) return { status: 200, body: { ok: true, pending: true } };
+      const text = str(q.text, 500);
+      if (text.length < 2) return { status: 400, body: { error: "empty" } };
+      if (/(https?:|www\.|\w\.(com|net|org|ru|xyz|io)\b)/i.test(text)) return { status: 400, body: { error: "no_links" } };
+      if (!who) return { status: 400, body: { error: "no_identity" } };
+      const name = a ? (a.role === "student" ? a.name.split(/\s+/)[0] : a.name) : str(q.name, 40);
+      if (!name) return { status: 400, body: { error: "name_required" } };
+      const iph = hex(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`vid:${str(q.ip, 60)}`)))).slice(0, 16);
+      const hr = Date.now() - 3_600_000;
+      if (Number(this.sql.exec(`SELECT COUNT(*) AS n FROM vcomments WHERE who=? AND created>?`, who, hr).one().n) >= 5 || Number(this.sql.exec(`SELECT COUNT(*) AS n FROM vcomments WHERE iph=? AND created>?`, iph, hr).one().n) >= 10) return { status: 429, body: { error: "slow_down" } };
+      if (this.sql.exec(`SELECT 1 FROM vcomments WHERE vid=? AND who=? AND body=?`, id, who, text).toArray().length) return { status: 200, body: { ok: true, pending: !a } };
+      const status = a ? "ok" : "pending";
+      this.sql.exec(`INSERT INTO vcomments (id, vid, who, name, role, body, created, status, iph) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, rid("vc"), id, who, name, a ? a.role : "visitor", text, Date.now(), status, iph);
+      return { status: 200, body: { ok: true, pending: !a } };
+    }
+    return { status: 404, body: { error: "unknown_action" } };
+  }
+
   /** Mirrors parent replies from the iCloud mailbox into pmsg (matched by token). Throttled to once per 30 s. */
   private async syncParentMail() {
     const last = Number(this.sql.exec(`SELECT v FROM settings WHERE k='pm:sync'`).toArray()[0]?.v || 0);
@@ -1763,6 +1822,12 @@ export async function handleLms(request: Request, env: LmsEnv, action: string): 
   if (action === "qr") {
     const r = (await store.qrView(str(new URL(request.url).searchParams.get("t") || body.t, 80))) as unknown as Reply;
     return reply(origin, r.body, r.status);
+  }
+  if (action.startsWith("vid-pub-")) {
+    const a0 = await lmsActor(request, env, store).catch(() => null);
+    const q0: Json = { ...Object.fromEntries(new URL(request.url).searchParams), ...body, ip: request.headers.get("CF-Connecting-IP") || "?" };
+    const r0 = (await store.vid(action, a0 && !a0.viewAs ? a0 : null, q0)) as unknown as Reply;
+    return reply(origin, r0.body, r0.status);
   }
   const actor = await lmsActor(request, env, store);
   if (!actor) return reply(origin, { error: "unauthorized" }, 401);
