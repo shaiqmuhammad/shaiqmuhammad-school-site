@@ -5,11 +5,13 @@ import { usePathname } from "next/navigation";
 import { isImmersivePath } from "@/lib/immersive";
 import { encyclopediaLinks, footerLinks, siteConfig } from "@/content/site";
 import { useI18n } from "@/lib/i18n";
+import { useDynNav } from "@/lib/dynNav";
 import { SocialLinks } from "@/components/SocialLinks";
 
 export function Footer() {
   const pathname = usePathname();
   const { t } = useI18n();
+  const dynFooter = useDynNav().footer;
   if (pathname.startsWith("/admin")) return null;
   if (isImmersivePath(pathname)) return null;
   if (pathname.startsWith("/encyclopedia")) return null;
@@ -28,10 +30,10 @@ export function Footer() {
             {t("footer.quickLinks")}
           </p>
           <ul className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-            {footerLinks.map((link) => (
+            {[...footerLinks, ...dynFooter.map((d) => ({ href: d.href, label: d.label, dyn: true }))].map((link) => (
               <li key={link.href}>
                 <Link href={link.href} className="text-white/80 hover:text-sun">
-                  {t(`nav.${link.href}`, link.label)}
+                  {"dyn" in link ? link.label : t(`nav.${link.href}`, link.label)}
                 </Link>
               </li>
             ))}

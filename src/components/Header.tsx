@@ -9,6 +9,7 @@ import { HadithScrollIcon, QuranBookIcon } from "@/components/EncyclopediaIcons"
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useI18n } from "@/lib/i18n";
+import { useDynNav } from "@/lib/dynNav";
 import { useLogoUrl } from "@/components/SiteBrand";
 import { LmsHeaderButton } from "@/components/lms/LmsEntry";
 
@@ -32,7 +33,13 @@ const menuItemCls =
   "flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-semibold text-heading transition hover:bg-sun hover:text-navy focus-visible:bg-sun focus-visible:text-navy focus-visible:outline-none aria-[current=page]:bg-sun aria-[current=page]:text-navy";
 
 /** Desktop "Students Resources" dropdown: hover, click/tap or keyboard (Enter/Space/↓ opens, ↑/↓ move, Escape closes). */
+function useResourceLinks() {
+  const dyn = useDynNav();
+  return [...resourceLinks, ...dyn.resources.map((d) => ({ href: d.href, key: `dyn:${d.href}`, label: d.label, kind: (d.href.startsWith("/videos") ? "videos" : "lessons") as "videos" | "lessons" }))] as readonly (ResourceLink | { href: string; key: string; label: string; kind: "videos" | "lessons" })[];
+}
+
 function ResourcesMenu({ label, groupLabel, active, t }: { label: string; groupLabel: string; active: boolean; t: (key: string, fallback?: string) => string }) {
+  const resLinks = useResourceLinks();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const hoverOpenedAt = useRef(0);
@@ -80,7 +87,7 @@ function ResourcesMenu({ label, groupLabel, active, t }: { label: string; groupL
       {open && (
         <div className="absolute start-0 top-full z-50 pt-2">
           <ul id="resources-menu" className="glass glass-emph w-64 rounded-2xl bg-card-solid p-1.5 text-foreground shadow-xl" data-testid="resources-menu">
-            {resourceLinks.map((item) => (
+            {resLinks.map((item) => (
               <li key={item.href}>
                 <Link href={item.href} data-menu-item onClick={() => setOpen(false)} aria-current={samePath(pathname, item.href) ? "page" : undefined} className={menuItemCls}>
                   <ResourceIcon kind={item.kind} />
@@ -125,6 +132,8 @@ export function Header() {
   const [open, setOpen] = useState(false);
   const [resOpen, setResOpen] = useState(() => resourceLinks.some((r) => samePath(pathname || "", r.href)));
   const { t, lang } = useI18n();
+  const resLinks = useResourceLinks();
+  const dynTop = useDynNav().top;
   const logoUrl = useLogoUrl();
 
   // Admin has its own chrome (with the same language/theme toggles).
@@ -173,6 +182,7 @@ export function Header() {
               </Link>
             );
           })}
+          {dynTop.map((d) => <Link key={d.href} href={d.href} className="nav-link-navy whitespace-nowrap px-2 py-1.5 text-sm transition xl:px-2.5" data-testid="nav-dyn">{d.label}</Link>)}
         </nav>
 
         <div className="flex shrink-0 items-center gap-1 sm:gap-2">
@@ -231,7 +241,7 @@ export function Header() {
                   </button>
                   {resOpen && (
                     <ul id="mobile-resources" className="glass glass-emph mx-2 mb-1 mt-1 flex flex-col gap-0.5 rounded-2xl p-1.5" data-testid="mobile-resources">
-                      {resourceLinks.map((item) => (
+                      {resLinks.map((item) => (
                         <li key={item.href}>
                           <Link href={item.href} onClick={() => setOpen(false)} aria-current={samePath(pathname, item.href) ? "page" : undefined} className={menuItemCls}>
                             <ResourceIcon kind={item.kind} />
@@ -256,6 +266,7 @@ export function Header() {
                 </li>
               ),
             )}
+            {dynTop.map((d) => <li key={d.href}><Link href={d.href} onClick={() => setOpen(false)} className="block rounded-full px-4 py-2 text-sm font-semibold text-heading hover:bg-cream">{d.label}</Link></li>)}
           </ul>
         </nav>
       )}
