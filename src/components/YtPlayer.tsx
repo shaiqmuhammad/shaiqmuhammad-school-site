@@ -100,7 +100,7 @@ export function YtPlayer({ id, title, autoPlay = false, className = "" }: { id: 
           {title && showCovers && ready && <span className="pointer-events-none absolute inset-x-0 top-0 z-30 line-clamp-1 p-3 text-start text-sm font-bold" dir="auto">{title}</span>}
           {showCovers && ready && <span className="pointer-events-none absolute left-1/2 top-1/2 z-30 grid h-16 w-16 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-sun text-2xl text-[#0b1b2b] shadow-xl">{ended ? "↻" : "▶"}</span>}
           {/* our control bar */}
-          <div className={`absolute inset-x-0 bottom-0 z-30 flex items-center gap-2 bg-black px-3 py-2 text-xs transition-opacity ${playing ? "opacity-0 group-hover:opacity-100 focus-within:opacity-100" : "opacity-100"}`} data-testid="yt-controls">
+          <div className={`absolute inset-x-0 bottom-0 z-30 flex items-center gap-2 bg-black px-3 py-1.5 text-xs min-h-11`} data-testid="yt-controls">
             <button type="button" onClick={toggle} className="grid h-8 w-8 place-items-center rounded-full bg-white/15 hover:bg-white/30" aria-label={playing ? "Pause" : "Play"}>{playing ? "❚❚" : "▶"}</button>
             <span className="tabular-nums" dir="ltr">{fmt(t)}</span>
             <input type="range" min={0} max={Math.max(1, Math.floor(d))} value={Math.floor(t)} onChange={(e) => { const v = Number(e.target.value); setT(v); player.current?.seekTo(v, true); }} className="min-w-0 flex-1 accent-[#f5b800]" aria-label="Seek" dir="ltr" />
