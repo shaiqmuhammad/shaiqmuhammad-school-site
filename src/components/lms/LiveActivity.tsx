@@ -3,14 +3,14 @@
 import { useEffect, useState } from "react";
 import { useTr } from "@/components/lms/useLms";
 import { lmsApi, type LiveActivity } from "@/lib/lms";
-import { ACTIVITY_LABELS, type ActivityType } from "@/lib/activity";
+import { activityApi, ACTIVITY_LABELS, type ActivityType } from "@/lib/activity";
 
 /** Student home: activities the teacher started for this student — one tap to join, no code to type. */
 export function LiveActivityBanner() {
   const { tr, lang } = useTr();
   const [items, setItems] = useState<LiveActivity[]>([]);
   useEffect(() => {
-    const load = () => { if (!document.hidden) lmsApi.actLive().then((r) => setItems(r.items)).catch(() => undefined); };
+    const load = () => { if (!document.hidden) lmsApi.actLive().then(async (r) => { const ok = await Promise.all(r.items.map((x) => activityApi.info(x.code).then((i) => !i.ended).catch(() => false))); setItems(r.items.filter((_, i) => ok[i])); }).catch(() => undefined); };
     load();
     const t = setInterval(load, 15_000);
     return () => clearInterval(t);
