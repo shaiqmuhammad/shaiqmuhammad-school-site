@@ -5,7 +5,7 @@ import { ASSESSMENT_API_BASE } from "@/lib/groupSession";
 
 /** LMS phase 1 client (see workers/assessment-session/src/lms.ts). */
 export type Role = "student" | "teacher";
-export type LmsUser = { id: string; username: string; name: string; role: Role; cls: string; section: string; subjects: string[]; scope: string[]; perms: string[]; disabled: boolean; hasPin: boolean; firstName?: string; lastName?: string; parentEmail?: boolean; gender?: string; avatar?: string; email?: string; dob?: string; phone?: string; semail?: string; nationality?: string; prefLang?: string; sen?: boolean; eal?: boolean; gt?: boolean; created: number; lastLogin: number | null };
+export type LmsUser = { id: string; username: string; name: string; role: Role; cls: string; section: string; subjects: string[]; scope: string[]; perms: string[]; disabled: boolean; hasPin: boolean; firstName?: string; lastName?: string; parentEmail?: boolean; gender?: string; avatar?: string; email?: string; dob?: string; phone?: string; semail?: string; nationality?: string; prefLang?: string; sen?: boolean; eal?: boolean; gt?: boolean; created: number; lastLogin: number | null; lastSeen?: number };
 export type Catalog = { subjects: { id: string; name: string }[]; classes: { id: string; name: string }[]; sections: { id: string; name: string; classId: string; cls: string }[] };
 export type DashStudent = { id: string; name: string; cls: string; section: string };
 /** Teacher scope entry: "Year 2" (whole class) or "Year 2|2A" (one section). */
@@ -16,14 +16,14 @@ export type QuranData = { surah: number; from: number; to: number; reciter: stri
 export type GeneralData = { slides: Slide[]; question: string };
 export type Homework = { id: string; kind: "quran" | "general"; title: string; cls: string; section?: string; students: string[]; data: QuranData | GeneralData; due: number | null; createdBy: string; created: number; locked?: boolean; lockedBy?: { surah: number; from: number; to: number; title: string } | null; late?: boolean };
 export type Comment = { by: string; text: string; at: number; audio?: string };
-export type RosterStudent = { id: string; name: string; cls: string; section: string; avatar: string; parentEmail: boolean; points: number };
+export type RosterStudent = { id: string; name: string; cls: string; section: string; avatar: string; parentEmail: boolean; points: number; seen: number };
 export type PointCat = { id: string; label: string; pts: number; icon: string };
 export type PointRow = { id: string; student: string; name: string; label: string; pts: number; icon: string; by: string; at: number };
 export type StudentGroup = { id: string; name: string; students: string[]; owner: string };
 export type ReportView = { kind: "points" | "quran"; id: string; name: string; cls: string; section: string; avatar: string; points?: { label: string; pts: number; icon: string; by: string; at: number }[]; tracker?: TrackerRow[]; progress?: unknown };
 export type Assignment = { id: string; quiz: string; title: string; mode: "individual" | "group"; cls: string; section: string; students: string[]; due: number | null; by: string; created: number };
 export type Announcement = { id: string; title: string; body: string; aud: "all" | "students" | "teachers" | "class"; cls: string; section: string; by: string; created: number };
-export type MsgContact = { id: string; name: string; role: string; cls: string };
+export type MsgContact = { id: string; name: string; role: string; cls: string; seen?: number };
 export type MsgThread = { thread: string; with: string; withName: string; people: string[]; mine: boolean; last: number; preview: string; unread: number };
 export type Msg = { id: string; sender: string; body: string; created: number; mine: boolean };
 export type Note = { id: string; kind: "hw_new" | "sub_new" | "feedback" | "feedback_audio" | "approved" | "returned" | "graded" | "reminder" | "revise" | "mistakes" | "announcement" | "message"; data: { hw?: string; title?: string; by?: string; student?: string; grade?: Grade; overdue?: boolean; count?: number; surah?: number }; created: number; read: boolean };
@@ -125,7 +125,7 @@ export const lmsApi = {
   me: () => call<{ user: Actor }>("me"),
   dashboard: (asAdmin = false) =>
     call<{ homework: (Homework & { sub?: Submission | null; counts?: Record<string, number>; assigned?: number })[]; tracker?: TrackerRow[]; progress?: Progress; leaderboard?: boolean; classes?: { cls: string; students: number }[]; students?: DashStudent[]; catalog?: Catalog; scope?: string[] }>("dashboard", undefined, { asAdmin }),
-  users: (asAdmin = true) => call<{ users: LmsUser[] }>("users", undefined, { asAdmin }),
+  users: (asAdmin = true) => call<{ users: LmsUser[]; now?: number; adminSeen?: number }>("users", undefined, { asAdmin }),
   saveUsers: (users: Partial<LmsUser & { pin: string }>[], asAdmin = true) => call<{ saved: number; pins: { username: string; name: string; pin: string }[]; errors: { row: number; username: string; error: string }[] }>("users", { users }, { asAdmin }),
   setStatus: (ids: string[], disabled: boolean, asAdmin = true) => call<{ ok: true; changed: number }>("users-status", { ids, disabled }, { asAdmin }),
   progress: (id: string, asAdmin = false) => call<{ student: LmsUser; homework: { id: string; title: string; kind: string; data: QuranData | GeneralData; due: number | null; status: string; grade: string; attempts: number; late: boolean }[]; tracker: TrackerRow[]; progress: Progress; parentLink: string }>("progress", { id }, { asAdmin }),
@@ -153,7 +153,7 @@ export const lmsApi = {
   notes: (asAdmin = false) => call<{ items: Note[]; unread: number }>("notes", undefined, { asAdmin }),
   notesRead: (ids?: string[], asAdmin = false) => call<{ ok: true }>("notes-read", { ids }, { asAdmin }),
   adminPrefs: (p?: { quick: { tab: string; label: string; icon?: string }[]; dashIcon?: string }) => call<{ quick: { tab: string; label: string; icon?: string }[] | null; dashIcon: string }>("admin-prefs", p, { asAdmin: true }),
-  classRoster: () => call<{ students: RosterStudent[]; canManage: boolean }>("class-roster"),
+  classRoster: () => call<{ students: RosterStudent[]; canManage: boolean; now?: number }>("class-roster"),
   pcatList: () => call<{ items: PointCat[] }>("pcat-list"),
   pcatSave: (c: Partial<PointCat>) => call<{ ok: true }>("pcat-save", c),
   pcatDelete: (id: string) => call<{ ok: true }>("pcat-delete", { id }),
@@ -167,6 +167,7 @@ export const lmsApi = {
   reportEmail: (id: string, kind: "points" | "quran", preview: boolean) => call<{ ok?: true; to: string; subject: string; heading: string; paragraphs: string[]; url: string }>("report-email", { id, kind, preview }),
   reportLog: () => call<{ items: { id: string; student: string; kind: string; to: string; by: string; at: number; ok: boolean }[] }>("report-log"),
   reportView: (t: string) => call<ReportView>("report", undefined, { query: { t } }),
+  assessResults: () => call<{ items: { id: string; kind: string; quizTitle: string; name: string; score: number; maxScore: number; percentage: number; correct: number; wrong: number; finishedAt: number; rank: number | null; sessionCode: string | null }[] }>("assess-results"),
   assessList: (asAdmin = false) => call<{ items: Assignment[] }>("assess-list", undefined, { asAdmin }),
   assessAssign: (a: { quiz: string; title: string; mode: "individual" | "group"; cls?: string; section?: string; students?: string[]; due?: number | null }, asAdmin = false) => call<{ ok: true; id: string; sent: number }>("assess-assign", a, { asAdmin }),
   assessUnassign: (id: string, asAdmin = false) => call<{ ok: true }>("assess-unassign", { id }, { asAdmin }),
