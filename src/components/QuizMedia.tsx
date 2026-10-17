@@ -1,4 +1,4 @@
-import { youtubeEmbedUrl } from "@/lib/content";
+import { YtPlayer } from "@/components/YtPlayer";
 import { type QuestionMedia, youtubeIdFromMedia } from "@/lib/quiz";
 
 export function QuizMedia({ media }: { media?: QuestionMedia }) {
@@ -21,15 +21,7 @@ export function QuizMedia({ media }: { media?: QuestionMedia }) {
         </video>
       )}
       {yt && (
-        <div className="relative aspect-video w-full max-w-2xl overflow-hidden rounded-xl border border-card-border">
-          <iframe
-            title="Question video"
-            src={youtubeEmbedUrl(yt)}
-            className="absolute inset-0 h-full w-full border-0"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen
-          />
-        </div>
+        <div className="w-full max-w-2xl overflow-hidden rounded-xl border border-card-border"><YtPlayer id={yt} /></div>
       )}
     </div>
   );

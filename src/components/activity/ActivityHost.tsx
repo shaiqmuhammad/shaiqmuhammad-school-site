@@ -40,7 +40,7 @@ export async function exportActivityXlsx(state: ActivityState) {
       kind: i.kind,
       status: i.status,
       text: i.data.text || i.data.word || (i.data.picks ? i.data.picks.map((n) => n + 1).join(", ") : i.data.answers ? JSON.stringify(i.data.answers) : ""),
-      link: i.data.link || (i.data.youtube ? `https://youtu.be/${i.data.youtube}` : "") || (i.img ? activityApi.imgUrl(state.code, i.img) : ""),
+      link: i.data.link || (i.data.youtube ? `Video ${i.data.youtube}` : "") || (i.img ? activityApi.imgUrl(state.code, i.img) : ""),
       likes: i.likes,
       comments: i.comments.map((c) => c.text).join(" | "),
     });

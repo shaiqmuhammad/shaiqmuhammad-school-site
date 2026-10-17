@@ -1,5 +1,6 @@
 "use client";
 
+import { YtPlayer } from "@/components/YtPlayer";
 import { useState } from "react";
 import { fieldCls, ghostBtn, primaryBtn } from "@/components/assessment/AssessmentShell";
 import { activityApi, ActivityError, compressImage, type ActivityItem, type ActivityState, type Who } from "@/lib/activity";
@@ -168,16 +169,7 @@ function PostCard({ item, code, who, state, onChanged, big }: { item: ActivityIt
         <img src={activityApi.imgUrl(code, item.img)} alt="" loading="lazy" className="mt-3 w-full rounded-2xl" />
       )}
       {item.data.youtube && (
-        <div className="mt-3 aspect-video overflow-hidden rounded-2xl bg-black">
-          <iframe
-            src={`https://www.youtube-nocookie.com/embed/${item.data.youtube}?rel=0`}
-            title="YouTube"
-            loading="lazy"
-            allow="accelerometer; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen
-            className="h-full w-full"
-          />
-        </div>
+        <div className="mt-3 overflow-hidden rounded-2xl"><YtPlayer id={item.data.youtube} /></div>
       )}
       {item.data.link && (
         <a href={item.data.link} target="_blank" rel="noopener noreferrer nofollow" className="mt-3 flex items-center gap-2 rounded-2xl bg-black/5 px-3 py-2 text-sm font-semibold underline-offset-2 hover:underline dark:bg-white/10" dir="ltr">

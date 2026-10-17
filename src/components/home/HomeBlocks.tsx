@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useI18n } from "@/lib/i18n";
+import { YtPlayer } from "@/components/YtPlayer";
 import { youtubeId, type HomeSection } from "@/lib/homepage";
 
 /** Picks the Arabic text when the site is in Arabic and one was given. */
@@ -62,7 +63,7 @@ export function CustomSection({ s }: { s: HomeSection }) {
     return (
       <section className={wrap} data-testid="home-custom" data-kind="youtube">
         <Heading s={s} /><Para s={s} />
-        {id && <div className="mt-6 aspect-video overflow-hidden rounded-[20px] shadow-lg"><iframe className="h-full w-full" src={`https://www.youtube-nocookie.com/embed/${id}`} title={s.title || "Video"} allow="accelerometer; encrypted-media; gyroscope; picture-in-picture" allowFullScreen loading="lazy" /></div>}
+        {id && <div className="mt-6 overflow-hidden rounded-[20px] shadow-lg"><YtPlayer id={id} title={s.title || undefined} /></div>}
       </section>
     );
   }
