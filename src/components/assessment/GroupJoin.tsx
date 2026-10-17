@@ -508,7 +508,8 @@ function GroupCertificate({ results, me }: { results: SessionResults; me: Stored
                 finishedAt: new Date(row.finishedAt ?? Date.now()).toISOString(),
               },
               quizTitle: quiz.title,
-              positionLabel: template.showPosition ? `${row.rank} of ${results.rows.length}` : "",
+              kind: "group",
+              positionLabel: `${row.rank} of ${results.rows.length}`,
             });
           } finally {
             setBusy(false);
