@@ -154,3 +154,49 @@ export async function sendToContact(env: MailEnv, m: { name: string; email: stri
   });
   await withImap(imapAcct(env), (s) => s.append("INBOX", raw, []));
 }
+
+/** ---- Parent mail (teacher ↔ parent). Sent from contact@ with a tokenized Reply-To (contact+pm<token>@); replies are mirrored from INBOX/Junk by that token. ---- */
+export const parentReplyTo = (token: string) => `contact+${token}@shaiqmuhammad.com`;
+
+export async function sendParentMail(env: MailEnv, m: { to: string; token: string; subject: string; html: string; text: string; messageId: string; fromName: string }) {
+  const { raw } = await sendMail(smtpAcct(env), { from: CONTACT, fromName: m.fromName, to: [m.to], replyTo: parentReplyTo(m.token), subject: m.subject, text: m.text, html: m.html, messageId: m.messageId });
+  await withImap(imapAcct(env), async (s) => {
+    const sent = (await s.list()).find((f) => f.flags.includes("\\sent") || /^sent( messages)?$/i.test(f.name));
+    if (sent) await s.append(sent.path, raw);
+  }).catch(() => undefined);
+}
+
+export type ParentReply = { token: string; messageId: string; subject: string; fromAddr: string; date: string; text: string };
+
+/** Looks for replies carrying a parent-thread token (Reply-To plus-address or [PM-token] subject) in INBOX + Junk. Peeks only (never marks read). */
+export async function fetchParentReplies(env: MailEnv, sinceMs: number): Promise<ParentReply[]> {
+  const d = new Date(sinceMs);
+  const since = `${d.getUTCDate()}-${["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][d.getUTCMonth()]}-${d.getUTCFullYear()}`;
+  return withImap(imapAcct(env), async (s) => {
+    const out: ParentReply[] = [];
+    const list = await s.list();
+    const paths = list.filter((f) => /^inbox$/i.test(f.name) || /junk|spam/i.test(f.name)).map((f) => f.path);
+    for (const p of paths) {
+      try { await s.select(p, true); } catch { continue; }
+      const uids = (await s.uidSearch(`SINCE ${since} OR SUBJECT "[PM-" OR TO "contact+pm" CC "contact+pm"`)).slice(-60);
+      for (const uid of uids) {
+        const [m] = await s.uidFetch(String(uid), "UID ENVELOPE BODYSTRUCTURE");
+        if (!m) continue;
+        const e = parseEnvelope(m.get("ENVELOPE") ?? undefined);
+        const hay = `${e.subject} ${[...e.to, ...e.cc].map((x) => x.addr).join(" ")}`;
+        const tok = hay.match(/contact\+(pm[a-f0-9]{8})@/i)?.[1] || hay.match(/\[PM-([a-f0-9]{8})\]/i)?.[1];
+        if (!tok) continue;
+        const token = tok.toLowerCase().startsWith("pm") ? tok.toLowerCase() : `pm${tok.toLowerCase()}`;
+        const { plain, html } = classifyParts(flattenStructure(m.get("BODYSTRUCTURE") ?? undefined));
+        const part = plain || html;
+        let text = "";
+        if (part) {
+          const [b] = await s.uidFetch(String(uid), `UID BODY.PEEK[${part.part}]<0.60000>`);
+          if (b) { text = decodeTextPart(bodyValue(b, part.part), part); if (!plain && html) text = text.replace(/<br\s*\/?>/gi, "\n").replace(/<\/p>/gi, "\n").replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&"); }
+        }
+        out.push({ token, messageId: e.messageId || `${p}:${uid}`, subject: e.subject, fromAddr: e.from[0]?.addr || "", date: e.date, text });
+      }
+    }
+    return out;
+  });
+}

@@ -36,7 +36,8 @@
 import { buildFeedback, fromGrade, overallOf, parseScores, type Scores } from "./quranScore";
 import { DurableObject } from "cloudflare:workers";
 import { corsHeaders, reply, verifyToken, type AdminEnv } from "./admin";
-import { sendAuto, type MailEnv } from "./mail/mailbox";
+import { fetchParentReplies, sendAuto, sendParentMail, type MailEnv } from "./mail/mailbox";
+import { renderEmail, renderText } from "./mail/template";
 import { blobStore, sqliteChunkStore, type BlobStore, type StorageEnv } from "./storage";
 
 export interface LmsEnv extends AdminEnv, StorageEnv, MailEnv {
@@ -69,6 +70,8 @@ const MAX_USERS = 3000;
 const MAX_HW = 2000;
 const FAIL_WINDOW = 15 * 60_000;
 const PERMS = ["assign", "review", "manageUsers", "viewAll", "staff"] as const;
+const STU_OPS = ["view", "edit", "block", "delete"] as const;
+const STU_PERM = /^stu:(view|edit|block|delete)$/;
 /** Cartoon avatar code: stored reroll, else derived from id + gender (gender itself never leaves the server for non-admins). */
 function avatarOf(r: Record<string, unknown>): string {
   const g = r.gender === "b" || r.gender === "g" ? String(r.gender) : "n";
@@ -159,6 +162,13 @@ async function verifyUserToken(env: AdminEnv, header: string | null): Promise<st
 }
 
 const can = (a: Actor, perm: (typeof PERMS)[number]) => a.role === "admin" || (a.role === "teacher" && a.perms.includes(perm));
+/** Student-account switches (own classes only is enforced separately via inScope). Legacy "Manage students" without any stu:* switch keeps full access. */
+const stuCan = (a: Actor, op: (typeof STU_OPS)[number]) => {
+  if (a.role === "admin") return true;
+  if (a.role !== "teacher" || !a.perms.includes("manageUsers")) return false;
+  const has = a.perms.filter((p) => STU_PERM.test(p));
+  return has.length === 0 ? true : has.includes(`stu:${op}`);
+};
 const isStaff = (a: Actor) => a.role === "admin" || a.role === "teacher";
 
 export class LmsStore extends DurableObject<LmsEnv> {
@@ -194,6 +204,9 @@ export class LmsStore extends DurableObject<LmsEnv> {
     this.sql.exec(`CREATE TABLE IF NOT EXISTS viewlog (id TEXT PRIMARY KEY, uid TEXT, name TEXT, role TEXT, at INTEGER)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS contacts (id TEXT PRIMARY KEY, name TEXT, email TEXT, subject TEXT, message TEXT, created INTEGER, read INTEGER DEFAULT 0, emailed INTEGER DEFAULT 0, ip TEXT)`);
     if (!cols("users").has("parent_token")) this.sql.exec(`ALTER TABLE users ADD COLUMN parent_token TEXT DEFAULT ''`);
+    if (!cols("users").has("parent_name")) this.sql.exec(`ALTER TABLE users ADD COLUMN parent_name TEXT DEFAULT ''`);
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS pthreads (thread TEXT PRIMARY KEY, student TEXT, teacher TEXT, created INTEGER)`);
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS pmsg (id TEXT PRIMARY KEY, thread TEXT, student TEXT, teacher TEXT, dir TEXT, subject TEXT, body TEXT, created INTEGER, msgid TEXT, read INTEGER DEFAULT 0)`);
     if (!cols("users").has("email")) this.sql.exec(`ALTER TABLE users ADD COLUMN email TEXT DEFAULT ''`);
     if (!cols("subs").has("mistakes")) this.sql.exec(`ALTER TABLE subs ADD COLUMN mistakes TEXT DEFAULT '[]'`);
     if (!cols("subs").has("submitted_at")) this.sql.exec(`ALTER TABLE subs ADD COLUMN submitted_at INTEGER DEFAULT 0`);
@@ -277,7 +290,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     return this.sql.exec(`SELECT * FROM users WHERE ${where}`, arg).toArray()[0];
   }
   private publicUser(r: Record<string, unknown>) {
-    return { id: String(r.id), username: String(r.username), name: String(r.name), role: String(r.role) as Role, cls: String(r.cls || ""), section: String(r.section || ""), subjects: JSON.parse(String(r.subjects || "[]")) as string[], scope: JSON.parse(String(r.scope || "[]")) as string[], perms: JSON.parse(String(r.perms || "[]")) as string[], disabled: Boolean(r.disabled), hasPin: Boolean(r.pin_enc), firstName: String(r.first_name || ""), lastName: String(r.last_name || ""), avatar: avatarOf(r), parentEmail: Boolean(r.email), lastSeen: Number(r.last_seen || 0), created: Number(r.created), lastLogin: r.last_login ? Number(r.last_login) : null };
+    return { id: String(r.id), username: String(r.username), name: String(r.name), role: String(r.role) as Role, cls: String(r.cls || ""), section: String(r.section || ""), subjects: JSON.parse(String(r.subjects || "[]")) as string[], scope: JSON.parse(String(r.scope || "[]")) as string[], perms: JSON.parse(String(r.perms || "[]")) as string[], disabled: Boolean(r.disabled), hasPin: Boolean(r.pin_enc), firstName: String(r.first_name || ""), lastName: String(r.last_name || ""), avatar: avatarOf(r), parentEmail: Boolean(r.email), parentName: String(r.parent_name || ""), lastSeen: Number(r.last_seen || 0), created: Number(r.created), lastLogin: r.last_login ? Number(r.last_login) : null };
   }
   /** Admin-only view: every stored field (teachers never receive these). */
   private adminUser(r: Record<string, unknown>) {
@@ -434,7 +447,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         return { status: 200, body: { user: a } };
 
       case "users": {
-        if (!can(a, "manageUsers")) return { status: 403, body: { error: "forbidden" } };
+        if (!stuCan(a, "view") && !(input.__method === "POST" && (stuCan(a, "edit")))) return { status: 403, body: { error: "forbidden" } };
         if (input.__method !== "POST") {
           return { status: 200, body: { users: this.sql.exec(`SELECT * FROM users ORDER BY role DESC, cls, name`).toArray().filter((r) => a.role === "admin" || (r.role === "student" && this.inScope(a, String(r.cls || ""), String(r.section || "")))).map((r) => (a.role === "admin" ? this.adminUser(r) : this.publicUser(r))), now: Date.now(), adminSeen: this.adminSeen() } };
         }
@@ -448,7 +461,8 @@ export class LmsStore extends DurableObject<LmsEnv> {
           const role: Role = raw.role === "teacher" ? "teacher" : "student";
           // Only the admin can create or edit teachers.
           if (role === "teacher" && a.role !== "admin") { errors.push({ row: i + 1, username, error: "admin_only" }); continue; }
-          const perms = role === "teacher" ? (Array.isArray(raw.perms) ? (raw.perms as unknown[]).map(String).filter((p) => (PERMS as readonly string[]).includes(p) || /^(act|host):[\w*-]{1,80}$/.test(p)).slice(0, 80) : ["assign", "review"]) : [];
+          if (a.role === "teacher" && !stuCan(a, "edit")) { errors.push({ row: i + 1, username, error: "no_edit_permission" }); continue; }
+          const perms = role === "teacher" ? (Array.isArray(raw.perms) ? (raw.perms as unknown[]).map(String).filter((p) => (PERMS as readonly string[]).includes(p) || STU_PERM.test(p) || /^(act|host):[\w*-]{1,80}$/.test(p)).slice(0, 80) : ["assign", "review"]) : [];
           const cls = str(raw.cls, 40);
           const section = role === "student" ? str(raw.section, 40) : "";
           const subjects = role === "teacher" ? strList(raw.subjects) : [];
@@ -472,13 +486,13 @@ export class LmsStore extends DurableObject<LmsEnv> {
             if (a.role !== "admin" || raw.email === undefined) email = String(existing.email || "");
             if (a.role === "teacher" && !this.inScope(a, String(existing.cls || ""), String(existing.section || ""))) { errors.push({ row: i + 1, username, error: "not_your_class" }); continue; }
             if (isAdm && role === "student") this.savePrivate(String(existing.id), raw, gender);
-            this.sql.exec(`UPDATE users SET username=?, name=?, role=?, cls=?, section=?, subjects=?, scope=?, perms=?, disabled=?, email=? WHERE id=?`, username, name, role, cls, section, JSON.stringify(subjects), JSON.stringify(scope), JSON.stringify(perms), raw.disabled ? 1 : 0, raw.email === undefined ? String(existing.email || "") : email, String(existing.id));
+            this.sql.exec(`UPDATE users SET username=?, name=?, role=?, cls=?, section=?, subjects=?, scope=?, perms=?, disabled=?, email=? WHERE id=?`, username, name, role, cls, section, JSON.stringify(subjects), JSON.stringify(scope), JSON.stringify(perms), stuCan(a, "block") ? (raw.disabled ? 1 : 0) : Number(existing.disabled || 0), raw.email === undefined ? String(existing.email || "") : email, String(existing.id));
             if (pin) await this.setPin(String(existing.id), pin);
           } else {
             if (Number(this.sql.exec(`SELECT COUNT(*) AS n FROM users`).one().n) >= MAX_USERS) { errors.push({ row: i + 1, username, error: "full" }); continue; }
             if (!pin) pin = newPin();
             const id = rid("u");
-            this.sql.exec(`INSERT INTO users (id, username, name, role, cls, section, subjects, scope, perms, disabled, created, email) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, id, username, name, role, cls, section, JSON.stringify(subjects), JSON.stringify(scope), JSON.stringify(perms), raw.disabled ? 1 : 0, Date.now(), email);
+            this.sql.exec(`INSERT INTO users (id, username, name, role, cls, section, subjects, scope, perms, disabled, created, email) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, id, username, name, role, cls, section, JSON.stringify(subjects), JSON.stringify(scope), JSON.stringify(perms), stuCan(a, "block") && raw.disabled ? 1 : 0, Date.now(), email);
             await this.setPin(id, pin);
             if (role === "student") { if (isAdm) this.savePrivate(id, raw, gender); const pp = name.split(/\s+/); if (!isAdm || !raw.firstName) this.sql.exec(`UPDATE users SET first_name=?, last_name=? WHERE id=?`, pp[0] || "", pp.slice(1).join(" "), id); }
             pins.push({ username, name, pin });
@@ -490,7 +504,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
 
       case "users-status": {
         // Bulk Activate / Block. Teachers can only be changed by the admin.
-        if (!can(a, "manageUsers")) return { status: 403, body: { error: "forbidden" } };
+        if (!stuCan(a, "block")) return { status: 403, body: { error: "forbidden" } };
         const ids = strList(input.ids, 1000);
         const off = input.disabled ? 1 : 0;
         let changed = 0;
@@ -504,7 +518,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
       }
 
       case "user-delete": {
-        if (!can(a, "manageUsers")) return { status: 403, body: { error: "forbidden" } };
+        if (!stuCan(a, "delete")) return { status: 403, body: { error: "forbidden" } };
         const r = this.userRow("id=?", str(input.id, 40));
         if (!r) return { status: 404, body: { error: "not_found" } };
         if (r.role === "teacher" && a.role !== "admin") return { status: 403, body: { error: "admin_only" } };
@@ -519,7 +533,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
       }
 
       case "user-pin": {
-        if (!can(a, "manageUsers")) return { status: 403, body: { error: "forbidden" } };
+        if (!stuCan(a, "edit")) return { status: 403, body: { error: "forbidden" } };
         const r = this.userRow("id=?", str(input.id, 40));
         if (!r) return { status: 404, body: { error: "not_found" } };
         if (r.role === "teacher" && a.role !== "admin") return { status: 403, body: { error: "admin_only" } };
@@ -574,7 +588,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         const students = this.sql.exec(`SELECT id, name, first_name, last_name, cls, section, gender, avatar, email, last_seen FROM users WHERE role='student' AND disabled=0 ORDER BY cls, section, name`).toArray()
           .filter((r) => this.inScope(a, String(r.cls || ""), String(r.section || "")))
           .map((r) => ({ id: String(r.id), name: String(r.name), cls: String(r.cls || ""), section: String(r.section || ""), avatar: avatarOf(r), parentEmail: Boolean(r.email), seen: Number(r.last_seen || 0), points: tot.get(String(r.id)) || 0 }));
-        return { status: 200, body: { students, canManage: can(a, "manageUsers"), now: Date.now() } };
+        return { status: 200, body: { students, canManage: stuCan(a, "view"), stuPerms: { view: stuCan(a, "view"), edit: stuCan(a, "edit"), block: stuCan(a, "block"), delete: stuCan(a, "delete") }, now: Date.now() } };
       }
       case "act-publish": {
         // Teacher started a live activity for chosen students: it shows up on their LMS home with a one-tap Join (no code to type).
@@ -852,6 +866,72 @@ export class LmsStore extends DurableObject<LmsEnv> {
         return { status: 200, body: { ok: true } };
       }
 
+
+      // ---- Parent mail: teachers see only the parent's NAME; address stays server-side. ----
+      case "parent-contacts": {
+        if (!isStaff(a) || a.viewAs) return { status: 403, body: { error: "forbidden" } };
+        const items = this.sql.exec(`SELECT id, name, cls, section, email, parent_name FROM users WHERE role='student' AND disabled=0 ORDER BY cls, section, name`).toArray()
+          .filter((r) => this.inScope(a, String(r.cls || ""), String(r.section || "")))
+          .map((r) => ({ student: String(r.id), studentName: String(r.name), cls: [r.cls, r.section].filter(Boolean).join(" "), parentName: String(r.parent_name || ""), canMail: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(r.email || "")) }));
+        return { status: 200, body: { items } };
+      }
+      case "parent-mail-preview":
+      case "parent-mail-send": {
+        if (!isStaff(a) || a.viewAs) return { status: 403, body: { error: "forbidden" } };
+        const sid = str(input.student, 40), subject = str(input.subject, 150), text = str(input.body, 5000);
+        const u = this.userRow("id=? AND role='student'", sid);
+        if (!u) return { status: 404, body: { error: "not_found" } };
+        if (!this.inScope(a, String(u.cls || ""), String(u.section || ""))) return { status: 403, body: { error: "not_your_class" } };
+        if (!subject || !text) return { status: 400, body: { error: "empty" } };
+        const to = String(u.email || "");
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) return { status: 400, body: { error: "no_parent_email" } };
+        const pname = String(u.parent_name || "").trim();
+        const mail = { heading: subject, paragraphs: [pname ? `Assalamu alaikum ${pname},` : "Assalamu alaikum,", text, `— ${a.name}${a.role === "admin" ? "" : ", teacher of " + String(u.name)}`], note: "You can simply reply to this email — your reply goes to the teacher through the school." };
+        if (action === "parent-mail-preview") return { status: 200, body: { html: renderEmail(mail), to: pname || "Parent", subject } };
+        if (input.confirm !== true) return { status: 400, body: { error: "confirm_required" } };
+        let th = this.sql.exec(`SELECT thread FROM pthreads WHERE student=? AND teacher=?`, sid, a.id).toArray()[0];
+        if (!th) { const t = "pm" + hex(crypto.getRandomValues(new Uint8Array(4))); this.sql.exec(`INSERT INTO pthreads (thread, student, teacher, created) VALUES (?, ?, ?, ?)`, t, sid, a.id, Date.now()); th = { thread: t }; }
+        const token = String(th.thread);
+        const msgid = `pm-${hex(crypto.getRandomValues(new Uint8Array(8)))}@shaiqmuhammad.com`;
+        const fullSubject = `[PM-${token.slice(2)}] ${subject}`.slice(0, 200);
+        try { await sendParentMail(this.env as LmsEnv, { to, token, subject: fullSubject, html: renderEmail(mail), text: renderText(mail), messageId: msgid, fromName: "Shaiq Muhammad School" }); } catch (e) { return { status: 502, body: { error: "mail_error", detail: (e as Error).message.slice(0, 120) } }; }
+        this.sql.exec(`INSERT INTO pmsg (id, thread, student, teacher, dir, subject, body, created, msgid, read) VALUES (?, ?, ?, ?, 'out', ?, ?, ?, ?, 1)`, rid("pm"), token, sid, a.id, subject, text, Date.now(), msgid);
+        return { status: 200, body: { ok: true, thread: token } };
+      }
+      case "parent-threads": {
+        if (!isStaff(a) || a.viewAs) return { status: 403, body: { error: "forbidden" } };
+        if (input.sync) await this.syncParentMail();
+        const rows = this.sql.exec(`SELECT t.thread, t.student, t.teacher, MAX(m.created) AS last, COUNT(m.id) AS n, SUM(CASE WHEN m.dir='in' AND m.read=0 THEN 1 ELSE 0 END) AS unread FROM pthreads t JOIN pmsg m ON m.thread=t.thread GROUP BY t.thread ORDER BY last DESC LIMIT 300`).toArray()
+          .filter((r) => a.role === "admin" || String(r.teacher) === a.id);
+        const items = rows.map((r) => {
+          const u = this.userRow("id=?", String(r.student)); const t = this.userRow("id=?", String(r.teacher));
+          const lm = this.sql.exec(`SELECT body, dir FROM pmsg WHERE thread=? ORDER BY created DESC LIMIT 1`, String(r.thread)).one();
+          return { thread: String(r.thread), student: String(r.student), studentName: String(u?.name || "—"), cls: [u?.cls, u?.section].filter(Boolean).join(" "), parentName: String(u?.parent_name || ""), teacherName: String(t?.name || "—"), last: Number(r.last), count: Number(r.n), unread: Number(r.unread || 0), preview: String(lm.body).slice(0, 80), lastDir: String(lm.dir) };
+        });
+        return { status: 200, body: { items, unread: items.reduce((x, t) => x + t.unread, 0) } };
+      }
+      case "parent-thread": {
+        if (!isStaff(a) || a.viewAs) return { status: 403, body: { error: "forbidden" } };
+        const th = this.sql.exec(`SELECT * FROM pthreads WHERE thread=?`, str(input.thread, 20)).toArray()[0];
+        if (!th || (a.role !== "admin" && String(th.teacher) !== a.id)) return { status: 403, body: { error: "forbidden" } };
+        const items = this.sql.exec(`SELECT id, dir, subject, body, created FROM pmsg WHERE thread=? ORDER BY created LIMIT 500`, String(th.thread)).toArray().map((r) => ({ id: String(r.id), dir: String(r.dir), subject: String(r.subject), body: String(r.body), created: Number(r.created) }));
+        this.sql.exec(`UPDATE pmsg SET read=1 WHERE thread=? AND dir='in'`, String(th.thread));
+        return { status: 200, body: { items } };
+      }
+      case "parent-log": {
+        // Full record of parent mail about one student (teacher in that class, or admin).
+        if (!isStaff(a) || a.viewAs) return { status: 403, body: { error: "forbidden" } };
+        const sid = str(input.student, 40); const u = this.userRow("id=? AND role='student'", sid);
+        if (!u || !this.inScope(a, String(u.cls || ""), String(u.section || ""))) return { status: 403, body: { error: "forbidden" } };
+        const items = this.sql.exec(`SELECT m.id, m.dir, m.subject, m.body, m.created, m.teacher FROM pmsg m WHERE m.student=? ORDER BY m.created DESC LIMIT 300`, sid).toArray().map((r) => ({ id: String(r.id), dir: String(r.dir), subject: String(r.subject), body: String(r.body), created: Number(r.created), teacherName: String(this.userRow("id=?", String(r.teacher))?.name || "—") }));
+        return { status: 200, body: { items } };
+      }
+      case "parent-delete-all": {
+        if (a.role !== "admin") return { status: 403, body: { error: "admin_only" } };
+        const th = str(input.thread, 20);
+        this.sql.exec(`DELETE FROM pmsg WHERE thread=?`, th); this.sql.exec(`DELETE FROM pthreads WHERE thread=?`, th);
+        return { status: 200, body: { ok: true } };
+      }
       case "msg-contacts": {
         return { status: 200, body: { items: this.msgContacts(a) } };
       }
@@ -1443,6 +1523,29 @@ export class LmsStore extends DurableObject<LmsEnv> {
     return false;
   }
 
+  /** Mirrors parent replies from the iCloud mailbox into pmsg (matched by token). Throttled to once per 30 s. */
+  private async syncParentMail() {
+    const last = Number(this.sql.exec(`SELECT v FROM settings WHERE k='pm:sync'`).toArray()[0]?.v || 0);
+    if (Date.now() - last < 30_000) return;
+    this.sql.exec(`INSERT INTO settings (k, v) VALUES ('pm:sync', ?) ON CONFLICT(k) DO UPDATE SET v=excluded.v`, String(Date.now()));
+    let reps: Awaited<ReturnType<typeof fetchParentReplies>> = [];
+    try { reps = await fetchParentReplies(this.env as LmsEnv, Date.now() - 21 * 86_400_000); } catch { return; }
+    for (const r of reps) {
+      const mid = r.messageId.replace(/[<>]/g, "");
+      if (mid.startsWith("pm-")) continue; // our own outgoing copy
+      const th = this.sql.exec(`SELECT * FROM pthreads WHERE thread=?`, r.token).toArray()[0];
+      if (!th) continue;
+      if (this.sql.exec(`SELECT id FROM pmsg WHERE msgid=?`, mid).toArray().length) continue;
+      let body = r.text.replace(/\r/g, "");
+      const cut = body.search(/^(On .{5,200}wrote:|-{2,}\s*Original Message|From:\s.+@|>)/im);
+      if (cut > 0) body = body.slice(0, cut);
+      body = body.trim().slice(0, 5000) || "(empty reply)";
+      const t = Date.parse(r.date); 
+      this.sql.exec(`INSERT INTO pmsg (id, thread, student, teacher, dir, subject, body, created, msgid, read) VALUES (?, ?, ?, ?, 'in', ?, ?, ?, ?, 0)`, rid("pm"), r.token, String(th.student), String(th.teacher), r.subject.replace(/\[PM-[a-f0-9]{8}\]\s*/i, "").slice(0, 150), body, Number.isFinite(t) ? t : Date.now(), mid);
+      this.notify([String(th.teacher)], "message", { by: "Parent", title: body.slice(0, 60), thread: r.token });
+    }
+  }
+
   /** Who may this person message? Students: their teachers + admin (never other students). Teachers: their students + admin. Admin: everyone. */
   private msgContacts(a: Actor): { id: string; name: string; role: string; cls: string; seen: number }[] {
     const users = this.sql.exec(`SELECT id, name, role, cls, section, scope, perms, last_seen FROM users WHERE disabled=0 ORDER BY role DESC, name`).toArray();
@@ -1468,6 +1571,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     const seIn = v("semail", "semail", 120);
     const semail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(seIn) ? seIn : "";
     const fl = (k: string, col: string) => (has(k) ? (raw[k] ? "1" : "") : String(cur[col] || ""));
+    if (has("parentName")) this.sql.exec(`UPDATE users SET parent_name=? WHERE id=?`, str(raw.parentName, 80), id);
     this.sql.exec(`UPDATE users SET gender=?, dob=?, phone=?, semail=?, nationality=?, pref_lang=?, sen=?, eal=?, gt=? WHERE id=?`, has("gender") ? gender : String(cur.gender || ""), dob, v("phone", "phone", 30), semail, v("nationality", "nationality", 40), v("prefLang", "pref_lang", 30), fl("sen", "sen"), fl("eal", "eal"), fl("gt", "gt"), id);
     if (has("firstName") || has("lastName")) {
       const f = str(raw.firstName, 40), l = str(raw.lastName, 40);

@@ -5,7 +5,7 @@ import { ASSESSMENT_API_BASE } from "@/lib/groupSession";
 
 /** LMS phase 1 client (see workers/assessment-session/src/lms.ts). */
 export type Role = "student" | "teacher";
-export type LmsUser = { id: string; username: string; name: string; role: Role; cls: string; section: string; subjects: string[]; scope: string[]; perms: string[]; disabled: boolean; hasPin: boolean; firstName?: string; lastName?: string; parentEmail?: boolean; gender?: string; avatar?: string; email?: string; dob?: string; phone?: string; semail?: string; nationality?: string; prefLang?: string; sen?: boolean; eal?: boolean; gt?: boolean; created: number; lastLogin: number | null; lastSeen?: number };
+export type LmsUser = { id: string; username: string; name: string; role: Role; cls: string; section: string; subjects: string[]; scope: string[]; perms: string[]; disabled: boolean; hasPin: boolean; firstName?: string; lastName?: string; parentEmail?: boolean; parentName?: string; gender?: string; avatar?: string; email?: string; dob?: string; phone?: string; semail?: string; nationality?: string; prefLang?: string; sen?: boolean; eal?: boolean; gt?: boolean; created: number; lastLogin: number | null; lastSeen?: number };
 export type Catalog = { subjects: { id: string; name: string }[]; classes: { id: string; name: string }[]; sections: { id: string; name: string; classId: string; cls: string }[] };
 export type DashStudent = { id: string; name: string; cls: string; section: string };
 /** Teacher scope entry: "Year 2" (whole class) or "Year 2|2A" (one section). */
@@ -27,6 +27,9 @@ export type WallPost = { id: string; name: string; text: string; hasImage: boole
 export type LiveActivity = { code: string; type: string; title: string; teacher: string; at: number };
 export type MsgContact = { id: string; name: string; role: string; cls: string; seen?: number };
 export type MsgThread = { thread: string; with: string; withName: string; people: string[]; mine: boolean; last: number; preview: string; unread: number };
+export type ParentContact = { student: string; studentName: string; cls: string; parentName: string; canMail: boolean };
+export type ParentThread = { thread: string; student: string; studentName: string; cls: string; parentName: string; teacherName: string; last: number; count: number; unread: number; preview: string; lastDir: string };
+export type ParentMsg = { id: string; dir: "in" | "out"; subject: string; body: string; created: number };
 export type Msg = { id: string; sender: string; body: string; created: number; mine: boolean };
 export type Note = { id: string; kind: "hw_new" | "sub_new" | "feedback" | "feedback_audio" | "approved" | "returned" | "graded" | "reminder" | "revise" | "mistakes" | "announcement" | "message"; data: { hw?: string; title?: string; by?: string; student?: string; grade?: Grade; overdue?: boolean; count?: number; surah?: number }; created: number; read: boolean };
 export type Level = 1 | 2 | 3;
@@ -40,6 +43,8 @@ export type Progress = { stars: number; streak: number; greens: number; yellows:
 export type Mistake = { ayah: number; word: number; text: string; note: string };
 export type MapRow = { id: string; name: string; cls: string; section: string; cells: Record<number, { grade: string; verses: number }> };
 
+/** Student-account switches. Legacy "Manage students" with none of the stu:* flags set means all four. */
+export const stuUi = (perms: string[], op: "view" | "edit" | "block" | "delete") => { if (!perms.includes("manageUsers") && !perms.some((p) => p.startsWith("stu:"))) return false; const has = perms.filter((p) => p.startsWith("stu:")); return has.length ? has.includes(`stu:${op}`) : true; };
 export const PERMS = ["assign", "review", "manageUsers", "viewAll"] as const;
 
 export class LmsError extends Error {
@@ -129,6 +134,13 @@ export const lmsApi = {
     call<{ homework: (Homework & { sub?: Submission | null; counts?: Record<string, number>; assigned?: number })[]; tracker?: TrackerRow[]; progress?: Progress; leaderboard?: boolean; classes?: { cls: string; students: number }[]; students?: DashStudent[]; catalog?: Catalog; scope?: string[] }>("dashboard", undefined, { asAdmin }),
   users: (asAdmin = true) => call<{ users: LmsUser[]; now?: number; adminSeen?: number }>("users", undefined, { asAdmin }),
   saveUsers: (users: Partial<LmsUser & { pin: string }>[], asAdmin = true) => call<{ saved: number; pins: { username: string; name: string; pin: string }[]; errors: { row: number; username: string; error: string }[] }>("users", { users }, { asAdmin }),
+  parentContacts: (asAdmin = false) => call<{ items: ParentContact[] }>("parent-contacts", undefined, { asAdmin }),
+  parentPreview: (student: string, subject: string, body: string, asAdmin = false) => call<{ html: string; to: string; subject: string }>("parent-mail-preview", { student, subject, body }, { asAdmin }),
+  parentSend: (student: string, subject: string, body: string, asAdmin = false) => call<{ ok: true; thread: string }>("parent-mail-send", { student, subject, body, confirm: true }, { asAdmin }),
+  parentThreads: (sync: boolean, asAdmin = false) => call<{ items: ParentThread[]; unread: number }>("parent-threads", { sync }, { asAdmin }),
+  parentThread: (thread: string, asAdmin = false) => call<{ items: ParentMsg[] }>("parent-thread", { thread }, { asAdmin }),
+  parentLog: (student: string, asAdmin = false) => call<{ items: (ParentMsg & { teacherName: string })[] }>("parent-log", { student }, { asAdmin }),
+  parentDelete: (thread: string) => call<{ ok: true }>("parent-delete-all", { thread }, { asAdmin: true }),
   setStatus: (ids: string[], disabled: boolean, asAdmin = true) => call<{ ok: true; changed: number }>("users-status", { ids, disabled }, { asAdmin }),
   progress: (id: string, asAdmin = false) => call<{ student: LmsUser; homework: { id: string; title: string; kind: string; data: QuranData | GeneralData; due: number | null; status: string; grade: string; attempts: number; late: boolean }[]; tracker: TrackerRow[]; progress: Progress; parentLink: string }>("progress", { id }, { asAdmin }),
   quranMap: (cls = "", section = "", asAdmin = false) => call<{ rows: MapRow[]; surahs: number[] }>("quran-map", { cls, section }, { asAdmin }),
@@ -222,6 +234,9 @@ export const lmsApi = {
 export function lmsErrorText(e: unknown, tr: (en: string, ar: string) => string): string {
   const c = e instanceof LmsError ? e.code : "";
   const m: Record<string, [string, string]> = {
+    confirm_required: ["Please preview and confirm before sending.", "يرجى المعاينة والتأكيد قبل الإرسال."],
+    mail_error: ["The email could not be sent. Try again later.", "تعذّر إرسال البريد. حاول لاحقًا."],
+    no_edit_permission: ["You don't have permission to edit students.", "ليست لديك صلاحية تعديل الطلاب."],
     no_parent_email: ["No parent email on file for this student. Ask the admin to add one.", "لا يوجد بريد لولي الأمر. اطلب من المسؤول إضافته."],
     mail_failed: ["The email could not be sent. Try again later.", "تعذّر إرسال البريد. حاول لاحقًا."],
     nothing_to_undo: ["Nothing to undo.", "لا شيء للتراجع عنه."],
