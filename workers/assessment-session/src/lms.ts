@@ -47,7 +47,7 @@ export interface LmsEnv extends AdminEnv, StorageEnv, MailEnv {
 
 type Json = Record<string, unknown>;
 /** Actions allowed in admin read-only "view as" mode. */
-const VIEW_AS_READ = new Set(["dashboard", "hw", "progress", "quran-map", "leaderboard", "notes", "catalog", "me", "ann-list", "msg-threads", "msg-thread", "msg-contacts", "assess-list", "tquiz-get", "tquiz-list"]);
+const VIEW_AS_READ = new Set(["dashboard", "hw", "progress", "quran-map", "leaderboard", "notes", "catalog", "me", "ann-list", "msg-threads", "msg-thread", "msg-contacts", "assess-list", "tquiz-get", "tquiz-list", "class-roster", "pcat-list", "pts-list", "grp-list", "report-log"]);
 
 /** Which LMS notifications also go out by email (when the user has an email and mail is configured). */
 const EMAIL_KINDS: Record<string, [string, string]> = {
@@ -69,6 +69,15 @@ const MAX_USERS = 3000;
 const MAX_HW = 2000;
 const FAIL_WINDOW = 15 * 60_000;
 const PERMS = ["assign", "review", "manageUsers", "viewAll", "staff"] as const;
+/** Cartoon avatar code: stored reroll, else derived from id + gender (gender itself never leaves the server for non-admins). */
+function avatarOf(r: Record<string, unknown>): string {
+  const g = r.gender === "b" || r.gender === "g" ? String(r.gender) : "n";
+  const av = String(r.avatar || "");
+  if (/^[bgn]\d{1,2}$/.test(av) && av[0] === g) return av;
+  let h = 7; for (const c of String(r.id)) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return `${g}${h % 12}`;
+}
+const DEFAULT_CATS: [string, number, string][] = [["Helping", 1, "🤝"], ["Teamwork", 1, "👥"], ["Recitation", 1, "📖"], ["Respect", 1, "🌟"], ["Hard work", 1, "💪"], ["Off-task", -1, "💤"], ["Disrespect", -1, "⚠️"]];
 /** Spaced revision after a pass: 1, 3, 7, 14, 30, then every 60 days. */
 const REVISION_DAYS = [1, 3, 7, 14, 30, 60];
 const MAX_AUDIO = 1_600_000; // ~3 min at 24 kbps + container overhead, with headroom
@@ -208,6 +217,21 @@ export class LmsStore extends DurableObject<LmsEnv> {
     this.sql.exec(`CREATE TABLE IF NOT EXISTS ann (id TEXT PRIMARY KEY, title TEXT, body TEXT, aud TEXT, cls TEXT DEFAULT '', section TEXT DEFAULT '', by TEXT, created INTEGER)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS msgs (id TEXT PRIMARY KEY, thread TEXT, sender TEXT, recipient TEXT, body TEXT, created INTEGER, read INTEGER DEFAULT 0)`);
     this.sql.exec(`CREATE INDEX IF NOT EXISTS msgs_thread ON msgs (thread, created)`);
+    if (!cols("users").has("gender")) this.sql.exec(`ALTER TABLE users ADD COLUMN gender TEXT DEFAULT ''`);
+    for (const c of ["first_name", "last_name", "dob", "phone", "semail", "nationality", "pref_lang", "sen", "eal", "gt"]) if (!cols("users").has(c)) this.sql.exec(`ALTER TABLE users ADD COLUMN ${c} TEXT DEFAULT ''`);
+    // Split existing display names into first / last once.
+    for (const r of this.sql.exec(`SELECT id, name FROM users WHERE role='student' AND (first_name IS NULL OR first_name='')`).toArray()) {
+      const parts = String(r.name || "").trim().split(/\s+/);
+      this.sql.exec(`UPDATE users SET first_name=?, last_name=? WHERE id=?`, parts[0] || "", parts.slice(1).join(" "), String(r.id));
+    }
+    if (!cols("users").has("avatar")) this.sql.exec(`ALTER TABLE users ADD COLUMN avatar TEXT DEFAULT ''`);
+    // Points (ClassDojo-style), custom groups, parent report tokens + send log.
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS pcat (id TEXT PRIMARY KEY, owner TEXT, label TEXT, pts INTEGER, icon TEXT, pos INTEGER)`);
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS pts (id TEXT PRIMARY KEY, student TEXT, cat TEXT, label TEXT, pts INTEGER, icon TEXT, by TEXT, owner TEXT, batch TEXT, at INTEGER)`);
+    this.sql.exec(`CREATE INDEX IF NOT EXISTS pts_student ON pts(student, at)`);
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS grp (id TEXT PRIMARY KEY, owner TEXT, name TEXT, students TEXT, updated INTEGER)`);
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS rtok (token TEXT PRIMARY KEY, student TEXT, kind TEXT, by TEXT, created INTEGER)`);
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS rlog (id TEXT PRIMARY KEY, student TEXT, kind TEXT, to_addr TEXT, by TEXT, at INTEGER, ok INTEGER)`);
     // Assessment assignments (class/section/students, individual or teacher-led group) + teacher-made assessments.
     this.sql.exec(`CREATE TABLE IF NOT EXISTS qassign (id TEXT PRIMARY KEY, quiz TEXT, title TEXT, mode TEXT, cls TEXT DEFAULT '', section TEXT DEFAULT '', students TEXT DEFAULT '[]', due INTEGER, by TEXT, owner TEXT, created INTEGER)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS tquiz (id TEXT PRIMARY KEY, owner TEXT, owner_name TEXT, title TEXT, data TEXT, updated INTEGER)`);
@@ -247,7 +271,11 @@ export class LmsStore extends DurableObject<LmsEnv> {
     return this.sql.exec(`SELECT * FROM users WHERE ${where}`, arg).toArray()[0];
   }
   private publicUser(r: Record<string, unknown>) {
-    return { id: String(r.id), username: String(r.username), name: String(r.name), role: String(r.role) as Role, cls: String(r.cls || ""), section: String(r.section || ""), subjects: JSON.parse(String(r.subjects || "[]")) as string[], scope: JSON.parse(String(r.scope || "[]")) as string[], perms: JSON.parse(String(r.perms || "[]")) as string[], disabled: Boolean(r.disabled), hasPin: Boolean(r.pin_enc), email: String(r.email || ""), created: Number(r.created), lastLogin: r.last_login ? Number(r.last_login) : null };
+    return { id: String(r.id), username: String(r.username), name: String(r.name), role: String(r.role) as Role, cls: String(r.cls || ""), section: String(r.section || ""), subjects: JSON.parse(String(r.subjects || "[]")) as string[], scope: JSON.parse(String(r.scope || "[]")) as string[], perms: JSON.parse(String(r.perms || "[]")) as string[], disabled: Boolean(r.disabled), hasPin: Boolean(r.pin_enc), firstName: String(r.first_name || ""), lastName: String(r.last_name || ""), avatar: avatarOf(r), parentEmail: Boolean(r.email), created: Number(r.created), lastLogin: r.last_login ? Number(r.last_login) : null };
+  }
+  /** Admin-only view: every stored field (teachers never receive these). */
+  private adminUser(r: Record<string, unknown>) {
+    return { ...this.publicUser(r), email: String(r.email || ""), gender: String(r.gender || ""), dob: String(r.dob || ""), phone: String(r.phone || ""), semail: String(r.semail || ""), nationality: String(r.nationality || ""), prefLang: String(r.pref_lang || ""), sen: r.sen === "1", eal: r.eal === "1", gt: r.gt === "1" };
   }
   private failCount(k: string) {
     this.sql.exec(`DELETE FROM fails WHERE t < ?`, Date.now() - FAIL_WINDOW);
@@ -390,7 +418,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
       case "users": {
         if (!can(a, "manageUsers")) return { status: 403, body: { error: "forbidden" } };
         if (input.__method !== "POST") {
-          return { status: 200, body: { users: this.sql.exec(`SELECT * FROM users ORDER BY role DESC, cls, name`).toArray().map((r) => this.publicUser(r)) } };
+          return { status: 200, body: { users: this.sql.exec(`SELECT * FROM users ORDER BY role DESC, cls, name`).toArray().filter((r) => a.role === "admin" || (r.role === "student" && this.inScope(a, String(r.cls || ""), String(r.section || "")))).map((r) => (a.role === "admin" ? this.adminUser(r) : this.publicUser(r))) } };
         }
         const list = Array.isArray(input.users) ? (input.users as Json[]).slice(0, 1000) : [];
         const pins: { username: string; name: string; pin: string }[] = [];
@@ -407,7 +435,11 @@ export class LmsStore extends DurableObject<LmsEnv> {
           const section = role === "student" ? str(raw.section, 40) : "";
           const subjects = role === "teacher" ? strList(raw.subjects) : [];
           const scope = role === "teacher" ? strList(raw.scope, 80) : [];
-          const email = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(raw.email || "").trim()) ? String(raw.email).trim().slice(0, 120) : "";
+          let email = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(raw.email || "").trim()) ? String(raw.email).trim().slice(0, 120) : "";
+          // Teachers with "Manage students" may only add/edit students in their own classes.
+          if (a.role === "teacher" && !this.inScope(a, cls, section)) { errors.push({ row: i + 1, username, error: "not_your_class" }); continue; }
+          const gender = raw.gender === "b" || raw.gender === "g" ? String(raw.gender) : "";
+          const isAdm = a.role === "admin";
           const placement = this.checkPlacement(cls, section, subjects, scope);
           if (placement) { errors.push({ row: i + 1, username, error: placement }); continue; }
           const existing = raw.id ? this.userRow("id=?", String(raw.id)) : this.userRow("username=?", username);
@@ -419,6 +451,9 @@ export class LmsStore extends DurableObject<LmsEnv> {
           if (pin && !validPin(pin)) { errors.push({ row: i + 1, username, error: "pin_digits" }); continue; }
           if (existing) {
             if (existing.role === "teacher" && a.role !== "admin") { errors.push({ row: i + 1, username, error: "admin_only" }); continue; }
+            if (a.role !== "admin" || raw.email === undefined) email = String(existing.email || "");
+            if (a.role === "teacher" && !this.inScope(a, String(existing.cls || ""), String(existing.section || ""))) { errors.push({ row: i + 1, username, error: "not_your_class" }); continue; }
+            if (isAdm && role === "student") this.savePrivate(String(existing.id), raw, gender);
             this.sql.exec(`UPDATE users SET username=?, name=?, role=?, cls=?, section=?, subjects=?, scope=?, perms=?, disabled=?, email=? WHERE id=?`, username, name, role, cls, section, JSON.stringify(subjects), JSON.stringify(scope), JSON.stringify(perms), raw.disabled ? 1 : 0, raw.email === undefined ? String(existing.email || "") : email, String(existing.id));
             if (pin) await this.setPin(String(existing.id), pin);
           } else {
@@ -427,6 +462,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
             const id = rid("u");
             this.sql.exec(`INSERT INTO users (id, username, name, role, cls, section, subjects, scope, perms, disabled, created, email) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, id, username, name, role, cls, section, JSON.stringify(subjects), JSON.stringify(scope), JSON.stringify(perms), raw.disabled ? 1 : 0, Date.now(), email);
             await this.setPin(id, pin);
+            if (role === "student") { if (isAdm) this.savePrivate(id, raw, gender); const pp = name.split(/\s+/); if (!isAdm || !raw.firstName) this.sql.exec(`UPDATE users SET first_name=?, last_name=? WHERE id=?`, pp[0] || "", pp.slice(1).join(" "), id); }
             pins.push({ username, name, pin });
           }
           saved++;
@@ -442,7 +478,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         let changed = 0;
         for (const id of ids) {
           const r = this.userRow("id=?", id);
-          if (!r || (r.role === "teacher" && a.role !== "admin")) continue;
+          if (!r || (r.role === "teacher" && a.role !== "admin") || (a.role === "teacher" && !this.inScope(a, String(r.cls || ""), String(r.section || "")))) continue;
           this.sql.exec(`UPDATE users SET disabled=? WHERE id=?`, off, id);
           changed++;
         }
@@ -454,6 +490,8 @@ export class LmsStore extends DurableObject<LmsEnv> {
         const r = this.userRow("id=?", str(input.id, 40));
         if (!r) return { status: 404, body: { error: "not_found" } };
         if (r.role === "teacher" && a.role !== "admin") return { status: 403, body: { error: "admin_only" } };
+        if (a.role === "teacher" && !this.inScope(a, String(r.cls || ""), String(r.section || ""))) return { status: 403, body: { error: "not_your_class" } };
+        this.sql.exec(`DELETE FROM pts WHERE student=?`, String(r.id));
         this.sql.exec(`DELETE FROM users WHERE id=?`, String(r.id));
         await this.dropBlobsOfSubs(this.sql.exec(`SELECT id FROM subs WHERE student=?`, String(r.id)).toArray().map((x) => String(x.id)));
         this.sql.exec(`DELETE FROM notes WHERE uid=?`, String(r.id));
@@ -467,6 +505,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         const r = this.userRow("id=?", str(input.id, 40));
         if (!r) return { status: 404, body: { error: "not_found" } };
         if (r.role === "teacher" && a.role !== "admin") return { status: 403, body: { error: "admin_only" } };
+        if (a.role === "teacher" && !this.inScope(a, String(r.cls || ""), String(r.section || ""))) return { status: 403, body: { error: "not_your_class" } };
         const pin = str(input.pin, 8) || newPin();
         if (!validPin(pin)) return { status: 400, body: { error: "pin_digits" } };
         await this.setPin(String(r.id), pin);
@@ -497,6 +536,122 @@ export class LmsStore extends DurableObject<LmsEnv> {
         return { status: 200, body: { ok: true } };
       }
 
+      case "user-avatar": {
+        // Teacher/admin: reroll the cartoon avatar (gender stays server-side; set by the admin only).
+        const sid = str(input.id, 40);
+        if (!isStaff(a) || a.viewAs || !this.inScope(a, ...this.placeOf(sid))) return { status: 403, body: { error: "forbidden" } };
+        const u0 = this.userRow("id=? AND role='student'", sid);
+        if (!u0) return { status: 404, body: { error: "not_found" } };
+        const g = u0.gender === "b" || u0.gender === "g" ? String(u0.gender) : "n";
+        const cur = avatarOf(u0);
+        let code = cur;
+        while (code === cur) code = `${g}${Math.floor(Math.random() * 12)}`;
+        this.sql.exec(`UPDATE users SET avatar=? WHERE id=?`, code, sid);
+        return { status: 200, body: { avatar: code } };
+      }
+      case "class-roster": {
+        // Students the teacher teaches (admin: all), with avatar + points total, for the "My classes" view.
+        if (!isStaff(a)) return { status: 403, body: { error: "forbidden" } };
+        const tot = new Map(this.sql.exec(`SELECT student, SUM(pts) AS t FROM pts GROUP BY student`).toArray().map((r) => [String(r.student), Number(r.t)]));
+        const students = this.sql.exec(`SELECT id, name, first_name, last_name, cls, section, gender, avatar, email FROM users WHERE role='student' AND disabled=0 ORDER BY cls, section, name`).toArray()
+          .filter((r) => this.inScope(a, String(r.cls || ""), String(r.section || "")))
+          .map((r) => ({ id: String(r.id), name: String(r.name), cls: String(r.cls || ""), section: String(r.section || ""), avatar: avatarOf(r), parentEmail: Boolean(r.email), points: tot.get(String(r.id)) || 0 }));
+        return { status: 200, body: { students, canManage: can(a, "manageUsers") } };
+      }
+      case "pcat-list": {
+        if (!isStaff(a)) return { status: 403, body: { error: "forbidden" } };
+        if (!this.sql.exec(`SELECT 1 FROM pcat WHERE owner=?`, a.id).toArray().length) DEFAULT_CATS.forEach(([l, p, ic], i) => this.sql.exec(`INSERT INTO pcat (id, owner, label, pts, icon, pos) VALUES (?, ?, ?, ?, ?, ?)`, rid("pc"), a.id, l, p, ic, i));
+        return { status: 200, body: { items: this.sql.exec(`SELECT id, label, pts, icon FROM pcat WHERE owner=? ORDER BY pos, label`, a.id).toArray().map((r) => ({ id: String(r.id), label: String(r.label), pts: Number(r.pts), icon: String(r.icon || "") })) } };
+      }
+      case "pcat-save": {
+        if (!isStaff(a)) return { status: 403, body: { error: "forbidden" } };
+        const label = str(input.label, 40), pts = Math.max(-5, Math.min(5, Math.round(Number(input.pts) || 0))) || 1, icon = str(input.icon, 8);
+        if (!label) return { status: 400, body: { error: "label_required" } };
+        const id = str(input.id, 40);
+        if (id && this.sql.exec(`SELECT 1 FROM pcat WHERE id=? AND owner=?`, id, a.id).toArray().length) this.sql.exec(`UPDATE pcat SET label=?, pts=?, icon=? WHERE id=?`, label, pts, icon, id);
+        else this.sql.exec(`INSERT INTO pcat (id, owner, label, pts, icon, pos) VALUES (?, ?, ?, ?, ?, ?)`, rid("pc"), a.id, label, pts, icon, 99);
+        return { status: 200, body: { ok: true } };
+      }
+      case "pcat-delete": {
+        this.sql.exec(`DELETE FROM pcat WHERE id=? AND owner=?`, str(input.id, 40), a.id);
+        return { status: 200, body: { ok: true } };
+      }
+      case "pts-award": {
+        if (!isStaff(a) || a.viewAs) return { status: 403, body: { error: "forbidden" } };
+        const c = this.sql.exec(`SELECT * FROM pcat WHERE id=? AND owner=?`, str(input.cat, 40), a.id).toArray()[0];
+        if (!c) return { status: 404, body: { error: "not_found" } };
+        const ids = strList(input.students, 300).filter((sid) => this.inScope(a, ...this.placeOf(sid)));
+        if (!ids.length) return { status: 400, body: { error: "no_students" } };
+        const batch = rid("pb"), at = Date.now();
+        for (const sid of ids) this.sql.exec(`INSERT INTO pts (id, student, cat, label, pts, icon, by, owner, batch, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, rid("pt"), sid, String(c.id), String(c.label), Number(c.pts), String(c.icon || ""), a.name, a.id, batch, at);
+        return { status: 200, body: { ok: true, batch, count: ids.length } };
+      }
+      case "pts-undo": {
+        // Undo the teacher's most recent award (or a given batch of theirs).
+        const b = str(input.batch, 40) || String(this.sql.exec(`SELECT batch FROM pts WHERE owner=? ORDER BY at DESC LIMIT 1`, a.id).toArray()[0]?.batch || "");
+        if (!b) return { status: 404, body: { error: "nothing_to_undo" } };
+        const n = this.sql.exec(`SELECT COUNT(*) AS n FROM pts WHERE batch=? AND owner=?`, b, a.id).one().n;
+        this.sql.exec(`DELETE FROM pts WHERE batch=? AND owner=?`, b, a.id);
+        return { status: 200, body: { ok: true, removed: Number(n) } };
+      }
+      case "pts-list": {
+        if (!isStaff(a)) return { status: 403, body: { error: "forbidden" } };
+        const from = Number(input.from) || 0, to = Number(input.to) || Date.now() + 86400000;
+        let ids: string[] = strList(input.students, 500);
+        const cls = str(input.cls, 80), section = str(input.section, 80);
+        if (!ids.length) ids = this.sql.exec(`SELECT id, cls, section FROM users WHERE role='student'`).toArray().filter((r) => (!cls || r.cls === cls) && (!section || r.section === section)).map((r) => String(r.id));
+        ids = ids.filter((sid) => this.inScope(a, ...this.placeOf(sid)));
+        const set = new Set(ids);
+        const rows = this.sql.exec(`SELECT p.*, u.name AS sname FROM pts p LEFT JOIN users u ON u.id=p.student WHERE p.at>=? AND p.at<? ORDER BY p.at DESC LIMIT 5000`, from, to).toArray().filter((r) => set.has(String(r.student)));
+        return { status: 200, body: { items: rows.map((r) => ({ id: String(r.id), student: String(r.student), name: String(r.sname || ""), label: String(r.label), pts: Number(r.pts), icon: String(r.icon || ""), by: String(r.by), at: Number(r.at) })) } };
+      }
+      case "grp-list": {
+        if (!isStaff(a)) return { status: 403, body: { error: "forbidden" } };
+        const rows = this.sql.exec(`SELECT * FROM grp ORDER BY name`).toArray().filter((r) => a.role === "admin" || r.owner === a.id);
+        return { status: 200, body: { items: rows.map((r) => ({ id: String(r.id), name: String(r.name), students: JSON.parse(String(r.students || "[]")) as string[], owner: String(r.owner) })) } };
+      }
+      case "grp-save": {
+        if (!isStaff(a)) return { status: 403, body: { error: "forbidden" } };
+        const name = str(input.name, 60);
+        if (!name) return { status: 400, body: { error: "name_required" } };
+        const students = strList(input.students, 300).filter((sid) => this.inScope(a, ...this.placeOf(sid)));
+        const id = str(input.id, 40);
+        const ex = id ? this.sql.exec(`SELECT owner FROM grp WHERE id=?`, id).toArray()[0] : undefined;
+        if (ex && a.role !== "admin" && ex.owner !== a.id) return { status: 403, body: { error: "forbidden" } };
+        if (ex) this.sql.exec(`UPDATE grp SET name=?, students=?, updated=? WHERE id=?`, name, JSON.stringify(students), Date.now(), id);
+        else this.sql.exec(`INSERT INTO grp (id, owner, name, students, updated) VALUES (?, ?, ?, ?, ?)`, rid("gp"), a.id, name, JSON.stringify(students), Date.now());
+        return { status: 200, body: { ok: true } };
+      }
+      case "grp-delete": {
+        const r = this.sql.exec(`SELECT owner FROM grp WHERE id=?`, str(input.id, 40)).toArray()[0];
+        if (!r || (a.role !== "admin" && r.owner !== a.id)) return { status: 403, body: { error: "forbidden" } };
+        this.sql.exec(`DELETE FROM grp WHERE id=?`, str(input.id, 40));
+        return { status: 200, body: { ok: true } };
+      }
+      case "report-email": {
+        // Parent report: a tokenised read-only link (points or Quran). preview=true returns the exact email without sending.
+        const sid = str(input.id, 40), kind = input.kind === "quran" ? "quran" : "points";
+        if (!isStaff(a) || a.viewAs || !this.inScope(a, ...this.placeOf(sid))) return { status: 403, body: { error: "forbidden" } };
+        const u = this.userRow("id=? AND role='student'", sid);
+        if (!u) return { status: 404, body: { error: "not_found" } };
+        const to = String(u.email || "");
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) return { status: 400, body: { error: "no_parent_email" } };
+        let tok = String(this.sql.exec(`SELECT token FROM rtok WHERE student=? AND kind=?`, sid, kind).toArray()[0]?.token || "");
+        if (!tok || input.reset === true) { this.sql.exec(`DELETE FROM rtok WHERE student=? AND kind=?`, sid, kind); tok = b64url(crypto.getRandomValues(new Uint8Array(24))); this.sql.exec(`INSERT INTO rtok (token, student, kind, by, created) VALUES (?, ?, ?, ?, ?)`, tok, sid, kind, a.id, Date.now()); }
+        const url = `https://www.shaiqmuhammad.com/r?t=${tok}`;
+        const title = kind === "quran" ? "Quran learning report" : "Points & behaviour report";
+        const mail = { heading: `${title} — ${String(u.name)}`, paragraphs: ["Assalamu alaikum,", `Here is ${String(u.name)}'s ${title.toLowerCase()} from ${a.name}. The link opens a private, read-only page (no login needed). Please don't share it.`], button: { label: "View report", url }, note: "Automatic message — please don't reply. Questions: contact@shaiqmuhammad.com" };
+        const subject = `${title} — ${String(u.name)}`;
+        if (input.preview === true) return { status: 200, body: { to, subject, ...mail, url } };
+        const ok = await sendAuto(this.env as LmsEnv, to, subject, mail).catch(() => false);
+        this.sql.exec(`INSERT INTO rlog (id, student, kind, to_addr, by, at, ok) VALUES (?, ?, ?, ?, ?, ?, ?)`, rid("rl"), sid, kind, to, a.name, Date.now(), ok ? 1 : 0);
+        return { status: ok ? 200 : 502, body: ok ? { ok: true } : { error: "mail_failed" } };
+      }
+      case "report-log": {
+        if (!isStaff(a)) return { status: 403, body: { error: "forbidden" } };
+        const rows = this.sql.exec(`SELECT l.*, u.name AS sname, u.cls, u.section FROM rlog l LEFT JOIN users u ON u.id=l.student ORDER BY l.at DESC LIMIT 300`).toArray().filter((r) => a.role === "admin" || this.inScope(a, String(r.cls || ""), String(r.section || "")));
+        return { status: 200, body: { items: rows.map((r) => ({ id: String(r.id), student: String(r.sname || ""), kind: String(r.kind), to: String(r.to_addr), by: String(r.by), at: Number(r.at), ok: !!r.ok })) } };
+      }
       case "assess-list": {
         // Students: assessments assigned to them. Staff: assignments they made (admin: all).
         const rows = this.sql.exec(`SELECT * FROM qassign ORDER BY created DESC LIMIT 300`).toArray();
@@ -916,7 +1071,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         if (!u || u.role !== "student") return { status: 404, body: { error: "not_found" } };
         const sa = this.actorOf(u);
         const hw = this.assignedTo(sa).map((h) => { const sb = this.sub(h.id, sid); return { id: h.id, title: h.title, kind: h.kind, data: h.data, due: h.due, status: sb?.status || "none", grade: sb?.grade || "", attempts: sb?.attempts?.length || 0, late: !!(h.due && ((sb?.submittedAt || 0) > h.due || (!(sb?.submittedAt) && h.due < Date.now()))) }; });
-        return { status: 200, body: { student: this.publicUser(u), homework: hw, tracker: this.trackerOf(sid), progress: this.progressOf(sid), parentLink: String(u.parent_token || "") } };
+        return { status: 200, body: { student: a.role === "admin" && !a.viewAs ? this.adminUser(u) : this.publicUser(u), homework: hw, tracker: this.trackerOf(sid), progress: this.progressOf(sid), parentLink: String(u.parent_token || "") } };
       }
 
       case "quran-map": {
@@ -1178,6 +1333,45 @@ export class LmsStore extends DurableObject<LmsEnv> {
     return [admin, ...teachers.map(out)];
   }
 
+  /** Admin-only student fields. Name = first + last when given. */
+  private savePrivate(id: string, raw: Json, gender: string) {
+    const cur = this.userRow("id=?", id) || {};
+    const has = (k: string) => raw[k] !== undefined;
+    const v = (k: string, col: string, n = 80) => (has(k) ? str(raw[k], n) : String(cur[col] || ""));
+    const dobIn = has("dob") ? str(raw.dob, 10) : String(cur.dob || "");
+    const dob = /^\d{4}-\d{2}-\d{2}$/.test(dobIn) ? dobIn : "";
+    const seIn = v("semail", "semail", 120);
+    const semail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(seIn) ? seIn : "";
+    const fl = (k: string, col: string) => (has(k) ? (raw[k] ? "1" : "") : String(cur[col] || ""));
+    this.sql.exec(`UPDATE users SET gender=?, dob=?, phone=?, semail=?, nationality=?, pref_lang=?, sen=?, eal=?, gt=? WHERE id=?`, has("gender") ? gender : String(cur.gender || ""), dob, v("phone", "phone", 30), semail, v("nationality", "nationality", 40), v("prefLang", "pref_lang", 30), fl("sen", "sen"), fl("eal", "eal"), fl("gt", "gt"), id);
+    if (has("firstName") || has("lastName")) {
+      const f = str(raw.firstName, 40), l = str(raw.lastName, 40);
+      if (f) this.sql.exec(`UPDATE users SET first_name=?, last_name=?, name=? WHERE id=?`, f, l, `${f} ${l}`.trim(), id);
+    }
+  }
+  /** Teacher's class scope (no scope = all classes); admin always. */
+  private inScope(a: Actor, cls: string, section: string): boolean {
+    if (a.role === "admin") return true;
+    if (a.role !== "teacher") return false;
+    if (!a.scope?.length) return true;
+    return a.scope.some((x) => { const [k, s2] = x.split("|"); return k === cls && (!s2 || !section || s2 === section); });
+  }
+  private placeOf(sid: string): [string, string] {
+    const u = this.userRow("id=? AND role='student'", sid);
+    return u ? [String(u.cls || ""), String(u.section || "")] : ["\u0000", "\u0000"];
+  }
+  /** Public parent report (token): only that student's points or Quran data, read-only. */
+  reportView(token: string) {
+    if (!/^[A-Za-z0-9_-]{20,64}$/.test(token)) return { status: 404, body: { error: "not_found" } };
+    const t = this.sql.exec(`SELECT * FROM rtok WHERE token=?`, token).toArray()[0];
+    const u = t && this.userRow("id=? AND role='student'", String(t.student));
+    if (!t || !u) return { status: 404, body: { error: "not_found" } };
+    const base = { kind: String(t.kind), name: String(u.name), cls: String(u.cls || ""), section: String(u.section || ""), avatar: avatarOf(u), id: String(u.id) };
+    if (t.kind === "quran") return { status: 200, body: { ...base, tracker: this.trackerOf(String(u.id)), progress: this.progressOf(String(u.id)) } };
+    const pts = this.sql.exec(`SELECT label, pts, icon, by, at FROM pts WHERE student=? AND at>? ORDER BY at DESC LIMIT 2000`, String(u.id), Date.now() - 366 * 86400000).toArray().map((r) => ({ label: String(r.label), pts: Number(r.pts), icon: String(r.icon || ""), by: String(r.by), at: Number(r.at) }));
+    return { status: 200, body: { ...base, points: pts } };
+  }
+
   private canSeeStudent(a: Actor, sid: string): boolean {
     if (a.role === "admin") return true;
     if (a.role !== "teacher" || !can(a, "review")) return false;
@@ -1325,6 +1519,10 @@ export async function handleLms(request: Request, env: LmsEnv, action: string): 
   }
   if (action === "parent") {
     const r = (await store.parentView(str(new URL(request.url).searchParams.get("t") || body.t, 80))) as unknown as Reply;
+    return reply(origin, r.body, r.status);
+  }
+  if (action === "report") {
+    const r = (await store.reportView(str(new URL(request.url).searchParams.get("t") || body.t, 80))) as unknown as Reply;
     return reply(origin, r.body, r.status);
   }
   if (action === "qr") {

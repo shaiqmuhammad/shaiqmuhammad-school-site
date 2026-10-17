@@ -5,7 +5,7 @@ import { ASSESSMENT_API_BASE } from "@/lib/groupSession";
 
 /** LMS phase 1 client (see workers/assessment-session/src/lms.ts). */
 export type Role = "student" | "teacher";
-export type LmsUser = { id: string; username: string; name: string; role: Role; cls: string; section: string; subjects: string[]; scope: string[]; perms: string[]; disabled: boolean; hasPin: boolean; email?: string; created: number; lastLogin: number | null };
+export type LmsUser = { id: string; username: string; name: string; role: Role; cls: string; section: string; subjects: string[]; scope: string[]; perms: string[]; disabled: boolean; hasPin: boolean; firstName?: string; lastName?: string; parentEmail?: boolean; gender?: string; avatar?: string; email?: string; dob?: string; phone?: string; semail?: string; nationality?: string; prefLang?: string; sen?: boolean; eal?: boolean; gt?: boolean; created: number; lastLogin: number | null };
 export type Catalog = { subjects: { id: string; name: string }[]; classes: { id: string; name: string }[]; sections: { id: string; name: string; classId: string; cls: string }[] };
 export type DashStudent = { id: string; name: string; cls: string; section: string };
 /** Teacher scope entry: "Year 2" (whole class) or "Year 2|2A" (one section). */
@@ -16,6 +16,11 @@ export type QuranData = { surah: number; from: number; to: number; reciter: stri
 export type GeneralData = { slides: Slide[]; question: string };
 export type Homework = { id: string; kind: "quran" | "general"; title: string; cls: string; section?: string; students: string[]; data: QuranData | GeneralData; due: number | null; createdBy: string; created: number; locked?: boolean; lockedBy?: { surah: number; from: number; to: number; title: string } | null; late?: boolean };
 export type Comment = { by: string; text: string; at: number; audio?: string };
+export type RosterStudent = { id: string; name: string; cls: string; section: string; avatar: string; parentEmail: boolean; points: number };
+export type PointCat = { id: string; label: string; pts: number; icon: string };
+export type PointRow = { id: string; student: string; name: string; label: string; pts: number; icon: string; by: string; at: number };
+export type StudentGroup = { id: string; name: string; students: string[]; owner: string };
+export type ReportView = { kind: "points" | "quran"; id: string; name: string; cls: string; section: string; avatar: string; points?: { label: string; pts: number; icon: string; by: string; at: number }[]; tracker?: TrackerRow[]; progress?: unknown };
 export type Assignment = { id: string; quiz: string; title: string; mode: "individual" | "group"; cls: string; section: string; students: string[]; due: number | null; by: string; created: number };
 export type Announcement = { id: string; title: string; body: string; aud: "all" | "students" | "teachers" | "class"; cls: string; section: string; by: string; created: number };
 export type MsgContact = { id: string; name: string; role: string; cls: string };
@@ -148,6 +153,20 @@ export const lmsApi = {
   notes: (asAdmin = false) => call<{ items: Note[]; unread: number }>("notes", undefined, { asAdmin }),
   notesRead: (ids?: string[], asAdmin = false) => call<{ ok: true }>("notes-read", { ids }, { asAdmin }),
   adminPrefs: (p?: { quick: { tab: string; label: string; icon?: string }[]; dashIcon?: string }) => call<{ quick: { tab: string; label: string; icon?: string }[] | null; dashIcon: string }>("admin-prefs", p, { asAdmin: true }),
+  classRoster: () => call<{ students: RosterStudent[]; canManage: boolean }>("class-roster"),
+  pcatList: () => call<{ items: PointCat[] }>("pcat-list"),
+  pcatSave: (c: Partial<PointCat>) => call<{ ok: true }>("pcat-save", c),
+  pcatDelete: (id: string) => call<{ ok: true }>("pcat-delete", { id }),
+  ptsAward: (cat: string, students: string[]) => call<{ ok: true; batch: string; count: number }>("pts-award", { cat, students }),
+  ptsUndo: (batch?: string) => call<{ ok: true; removed: number }>("pts-undo", { batch }),
+  ptsList: (q: { students?: string[]; cls?: string; section?: string; from?: number; to?: number }, asAdmin = false) => call<{ items: PointRow[] }>("pts-list", q, { asAdmin }),
+  grpList: (asAdmin = false) => call<{ items: StudentGroup[] }>("grp-list", undefined, { asAdmin }),
+  grpSave: (g: { id?: string; name: string; students: string[] }) => call<{ ok: true }>("grp-save", g),
+  grpDelete: (id: string) => call<{ ok: true }>("grp-delete", { id }),
+  userAvatar: (id: string) => call<{ avatar: string }>("user-avatar", { id }),
+  reportEmail: (id: string, kind: "points" | "quran", preview: boolean) => call<{ ok?: true; to: string; subject: string; heading: string; paragraphs: string[]; url: string }>("report-email", { id, kind, preview }),
+  reportLog: () => call<{ items: { id: string; student: string; kind: string; to: string; by: string; at: number; ok: boolean }[] }>("report-log"),
+  reportView: (t: string) => call<ReportView>("report", undefined, { query: { t } }),
   assessList: (asAdmin = false) => call<{ items: Assignment[] }>("assess-list", undefined, { asAdmin }),
   assessAssign: (a: { quiz: string; title: string; mode: "individual" | "group"; cls?: string; section?: string; students?: string[]; due?: number | null }, asAdmin = false) => call<{ ok: true; id: string; sent: number }>("assess-assign", a, { asAdmin }),
   assessUnassign: (id: string, asAdmin = false) => call<{ ok: true }>("assess-unassign", { id }, { asAdmin }),
@@ -191,6 +210,10 @@ export const lmsApi = {
 export function lmsErrorText(e: unknown, tr: (en: string, ar: string) => string): string {
   const c = e instanceof LmsError ? e.code : "";
   const m: Record<string, [string, string]> = {
+    no_parent_email: ["No parent email on file for this student. Ask the admin to add one.", "لا يوجد بريد لولي الأمر. اطلب من المسؤول إضافته."],
+    mail_failed: ["The email could not be sent. Try again later.", "تعذّر إرسال البريد. حاول لاحقًا."],
+    nothing_to_undo: ["Nothing to undo.", "لا شيء للتراجع عنه."],
+    not_your_class: ["That student is not in your classes.", "هذا الطالب ليس في صفوفك."],
     bad_login: ["Wrong username or PIN.", "اسم المستخدم أو الرقم السري غير صحيح."],
     locked: ["Finish the earlier verses first — this unlocks when your teacher passes them.", "أكمل الآيات السابقة أولًا — تُفتح عندما يجتازها معلمك."],
     leaderboard_off: ["The leaderboard is turned off.", "لوحة المتصدرين متوقفة."],
