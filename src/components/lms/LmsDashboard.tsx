@@ -67,7 +67,18 @@ export function LmsDashboard() {
 
   const surahName = (n: number) => chapters.find((c) => c.id === n)?.[lang === "ar" ? "name_arabic" : "name_simple"] || `${tr("Surah", "سورة")} ${n}`;
   const staff = actor?.role === "teacher" || actor?.role === "admin";
-  useEffect(() => { if (actor) document.title = `${staff ? tr("Teacher Dashboard", "لوحة المعلم") : tr("Student Dashboard", "لوحة الطالب")} | Shaiq Muhammad`; }, [actor, staff, tr]);
+  useEffect(() => {
+    if (!actor) return;
+    const want = `${staff ? tr("Teacher Dashboard", "لوحة المعلم") : tr("Student Dashboard", "لوحة الطالب")} | Shaiq Muhammad`;
+    const apply = () => { if (document.title !== want) document.title = want; };
+    apply();
+    // Next re-applies the static route title after hydration/language switch; keep ours.
+    const el = document.querySelector("title");
+    const mo = new MutationObserver(apply);
+    if (el) mo.observe(el, { childList: true, characterData: true, subtree: true });
+    const t = setTimeout(apply, 1500);
+    return () => { mo.disconnect(); clearTimeout(t); };
+  }, [actor, staff, tr]);
   const canAssign = actor?.role === "admin" || actor?.perms.includes("assign");
 
   if (ready && !actor) return <NeedLogin adminElsewhere={adminElsewhere} />;
