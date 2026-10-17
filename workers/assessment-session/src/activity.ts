@@ -575,7 +575,7 @@ export async function handleActivity(request: Request, env: ActivityEnv, parts: 
     const type = String(body.type) as ActivityType;
     if (!ACTIVITY_TYPES.includes(type)) return reply(origin, { error: "bad_type" }, 400);
     // Admin, or a teacher the admin granted this activity type to.
-    if (!(await verifyToken(env, request.headers.get("Authorization"))) && !(await teacherWithPerm(request, env as unknown as LmsEnv, `act:${type}`))) return reply(origin, { error: "unauthorized" }, 401);
+    if (!(await verifyToken(env, request.headers.get("Authorization"))) && !(await teacherWithPerm(request, env as unknown as LmsEnv, "act:*"))) return reply(origin, { error: "unauthorized" }, 401);
     for (let attempt = 0; attempt < 8; attempt++) {
       const code = rand(5, ALPHABET);
       const stub = env.ACTIVITIES.get(env.ACTIVITIES.idFromName(code));

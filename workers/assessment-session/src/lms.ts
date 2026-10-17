@@ -90,6 +90,7 @@ const str = (v: unknown, max: number) => String(v ?? "").replace(/[\u0000-\u001f
 const b64url = (b: Uint8Array) => btoa(String.fromCharCode(...b)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 const fromB64url = (s: string) => Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/")), (c) => c.charCodeAt(0));
 const hex = (b: ArrayBuffer | Uint8Array) => Array.from(new Uint8Array(b), (x) => x.toString(16).padStart(2, "0")).join("");
+const wallText = (v: unknown, max: number) => String(v ?? "").replace(/[\u0000-\u0008\u000b-\u001f]/g, "").trim().slice(0, max);
 const rid = (p: string) => `${p}_${Date.now().toString(36)}${hex(crypto.getRandomValues(new Uint8Array(5)))}`;
 export const normUser = (s: unknown) => str(s, 40).toLowerCase().replace(/[^a-z0-9._-]/g, "");
 
@@ -230,6 +231,10 @@ export class LmsStore extends DurableObject<LmsEnv> {
     this.sql.exec(`CREATE TABLE IF NOT EXISTS pcat (id TEXT PRIMARY KEY, owner TEXT, label TEXT, pts INTEGER, icon TEXT, pos INTEGER)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS pts (id TEXT PRIMARY KEY, student TEXT, cat TEXT, label TEXT, pts INTEGER, icon TEXT, by TEXT, owner TEXT, batch TEXT, at INTEGER)`);
     this.sql.exec(`CREATE INDEX IF NOT EXISTS pts_student ON pts(student, at)`);
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS wall (id TEXT PRIMARY KEY, wkey TEXT, by TEXT, name TEXT, text TEXT, image TEXT, audio TEXT, pinned INTEGER DEFAULT 0, at INTEGER)`);
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS wcom (id TEXT PRIMARY KEY, post TEXT, by TEXT, name TEXT, role TEXT, text TEXT, at INTEGER)`);
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS wlike (post TEXT, by TEXT, PRIMARY KEY (post, by))`);
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS alive (code TEXT PRIMARY KEY, type TEXT, title TEXT, owner TEXT, owner_name TEXT, students TEXT, at INTEGER)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS grp (id TEXT PRIMARY KEY, owner TEXT, name TEXT, students TEXT, updated INTEGER)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS rtok (token TEXT PRIMARY KEY, student TEXT, kind TEXT, by TEXT, created INTEGER)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS rlog (id TEXT PRIMARY KEY, student TEXT, kind TEXT, to_addr TEXT, by TEXT, at INTEGER, ok INTEGER)`);
@@ -571,16 +576,113 @@ export class LmsStore extends DurableObject<LmsEnv> {
           .map((r) => ({ id: String(r.id), name: String(r.name), cls: String(r.cls || ""), section: String(r.section || ""), avatar: avatarOf(r), parentEmail: Boolean(r.email), seen: Number(r.last_seen || 0), points: tot.get(String(r.id)) || 0 }));
         return { status: 200, body: { students, canManage: can(a, "manageUsers"), now: Date.now() } };
       }
+      case "act-publish": {
+        // Teacher started a live activity for chosen students: it shows up on their LMS home with a one-tap Join (no code to type).
+        if (!isStaff(a) || a.viewAs) return { status: 403, body: { error: "forbidden" } };
+        const code = str(input.code, 8).toUpperCase();
+        const ids = strList(input.students, 300).filter((sid) => this.inScope(a, ...this.placeOf(sid)));
+        if (!/^[A-Z0-9]{5}$/.test(code) || !ids.length) return { status: 400, body: { error: "bad" } };
+        this.sql.exec(`DELETE FROM alive WHERE at<?`, Date.now() - 6 * 3600e3);
+        this.sql.exec(`INSERT OR REPLACE INTO alive (code, type, title, owner, owner_name, students, at) VALUES (?, ?, ?, ?, ?, ?, ?)`, code, str(input.type, 12), str(input.title, 120), a.id, a.name, JSON.stringify(ids), Date.now());
+        return { status: 200, body: { ok: true, count: ids.length } };
+      }
+      case "act-live": {
+        if (a.role !== "student") return { status: 200, body: { items: [] } };
+        const rows = this.sql.exec(`SELECT code, type, title, owner_name, students, at FROM alive WHERE at>? ORDER BY at DESC`, Date.now() - 3 * 3600e3).toArray();
+        return { status: 200, body: { items: rows.filter((r) => (JSON.parse(String(r.students)) as string[]).includes(a.id)).map((r) => ({ code: String(r.code), type: String(r.type), title: String(r.title), teacher: String(r.owner_name), at: Number(r.at) })) } };
+      }
+      case "wall-classes": {
+        const rows = a.role === "student"
+          ? [this.placeOf(a.id)].filter((p) => p[0] !== "\u0000")
+          : (this.sql.exec(`SELECT DISTINCT cls, section FROM users WHERE role='student' AND disabled=0 AND cls<>'' ORDER BY cls, section`).toArray().map((r) => [String(r.cls), String(r.section || "")] as [string, string])).filter(([c, s2]) => this.inScope(a, c, s2));
+        return { status: 200, body: { items: rows.map(([c, s2]) => ({ key: `${c}|${s2}`, label: [c, s2].filter(Boolean).join(" · ") })), canPost: isStaff(a) && !a.viewAs } };
+      }
+      case "wall-list": {
+        const key = str(input.key, 80); const [c, s2] = key.split("|");
+        if (!this.wallAllowed(a, c, s2 || "")) return { status: 403, body: { error: "forbidden" } };
+        const posts = this.sql.exec(`SELECT id, by, name, text, image IS NOT NULL AND image<>'' AS hasImg, audio IS NOT NULL AND audio<>'' AS hasAud, pinned, at FROM wall WHERE wkey=? ORDER BY pinned DESC, at DESC LIMIT 60`, key).toArray();
+        const out = posts.map((p) => ({
+          id: String(p.id), name: String(p.name), text: String(p.text), hasImage: !!p.hasImg, hasAudio: !!p.hasAud, pinned: !!p.pinned, at: Number(p.at),
+          likes: Number(this.sql.exec(`SELECT COUNT(*) AS n FROM wlike WHERE post=?`, String(p.id)).one().n), liked: this.sql.exec(`SELECT 1 FROM wlike WHERE post=? AND by=?`, String(p.id), a.id).toArray().length > 0,
+          comments: this.sql.exec(`SELECT id, name, role, text, at FROM wcom WHERE post=? ORDER BY at`, String(p.id)).toArray().map((m) => ({ id: String(m.id), name: String(m.name), role: String(m.role), text: String(m.text), at: Number(m.at) })),
+        }));
+        return { status: 200, body: { posts: out, canModerate: isStaff(a) && !a.viewAs } };
+      }
+      case "wall-media": {
+        const r = this.sql.exec(`SELECT wkey, image, audio FROM wall WHERE id=?`, str(input.id, 40)).toArray()[0];
+        if (!r) return { status: 404, body: { error: "not_found" } };
+        const [c, s2] = String(r.wkey).split("|");
+        if (!this.wallAllowed(a, c, s2 || "")) return { status: 403, body: { error: "forbidden" } };
+        return { status: 200, body: { image: String(r.image || ""), audio: String(r.audio || "") } };
+      }
+      case "wall-post": {
+        const key = str(input.key, 80); const [c, s2] = key.split("|");
+        if (!isStaff(a) || a.viewAs || !c || !this.inScope(a, c, s2 || "")) return { status: 403, body: { error: "forbidden" } };
+        const text = wallText(input.text, 1500);
+        const image = String(input.image || ""), audio = String(input.audio || "");
+        if ((image && (!/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(image) || image.length > 330_000)) || (audio && (!/^data:audio\/[a-z0-9.+-]+(;codecs=[a-z0-9.,-]+)?;base64,[A-Za-z0-9+/=]+$/i.test(audio) || audio.length > 900_000))) return { status: 400, body: { error: "bad_media" } };
+        if (!text && !image && !audio) return { status: 400, body: { error: "empty" } };
+        this.sql.exec(`INSERT INTO wall (id, wkey, by, name, text, image, audio, pinned, at) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)`, rid("wp"), key, a.id, a.name, text, image, audio, Date.now());
+        return { status: 200, body: { ok: true } };
+      }
+      case "wall-comment": {
+        const p = this.sql.exec(`SELECT wkey FROM wall WHERE id=?`, str(input.post, 40)).toArray()[0];
+        if (!p || a.viewAs) return { status: 404, body: { error: "not_found" } };
+        const [c, s2] = String(p.wkey).split("|");
+        if (!this.wallAllowed(a, c, s2 || "")) return { status: 403, body: { error: "forbidden" } };
+        const text = wallText(input.text, 400);
+        if (!text) return { status: 400, body: { error: "empty" } };
+        const recent = Number(this.sql.exec(`SELECT COUNT(*) AS n FROM wcom WHERE by=? AND at>?`, a.id, Date.now() - 60_000).one().n);
+        if (recent >= 8) return { status: 429, body: { error: "slow_down" } };
+        this.sql.exec(`INSERT INTO wcom (id, post, by, name, role, text, at) VALUES (?, ?, ?, ?, ?, ?, ?)`, rid("wc"), str(input.post, 40), a.id, a.name, a.role, text, Date.now());
+        return { status: 200, body: { ok: true } };
+      }
+      case "wall-like": {
+        const p = this.sql.exec(`SELECT wkey FROM wall WHERE id=?`, str(input.post, 40)).toArray()[0];
+        if (!p || a.viewAs) return { status: 404, body: { error: "not_found" } };
+        const [c, s2] = String(p.wkey).split("|");
+        if (!this.wallAllowed(a, c, s2 || "")) return { status: 403, body: { error: "forbidden" } };
+        const id = str(input.post, 40);
+        if (this.sql.exec(`SELECT 1 FROM wlike WHERE post=? AND by=?`, id, a.id).toArray().length) this.sql.exec(`DELETE FROM wlike WHERE post=? AND by=?`, id, a.id);
+        else this.sql.exec(`INSERT INTO wlike (post, by) VALUES (?, ?)`, id, a.id);
+        return { status: 200, body: { ok: true } };
+      }
+      case "wall-mod": {
+        // Teacher/admin moderation: delete a post or comment, pin/unpin a post.
+        if (!isStaff(a) || a.viewAs) return { status: 403, body: { error: "forbidden" } };
+        const op = str(input.op, 12);
+        if (op === "delcom") {
+          const m = this.sql.exec(`SELECT w.wkey FROM wcom c JOIN wall w ON w.id=c.post WHERE c.id=?`, str(input.id, 40)).toArray()[0];
+          if (!m) return { status: 404, body: { error: "not_found" } };
+          const [c, s2] = String(m.wkey).split("|");
+          if (!this.inScope(a, c, s2 || "")) return { status: 403, body: { error: "forbidden" } };
+          this.sql.exec(`DELETE FROM wcom WHERE id=?`, str(input.id, 40));
+          return { status: 200, body: { ok: true } };
+        }
+        const p = this.sql.exec(`SELECT wkey FROM wall WHERE id=?`, str(input.id, 40)).toArray()[0];
+        if (!p) return { status: 404, body: { error: "not_found" } };
+        const [c, s2] = String(p.wkey).split("|");
+        if (!this.inScope(a, c, s2 || "")) return { status: 403, body: { error: "forbidden" } };
+        const id = str(input.id, 40);
+        if (op === "delete") { this.sql.exec(`DELETE FROM wcom WHERE post=?`, id); this.sql.exec(`DELETE FROM wlike WHERE post=?`, id); this.sql.exec(`DELETE FROM wall WHERE id=?`, id); }
+        else if (op === "pin" || op === "unpin") this.sql.exec(`UPDATE wall SET pinned=? WHERE id=?`, op === "pin" ? 1 : 0, id);
+        else return { status: 400, body: { error: "bad" } };
+        return { status: 200, body: { ok: true } };
+      }
       case "pcat-list": {
         if (!isStaff(a)) return { status: 403, body: { error: "forbidden" } };
         if (!this.sql.exec(`SELECT 1 FROM pcat WHERE owner=?`, a.id).toArray().length) DEFAULT_CATS.forEach(([l, p, ic], i) => this.sql.exec(`INSERT INTO pcat (id, owner, label, pts, icon, pos) VALUES (?, ?, ?, ?, ?, ?)`, rid("pc"), a.id, l, p, ic, i));
+        for (const d of this.sql.exec(`SELECT id, label, pts FROM pcat WHERE owner=? ORDER BY pos, rowid`, a.id).toArray().reduce((acc, r, _i, all) => { const k = `${String(r.label).toLowerCase().trim()}|${Number(r.pts) > 0}`; (acc.seen as Set<string>).has(k) ? (acc.drop as string[]).push(String(r.id)) : (acc.seen as Set<string>).add(k); void all; return acc; }, { seen: new Set<string>(), drop: [] as string[] }).drop) this.sql.exec(`DELETE FROM pcat WHERE id=?`, d);
         return { status: 200, body: { items: this.sql.exec(`SELECT id, label, pts, icon FROM pcat WHERE owner=? ORDER BY pos, label`, a.id).toArray().map((r) => ({ id: String(r.id), label: String(r.label), pts: Number(r.pts), icon: String(r.icon || "") })) } };
       }
       case "pcat-save": {
         if (!isStaff(a)) return { status: 403, body: { error: "forbidden" } };
         const label = str(input.label, 40), pts = Math.max(-5, Math.min(5, Math.round(Number(input.pts) || 0))) || 1, icon = str(input.icon, 8);
         if (!label) return { status: 400, body: { error: "label_required" } };
-        const id = str(input.id, 40);
+        let id = str(input.id, 40);
+        // A repeated reason (same wording and direction) counts as one: reuse and update it instead of adding a copy.
+        const dupe = this.sql.exec(`SELECT id FROM pcat WHERE owner=? AND LOWER(TRIM(label))=? AND (pts>0)=?`, a.id, label.toLowerCase().trim(), pts > 0).toArray()[0];
+        if (dupe && String(dupe.id) !== id) { if (id) this.sql.exec(`DELETE FROM pcat WHERE id=? AND owner=?`, id, a.id); id = String(dupe.id); }
         if (id && this.sql.exec(`SELECT 1 FROM pcat WHERE id=? AND owner=?`, id, a.id).toArray().length) this.sql.exec(`UPDATE pcat SET label=?, pts=?, icon=? WHERE id=?`, label, pts, icon, id);
         else this.sql.exec(`INSERT INTO pcat (id, owner, label, pts, icon, pos) VALUES (?, ?, ?, ?, ?, ?)`, rid("pc"), a.id, label, pts, icon, 99);
         return { status: 200, body: { ok: true } };
@@ -1373,6 +1475,12 @@ export class LmsStore extends DurableObject<LmsEnv> {
     }
   }
   /** Teacher's class scope (no scope = all classes); admin always. */
+  /** Who may open a class wall: that class's students, teachers whose scope covers it, and admin. */
+  private wallAllowed(a: Actor, cls: string, section: string): boolean {
+    if (!cls) return false;
+    if (a.role === "student") { const [c, s2] = this.placeOf(a.id); return c === cls && s2 === section; }
+    return this.inScope(a, cls, section);
+  }
   private inScope(a: Actor, cls: string, section: string): boolean {
     if (a.role === "admin") return true;
     if (a.role !== "teacher") return false;
@@ -1566,7 +1674,8 @@ export async function teacherWithPerm(request: Request, env: LmsEnv, perm: strin
   const uid = await verifyUserToken(env, request.headers.get("Authorization"));
   if (!uid) return false;
   const u = (await env.LMS.get(env.LMS.idFromName("main")).actor(uid)) as unknown as Actor | null;
-  return !!u && u.role === "teacher" && (u.perms.includes(perm) || u.perms.includes(perm.split(":")[0] + ":*"));
+  // Every active teacher may run any classroom activity; hosting a specific assessment still needs an explicit host: permission.
+  return !!u && u.role === "teacher" && (perm.startsWith("act:") || u.perms.includes(perm) || u.perms.includes(perm.split(":")[0] + ":*"));
 }
 
 async function lmsActor(request: Request, env: LmsEnv, store: DurableObjectStub<LmsStore>): Promise<Actor | null> {
