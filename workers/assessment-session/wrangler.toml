@@ -29,6 +29,10 @@ class_name = "ClassActivity"
 name = "LMS"
 class_name = "LmsStore"
 
+[[durable_objects.bindings]]
+name = "SITE"
+class_name = "SiteKV"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["AssessmentSession"]
@@ -65,3 +69,7 @@ new_sqlite_classes = ["LmsStore"]
 # Optional: require a teacher secret to create sessions.
 #   npx wrangler secret put HOST_SECRET
 # (then enter the same value in Admin → Assessments → Start group session)
+
+[[migrations]]
+tag = "v7"
+new_sqlite_classes = ["SiteKV"]

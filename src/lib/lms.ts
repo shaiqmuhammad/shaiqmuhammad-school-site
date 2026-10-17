@@ -23,6 +23,8 @@ export type StudentGroup = { id: string; name: string; students: string[]; owner
 export type ReportView = { kind: "points" | "quran"; id: string; name: string; cls: string; section: string; avatar: string; points?: { label: string; pts: number; icon: string; by: string; at: number }[]; tracker?: TrackerRow[]; progress?: unknown };
 export type Assignment = { id: string; quiz: string; title: string; mode: "individual" | "group"; cls: string; section: string; students: string[]; due: number | null; by: string; created: number };
 export type Announcement = { id: string; title: string; body: string; aud: "all" | "students" | "teachers" | "class"; cls: string; section: string; by: string; created: number };
+export type WallPost = { id: string; name: string; text: string; hasImage: boolean; hasAudio: boolean; pinned: boolean; at: number; likes: number; liked: boolean; comments: { id: string; name: string; role: string; text: string; at: number }[] };
+export type LiveActivity = { code: string; type: string; title: string; teacher: string; at: number };
 export type MsgContact = { id: string; name: string; role: string; cls: string; seen?: number };
 export type MsgThread = { thread: string; with: string; withName: string; people: string[]; mine: boolean; last: number; preview: string; unread: number };
 export type Msg = { id: string; sender: string; body: string; created: number; mine: boolean };
@@ -168,6 +170,15 @@ export const lmsApi = {
   reportLog: () => call<{ items: { id: string; student: string; kind: string; to: string; by: string; at: number; ok: boolean }[] }>("report-log"),
   reportView: (t: string) => call<ReportView>("report", undefined, { query: { t } }),
   assessResults: () => call<{ items: { id: string; kind: string; quizTitle: string; name: string; score: number; maxScore: number; percentage: number; correct: number; wrong: number; finishedAt: number; rank: number | null; sessionCode: string | null }[] }>("assess-results"),
+  wallClasses: () => call<{ items: { key: string; label: string }[]; canPost: boolean }>("wall-classes"),
+  wallList: (key: string) => call<{ posts: WallPost[]; canModerate: boolean }>("wall-list", { key }),
+  wallMedia: (id: string) => call<{ image: string; audio: string }>("wall-media", { id }),
+  wallPost: (key: string, text: string, image?: string, audio?: string) => call<{ ok: true }>("wall-post", { key, text, image, audio }),
+  wallComment: (post: string, text: string) => call<{ ok: true }>("wall-comment", { post, text }),
+  wallLike: (post: string) => call<{ ok: true }>("wall-like", { post }),
+  wallMod: (op: "delete" | "pin" | "unpin" | "delcom", id: string) => call<{ ok: true }>("wall-mod", { op, id }),
+  actPublish: (code: string, type: string, title: string, students: string[]) => call<{ ok: true; count: number }>("act-publish", { code, type, title, students }),
+  actLive: () => call<{ items: LiveActivity[] }>("act-live"),
   assessList: (asAdmin = false) => call<{ items: Assignment[] }>("assess-list", undefined, { asAdmin }),
   assessAssign: (a: { quiz: string; title: string; mode: "individual" | "group"; cls?: string; section?: string; students?: string[]; due?: number | null }, asAdmin = false) => call<{ ok: true; id: string; sent: number }>("assess-assign", a, { asAdmin }),
   assessUnassign: (id: string, asAdmin = false) => call<{ ok: true }>("assess-unassign", { id }, { asAdmin }),
@@ -214,6 +225,9 @@ export function lmsErrorText(e: unknown, tr: (en: string, ar: string) => string)
     no_parent_email: ["No parent email on file for this student. Ask the admin to add one.", "لا يوجد بريد لولي الأمر. اطلب من المسؤول إضافته."],
     mail_failed: ["The email could not be sent. Try again later.", "تعذّر إرسال البريد. حاول لاحقًا."],
     nothing_to_undo: ["Nothing to undo.", "لا شيء للتراجع عنه."],
+    slow_down: ["Slow down a little.", "تمهّل قليلًا."],
+    bad_media: ["That picture or recording is too large.", "الصورة أو التسجيل كبير جدًا."],
+    empty: ["Write something first.", "اكتب شيئًا أولًا."],
     not_your_class: ["That student is not in your classes.", "هذا الطالب ليس في صفوفك."],
     bad_login: ["Wrong username or PIN.", "اسم المستخدم أو الرقم السري غير صحيح."],
     locked: ["Finish the earlier verses first — this unlocks when your teacher passes them.", "أكمل الآيات السابقة أولًا — تُفتح عندما يجتازها معلمك."],
