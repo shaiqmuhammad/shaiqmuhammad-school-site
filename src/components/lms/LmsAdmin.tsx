@@ -6,7 +6,7 @@ import { StudentProgress } from "@/components/lms/Progress";
 import { Fragment, useCallback, useEffect, useState } from "react";
 import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
 import { AssessmentShell, primaryBtn } from "@/components/assessment/AssessmentShell";
-import { downloadCredentials, downloadSignInSheet, downloadUsersTemplate, exportAllHomeworkZip, parseUsersXlsx } from "@/components/lms/lmsFiles";
+import { exportStudentsXlsx, downloadCredentials, downloadSignInSheet, downloadUsersTemplate, exportAllHomeworkZip, parseUsersXlsx } from "@/components/lms/lmsFiles";
 import { ADMIN_ACTOR, adminRelogin, card, inputCls, smallBtn, useLmsActor, useTr } from "@/components/lms/useLms";
 import { lmsApi, lmsErrorText, PERMS, scopeLabel, type Catalog, type LmsUser, type Role } from "@/lib/lms";
 
@@ -21,9 +21,9 @@ const PERM_LABEL: Record<string, [string, string]> = {
 const EMPTY: Catalog = { subjects: [], classes: [], sections: [] };
 
 /** Add / edit one student or teacher, with dropdowns from Classes & Subjects. */
-function PersonForm({ role, catalog, initial, onSave, submitLabel, testPrefix, staff = false }: { staff?: boolean; role: Role; catalog: Catalog; initial?: LmsUser; onSave: (r: Row) => Promise<void>; submitLabel: string; testPrefix: string }) {
+function PersonForm({ role, catalog, initial, onSave, submitLabel, testPrefix, staff = false, admin = false }: { admin?: boolean; staff?: boolean; role: Role; catalog: Catalog; initial?: LmsUser; onSave: (r: Row) => Promise<void>; submitLabel: string; testPrefix: string }) {
   const { tr } = useTr();
-  const [f, setF] = useState({ name: initial?.name || "", username: initial?.username || "", cls: initial?.cls || "", section: initial?.section || "", pin: "", email: initial?.email || "", subjects: initial?.subjects || [], scope: initial?.scope || [], perms: initial?.perms || (staff ? ["staff", "review"] : ["assign", "review"]), disabled: initial?.disabled || false });
+  const [f, setF] = useState({ name: initial?.name || "", username: initial?.username || "", cls: initial?.cls || "", section: initial?.section || "", pin: "", email: initial?.email || "", gender: initial?.gender || "", first: initial?.firstName ?? (initial?.name || "").split(/\s+/)[0] ?? "", last: initial?.lastName ?? (initial?.name || "").split(/\s+/).slice(1).join(" "), dob: initial?.dob || "", phone: initial?.phone || "", semail: initial?.semail || "", nat: initial?.nationality || "", lang: initial?.prefLang || "", sen: !!initial?.sen, eal: !!initial?.eal, gt: !!initial?.gt, subjects: initial?.subjects || [], scope: initial?.scope || [], perms: initial?.perms || (staff ? ["staff", "review"] : ["assign", "review"]), disabled: initial?.disabled || false });
   const [busy, setBusy] = useState(false);
   const toggle = (k: "subjects" | "scope" | "perms", v: string) => setF((x) => ({ ...x, [k]: x[k].includes(v) ? x[k].filter((y) => y !== v) : [...x[k], v] }));
   const secs = catalog.sections.filter((s) => s.cls === f.cls);
@@ -35,14 +35,29 @@ function PersonForm({ role, catalog, initial, onSave, submitLabel, testPrefix, s
       onSubmit={async (e) => {
         e.preventDefault();
         setBusy(true);
-        await onSave({ id: initial?.id, role, name: f.name.trim(), username: f.username, cls: role === "student" ? f.cls : "", section: role === "student" ? f.section : "", subjects: role === "teacher" ? f.subjects : [], scope: role === "teacher" ? f.scope : [], perms: role === "teacher" ? f.perms : [], pin: f.pin || undefined, disabled: f.disabled, email: f.email.trim() });
+        await onSave({ id: initial?.id, role, name: role === "student" ? `${f.first.trim()} ${f.last.trim()}`.trim() : f.name.trim(), ...(role === "student" ? { firstName: f.first.trim(), lastName: f.last.trim() } : {}), username: f.username, cls: role === "student" ? f.cls : "", section: role === "student" ? f.section : "", subjects: role === "teacher" ? f.subjects : [], scope: role === "teacher" ? f.scope : [], perms: role === "teacher" ? f.perms : [], pin: f.pin || undefined, disabled: f.disabled, ...(role === "student" ? (admin ? { email: f.email.trim(), gender: f.gender, dob: f.dob, phone: f.phone.trim(), semail: f.semail.trim(), nationality: f.nat.trim(), prefLang: f.lang.trim(), sen: f.sen, eal: f.eal, gt: f.gt } : {}) : { email: f.email.trim() }) });
         setBusy(false);
-        if (!initial) setF((x) => ({ ...x, name: "", username: "", pin: "" }));
+        if (!initial) setF((x) => ({ ...x, name: "", first: "", last: "", username: "", pin: "" }));
       }}
     >
-      <input className={inputCls + " sm:col-span-2"} placeholder={tr("Full name", "الاسم الكامل")} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} dir="auto" data-testid={`${testPrefix}-name`} aria-label={tr("Full name", "الاسم الكامل")} />
+      {role === "student" ? (<>
+        <input className={inputCls + " sm:col-span-2"} placeholder={tr("First name", "الاسم الأول")} value={f.first} onChange={(e) => setF({ ...f, first: e.target.value })} dir="auto" data-testid={`${testPrefix}-first`} aria-label={tr("First name", "الاسم الأول")} />
+        <input className={inputCls + " sm:col-span-2"} placeholder={tr("Last name", "اسم العائلة")} value={f.last} onChange={(e) => setF({ ...f, last: e.target.value })} dir="auto" data-testid={`${testPrefix}-last`} aria-label={tr("Last name", "اسم العائلة")} />
+      </>) : (
+        <input className={inputCls + " sm:col-span-2"} placeholder={tr("Full name", "الاسم الكامل")} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} dir="auto" data-testid={`${testPrefix}-name`} aria-label={tr("Full name", "الاسم الكامل")} />
+      )}
       <input className={inputCls} placeholder={tr("username", "اسم المستخدم")} value={f.username} onChange={(e) => setF({ ...f, username: e.target.value.toLowerCase() })} dir="ltr" data-testid={`${testPrefix}-username`} aria-label={tr("username", "اسم المستخدم")} />
-      <input type="email" className={inputCls + " sm:col-span-2"} placeholder={role === "student" ? tr("Parent email (optional)", "بريد ولي الأمر (اختياري)") : tr("Email (optional)", "البريد (اختياري)")} value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} dir="ltr" data-testid={`${testPrefix}-email`} aria-label={role === "student" ? tr("Parent email (optional)", "بريد ولي الأمر (اختياري)") : tr("Email (optional)", "البريد (اختياري)")} />
+      {role === "teacher" && <input type="email" className={inputCls + " sm:col-span-2"} placeholder={tr("Email (optional)", "البريد (اختياري)")} value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} dir="ltr" data-testid={`${testPrefix}-email`} aria-label="Email" />}
+      {role === "student" && admin && (<>
+        <select className={inputCls} value={f.gender} onChange={(e) => setF({ ...f, gender: e.target.value })} aria-label={tr("Gender", "الجنس")} data-testid={`${testPrefix}-gender`}><option value="">{tr("Gender —", "الجنس —")}</option><option value="b">{tr("Boy", "ولد")}</option><option value="g">{tr("Girl", "بنت")}</option></select>
+        <label className="text-xs">{tr("Date of birth", "تاريخ الميلاد")}<input type="date" className={inputCls} value={f.dob} onChange={(e) => setF({ ...f, dob: e.target.value })} data-testid={`${testPrefix}-dob`} /></label>
+        <input className={inputCls} placeholder={tr("Contact no", "رقم التواصل")} value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} dir="ltr" data-testid={`${testPrefix}-phone`} />
+        <input type="email" className={inputCls + " sm:col-span-2"} placeholder={tr("Student email", "بريد الطالب")} value={f.semail} onChange={(e) => setF({ ...f, semail: e.target.value })} dir="ltr" data-testid={`${testPrefix}-semail`} />
+        <input type="email" className={inputCls + " sm:col-span-2"} placeholder={tr("Parent email (for reports)", "بريد ولي الأمر (للتقارير)")} value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} dir="ltr" data-testid={`${testPrefix}-email`} />
+        <input className={inputCls} placeholder={tr("Nationality", "الجنسية")} value={f.nat} onChange={(e) => setF({ ...f, nat: e.target.value })} data-testid={`${testPrefix}-nat`} />
+        <input className={inputCls} placeholder={tr("Preferred language", "اللغة المفضلة")} value={f.lang} onChange={(e) => setF({ ...f, lang: e.target.value })} data-testid={`${testPrefix}-lang`} />
+        <div className="flex flex-wrap items-center gap-3 text-sm sm:col-span-6">{([["sen", "SEN", "SEN"], ["eal", "EAL", "EAL"], ["gt", "Gifted & Talented", "موهوب ومتميز"]] as const).map(([k, en, ar]) => <label key={k} className="flex items-center gap-1.5"><input type="checkbox" checked={f[k]} onChange={(e) => setF({ ...f, [k]: e.target.checked })} data-testid={`${testPrefix}-${k}`} /> {tr(en, ar)}</label>)}</div>
+      </>)}
       {role === "student" ? (
         <>
           <select className={inputCls} value={f.cls} onChange={(e) => setF({ ...f, cls: e.target.value, section: "" })} data-testid={`${testPrefix}-class`} aria-label={tr("Class", "الصف")}>
@@ -78,7 +93,7 @@ function PersonForm({ role, catalog, initial, onSave, submitLabel, testPrefix, s
         </div>
       )}
       {initial && <label className="flex items-center gap-2 text-sm sm:col-span-3"><input type="checkbox" checked={f.disabled} onChange={(e) => setF({ ...f, disabled: e.target.checked })} /> {tr("Disabled (can't sign in)", "معطّل (لا يمكنه الدخول)")}</label>}
-      <button type="submit" className={primaryBtn + " sm:col-span-6 sm:w-fit"} disabled={busy || !f.name.trim() || f.username.length < 3} data-testid={`${testPrefix}-save`}>{submitLabel}</button>
+      <button type="submit" className={primaryBtn + " sm:col-span-6 sm:w-fit"} disabled={busy || !(role === "student" ? f.first.trim() : f.name.trim()) || f.username.length < 3} data-testid={`${testPrefix}-save`}>{submitLabel}</button>
     </form>
   );
 }
@@ -119,6 +134,9 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
   const [edit, setEdit] = useState<string | null>(null);
   const [prog, setProg] = useState<string | null>(null);
   const [fStatus, setFStatus] = useState<"" | "active" | "blocked">("");
+  const [showCols, setShowCols] = useState<string[]>(() => { try { return JSON.parse(localStorage.getItem("sm-lms-cols-" + role) || "null") || (asAdmin ? [] : ["pemail"]); } catch { return []; } });
+  const [colMenu, setColMenu] = useState(false);
+  const toggleCol = (k: string) => setShowCols((c) => { const n = c.includes(k) ? c.filter((x) => x !== k) : [...c, k]; try { localStorage.setItem("sm-lms-cols-" + role, JSON.stringify(n)); } catch { /* ignore */ } return n; });
   const [sort, setSort] = useState<{ key: string; dir: 1 | -1 }>({ key: "name", dir: 1 });
   const [page, setPage] = useState(0);
   const [sel, setSel] = useState<Set<string>>(new Set());
@@ -185,6 +203,15 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
   const secOpts = catalog.sections.filter((s) => s.cls === fCls);
   const teacherClasses = (u: LmsUser) => [...new Set(u.scope.map((x) => x.split("|")[0]))];
   const teacherSections = (u: LmsUser) => u.scope.filter((x) => x.includes("|")).map((x) => x.split("|")[1]);
+  // Optional student columns (admin sees every field; teachers only "parent email on file").
+  const EXTRA: [string, string, string, (u: LmsUser) => string][] = role !== "student" ? [] : asAdmin ? [
+    ["first", "First name", "الاسم الأول", (u) => u.firstName || ""], ["last", "Last name", "اسم العائلة", (u) => u.lastName || ""],
+    ["gender", "Gender", "الجنس", (u) => (u.gender === "b" ? "Boy" : u.gender === "g" ? "Girl" : "")], ["dob", "DOB", "الميلاد", (u) => u.dob || ""],
+    ["phone", "Contact no", "التواصل", (u) => u.phone || ""], ["semail", "Student email", "بريد الطالب", (u) => u.semail || ""], ["pemail", "Parent email", "بريد ولي الأمر", (u) => u.email || ""],
+    ["nat", "Nationality", "الجنسية", (u) => u.nationality || ""], ["lang", "Language", "اللغة", (u) => u.prefLang || ""],
+    ["sen", "SEN", "SEN", (u) => (u.sen ? "✓" : "")], ["eal", "EAL", "EAL", (u) => (u.eal ? "✓" : "")], ["gt", "G&T", "موهوب", (u) => (u.gt ? "✓" : "")],
+  ] : [["pemail", "Parent email on file", "بريد ولي الأمر", (u) => (u.parentEmail ? "Yes" : "No")]];
+  const extraOn = EXTRA.filter((e) => showCols.includes(e[0]));
   const cols: { key: string; label: string; sort: boolean }[] = [
     { key: "name", label: tr("Name", "الاسم"), sort: true },
     { key: "username", label: tr("Username", "اسم المستخدم"), sort: true },
@@ -192,10 +219,11 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
     ...(role === "student"
       ? [{ key: "cls", label: tr("Class", "الصف"), sort: true }, { key: "section", label: tr("Section", "الشعبة"), sort: true }]
       : [{ key: "subjects", label: tr("Subjects", "المواد"), sort: true }, { key: "classes", label: tr("Classes", "الصفوف"), sort: true }, { key: "sections", label: tr("Sections", "الشعب"), sort: true }]),
+    ...extraOn.map((e) => ({ key: "x_" + e[0], label: tr(e[1], e[2]), sort: true })),
     { key: "status", label: tr("Status", "الحالة"), sort: true },
     { key: "actions", label: tr("Actions", "إجراءات"), sort: false },
   ];
-  const sortVal = (u: LmsUser): string => ({ name: u.name, username: u.username, cls: u.cls, section: u.section, subjects: u.subjects.join(","), classes: teacherClasses(u).join(","), sections: teacherSections(u).join(","), status: u.disabled ? "1" : "0" })[sort.key] ?? "";
+  const sortVal = (u: LmsUser): string => ({ name: u.name, username: u.username, cls: u.cls, section: u.section, subjects: u.subjects.join(","), classes: teacherClasses(u).join(","), sections: teacherSections(u).join(","), status: u.disabled ? "1" : "0", ...Object.fromEntries(EXTRA.map((e) => ["x_" + e[0], e[3](u)])) })[sort.key] ?? "";
   const filtered = list.filter((u) => !fStatus || (fStatus === "blocked") === u.disabled);
   const sorted = [...filtered].sort((x, y) => sortVal(x).localeCompare(sortVal(y), undefined, { numeric: true, sensitivity: "base" }) * sort.dir);
   const PAGE = 25;
@@ -236,6 +264,7 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
             <HeadBtn label={role === "teacher" ? tr("Add teacher", "إضافة معلم") : tr("Add student", "إضافة طالب")} text={tr("Add", "إضافة")} primary onClick={() => setDrawer("add")} testId="lms-toggle-add" icon={<path d="M15 19a6 6 0 0 0-12 0M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm10-3v6m3-3h-6" />} />
             <HeadBtn label={tr("Bulk add from Excel", "إضافة جماعية من إكسل")} text={tr("Bulk add", "إضافة جماعية")} onClick={() => setDrawer("bulk")} testId="lms-toggle-bulk" icon={<path d="M12 16V4m0 0-4 4m4-4 4 4M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" />} />
             <HeadBtn label={role === "teacher" ? tr("Teachers template (Excel)", "قالب المعلمين (إكسل)") : tr("Students template (Excel)", "قالب الطلاب (إكسل)")} text={tr("Template", "القالب")} onClick={() => downloadUsersTemplate(role, catalog)} testId="lms-template" icon={<path d="M12 4v12m0 0-4-4m4 4 4-4M4 20h16" />} />
+            {asAdmin && role === "student" && <HeadBtn label={tr("Export all fields (Excel, admin only)", "تصدير كل الحقول (إكسل)")} text={tr("Export", "تصدير")} icon={<svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden><path d="M12 3v12m0 0-4-4m4 4 4-4M5 21h14" /></svg>} onClick={() => exportStudentsXlsx(people).catch((e) => setErr(lmsErrorText(e, tr)))} testId="lms-export-all" />}
             {asAdmin && <HeadBtn label={tr("Download sign-in sheet (shown rows)", "تنزيل ورقة الدخول (الصفوف المعروضة)")} text={tr("Sign-in sheet", "ورقة الدخول")} onClick={async () => { try { await downloadSignInSheet(sorted, await allPins(), role); } catch (e) { setErr(lmsErrorText(e, tr)); } }} testId="lms-signin-sheet" icon={<path d="M6 3h9l4 4v14H6zM14 3v5h5M9 13h7M9 17h7M9 9h2" />} />}
             {asAdmin && role === "student" && <HeadBtn label={tr("All homework (ZIP)", "كل الواجبات (ZIP)")} text="ZIP" onClick={() => exportAllHomeworkZip(asAdmin).catch((e) => setErr(lmsErrorText(e, tr)))} testId="lms-admin-export" icon={<path d="M4 7h16v13H4zM4 7l2-3h12l2 3M10 11h4" />} />}
           </div>
@@ -258,7 +287,7 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
                 <button type="button" className={iconBtn} onClick={() => setDrawer(null)} aria-label={tr("Close", "إغلاق")} title={tr("Close", "إغلاق")} data-testid="lms-drawer-close">✕</button>
               </div>
               {drawer === "add" ? (
-                <PersonForm staff={staff} role={role} catalog={catalog} onSave={async (r) => { if (await saveMany([r])) setDrawer(null); }} submitLabel={"+ " + tr("Add", "إضافة")} testPrefix="lms-new" />
+                <PersonForm admin={asAdmin} staff={staff} role={role} catalog={catalog} onSave={async (r) => { if (await saveMany([r])) setDrawer(null); }} submitLabel={"+ " + tr("Add", "إضافة")} testPrefix="lms-new" />
               ) : (
                 <div className="space-y-3">
                   <p className="text-sm opacity-75">{tr("1. Download the template · 2. Fill one row per person · 3. Upload it here and check the preview.", "١. نزّل القالب · ٢. صف لكل شخص · ٣. ارفعه هنا وراجع المعاينة.")}</p>
@@ -308,6 +337,8 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
               <option value="">{tr("All sections", "كل الشعب")}</option>
               {secOpts.map((s) => <option key={s.id}>{s.name}</option>)}
             </select>
+            {EXTRA.length > 0 && <div className="relative"><button type="button" className={smallBtn} onClick={() => setColMenu(!colMenu)} aria-expanded={colMenu} data-testid="lms-cols-btn">▥ {tr("Columns", "الأعمدة")}</button>
+              {colMenu && <div className="absolute end-0 z-40 mt-1 w-52 rounded-2xl border border-black/10 bg-white p-2 text-sm shadow-xl dark:border-white/15 dark:bg-[#13202e]" data-testid="lms-cols-menu">{EXTRA.map((e) => <label key={e[0]} className="flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-black/5 dark:hover:bg-white/10"><input type="checkbox" checked={showCols.includes(e[0])} onChange={() => toggleCol(e[0])} />{tr(e[1], e[2])}</label>)}</div>}</div>}
             <select className={inputCls + " mt-0 w-auto! min-w-[9rem]"} value={fStatus} onChange={(e) => { setFStatus(e.target.value as typeof fStatus); setPage(0); }} data-testid="lms-filter-status" aria-label={tr("Status", "الحالة")}>
               <option value="">{tr("Any status", "كل الحالات")}</option>
               <option value="active">{tr("Active", "نشط")}</option>
@@ -375,6 +406,7 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
                             <td className={td} data-testid="col-sections">{teacherSections(u).join(", ") || "—"}</td>
                           </>
                         )}
+                        {extraOn.map((e) => <td key={e[0]} className={td + " whitespace-nowrap text-[13px]"} data-testid={`col-${e[0]}`} dir="auto">{e[3](u) || "—"}</td>)}
                         <td className={td} data-testid="col-status">
                           <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold ${u.disabled ? "bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-100" : "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-100"}`}>{u.disabled ? tr("Blocked", "موقوف") : tr("Active", "نشط")}</span>
                         </td>
@@ -400,7 +432,7 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
                       {edit === u.id && (
                         <tr>
                           <td colSpan={cols.length + 1} className="border-t border-black/5 bg-black/[0.03] p-3 dark:border-white/10 dark:bg-white/5">
-                            <PersonForm staff={staff} role={role} catalog={catalog} initial={u} onSave={async (r) => { if (await saveMany([r])) setEdit(null); }} submitLabel={tr("Save", "حفظ")} testPrefix="lms-edit" />
+                            <PersonForm admin={asAdmin} staff={staff} role={role} catalog={catalog} initial={u} onSave={async (r) => { if (await saveMany([r])) setEdit(null); }} submitLabel={tr("Save", "حفظ")} testPrefix="lms-edit" />
                           </td>
                         </tr>
                       )}

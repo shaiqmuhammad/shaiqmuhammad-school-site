@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { primaryBtn } from "@/components/assessment/AssessmentShell";
 import { card, inputCls, smallBtn, useTr } from "@/components/lms/useLms";
-import { lmsApi, lmsErrorText, quranChapters, RECITERS, type Chapter, type GeneralData, type Homework, type QuranData, type Slide, type Catalog, type DashStudent } from "@/lib/lms";
+import { lmsApi, lmsErrorText, quranChapters, RECITERS, type Chapter, type GeneralData, type Homework, type QuranData, type Slide, type Catalog, type DashStudent, type StudentGroup } from "@/lib/lms";
 
 /** Create / edit a homework (Quran verses or general slides) for a class or chosen students. */
 export function HomeworkEditor({ initial, classes, students, catalog, scope = [], asAdmin, onSaved, onCancel }: { initial?: Homework; classes: { cls: string; students: number }[]; students: DashStudent[]; catalog?: Catalog; scope?: string[]; asAdmin: boolean; onSaved: (id: string) => void; onCancel: () => void }) {
@@ -12,6 +12,8 @@ export function HomeworkEditor({ initial, classes, students, catalog, scope = []
   const [title, setTitle] = useState(initial?.title || "");
   const [cls, setCls] = useState(initial?.cls ?? (scope[0]?.split("|")[0] || ""));
   const [pick, setPick] = useState<string[]>(initial?.students || []);
+  const [groups, setGroups] = useState<StudentGroup[]>([]);
+  useEffect(() => { lmsApi.grpList(asAdmin).then((r) => setGroups(r.items)).catch(() => undefined); }, [asAdmin]);
   const [section, setSection] = useState(initial?.section ?? "");
   const [who, setWho] = useState<"class" | "students">(initial?.students?.length && !initial.cls ? "students" : "class");
   const [fCls, setFCls] = useState("");
@@ -57,6 +59,7 @@ export function HomeworkEditor({ initial, classes, students, catalog, scope = []
                   {fCls && sectionsOf(fCls).map((x) => <option key={x}>{x}</option>)}
                 </select>
                 <button type="button" className="rounded-full px-3 py-1 font-semibold glass" onClick={() => setPick([...new Set([...pick, ...shownStudents.map((s) => s.id)])])} data-testid="hw-pick-all">{tr("Select all shown", "تحديد الظاهرين")}</button>
+                {groups.length > 0 && <select className="rounded-full px-3 py-1 font-semibold glass" value="" onChange={(e) => { const g = groups.find((x) => x.id === e.target.value); if (g) setPick([...new Set([...pick, ...g.students])]); }} data-testid="hw-group"><option value="">{tr("＋ Custom group…", "＋ مجموعة مخصصة…")}</option>{groups.map((g) => <option key={g.id} value={g.id}>{g.name} ({g.students.length})</option>)}</select>}
                 {pick.length > 0 && <button type="button" className="rounded-full px-3 py-1 font-semibold glass" onClick={() => setPick([])}>{tr("Clear", "مسح")} ({pick.length})</button>}
               </div>
               <div className="max-h-48 space-y-1 overflow-auto rounded-xl border border-black/10 p-2 dark:border-white/15">
