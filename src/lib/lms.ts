@@ -141,6 +141,8 @@ export const lmsApi = {
   parentThread: (thread: string, asAdmin = false) => call<{ items: ParentMsg[] }>("parent-thread", { thread }, { asAdmin }),
   parentLog: (student: string, asAdmin = false) => call<{ items: (ParentMsg & { teacherName: string })[] }>("parent-log", { student }, { asAdmin }),
   parentDelete: (thread: string) => call<{ ok: true }>("parent-delete-all", { thread }, { asAdmin: true }),
+  vidAdminList: (status = "") => call<{ items: { id: string; vid: string; name: string; role: string; text: string; at: number; status: string }[]; pending: number }>("vid-admin-list", { status }, { asAdmin: true }),
+  vidAdminSet: (id: string, status: "ok" | "hidden" | "delete") => call<{ ok: true }>("vid-admin-set", { id, status }, { asAdmin: true }),
   setStatus: (ids: string[], disabled: boolean, asAdmin = true) => call<{ ok: true; changed: number }>("users-status", { ids, disabled }, { asAdmin }),
   progress: (id: string, asAdmin = false) => call<{ student: LmsUser; homework: { id: string; title: string; kind: string; data: QuranData | GeneralData; due: number | null; status: string; grade: string; attempts: number; late: boolean }[]; tracker: TrackerRow[]; progress: Progress; parentLink: string }>("progress", { id }, { asAdmin }),
   quranMap: (cls = "", section = "", asAdmin = false) => call<{ rows: MapRow[]; surahs: number[] }>("quran-map", { cls, section }, { asAdmin }),

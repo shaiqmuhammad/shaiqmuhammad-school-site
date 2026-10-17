@@ -12,10 +12,15 @@ import { ytApi, type PageRow } from "@/lib/yt";
 
 /** /videos/playlist?p=<slug>: one admin-published playlist as its own page. */
 export function PlaylistPage() {
-  const slug = useSearchParams().get("p") || "";
+  const sp = useSearchParams();
+  const slug = sp.get("p") || "";
+  const raw = sp.get("l") || "";
   const { lang } = useI18n();
   const [pl, setPl] = useState<{ id: string; title: string } | null | undefined>(undefined);
-  useEffect(() => { ytApi.playlistBySlug(slug).then(setPl).catch(() => setPl(null)); }, [slug]);
+  useEffect(() => {
+    if (raw) ytApi.channel().then((c) => { const f = c.playlists.find((x) => x.id === raw); setPl(f ? { id: f.id, title: f.title } : null); }).catch(() => setPl(null));
+    else ytApi.playlistBySlug(slug).then(setPl).catch(() => setPl(null));
+  }, [slug, raw]);
   return (
     <>
       <PageHero eyebrow={lang === "ar" ? "الفيديوهات" : "Videos"} title={pl?.title || (lang === "ar" ? "قائمة تشغيل" : "Playlist")} subtitle="" />

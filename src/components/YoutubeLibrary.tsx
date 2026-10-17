@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useI18n } from "@/lib/i18n";
 import { YtPlayer } from "@/components/YtPlayer";
+import { VideoEngage } from "@/components/VideoEngage";
+import { PlaylistCards } from "@/components/PlaylistCards";
 import { thumb, ytApi, type YtPlaylist, type YtVideo } from "@/lib/yt";
 
 /** Videos page: every upload and playlist of the channel, played in-page (privacy-enhanced embed, no links out). */
@@ -20,6 +22,10 @@ export function YoutubeLibrary({ playlistId, fallback }: { playlistId?: string; 
 
   useEffect(() => {
     ytApi.channel().then((c) => { setAll(c.videos); setLists(c.playlists); }).catch(() => setFailed(true));
+  }, []);
+  useEffect(() => {
+    const v = new URLSearchParams(window.location.search).get("v");
+    if (v && /^[\w-]{6,20}$/.test(v)) setCur({ id: v, title: "", duration: "", published: "" }); // eslint-disable-line react-hooks/set-state-in-effect
   }, []);
   useEffect(() => {
     if (!pl) { // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -40,16 +46,12 @@ export function YoutubeLibrary({ playlistId, fallback }: { playlistId?: string; 
       {cur && (
         <div ref={player} className="glass overflow-hidden rounded-3xl" data-testid="yt-player">
           <YtPlayer key={cur.id} id={cur.id} title={cur.title} autoPlay />
-          <div className="flex items-start gap-3 p-4"><h2 className="min-w-0 flex-1 text-lg font-bold" dir="auto">{cur.title}</h2><button type="button" className="btn-glass px-3 py-1 text-sm" onClick={() => setCur(null)}>✕ {tr("Close", "إغلاق")}</button></div>
+          <div className="flex items-start gap-3 p-4"><h2 className="min-w-0 flex-1 text-lg font-bold" dir="auto">{cur.title || (all || []).find((x) => x.id === cur.id)?.title || ""}</h2><button type="button" className="btn-glass px-3 py-1 text-sm" onClick={() => setCur(null)}>✕ {tr("Close", "إغلاق")}</button></div>
+          <VideoEngage id={cur.id} />
         </div>
       )}
+      {!playlistId && lists.length > 0 && (<section className="space-y-3"><h2 className="text-xl font-extrabold">{tr("Playlists", "قوائم التشغيل")}</h2><PlaylistCards lists={lists} /><h2 className="pt-2 text-xl font-extrabold">{tr("All videos", "كل المقاطع")}{all ? ` (${all.length})` : ""}</h2></section>)}
       <div className="flex flex-wrap items-center gap-2">
-        {!playlistId && (
-          <>
-            <button type="button" onClick={() => setPl("")} aria-pressed={!pl} className={`rounded-full border px-4 py-1.5 text-sm font-semibold ${!pl ? "border-sun-border bg-sun text-navy" : "border-card-border bg-card-solid"}`} data-testid="yt-all">{tr("All videos", "كل المقاطع")}{all ? ` (${all.length})` : ""}</button>
-            {lists.map((p) => <button key={p.id} type="button" onClick={() => setPl(p.id)} aria-pressed={pl === p.id} className={`rounded-full border px-4 py-1.5 text-sm font-semibold ${pl === p.id ? "border-sun-border bg-sun text-navy" : "border-card-border bg-card-solid"}`} data-testid="yt-playlist-chip" dir="auto">▶ {p.title}</button>)}
-          </>
-        )}
         <input className="ms-auto min-w-[10rem] rounded-full border border-card-border bg-card-solid px-4 py-1.5 text-sm" placeholder={tr("Search videos…", "ابحث في المقاطع…")} value={q} onChange={(e) => setQ(e.target.value)} dir="auto" data-testid="yt-search" />
       </div>
       {vids === null ? <p className="py-10 text-center text-muted">{tr("Loading videos…", "جارٍ تحميل المقاطع…")}</p> : !shown.length ? <p className="py-10 text-center text-muted">{tr("No videos found.", "لا توجد مقاطع.")}</p> : (
