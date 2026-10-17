@@ -436,7 +436,7 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
                       {prog === u.id && (
                         <tr>
                           <td colSpan={cols.length + 1} className="border-t border-black/5 bg-black/[0.03] p-3 dark:border-white/10 dark:bg-white/5">
-                            <div className="sticky start-0 w-[calc(100vw-5rem)] max-w-full">
+                            <div className="sticky start-0 w-[calc(100vw-6.75rem)] max-w-full">
                             <StudentProgress id={u.id} asAdmin={asAdmin} />
                             <div className="mt-3"><ParentLog student={u.id} asAdmin={asAdmin} /></div>
                             </div>
@@ -446,7 +446,7 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
                       {edit === u.id && (
                         <tr>
                           <td colSpan={cols.length + 1} className="border-t border-black/5 bg-black/[0.03] p-3 dark:border-white/10 dark:bg-white/5">
-                            <div className="sticky start-0 w-[calc(100vw-5rem)] max-w-full">
+                            <div className="sticky start-0 w-[calc(100vw-6.75rem)] max-w-full">
                             <PersonForm admin={asAdmin} staff={staff} role={role} catalog={catalog} initial={u} onSave={async (r) => { if (await saveMany([r])) setEdit(null); }} submitLabel={tr("Save", "حفظ")} testPrefix="lms-edit" />
                             </div>
                           </td>
