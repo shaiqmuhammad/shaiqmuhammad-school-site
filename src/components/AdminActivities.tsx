@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ActivityOptionsEditor, READY_TYPES, afterCreate, prepareOptions } from "@/components/activity/ActivityViews";
+import { AudiencePicker } from "@/components/lms/Audience";
+import { lmsApi } from "@/lib/lms";
 import { getServerSession } from "@/lib/adminServer";
 import { activityApi, ACTIVITY_LABELS, ActivityError, forgetHosted, loadHosted, saveHosted, type ActivitySettings, type ActivityType, type HostedActivity } from "@/lib/activity";
 import { joinUrl } from "@/lib/groupSession";
@@ -34,6 +36,7 @@ export function AdminActivities({ allowed }: { allowed?: string[] } = {}) {
   const [likes, setLikes] = useState(true);
   const [options, setOptions] = useState<Record<string, unknown>>({});
   const [hosted, setHosted] = useState<HostedActivity[]>([]);
+  const [audience, setAudience] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const signedIn = Boolean(allowed) || Boolean(getServerSession());
@@ -63,6 +66,7 @@ export function AdminActivities({ allowed }: { allowed?: string[] } = {}) {
       const settings: Partial<ActivitySettings> = { moderation, hideNames, allowImages, allowLinks, likes, options: prepared.options };
       const r = await activityApi.create({ type, title: title.trim(), prompt: prompt.trim(), settings });
       await afterCreate(type, r.code, r.hostKey, prepared.options, prepared.images);
+      if (allowed && audience.length) await lmsApi.actPublish(r.code, type, r.title, audience).catch(() => undefined);
       saveHosted({ code: r.code, hostKey: r.hostKey, type, title: r.title, createdAt: r.createdAt, expiresAt: r.expiresAt });
       router.push(`/activities/host?code=${r.code}`);
     } catch (err) {
@@ -126,6 +130,7 @@ export function AdminActivities({ allowed }: { allowed?: string[] } = {}) {
 
           <ActivityOptionsEditor type={type} options={options} setOptions={setOptions} />
 
+          {allowed && <AudiencePicker value={audience} onChange={setAudience} />}
           <fieldset className="flex flex-wrap gap-x-5 gap-y-2 text-sm">
             <legend className="mb-1 text-sm font-semibold">{tr("Settings (can be changed live)", "الإعدادات (يمكن تغييرها أثناء النشاط)")}</legend>
             {(type === "wall" || type === "tps") && (

@@ -1,5 +1,6 @@
 "use client";
 
+import { AdminYouTube, AdminPageManager } from "@/components/AdminYouTube";
 import { LmsAssessAdmin } from "@/components/lms/LmsQuiz";
 import { LmsAnnounceAdmin, MessagesPanel } from "@/components/lms/Messages";
 import { useRouter } from "next/navigation";
@@ -48,8 +49,8 @@ import { AdminHome } from "@/components/AdminHome";
 import AdminSettings from "@/components/AdminSettings";
 import { useI18n } from "@/lib/i18n";
 
-type Tab = "home" | "pages" | "videos" | "quizzes" | "certificate" | "banners" | "announcements" | "teacher" | "forum" | "results" | "activities" | "settings" | "students" | "teachers" | "setup" | "lmshw" | "classes" | "mail" | "homepage" | "staff" | "messages" | "notices";
-const HASH_TABS: Tab[] = ["pages", "videos", "quizzes", "certificate", "banners", "announcements", "teacher", "forum", "results", "activities", "settings", "students", "teachers", "setup", "classes", "lmshw", "mail", "homepage", "staff", "messages", "notices"];
+type Tab = "youtube" | "sitepages" | "home" | "pages" | "videos" | "quizzes" | "certificate" | "banners" | "announcements" | "teacher" | "forum" | "results" | "activities" | "settings" | "students" | "teachers" | "setup" | "lmshw" | "classes" | "mail" | "homepage" | "staff" | "messages" | "notices";
+const HASH_TABS: Tab[] = ["youtube", "sitepages", "pages", "videos", "quizzes", "certificate", "banners", "announcements", "teacher", "forum", "results", "activities", "settings", "students", "teachers", "setup", "classes", "lmshw", "mail", "homepage", "staff", "messages", "notices"];
 const emptyPage = (): ContentPage => ({ id: newId("page"), slug: "", title: "", excerpt: "", body: "", published: true, updatedAt: new Date().toISOString() });
 const emptyVideo = (): ContentVideo => ({ id: newId("video"), title: "", youtubeId: "", description: "", published: true, updatedAt: new Date().toISOString() });
 
@@ -418,6 +419,8 @@ export default function AdminCms() {
         )}
         {tab==="results" && <AdminResults quizzes={quizzesData.quizzes} />}
         {tab==="activities" && <AdminActivities />}
+        {tab==="youtube" && <AdminYouTube />}
+        {tab==="sitepages" && <AdminPageManager />}
         {tab==="students" && <LmsAdmin role="student" embedded />}
         {tab==="teachers" && <LmsAdmin role="teacher" embedded />}
         {tab==="staff" && <LmsAdmin role="teacher" staff embedded />}

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { activityApi, ACTIVITY_LABELS, loadHosted, type HostedActivity } from "@/lib/activity";
+import { RosterLoader } from "@/components/lms/Audience";
 import { useI18n } from "@/lib/i18n";
 
 const NAMES_KEY = "sm_class_names_v1";
@@ -83,6 +84,7 @@ export function ClassNames({ names, setNames }: { names: string[]; setNames: (n:
         dir="auto"
         data-testid="class-names-text"
       />
+      <RosterLoader onNames={(l) => { apply(l); setText(l.join("\n")); setMsg(tr(`${l.length} names loaded.`, `تم تحميل ${l.length} اسمًا.`)); }} />
       {hosted.length > 0 && (
         <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
           <select className="min-w-0 flex-1 rounded-full border border-black/10 bg-white/80 px-3 py-1.5 dark:border-white/15 dark:bg-black/30" value={pick} onChange={(e) => setPick(e.target.value)} aria-label={tr("Live activity", "نشاط مباشر")}>
