@@ -2369,6 +2369,1531 @@
           "explanationAr": "المفلس ظلم الناس، فلنحمِ حسناتنا بترك ظلم الآخرين."
         }
       ]
+    },
+    {
+      "id": "sow-y2-birth-of-prophet",
+      "slug": "year-2-the-birth-of-prophet-muhammad",
+      "title": "Year 2 – The Birth of Prophet Muhammad ﷺ",
+      "titleAr": "السنة ٢ – مولد النبي محمد ﷺ",
+      "description": "Where and when Prophet Muhammad ﷺ was born, his family (Abdullah, Aminah, Abdul Muttalib), and why we love him (Sahih Muslim 1162e; Al-Anbiya 21:107). Based on the Year 2 lesson.",
+      "descriptionAr": "أين ومتى وُلد النبي محمد ﷺ، وأسرته (عبد الله وآمنة وعبد المطلب)، ولماذا نحبه (صحيح مسلم ١١٦٢ه؛ الأنبياء ١٠٧). مبني على درس السنة الثانية.",
+      "year": 2,
+      "cardImage": "/covers/y2-birth-of-the-prophet.svg",
+      "timeLimitMinutes": 5,
+      "showAnswers": true,
+      "certificateIndividual": true,
+      "certificateGroup": true,
+      "visible": true,
+      "active": true,
+      "published": true,
+      "updatedAt": "2026-10-17T19:30:00.000Z",
+      "questions": [
+        {
+          "id": "y2b-q1",
+          "type": "multiple_choice",
+          "prompt": "In which city was Prophet Muhammad ﷺ born?",
+          "options": [
+            "Jerusalem",
+            "Jeddah",
+            "Madinah",
+            "Makkah"
+          ],
+          "correct": [
+            3
+          ],
+          "points": 1,
+          "explanation": "Prophet Muhammad ﷺ was born in Makkah, the city of the Kaaba.",
+          "promptAr": "في أي مدينة وُلد النبي محمد ﷺ؟",
+          "optionsAr": [
+            "القدس",
+            "جدة",
+            "المدينة المنورة",
+            "مكة المكرمة"
+          ],
+          "explanationAr": "وُلد النبي ﷺ في مكة المكرمة، مدينة الكعبة."
+        },
+        {
+          "id": "y2b-q2",
+          "type": "multiple_choice",
+          "prompt": "The year he was born is called…",
+          "options": [
+            "The Year of the Elephant",
+            "The Year of the Flood",
+            "The Year of the Hijrah",
+            "The Year of Sadness"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "He was born in the Year of the Elephant, the year Allah protected the Kaaba (Surah Al-Fil).",
+          "promptAr": "يُسمّى العام الذي وُلد فيه…",
+          "optionsAr": [
+            "عام الفيل",
+            "عام الطوفان",
+            "عام الهجرة",
+            "عام الحزن"
+          ],
+          "explanationAr": "وُلد في عام الفيل، العام الذي حفظ الله فيه الكعبة (سورة الفيل)."
+        },
+        {
+          "id": "y2b-q3",
+          "type": "multiple_choice",
+          "prompt": "On which day of the week was he born?",
+          "options": [
+            "Thursday",
+            "Sunday",
+            "Monday",
+            "Friday"
+          ],
+          "correct": [
+            2
+          ],
+          "points": 1,
+          "explanation": "The Prophet ﷺ said about Monday: “It is the day when I was born and revelation was sent down to me” (Sahih Muslim 1162e).",
+          "promptAr": "في أي يوم من أيام الأسبوع وُلد ﷺ؟",
+          "optionsAr": [
+            "الخميس",
+            "الأحد",
+            "الاثنين",
+            "الجمعة"
+          ],
+          "explanationAr": "قال النبي ﷺ عن يوم الاثنين: «فيه وُلدت وفيه أُنزل عليّ» (صحيح مسلم ١١٦٢ه)."
+        },
+        {
+          "id": "y2b-q4",
+          "type": "multi_select",
+          "prompt": "Which people are named in the lesson as his family? Select all that apply.",
+          "options": [
+            "His grandfather Abdul Muttalib",
+            "His friend Abu Bakr",
+            "His mother Aminah",
+            "His father Abdullah"
+          ],
+          "correct": [
+            0,
+            2,
+            3
+          ],
+          "points": 2,
+          "explanation": "His family: father Abdullah, mother Aminah and grandfather Abdul Muttalib. Abu Bakr was his dear friend, not part of the family named here.",
+          "promptAr": "من الأشخاص المذكورون في الدرس من أسرته؟ اختر كل ما ينطبق.",
+          "optionsAr": [
+            "جدّه عبد المطلب",
+            "صديقه أبو بكر",
+            "أمه آمنة",
+            "أبوه عبد الله"
+          ],
+          "explanationAr": "أسرته: أبوه عبد الله وأمه آمنة وجدّه عبد المطلب. أما أبو بكر فهو صديقه المقرّب."
+        },
+        {
+          "id": "y2b-q5",
+          "type": "ordering",
+          "prompt": "Put the story of his birth in order.",
+          "options": [
+            "An army with an elephant came to destroy the Kaaba, but Allah protected it",
+            "In that same year, a baby boy was born in Makkah",
+            "His grandfather Abdul Muttalib named the baby Muhammad",
+            "The baby grew up to be our Prophet ﷺ"
+          ],
+          "correct": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "points": 2,
+          "explanation": "The lesson story: the elephant army → the baby is born in the same year → Abdul Muttalib names him Muhammad → he grows up to be our Prophet ﷺ.",
+          "promptAr": "رتّب قصة مولده.",
+          "optionsAr": [
+            "جاء جيش معه فيل ليهدم الكعبة، لكن الله حفظها",
+            "في العام نفسه وُلد طفل في مكة",
+            "سمّى جدّه عبد المطلب الطفل محمدًا",
+            "كبر الطفل وصار نبيَّنا ﷺ"
+          ],
+          "explanationAr": "قصة الدرس: جيش الفيل ← مولد الطفل في العام نفسه ← تسمية عبد المطلب له محمدًا ← صار نبيَّنا ﷺ."
+        },
+        {
+          "id": "y2b-q6",
+          "type": "matching",
+          "prompt": "Match each name or word with its meaning.",
+          "options": [],
+          "correct": [],
+          "pairs": [
+            {
+              "left": "Abdullah",
+              "right": "his father"
+            },
+            {
+              "left": "Aminah",
+              "right": "his mother"
+            },
+            {
+              "left": "Abdul Muttalib",
+              "right": "his grandfather"
+            },
+            {
+              "left": "Muhammad",
+              "right": "“the praised one”"
+            }
+          ],
+          "points": 2,
+          "explanation": "Key words from the lesson: Abdullah (father), Aminah (mother), Abdul Muttalib (grandfather). Muhammad means “the praised one”.",
+          "promptAr": "طابق كل اسم أو كلمة بمعناها.",
+          "explanationAr": "كلمات الدرس: عبد الله (أبوه)، آمنة (أمه)، عبد المطلب (جدّه)، ومحمد معناه «الذي يُحمَد كثيرًا»."
+        },
+        {
+          "id": "y2b-q7",
+          "type": "true_false",
+          "prompt": "Prophet Muhammad ﷺ was born in Madinah.",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correct": [
+            1
+          ],
+          "points": 1,
+          "explanation": "False. He was born in Makkah.",
+          "promptAr": "وُلد النبي محمد ﷺ في المدينة المنورة.",
+          "optionsAr": [
+            "صح",
+            "خطأ"
+          ],
+          "explanationAr": "خطأ. وُلد ﷺ في مكة المكرمة."
+        },
+        {
+          "id": "y2b-q8",
+          "type": "true_false",
+          "prompt": "In the Year of the Elephant, Allah protected the Kaaba.",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "True. Allah protected His House from the army with the elephant (Surah Al-Fil).",
+          "promptAr": "في عام الفيل حفظ الله الكعبة.",
+          "optionsAr": [
+            "صح",
+            "خطأ"
+          ],
+          "explanationAr": "صح. حفظ الله بيته من جيش الفيل (سورة الفيل)."
+        },
+        {
+          "id": "y2b-q9",
+          "type": "true_false",
+          "prompt": "His father Abdullah was alive when he was born.",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correct": [
+            1
+          ],
+          "points": 1,
+          "explanation": "False. His father Abdullah had passed away before he was born.",
+          "promptAr": "كان أبوه عبد الله حيًّا عندما وُلد.",
+          "optionsAr": [
+            "صح",
+            "خطأ"
+          ],
+          "explanationAr": "خطأ. توفي أبوه عبد الله قبل أن يولد ﷺ."
+        },
+        {
+          "id": "y2b-q10",
+          "type": "multiple_choice",
+          "prompt": "What did Allah send Prophet Muhammad ﷺ as? (Al-Anbiya 21:107)",
+          "options": [
+            "A mercy to the whole world",
+            "A soldier",
+            "A king of Makkah",
+            "A trader"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "“And We have not sent you except as a mercy to the worlds” (Al-Anbiya 21:107). Mercy means kindness and care for everyone.",
+          "promptAr": "ماذا أرسل الله النبي محمدًا ﷺ؟ (الأنبياء ١٠٧)",
+          "optionsAr": [
+            "رحمة للعالمين",
+            "جنديًّا",
+            "ملكًا على مكة",
+            "تاجرًا"
+          ],
+          "explanationAr": "﴿وَمَآ أَرْسَلْنَـٰكَ إِلَّا رَحْمَةًۭ لِّلْعَـٰلَمِينَ﴾ (الأنبياء ١٠٧). الرحمة: اللطف والعناية بالجميع."
+        },
+        {
+          "id": "y2b-q11",
+          "type": "multiple_choice",
+          "prompt": "What do we say when we hear the name of the Prophet ﷺ?",
+          "options": [
+            "Subhan Allah",
+            "Sallallahu ‘alayhi wa sallam",
+            "Bismillah",
+            "Ameen"
+          ],
+          "correct": [
+            1
+          ],
+          "points": 1,
+          "explanation": "We send peace and blessings on him by saying “Sallallahu ‘alayhi wa sallam” (salawat). It is one way to show love for him.",
+          "promptAr": "ماذا نقول عندما نسمع اسم النبي ﷺ؟",
+          "optionsAr": [
+            "سبحان الله",
+            "صلى الله عليه وسلم",
+            "بسم الله",
+            "آمين"
+          ],
+          "explanationAr": "نصلّي ونسلّم عليه فنقول «صلى الله عليه وسلم»، وهذا من محبته ﷺ."
+        },
+        {
+          "id": "y2b-q12",
+          "type": "fill_blank",
+          "prompt": "Before he was a Prophet, people called him al-Amin, the ___ one.",
+          "options": [
+            "richest",
+            "tallest"
+          ],
+          "correct": [],
+          "blanks": [
+            [
+              [
+                "trustworthy",
+                "Trustworthy"
+              ]
+            ]
+          ],
+          "points": 1,
+          "explanation": "Al-Amin means “the trustworthy one”. He was truthful and kind to everyone.",
+          "explanationAr": "الأمين: الصادق الذي يؤتمن. كان صادقًا ولطيفًا مع الجميع."
+        }
+      ]
+    },
+    {
+      "id": "sow-y3-making-wudu-well",
+      "slug": "year-3-making-wudu-well",
+      "title": "Year 3 – Making Wudu Well",
+      "titleAr": "السنة ٣ – إحسان الوضوء",
+      "description": "The Hadith of making wudu well (Sahih Muslim 245), why we wash carefully including the heels and under the nails (Sahih Muslim 241a), and the steps of wudu in order (Sahih al-Bukhari 159). Based on the Year 3 lesson.",
+      "descriptionAr": "حديث إحسان الوضوء (صحيح مسلم ٢٤٥)، ولماذا نغسل بعناية حتى الأعقاب وما تحت الأظفار (صحيح مسلم ٢٤١أ)، وخطوات الوضوء بالترتيب (صحيح البخاري ١٥٩). مبني على درس السنة الثالثة.",
+      "year": 3,
+      "cardImage": "/covers/y3-making-wudu-well.svg",
+      "timeLimitMinutes": 5,
+      "showAnswers": true,
+      "certificateIndividual": true,
+      "certificateGroup": true,
+      "visible": true,
+      "active": true,
+      "published": true,
+      "updatedAt": "2026-10-17T19:30:00.000Z",
+      "questions": [
+        {
+          "id": "y3w-q1",
+          "type": "multiple_choice",
+          "prompt": "Who narrated the Hadith “Whoever makes wudu well…” (Sahih Muslim 245)?",
+          "options": [
+            "Anas bin Malik",
+            "Abu Huraira",
+            "Uthman bin Affan",
+            "Abdullah bin Amr"
+          ],
+          "correct": [
+            2
+          ],
+          "points": 1,
+          "explanation": "Sahih Muslim 245 was narrated by Uthman bin Affan (may Allah be pleased with him).",
+          "promptAr": "من راوي حديث «من توضأ فأحسن الوضوء…» (صحيح مسلم ٢٤٥)؟",
+          "optionsAr": [
+            "أنس بن مالك",
+            "أبو هريرة",
+            "عثمان بن عفان",
+            "عبد الله بن عمرو"
+          ],
+          "explanationAr": "رواه عثمان بن عفان رضي الله عنه (صحيح مسلم ٢٤٥)."
+        },
+        {
+          "id": "y3w-q2",
+          "type": "multiple_choice",
+          "prompt": "What did the Prophet ﷺ say about the person who makes wudu well?",
+          "options": [
+            "He will become rich",
+            "His sins come out of his body, even from under his nails",
+            "He will never feel tired",
+            "He does not need to pray again"
+          ],
+          "correct": [
+            1
+          ],
+          "points": 1,
+          "explanation": "“Whoever makes wudu well, his sins come out of his body, even from under his nails” (Sahih Muslim 245).",
+          "promptAr": "ماذا قال النبي ﷺ عمّن يحسن الوضوء؟",
+          "optionsAr": [
+            "يصير غنيًّا",
+            "تخرج خطاياه من جسده حتى تخرج من تحت أظفاره",
+            "لا يتعب أبدًا",
+            "لا يحتاج أن يصلي مرة أخرى"
+          ],
+          "explanationAr": "«من توضأ فأحسن الوضوء خرجت خطاياه من جسده حتى تخرج من تحت أظفاره» (صحيح مسلم ٢٤٥)."
+        },
+        {
+          "id": "y3w-q3",
+          "type": "multiple_choice",
+          "prompt": "What does “make wudu well” mean?",
+          "options": [
+            "Use only cold water",
+            "Wash as fast as possible",
+            "Wash carefully and completely",
+            "Wash only the face"
+          ],
+          "correct": [
+            2
+          ],
+          "points": 1,
+          "explanation": "“Well” means carefully and completely, so that no part is missed.",
+          "promptAr": "ماذا يعني «إحسان الوضوء»؟",
+          "optionsAr": [
+            "استعمال الماء البارد فقط",
+            "الغسل بأسرع ما يمكن",
+            "الغسل بعناية وبشكل كامل",
+            "غسل الوجه فقط"
+          ],
+          "explanationAr": "الإحسان هنا: أن نتوضأ بعناية وبشكل كامل فلا يُترك موضع."
+        },
+        {
+          "id": "y3w-q4",
+          "type": "multi_select",
+          "prompt": "Which of these are steps of wudu in the Hadith of Uthman (Sahih al-Bukhari 159)? Select all that apply.",
+          "options": [
+            "Pray two rak‘ahs (this comes after wudu)",
+            "Wash the hands",
+            "Rinse the mouth and nose",
+            "Wash the feet up to the ankles",
+            "Wipe the head"
+          ],
+          "correct": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "points": 2,
+          "explanation": "Uthman showed: hands, mouth, nose, face, arms, wiping the head, then feet to the ankles. Praying two rak‘ahs comes after the wudu; it is not a step of it.",
+          "promptAr": "أي مما يلي من خطوات الوضوء في حديث عثمان (صحيح البخاري ١٥٩)؟ اختر كل ما ينطبق.",
+          "optionsAr": [
+            "صلاة ركعتين (تكون بعد الوضوء)",
+            "غسل اليدين",
+            "المضمضة والاستنشاق",
+            "غسل القدمين إلى الكعبين",
+            "مسح الرأس"
+          ],
+          "explanationAr": "بيّن عثمان: اليدان، المضمضة، الاستنشاق، الوجه، اليدان إلى المرفقين، مسح الرأس، ثم القدمان إلى الكعبين. أما صلاة الركعتين فبعد الوضوء وليست من خطواته."
+        },
+        {
+          "id": "y3w-q5",
+          "type": "ordering",
+          "prompt": "Put the steps of wudu in order.",
+          "options": [
+            "Wash the hands",
+            "Rinse the mouth and nose",
+            "Wash the face",
+            "Wash the arms up to the elbows",
+            "Wipe the head",
+            "Wash the feet up to the ankles"
+          ],
+          "correct": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "points": 2,
+          "explanation": "Order from the lesson (Sahih al-Bukhari 159): hands → mouth and nose → face → arms → wipe the head → feet.",
+          "promptAr": "رتّب خطوات الوضوء.",
+          "optionsAr": [
+            "غسل اليدين",
+            "المضمضة والاستنشاق",
+            "غسل الوجه",
+            "غسل اليدين إلى المرفقين",
+            "مسح الرأس",
+            "غسل القدمين إلى الكعبين"
+          ],
+          "explanationAr": "الترتيب (صحيح البخاري ١٥٩): اليدان ← المضمضة والاستنشاق ← الوجه ← اليدان إلى المرفقين ← مسح الرأس ← القدمان."
+        },
+        {
+          "id": "y3w-q6",
+          "type": "matching",
+          "prompt": "Match each word with its meaning.",
+          "options": [],
+          "correct": [],
+          "pairs": [
+            {
+              "left": "Wudu",
+              "right": "washing for prayer"
+            },
+            {
+              "left": "Sins",
+              "right": "wrong things we did"
+            },
+            {
+              "left": "Heels",
+              "right": "the back of the feet"
+            },
+            {
+              "left": "Nails",
+              "right": "the ends of our fingers"
+            }
+          ],
+          "points": 2,
+          "explanation": "Key words from the lesson.",
+          "promptAr": "طابق كل كلمة بمعناها.",
+          "explanationAr": "كلمات الدرس."
+        },
+        {
+          "id": "y3w-q7",
+          "type": "true_false",
+          "prompt": "It is fine to hurry and leave our heels dry.",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correct": [
+            1
+          ],
+          "points": 1,
+          "explanation": "False. The Prophet ﷺ said: “Woe to the heels from the Fire! Perfect the wudu” (Sahih Muslim 241a).",
+          "promptAr": "لا بأس أن نستعجل ونترك الأعقاب جافة.",
+          "optionsAr": [
+            "صح",
+            "خطأ"
+          ],
+          "explanationAr": "خطأ. قال النبي ﷺ: «ويل للأعقاب من النار، أسبغوا الوضوء» (صحيح مسلم ٢٤١أ)."
+        },
+        {
+          "id": "y3w-q8",
+          "type": "true_false",
+          "prompt": "When we wash the hands, face and arms in wudu, we wash each part three times.",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "True. In the description of Uthman (Sahih al-Bukhari 159) these parts are washed three times.",
+          "promptAr": "عند غسل اليدين والوجه والذراعين في الوضوء نغسل كل عضو ثلاث مرات.",
+          "optionsAr": [
+            "صح",
+            "خطأ"
+          ],
+          "explanationAr": "صح. في وصف عثمان (صحيح البخاري ١٥٩) تُغسل هذه الأعضاء ثلاث مرات."
+        },
+        {
+          "id": "y3w-q9",
+          "type": "true_false",
+          "prompt": "We make wudu before we pray Salah.",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "True. Wudu is needed before Salah, so we get ready carefully.",
+          "promptAr": "نتوضأ قبل أن نصلي.",
+          "optionsAr": [
+            "صح",
+            "خطأ"
+          ],
+          "explanationAr": "صح. الوضوء شرط للصلاة، فنستعد لها بعناية."
+        },
+        {
+          "id": "y3w-q10",
+          "type": "multiple_choice",
+          "prompt": "Some people hurried and left their heels dry. What did the Prophet ﷺ say?",
+          "options": [
+            "“Woe to the heels from the Fire! Perfect your wudu.”",
+            "“Well done, you are very quick.”",
+            "“Wash only your hands.”",
+            "“Wudu is not needed on journeys.”"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "Sahih Muslim 241a (Abdullah bin Amr): he warned them to perfect the wudu so that the heels are washed too.",
+          "promptAr": "استعجل بعض الناس وتركوا أعقابهم جافة. ماذا قال النبي ﷺ؟",
+          "optionsAr": [
+            "«ويل للأعقاب من النار، أسبغوا الوضوء»",
+            "«أحسنتم، ما أسرعكم»",
+            "«اغسلوا أيديكم فقط»",
+            "«لا يلزم الوضوء في السفر»"
+          ],
+          "explanationAr": "صحيح مسلم ٢٤١أ (عبد الله بن عمرو): حذّرهم ﷺ وأمرهم بإسباغ الوضوء حتى تُغسل الأعقاب."
+        },
+        {
+          "id": "y3w-q11",
+          "type": "multiple_choice",
+          "prompt": "What did the Prophet ﷺ promise for someone who makes wudu like his and prays two rak‘ahs, focusing on the prayer? (Sahih al-Bukhari 159)",
+          "options": [
+            "He will become a scholar",
+            "He will not need to pray again",
+            "He will get a gift of money",
+            "His past sins are forgiven"
+          ],
+          "correct": [
+            3
+          ],
+          "points": 1,
+          "explanation": "“…his past sins are forgiven” (Sahih al-Bukhari 159). Scholars explain that this means minor sins.",
+          "promptAr": "ماذا وعد النبي ﷺ من توضأ مثل وضوئه وصلى ركعتين وأقبل عليهما؟ (صحيح البخاري ١٥٩)",
+          "optionsAr": [
+            "يصير عالمًا",
+            "لا يحتاج أن يصلي مرة أخرى",
+            "يُعطى مالًا",
+            "يُغفر له ما تقدّم من ذنبه"
+          ],
+          "explanationAr": "«غُفر له ما تقدّم من ذنبه» (صحيح البخاري ١٥٩). ويفسّر العلماء ذلك بالصغائر."
+        },
+        {
+          "id": "y3w-q12",
+          "type": "fill_blank",
+          "prompt": "“Whoever makes wudu well, his ___ come out of his body, even from under his nails.”",
+          "options": [
+            "shoes",
+            "clothes"
+          ],
+          "correct": [],
+          "blanks": [
+            [
+              [
+                "sins",
+                "Sins"
+              ]
+            ]
+          ],
+          "points": 1,
+          "explanation": "The Hadith says his sins come out of his body, even from under his nails (Sahih Muslim 245).",
+          "explanationAr": "«خرجت خطاياه من جسده حتى تخرج من تحت أظفاره» (صحيح مسلم ٢٤٥)."
+        }
+      ]
+    },
+    {
+      "id": "sow-y4-first-revelation",
+      "slug": "year-4-the-first-revelation",
+      "title": "Year 4 – The First Revelation",
+      "titleAr": "السنة ٤ – بدء الوحي",
+      "description": "The first revelation in the Cave of Hira (Jibril, “Iqra”, Surah Al-‘Alaq 96:1–5, Sahih al-Bukhari 3), how the Qur’an was revealed over about 23 years (Makki and Madani) and protected by Allah (Al-Hijr 15:9), and respect for the Qur’an. Based on the Year 4 lesson.",
+      "descriptionAr": "بدء الوحي في غار حراء (جبريل، «اقرأ»، سورة العلق ١–٥، صحيح البخاري ٣)، ونزول القرآن في نحو ٢٣ سنة (المكي والمدني) وحفظ الله له (الحجر ٩)، واحترام القرآن. مبني على درس السنة الرابعة.",
+      "year": 4,
+      "cardImage": "/covers/y4-the-first-revelation.svg",
+      "timeLimitMinutes": 5,
+      "showAnswers": true,
+      "certificateIndividual": true,
+      "certificateGroup": true,
+      "visible": true,
+      "active": true,
+      "published": true,
+      "updatedAt": "2026-10-17T19:30:00.000Z",
+      "questions": [
+        {
+          "id": "y4r-q1",
+          "type": "multiple_choice",
+          "prompt": "Where did the first revelation come to the Prophet ﷺ?",
+          "options": [
+            "The Cave of Hira",
+            "The Kaaba",
+            "The Cave of Thawr",
+            "The Prophet’s Mosque in Madinah"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "The first revelation came in the Cave of Hira, near Makkah (Sahih al-Bukhari 3).",
+          "promptAr": "أين نزل الوحي أول مرة على النبي ﷺ؟",
+          "optionsAr": [
+            "غار حراء",
+            "الكعبة",
+            "غار ثور",
+            "المسجد النبوي في المدينة"
+          ],
+          "explanationAr": "نزل الوحي أول مرة في غار حراء قرب مكة (صحيح البخاري ٣)."
+        },
+        {
+          "id": "y4r-q2",
+          "type": "multiple_choice",
+          "prompt": "Which angel brought the first revelation?",
+          "options": [
+            "Mika’il",
+            "Malik",
+            "Israfil",
+            "Jibril"
+          ],
+          "correct": [
+            3
+          ],
+          "points": 1,
+          "explanation": "The angel Jibril brought the revelation.",
+          "promptAr": "أي ملك جاء بالوحي أول مرة؟",
+          "optionsAr": [
+            "ميكائيل",
+            "مالك",
+            "إسرافيل",
+            "جبريل"
+          ],
+          "explanationAr": "جاء جبريل عليه السلام بالوحي."
+        },
+        {
+          "id": "y4r-q3",
+          "type": "multiple_choice",
+          "prompt": "What was the first word of the Qur’an to be revealed, and what does it mean?",
+          "options": [
+            "“Bismillah” – In the name of Allah",
+            "“Alif” – the first letter",
+            "“Iqra” – Read! / Recite!",
+            "“Qul” – Say!"
+          ],
+          "correct": [
+            2
+          ],
+          "points": 1,
+          "explanation": "Jibril said “Iqra!” – “Read!” or “Recite!” (Surah Al-‘Alaq 96:1).",
+          "promptAr": "ما أول كلمة نزلت من القرآن وما معناها؟",
+          "optionsAr": [
+            "«بسم الله» – باسم الله",
+            "«ألف» – أول حرف",
+            "«اقرأ» – أي تلاوة وقراءة",
+            "«قل» – أي تكلّم"
+          ],
+          "explanationAr": "قال جبريل: «اقرأ!» (سورة العلق ١)."
+        },
+        {
+          "id": "y4r-q4",
+          "type": "multi_select",
+          "prompt": "Khadijah comforted the Prophet ﷺ and said Allah would never disgrace him. Which of his good qualities did she mention? Select all that apply.",
+          "options": [
+            "He was generous to guests",
+            "He kept family ties",
+            "He helped the poor",
+            "He avoided his family"
+          ],
+          "correct": [
+            0,
+            1,
+            2
+          ],
+          "points": 2,
+          "explanation": "Khadijah mentioned that he kept family ties, helped the poor and was generous to guests (Sahih al-Bukhari 3). He did not avoid his family.",
+          "promptAr": "طمأنت خديجة النبي ﷺ وقالت إن الله لن يخزيه. أي صفات حسنة ذكرت؟ اختر كل ما ينطبق.",
+          "optionsAr": [
+            "يكرم الضيف",
+            "يصل الرحم",
+            "يعين الفقراء",
+            "يبتعد عن أهله"
+          ],
+          "explanationAr": "ذكرت أنه يصل الرحم ويعين المحتاج ويكرم الضيف (صحيح البخاري ٣). ولم يكن يبتعد عن أهله."
+        },
+        {
+          "id": "y4r-q5",
+          "type": "ordering",
+          "prompt": "Put the story of the first revelation in order.",
+          "options": [
+            "The Prophet ﷺ worshipped Allah in the Cave of Hira",
+            "Jibril came and said, “Iqra!”",
+            "Jibril held him tightly three times, then recited “Recite in the name of your Lord who created…”",
+            "The Prophet ﷺ went home and Khadijah comforted him"
+          ],
+          "correct": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "points": 2,
+          "explanation": "Sahih al-Bukhari 3: worship in Hira → Jibril says “Iqra” → he holds him three times and recites → the Prophet ﷺ returns home to Khadijah.",
+          "promptAr": "رتّب قصة بدء الوحي.",
+          "optionsAr": [
+            "كان النبي ﷺ يتعبّد في غار حراء",
+            "جاءه جبريل وقال: «اقرأ!»",
+            "ضمّه جبريل ثلاث مرات ثم تلا: «اقرأ باسم ربك الذي خلق…»",
+            "رجع النبي ﷺ إلى البيت وطمأنته خديجة"
+          ],
+          "explanationAr": "صحيح البخاري ٣: التعبّد في حراء ← «اقرأ» ← الضمّ ثلاثًا والتلاوة ← العودة إلى خديجة."
+        },
+        {
+          "id": "y4r-q6",
+          "type": "matching",
+          "prompt": "Match each key word with its meaning.",
+          "options": [],
+          "correct": [],
+          "pairs": [
+            {
+              "left": "Revelation",
+              "right": "Allah’s message sent to a Prophet"
+            },
+            {
+              "left": "Iqra",
+              "right": "“Read!” or “Recite!”"
+            },
+            {
+              "left": "Makki",
+              "right": "revealed before the Hijrah"
+            },
+            {
+              "left": "Madani",
+              "right": "revealed after the Hijrah"
+            }
+          ],
+          "points": 2,
+          "explanation": "Key words from the lesson.",
+          "promptAr": "طابق كل كلمة مفتاحية بمعناها.",
+          "explanationAr": "كلمات الدرس."
+        },
+        {
+          "id": "y4r-q7",
+          "type": "true_false",
+          "prompt": "When Jibril said “Iqra!”, the Prophet ﷺ replied, “I cannot read.”",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "True. He had not been taught to read (Sahih al-Bukhari 3).",
+          "promptAr": "عندما قال جبريل «اقرأ!» أجاب النبي ﷺ: «ما أنا بقارئ».",
+          "optionsAr": [
+            "صح",
+            "خطأ"
+          ],
+          "explanationAr": "صح. لم يكن قد تعلّم القراءة (صحيح البخاري ٣)."
+        },
+        {
+          "id": "y4r-q8",
+          "type": "true_false",
+          "prompt": "The whole Qur’an was revealed in one day.",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correct": [
+            1
+          ],
+          "points": 1,
+          "explanation": "False. The Qur’an was revealed in parts over about 23 years.",
+          "promptAr": "نزل القرآن كله في يوم واحد.",
+          "optionsAr": [
+            "صح",
+            "خطأ"
+          ],
+          "explanationAr": "خطأ. نزل القرآن مفرّقًا في نحو ٢٣ سنة."
+        },
+        {
+          "id": "y4r-q9",
+          "type": "true_false",
+          "prompt": "We show respect for the Qur’an by reading it, learning it and keeping it clean.",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "True. This is how we show respect and love for the Qur’an.",
+          "promptAr": "نُظهر احترامنا للقرآن بقراءته وتعلّمه والمحافظة على نظافته.",
+          "optionsAr": [
+            "صح",
+            "خطأ"
+          ],
+          "explanationAr": "صح. هكذا نُظهر احترامنا القرآن ومحبتنا له."
+        },
+        {
+          "id": "y4r-q10",
+          "type": "multiple_choice",
+          "prompt": "About how long was the Qur’an revealed?",
+          "options": [
+            "About 23 years",
+            "About 1 year",
+            "About 40 years",
+            "About 10 days"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "About 23 years: roughly 13 years in Makkah and 10 years in Madinah. Every Ramadan, Jibril met the Prophet ﷺ every night to revise it (Sahih al-Bukhari 6).",
+          "promptAr": "كم استغرق نزول القرآن تقريبًا؟",
+          "optionsAr": [
+            "نحو ٢٣ سنة",
+            "نحو سنة واحدة",
+            "نحو ٤٠ سنة",
+            "نحو ١٠ أيام"
+          ],
+          "explanationAr": "نحو ٢٣ سنة: نحو ١٣ سنة في مكة و١٠ سنوات في المدينة. وكان جبريل يلقى النبي ﷺ كل ليلة في رمضان فيدارسه القرآن (صحيح البخاري ٦)."
+        },
+        {
+          "id": "y4r-q11",
+          "type": "multiple_choice",
+          "prompt": "Which Surah contains the first verses that were revealed?",
+          "options": [
+            "Al-Ikhlas",
+            "Al-‘Alaq",
+            "Al-Fatiha",
+            "Al-Baqarah"
+          ],
+          "correct": [
+            1
+          ],
+          "points": 1,
+          "explanation": "The first verses are from Surah Al-‘Alaq (96:1–5).",
+          "promptAr": "في أي سورة الآيات الأولى التي نزلت؟",
+          "optionsAr": [
+            "الإخلاص",
+            "العلق",
+            "الفاتحة",
+            "البقرة"
+          ],
+          "explanationAr": "الآيات الأولى من سورة العلق (٩٦: ١–٥)."
+        },
+        {
+          "id": "y4r-q12",
+          "type": "fill_blank",
+          "prompt": "Allah promised: “Indeed, it is We who sent down the message, and indeed, We will be its ___.” (Al-Hijr 15:9)",
+          "options": [
+            "writer",
+            "owner"
+          ],
+          "correct": [],
+          "blanks": [
+            [
+              [
+                "guardian",
+                "Guardian",
+                "protector"
+              ]
+            ]
+          ],
+          "points": 1,
+          "explanation": "Allah promised to be the guardian of the Qur’an (Al-Hijr 15:9). We help by learning and respecting it.",
+          "explanationAr": "وعد الله بحفظ القرآن: ﴿إِنَّا نَحْنُ نَزَّلْنَا ٱلذِّكْرَ وَإِنَّا لَهُۥ لَحَـٰفِظُونَ﴾ (الحجر ٩). ونعين على ذلك بتعلّمه واحترامه."
+        }
+      ]
+    },
+    {
+      "id": "sow-y5-call-to-islam-part-2",
+      "slug": "year-5-the-beginning-of-the-call-to-islam-part-2",
+      "title": "Year 5 – The Beginning of the Call to Islam: Part 2",
+      "titleAr": "السنة ٥ – بداية الدعوة إلى الإسلام: الجزء ٢",
+      "description": "How Quraysh opposed the Prophet ﷺ and the first Muslims (Sahih al-Bukhari 3678), and why he responded with patience, forgiveness and dua (Sahih al-Bukhari 3477; Fussilat 41:34; Al-Muzzammil 73:10). Based on the Year 5 lesson.",
+      "descriptionAr": "كيف عارضت قريش النبي ﷺ والمسلمين الأوائل (صحيح البخاري ٣٦٧٨)، ولماذا قابل ذلك بالصبر والعفو والدعاء (صحيح البخاري ٣٤٧٧؛ فصلت ٣٤؛ المزمل ١٠). مبني على درس السنة الخامسة.",
+      "year": 5,
+      "cardImage": "/covers/y5-call-to-islam-part-2.svg",
+      "timeLimitMinutes": 5,
+      "showAnswers": true,
+      "certificateIndividual": true,
+      "certificateGroup": true,
+      "visible": true,
+      "active": true,
+      "published": true,
+      "updatedAt": "2026-10-17T19:30:00.000Z",
+      "questions": [
+        {
+          "id": "y5c-q1",
+          "type": "multiple_choice",
+          "prompt": "When the call to Islam became open, how did many leaders of Quraysh react?",
+          "options": [
+            "They moved to Madinah",
+            "They grew angry and opposed it",
+            "They accepted Islam at once",
+            "They ignored everything"
+          ],
+          "correct": [
+            1
+          ],
+          "points": 1,
+          "explanation": "Many leaders of Quraysh grew angry. They wanted to keep their old ways and their power.",
+          "promptAr": "عندما أصبحت الدعوة علنية، كيف تصرّف كثير من زعماء قريش؟",
+          "optionsAr": [
+            "انتقلوا إلى المدينة",
+            "غضبوا وعارضوها",
+            "أسلموا فورًا",
+            "تجاهلوا كل شيء"
+          ],
+          "explanationAr": "غضب كثير من زعماء قريش لأنهم أرادوا الحفاظ على عاداتهم القديمة وسلطتهم."
+        },
+        {
+          "id": "y5c-q2",
+          "type": "multiple_choice",
+          "prompt": "Where was the Prophet ﷺ praying when Uqba put his cloak around his neck?",
+          "options": [
+            "In the Cave of Hira",
+            "In his house",
+            "On the road to Taif",
+            "At the Kaaba"
+          ],
+          "correct": [
+            3
+          ],
+          "points": 1,
+          "explanation": "The Prophet ﷺ was praying at the Kaaba (Sahih al-Bukhari 3678).",
+          "promptAr": "أين كان النبي ﷺ يصلي عندما وضع عقبة ثوبه حول عنقه؟",
+          "optionsAr": [
+            "في غار حراء",
+            "في بيته",
+            "في طريق الطائف",
+            "عند الكعبة"
+          ],
+          "explanationAr": "كان النبي ﷺ يصلي عند الكعبة (صحيح البخاري ٣٦٧٨)."
+        },
+        {
+          "id": "y5c-q3",
+          "type": "multiple_choice",
+          "prompt": "Who rushed to defend the Prophet ﷺ?",
+          "options": [
+            "Uthman",
+            "Abu Bakr",
+            "Umar",
+            "Bilal"
+          ],
+          "correct": [
+            1
+          ],
+          "points": 1,
+          "explanation": "Abu Bakr rushed to him and pushed Uqba away (Sahih al-Bukhari 3678).",
+          "promptAr": "من أسرع للدفاع عن النبي ﷺ؟",
+          "optionsAr": [
+            "عثمان",
+            "أبو بكر",
+            "عمر",
+            "بلال"
+          ],
+          "explanationAr": "أسرع أبو بكر ودفع عقبة عنه (صحيح البخاري ٣٦٧٨)."
+        },
+        {
+          "id": "y5c-q4",
+          "type": "multi_select",
+          "prompt": "Why did many leaders of Quraysh oppose the call? Select all that apply.",
+          "options": [
+            "They wanted to keep their old ways and traditions",
+            "They wanted to keep their power",
+            "The Prophet ﷺ asked them for money",
+            "They did not want to leave their idols"
+          ],
+          "correct": [
+            0,
+            1,
+            3
+          ],
+          "points": 2,
+          "explanation": "They opposed the call to protect their customs, their power and their idols. The Prophet ﷺ never asked for payment for the message.",
+          "promptAr": "لماذا عارض كثير من زعماء قريش الدعوة؟ اختر كل ما ينطبق.",
+          "optionsAr": [
+            "أرادوا الحفاظ على عاداتهم وتقاليدهم القديمة",
+            "أرادوا الحفاظ على سلطتهم",
+            "طلب منهم النبي ﷺ مالًا",
+            "لم يريدوا ترك أصنامهم"
+          ],
+          "explanationAr": "عارضوا الدعوة حفاظًا على عاداتهم وسلطتهم وأصنامهم. ولم يطلب النبي ﷺ أجرًا على الرسالة."
+        },
+        {
+          "id": "y5c-q5",
+          "type": "ordering",
+          "prompt": "Put the story of Abu Bakr and the Prophet ﷺ in order.",
+          "options": [
+            "The Prophet ﷺ was praying at the Kaaba",
+            "Uqba put his cloak around the Prophet’s ﷺ neck",
+            "Abu Bakr rushed over and pushed Uqba away",
+            "Abu Bakr said, “Would you kill a man for saying ‘My Lord is Allah’?”"
+          ],
+          "correct": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "points": 2,
+          "explanation": "Sahih al-Bukhari 3678: praying at the Kaaba → Uqba’s cloak → Abu Bakr pushes him away → Abu Bakr’s words.",
+          "promptAr": "رتّب قصة أبي بكر والنبي ﷺ.",
+          "optionsAr": [
+            "كان النبي ﷺ يصلي عند الكعبة",
+            "وضع عقبة ثوبه حول عنق النبي ﷺ",
+            "أسرع أبو بكر ودفع عقبة",
+            "قال أبو بكر: «أتقتلون رجلًا أن يقول ربي الله؟»"
+          ],
+          "explanationAr": "صحيح البخاري ٣٦٧٨: الصلاة عند الكعبة ← ثوب عقبة ← دفع أبي بكر له ← كلمة أبي بكر."
+        },
+        {
+          "id": "y5c-q6",
+          "type": "matching",
+          "prompt": "Match each key word with its meaning.",
+          "options": [],
+          "correct": [],
+          "pairs": [
+            {
+              "left": "Quraysh",
+              "right": "the leading tribe of Makkah"
+            },
+            {
+              "left": "Patience (sabr)",
+              "right": "staying calm and firm"
+            },
+            {
+              "left": "Forgive",
+              "right": "to let go of anger"
+            },
+            {
+              "left": "Dua",
+              "right": "asking Allah"
+            }
+          ],
+          "points": 2,
+          "explanation": "Key words from the lesson.",
+          "promptAr": "طابق كل كلمة مفتاحية بمعناها.",
+          "explanationAr": "كلمات الدرس: قريش، الصبر، العفو، الدعاء."
+        },
+        {
+          "id": "y5c-q7",
+          "type": "true_false",
+          "prompt": "Abu Bakr said, “Would you kill a man just because he says, ‘My Lord is Allah’?”",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "True (Sahih al-Bukhari 3678).",
+          "promptAr": "قال أبو بكر: «أتقتلون رجلًا أن يقول ربي الله؟»",
+          "optionsAr": [
+            "صح",
+            "خطأ"
+          ],
+          "explanationAr": "صح (صحيح البخاري ٣٦٧٨)."
+        },
+        {
+          "id": "y5c-q8",
+          "type": "true_false",
+          "prompt": "The Prophet ﷺ and the believers gave up calling to Allah when people opposed them.",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correct": [
+            1
+          ],
+          "points": 1,
+          "explanation": "False. They stayed patient and kept calling to Allah.",
+          "promptAr": "تخلّى النبي ﷺ والمؤمنون عن الدعوة إلى الله عندما عارضهم الناس.",
+          "optionsAr": [
+            "صح",
+            "خطأ"
+          ],
+          "explanationAr": "خطأ. صبروا واستمروا في الدعوة إلى الله."
+        },
+        {
+          "id": "y5c-q9",
+          "type": "true_false",
+          "prompt": "In Sahih al-Bukhari 3477, an earlier prophet whose people beat him said, “O Allah, forgive my people, for they do not know.”",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "True. The Prophet ﷺ told about an earlier prophet who forgave his people.",
+          "promptAr": "في صحيح البخاري ٣٤٧٧ قال نبيٌّ سابق ضربه قومه: «اللهم اغفر لقومي فإنهم لا يعلمون».",
+          "optionsAr": [
+            "صح",
+            "خطأ"
+          ],
+          "explanationAr": "صح. حدّث النبي ﷺ عن نبيٍّ سابق عفا عن قومه."
+        },
+        {
+          "id": "y5c-q10",
+          "type": "multiple_choice",
+          "prompt": "What does Allah teach us in Surah Fussilat 41:34?",
+          "options": [
+            "Repel evil with what is better",
+            "Take revenge straight away",
+            "Ignore everyone",
+            "Shout back louder"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "“Repel [evil] by that which is better” (Fussilat 41:34).",
+          "promptAr": "ماذا يعلّمنا الله في سورة فصلت (٣٤)؟",
+          "optionsAr": [
+            "ادفع السيئة بالتي هي أحسن",
+            "انتقم فورًا",
+            "تجاهل الجميع",
+            "ارفع صوتك أكثر"
+          ],
+          "explanationAr": "﴿ٱدْفَعْ بِٱلَّتِى هِىَ أَحْسَنُ﴾ (فصلت ٣٤)."
+        },
+        {
+          "id": "y5c-q11",
+          "type": "multiple_choice",
+          "prompt": "Allah promises that if we answer evil with good, the person who was an enemy may become…",
+          "options": [
+            "A bigger enemy",
+            "Like a close friend",
+            "A stranger",
+            "A neighbour in Madinah"
+          ],
+          "correct": [
+            1
+          ],
+          "points": 1,
+          "explanation": "“…and thereupon the one between whom and you was enmity [will become] as though he was a devoted friend” (Fussilat 41:34).",
+          "promptAr": "وعد الله أننا إن دفعنا السيئة بالحسنة فقد يصير من كان عدوًّا…",
+          "optionsAr": [
+            "عدوًّا أكبر",
+            "كأنه وليٌّ حميم",
+            "غريبًا",
+            "جارًا في المدينة"
+          ],
+          "explanationAr": "﴿فَإِذَا ٱلَّذِى بَيْنَكَ وَبَيْنَهُۥ عَدَٰوَةٌۭ كَأَنَّهُۥ وَلِىٌّ حَمِيمٌۭ﴾ (فصلت ٣٤)."
+        },
+        {
+          "id": "y5c-q12",
+          "type": "fill_blank",
+          "prompt": "Allah told the Prophet ﷺ: “And be ___ over what they say.” (Al-Muzzammil 73:10)",
+          "options": [
+            "angry",
+            "silent"
+          ],
+          "correct": [],
+          "blanks": [
+            [
+              [
+                "patient",
+                "Patient"
+              ]
+            ]
+          ],
+          "points": 1,
+          "explanation": "Allah taught the Prophet ﷺ to be patient (73:10).",
+          "explanationAr": "علّم الله نبيَّه ﷺ الصبر: ﴿وَٱصْبِرْ عَلَىٰ مَا يَقُولُونَ﴾ (المزمل ١٠)."
+        }
+      ]
+    },
+    {
+      "id": "sow-y6-salat-al-masbuq",
+      "slug": "year-6-prayer-of-the-latecomer-salat-al-masbuq",
+      "title": "Year 6 – Prayer of the Latecomer (Salat al-Masbuq)",
+      "titleAr": "السنة ٦ – صلاة المسبوق",
+      "description": "How a latecomer joins the congregational prayer and completes the missed rak‘ahs (Sahih al-Bukhari 636 and 908; Sahih Muslim 602), and working out missed rak‘ahs in different situations. Based on the Year 6 lesson.",
+      "descriptionAr": "كيف ينضم المسبوق إلى صلاة الجماعة ويتم ما فاته من الركعات (صحيح البخاري ٦٣٦ و٩٠٨؛ صحيح مسلم ٦٠٢)، وحساب الركعات الفائتة في حالات مختلفة. مبني على درس السنة السادسة.",
+      "year": 6,
+      "cardImage": "/covers/y6-prayer-of-the-latecomer.svg",
+      "timeLimitMinutes": 5,
+      "showAnswers": true,
+      "certificateIndividual": true,
+      "certificateGroup": true,
+      "visible": true,
+      "active": true,
+      "published": true,
+      "updatedAt": "2026-10-17T19:30:00.000Z",
+      "questions": [
+        {
+          "id": "y6m-q1",
+          "type": "multiple_choice",
+          "prompt": "What does the Hadith (Sahih al-Bukhari 636) tell us to do when we hear the iqama?",
+          "options": [
+            "Walk to the prayer with calmness and dignity",
+            "Start our own prayer",
+            "Run as fast as we can",
+            "Wait outside the mosque"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "“When you hear the iqama, walk to the prayer with calmness (sakina) and dignity (waqar) and do not hurry.”",
+          "promptAr": "ماذا يأمرنا الحديث (صحيح البخاري ٦٣٦) أن نفعل إذا سمعنا الإقامة؟",
+          "optionsAr": [
+            "نمشي إلى الصلاة بسكينة ووقار",
+            "نبدأ صلاتنا وحدنا",
+            "نجري بأسرع ما نستطيع",
+            "ننتظر خارج المسجد"
+          ],
+          "explanationAr": "«إذا سمعتم الإقامة فامشوا إلى الصلاة وعليكم بالسكينة والوقار ولا تسرعوا»."
+        },
+        {
+          "id": "y6m-q2",
+          "type": "multiple_choice",
+          "prompt": "Who narrated the Hadith about walking calmly to the prayer (Sahih al-Bukhari 636)?",
+          "options": [
+            "Aisha",
+            "Abdullah bin Umar",
+            "Anas bin Malik",
+            "Abu Huraira"
+          ],
+          "correct": [
+            3
+          ],
+          "points": 1,
+          "explanation": "Sahih al-Bukhari 636 and Sahih Muslim 602 were narrated by Abu Huraira (may Allah be pleased with him).",
+          "promptAr": "من راوي حديث المشي إلى الصلاة بسكينة (صحيح البخاري ٦٣٦)؟",
+          "optionsAr": [
+            "عائشة",
+            "عبد الله بن عمر",
+            "أنس بن مالك",
+            "أبو هريرة"
+          ],
+          "explanationAr": "رواه أبو هريرة رضي الله عنه (صحيح البخاري ٦٣٦، صحيح مسلم ٦٠٢)."
+        },
+        {
+          "id": "y6m-q3",
+          "type": "multiple_choice",
+          "prompt": "What is a masbuq?",
+          "options": [
+            "The call that starts the prayer",
+            "The prayer leader",
+            "A latecomer to the prayer",
+            "One unit of prayer"
+          ],
+          "correct": [
+            2
+          ],
+          "points": 1,
+          "explanation": "A masbuq is a person who arrives late and misses part of the congregational prayer.",
+          "promptAr": "من هو المسبوق؟",
+          "optionsAr": [
+            "النداء الذي تبدأ به الصلاة",
+            "قائد الصلاة",
+            "من يتأخر عن الصلاة ويفوته بعضها مع الإمام",
+            "وحدة واحدة من الصلاة"
+          ],
+          "explanationAr": "المسبوق هو من جاء متأخرًا وفاته بعض صلاة الجماعة."
+        },
+        {
+          "id": "y6m-q4",
+          "type": "multi_select",
+          "prompt": "What should a latecomer do? Select all that apply.",
+          "options": [
+            "Stand up after the Imam’s salam to complete the missed rak‘ahs",
+            "Make the takbir and join the Imam in the position he is in",
+            "Walk calmly with sakina and waqar",
+            "Run so that he does not miss anything"
+          ],
+          "correct": [
+            0,
+            1,
+            2
+          ],
+          "points": 2,
+          "explanation": "The latecomer walks calmly, makes the takbir and joins the Imam at once, then completes what he missed after the Imam’s salam. He does not run.",
+          "promptAr": "ماذا يفعل المسبوق؟ اختر كل ما ينطبق.",
+          "optionsAr": [
+            "يقوم بعد سلام الإمام ليتمّ ما فاته",
+            "يكبّر وينضم إلى الإمام على الحال الذي هو عليه",
+            "يمشي بسكينة ووقار",
+            "يجري حتى لا يفوته شيء"
+          ],
+          "explanationAr": "يمشي المسبوق بهدوء، ويكبّر وينضم إلى الإمام فورًا، ثم يتم ما فاته بعد سلام الإمام، ولا يجري."
+        },
+        {
+          "id": "y6m-q5",
+          "type": "ordering",
+          "prompt": "Put the steps of a latecomer in order.",
+          "options": [
+            "Hear the iqama and walk calmly",
+            "Make the takbir and join the Imam in his position",
+            "Pray with the Imam until his salam",
+            "Stand up and complete the missed rak‘ahs"
+          ],
+          "correct": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "points": 2,
+          "explanation": "Steps from the lesson (Sahih al-Bukhari 636 and 908): walk calmly → takbir and join → pray with the Imam until the salam → complete what you missed.",
+          "promptAr": "رتّب خطوات المسبوق.",
+          "optionsAr": [
+            "يسمع الإقامة ويمشي بهدوء",
+            "يكبّر وينضم إلى الإمام على حاله",
+            "يصلي مع الإمام حتى سلامه",
+            "يقوم ويتم الركعات الفائتة"
+          ],
+          "explanationAr": "خطوات الدرس (صحيح البخاري ٦٣٦ و٩٠٨): المشي بهدوء ← التكبير والانضمام ← الصلاة مع الإمام حتى السلام ← إتمام ما فات."
+        },
+        {
+          "id": "y6m-q6",
+          "type": "matching",
+          "prompt": "Match each key word with its meaning.",
+          "options": [],
+          "correct": [],
+          "pairs": [
+            {
+              "left": "Iqama",
+              "right": "the call that starts the prayer"
+            },
+            {
+              "left": "Takbir",
+              "right": "saying “Allahu Akbar”"
+            },
+            {
+              "left": "Rak‘ah",
+              "right": "one unit of prayer"
+            },
+            {
+              "left": "Sakina",
+              "right": "calmness"
+            }
+          ],
+          "points": 2,
+          "explanation": "Key words from the lesson.",
+          "promptAr": "طابق كل كلمة مفتاحية بمعناها.",
+          "explanationAr": "كلمات الدرس: الإقامة، التكبير، الركعة، السكينة."
+        },
+        {
+          "id": "y6m-q7",
+          "type": "true_false",
+          "prompt": "Running quickly is the right way to go to the prayer.",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correct": [
+            1
+          ],
+          "points": 1,
+          "explanation": "False. The Prophet ﷺ told us not to hurry but to walk with calmness and dignity.",
+          "promptAr": "الجري السريع هو الطريقة الصحيحة للذهاب إلى الصلاة.",
+          "optionsAr": [
+            "صح",
+            "خطأ"
+          ],
+          "explanationAr": "خطأ. أمرنا النبي ﷺ ألا نسرع وأن نمشي بسكينة ووقار."
+        },
+        {
+          "id": "y6m-q8",
+          "type": "true_false",
+          "prompt": "A latecomer completes the missed rak‘ahs after the Imam’s salam.",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "True. The Imam leads until his salam; then the latecomer stands to complete what he missed (Sahih al-Bukhari 908).",
+          "promptAr": "يتمّ المسبوق الركعات الفائتة بعد سلام الإمام.",
+          "optionsAr": [
+            "صح",
+            "خطأ"
+          ],
+          "explanationAr": "صح. يقود الإمام حتى سلامه، ثم يقوم المسبوق ليتم ما فاته (صحيح البخاري ٩٠٨)."
+        },
+        {
+          "id": "y6m-q9",
+          "type": "true_false",
+          "prompt": "A latecomer should wait until the Imam finishes before joining the prayer.",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correct": [
+            1
+          ],
+          "points": 1,
+          "explanation": "False. He joins the Imam straight away, in whatever the Imam is doing.",
+          "promptAr": "ينتظر المسبوق حتى ينتهي الإمام قبل أن ينضم إلى الصلاة.",
+          "optionsAr": [
+            "صح",
+            "خطأ"
+          ],
+          "explanationAr": "خطأ. ينضم إلى الإمام فورًا على أي حال كان."
+        },
+        {
+          "id": "y6m-q10",
+          "type": "multiple_choice",
+          "prompt": "Dhuhr has 4 rak‘ahs. Hamza joins when the Imam is standing in the 3rd rak‘ah. How many rak‘ahs did he miss?",
+          "options": [
+            "3",
+            "2",
+            "1",
+            "4"
+          ],
+          "correct": [
+            1
+          ],
+          "points": 1,
+          "explanation": "He caught the 3rd and 4th rak‘ahs with the Imam, so he missed 2 and completes them after the Imam’s salam.",
+          "promptAr": "صلاة الظهر أربع ركعات. انضم حمزة والإمام قائم في الركعة الثالثة. كم ركعة فاتته؟",
+          "optionsAr": [
+            "٣",
+            "٢",
+            "١",
+            "٤"
+          ],
+          "explanationAr": "أدرك الركعتين الثالثة والرابعة مع الإمام، فاتته ركعتان يتمّهما بعد سلام الإمام."
+        },
+        {
+          "id": "y6m-q11",
+          "type": "multiple_choice",
+          "prompt": "Maghrib has 3 rak‘ahs. A man joins the Imam in the ruku‘ of the 2nd rak‘ah. How many rak‘ahs did he miss? (as taught in the lesson: a rak‘ah is caught if you reach the ruku‘ with the Imam)",
+          "options": [
+            "1",
+            "0",
+            "3",
+            "2"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "He caught the 2nd and 3rd rak‘ahs, so he missed 1. (Counting follows the majority view in the lesson; ask your teacher or imam about your madhhab.)",
+          "promptAr": "صلاة المغرب ثلاث ركعات. انضم رجل إلى الإمام في ركوع الركعة الثانية. كم ركعة فاتته؟ (كما في الدرس: تُدرك الركعة بإدراك الركوع مع الإمام)",
+          "optionsAr": [
+            "١",
+            "٠",
+            "٣",
+            "٢"
+          ],
+          "explanationAr": "أدرك الركعتين الثانية والثالثة فاتته ركعة واحدة. (الحساب على قول الجمهور كما في الدرس؛ اسأل معلمك أو الإمام عن مذهبك.)"
+        },
+        {
+          "id": "y6m-q12",
+          "type": "fill_blank",
+          "prompt": "The Prophet ﷺ said: “Pray what you catch, and ___ what you missed.”",
+          "options": [
+            "forget",
+            "skip"
+          ],
+          "correct": [],
+          "blanks": [
+            [
+              [
+                "complete",
+                "Complete"
+              ]
+            ]
+          ],
+          "points": 1,
+          "explanation": "“Fa-ma adraktum fa-sallu wa ma fatakum fa-atimmu” – pray what you catch and complete what you missed (Sahih al-Bukhari 908).",
+          "explanationAr": "«فَمَا أَدْرَكْتُمْ فَصَلُّوا وَمَا فَاتَكُمْ فَأَتِمُّوا» (صحيح البخاري ٩٠٨)."
+        }
+      ]
     }
   ],
   "meta": {
@@ -2381,7 +3906,12 @@
       "sow-y4-belief-in-angels": "Year 4 Belief in Angels L1/L2 RAFFLES decks + Success Criteria (2026-27). Sahih Muslim 2996, At-Tahrim 66:6, Al-Baqarah 2:97, Qaf 50:17–18, Bukhari 7501.",
       "sow-y5-call-to-islam": "Year 5 The Beginning of the Call to Islam L1/L2 RAFFLES decks + Success Criteria (2026-27). Ash-Shu‘ara 26:214, Al-Hijr 15:94, Bukhari 4770, Bukhari 3612, An-Nahl 16:125.",
       "sow-y6-congregational-prayer": "Year 6 Congregational Prayer L1/L2 RAFFLES decks + Success Criteria (2026-27). Bukhari 645, 723, 734, 636; Muslim 656a.",
-      "sow-y6-truly-bankrupt": "Year 6 The Truly Bankrupt lesson deck + Success Criteria (2026-27). Sahih Muslim 2581."
+      "sow-y6-truly-bankrupt": "Year 6 The Truly Bankrupt lesson deck + Success Criteria (2026-27). Sahih Muslim 2581.",
+      "sow-y2-birth-of-prophet": "Year 2 The Birth of Prophet Muhammad L1/L2 RAFFLES decks + Success Criteria (2026-27). Sahih Muslim 1162e, Al-Anbiya 21:107, Al-Fil 105; Seerah (Year of the Elephant; Abdullah, Aminah, Abdul Muttalib).",
+      "sow-y3-making-wudu-well": "Year 3 Making Wudu Well L1/L2 RAFFLES decks + Success Criteria (2026-27). Sahih Muslim 245, Sahih Muslim 241a, Sahih al-Bukhari 159.",
+      "sow-y4-first-revelation": "Year 4 The First Revelation L1/L2 RAFFLES decks + Success Criteria (2026-27). Al-Alaq 96:1-5, Sahih al-Bukhari 3 and 6, Al-Hijr 15:9, Al-Isra 17:106.",
+      "sow-y5-call-to-islam-part-2": "Year 5 The Beginning of the Call to Islam Part 2 L1/L2 RAFFLES decks + Success Criteria (2026-27). Sahih al-Bukhari 3678 and 3856, Sahih al-Bukhari 3477, Ghafir 40:28, Fussilat 41:34, Al-Muzzammil 73:10.",
+      "sow-y6-salat-al-masbuq": "Year 6 Prayer of the Latecomer (Salat al-Masbuq) L1/L2 RAFFLES decks + Success Criteria (2026-27). Sahih al-Bukhari 636 and 908, Sahih Muslim 602; rak‘ah counting per the lesson (majority view)."
     },
     "coverCredits": {
       "sow-y2-surah-al-fil": "Kaaba, Makkah — ekrem osmanoglu (Unsplash License) unsplash.com/photos/R_t4oOh-Lvg",
@@ -2391,7 +3921,12 @@
       "sow-y5-call-to-islam": "Makkah from Jabal al-Nour (Hira) — Zeesha (Unsplash License) unsplash.com/photos/FgC7WAyJgaI",
       "sow-y6-congregational-prayer": "Prayer row from behind, Masjid Budi Guna — Alim (Unsplash License) unsplash.com/photos/zaWSPcBCzVQ",
       "sow-y6-truly-bankrupt": "Balance scale — Elena Mozhvilo (Unsplash License) unsplash.com/photos/j06gLuKK0GM",
-      "sow-y5-strong-believer": "Strong lone tree on a hill — Wolfgang Hasselmann (Unsplash License) unsplash.com/photos/Zfcl8A8yosA"
+      "sow-y5-strong-believer": "Strong lone tree on a hill — Wolfgang Hasselmann (Unsplash License) unsplash.com/photos/Zfcl8A8yosA",
+      "sow-y2-birth-of-prophet": "Original illustrated cover (SVG, no people), created for this site.",
+      "sow-y3-making-wudu-well": "Original illustrated cover (SVG, no people), created for this site.",
+      "sow-y4-first-revelation": "Original illustrated cover (SVG, no people), created for this site.",
+      "sow-y5-call-to-islam-part-2": "Original illustrated cover (SVG, no people), created for this site.",
+      "sow-y6-salat-al-masbuq": "Original illustrated cover (SVG, no people), created for this site."
     }
   }
 }
