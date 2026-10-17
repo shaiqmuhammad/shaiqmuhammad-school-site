@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { PresenceDot } from "@/components/lms/Presence";
 import { lmsApi, lmsErrorText, type Announcement, type Catalog, type Msg, type MsgContact, type MsgThread } from "@/lib/lms";
 import { useTr } from "@/components/lms/useLms";
+import { ParentMailPanel } from "@/components/lms/ParentMail";
 
 const ago = (ts: number, ar: boolean) => new Date(ts).toLocaleString(ar ? "ar" : "en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 const initials = (n: string) => n.split(/\s+/).map((x) => x[0]).slice(0, 2).join("").toUpperCase();
@@ -31,6 +32,19 @@ export function MsgIcon({ asAdmin = false, href, onClick, variant = "navy" }: { 
 
 /** 1:1 messages. Students → their teachers + admin; teachers → their students + admin; admin sees and moderates every thread. */
 export function MessagesPanel({ asAdmin = false }: { asAdmin?: boolean }) {
+  const { tr } = useTr();
+  const [tab, setTab] = useState<"chats" | "parents">("chats");
+  const [canParents, setCanParents] = useState(false);
+  useEffect(() => { lmsApi.parentContacts(asAdmin).then(() => setCanParents(true)).catch(() => setCanParents(false)); }, [asAdmin]);
+  return (
+    <div className="space-y-3">
+      {canParents && <div className="flex gap-2" role="tablist">{(["chats", "parents"] as const).map((k) => <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)} className={`rounded-full px-4 py-1.5 text-sm font-bold ring-1 ring-black/10 ${tab === k ? "bg-sun text-[#0b1b2b]" : "bg-white/70 dark:bg-white/10"}`} data-testid={`msg-tab-${k}`}>{k === "chats" ? tr("💬 Chats", "💬 المحادثات") : tr("👪 Parents", "👪 أولياء الأمور")}</button>)}</div>}
+      {tab === "parents" && canParents ? <ParentMailPanel asAdmin={asAdmin} /> : <ChatsPanel asAdmin={asAdmin} />}
+    </div>
+  );
+}
+
+function ChatsPanel({ asAdmin = false }: { asAdmin?: boolean }) {
   const { tr, lang } = useTr();
   const ar = lang === "ar";
   const [threads, setThreads] = useState<MsgThread[] | null>(null);

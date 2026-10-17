@@ -4,13 +4,14 @@ import { PresenceDot } from "@/components/lms/Presence";
 import { mailApi } from "@/lib/mail";
 import { listPublishedQuizzes, loadQuizzesData, type Quiz } from "@/lib/quiz";
 import { StudentProgress } from "@/components/lms/Progress";
+import { ParentLog } from "@/components/lms/ParentMail";
 import { Fragment, useCallback, useEffect, useState } from "react";
 import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
 import { AssessmentShell, primaryBtn } from "@/components/assessment/AssessmentShell";
 import { exportStudentsXlsx, downloadCredentials, downloadSignInSheet, downloadUsersTemplate, exportAllHomeworkZip, parseUsersXlsx } from "@/components/lms/lmsFiles";
 import { ADMIN_ACTOR, adminRelogin, card, inputCls, smallBtn, useLmsActor, useTr } from "@/components/lms/useLms";
 import { clsNum, secLetter } from "@/lib/classFmt";
-import { lmsApi, lmsErrorText, PERMS, scopeLabel, type Catalog, type LmsUser, type Role } from "@/lib/lms";
+import { lmsApi, lmsErrorText, PERMS, stuUi, scopeLabel, type Catalog, type LmsUser, type Role } from "@/lib/lms";
 
 type Pins = { username: string; name: string; pin: string }[];
 type Row = Partial<LmsUser & { pin: string }>;
@@ -25,7 +26,7 @@ const EMPTY: Catalog = { subjects: [], classes: [], sections: [] };
 /** Add / edit one student or teacher, with dropdowns from Classes & Subjects. */
 function PersonForm({ role, catalog, initial, onSave, submitLabel, testPrefix, staff = false, admin = false }: { admin?: boolean; staff?: boolean; role: Role; catalog: Catalog; initial?: LmsUser; onSave: (r: Row) => Promise<void>; submitLabel: string; testPrefix: string }) {
   const { tr } = useTr();
-  const [f, setF] = useState({ name: initial?.name || "", username: initial?.username || "", cls: initial?.cls || "", section: initial?.section || "", pin: "", email: initial?.email || "", gender: initial?.gender || "", first: initial?.firstName ?? (initial?.name || "").split(/\s+/)[0] ?? "", last: initial?.lastName ?? (initial?.name || "").split(/\s+/).slice(1).join(" "), dob: initial?.dob || "", phone: initial?.phone || "", semail: initial?.semail || "", nat: initial?.nationality || "", lang: initial?.prefLang || "", sen: !!initial?.sen, eal: !!initial?.eal, gt: !!initial?.gt, subjects: initial?.subjects || [], scope: initial?.scope || [], perms: initial?.perms || (staff ? ["staff", "review"] : ["assign", "review"]), disabled: initial?.disabled || false });
+  const [f, setF] = useState({ name: initial?.name || "", username: initial?.username || "", cls: initial?.cls || "", section: initial?.section || "", pin: "", email: initial?.email || "", gender: initial?.gender || "", first: initial?.firstName ?? (initial?.name || "").split(/\s+/)[0] ?? "", last: initial?.lastName ?? (initial?.name || "").split(/\s+/).slice(1).join(" "), dob: initial?.dob || "", phone: initial?.phone || "", semail: initial?.semail || "", parentName: initial?.parentName || "", nat: initial?.nationality || "", lang: initial?.prefLang || "", sen: !!initial?.sen, eal: !!initial?.eal, gt: !!initial?.gt, subjects: initial?.subjects || [], scope: initial?.scope || [], perms: initial?.perms || (staff ? ["staff", "review"] : ["assign", "review"]), disabled: initial?.disabled || false });
   const [busy, setBusy] = useState(false);
   const toggle = (k: "subjects" | "scope" | "perms", v: string) => setF((x) => ({ ...x, [k]: x[k].includes(v) ? x[k].filter((y) => y !== v) : [...x[k], v] }));
   const secs = catalog.sections.filter((s) => s.cls === f.cls);
@@ -37,7 +38,7 @@ function PersonForm({ role, catalog, initial, onSave, submitLabel, testPrefix, s
       onSubmit={async (e) => {
         e.preventDefault();
         setBusy(true);
-        await onSave({ id: initial?.id, role, name: role === "student" ? `${f.first.trim()} ${f.last.trim()}`.trim() : f.name.trim(), ...(role === "student" ? { firstName: f.first.trim(), lastName: f.last.trim() } : {}), username: f.username, cls: role === "student" ? f.cls : "", section: role === "student" ? f.section : "", subjects: role === "teacher" ? f.subjects : [], scope: role === "teacher" ? f.scope : [], perms: role === "teacher" ? f.perms : [], pin: f.pin || undefined, disabled: f.disabled, ...(role === "student" ? (admin ? { email: f.email.trim(), gender: f.gender, dob: f.dob, phone: f.phone.trim(), semail: f.semail.trim(), nationality: f.nat.trim(), prefLang: f.lang.trim(), sen: f.sen, eal: f.eal, gt: f.gt } : {}) : { email: f.email.trim() }) });
+        await onSave({ id: initial?.id, role, name: role === "student" ? `${f.first.trim()} ${f.last.trim()}`.trim() : f.name.trim(), ...(role === "student" ? { firstName: f.first.trim(), lastName: f.last.trim() } : {}), username: f.username, cls: role === "student" ? f.cls : "", section: role === "student" ? f.section : "", subjects: role === "teacher" ? f.subjects : [], scope: role === "teacher" ? f.scope : [], perms: role === "teacher" ? f.perms : [], pin: f.pin || undefined, disabled: f.disabled, ...(role === "student" ? (admin ? { email: f.email.trim(), parentName: f.parentName.trim(), gender: f.gender, dob: f.dob, phone: f.phone.trim(), semail: f.semail.trim(), nationality: f.nat.trim(), prefLang: f.lang.trim(), sen: f.sen, eal: f.eal, gt: f.gt } : {}) : { email: f.email.trim() }) });
         setBusy(false);
         if (!initial) setF((x) => ({ ...x, name: "", first: "", last: "", username: "", pin: "" }));
       }}
@@ -55,6 +56,7 @@ function PersonForm({ role, catalog, initial, onSave, submitLabel, testPrefix, s
         <label className="text-xs">{tr("Date of birth", "تاريخ الميلاد")}<input type="date" className={inputCls} value={f.dob} onChange={(e) => setF({ ...f, dob: e.target.value })} data-testid={`${testPrefix}-dob`} /></label>
         <input className={inputCls} placeholder={tr("Contact no", "رقم التواصل")} value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} dir="ltr" data-testid={`${testPrefix}-phone`} />
         <input type="email" className={inputCls + " sm:col-span-2"} placeholder={tr("Student email", "بريد الطالب")} value={f.semail} onChange={(e) => setF({ ...f, semail: e.target.value })} dir="ltr" data-testid={`${testPrefix}-semail`} />
+        <input className={inputCls + " sm:col-span-2"} placeholder={tr("Parent name (shown to teachers)", "اسم ولي الأمر (يظهر للمعلمين)")} value={f.parentName} onChange={(e) => setF({ ...f, parentName: e.target.value })} dir="auto" data-testid={`${testPrefix}-parentname`} />
         <input type="email" className={inputCls + " sm:col-span-2"} placeholder={tr("Parent email (for reports)", "بريد ولي الأمر (للتقارير)")} value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} dir="ltr" data-testid={`${testPrefix}-email`} />
         <input className={inputCls} placeholder={tr("Nationality", "الجنسية")} value={f.nat} onChange={(e) => setF({ ...f, nat: e.target.value })} data-testid={`${testPrefix}-nat`} />
         <input className={inputCls} placeholder={tr("Preferred language", "اللغة المفضلة")} value={f.lang} onChange={(e) => setF({ ...f, lang: e.target.value })} data-testid={`${testPrefix}-lang`} />
@@ -91,6 +93,12 @@ function PersonForm({ role, catalog, initial, onSave, submitLabel, testPrefix, s
           <div className="flex flex-wrap gap-3 text-sm">
             {PERMS.map((p) => <label key={p} className="flex items-center gap-1.5"><input type="checkbox" checked={f.perms.includes(p)} onChange={() => toggle("perms", p)} data-testid={`lms-perm-${p}`} /> {tr(PERM_LABEL[p][0], PERM_LABEL[p][1])}</label>)}
           </div>
+          {f.perms.includes("manageUsers") && (
+            <div className="flex flex-wrap items-center gap-3 rounded-2xl bg-black/[0.04] px-3 py-2 text-sm dark:bg-white/5" data-testid="stu-switches">
+              <b className="text-xs uppercase opacity-70">{tr("Student accounts (own classes)", "حسابات الطلاب (صفوفه فقط)")}</b>
+              {(["view", "edit", "block", "delete"] as const).map((op) => <label key={op} className="flex items-center gap-1.5"><input type="checkbox" checked={stuUi(f.perms, op)} onChange={() => setF((x) => { const has = x.perms.filter((q) => q.startsWith("stu:")); const cur = has.length ? has : ["view", "edit", "block", "delete"].map((o) => `stu:${o}`); const k = `stu:${op}`; const next = cur.includes(k) ? cur.filter((q) => q !== k) : [...cur, k]; return { ...x, perms: [...x.perms.filter((q) => !q.startsWith("stu:")), ...(next.length === 4 ? [] : next)] }; })} data-testid={`stu-${op}`} /> {op === "view" ? tr("View", "عرض") : op === "edit" ? tr("Edit", "تعديل") : op === "block" ? tr("Block", "إيقاف") : tr("Delete", "حذف")}</label>)}
+            </div>
+          )}
           <ClassroomAccess perms={f.perms} toggle={(v) => toggle("perms", v)} chip={chip} />
         </div>
       )}
@@ -142,6 +150,7 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
   const [sort, setSort] = useState<{ key: string; dir: 1 | -1 }>({ key: "name", dir: 1 });
   const [page, setPage] = useState(0);
   const [sel, setSel] = useState<Set<string>>(new Set());
+  const canOp = (op: "view" | "edit" | "block" | "delete") => asAdmin || stuUi(actor?.perms || [], op);
   const allowed = embedded || (role === "student" && actor?.role === "teacher" && actor.perms.includes("manageUsers"));
   const title = staff ? tr("Staff", "الموظفون") : role === "teacher" ? tr("Teachers", "المعلمون") : tr("Students", "الطلاب");
 
@@ -209,10 +218,10 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
   const EXTRA: [string, string, string, (u: LmsUser) => string][] = role !== "student" ? [] : asAdmin ? [
     ["first", "First name", "الاسم الأول", (u) => u.firstName || ""], ["last", "Last name", "اسم العائلة", (u) => u.lastName || ""],
     ["gender", "Gender", "الجنس", (u) => (u.gender === "b" ? "Boy" : u.gender === "g" ? "Girl" : "")], ["dob", "DOB", "الميلاد", (u) => u.dob || ""],
-    ["phone", "Contact no", "التواصل", (u) => u.phone || ""], ["semail", "Student email", "بريد الطالب", (u) => u.semail || ""], ["pemail", "Parent email", "بريد ولي الأمر", (u) => u.email || ""],
+    ["phone", "Contact no", "التواصل", (u) => u.phone || ""], ["semail", "Student email", "بريد الطالب", (u) => u.semail || ""], ["pname", "Parent name", "اسم ولي الأمر", (u) => u.parentName || ""], ["pemail", "Parent email", "بريد ولي الأمر", (u) => u.email || ""],
     ["nat", "Nationality", "الجنسية", (u) => u.nationality || ""], ["lang", "Language", "اللغة", (u) => u.prefLang || ""],
     ["sen", "SEN", "SEN", (u) => (u.sen ? "✓" : "")], ["eal", "EAL", "EAL", (u) => (u.eal ? "✓" : "")], ["gt", "G&T", "موهوب", (u) => (u.gt ? "✓" : "")],
-  ] : [["pemail", "Parent email on file", "بريد ولي الأمر", (u) => (u.parentEmail ? "Yes" : "No")]];
+  ] : [["pname", "Parent name", "اسم ولي الأمر", (u) => u.parentName || ""], ["pemail", "Parent email on file", "بريد ولي الأمر", (u) => (u.parentEmail ? "Yes" : "No")]];
   const extraOn = EXTRA.filter((e) => showCols.includes(e[0]));
   const cols: { key: string; label: string; sort: boolean }[] = [
     { key: "name", label: tr("Name", "الاسم"), sort: true },
@@ -350,8 +359,8 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
           {sel.size > 0 && (
             <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-sky-50 px-3 py-2 text-sm dark:bg-sky-900/30" data-testid="lms-bulk">
               <b>{tr(`${sel.size} selected`, `${sel.size} محدد`)}</b>
-              <button type="button" className={smallBtn} onClick={() => bulk(false)} data-testid="lms-bulk-activate">✅ {tr("Activate", "تفعيل")}</button>
-              <button type="button" className={smallBtn} onClick={() => bulk(true)} data-testid="lms-bulk-block">⛔ {tr("Block", "إيقاف")}</button>
+              {canOp("block") && <button type="button" className={smallBtn} onClick={() => bulk(false)} data-testid="lms-bulk-activate">✅ {tr("Activate", "تفعيل")}</button>}
+              {canOp("block") && <button type="button" className={smallBtn} onClick={() => bulk(true)} data-testid="lms-bulk-block">⛔ {tr("Block", "إيقاف")}</button>}
               <button type="button" className={smallBtn} onClick={() => setSel(new Set())}>{tr("Clear", "مسح")}</button>
             </div>
           )}
@@ -414,13 +423,13 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
                         </td>
                         <td className={td + " whitespace-nowrap"}>
                           <span className="inline-flex gap-0.5">
-                            <button type="button" className={iconBtn} onClick={() => setEdit(edit === u.id ? null : u.id)} aria-label={tr(`Edit ${u.name}`, `تعديل ${u.name}`)} title={tr("Edit", "تعديل")} aria-expanded={edit === u.id} data-testid="lms-user-edit">✏️</button>
+                            {canOp("edit") && <button type="button" className={iconBtn} onClick={() => setEdit(edit === u.id ? null : u.id)} aria-label={tr(`Edit ${u.name}`, `تعديل ${u.name}`)} title={tr("Edit", "تعديل")} aria-expanded={edit === u.id} data-testid="lms-user-edit">✏️</button>}
                             <a className={iconBtn} href={`/lms?${new URLSearchParams({ viewAs: u.id, n: u.name, r: u.role, c: u.cls || "" })}`} target="_blank" rel="noopener" aria-label={tr(`View as ${u.name} (read-only)`, `عرض كـ ${u.name} (للعرض فقط)`)} title={tr("View as (read-only, new tab)", "عرض كـ (للعرض فقط، تبويب جديد)")} data-testid="lms-user-viewas">👁</a>
                             {u.email && <button type="button" className={iconBtn} onClick={async () => { if (!confirm(tr(`Email the username and PIN to ${u.email}?`, `إرسال اسم المستخدم والرقم السري إلى ${u.email}؟`))) return; try { await mailApi.emailPin(u.id); alert(tr("Sent.", "تم الإرسال.")); } catch (e) { const c = (e as Error).message; alert(c === "mail_not_configured" ? tr("Email isn't connected yet.", "البريد غير متصل بعد.") : c === "reset_pin_first" ? tr("Reset the PIN first so it can be sent.", "أعد تعيين الرقم السري أولاً.") : tr("Couldn't send.", "تعذر الإرسال.")); } }} aria-label={tr(`Email PIN to ${u.email}`, `إرسال الرقم السري إلى ${u.email}`)} title={tr(`Email sign-in details to ${u.email}`, `إرسال بيانات الدخول إلى ${u.email}`)} data-testid="lms-user-email-pin">📧</button>}
                             {role === "student" && <button type="button" className={iconBtn} onClick={() => setProg(prog === u.id ? null : u.id)} aria-label={tr(`Progress of ${u.name}`, `تقدم ${u.name}`)} title={tr("Progress & tracker", "التقدم والمتابعة")} aria-expanded={prog === u.id} data-testid="lms-user-progress">📈</button>}
-                            <button type="button" className={iconBtn} onClick={async () => { if (!confirm(tr(`Give ${u.name} a new PIN?`, `رقم سري جديد لـ ${u.name}؟`))) return; const r = await lmsApi.resetPin(u.id, undefined, asAdmin).catch(() => null); if (r) { setPins((p) => [{ username: u.username, name: u.name, pin: r.pin }, ...p]); load(); } }} aria-label={tr(`Reset PIN for ${u.name}`, `إعادة تعيين رقم ${u.name}`)} title={tr("Reset PIN", "إعادة تعيين الرقم")} data-testid="lms-user-pin">🔑</button>
-                            <button type="button" className={iconBtn} onClick={async () => { await lmsApi.setStatus([u.id], !u.disabled, asAdmin).catch((e) => setErr(lmsErrorText(e, tr))); load(); }} aria-label={u.disabled ? tr(`Activate ${u.name}`, `تفعيل ${u.name}`) : tr(`Block ${u.name}`, `إيقاف ${u.name}`)} title={u.disabled ? tr("Activate", "تفعيل") : tr("Block", "إيقاف")} data-testid="lms-user-toggle">{u.disabled ? "✅" : "⛔"}</button>
-                            <button type="button" className={iconBtn + " text-rose-600"} onClick={async () => { if (!confirm(tr(`Delete ${u.name} and their homework?`, `حذف ${u.name} وواجباته؟`))) return; await lmsApi.deleteUser(u.id, asAdmin).catch(() => undefined); load(); }} aria-label={tr(`Delete ${u.name}`, `حذف ${u.name}`)} title={tr("Delete", "حذف")} data-testid="lms-user-delete">🗑</button>
+                            {canOp("edit") && <button type="button" className={iconBtn} onClick={async () => { if (!confirm(tr(`Give ${u.name} a new PIN?`, `رقم سري جديد لـ ${u.name}؟`))) return; const r = await lmsApi.resetPin(u.id, undefined, asAdmin).catch(() => null); if (r) { setPins((p) => [{ username: u.username, name: u.name, pin: r.pin }, ...p]); load(); } }} aria-label={tr(`Reset PIN for ${u.name}`, `إعادة تعيين رقم ${u.name}`)} title={tr("Reset PIN", "إعادة تعيين الرقم")} data-testid="lms-user-pin">🔑</button>}
+                            {canOp("block") && <button type="button" className={iconBtn} onClick={async () => { await lmsApi.setStatus([u.id], !u.disabled, asAdmin).catch((e) => setErr(lmsErrorText(e, tr))); load(); }} aria-label={u.disabled ? tr(`Activate ${u.name}`, `تفعيل ${u.name}`) : tr(`Block ${u.name}`, `إيقاف ${u.name}`)} title={u.disabled ? tr("Activate", "تفعيل") : tr("Block", "إيقاف")} data-testid="lms-user-toggle">{u.disabled ? "✅" : "⛔"}</button>}
+                            {canOp("delete") && <button type="button" className={iconBtn + " text-rose-600"} onClick={async () => { if (!confirm(tr(`Delete ${u.name} and their homework?`, `حذف ${u.name} وواجباته؟`))) return; await lmsApi.deleteUser(u.id, asAdmin).catch(() => undefined); load(); }} aria-label={tr(`Delete ${u.name}`, `حذف ${u.name}`)} title={tr("Delete", "حذف")} data-testid="lms-user-delete">🗑</button>}
                           </span>
                         </td>
                       </tr>
@@ -428,6 +437,7 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
                         <tr>
                           <td colSpan={cols.length + 1} className="border-t border-black/5 bg-black/[0.03] p-3 dark:border-white/10 dark:bg-white/5">
                             <StudentProgress id={u.id} asAdmin={asAdmin} />
+                            <div className="mt-3"><ParentLog student={u.id} asAdmin={asAdmin} /></div>
                           </td>
                         </tr>
                       )}

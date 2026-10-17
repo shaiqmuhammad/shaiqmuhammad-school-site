@@ -7,7 +7,7 @@ import { clsNum, secLetter, resolveClass, resolveSection } from "@/lib/classFmt"
 import { makeZip } from "@/lib/zip";
 
 /** Student columns (admin only): header, key, width. Gender, DOB, contact, emails, nationality, language, SEN/EAL/G&T are private to admin. */
-const STUDENT_COLS: [string, string, number][] = [["username", "username", 18], ["first name", "first", 16], ["last name", "last", 16], ["class", "cls", 14], ["section", "section", 12], ["pin", "pin", 10], ["gender", "gender", 10], ["dob (yyyy-mm-dd)", "dob", 16], ["contact no", "phone", 16], ["student email", "semail", 26], ["parent email", "email", 26], ["nationality", "nat", 16], ["preferred language", "lang", 18], ["sen", "sen", 7], ["eal", "eal", 7], ["gifted & talented", "gt", 10]];
+const STUDENT_COLS: [string, string, number][] = [["username", "username", 18], ["first name", "first", 16], ["last name", "last", 16], ["class", "cls", 14], ["section", "section", 12], ["pin", "pin", 10], ["gender", "gender", 10], ["dob (yyyy-mm-dd)", "dob", 16], ["contact no", "phone", 16], ["student email", "semail", 26], ["parent name", "pname", 22], ["parent email", "email", 26], ["nationality", "nat", 16], ["preferred language", "lang", 18], ["sen", "sen", 7], ["eal", "eal", 7], ["gifted & talented", "gt", 10]];
 const yes = (v: string) => /^(y|yes|true|1|✓)$/i.test(v.trim());
 
 /** Admin-only: every student field to Excel (no PINs). */
@@ -16,7 +16,7 @@ export async function exportStudentsXlsx(users: LmsUser[]) {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("Students");
   ws.columns = STUDENT_COLS.filter((c) => c[1] !== "pin").map(([header, key, width]) => ({ header, key, width }));
-  for (const u of users.filter((x) => x.role === "student")) ws.addRow({ username: u.username, first: u.firstName || "", last: u.lastName || "", cls: clsNum(u.cls), section: secLetter(u.section), gender: u.gender === "b" ? "Boy" : u.gender === "g" ? "Girl" : "", dob: u.dob || "", phone: u.phone || "", semail: u.semail || "", email: u.email || "", nat: u.nationality || "", lang: u.prefLang || "", sen: u.sen ? "Yes" : "", eal: u.eal ? "Yes" : "", gt: u.gt ? "Yes" : "" });
+  for (const u of users.filter((x) => x.role === "student")) ws.addRow({ username: u.username, first: u.firstName || "", last: u.lastName || "", cls: clsNum(u.cls), section: secLetter(u.section), gender: u.gender === "b" ? "Boy" : u.gender === "g" ? "Girl" : "", dob: u.dob || "", phone: u.phone || "", semail: u.semail || "", pname: u.parentName || "", email: u.email || "", nat: u.nationality || "", lang: u.prefLang || "", sen: u.sen ? "Yes" : "", eal: u.eal ? "Yes" : "", gt: u.gt ? "Yes" : "" });
   ws.getRow(1).font = { bold: true };
   ws.views = [{ state: "frozen", ySplit: 1 }];
   ws.autoFilter = { from: "A1", to: { row: 1, column: ws.columnCount } };
@@ -49,7 +49,7 @@ export async function downloadUsersTemplate(role: Role = "student", catalog?: Ca
   const s1 = catalog?.sections.find((x) => x.cls === c1)?.name || "";
   if (role === "student") {
     ws.columns = STUDENT_COLS.map(([header, key, width]) => ({ header, key, width }));
-    ws.addRow({ username: "aisha.k", first: "Aisha", last: "Khan", cls: clsNum(c1), section: secLetter(s1), pin: "", gender: "Girl", dob: "2017-05-14", phone: "", semail: "", email: "parent@example.com", nat: "", lang: "English", sen: "", eal: "Yes", gt: "" });
+    ws.addRow({ username: "aisha.k", first: "Aisha", last: "Khan", cls: clsNum(c1), section: secLetter(s1), pin: "", gender: "Girl", dob: "2017-05-14", phone: "", semail: "", pname: "Mr. Khan", email: "parent@example.com", nat: "", lang: "English", sen: "", eal: "Yes", gt: "" });
     ws.addRow({ username: "omar.s", first: "Omar", last: "Saleh", cls: clsNum(c1), section: secLetter(s1), pin: "4821", gender: "Boy", dob: "2016-11-02" });
     lists.getColumn(5).values = ["Yes/No", "Yes", "No"];
     lists.getColumn(6).values = ["Gender", "Boy", "Girl"];
@@ -79,7 +79,7 @@ export async function downloadUsersTemplate(role: Role = "student", catalog?: Ca
     "username: 3–40 characters, letters/numbers/dot/dash, unique (stored in lower case).",
     role === "student" ? "class and section: pick from the dropdowns (they come from Admin → Classes & Subjects)." : "subjects, classes, sections: comma separated, from the Lists sheet. classes = class numbers taught (e.g. 2, 3); sections = section letters (e.g. A, B) within those classes; leave sections empty for whole classes, both empty for no restriction.",
     "pin: 4–8 digits. Leave empty to generate a random 6-digit PIN.",
-    role === "teacher" ? "permissions (comma separated): assign, review, manageUsers, viewAll." : "",
+    role === "teacher" ? "permissions (comma separated): assign, review, manageUsers, viewAll; optional student switches: stu:view, stu:edit, stu:block, stu:delete (none = all four when manageUsers)." : "",
     "Existing usernames are updated (upsert). A PIN is only changed when you fill it in; empty cells leave stored values unchanged.",
     role === "student" ? "gender: Boy/Girl · dob: yyyy-mm-dd · SEN / EAL / gifted & talented: Yes or blank. These private fields are visible to admin only." : "",
   ].filter(Boolean).forEach((t) => help.addRow([t]));
@@ -121,11 +121,11 @@ export async function parseUsersXlsx(file: File, role: Role = "student", catalog
     rows.push(
       role === "teacher"
         ? { username: r.username, name: r.name, role, cls: "", subjects: (r.subjects || "").split(",").map((x) => x.trim()).filter(Boolean), scope: r["classes/sections"] ? cellToScope(r["classes/sections"]) : teacherScope(r.classes || "", r.sections || ""), pin: r.pin || undefined, perms: (r.permissions || r.perms || "assign, review").split(/[,\s]+/).filter(Boolean) }
-        : { username: r.username, name: (`${r["first name"] || ""} ${r["last name"] || ""}`.trim() || r.name), firstName: r["first name"] || (r.name || "").split(/\s+/)[0], lastName: r["last name"] ?? (r.name || "").split(/\s+/).slice(1).join(" "), role, cls: resolveClass(r.class || r.cls || "", catalog), section: resolveSection(r.section || "", resolveClass(r.class || r.cls || "", catalog), catalog), pin: r.pin || undefined, perms: [], email: r["parent email"] || r.email || "", gender: /^(b|boy)$/i.test(r.gender || r["boy/girl"] || "") ? "b" : /^(g|girl)$/i.test(r.gender || r["boy/girl"] || "") ? "g" : "", dob: (r["dob (yyyy-mm-dd)"] || r.dob || "").slice(0, 10), phone: r["contact no"] || "", semail: r["student email"] || "", nationality: r.nationality || "", prefLang: r["preferred language"] || "", sen: yes(r.sen || ""), eal: yes(r.eal || ""), gt: yes(r["gifted & talented"] || "") },
+        : { username: r.username, name: (`${r["first name"] || ""} ${r["last name"] || ""}`.trim() || r.name), firstName: r["first name"] || (r.name || "").split(/\s+/)[0], lastName: r["last name"] ?? (r.name || "").split(/\s+/).slice(1).join(" "), role, cls: resolveClass(r.class || r.cls || "", catalog), section: resolveSection(r.section || "", resolveClass(r.class || r.cls || "", catalog), catalog), pin: r.pin || undefined, perms: [], parentName: r["parent name"] || "", email: r["parent email"] || r.email || "", gender: /^(b|boy)$/i.test(r.gender || r["boy/girl"] || "") ? "b" : /^(g|girl)$/i.test(r.gender || r["boy/girl"] || "") ? "g" : "", dob: (r["dob (yyyy-mm-dd)"] || r.dob || "").slice(0, 10), phone: r["contact no"] || "", semail: r["student email"] || "", nationality: r.nationality || "", prefLang: r["preferred language"] || "", sen: yes(r.sen || ""), eal: yes(r.eal || ""), gt: yes(r["gifted & talented"] || "") },
     );
   });
   // Blank cells must not wipe stored private fields on upsert.
-  for (const r of rows as Record<string, unknown>[]) for (const k of ["gender", "dob", "phone", "semail", "nationality", "prefLang", "email"]) if (r[k] === "") delete r[k];
+  for (const r of rows as Record<string, unknown>[]) for (const k of ["gender", "dob", "phone", "semail", "nationality", "prefLang", "email", "parentName"]) if (r[k] === "") delete r[k];
   for (const r of rows as Record<string, unknown>[]) for (const k of ["sen", "eal", "gt"]) if (r[k] === false) delete r[k];
   return rows;
 }
