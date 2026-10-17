@@ -51,7 +51,7 @@ export function AdminVideosTab(props: Props) {
               </p>
               {detected && (
                 <div className="mt-3 aspect-video max-w-md overflow-hidden rounded-xl border border-card-border bg-accent-soft">
-                  <iframe title="preview" src={`https://www.youtube.com/embed/${detected}`} className="h-full w-full border-0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen loading="lazy" />
+                  <iframe title="preview" src={`https://www.youtube-nocookie.com/embed/${detected}?rel=0&modestbranding=1&iv_load_policy=3`} className="h-full w-full border-0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen loading="lazy" />
                 </div>
               )}
             </label>
