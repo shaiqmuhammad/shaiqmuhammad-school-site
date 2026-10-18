@@ -269,6 +269,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     this.sql.exec(`CREATE TABLE IF NOT EXISTS wlike (post TEXT, by TEXT, PRIMARY KEY (post, by))`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS alive (code TEXT PRIMARY KEY, type TEXT, title TEXT, owner TEXT, owner_name TEXT, students TEXT, at INTEGER)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS grp (id TEXT PRIMARY KEY, owner TEXT, name TEXT, students TEXT, updated INTEGER)`);
+    for (const [c, d] of [["classes", "TEXT DEFAULT '[]'"], ["teachers", "TEXT DEFAULT '[]'"], ["admin", "INTEGER DEFAULT 0"]]) if (!cols("grp").has(c)) this.sql.exec(`ALTER TABLE grp ADD COLUMN ${c} ${d}`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS rtok (token TEXT PRIMARY KEY, student TEXT, kind TEXT, by TEXT, created INTEGER)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS rlog (id TEXT PRIMARY KEY, student TEXT, kind TEXT, to_addr TEXT, by TEXT, at INTEGER, ok INTEGER)`);
     // Assessment assignments (class/section/students, individual or teacher-led group) + teacher-made assessments.
@@ -794,8 +795,32 @@ export class LmsStore extends DurableObject<LmsEnv> {
       }
       case "grp-list": {
         if (!isStaff(a)) return { status: 403, body: { error: "forbidden" } };
-        const rows = this.sql.exec(`SELECT * FROM grp ORDER BY name`).toArray().filter((r) => a.role === "admin" || r.owner === a.id);
-        return { status: 200, body: { items: rows.map((r) => ({ id: String(r.id), name: String(r.name), students: JSON.parse(String(r.students || "[]")) as string[], owner: String(r.owner) })) } };
+        // Own groups + admin groups assigned to this teacher. Admin-made groups = explicit students + whole classes/sections; teachers only get members inside their own scope.
+        const all = this.sql.exec(`SELECT * FROM grp ORDER BY name`).toArray();
+        const stu = this.sql.exec(`SELECT id, cls, section FROM users WHERE role='student' AND disabled=0`).toArray();
+        const rows = all.filter((r) => a.role === "admin" || r.owner === a.id || (Number(r.admin) === 1 && (JSON.parse(String(r.teachers || "[]")) as string[]).includes(a.id)));
+        return { status: 200, body: { items: rows.map((r) => {
+          const toks = JSON.parse(String(r.classes || "[]")) as string[];
+          const ids = new Set(JSON.parse(String(r.students || "[]")) as string[]);
+          for (const u of stu) for (const t of toks) { const [c, sc] = t.split("|"); if (String(u.cls) === c && (!sc || String(u.section) === sc)) ids.add(String(u.id)); }
+          const members = [...ids].filter((sid) => a.role === "admin" || this.inScope(a, ...this.placeOf(sid)));
+          const adminMade = Number(r.admin) === 1;
+          return { id: String(r.id), name: String(r.name), students: members, owner: String(r.owner), assigned: adminMade && a.role !== "admin", adminGroup: adminMade, classes: toks, teachers: a.role === "admin" ? (JSON.parse(String(r.teachers || "[]")) as string[]) : undefined, rawStudents: a.role === "admin" ? (JSON.parse(String(r.students || "[]")) as string[]) : undefined };
+        }) } };
+      }
+      case "grp-admin-save": {
+        if (a.role !== "admin" || a.viewAs) return { status: 403, body: { error: "admin_only" } };
+        const name = str(input.name, 60);
+        if (!name) return { status: 400, body: { error: "name_required" } };
+        const students = strList(input.students, 500).filter((sid) => this.userRow("id=? AND role='student'", sid));
+        const teachers = strList(input.teachers, 100).filter((tid) => this.userRow("id=? AND role='teacher'", tid));
+        const classes = strList(input.classes, 80).map((c) => str(c, 80));
+        const id = str(input.id, 40);
+        const ex = id ? this.sql.exec(`SELECT id, admin FROM grp WHERE id=?`, id).toArray()[0] : undefined;
+        if (id && !ex) return { status: 404, body: { error: "not_found" } };
+        if (ex) this.sql.exec(`UPDATE grp SET name=?, students=?, classes=?, teachers=?, admin=1, updated=? WHERE id=?`, name, JSON.stringify(students), JSON.stringify(classes), JSON.stringify(teachers), Date.now(), id);
+        else this.sql.exec(`INSERT INTO grp (id, owner, name, students, classes, teachers, admin, updated) VALUES (?, ?, ?, ?, ?, ?, 1, ?)`, rid("gp"), a.id, name, JSON.stringify(students), JSON.stringify(classes), JSON.stringify(teachers), Date.now());
+        return { status: 200, body: { ok: true } };
       }
       case "grp-save": {
         if (!isStaff(a)) return { status: 403, body: { error: "forbidden" } };

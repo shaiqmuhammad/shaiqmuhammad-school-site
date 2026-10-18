@@ -19,7 +19,7 @@ export type Comment = { by: string; text: string; at: number; audio?: string };
 export type RosterStudent = { id: string; name: string; cls: string; section: string; avatar: string; parentEmail: boolean; points: number; seen: number };
 export type PointCat = { id: string; label: string; pts: number; icon: string };
 export type PointRow = { id: string; student: string; name: string; label: string; pts: number; icon: string; by: string; at: number };
-export type StudentGroup = { id: string; name: string; students: string[]; owner: string };
+export type StudentGroup = { id: string; name: string; students: string[]; owner: string; assigned?: boolean; adminGroup?: boolean; classes?: string[]; teachers?: string[]; rawStudents?: string[] };
 export type ReportView = { kind: "points" | "quran"; id: string; name: string; cls: string; section: string; avatar: string; points?: { label: string; pts: number; icon: string; by: string; at: number }[]; tracker?: TrackerRow[]; progress?: unknown };
 export type Assignment = { id: string; quiz: string; title: string; mode: "individual" | "group"; cls: string; section: string; students: string[]; due: number | null; by: string; created: number };
 export type Announcement = { id: string; title: string; body: string; aud: "all" | "students" | "teachers" | "class"; cls: string; section: string; by: string; created: number };
@@ -178,7 +178,7 @@ export const lmsApi = {
   ptsList: (q: { students?: string[]; cls?: string; section?: string; from?: number; to?: number }, asAdmin = false) => call<{ items: PointRow[] }>("pts-list", q, { asAdmin }),
   grpList: (asAdmin = false) => call<{ items: StudentGroup[] }>("grp-list", undefined, { asAdmin }),
   grpSave: (g: { id?: string; name: string; students: string[] }) => call<{ ok: true }>("grp-save", g),
-  grpDelete: (id: string) => call<{ ok: true }>("grp-delete", { id }),
+  grpDelete: (id: string, asAdmin = false) => call<{ ok: true }>("grp-delete", { id }, { asAdmin }),
   userAvatar: (id: string) => call<{ avatar: string }>("user-avatar", { id }),
   reportEmail: (id: string, kind: "points" | "quran", preview: boolean) => call<{ ok?: true; to: string; subject: string; heading: string; paragraphs: string[]; url: string }>("report-email", { id, kind, preview }),
   reportLog: () => call<{ items: { id: string; student: string; kind: string; to: string; by: string; at: number; ok: boolean }[] }>("report-log"),
