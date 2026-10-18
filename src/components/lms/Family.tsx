@@ -46,7 +46,7 @@ function Family({ name }: { name: string }) {
     <>
       <section className="relative overflow-hidden rounded-3xl bg-header p-5 text-white shadow-lg sm:p-7">
         <p className="text-sm text-white/70">{tr("Welcome", "أهلاً")}</p>
-        <h1 className="text-2xl font-extrabold sm:text-3xl" dir="auto">{name}</h1>
+        <h1 className="text-2xl font-extrabold !text-white sm:text-3xl" dir="auto">{name}</h1>
         <p className="mt-1 text-sm text-white/75">{tr("Follow your child's learning, read-only.", "تابع تعلّم ابنك/ابنتك (للعرض فقط).")}</p>
       </section>
       {err && <p className="rounded-xl bg-rose-100 px-4 py-2 text-rose-800" role="alert">{err}</p>}
