@@ -19,7 +19,7 @@ export type Comment = { by: string; text: string; at: number; audio?: string };
 export type RosterStudent = { id: string; name: string; cls: string; section: string; avatar: string; parentEmail: boolean; points: number; seen: number };
 export type PointCat = { id: string; label: string; pts: number; icon: string };
 export type PointRow = { id: string; student: string; name: string; label: string; pts: number; icon: string; by: string; at: number };
-export type StudentGroup = { id: string; name: string; students: string[]; owner: string; assigned?: boolean; adminGroup?: boolean; classes?: string[]; teachers?: string[]; rawStudents?: string[] };
+export type StudentGroup = { id: string; name: string; subject?: string; students: string[]; owner: string; assigned?: boolean; adminGroup?: boolean; classes?: string[]; teachers?: string[]; rawStudents?: string[] };
 export type ReportView = { kind: "points" | "quran"; id: string; name: string; cls: string; section: string; avatar: string; points?: { label: string; pts: number; icon: string; by: string; at: number }[]; tracker?: TrackerRow[]; progress?: unknown };
 export type Assignment = { id: string; quiz: string; title: string; mode: "individual" | "group"; cls: string; section: string; students: string[]; due: number | null; by: string; created: number };
 export type Announcement = { id: string; title: string; body: string; aud: "all" | "students" | "teachers" | "class"; cls: string; section: string; by: string; created: number };
@@ -326,3 +326,6 @@ export const RECITERS = [
 ] as const;
 
 export const homeworkUrl = (id: string) => `${typeof window !== "undefined" ? window.location.origin : "https://www.shaiqmuhammad.com"}/lms/homework?id=${encodeURIComponent(id)}`;
+
+/** Group name with its subject, for pickers and tabs. */
+export const grpLabel = (g: { name: string; subject?: string }) => (g.subject ? `${g.name} · ${g.subject}` : g.name);
