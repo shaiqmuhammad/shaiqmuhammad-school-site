@@ -2,7 +2,7 @@
  * LMS modules: Attendance Register, Behaviour Management, Curriculum Management.
  * Runs inside the LMS Durable Object (same SQLite as users/points) via modHandle().
  *
- * Permissions (teacher perms strings, set in Admin → Teachers): att:view att:edit beh:view beh:edit cur:view cur:edit.
+ * Permissions (teacher perms strings, set in Admin → Teachers): att:view att:edit beh:view beh:edit cur:view cur:edit cur:delete (delete is a separate switch).
  * "edit" implies "view". Admin can always do everything. Teachers are limited to their own classes/sections (scope).
  * Students and parents never reach these actions (staff only).
  */
@@ -10,8 +10,10 @@ import type { Actor } from "./lms";
 
 type Json = Record<string, unknown>;
 type Reply = { status: number; body: unknown };
+export type HwLite = { id: string; title: string; kind: string; cls: string; section: string; students: string[]; createdBy: string };
 export type ModCtx = {
   sql: SqlStorage;
+  hwList: () => HwLite[];
   inScope: (a: Actor, cls: string, section: string) => boolean;
   userRow: (where: string, arg: string) => Record<string, unknown> | undefined;
 };
@@ -22,8 +24,8 @@ const DAY = /^\d{4}-\d{2}-\d{2}$/;
 /** Today in the school's time zone (UTC+4). */
 export const today = () => new Date(Date.now() + 4 * 3600e3).toISOString().slice(0, 10);
 const dayMs = (d: string) => Date.parse(`${d}T00:00:00Z`);
-const modCan = (a: Actor, m: "att" | "beh" | "cur", op: "view" | "edit") =>
-  a.role === "admin" || (a.role === "teacher" && (a.perms.includes(`${m}:edit`) || (op === "view" && a.perms.includes(`${m}:view`))));
+const modCan = (a: Actor, m: "att" | "beh" | "cur", op: "view" | "edit" | "delete") =>
+  a.role === "admin" || (a.role === "teacher" && (op === "delete" ? a.perms.includes(`${m}:delete`) : a.perms.includes(`${m}:edit`) || (op === "view" && (a.perms.includes(`${m}:view`) || a.perms.includes(`${m}:delete`)))));
 export const BEH_CATS = {
   positive: ["Helpfulness", "Kindness", "Effort", "Leadership", "Respect", "Excellent work", "Improvement"],
   concern: ["Disruption", "Disrespect", "Bullying", "Lateness", "Uniform", "Homework not done", "Safety", "Phone / device", "Other"],
@@ -37,6 +39,46 @@ export function initMods(sql: SqlStorage) {
   sql.exec(`CREATE TABLE IF NOT EXISTS beh (id TEXT PRIMARY KEY, student TEXT, cls TEXT, section TEXT, day TEXT, kind TEXT, category TEXT, severity INTEGER DEFAULT 1, note TEXT DEFAULT '', action TEXT DEFAULT '', follow TEXT DEFAULT 'none', follow_note TEXT DEFAULT '', sensitive INTEGER DEFAULT 0, by TEXT, by_name TEXT, at INTEGER, updated INTEGER)`);
   sql.exec(`CREATE INDEX IF NOT EXISTS beh_student ON beh (student, day)`);
   sql.exec(`CREATE TABLE IF NOT EXISTS cur (id TEXT PRIMARY KEY, subject TEXT, yr TEXT, term TEXT, title TEXT, objectives TEXT DEFAULT '', lessons TEXT DEFAULT '[]', resources TEXT DEFAULT '[]', wk_from INTEGER DEFAULT 0, wk_to INTEGER DEFAULT 0, status TEXT DEFAULT 'planned', quiz TEXT DEFAULT '', page TEXT DEFAULT '', ord INTEGER DEFAULT 0, by_name TEXT, updated INTEGER)`);
+  for (const col of ["links TEXT DEFAULT '[]'", "notes TEXT DEFAULT ''"]) { try { sql.exec(`ALTER TABLE cur ADD COLUMN ${col}`); } catch { /* already there */ } }
+}
+
+type Link = { t: "hw" | "quiz"; id: string };
+const parseLinks = (r: Record<string, unknown>): Link[] => {
+  let l: Link[] = [];
+  try { l = (JSON.parse(String(r.links || "[]")) as Link[]).filter((x) => x && (x.t === "hw" || x.t === "quiz") && x.id); } catch { /* ignore */ }
+  const q = String(r.quiz || "");
+  if (q && !l.some((x) => x.t === "quiz" && x.id === q)) l.unshift({ t: "quiz", id: q });
+  return l;
+};
+/** Does this assignment row (qassign) reach the student? */
+const qaReaches = (x: Record<string, unknown>, sid: string, cls: string, section: string) => {
+  const st = JSON.parse(String(x.students || "[]")) as string[];
+  return st.includes(sid) || (!st.length && !!x.cls && String(x.cls) === cls && (!x.section || String(x.section) === section));
+};
+const hwReaches = (h: HwLite, sid: string, cls: string, section: string) => h.students.includes(sid) || (h.cls ? h.cls === cls && (!h.section || h.section === section) : !h.students.length);
+/** Titles/modes for links; for students only the ones actually assigned to them. */
+function resolveLinks(c: ModCtx, links: Link[], student: Record<string, unknown> | null) {
+  const hws = new Map(c.hwList().map((h) => [h.id, h] as const));
+  const qas = c.sql.exec(`SELECT * FROM qassign ORDER BY created DESC`).toArray();
+  const out: { t: string; id: string; title: string; mode?: string }[] = [];
+  for (const l of links) {
+    if (l.t === "hw") {
+      const h = hws.get(l.id); if (!h) continue;
+      if (student && !hwReaches(h, String(student.id), String(student.cls || ""), String(student.section || ""))) continue;
+      out.push({ t: "hw", id: l.id, title: h.title });
+    } else {
+      const mine = qas.filter((x) => x.quiz === l.id);
+      let mode = "individual", title = String(mine[0]?.title || "");
+      if (student) {
+        const hit = mine.find((x) => qaReaches(x, String(student.id), String(student.cls || ""), String(student.section || "")));
+        if (!hit) continue;
+        mode = String(hit.mode); title = String(hit.title || "");
+      }
+      if (!title && l.id.startsWith("tq_")) title = String(c.sql.exec(`SELECT title FROM tquiz WHERE id=?`, l.id).toArray()[0]?.title || "");
+      out.push({ t: "quiz", id: l.id, title, mode });
+    }
+  }
+  return out;
 }
 
 const setting = (c: ModCtx, k: string, d: number) => { const r = c.sql.exec(`SELECT v FROM settings WHERE k=?`, k).toArray()[0]; const n = Number(r?.v); return r && Number.isFinite(n) ? n : d; };
@@ -51,8 +93,21 @@ const place = (c: ModCtx, sid: string): [string, string] | null => { const u = c
 const forbid = (e = "forbidden"): Reply => ({ status: 403, body: { error: e } });
 
 export async function modHandle(c: ModCtx, action: string, a: Actor, input: Json): Promise<Reply> {
-  if (a.role !== "admin" && a.role !== "teacher") return forbid();
   const sql = c.sql;
+  if (a.role === "student" && (action === "cur-list" || action === "cur-for")) {
+    // Students: read-only, own year group only, only linked work that is assigned to them.
+    const me = c.userRow("id=?", a.id);
+    if (!me) return forbid();
+    const yr = String(me.cls || "");
+    let rows = sql.exec(`SELECT * FROM cur WHERE yr=? ORDER BY subject, term, wk_from, ord, title`, yr).toArray();
+    if (action === "cur-for") {
+      const t = input.type === "hw" ? "hw" : "quiz", id = str(input.id, 80);
+      rows = rows.filter((r) => parseLinks(r).some((l) => l.t === t && l.id === id));
+      return { status: 200, body: { units: rows.map((r) => ({ id: String(r.id), title: String(r.title), yr: String(r.yr), term: String(r.term), subject: String(r.subject) })) } };
+    }
+    return { status: 200, body: { student: true, canEdit: false, canDelete: false, year: yr, items: rows.map((r) => ({ ...curRow(r), by: "", links: resolveLinks(c, parseLinks(r), me), notes: String(r.notes || "") })) } };
+  }
+  if (a.role !== "admin" && a.role !== "teacher") return forbid();
   switch (action) {
     // ---------------- Attendance ----------------
     case "att-roster": {
@@ -213,7 +268,24 @@ export async function modHandle(c: ModCtx, action: string, a: Actor, input: Json
       const me = a.role === "teacher" ? c.userRow("id=?", a.id) : undefined;
       const subs: string[] = me ? JSON.parse(String(me.subjects || "[]")) : [];
       const rows = sql.exec(`SELECT * FROM cur ORDER BY subject, yr, term, wk_from, ord, title`).toArray().filter((r) => curVisible(c, a, subs, String(r.yr), String(r.subject)));
-      return { status: 200, body: { canEdit: modCan(a, "cur", "edit"), items: rows.map(curRow) } };
+      return { status: 200, body: { canEdit: modCan(a, "cur", "edit"), canDelete: modCan(a, "cur", "delete"), items: rows.map((r) => ({ ...curRow(r), links: resolveLinks(c, parseLinks(r), null) })) } };
+    }
+    case "cur-for": {
+      if (!modCan(a, "cur", "view")) return { status: 200, body: { units: [] } };
+      const me = a.role === "teacher" ? c.userRow("id=?", a.id) : undefined;
+      const subs: string[] = me ? JSON.parse(String(me.subjects || "[]")) : [];
+      const t = input.type === "hw" ? "hw" : "quiz", id = str(input.id, 80);
+      const rows = sql.exec(`SELECT * FROM cur ORDER BY yr, term, wk_from`).toArray().filter((r) => curVisible(c, a, subs, String(r.yr), String(r.subject)) && parseLinks(r).some((l) => l.t === t && l.id === id));
+      return { status: 200, body: { units: rows.map((r) => ({ id: String(r.id), title: String(r.title), yr: String(r.yr), term: String(r.term), subject: String(r.subject) })) } };
+    }
+    case "cur-link-options": {
+      if (!modCan(a, "cur", "edit")) return forbid();
+      const hw = c.hwList().filter((h) => a.role === "admin" || h.createdBy === a.id || a.perms.includes("viewAll")).map((h) => ({ id: h.id, title: h.title, kind: h.kind, cls: h.cls, section: h.section }));
+      const quizzes = new Map<string, string>();
+      for (const r of sql.exec(`SELECT quiz, title FROM qassign ORDER BY created DESC`).toArray()) if (!quizzes.has(String(r.quiz)) && (a.role === "admin" || String(r.quiz) && true)) quizzes.set(String(r.quiz), String(r.title || ""));
+      const own = sql.exec(`SELECT id, title, owner FROM tquiz`).toArray().filter((r) => a.role === "admin" || r.owner === a.id);
+      for (const r of own) quizzes.set(String(r.id), String(r.title));
+      return { status: 200, body: { homework: hw, quizzes: [...quizzes].map(([id, title]) => ({ id, title })) } };
     }
     case "cur-save": {
       if (a.viewAs || !modCan(a, "cur", "edit")) return forbid();
@@ -234,7 +306,7 @@ export async function modHandle(c: ModCtx, action: string, a: Actor, input: Json
       return { status: 200, body: { ok: true } };
     }
     case "cur-delete": {
-      if (a.viewAs || !modCan(a, "cur", "edit")) return forbid();
+      if (a.viewAs || !modCan(a, "cur", "delete")) return forbid();
       const me = a.role === "teacher" ? c.userRow("id=?", a.id) : undefined;
       const subs: string[] = me ? JSON.parse(String(me.subjects || "[]")) : [];
       const r = sql.exec(`SELECT * FROM cur WHERE id=?`, str(input.id, 40)).toArray()[0];
@@ -271,7 +343,7 @@ function curVisible(c: ModCtx, a: Actor, subs: string[], yr: string, subject: st
   return true;
 }
 function curRow(r: Record<string, unknown>) {
-  return { id: String(r.id), subject: String(r.subject), yr: String(r.yr), term: String(r.term), title: String(r.title), objectives: String(r.objectives || ""), lessons: JSON.parse(String(r.lessons || "[]")), resources: JSON.parse(String(r.resources || "[]")), wkFrom: Number(r.wk_from), wkTo: Number(r.wk_to), status: String(r.status), quiz: String(r.quiz || ""), page: String(r.page || ""), ord: Number(r.ord), by: String(r.by_name || ""), updated: Number(r.updated) };
+  return { id: String(r.id), subject: String(r.subject), yr: String(r.yr), term: String(r.term), title: String(r.title), objectives: String(r.objectives || ""), lessons: JSON.parse(String(r.lessons || "[]")), resources: JSON.parse(String(r.resources || "[]")), wkFrom: Number(r.wk_from), wkTo: Number(r.wk_to), notes: String(r.notes || ""), status: String(r.status), quiz: String(r.quiz || ""), page: String(r.page || ""), ord: Number(r.ord), by: String(r.by_name || ""), updated: Number(r.updated) };
 }
 function curUpsert(c: ModCtx, a: Actor, subs: string[], input: Json): { id?: string; error?: string } {
   const subject = str(input.subject, 60), yr = str(input.yr, 60), term = str(input.term, 20) || "Term 1", title = str(input.title, 160);
@@ -289,11 +361,25 @@ function curUpsert(c: ModCtx, a: Actor, subs: string[], input: Json): { id?: str
   const quiz = str(input.quiz, 80), page = str(input.page, 120);
   const id = str(input.id, 40);
   const now = Date.now();
-  if (id && c.sql.exec(`SELECT 1 FROM cur WHERE id=?`, id).toArray().length) {
-    c.sql.exec(`UPDATE cur SET subject=?, yr=?, term=?, title=?, objectives=?, lessons=?, resources=?, wk_from=?, wk_to=?, status=?, quiz=?, page=?, by_name=?, updated=? WHERE id=?`, subject, yr, term, title, objectives, JSON.stringify(lessons), JSON.stringify(resources), wf, wt, status, quiz, page, a.name, now, id);
+  const prev = id ? c.sql.exec(`SELECT * FROM cur WHERE id=?`, id).toArray()[0] : undefined;
+  let links: Link[] = prev ? parseLinks(prev) : quiz ? [{ t: "quiz", id: quiz }] : [];
+  if (Array.isArray(input.links)) {
+    const hws = new Map(c.hwList().map((h) => [h.id, h] as const));
+    links = [];
+    for (const raw of (input.links as Json[]).slice(0, 40)) {
+      const t = raw.t === "hw" ? "hw" : raw.t === "quiz" ? "quiz" : "", lid = str(raw.id, 80);
+      if (!t || !lid || links.some((x) => x.t === t && x.id === lid)) continue;
+      if (t === "hw") { const h = hws.get(lid); if (!h) continue; if (a.role !== "admin" && h.createdBy !== a.id && !a.perms.includes("viewAll")) continue; }
+      links.push({ t, id: lid });
+    }
+  } else if (quiz && !links.some((x) => x.t === "quiz" && x.id === quiz)) links.push({ t: "quiz", id: quiz });
+  const quiz2 = links.find((x) => x.t === "quiz")?.id || "";
+  const notes = input.notes === undefined ? String(prev?.notes || "") : String(input.notes ?? "").replace(/\r/g, "").slice(0, 3000);
+  if (prev) {
+    c.sql.exec(`UPDATE cur SET subject=?, yr=?, term=?, title=?, objectives=?, lessons=?, resources=?, wk_from=?, wk_to=?, status=?, quiz=?, page=?, links=?, notes=?, by_name=?, updated=? WHERE id=?`, subject, yr, term, title, objectives, JSON.stringify(lessons), JSON.stringify(resources), wf, wt, status, quiz2, page, JSON.stringify(links), notes, a.name, now, id);
     return { id };
   }
   const nid = rid("cu");
-  c.sql.exec(`INSERT INTO cur (id, subject, yr, term, title, objectives, lessons, resources, wk_from, wk_to, status, quiz, page, ord, by_name, updated) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, nid, subject, yr, term, title, objectives, JSON.stringify(lessons), JSON.stringify(resources), wf, wt, status, quiz, page, Number(input.ord) || 0, a.name, now);
+  c.sql.exec(`INSERT INTO cur (id, subject, yr, term, title, objectives, lessons, resources, wk_from, wk_to, status, quiz, page, links, notes, ord, by_name, updated) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, nid, subject, yr, term, title, objectives, JSON.stringify(lessons), JSON.stringify(resources), wf, wt, status, quiz2, page, JSON.stringify(links), notes, Number(input.ord) || 0, a.name, now);
   return { id: nid };
 }
