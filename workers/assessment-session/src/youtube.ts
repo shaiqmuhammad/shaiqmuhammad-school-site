@@ -124,6 +124,11 @@ async function cached<T>(key: string, fresh: number, load: () => Promise<T>): Pr
     throw e;
   }
 }
+/** Video ids the admin switched off: hidden from /videos, playlist pages and the homepage (stored server-side). */
+const readHidden = async (env: YtEnv) => new Set(await readJ<string[]>(env, "ythidden", []));
+
+const readHiddenPl = async (env: YtEnv) => new Set(await readJ<string[]>(env, "ythiddenpl", []));
+
 const channel = () => cached("channel", FRESH_S, async () => {
   const [v, p] = await Promise.all([collect(`https://www.youtube.com/${HANDLE}/videos`, 14), collect(`https://www.youtube.com/${HANDLE}/playlists`, 4)]);
   return { channelId: v.channelId || p.channelId, videos: v.videos, playlists: p.playlists, updated: Date.now() };
@@ -145,16 +150,22 @@ export async function handleYt(request: Request, env: YtEnv, rest: string[]): Pr
   const sub = rest[0] || "";
   const pub = (body: unknown, status = 200) => reply(origin, body, status, { "Cache-Control": "public, max-age=60" });
   try {
-    if (sub === "channel") return pub(await channel());
+    if (sub === "channel") {
+      const [ch, hid] = [await channel(), await readHidden(env)];
+      const hp = await readHiddenPl(env);
+      return pub({ ...ch, playlists: ch.playlists.filter((p) => !hp.has(p.id)), videos: ch.videos.filter((v) => !hid.has(v.id)) });
+    }
     if (sub === "playlist") {
       const id = clean(url.searchParams.get("id"), 64);
       const ch = await channel();
-      if (!ch.playlists.some((p) => p.id === id)) return reply(origin, { error: "not_found" }, 404);
+      if (!ch.playlists.some((p) => p.id === id) || (await readHiddenPl(env)).has(id)) return reply(origin, { error: "not_found" }, 404);
       const pl = await cached(`pl-${id}`, FRESH_S, async () => ({ videos: (await collect(`https://www.youtube.com/playlist?list=${encodeURIComponent(id)}`, 6)).videos }));
-      return pub({ id, title: ch.playlists.find((p) => p.id === id)?.title || "", videos: pl.videos });
+      const hid = await readHidden(env);
+      return pub({ id, title: ch.playlists.find((p) => p.id === id)?.title || "", videos: pl.videos.filter((v) => !hid.has(v.id)) });
     }
     if (sub === "nav") {
-      const cfg = await readJ<PlCfg[]>(env, "ytpl", []);
+      const hp = await readHiddenPl(env);
+      const cfg = (await readJ<PlCfg[]>(env, "ytpl", [])).filter((c) => !hp.has(c.id));
       const pages = await readJ<PageRow[]>(env, "pages", []);
       const items = [
         ...cfg.filter((c) => c.visible).map((c) => ({ href: `/videos/playlist?p=${c.slug}`, label: c.title, labelAr: c.title, place: "resources", order: c.order })),
@@ -169,13 +180,14 @@ export async function handleYt(request: Request, env: YtEnv, rest: string[]): Pr
     }
     if (sub === "playlist-cfg") {
       const slug = clean(url.searchParams.get("p"), 80);
-      const c = (await readJ<PlCfg[]>(env, "ytpl", [])).find((x) => x.slug === slug && x.visible);
+      const hp = await readHiddenPl(env);
+      const c = (await readJ<PlCfg[]>(env, "ytpl", [])).find((x) => x.slug === slug && x.visible && !hp.has(x.id));
       return c ? pub({ id: c.id, title: c.title }) : reply(origin, { error: "not_found" }, 404);
     }
     if (sub === "oauth-callback") {
       const code = url.searchParams.get("code") || "", state = url.searchParams.get("state") || "";
       const ok = state && (await kv(env).get(`oauth-state:${state}`));
-      const back = (m: string) => Response.redirect(`${SITE_ORIGIN}/admin/#videos?yt=${m}`, 302);
+      const back = (m: string) => Response.redirect(`${SITE_ORIGIN}/admin/#youtube?yt=${m}`, 302);
       if (!ok || !code || !env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) return back("denied");
       await kv(env).del(`oauth-state:${state}`);
       const r = await fetch("https://oauth2.googleapis.com/token", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ code, client_id: env.GOOGLE_CLIENT_ID, client_secret: env.GOOGLE_CLIENT_SECRET, redirect_uri: `${url.origin}/api/yt/oauth-callback`, grant_type: "authorization_code" }) });
@@ -193,9 +205,19 @@ export async function handleYt(request: Request, env: YtEnv, rest: string[]): Pr
         const [cfg, pages, refresh] = [await readJ<PlCfg[]>(env, "ytpl", []), await readJ<PageRow[]>(env, "pages", []), await kv(env).get("oauth-refresh")];
         let ch: Awaited<ReturnType<typeof channel>> | null = null;
         try { ch = await channel(); } catch { /* shown as error in UI */ }
-        return reply(origin, { playlists: ch?.playlists || [], videos: ch ? ch.videos.length : 0, channelOk: !!ch, config: cfg, pages, oauth: { configured: !!(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET), connected: !!refresh, redirectUri: `${url.origin}/api/yt/oauth-callback` } });
+        return reply(origin, { videoList: ch?.videos || [], hidden: [...(await readHidden(env))], hiddenPlaylists: [...(await readHiddenPl(env))], playlists: ch?.playlists || [], videos: ch ? ch.videos.length : 0, channelOk: !!ch, config: cfg, pages, oauth: { configured: !!(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET), connected: !!refresh, redirectUri: `${url.origin}/api/yt/oauth-callback` } });
       }
       if (action === "refresh") { await caches.default.delete(new Request("https://yt-cache.invalid/channel")); return reply(origin, { ok: true }); }
+      if (action === "hidden") {
+        const ids = (Array.isArray(body.hidden) ? body.hidden : []).map((x) => clean(x, 20)).filter((x) => /^[\w-]{6,20}$/.test(x));
+        const uniq = [...new Set(ids)].slice(0, 5000);
+        await kv(env).set("ythidden", JSON.stringify(uniq));
+        if (Array.isArray(body.hiddenPlaylists)) {
+          const pl = [...new Set(body.hiddenPlaylists.map((x) => clean(x, 64)).filter((x) => /^[\w-]{10,64}$/.test(x)))].slice(0, 500);
+          await kv(env).set("ythiddenpl", JSON.stringify(pl));
+        }
+        return reply(origin, { ok: true, count: uniq.length });
+      }
       if (action === "playlists") {
         const items = (Array.isArray(body.items) ? body.items : []).slice(0, 60).map((x, i) => {
           const o = x as J; const title = clean(o.title, 120);

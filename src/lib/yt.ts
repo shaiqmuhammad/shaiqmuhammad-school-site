@@ -5,7 +5,7 @@ export type YtVideo = { id: string; title: string; duration: string; published: 
 export type YtPlaylist = { id: string; title: string; count: string };
 export type PlCfg = { id: string; title: string; slug: string; order: number; visible: boolean };
 export type PageRow = { id: string; slug: string; title: string; titleAr: string; body: string; bodyAr: string; place: "none" | "top" | "resources" | "footer"; order: number; visible: boolean; updated: number };
-export type YtAdminConfig = { playlists: YtPlaylist[]; videos: number; channelOk: boolean; config: PlCfg[]; pages: PageRow[]; oauth: { configured: boolean; connected: boolean; redirectUri: string } };
+export type YtAdminConfig = { videoList: YtVideo[]; hidden: string[]; hiddenPlaylists: string[]; playlists: YtPlaylist[]; videos: number; channelOk: boolean; config: PlCfg[]; pages: PageRow[]; oauth: { configured: boolean; connected: boolean; redirectUri: string } };
 
 export const thumb = (id: string) => `https://i.ytimg.com/vi/${id}/mqdefault.jpg`;
 /** Privacy-enhanced embed: the only way videos are shown on this site (no links out to YouTube). */
@@ -33,6 +33,7 @@ async function admin<T>(action: string, body?: unknown): Promise<T> {
 export const ytAdmin = {
   config: () => admin<YtAdminConfig>("config"),
   refresh: () => admin<{ ok: true }>("refresh", {}),
+  saveHidden: (hidden: string[], hiddenPlaylists: string[]) => admin<{ ok: true; count: number }>("hidden", { hidden, hiddenPlaylists }),
   savePlaylists: (items: PlCfg[]) => admin<{ ok: true }>("playlists", { items }),
   savePage: (p: Partial<PageRow>) => admin<{ ok: true; page: PageRow }>("page", p),
   deletePage: (id: string) => admin<{ ok: true }>("page-delete", { id }),

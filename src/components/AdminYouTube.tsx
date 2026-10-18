@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useI18n } from "@/lib/i18n";
-import { ytAdmin, type PageRow, type PlCfg, type YtAdminConfig } from "@/lib/yt";
+import { thumb, ytAdmin, type PageRow, type PlCfg, type YtAdminConfig } from "@/lib/yt";
 
 const input = "mt-1 w-full rounded-xl border border-card-border bg-card-solid px-3 py-2 text-sm outline-none focus:border-sun-border focus:ring-2 focus:ring-sun/40";
 const btn = "btn-glass px-3 py-1.5 text-sm disabled:opacity-60";
@@ -17,10 +17,15 @@ export function AdminYouTube() {
   const [rows, setRows] = useState<PlCfg[]>([]);
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
+  const [hidden, setHidden] = useState<Set<string>>(new Set());
+  const [hiddenPl, setHiddenPl] = useState<Set<string>>(new Set());
+  const [saved, setSaved] = useState("");
+  const [q, setQ] = useState("");
 
   const load = useCallback(() => {
     ytAdmin.config().then((c) => {
       setCfg(c);
+      setHidden(new Set(c.hidden || [])); setHiddenPl(new Set(c.hiddenPlaylists || [])); setSaved(JSON.stringify([[...(c.hidden || [])].sort(), [...(c.hiddenPlaylists || [])].sort()]));
       // One row per channel playlist, merged with the saved settings (order: saved first).
       const saved = new Map(c.config.map((x) => [x.id, x]));
       const merged = c.playlists.map((p, i) => saved.get(p.id) || { id: p.id, title: p.title, slug: "", order: 100 + i, visible: false });
@@ -33,6 +38,15 @@ export function AdminYouTube() {
   }, [load]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const move = (i: number, d: number) => setRows((r) => { const a = [...r]; const j = i + d; if (j < 0 || j >= a.length) return r; [a[i], a[j]] = [a[j], a[i]]; return a.map((x, k) => ({ ...x, order: k })); });
+  const shownVids = (cfg?.videoList || []).filter((v) => !q || v.title.toLowerCase().includes(q.toLowerCase()));
+  const setMany = (ids: string[], hide: boolean) => setHidden((h) => { const n = new Set(h); ids.forEach((i) => (hide ? n.add(i) : n.delete(i))); return n; });
+  const setManyPl = (ids: string[], hide: boolean) => setHiddenPl((h) => { const n = new Set(h); ids.forEach((i) => (hide ? n.add(i) : n.delete(i))); return n; });
+  const dirty = JSON.stringify([[...hidden].sort(), [...hiddenPl].sort()]) !== saved;
+  const saveHidden = async () => {
+    setBusy(true);
+    try { await ytAdmin.saveHidden([...hidden], [...hiddenPl]); setMsg(tr("Saved. The Videos page, playlist pages and homepage update within a minute.", "تم الحفظ. تتحدث صفحة الفيديوهات وقوائم التشغيل والصفحة الرئيسية خلال دقيقة.")); load(); } catch (e) { setMsg(errText(e)); }
+    setBusy(false);
+  };
   const save = async () => {
     setBusy(true);
     try { await ytAdmin.savePlaylists(rows.map((r, i) => ({ ...r, order: i }))); setMsg(tr("Saved. The menu updates within a minute.", "تم الحفظ. تتحدث القائمة خلال دقيقة.")); load(); } catch (e) { setMsg(errText(e)); }
@@ -48,6 +62,41 @@ export function AdminYouTube() {
         </div>
         <p className="mt-1 text-sm opacity-80">{cfg ? (cfg.channelOk ? tr(`${cfg.videos} videos and ${cfg.playlists.length} playlists found. The Videos page lists them automatically (refreshed every 30 minutes).`, `${cfg.videos} مقطعًا و${cfg.playlists.length} قائمة تشغيل. تظهر تلقائيًا في صفحة الفيديوهات (تحديث كل 30 دقيقة).`) : tr("Couldn't read the channel right now.", "تعذرت قراءة القناة الآن.")) : tr("Loading…", "جارٍ التحميل…")}</p>
         {msg && <p className="mt-2 rounded-xl bg-sun/30 px-3 py-2 text-sm font-semibold" role="status">{msg}</p>}
+      </section>
+
+      <section className="glass rounded-3xl p-5" data-testid="yt-visibility">
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 className="me-auto text-lg font-bold">{tr("Videos shown on the site", "المقاطع المعروضة في الموقع")}{cfg ? ` (${(cfg.videoList.length - cfg.videoList.filter((v) => hidden.has(v.id)).length)}/${cfg.videoList.length})` : ""}</h3>
+          <button type="button" className={cta} onClick={saveHidden} disabled={busy || !dirty} data-testid="yt-vis-save">{tr("Save visibility", "حفظ الظهور")}{dirty ? " •" : ""}</button>
+        </div>
+        <p className="mt-1 text-sm opacity-80">{tr("Untick a video to hide it from the Videos page, every playlist page and the homepage. New uploads are shown by default.", "ألغِ تحديد المقطع لإخفائه من صفحة الفيديوهات وكل قوائم التشغيل والصفحة الرئيسية. تظهر المقاطع الجديدة افتراضيًا.")}</p>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <input className={input + " !mt-0 min-w-[10rem] flex-1"} placeholder={tr("Search videos…", "ابحث في المقاطع…")} value={q} onChange={(e) => setQ(e.target.value)} dir="auto" data-testid="yt-vis-search" />
+          <button type="button" className={btn} onClick={() => { setMany(shownVids.map((v) => v.id), false); if (!q) setManyPl((cfg?.playlists || []).map((p) => p.id), false); }} data-testid="yt-vis-showall">{tr(q ? "Show matching" : "Show all (videos + playlists)", q ? "إظهار النتائج" : "إظهار الكل")}</button>
+          <button type="button" className={btn} onClick={() => { setMany(shownVids.map((v) => v.id), true); if (!q) setManyPl((cfg?.playlists || []).map((p) => p.id), true); }} data-testid="yt-vis-hideall">{tr(q ? "Hide matching" : "Hide all (videos + playlists)", q ? "إخفاء النتائج" : "إخفاء الكل")}</button>
+        </div>
+        {!!cfg?.playlists.length && (
+          <div className="mt-3" data-testid="yt-vis-playlists">
+            <p className="text-sm font-bold">{tr("Playlists", "قوائم التشغيل")} <span className="font-normal opacity-70">{tr("(hidden playlists disappear from the Videos page cards, their pages and the Students Resources menu)", "(القوائم المخفية تختفي من بطاقات صفحة الفيديوهات وصفحاتها وقائمة موارد الطلاب)")}</span></p>
+            <ul className="mt-1 flex flex-wrap gap-2">
+              {cfg.playlists.map((p) => (
+                <li key={p.id}><label className={"inline-flex items-center gap-2 rounded-full border border-card-border px-3 py-1 text-sm font-semibold " + (hiddenPl.has(p.id) ? "opacity-50" : "")}><input type="checkbox" checked={!hiddenPl.has(p.id)} onChange={(e) => setManyPl([p.id], !e.target.checked)} data-testid="yt-vis-pl-toggle" /><span dir="auto">{p.title}</span></label></li>
+              ))}
+            </ul>
+          </div>
+        )}
+        <ul className="mt-3 max-h-[28rem] divide-y divide-card-border overflow-y-auto" data-testid="yt-vis-rows">
+          {shownVids.map((v) => (
+            <li key={v.id} className="flex items-center gap-3 py-2" data-testid="yt-vis-row">
+              <input type="checkbox" className="h-5 w-5 shrink-0" checked={!hidden.has(v.id)} onChange={(e) => setMany([v.id], !e.target.checked)} aria-label={tr("Show on site", "إظهار في الموقع")} data-testid="yt-vis-toggle" />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={thumb(v.id)} alt="" loading="lazy" className="h-12 w-20 shrink-0 rounded-lg object-cover" />
+              <span className="min-w-0 flex-1"><span className={"line-clamp-2 text-sm font-semibold " + (hidden.has(v.id) ? "opacity-50" : "")} dir="auto">{v.title}</span><span className="text-xs opacity-60">{v.published}{v.duration ? ` · ${v.duration}` : ""}</span></span>
+              {hidden.has(v.id) && <span className="rounded-full bg-black/10 px-2 py-0.5 text-xs font-bold">{tr("Hidden", "مخفي")}</span>}
+            </li>
+          ))}
+          {cfg && !shownVids.length && <li className="py-3 text-sm opacity-70">{tr("No videos found.", "لا توجد مقاطع.")}</li>}
+        </ul>
       </section>
 
       <section className="glass rounded-3xl p-5">
