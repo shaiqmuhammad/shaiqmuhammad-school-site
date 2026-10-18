@@ -15,6 +15,9 @@ const I = {
   quran: "M4 5h7a3 3 0 0 1 3 3v12a3 3 0 0 0-3-3H4zM20 5h-6v15a3 3 0 0 1 3-3h3z",
   cls: "M4 6h16M4 12h16M4 18h10",
   act: "M12 3l2.5 5.5L20 9l-4 4 1 6-5-3-5 3 1-6-4-4 5.5-.5z",
+  att: "M5 4h14v17H5zM9 2v4M15 2v4M5 10h14M9 15l2 2 4-4",
+  beh: "M12 21s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.6-7 10-7 10z",
+  cur: "M4 5h6a2 2 0 0 1 2 2v13a2 2 0 0 0-2-2H4zM20 5h-6a2 2 0 0 0-2 2v13a2 2 0 0 1 2-2h6z",
   res: "M7 4h10v5a5 5 0 0 1-10 0zM9 20h6M12 14v6",
 };
 // lvl = smallest width class at which the tab sits in the strip (0 = always, 1 = sm, 2 = md, 3 = lg); the rest live in "More".
@@ -71,7 +74,13 @@ export function LmsTabs() {
   }, [open]);
   if (!ready || !actor || actor.viewAs) return null;
   const staff = actor.role !== "student";
-  const tabs = staff ? TEACHER : STUDENT;
+  const pm = (m: string) => actor.perms?.includes(`${m}:view`) || actor.perms?.includes(`${m}:edit`);
+  const extra: Tab[] = [
+    ...(pm("att") ? [{ id: "att", href: "/lms/attendance", en: "Attendance", ar: "الحضور", icon: I.att, lvl: 3 } as Tab] : []),
+    ...(pm("beh") ? [{ id: "beh", href: "/lms/behaviour", en: "Behaviour", ar: "السلوك", icon: I.beh, lvl: 3 } as Tab] : []),
+    ...(pm("cur") ? [{ id: "cur", href: "/lms/curriculum", en: "Curriculum", ar: "المنهج", icon: I.cur, lvl: 3 } as Tab] : []),
+  ];
+  const tabs = staff ? [...TEACHER, ...extra] : STUDENT;
   const dashName = staff ? tr("Teacher Dashboard", "لوحة المعلم") : tr("Student Dashboard", "لوحة الطالب");
   const isActive = (t: Tab) => (t.href === "/lms" ? path === "/lms" && (t.hash ? hash === t.hash : !tabs.some((x) => x.hash && x.hash === hash)) : path === t.href);
   const cur = tabs.find(isActive);

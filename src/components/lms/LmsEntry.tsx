@@ -139,8 +139,16 @@ function TeacherMenu({ ar }: { ar: boolean }) {
   const tools = true; // every teacher can run any classroom activity
   type Item = [string, string, string]; // href, label, icon path
   const groups: [string, string, Item[]][] = [
-    ["learn", t("Teaching and Learning", "التعليم والتعلّم"), [["/lms/classes", t("My classes", "صفوفي"), "M4 6h16M4 12h16M4 18h10"], ["/lms/wall", t("Class Wall", "جدار الصف"), "M4 5h16v14H4zM4 11h16M10 5v6M15 11v8"], ["/lms/map", t("Class Quran map", "خريطة القرآن للصف"), "M4 5h16v14H4zM9 5v14M15 5v14"], ["/lms/points", t("Points report", "تقرير النقاط"), "M5 20V10m7 10V4m7 16v-7"]]],
-    ...(perms.includes("manageUsers") || perms.some((p) => p.startsWith("stu:")) ? [["members", t("Members", "الأعضاء"), [["/lms/students", t("My students", "طلابي"), "M16 11a4 4 0 1 0-8 0m-3 9a7 7 0 0 1 14 0"]]]] as [string, string, Item[]][] : []),
+    ["learn", t("Teaching and Learning", "التعليم والتعلّم"), [["/lms/classes", t("My classes", "صفوفي"), "M4 6h16M4 12h16M4 18h10"], ["/lms/wall", t("Class Wall", "جدار الصف"), "M4 5h16v14H4zM4 11h16M10 5v6M15 11v8"], ["/lms/map", t("Class Quran map", "خريطة القرآن للصف"), "M4 5h16v14H4zM9 5v14M15 5v14"], ["/lms/points", t("Points report", "تقرير النقاط"), "M5 20V10m7 10V4m7 16v-7"], ...(perms.includes("cur:view") || perms.includes("cur:edit") ? [["/lms/curriculum", t("Curriculum", "المنهج"), "M4 5h6a2 2 0 0 1 2 2v13a2 2 0 0 0-2-2H4zM20 5h-6a2 2 0 0 0-2 2v13a2 2 0 0 1 2-2h6z"] as Item] : [])]],
+    ...(() => {
+      const pm = (m: string) => perms.includes(`${m}:view`) || perms.includes(`${m}:edit`);
+      const items: Item[] = [
+        ...(perms.includes("manageUsers") || perms.some((p) => p.startsWith("stu:")) ? [["/lms/students", t("My students", "طلابي"), "M16 11a4 4 0 1 0-8 0m-3 9a7 7 0 0 1 14 0"] as Item] : []),
+        ...(pm("att") ? [["/lms/attendance", t("Attendance", "الحضور"), "M5 4h14v17H5zM9 2v4M15 2v4M5 10h14M9 15l2 2 4-4"] as Item] : []),
+        ...(pm("beh") ? [["/lms/behaviour", t("Behaviour", "السلوك"), "M12 21s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.6-7 10-7 10z"] as Item] : []),
+      ];
+      return items.length ? [["members", t("Members", "الأعضاء"), items]] as [string, string, Item[]][] : [];
+    })(),
     ["assess", t("Assessment", "التقييم"), [["/lms", t("Homework", "الواجبات"), "M6 4h12v16H6zM9 9h6M9 13h4"], ["/lms/assessments", t("Assessments", "التقييمات"), "M4 5h16v14H4zM8 9h8M8 13h5"], ["/lms/results", t("Results", "النتائج"), "M7 4h10v5a5 5 0 0 1-10 0zM9 20h6M12 14v6"]]],
     ...(tools ? [["tools", t("Teaching Tools", "أدوات التدريس"), [["/lms/activities", t("Classroom activities", "أنشطة الصف"), "M12 3l2.5 5.5L20 9l-4 4 1 6-5-3-5 3 1-6-4-4 5.5-.5z"]]]] as [string, string, Item[]][] : []),
     ["community", t("Community", "التواصل"), [["/lms/messages", t("Messages", "الرسائل"), "M4 5h16v11H8l-4 4z"]]],

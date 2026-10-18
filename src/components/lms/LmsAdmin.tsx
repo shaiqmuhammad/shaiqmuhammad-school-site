@@ -103,6 +103,7 @@ function PersonForm({ role, catalog, initial, onSave, submitLabel, testPrefix, s
             </div>
           )}
           <ClassroomAccess perms={f.perms} toggle={(v) => toggle("perms", v)} chip={chip} />
+          <ModuleAccess perms={f.perms} setPerms={(p) => setF((x) => ({ ...x, perms: p }))} />
         </div>
       )}
       {initial && <label className="flex items-center gap-2 text-sm sm:col-span-3"><input type="checkbox" checked={f.disabled} onChange={(e) => setF({ ...f, disabled: e.target.checked })} /> {tr("Disabled (can't sign in)", "معطّل (لا يمكنه الدخول)")}</label>}
@@ -514,6 +515,31 @@ function Stat({ label, value, tone, onClick, active, small }: { label: string; v
 }
 
 const ACTS: [string, string, string][] = [["wall", "Shared Wall", "الجدار المشترك"], ["wheel", "Wheel", "العجلة"], ["randomiser", "Randomiser", "العشوائي"], ["wordcloud", "Word Cloud", "سحابة الكلمات"], ["poll", "Poll", "استطلاع"], ["survey", "Survey", "استبيان"], ["tps", "Think/Pair/Share", "فكّر/شارك"], ["vote", "Vote", "تصويت"]];
+
+/** Admin → teacher form: per-module View / Add-Edit switches (own classes only; enforced on the server). */
+function ModuleAccess({ perms, setPerms }: { perms: string[]; setPerms: (p: string[]) => void }) {
+  const { tr } = useTr();
+  const mods: [string, string, string][] = [["att", "🗓️ Attendance Register", "🗓️ سجل الحضور"], ["beh", "🌟 Behaviour", "🌟 السلوك"], ["cur", "📚 Curriculum", "📚 المنهج"]];
+  const level = (m: string) => (perms.includes(`${m}:edit`) ? 2 : perms.includes(`${m}:view`) ? 1 : 0);
+  const set = (m: string, op: "view" | "edit", on: boolean) => {
+    const rest = perms.filter((p) => p !== `${m}:view` && p !== `${m}:edit`);
+    // Add/Edit implies View; switching View off also switches Add/Edit off.
+    const lvl = op === "edit" ? (on ? 2 : 1) : on ? Math.max(level(m), 1) : 0;
+    setPerms([...rest, ...(lvl >= 1 ? [`${m}:view`] : []), ...(lvl >= 2 ? [`${m}:edit`] : [])]);
+  };
+  return (
+    <div className="space-y-2 rounded-2xl border border-dashed border-black/15 p-3 dark:border-white/20" data-testid="lms-module-access">
+      <p className="text-sm font-bold">🧩 {tr("Modules (own classes only)", "الوحدات (صفوفه فقط)")}</p>
+      {mods.map(([m, en, ar]) => (
+        <div key={m} className="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
+          <span className="min-w-[10rem] font-semibold">{tr(en, ar)}</span>
+          <label className="flex items-center gap-1.5"><input type="checkbox" checked={level(m) >= 1} onChange={(e) => set(m, "view", e.target.checked)} data-testid={`perm-${m}-view`} /> {tr("View", "عرض")}</label>
+          <label className="flex items-center gap-1.5"><input type="checkbox" checked={level(m) >= 2} onChange={(e) => set(m, "edit", e.target.checked)} data-testid={`perm-${m}-edit`} /> {tr("Add / Edit", "إضافة / تعديل")}</label>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 /** Admin → teacher form: which Classroom Activities and assessments this teacher may host from their own login. */
 function ClassroomAccess({ perms, toggle, chip }: { perms: string[]; toggle: (v: string) => void; chip: (on: boolean) => string }) {
