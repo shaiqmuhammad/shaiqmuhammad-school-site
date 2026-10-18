@@ -9,7 +9,7 @@ import { LmsBell } from "@/components/lms/LmsBell";
 import { mailApi } from "@/lib/mail";
 import { useI18n } from "@/lib/i18n";
 
-type Tab = "groups" | "downloads" | "parents" | "attendance" | "behaviour" | "curriculum" | "youtube" | "sitepages" | "home" | "pages" | "quizzes" | "certificate" | "banners" | "announcements" | "teacher" | "forum" | "results" | "activities" | "settings" | "students" | "teachers" | "setup" | "lmshw" | "classes" | "mail" | "homepage" | "staff" | "messages" | "notices" | "vcomments";
+type Tab = "logins" | "groups" | "downloads" | "parents" | "attendance" | "behaviour" | "curriculum" | "youtube" | "sitepages" | "home" | "pages" | "quizzes" | "certificate" | "banners" | "announcements" | "teacher" | "forum" | "results" | "activities" | "settings" | "students" | "teachers" | "setup" | "lmshw" | "classes" | "mail" | "homepage" | "staff" | "messages" | "notices" | "vcomments";
 
 type Props = {
   busy: boolean;
@@ -28,7 +28,7 @@ type Props = {
 const GROUPS: { id: string; en: string; ar: string; ids: Tab[] }[] = [
   { id: "site", en: "Settings", ar: "إعدادات الموقع", ids: ["homepage", "teacher", "banners", "announcements", "youtube", "sitepages", "settings"] },
   { id: "teach", en: "Teaching and Learning", ar: "التعليم والتعلّم", ids: ["setup", "curriculum", "pages", "classes"] },
-  { id: "members", en: "Members", ar: "الأعضاء", ids: ["students", "teachers", "parents", "groups", "downloads", "staff", "attendance", "behaviour"] },
+  { id: "members", en: "Members", ar: "الأعضاء", ids: ["students", "teachers", "logins", "parents", "groups", "downloads", "staff", "attendance", "behaviour"] },
   { id: "assess", en: "Assessment", ar: "التقييم", ids: ["quizzes", "lmshw", "certificate", "results"] },
   { id: "tools", en: "Teaching Tools", ar: "أدوات التدريس", ids: ["activities"] },
   { id: "community", en: "Community", ar: "التواصل", ids: ["messages", "notices", "vcomments", "forum", "mail"] },
@@ -63,6 +63,7 @@ const DESC: Partial<Record<Tab, [string, string]>> = {
 };
 const MOD_DESC: Partial<Record<Tab, [string, string]>> = {
   attendance: ["Take the register per class, date and period; reports, attendance % and overview.", "سجّل الحضور لكل صف وتاريخ وحصة؛ تقارير ونسب ونظرة عامة."],
+  logins: ["Student usernames, PINs and login QR codes.", "أسماء المستخدمين والأرقام السرية ورموز QR لدخول الطلاب."],
   groups: ["Groups of classes, sections and students, assigned to teachers.", "مجموعات من صفوف وشعب وطلاب تُسند للمعلمين."],
   downloads: ["Allow or block audio and Excel/PDF downloads for students (all or per class).", "السماح بتنزيل الصوت وإكسل/PDF للطلاب أو منعه (للجميع أو لكل صف)."],
   parents: ["Parent logins linked to students. Admin only; parents see their own children read-only.", "حسابات أولياء الأمور المرتبطة بالطلاب. للإدارة فقط؛ يرون أبناءهم للعرض فقط."],
@@ -80,6 +81,7 @@ const COLLAPSE_KEY = "sm-admin-sidebar-collapsed";
 /** Small line icons for the sidebar rail (24px grid, currentColor). */
 const ICONS: Record<Tab, ReactNode> = {
   attendance: <><rect x="4" y="4" width="16" height="17" rx="2" /><path d="M8 2v4M16 2v4M4 10h16M9 15l2 2 4-4" /></>,
+  logins: <path d="M15 7a4 4 0 1 1-3.9 4.9L4 19v-3h3v-2h2l1.2-1.2A4 4 0 0 1 15 7z" />,
   groups: <><circle cx="8" cy="9" r="3" /><circle cx="16.5" cy="10" r="2.5" /><path d="M2.5 19a5.5 5.5 0 0 1 11 0M14 19a4 4 0 0 1 7.5 0" /></>,
   downloads: <><path d="M12 4v11M7 11l5 5 5-5M5 20h14" /></>,
   parents: <><circle cx="9" cy="8" r="3.2" /><path d="M3 20a6 6 0 0 1 12 0M16 5a3 3 0 0 1 0 6M18 20a5 5 0 0 0-3-4.6" /></>,
@@ -132,7 +134,7 @@ function MailIcon({ unread, onClick, label }: { unread: number; onClick: () => v
   );
 }
 
-const WIDE = ["groups", "downloads", "parents", "attendance", "behaviour", "curriculum", "youtube", "sitepages", "students", "teachers", "classes", "lmshw", "mail", "home", "homepage"];
+const WIDE = ["logins", "groups", "downloads", "parents", "attendance", "behaviour", "curriculum", "youtube", "sitepages", "students", "teachers", "classes", "lmshw", "mail", "home", "homepage"];
 
 export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPublishAll, onLogout, pendingCount = 0, onBell, children }: Props) {
   const { t, lang } = useI18n();
