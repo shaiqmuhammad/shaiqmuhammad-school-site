@@ -182,7 +182,7 @@ function UnitEditor({ init, subjects, years, links, asAdmin, onClose, onSaved }:
   const [u, setU] = useState<Partial<CurUnit>>({ lessons: [], resources: [], ...init });
   const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
   const [opts, setOpts] = useState<{ hw: { id: string; title: string; cls: string; section: string }[]; quizzes: { id: string; title: string }[] }>({ hw: [], quizzes: [] });
-  useEffect(() => { modCall<typeof opts>("cur-link-options", {}, asAdmin).then(setOpts).catch(() => undefined); }, [asAdmin]);
+  useEffect(() => { modCall<{ homework: typeof opts.hw; quizzes: typeof opts.quizzes }>("cur-link-options", {}, asAdmin).then((r) => setOpts({ hw: r.homework || [], quizzes: r.quizzes || [] })).catch(() => undefined); }, [asAdmin]);
   const lk: CurLink[] = u.links || [];
   const quizOpts = useMemo(() => { const m = new Map<string, string>(); for (const q of links.quizzes) m.set(q.slug, q.title); for (const q of opts.quizzes) if (q.title || !m.has(q.id)) m.set(q.id, q.title || m.get(q.id) || q.id); return [...m].map(([id, title]) => ({ id, title })); }, [links.quizzes, opts.quizzes]);
   const titleOf = (l: CurLink) => (l.t === "hw" ? opts.hw.find((x) => x.id === l.id)?.title : quizOpts.find((x) => x.id === l.id)?.title) || l.id;
