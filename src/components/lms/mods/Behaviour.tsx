@@ -1,5 +1,6 @@
 "use client";
 
+import { DlGate } from "@/components/lms/DlGate";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLmsActor, useTr } from "@/components/lms/useLms";
 import { btn, btnCta, ClassSelect, cardCls, field, Head, Modal, ModPage, td, th, Tabs, Toast, useRoster } from "@/components/lms/mods/ModUi";
@@ -57,8 +58,10 @@ export function Behaviour({ asAdmin }: { asAdmin: boolean }) {
       <Toast msg={msg} bad={bad} />
       {tab === "log" && (<>
         <div className="mb-3 flex flex-wrap items-center gap-2"><span className="text-sm opacity-70">{items.length} {tr("entries", "سجلات")}</span><span className="flex-1" />
+        <DlGate kind="export">
           <button type="button" className={btn} onClick={() => xlsxTable("Behaviour", head, body, `behaviour-${f.from}-to-${f.to}.xlsx`, [12, 22, 10, 11, 18, 10, 50, 36, 14, 18])} disabled={!items.length} data-testid="beh-xlsx">⬇ Excel</button>
-          <button type="button" className={btn} onClick={() => pdfTable({ title: tr("Behaviour report", "تقرير السلوك"), subtitle: `${f.from} → ${f.to} · ${items.length} ${tr("entries", "سجلات")} · ${tr("Staff only — confidential", "للموظفين فقط — سري")}`, headers: head, rows: body, filename: `behaviour-${f.from}-to-${f.to}.pdf` })} disabled={!items.length} data-testid="beh-pdf">⬇ PDF</button></div>
+          <button type="button" className={btn} onClick={() => pdfTable({ title: tr("Behaviour report", "تقرير السلوك"), subtitle: `${f.from} → ${f.to} · ${items.length} ${tr("entries", "سجلات")} · ${tr("Staff only — confidential", "للموظفين فقط — سري")}`, headers: head, rows: body, filename: `behaviour-${f.from}-to-${f.to}.pdf` })} disabled={!items.length} data-testid="beh-pdf">⬇ PDF</button>
+        </DlGate></div>
         <div className="space-y-2" data-testid="beh-list">
           {items.map((x) => (
             <article key={x.id} className={cardCls + " !p-3"} data-testid="beh-item">

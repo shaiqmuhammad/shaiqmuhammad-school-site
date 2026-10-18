@@ -1,5 +1,6 @@
 "use client";
 
+import { DlGate } from "@/components/lms/DlGate";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AssessmentShell } from "@/components/assessment/AssessmentShell";
 import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
@@ -125,8 +126,8 @@ export function Curriculum({ asAdmin, student = false }: { asAdmin: boolean; stu
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <Tabs testId="cur-view" value={view} onChange={setView} items={[["units", tr("Units", "الوحدات")], ["pacing", tr("Pacing by week", "التوزيع الأسبوعي")]]} />
         <span className="flex-1" />
-        {!student && <><button type="button" className={btn} onClick={exportX} disabled={!shown.length} data-testid="cur-xlsx">⬇ Excel</button>
-        <button type="button" className={btn} onClick={exportP} disabled={!shown.length} data-testid="cur-pdf">⬇ PDF</button>
+        {!student && <><DlGate kind="export"><button type="button" className={btn} onClick={exportX} disabled={!shown.length} data-testid="cur-xlsx">⬇ Excel</button>
+        <button type="button" className={btn} onClick={exportP} disabled={!shown.length} data-testid="cur-pdf">⬇ PDF</button></DlGate>
         <button type="button" className={btn} onClick={template} data-testid="cur-template">⬇ {tr("Import template", "قالب الاستيراد")}</button></>}
         {canEdit && <><button type="button" className={btn} onClick={() => file.current?.click()} data-testid="cur-import">⬆ {tr("Import Excel", "استيراد Excel")}</button><input ref={file} type="file" accept=".xlsx" hidden data-testid="cur-import-file" onChange={(e) => { const fl = e.target.files?.[0]; if (fl) void importX(fl); e.target.value = ""; }} /></>}
       </div>

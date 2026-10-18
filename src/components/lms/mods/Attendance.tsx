@@ -1,5 +1,6 @@
 "use client";
 
+import { DlGate } from "@/components/lms/DlGate";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLmsActor, useTr } from "@/components/lms/useLms";
 import { btn, btnCta, ClassSelect, cardCls, field, groupLabel, Head, Modal, ModPage, td, th, Tabs, Toast, useRoster } from "@/components/lms/mods/ModUi";
@@ -154,8 +155,10 @@ function Reports({ asAdmin }: { asAdmin: boolean }) {
         <input type="date" className={field + " w-auto!"} value={to} max={todayStr()} onChange={(e) => { setRange("custom"); setTo(e.target.value); }} aria-label={tr("To", "إلى")} />
         <ClassSelect groups={groups} value={g} onChange={setG} all={tr("All my classes", "كل صفوفي")} testId="att-rep-class" />
         <span className="flex-1" />
+        <DlGate kind="export">
         <button type="button" className={btn} onClick={() => xlsxTable("Attendance", head, body, `${name}.xlsx`)} disabled={!rows.length} data-testid="att-xlsx">⬇ Excel</button>
         <button type="button" className={btn} onClick={() => pdfTable({ title: tr("Attendance report", "تقرير الحضور"), subtitle: `${from} → ${to}${g ? " · " + groupLabel({ cls: cls, section: section }, tr) : ""} · ${tr("Low attendance below", "حضور منخفض أقل من")} ${rep?.settings.low}%`, headers: head, rows: body, filename: `${name}.pdf` })} disabled={!rows.length} data-testid="att-pdf">⬇ PDF</button>
+        </DlGate>
       </div>
       {err && <Toast msg={err} bad />}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4" data-testid="att-summary">
@@ -207,8 +210,10 @@ function Overview({ asAdmin }: { asAdmin: boolean }) {
         <input type="date" className={field + " w-auto!"} value={day} max={todayStr()} onChange={(e) => e.target.value && setDay(e.target.value)} aria-label={tr("Date", "التاريخ")} data-testid="att-ov-date" />
         <button type="button" className={btn} onClick={() => setDay(addDays(day, -1))}>‹</button><button type="button" className={btn} onClick={() => day < todayStr() && setDay(addDays(day, 1))}>›</button>
         <span className="flex-1" />
+        <DlGate kind="export">
         <button type="button" className={btn} onClick={() => xlsxTable("Overview", head, body, `attendance-overview-${day}.xlsx`)} disabled={!body.length}>⬇ Excel</button>
         <button type="button" className={btn} onClick={() => pdfTable({ title: tr("Attendance overview", "نظرة عامة على الحضور"), subtitle: day, headers: head, rows: body, filename: `attendance-overview-${day}.pdf` })} disabled={!body.length}>⬇ PDF</button>
+        </DlGate>
       </div>
       {err && <Toast msg={err} bad />}
       <div className={cardCls + " overflow-x-auto p-0"}>

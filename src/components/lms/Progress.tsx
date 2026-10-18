@@ -1,5 +1,7 @@
 "use client";
 
+import { DlGate } from "@/components/lms/DlGate";
+import { dlGrant } from "@/lib/dl";
 import { CriteriaChart, TrackerEntries } from "@/components/lms/QuranScores";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
@@ -120,6 +122,7 @@ export function completedSurahs(tracker: TrackerRow[], ch: Chapter[]): Chapter[]
 }
 
 export async function downloadCertificate(student: string, c: Chapter, tr: Tr) {
+  if (!(await dlGrant("export"))) return;
   const W = 1754, H = 1240;
   const cv = document.createElement("canvas");
   cv.width = W; cv.height = H;
@@ -150,12 +153,12 @@ export function Certificates({ tracker, student }: { tracker: TrackerRow[]; stud
   const done = completedSurahs(tracker, ch);
   if (!done.length) return null;
   return (
-    <section className={card + " space-y-2"} data-testid="lms-certificates">
+    <DlGate kind="export"><section className={card + " space-y-2"} data-testid="lms-certificates">
       <h2 className="text-xl font-bold">🎓 {tr("Certificates", "الشهادات")}</h2>
       <div className="flex flex-wrap gap-2">
         {done.map((c) => <button key={c.id} type="button" className={smallBtn} onClick={() => downloadCertificate(student, c, tr)} data-testid="lms-cert">⬇ {c.name_simple}</button>)}
       </div>
-    </section>
+    </section></DlGate>
   );
 }
 
