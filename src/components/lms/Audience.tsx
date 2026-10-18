@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useTr } from "@/components/lms/useLms";
-import { lmsApi, lmsSession, type RosterStudent, type StudentGroup } from "@/lib/lms";
+import { lmsApi, lmsSession, type RosterStudent, type StudentGroup, grpLabel } from "@/lib/lms";
 
 /** Teacher's roster (own classes) + custom groups, loaded once. Null when not signed in as a teacher. */
 export function useTeacherRoster() {
@@ -35,7 +35,7 @@ export function AudiencePicker({ value, onChange }: { value: string[]; onChange:
       <legend className="px-1 text-sm font-semibold">{tr("Participants (auto-joined, no code needed)", "المشاركون (ينضمون تلقائيًا بلا رمز)")} · <span data-testid="aud-count">{value.length}</span></legend>
       <div className="flex flex-wrap gap-2">
         {sections.map(([k, list]) => <button key={k} type="button" className={chip} onClick={() => addAll(list.map((s) => s.id))} data-testid="aud-class">🏫 {k} ({list.length})</button>)}
-        {data.groups.map((g) => <button key={g.id} type="button" className={chip} onClick={() => addAll(g.students.filter((id) => data.students.some((s) => s.id === id)))} data-testid="aud-group">👥 {g.name} ({g.students.length})</button>)}
+        {data.groups.map((g) => <button key={g.id} type="button" className={chip} onClick={() => addAll(g.students.filter((id) => data.students.some((s) => s.id === id)))} data-testid="aud-group">👥 {grpLabel(g)} ({g.students.length})</button>)}
         <button type="button" className={chip} onClick={() => setOpen(!open)}>＋ {tr("Pick students", "اختيار طلاب")}</button>
         {value.length > 0 && <button type="button" className={chip + " !text-rose-700"} onClick={() => onChange([])}>{tr("Clear", "مسح")}</button>}
       </div>
@@ -57,7 +57,7 @@ export function RosterLoader({ onNames }: { onNames: (names: string[]) => void }
   const m = new Map<string, string[]>();
   data.students.forEach((s) => { const k = [s.cls, s.section].filter(Boolean).join(" · ") || "—"; m.set(k, [...(m.get(k) || []), s.name]); });
   m.forEach((names, k) => opts.push([`c:${k}`, `🏫 ${k} (${names.length})`, names]));
-  data.groups.forEach((g) => { const names = data.students.filter((s) => g.students.includes(s.id)).map((s) => s.name); opts.push([`g:${g.id}`, `👥 ${g.name} (${names.length})`, names]); });
+  data.groups.forEach((g) => { const names = data.students.filter((s) => g.students.includes(s.id)).map((s) => s.name); opts.push([`g:${g.id}`, `👥 ${grpLabel(g)} (${names.length})`, names]); });
   return (
     <select className="mt-3 w-full rounded-full border border-black/10 bg-white/80 px-3 py-1.5 text-sm dark:border-white/15 dark:bg-black/30" value="" onChange={(e) => { const o = opts.find((x) => x[0] === e.target.value); if (o) onNames(o[2]); }} aria-label={tr("Load from my classes", "تحميل من صفوفي")} data-testid="roster-loader">
       <option value="">{tr("Load names from my class or group…", "تحميل الأسماء من صفي أو مجموعتي…")}</option>

@@ -8,7 +8,7 @@ import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
 import { PresenceDot } from "@/components/lms/Presence";
 import { Avatar } from "@/components/lms/Avatar";
 import { useTr } from "@/components/lms/useLms";
-import { lmsApi, lmsErrorText, lmsSession, type PointCat, type PointRow, type RosterStudent, type StudentGroup } from "@/lib/lms";
+import { grpLabel, lmsApi, lmsErrorText, lmsSession, type PointCat, type PointRow, type RosterStudent, type StudentGroup } from "@/lib/lms";
 
 const pill = "inline-flex items-center gap-1.5 rounded-full border border-black/10 bg-white/80 px-3 py-1.5 text-sm font-bold transition hover:bg-white dark:border-white/15 dark:bg-white/10";
 const inp = "w-full rounded-xl border border-black/10 bg-white px-3 py-2 text-sm dark:border-white/15 dark:bg-white/5";
@@ -103,7 +103,7 @@ export function LmsClassesPage() {
         <div className="flex flex-wrap gap-2" data-testid="cls-tabs">
           <button type="button" aria-pressed={!view} onClick={() => setView("")} className={`${pill} ${!view ? "!bg-header !text-sun" : ""}`}>{tr("All", "الكل")} ({roster?.length ?? 0})</button>
           {classes.map((c) => <button key={c} type="button" aria-pressed={view === c} onClick={() => setView(c)} className={`${pill} ${view === c ? "!bg-header !text-sun" : ""}`} data-testid="cls-tab">{label(c)}</button>)}
-          {groups.map((g) => <button key={g.id} type="button" aria-pressed={view === "g:" + g.id} onClick={() => setView("g:" + g.id)} className={`${pill} ${view === "g:" + g.id ? "!bg-header !text-sun" : ""}`} data-testid="cls-group-tab" title={g.assigned ? tr("Assigned by admin", "مُسندة من الإدارة") : undefined}>{g.assigned ? "📌" : "👥"} {g.name}</button>)}
+          {groups.map((g) => <button key={g.id} type="button" aria-pressed={view === "g:" + g.id} onClick={() => setView("g:" + g.id)} className={`${pill} ${view === "g:" + g.id ? "!bg-header !text-sun" : ""}`} data-testid="cls-group-tab" title={g.assigned ? tr("Assigned by admin", "مُسندة من الإدارة") : undefined}>{g.assigned ? "📌" : "👥"} {grpLabel(g)}</button>)}
           <button type="button" className={pill} onClick={() => setEditGrp("new")} data-testid="cls-new-group">＋ {tr("Group", "مجموعة")}</button>
           {view.startsWith("g:") && !groups.find((g) => g.id === view.slice(2))?.assigned && <button type="button" className={pill} onClick={() => setEditGrp(groups.find((g) => g.id === view.slice(2)) || null)}>✎ {tr("Edit group", "تعديل المجموعة")}</button>}
         </div>
@@ -293,7 +293,7 @@ export function LmsPointsPage() {
           <button type="button" className={pill} onClick={() => window.print()} data-testid="pts-print">🖨 {tr("Print / PDF", "طباعة / PDF")}</button>
         </div>
         <div className="glass flex flex-wrap items-center gap-2 rounded-3xl p-3 print:hidden">
-          <select className={inp + " !w-auto"} value={view} onChange={(e) => { setView(e.target.value); setStu(""); }} data-testid="pts-view"><option value="">{tr("All my students", "كل طلابي")}</option>{classes.map((c) => <option key={c} value={c}>{c.replace("|", " · ")}</option>)}{groups.map((g) => <option key={g.id} value={"g:" + g.id}>👥 {g.name}</option>)}</select>
+          <select className={inp + " !w-auto"} value={view} onChange={(e) => { setView(e.target.value); setStu(""); }} data-testid="pts-view"><option value="">{tr("All my students", "كل طلابي")}</option>{classes.map((c) => <option key={c} value={c}>{c.replace("|", " · ")}</option>)}{groups.map((g) => <option key={g.id} value={"g:" + g.id}>👥 {grpLabel(g)}</option>)}</select>
           <select className={inp + " !w-auto"} value={stu} onChange={(e) => setStu(e.target.value)} data-testid="pts-student"><option value="">{tr("Any student", "أي طالب")}</option>{roster.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
           <div className="flex flex-wrap gap-1.5" data-testid="pts-range">{RANGES.map((r) => <button key={r[0]} type="button" aria-pressed={range === r[0]} onClick={() => setRange(r[0])} className={`${pill} !py-1 ${range === r[0] ? "!bg-header !text-sun" : ""}`}>{tr(r[1], r[2])}</button>)}</div>
           {range === "custom" && <><input type="date" className={inp + " !w-auto"} value={from} onChange={(e) => setFrom(e.target.value)} /><input type="date" className={inp + " !w-auto"} value={to} onChange={(e) => setTo(e.target.value)} /></>}
