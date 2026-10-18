@@ -1,5 +1,6 @@
 "use client";
 
+import { dlGrant } from "@/lib/dl";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AssessmentShell } from "@/components/assessment/AssessmentShell";
 import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
@@ -331,6 +332,7 @@ export function LmsResultsPage() {
   const list = (rows || []).filter((r) => (!quiz || r.quizTitle === quiz) && (!mode || r.kind === mode));
   const fmt = (n: number) => new Date(n).toLocaleString(lang === "ar" ? "ar" : "en-GB", { dateStyle: "medium", timeStyle: "short" });
   const xlsx = async () => {
+    if (!(await dlGrant("export"))) return;
     const ExcelJS = (await import("exceljs")).default;
     const wb = new ExcelJS.Workbook(); const ws = wb.addWorksheet("Results");
     ws.columns = [["Assessment", 30], ["Mode", 11], ["Student", 24], ["Score", 8], ["Max", 8], ["%", 7], ["Correct", 9], ["Wrong", 8], ["Rank", 7], ["Finished", 20]].map(([header, width]) => ({ header: String(header), width: Number(width) }));

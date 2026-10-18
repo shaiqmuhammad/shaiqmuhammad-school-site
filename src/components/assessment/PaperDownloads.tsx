@@ -1,5 +1,6 @@
 "use client";
 
+import { DlGate } from "@/components/lms/DlGate";
 import { useState } from "react";
 import { downloadPaper, type PaperFormat, type PaperKind } from "@/lib/paperExport";
 import type { Quiz } from "@/lib/quiz";
@@ -26,7 +27,7 @@ export function PaperDownloads({ quiz, className = "" }: { quiz: Quiz; className
     }
   }
   return (
-    <details className={`relative ${className}`} data-testid="paper-downloads">
+    <DlGate kind="export"><details className={`relative ${className}`} data-testid="paper-downloads">
       <summary className="cursor-pointer list-none rounded-full border border-card-border px-3 py-1 text-xs font-semibold">⬇ Print / download</summary>
       <div className="absolute end-0 z-20 mt-2 w-64 space-y-2 rounded-xl border border-card-border bg-card p-3 text-sm shadow-lg">
         {(["paper", "key"] as PaperKind[]).map((kind) => (
@@ -43,6 +44,6 @@ export function PaperDownloads({ quiz, className = "" }: { quiz: Quiz; className
         ))}
         {err && <p className="text-xs text-red-600">{err}</p>}
       </div>
-    </details>
+    </details></DlGate>
   );
 }

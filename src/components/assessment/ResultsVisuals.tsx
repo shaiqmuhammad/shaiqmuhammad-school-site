@@ -1,5 +1,6 @@
 "use client";
 
+import { DlGate } from "@/components/lms/DlGate";
 import { useEffect, useMemo, useState } from "react";
 import type { ResultRow, SessionResults } from "@/lib/groupSession";
 import type { Quiz } from "@/lib/quiz";
@@ -136,7 +137,7 @@ export function ResultsDownloads({ data }: { data: SessionResults }) {
   };
   const btn = "rounded-full bg-teal-700 px-4 py-2 text-sm font-bold text-white shadow hover:bg-teal-800 disabled:opacity-50 dark:bg-teal-500 dark:text-teal-950";
   return (
-    <div className="flex flex-wrap items-center gap-2" data-testid="results-downloads">
+    <DlGate kind="export"><div className="flex flex-wrap items-center gap-2" data-testid="results-downloads">
       {(
         [
           ["xlsx", "Excel"],
@@ -150,5 +151,6 @@ export function ResultsDownloads({ data }: { data: SessionResults }) {
       ))}
       {err && <span className="text-sm text-rose-600">{err}</span>}
     </div>
+    </DlGate>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 
+import { DlGate } from "@/components/lms/DlGate";
 import { LiveActivityBanner } from "@/components/lms/LiveActivity";
 import { AnnFeed } from "@/components/lms/Messages";
 import { CriteriaChart, TrackerEntries } from "@/components/lms/QuranScores";
@@ -161,7 +162,7 @@ export function LmsDashboard() {
           <>
             <div className="flex flex-wrap items-center gap-2">
               {canAssign && !creating && <button type="button" className={primaryBtn} onClick={() => setCreating(true)} data-testid="lms-new-hw">+ {tr("New homework", "واجب جديد")}</button>}
-              <button
+              <DlGate kind="export"><button
                 type="button"
                 className={smallBtn}
                 disabled={busy}
@@ -173,7 +174,7 @@ export function LmsDashboard() {
                 data-testid="lms-export-zip"
               >
                 ⬇ {busy ? "…" : tr("Export all homework (ZIP)", "تصدير كل الواجبات (ZIP)")}
-              </button>
+              </button></DlGate>
               <a className={smallBtn} href="/lms/activities" data-testid="lms-classroom-link">🎲 {tr("Classroom activities", "الأنشطة الصفية")}</a>
               {(dash as { quran?: { show: boolean } }).quran?.show !== false && <a className={smallBtn} href="/lms/map" data-testid="lms-map-link">🗺️ {tr("Class Quran map", "خريطة القرآن للصف")}</a>}
               <span className="text-sm opacity-70">{(dash.classes || []).map((c) => `${c.cls || "—"}: ${c.students}`).join(" · ")}</span>
