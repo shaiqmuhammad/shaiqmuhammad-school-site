@@ -7,7 +7,7 @@ import { downloadBlob } from "@/lib/exportUtils";
 import { lmsApi } from "@/lib/lms";
 import { modCall, modErr } from "@/lib/lmsMods";
 
-type Par = { id: string; username: string; name: string; email: string; disabled: boolean; hasPin: boolean; lastLogin: number | null; students: { id: string; name: string; cls: string; section: string }[] };
+type Par = { students?: { id: string; name: string; cls: string; section: string }[]; id: string; username: string; name: string; email: string; disabled: boolean; hasPin: boolean; lastLogin: number | null; kids: { id: string; name: string; cls: string; section: string }[] };
 type Plan = { name: string; email: string; students: string[]; action: string };
 type Made = { username: string; name: string; pin: string; students: string[] };
 
@@ -25,7 +25,7 @@ export function AdminParents() {
   const note = (m: string, b = false) => { setMsg(m); setBad(b); };
   const load = useCallback(() => { modCall<{ items: Par[] }>("par-list", {}, true).then((r) => setItems(r.items)).catch((e) => { setItems([]); note(modErr(e, tr), true); }); }, [tr]);
   useEffect(() => { load(); }, [load]);
-  const shownList = useMemo(() => (items || []).filter((p) => !q || `${p.name} ${p.username} ${p.students.map((s) => s.name).join(" ")}`.toLowerCase().includes(q.toLowerCase())), [items, q]);
+  const shownList = useMemo(() => (items || []).filter((p) => !q || `${p.name} ${p.username} ${p.kids.map((s) => s.name).join(" ")}`.toLowerCase().includes(q.toLowerCase())), [items, q]);
 
   const reveal = async (p: Par) => { const r = await lmsApi.pinsView([p.id]).catch(() => null); const pin = r?.pins[p.id]; if (pin) setShown({ name: p.name, username: p.username, pin }); else note(tr("PIN not viewable — reset it to get a new one.", "الرقم السري غير متاح — أعد تعيينه."), true); };
   const reset = async (p: Par) => { if (!confirm(tr("Reset this parent's PIN?", "إعادة تعيين الرقم السري لولي الأمر؟"))) return; try { const r = await lmsApi.resetPin(p.id); setShown({ name: p.name, username: p.username, pin: r.pin }); } catch (e) { note(modErr(e, tr), true); } };
@@ -57,9 +57,9 @@ export function AdminParents() {
             <article key={p.id} className={cardCls + (p.disabled ? " opacity-60" : "")} data-testid="par-row">
               <p className="text-lg font-extrabold" dir="auto">👨‍👩‍👧 {p.name}{p.disabled ? " 🚫" : ""}</p>
               <p className="text-sm opacity-80" dir="ltr">@{p.username}{p.email ? ` · ${p.email}` : ""}</p>
-              <p className="mt-1 text-sm" dir="auto">{p.students.length ? p.students.map((s) => `${s.name} (${s.cls}${s.section ? " " + s.section.replace(s.cls, "").trim() : ""})`).join("، ") : <i className="opacity-60">{tr("No children linked", "لا أبناء مرتبطون")}</i>}</p>
+              <p className="mt-1 text-sm" dir="auto">{p.kids.length ? p.kids.map((s) => `${s.name} (${s.cls}${s.section ? " " + s.section.replace(s.cls, "").trim() : ""})`).join("، ") : <i className="opacity-60">{tr("No children linked", "لا أبناء مرتبطون")}</i>}</p>
               <div className="mt-3 flex flex-wrap gap-2">
-                <button type="button" className={btn + " !py-1"} onClick={() => setEdit({ ...p })} data-testid="par-edit">✎ {tr("Edit", "تعديل")}</button>
+                <button type="button" className={btn + " !py-1"} onClick={() => setEdit({ ...p, students: p.kids })} data-testid="par-edit">✎ {tr("Edit", "تعديل")}</button>
                 <button type="button" className={btn + " !py-1"} onClick={() => reveal(p)} data-testid="par-pin">🔑 {tr("PIN", "الرقم")}</button>
                 <button type="button" className={btn + " !py-1"} onClick={() => reset(p)} data-testid="par-reset">↻ {tr("Reset", "إعادة")}</button>
                 <button type="button" className={btn + " !py-1 text-rose-600"} onClick={() => del(p)} data-testid="par-del">🗑</button>
