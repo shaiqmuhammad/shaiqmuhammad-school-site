@@ -89,7 +89,9 @@ export function LmsTabs() {
     { id: "dash", href: "/lms/family", en: "Dashboard", ar: "اللوحة", icon: I.dash, lvl: 0 },
     { id: "msg", href: "/lms/messages", en: "Messages", ar: "الرسائل", icon: I.msg, lvl: 0 },
   ];
-  const tabs = isParent ? PARENT : staff ? [...TEACHER.slice(0, 3), ...qTab, ...TEACHER.slice(3), ...extra] : [...STUDENT, ...extra];
+  const HID: Record<string, string> = { hw: "homework", assess: "assessments", msg: "messaging", wall: "wall", act: "activities" };
+  const shownT = (t: Tab) => !(HID[t.id] && actor.perms?.includes(`hide:${HID[t.id]}`));
+  const tabs = isParent ? PARENT : staff ? [...TEACHER.slice(0, 3), ...qTab, ...TEACHER.slice(3), ...extra].filter(shownT) : [...STUDENT, ...extra];
   const dashName = isParent ? tr("Parent Dashboard", "لوحة ولي الأمر") : staff ? tr("Teacher Dashboard", "لوحة المعلم") : tr("Student Dashboard", "لوحة الطالب");
   const isActive = (t: Tab) => (t.href === "/lms" ? path === "/lms" && (t.hash ? hash === t.hash : !tabs.some((x) => x.hash && x.hash === hash)) : path === t.href);
   const cur = tabs.find(isActive);

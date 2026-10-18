@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { clearServerSession, getServerSession } from "@/lib/adminServer";
-import { lmsSession, viewAs, type Actor } from "@/lib/lms";
+import { lmsApi, lmsSession, viewAs, type Actor } from "@/lib/lms";
 import { useI18n } from "@/lib/i18n";
 
 export const ADMIN_ACTOR: Actor = { id: "admin", role: "admin", name: "Admin", cls: "", perms: ["assign", "review", "manageUsers", "viewAll"] };
@@ -23,6 +23,17 @@ export function useLmsActor(): { actor: Actor | null; asAdmin: false; ready: boo
     if (va) { setSt({ actor: { id: va.id, role: va.role, name: va.name, cls: va.cls, perms: va.role === "teacher" ? ["assign", "review"] : [], viewAs: true } as Actor, asAdmin: false, ready: true, adminElsewhere: false }); return; }
     // eslint-disable-next-line react-hooks/set-state-in-effect -- storage is only readable after hydration
     setSt({ actor: lmsSession()?.user ?? null, asAdmin: false, ready: true, adminElsewhere: !!getServerSession() });
+    // Permissions can change while a teacher is signed in: refresh the cached actor so buttons match the server.
+    const cur = lmsSession();
+    if (cur && cur.user.role === "teacher") {
+      lmsApi.me().then((r) => {
+        const u = r.user;
+        if (JSON.stringify([u.perms, u.scope]) === JSON.stringify([cur.user.perms, cur.user.scope])) return;
+        const next = { ...cur, user: { ...cur.user, perms: u.perms, scope: u.scope } };
+        try { localStorage.setItem("sm_lms_session_v1", JSON.stringify(next)); } catch { /* ignore */ }
+        setSt((x) => ({ ...x, actor: next.user }));
+      }).catch(() => undefined);
+    }
   }, []);
   return st;
 }

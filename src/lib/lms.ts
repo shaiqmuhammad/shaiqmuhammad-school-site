@@ -124,7 +124,7 @@ export const lmsApi = {
   viewAsLog: () => call<{ items: { uid: string; name: string; role: string; at: number }[] }>("viewas-log", undefined, { asAdmin: true }),
   async login(username: string, pin: string) {
     const r = await call<{ token: string; exp: number; user: LmsUser }>("login", { username, pin });
-    const s: Session = { token: r.token, exp: r.exp, user: { id: r.user.id, role: r.user.role, name: r.user.name, cls: r.user.cls, perms: r.user.perms } };
+    const s: Session = { token: r.token, exp: r.exp, user: { id: r.user.id, role: r.user.role, name: r.user.name, cls: r.user.cls, perms: r.user.perms, scope: r.user.scope } };
     localStorage.setItem(SESSION_KEY, JSON.stringify(s));
     localStorage.setItem("sm_lms_login_at", String(Date.now()));
     return s;
