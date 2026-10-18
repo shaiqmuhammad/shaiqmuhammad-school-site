@@ -81,7 +81,7 @@ export function LmsTabs() {
     ...(!staff ? [{ id: "cur", href: "/lms/curriculum", en: "Curriculum", ar: "المنهج", icon: I.cur, lvl: 3 } as Tab] : []),
     ...(staff && pm("cur") ? [{ id: "cur", href: "/lms/curriculum", en: "Curriculum", ar: "المنهج", icon: I.cur, lvl: 3 } as Tab] : []),
   ];
-  const tabs = staff ? [...TEACHER, ...extra] : STUDENT;
+  const tabs = staff ? [...TEACHER, ...extra] : [...STUDENT, ...extra];
   const dashName = staff ? tr("Teacher Dashboard", "لوحة المعلم") : tr("Student Dashboard", "لوحة الطالب");
   const isActive = (t: Tab) => (t.href === "/lms" ? path === "/lms" && (t.hash ? hash === t.hash : !tabs.some((x) => x.hash && x.hash === hash)) : path === t.href);
   const cur = tabs.find(isActive);
