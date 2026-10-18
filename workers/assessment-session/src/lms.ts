@@ -850,6 +850,8 @@ export class LmsStore extends DurableObject<LmsEnv> {
         return { status: 200, body: { ok: true, id: nid } };
       }
       case "grp-save": {
+        // Only the admin creates/edits groups (Admin > Members > Groups); teachers just use the groups assigned to them.
+        if (a.role !== "admin" || a.viewAs) return { status: 403, body: { error: "admin_only" } };
         if (!isStaff(a)) return { status: 403, body: { error: "forbidden" } };
         const name = str(input.name, 60);
         if (!name) return { status: 400, body: { error: "name_required" } };
@@ -862,6 +864,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         return { status: 200, body: { ok: true } };
       }
       case "grp-delete": {
+        if (a.role !== "admin" || a.viewAs) return { status: 403, body: { error: "admin_only" } };
         const r = this.sql.exec(`SELECT owner FROM grp WHERE id=?`, str(input.id, 40)).toArray()[0];
         if (!r || (a.role !== "admin" && r.owner !== a.id)) return { status: 403, body: { error: "forbidden" } };
         this.sql.exec(`DELETE FROM grp WHERE id=?`, str(input.id, 40));

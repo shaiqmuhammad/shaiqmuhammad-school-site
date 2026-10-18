@@ -1,6 +1,5 @@
 "use client";
 
-import { StudentPicker } from "@/components/lms/StudentPicker";
 import { dlGrant } from "@/lib/dl";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AssessmentShell } from "@/components/assessment/AssessmentShell";
@@ -48,7 +47,6 @@ export function LmsClassesPage() {
   const [award, setAward] = useState<RosterStudent[] | null>(null); // students receiving
   const [whole, setWhole] = useState(false);
   const [editCats, setEditCats] = useState(false);
-  const [editGrp, setEditGrp] = useState<StudentGroup | "new" | null>(null);
   const [emailFor, setEmailFor] = useState<RosterStudent | null>(null);
   const [toast, setToast] = useState("");
   const [flash, setFlash] = useState<Record<string, number>>({});
@@ -104,8 +102,6 @@ export function LmsClassesPage() {
           <button type="button" aria-pressed={!view} onClick={() => setView("")} className={`${pill} ${!view ? "!bg-header !text-sun" : ""}`}>{tr("All", "الكل")} ({roster?.length ?? 0})</button>
           {classes.map((c) => <button key={c} type="button" aria-pressed={view === c} onClick={() => setView(c)} className={`${pill} ${view === c ? "!bg-header !text-sun" : ""}`} data-testid="cls-tab">{label(c)}</button>)}
           {groups.map((g) => <button key={g.id} type="button" aria-pressed={view === "g:" + g.id} onClick={() => setView("g:" + g.id)} className={`${pill} ${view === "g:" + g.id ? "!bg-header !text-sun" : ""}`} data-testid="cls-group-tab" title={g.assigned ? tr("Assigned by admin", "مُسندة من الإدارة") : undefined}>{g.assigned ? "📌" : "👥"} {grpLabel(g)}</button>)}
-          <button type="button" className={pill} onClick={() => setEditGrp("new")} data-testid="cls-new-group">＋ {tr("Group", "مجموعة")}</button>
-          {view.startsWith("g:") && !groups.find((g) => g.id === view.slice(2))?.assigned && <button type="button" className={pill} onClick={() => setEditGrp(groups.find((g) => g.id === view.slice(2)) || null)}>✎ {tr("Edit group", "تعديل المجموعة")}</button>}
         </div>
         {err && <p className="rounded-2xl bg-rose-100 px-4 py-2 text-sm text-rose-800">{err}</p>}
         {roster === null ? <p className="opacity-70">{tr("Loading…", "جارٍ التحميل…")}</p> : !shown.length ? <p className="glass rounded-3xl p-8 text-center opacity-80">{tr("No students here yet.", "لا يوجد طلاب هنا بعد.")}</p> : (
@@ -141,7 +137,6 @@ export function LmsClassesPage() {
         </Modal>
       )}
       {editCats && <CatEditor cats={cats} onClose={() => { setEditCats(false); lmsApi.pcatList().then((r) => setCats(r.items)); }} />}
-      {editGrp && <GroupEditor group={editGrp === "new" ? null : editGrp} roster={roster || []} onClose={(changed) => { setEditGrp(null); if (changed) { if (editGrp !== "new" && changed === "deleted") setView(""); load(); } }} />}
       {emailFor && <EmailReport student={emailFor} onClose={() => setEmailFor(null)} lang={lang} />}
       {toast && (
         <div className="fixed inset-x-0 bottom-5 z-[2100] mx-auto flex w-fit max-w-[92vw] items-center gap-3 rounded-full bg-header px-5 py-2.5 text-sm font-semibold text-white shadow-2xl" role="status" data-testid="cls-toast">
@@ -181,22 +176,6 @@ function CatEditor({ cats, onClose }: { cats: PointCat[]; onClose: () => void })
   );
 }
 
-function GroupEditor({ group, roster, onClose }: { group: StudentGroup | null; roster: RosterStudent[]; onClose: (changed?: "saved" | "deleted") => void }) {
-  const { tr } = useTr();
-  const [name, setName] = useState(group?.name || "");
-  const [sel, setSel] = useState<string[]>(group?.students || []);
-  return (
-    <Modal onClose={() => onClose()} label={tr("Group", "مجموعة")}>
-      <h2 className="mb-3 text-lg font-extrabold">{group ? tr("Edit group", "تعديل المجموعة") : tr("New group", "مجموعة جديدة")}</h2>
-      <input className={inp} placeholder={tr("Group name", "اسم المجموعة")} value={name} onChange={(e) => setName(e.target.value)} data-testid="grp-name" />
-      <StudentPicker students={roster} sel={sel} onChange={setSel} />
-      <div className="mt-4 flex items-center gap-2">
-        <button type="button" className="rounded-full bg-sun px-4 py-2 text-sm font-bold text-[#0b1b2b] disabled:opacity-50" disabled={!name.trim()} onClick={() => lmsApi.grpSave({ id: group?.id, name: name.trim(), students: sel }).then(() => onClose("saved"))} data-testid="grp-save">{tr("Save", "حفظ")} ({sel.length})</button>
-        {group && <button type="button" className="rounded-full px-3 py-2 text-sm text-rose-600" onClick={() => { if (confirm(tr("Delete this group?", "حذف هذه المجموعة؟"))) lmsApi.grpDelete(group.id).then(() => onClose("deleted")); }} data-testid="grp-delete">🗑 {tr("Delete", "حذف")}</button>}
-      </div>
-    </Modal>
-  );
-}
 
 /** Confirm preview, then send the tokenised read-only parent report. Nothing is sent without this explicit click. */
 function EmailReport({ student, onClose }: { student: RosterStudent; onClose: () => void; lang: string }) {
