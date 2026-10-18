@@ -93,8 +93,7 @@ function PersonForm({ role, catalog, initial, onSave, submitLabel, testPrefix, s
               <button key={v} type="button" aria-pressed={f.scope.includes(v)} className={chip(f.scope.includes(v))} onClick={() => toggle("scope", v)} data-testid={`${testPrefix}-scope`}>{v.includes("|") ? `${clsNum(v.split("|")[0])}${secLetter(v.split("|")[1])}` : tr("Class ", "الصف ") + clsNum(v)}</button>
             ))}
           </div></>}
-<ClassroomAccess perms={f.perms} toggle={(v) => toggle("perms", v)} chip={chip} />
-          <ModuleAccess perms={f.perms} setPerms={(p) => setF((x) => ({ ...x, perms: p }))} />
+<p className="text-xs opacity-70" data-testid="perm-hint">{initial ? tr("Subjects, classes and all permissions are set from the 🔐 Permissions button in the Teachers list.", "المواد والصفوف وكل الصلاحيات من زر 🔐 الصلاحيات في قائمة المعلمين.") : tr("After adding, use 🔐 Permissions in the Teachers list to set access.", "بعد الإضافة، استخدم 🔐 الصلاحيات في قائمة المعلمين لضبط الوصول.")}</p>
         </div>
       )}
       {initial && <label className="flex items-center gap-2 text-sm sm:col-span-3"><input type="checkbox" checked={f.disabled} onChange={(e) => setF({ ...f, disabled: e.target.checked })} /> {tr("Disabled (can't sign in)", "معطّل (لا يمكنه الدخول)")}</label>}
