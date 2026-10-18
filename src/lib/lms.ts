@@ -4,7 +4,7 @@ import { getServerSession } from "@/lib/adminServer";
 import { ASSESSMENT_API_BASE } from "@/lib/groupSession";
 
 /** LMS phase 1 client (see workers/assessment-session/src/lms.ts). */
-export type Role = "student" | "teacher";
+export type Role = "student" | "teacher" | "parent";
 export type LmsUser = { id: string; username: string; name: string; role: Role; cls: string; section: string; subjects: string[]; scope: string[]; perms: string[]; disabled: boolean; hasPin: boolean; firstName?: string; lastName?: string; parentEmail?: boolean; parentName?: string; gender?: string; avatar?: string; email?: string; dob?: string; phone?: string; semail?: string; nationality?: string; prefLang?: string; sen?: boolean; eal?: boolean; gt?: boolean; created: number; lastLogin: number | null; lastSeen?: number };
 export type Catalog = { subjects: { id: string; name: string }[]; classes: { id: string; name: string }[]; sections: { id: string; name: string; classId: string; cls: string }[] };
 export type DashStudent = { id: string; name: string; cls: string; section: string };

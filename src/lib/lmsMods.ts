@@ -103,3 +103,13 @@ export async function pdfTable(opts: { title: string; subtitle?: string; headers
   }
   pdf.save(opts.filename);
 }
+
+/** Quran Homework switches from a teacher's permission strings (no saved set = full legacy access). Server enforces the same rules. */
+export const qhwPerm = (perms: string[] | undefined, isAdmin = false) => {
+  if (isAdmin) return { show: true, view: true, add: true, edit: true, del: true };
+  const p = perms || [];
+  if (!p.includes("qhw:set")) return { show: true, view: true, add: true, edit: true, del: true };
+  const h = (x: string) => p.includes(`qhw:${x}`);
+  const show = h("show");
+  return { show, view: show && (h("view") || h("add") || h("edit") || h("delete")), add: show && h("add"), edit: show && h("edit"), del: show && h("delete") };
+};

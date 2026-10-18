@@ -62,7 +62,7 @@ const EMAIL_KINDS: Record<string, [string, string]> = {
   reminder: ["Homework reminder", "{title} is due soon."],
 };
 type Reply = { status: number; body: unknown };
-export type Role = "student" | "teacher";
+export type Role = "student" | "teacher" | "parent";
 export type Actor = { id: string; role: Role | "admin"; name: string; cls: string; perms: string[]; scope?: string[]; viewAs?: boolean };
 type CatKind = "subject" | "class" | "section";
 
@@ -170,6 +170,17 @@ const stuCan = (a: Actor, op: (typeof STU_OPS)[number]) => {
   const has = a.perms.filter((p) => STU_PERM.test(p));
   return has.length === 0 ? true : has.includes(`stu:${op}`);
 };
+/** Quran Homework module switches. Teachers without an explicit set (no "qhw:set") keep full legacy access; admin always has everything. */
+const qhwOf = (a: Actor) => {
+  if (a.role === "admin") return { set: true, show: true, view: true, add: true, edit: true, del: true };
+  if (a.role !== "teacher") return { set: true, show: false, view: false, add: false, edit: false, del: false };
+  if (!a.perms.includes("qhw:set")) return { set: false, show: true, view: true, add: true, edit: true, del: true };
+  const has = (x: string) => a.perms.includes(`qhw:${x}`);
+  const show = has("show");
+  const view = show && (has("view") || has("add") || has("edit") || has("delete"));
+  return { set: true, show, view, add: show && has("add"), edit: show && has("edit"), del: show && has("delete") };
+};
+const PASS = Symbol("parent-pass");
 const isStaff = (a: Actor) => a.role === "admin" || a.role === "teacher";
 
 export class LmsStore extends DurableObject<LmsEnv> {
@@ -209,6 +220,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     if (!cols("users").has("parent_name")) this.sql.exec(`ALTER TABLE users ADD COLUMN parent_name TEXT DEFAULT ''`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS vlikes (vid TEXT, who TEXT, at INTEGER, PRIMARY KEY (vid, who))`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS vcomments (id TEXT PRIMARY KEY, vid TEXT, who TEXT, name TEXT, role TEXT, body TEXT, created INTEGER, status TEXT, iph TEXT)`);
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS plink (parent TEXT, student TEXT, PRIMARY KEY (parent, student))`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS pthreads (thread TEXT PRIMARY KEY, student TEXT, teacher TEXT, created INTEGER)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS pmsg (id TEXT PRIMARY KEY, thread TEXT, student TEXT, teacher TEXT, dir TEXT, subject TEXT, body TEXT, created INTEGER, msgid TEXT, read INTEGER DEFAULT 0)`);
     if (!cols("users").has("email")) this.sql.exec(`ALTER TABLE users ADD COLUMN email TEXT DEFAULT ''`);
@@ -446,7 +458,9 @@ export class LmsStore extends DurableObject<LmsEnv> {
 
   async handle(action: string, a: Actor, input: Json): Promise<Reply> {
     if (!a.viewAs) this.presence(a);
+    if (a.role === "parent" && !(input as Record<symbol, unknown>)[PASS]) return this.parentHandle(a, action, input);
     if (action === "att-parent-alert") return this.attParentAlert(a, input);
+    if (/^par-(list|save|delete|import)$/.test(action)) return this.parAdmin(a, action, input);
     if (/^(att|beh|cur)-/.test(action)) return modHandle({ sql: this.sql, hwList: () => this.allHomework().map((h) => ({ id: h.id, title: h.title, kind: h.kind, cls: h.cls, section: h.section, students: h.students, createdBy: h.createdBy })), inScope: (x, c, s) => this.inScope(x, c, s), userRow: (w, g) => this.userRow(w, g) }, action, a, input);
     switch (action) {
       case "me":
@@ -467,7 +481,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
           const role: Role = raw.role === "teacher" ? "teacher" : "student";
           // Only the admin can create or edit teachers.
           if (role === "teacher" && a.role !== "admin") { errors.push({ row: i + 1, username, error: "admin_only" }); continue; }
-          const perms = role === "teacher" ? (Array.isArray(raw.perms) ? (raw.perms as unknown[]).map(String).filter((p) => (PERMS as readonly string[]).includes(p) || STU_PERM.test(p) || /^(act|host):[\w*-]{1,80}$/.test(p) || /^(att|beh):(view|edit)$|^cur:(view|edit|delete)$/.test(p)).slice(0, 80) : ["assign", "review"]) : [];
+          const perms = role === "teacher" ? (Array.isArray(raw.perms) ? (raw.perms as unknown[]).map(String).filter((p) => (PERMS as readonly string[]).includes(p) || STU_PERM.test(p) || /^(act|host):[\w*-]{1,80}$/.test(p) || /^(att|beh):(view|edit)$|^cur:(view|edit|delete)$|^qhw:(set|show|view|add|edit|delete)$/.test(p)).slice(0, 80) : ["assign", "review"]) : [];
           const cls = str(raw.cls, 40);
           const section = role === "student" ? str(raw.section, 40) : "";
           const subjects = role === "teacher" ? strList(raw.subjects) : [];
@@ -488,6 +502,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
           let pin = str(raw.pin, 8);
           if (pin && !validPin(pin)) { errors.push({ row: i + 1, username, error: "pin_digits" }); continue; }
           if (existing) {
+            if (existing.role === "parent") { errors.push({ row: i + 1, username, error: "use_parents_page" }); continue; }
             if (existing.role === "teacher" && a.role !== "admin") { errors.push({ row: i + 1, username, error: "admin_only" }); continue; }
             if (a.role !== "admin" || raw.email === undefined) email = String(existing.email || "");
             if (a.role === "teacher" && !this.inScope(a, String(existing.cls || ""), String(existing.section || ""))) { errors.push({ row: i + 1, username, error: "not_your_class" }); continue; }
@@ -516,7 +531,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         let changed = 0;
         for (const id of ids) {
           const r = this.userRow("id=?", id);
-          if (!r || (r.role === "teacher" && a.role !== "admin") || (a.role === "teacher" && !this.inScope(a, String(r.cls || ""), String(r.section || "")))) continue;
+          if (!r || ((r.role === "teacher" || r.role === "parent") && a.role !== "admin") || (a.role === "teacher" && !this.inScope(a, String(r.cls || ""), String(r.section || "")))) continue;
           this.sql.exec(`UPDATE users SET disabled=? WHERE id=?`, off, id);
           changed++;
         }
@@ -527,8 +542,9 @@ export class LmsStore extends DurableObject<LmsEnv> {
         if (!stuCan(a, "delete")) return { status: 403, body: { error: "forbidden" } };
         const r = this.userRow("id=?", str(input.id, 40));
         if (!r) return { status: 404, body: { error: "not_found" } };
-        if (r.role === "teacher" && a.role !== "admin") return { status: 403, body: { error: "admin_only" } };
+        if ((r.role === "teacher" || r.role === "parent") && a.role !== "admin") return { status: 403, body: { error: "admin_only" } };
         if (a.role === "teacher" && !this.inScope(a, String(r.cls || ""), String(r.section || ""))) return { status: 403, body: { error: "not_your_class" } };
+        this.sql.exec(`DELETE FROM plink WHERE student=? OR parent=?`, String(r.id), String(r.id));
         this.sql.exec(`DELETE FROM pts WHERE student=?`, String(r.id));
         this.sql.exec(`DELETE FROM users WHERE id=?`, String(r.id));
         await this.dropBlobsOfSubs(this.sql.exec(`SELECT id FROM subs WHERE student=?`, String(r.id)).toArray().map((x) => String(x.id)));
@@ -542,7 +558,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         if (!stuCan(a, "edit")) return { status: 403, body: { error: "forbidden" } };
         const r = this.userRow("id=?", str(input.id, 40));
         if (!r) return { status: 404, body: { error: "not_found" } };
-        if (r.role === "teacher" && a.role !== "admin") return { status: 403, body: { error: "admin_only" } };
+        if ((r.role === "teacher" || r.role === "parent") && a.role !== "admin") return { status: 403, body: { error: "admin_only" } };
         if (a.role === "teacher" && !this.inScope(a, String(r.cls || ""), String(r.section || ""))) return { status: 403, body: { error: "not_your_class" } };
         const pin = str(input.pin, 8) || newPin();
         if (!validPin(pin)) return { status: 400, body: { error: "pin_digits" } };
@@ -1073,8 +1089,15 @@ export class LmsStore extends DurableObject<LmsEnv> {
       }
 
       case "hw-save": {
-        if (!can(a, "assign")) return { status: 403, body: { error: "forbidden" } };
         const kind = input.kind === "quran" ? "quran" : "general";
+        {
+          // Quran Homework switches (teachers with an explicit set): Add for new, Edit for existing; plain homework still needs "assign".
+          const q = qhwOf(a);
+          const prevKind = input.id ? String(this.sql.exec(`SELECT kind FROM homework WHERE id=?`, str(input.id, 40)).toArray()[0]?.kind || "") : "";
+          const touchesQ = kind === "quran" || prevKind === "quran";
+          if (a.role === "teacher" && touchesQ && q.set && !(input.id ? q.edit : q.add)) return { status: 403, body: { error: "quran_not_allowed" } };
+          if (!can(a, "assign") && !(a.role === "teacher" && touchesQ && q.set)) return { status: 403, body: { error: "forbidden" } };
+        }
         const title = str(input.title, 160);
         if (!title) return { status: 400, body: { error: "title" } };
         const d = (input.data && typeof input.data === "object" ? input.data : {}) as Json;
@@ -1119,10 +1142,12 @@ export class LmsStore extends DurableObject<LmsEnv> {
       }
 
       case "hw-delete": {
-        if (!can(a, "assign")) return { status: 403, body: { error: "forbidden" } };
         const id = str(input.id, 40);
-        const r = this.sql.exec(`SELECT created_by FROM homework WHERE id=?`, id).toArray()[0];
+        const r = this.sql.exec(`SELECT created_by, kind FROM homework WHERE id=?`, id).toArray()[0];
         if (!r) return { status: 404, body: { error: "not_found" } };
+        const qd = qhwOf(a);
+        if (a.role === "teacher" && r.kind === "quran" && qd.set && !qd.del) return { status: 403, body: { error: "quran_not_allowed" } };
+        if (!can(a, "assign") && !(a.role === "teacher" && r.kind === "quran" && qd.set && qd.del)) return { status: 403, body: { error: "forbidden" } };
         if (a.role !== "admin" && r.created_by !== a.id && !a.perms.includes("viewAll")) return { status: 403, body: { error: "forbidden" } };
         this.sql.exec(`DELETE FROM homework WHERE id=?`, id);
         await this.dropBlobsOfSubs(this.sql.exec(`SELECT id FROM subs WHERE hw=?`, id).toArray().map((x) => String(x.id)));
@@ -1137,7 +1162,8 @@ export class LmsStore extends DurableObject<LmsEnv> {
           const hw = this.assignedTo(a).map((h) => { const sb = this.sub(h.id, a.id); return { ...h, sub: sb, locked: this.lockedFor(h, a.id), lockedBy: this.lockInfo(h, a.id), late: !!(h.due && ((sb?.submittedAt || 0) > h.due || (!(sb?.submittedAt) && h.due < Date.now()))) }; });
           return { status: 200, body: { homework: hw, tracker: this.trackerOf(a.id), progress: this.progressOf(a.id), leaderboard: this.setting("leaderboard", "off") !== "off" } };
         }
-        const all = this.allHomework().filter((h) => a.role === "admin" || a.perms.includes("viewAll") || h.createdBy === a.id);
+        const qd = qhwOf(a);
+        const all = this.allHomework().filter((h) => a.role === "admin" || a.perms.includes("viewAll") || h.createdBy === a.id).filter((h) => h.kind !== "quran" || (qd.show && qd.view));
         const counts = new Map<string, Record<string, number>>();
         for (const s of this.sql.exec(`SELECT hw, status, COUNT(*) AS n FROM subs GROUP BY hw, status`).toArray()) {
           const c = counts.get(String(s.hw)) || {};
@@ -1151,7 +1177,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         const okFor = (c: string, sec: string) => (a.scope || []).some((x) => { const [k, s2] = x.split("|"); return k === c && (!s2 || s2 === sec); });
         const students = scoped ? allStudents.filter((x) => okFor(x.cls, x.section)) : allStudents;
         const classesOut = scoped ? classes.map((c) => ({ ...c, students: students.filter((x) => x.cls === c.cls).length })).filter((c) => c.students > 0) : classes;
-        return { status: 200, body: { homework: all.map((h) => ({ ...h, counts: counts.get(h.id) || {}, assigned: this.assignees(h).length })), classes: classesOut, students, catalog: this.catalog(), scope: a.scope || [] } };
+        return { status: 200, body: { homework: all.map((h) => ({ ...h, counts: counts.get(h.id) || {}, assigned: this.assignees(h).length })), classes: classesOut, students, catalog: this.catalog(), scope: a.scope || [], quran: { show: qd.show, view: qd.view, add: qd.add, edit: qd.edit, del: qd.del } } };
       }
 
       case "hw": {
@@ -1161,6 +1187,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
           if (!this.assignees(h).includes(a.id)) return { status: 403, body: { error: "forbidden" } };
           return { status: 200, body: { homework: { ...h, locked: this.lockedFor(h, a.id), lockedBy: this.lockInfo(h, a.id) }, sub: this.sub(h.id, a.id) } };
         }
+        if (h.kind === "quran" && a.role === "teacher") { const qv = qhwOf(a); if (!(qv.show && qv.view)) return { status: 403, body: { error: "quran_not_allowed" } }; }
         const names = new Map(this.sql.exec(`SELECT id, name, cls FROM users`).toArray().map((r) => [String(r.id), { name: String(r.name), cls: String(r.cls || "") }]));
         const subs = this.sql.exec(`SELECT * FROM subs WHERE hw=? ORDER BY updated DESC`, h.id).toArray().map((r) => ({ ...this.subOut(r), student: String(r.student), name: names.get(String(r.student))?.name ?? "?", cls: names.get(String(r.student))?.cls ?? "" }));
         const pending = this.assignees(h).filter((id) => !subs.some((s) => s.student === id)).map((id) => ({ id, name: names.get(id)?.name ?? "?" }));
@@ -1189,6 +1216,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         if (!can(a, "review")) return { status: 403, body: { error: "forbidden" } };
         const r = this.sql.exec(`SELECT * FROM subs WHERE id=?`, str(input.id, 40)).toArray()[0];
         if (!r) return { status: 404, body: { error: "not_found" } };
+        { const hq0 = this.allHomework(String(r.hw))[0]; if (hq0?.kind === "quran" && a.role === "teacher") { const qv = qhwOf(a); if (!(qv.show && qv.view)) return { status: 403, body: { error: "quran_not_allowed" } }; } }
         const comments = JSON.parse(String(r.comments || "[]")) as { by: string; text: string; at: number }[];
         const c = str(input.comment, 1000);
         if (c) comments.push({ by: a.name, text: c, at: Date.now() });
@@ -1242,6 +1270,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         if (!can(a, "assign") && !can(a, "review")) return { status: 403, body: { error: "forbidden" } };
         const h = this.allHomework(str(input.hw, 40))[0];
         if (!h) return { status: 404, body: { error: "not_found" } };
+        if (h.kind === "quran" && a.role === "teacher") { const qv = qhwOf(a); if (!(qv.show && qv.edit) && qv.set) return { status: 403, body: { error: "quran_not_allowed" } }; }
         const sid = str(input.student, 40);
         if (input.__method === "POST") {
           if (input.unlock === false) this.sql.exec(`DELETE FROM unlocks WHERE hw=? AND student=?`, h.id, sid);
@@ -1303,6 +1332,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
       case "quran-map": {
         // Class heatmap: students × surahs with best grade.
         if (!can(a, "review") && a.role !== "admin") return { status: 403, body: { error: "forbidden" } };
+        if (a.role === "teacher") { const qv = qhwOf(a); if (!(qv.show && qv.view)) return { status: 403, body: { error: "quran_not_allowed" } }; }
         const cls = str(input.cls, 40);
         const section = str(input.section, 40);
         const students = this.sql.exec(`SELECT * FROM users WHERE role='student' AND disabled=0 ORDER BY cls, section, name`).toArray().filter((u) => (!cls || u.cls === cls) && (!section || u.section === section) && this.canSeeStudent(a, String(u.id)));
@@ -1615,7 +1645,20 @@ export class LmsStore extends DurableObject<LmsEnv> {
     const out = (u: Record<string, unknown>) => ({ id: String(u.id), name: String(u.name), role: String(u.role), cls: [u.cls, u.section].filter(Boolean).join(" "), seen: Number(u.last_seen || 0) });
     const admin = { id: "admin", name: "Admin", role: "admin", cls: "", seen: this.adminSeen() };
     if (a.role === "admin") return users.map(out);
-    if (a.role === "teacher") return [admin, ...users.filter((u) => u.role === "student" && this.canSeeStudent(a, String(u.id))).map(out)];
+    if (a.role === "teacher") {
+      const parents = users.filter((u) => u.role === "parent").map((u) => ({ u, kids: this.kidsOf(String(u.id)).filter((k) => this.canSeeStudent(a, k.id)) })).filter((x) => x.kids.length)
+        .map((x) => ({ id: String(x.u.id), name: String(x.u.name), role: "parent", cls: `Parent · ${x.kids.map((k) => k.name).join(", ")}`, seen: Number(x.u.last_seen || 0) }));
+      return [admin, ...users.filter((u) => u.role === "student" && this.canSeeStudent(a, String(u.id))).map(out), ...parents];
+    }
+    if (a.role === "parent") {
+      const kids = this.kidsOf(a.id);
+      const ts = users.filter((u) => {
+        if (u.role !== "teacher") return false;
+        const t: Actor = { id: String(u.id), role: "teacher", name: "", cls: "", perms: JSON.parse(String(u.perms || "[]")), scope: JSON.parse(String(u.scope || "[]")) };
+        return (t.scope || []).length > 0 && kids.some((k) => this.canSeeStudent(t, k.id));
+      });
+      return [admin, ...ts.map(out)];
+    }
     const teachers = users.filter((u) => {
       if (u.role !== "teacher") return false;
       const t: Actor = { id: String(u.id), role: "teacher", name: "", cls: "", perms: JSON.parse(String(u.perms || "[]")), scope: JSON.parse(String(u.scope || "[]")) };
@@ -1648,6 +1691,137 @@ export class LmsStore extends DurableObject<LmsEnv> {
     if (a.role === "student") { const [c, s2] = this.placeOf(a.id); return c === cls && s2 === section; }
     return this.inScope(a, cls, section);
   }
+  // ================= Parent accounts =================
+  private kidsOf(pid: string) {
+    return this.sql.exec(`SELECT u.id, u.name, u.cls, u.section, u.avatar, u.gender FROM plink p JOIN users u ON u.id=p.student WHERE p.parent=? AND u.role='student' AND u.disabled=0 ORDER BY u.name`, pid).toArray()
+      .map((r) => ({ id: String(r.id), name: String(r.name), cls: String(r.cls || ""), section: String(r.section || ""), avatar: avatarOf(r) }));
+  }
+  /** Everything a parent may do. Child data is fetched through the child's own student actor, read-only, after the link is verified. */
+  private async parentHandle(a: Actor, action: string, input: Json): Promise<Reply> {
+    const pass = (x: Json): Json => { const o = { ...x }; (o as Record<symbol, unknown>)[PASS] = true; return o; };
+    const kids = this.kidsOf(a.id);
+    switch (action) {
+      case "me": return { status: 200, body: { user: { ...a, children: kids } } };
+      case "par-children": return { status: 200, body: { children: kids } };
+      case "notes": case "notes-read": case "msg-contacts": case "msg-threads": case "msg-thread": case "msg-send":
+        return this.handle(action, a, pass(input));
+    }
+    const CHILD = new Set(["dashboard", "hw", "assess-list", "cur-list", "ann-list", "wall-classes", "wall-list", "wall-media", "par-att", "par-beh", "par-results"]);
+    if (!CHILD.has(action)) return { status: 403, body: { error: "forbidden" } };
+    const cid = str(input.child, 40) || (kids.length === 1 ? kids[0].id : "");
+    const kid = kids.find((k) => k.id === cid);
+    if (!kid) return { status: 403, body: { error: "not_your_child" } };
+    const srow = this.userRow("id=? AND role='student'", kid.id);
+    if (!srow) return { status: 403, body: { error: "not_your_child" } };
+    const sa: Actor = { ...this.actorOf(srow), viewAs: true };
+    const clean: Json = { ...input }; delete clean.child;
+    switch (action) {
+      case "par-att": {
+        const rows = this.sql.exec(`SELECT day, period, status FROM att WHERE student=? ORDER BY day DESC, period LIMIT 400`, kid.id).toArray();
+        const n: Record<string, number> = { P: 0, A: 0, L: 0, E: 0 };
+        for (const r of rows) n[String(r.status)] = (n[String(r.status)] || 0) + 1;
+        const base = n.P + n.L + n.A;
+        return { status: 200, body: { counts: n, pct: base ? Math.round(((n.P + n.L) / base) * 1000) / 10 : null, items: rows.slice(0, 120).map((r) => ({ day: String(r.day), period: String(r.period), status: String(r.status) })) } };
+      }
+      case "par-beh": {
+        const tot = Number(this.sql.exec(`SELECT COALESCE(SUM(pts),0) AS t FROM pts WHERE student=?`, kid.id).one().t);
+        const items = this.sql.exec(`SELECT label, pts, icon, at FROM pts WHERE student=? ORDER BY at DESC LIMIT 80`, kid.id).toArray().map((r) => ({ label: String(r.label), pts: Number(r.pts), icon: String(r.icon || ""), at: Number(r.at) }));
+        return { status: 200, body: { total: tot, items } };
+      }
+      case "par-results": {
+        // Assessment results are recorded by the name typed at the quiz, so they are matched by name AND an assessment assigned to this child.
+        const RES = (this.env as unknown as { RESULTS?: DurableObjectNamespace }).RESULTS;
+        const assigned = (await this.handle("assess-list", sa, {})).body as { items: { quiz: string; title: string }[] };
+        if (!RES) return { status: 200, body: { items: [], assigned: assigned.items } };
+        const nm = String(srow.name).trim().toLowerCase();
+        const slugs = new Set(assigned.items.map((x) => x.quiz));
+        const all = await (RES.get(RES.idFromName("main")) as unknown as { list(f: object): Promise<Record<string, unknown>[]> }).list({ details: false });
+        const items = all.filter((r) => r.kind === "individual" && String(r.name).trim().toLowerCase() === nm && (slugs.has(String(r.quizSlug)) || slugs.has(String(r.quizId)))).slice(0, 60)
+          .map((r) => ({ quizTitle: String(r.quizTitle), score: Number(r.score), maxScore: Number(r.maxScore), percentage: Number(r.percentage), finishedAt: Number(r.finishedAt) }));
+        return { status: 200, body: { items, assigned: assigned.items } };
+      }
+    }
+    return this.handle(action, sa, clean);
+  }
+
+  /** Admin: parent accounts (login + PIN) linked to students. Admin-only; emails never leave this action set. */
+  private async parAdmin(a: Actor, action: string, input: Json): Promise<Reply> {
+    if (a.role !== "admin" || a.viewAs) return { status: 403, body: { error: "admin_only" } };
+    const listOut = () => this.sql.exec(`SELECT * FROM users WHERE role='parent' ORDER BY name`).toArray().map((r) => ({ id: String(r.id), username: String(r.username), name: String(r.name), email: String(r.email || ""), disabled: Boolean(r.disabled), hasPin: Boolean(r.pin_enc), lastLogin: r.last_login ? Number(r.last_login) : null, kids: this.sql.exec(`SELECT u.id, u.name, u.cls, u.section FROM plink p JOIN users u ON u.id=p.student WHERE p.parent=? ORDER BY u.name`, String(r.id)).toArray().map((k) => ({ id: String(k.id), name: String(k.name), cls: String(k.cls || ""), section: String(k.section || "") })) }));
+    const slug = (t: string) => normUser(t.toLowerCase().replace(/\s+/g, ".")).replace(/^\.+|\.+$/g, "").slice(0, 28) || "parent";
+    const freeName = (base: string) => { let u = base, n = 1; while (this.userRow("username=?", u)) u = `${base}${++n}`; return u; };
+    const link = (pid: string, ids: string[]) => { for (const sid of ids) if (this.userRow("id=? AND role='student'", sid)) this.sql.exec(`INSERT OR IGNORE INTO plink (parent, student) VALUES (?, ?)`, pid, sid); };
+    switch (action) {
+      case "par-list": return { status: 200, body: { items: listOut() } };
+      case "par-save": {
+        const name = str(input.name, 80), ids = strList(input.students, 50);
+        const emailIn = String(input.email || "").trim();
+        const email = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailIn) ? emailIn.slice(0, 120) : "";
+        if (!name) return { status: 400, body: { error: "name" } };
+        let pin = str(input.pin, 8);
+        if (pin && !validPin(pin)) return { status: 400, body: { error: "pin_digits" } };
+        const existing = input.id ? this.userRow("id=? AND role='parent'", str(input.id, 40)) : undefined;
+        if (input.id && !existing) return { status: 404, body: { error: "not_found" } };
+        const username = normUser(input.username);
+        if (username.length < 3) return { status: 400, body: { error: "username" } };
+        const clash = this.userRow("username=?", username);
+        if (clash && (!existing || clash.id !== existing.id)) return { status: 409, body: { error: "username_taken" } };
+        let id: string;
+        if (existing) {
+          id = String(existing.id);
+          this.sql.exec(`UPDATE users SET username=?, name=?, email=?, disabled=? WHERE id=?`, username, name, input.email === undefined ? String(existing.email || "") : email, input.disabled ? 1 : 0, id);
+          if (pin) await this.setPin(id, pin);
+        } else {
+          if (Number(this.sql.exec(`SELECT COUNT(*) AS n FROM users`).one().n) >= MAX_USERS) return { status: 409, body: { error: "full" } };
+          id = rid("u"); if (!pin) pin = newPin();
+          this.sql.exec(`INSERT INTO users (id, username, name, role, cls, section, subjects, scope, perms, disabled, created, email) VALUES (?, ?, ?, 'parent', '', '', '[]', '[]', '[]', 0, ?, ?)`, id, username, name, Date.now(), email);
+          await this.setPin(id, pin);
+        }
+        this.sql.exec(`DELETE FROM plink WHERE parent=?`, id);
+        link(id, ids);
+        return { status: 200, body: { ok: true, id, pin: existing ? (pin || undefined) : pin } };
+      }
+      case "par-delete": {
+        const r = this.userRow("id=? AND role='parent'", str(input.id, 40));
+        if (!r) return { status: 404, body: { error: "not_found" } };
+        this.sql.exec(`DELETE FROM plink WHERE parent=?`, String(r.id));
+        this.sql.exec(`DELETE FROM notes WHERE uid=?`, String(r.id));
+        this.sql.exec(`DELETE FROM users WHERE id=?`, String(r.id));
+        return { status: 200, body: { ok: true } };
+      }
+      case "par-import": {
+        // From each student's existing parent name / email: one account per distinct parent email (or name when there is no email).
+        const only = strList(input.students, 3000);
+        const studs = this.sql.exec(`SELECT id, name, cls, section, email, parent_name FROM users WHERE role='student' AND disabled=0 ORDER BY cls, section, name`).toArray().filter((r) => !only.length || only.includes(String(r.id)));
+        type G = { key: string; name: string; email: string; ids: string[]; names: string[] };
+        const groups = new Map<string, G>();
+        for (const r of studs) {
+          const em = String(r.email || "").trim().toLowerCase(), pn = String(r.parent_name || "").trim();
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em) && !pn) continue;
+          const key = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em) ? `e:${em}` : `n:${pn.toLowerCase()}`;
+          const g = groups.get(key) || { key, name: pn || `Parent of ${String(r.name)}`, email: /^[^\s@]+@/.test(em) ? em : "", ids: [], names: [] };
+          g.ids.push(String(r.id)); g.names.push(String(r.name)); groups.set(key, g);
+        }
+        const plan = [...groups.values()].map((g) => {
+          const ex = g.email ? this.sql.exec(`SELECT id, name FROM users WHERE role='parent' AND LOWER(email)=?`, g.email).toArray()[0] : undefined;
+          return { ...g, existing: ex ? String(ex.id) : "", action: ex ? "link" : "create" };
+        });
+        if (input.confirm !== true) return { status: 200, body: { plan: plan.map((g) => ({ name: g.name, email: g.email, students: g.names, action: g.action })) } };
+        const pins: { username: string; name: string; pin: string; students: string[] }[] = [];
+        let created = 0, linked = 0;
+        for (const g of plan) {
+          if (g.existing) { link(g.existing, g.ids); linked++; continue; }
+          const username = freeName(`p.${slug(g.name)}`), pin = newPin(), id = rid("u");
+          this.sql.exec(`INSERT INTO users (id, username, name, role, cls, section, subjects, scope, perms, disabled, created, email) VALUES (?, ?, ?, 'parent', '', '', '[]', '[]', '[]', 0, ?, ?)`, id, username, g.name, Date.now(), g.email);
+          await this.setPin(id, pin); link(id, g.ids); created++;
+          pins.push({ username, name: g.name, pin, students: g.names });
+        }
+        return { status: 200, body: { ok: true, created, linked, pins } };
+      }
+    }
+    return { status: 404, body: { error: "not_found" } };
+  }
+
   /** Absence notice to a parent: only on an explicit teacher action, reusing the parent-mail flow (preview first; the address is never returned to teachers). */
   private async attParentAlert(a: Actor, input: Json): Promise<Reply> {
     if (a.viewAs || !(a.role === "admin" || (a.role === "teacher" && a.perms.includes("att:edit")))) return { status: 403, body: { error: "forbidden" } };
