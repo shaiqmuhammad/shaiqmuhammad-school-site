@@ -37,6 +37,7 @@ import { buildFeedback, fromGrade, overallOf, parseScores, type Scores } from ".
 import { DurableObject } from "cloudflare:workers";
 import { corsHeaders, reply, verifyToken, type AdminEnv } from "./admin";
 import { fetchParentReplies, sendAuto, sendParentMail, type MailEnv } from "./mail/mailbox";
+import { initMods, modHandle, today as modToday } from "./lmsmods";
 import { renderEmail, renderText } from "./mail/template";
 import { blobStore, sqliteChunkStore, type BlobStore, type StorageEnv } from "./storage";
 
@@ -188,6 +189,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     this.sql.exec(`CREATE TABLE IF NOT EXISTS notes (id TEXT PRIMARY KEY, uid TEXT, kind TEXT, data TEXT, created INTEGER, read INTEGER DEFAULT 0)`);
     this.sql.exec(`CREATE INDEX IF NOT EXISTS notes_uid ON notes (uid, created)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS catalog (id TEXT PRIMARY KEY, kind TEXT, name TEXT, parent TEXT DEFAULT '', ord INTEGER DEFAULT 0)`);
+    initMods(this.sql);
     const cols = (t: string) => new Set(this.sql.exec(`PRAGMA table_info(${t})`).toArray().map((r) => String(r.name)));
     const uc = cols("users");
     for (const [c, def] of [["section", "TEXT DEFAULT ''"], ["subjects", "TEXT DEFAULT '[]'"], ["scope", "TEXT DEFAULT '[]'"], ["pin_enc", "TEXT"]] as const) if (!uc.has(c)) this.sql.exec(`ALTER TABLE users ADD COLUMN ${c} ${def}`);
@@ -444,6 +446,8 @@ export class LmsStore extends DurableObject<LmsEnv> {
 
   async handle(action: string, a: Actor, input: Json): Promise<Reply> {
     if (!a.viewAs) this.presence(a);
+    if (action === "att-parent-alert") return this.attParentAlert(a, input);
+    if (/^(att|beh|cur)-/.test(action)) return modHandle({ sql: this.sql, inScope: (x, c, s) => this.inScope(x, c, s), userRow: (w, g) => this.userRow(w, g) }, action, a, input);
     switch (action) {
       case "me":
         return { status: 200, body: { user: a } };
@@ -463,7 +467,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
           const role: Role = raw.role === "teacher" ? "teacher" : "student";
           // Only the admin can create or edit teachers.
           if (role === "teacher" && a.role !== "admin") { errors.push({ row: i + 1, username, error: "admin_only" }); continue; }
-          const perms = role === "teacher" ? (Array.isArray(raw.perms) ? (raw.perms as unknown[]).map(String).filter((p) => (PERMS as readonly string[]).includes(p) || STU_PERM.test(p) || /^(act|host):[\w*-]{1,80}$/.test(p)).slice(0, 80) : ["assign", "review"]) : [];
+          const perms = role === "teacher" ? (Array.isArray(raw.perms) ? (raw.perms as unknown[]).map(String).filter((p) => (PERMS as readonly string[]).includes(p) || STU_PERM.test(p) || /^(act|host):[\w*-]{1,80}$/.test(p) || /^(att|beh|cur):(view|edit)$/.test(p)).slice(0, 80) : ["assign", "review"]) : [];
           const cls = str(raw.cls, 40);
           const section = role === "student" ? str(raw.section, 40) : "";
           const subjects = role === "teacher" ? strList(raw.subjects) : [];
@@ -1644,6 +1648,22 @@ export class LmsStore extends DurableObject<LmsEnv> {
     if (a.role === "student") { const [c, s2] = this.placeOf(a.id); return c === cls && s2 === section; }
     return this.inScope(a, cls, section);
   }
+  /** Absence notice to a parent: only on an explicit teacher action, reusing the parent-mail flow (preview first; the address is never returned to teachers). */
+  private async attParentAlert(a: Actor, input: Json): Promise<Reply> {
+    if (a.viewAs || !(a.role === "admin" || (a.role === "teacher" && a.perms.includes("att:edit")))) return { status: 403, body: { error: "forbidden" } };
+    const sid = str(input.student, 40), day = str(input.day, 10);
+    const u = this.userRow("id=? AND role='student'", sid);
+    if (!u) return { status: 404, body: { error: "not_found" } };
+    if (!this.inScope(a, String(u.cls || ""), String(u.section || ""))) return { status: 403, body: { error: "not_your_class" } };
+    const rec = this.sql.exec(`SELECT * FROM att WHERE student=? AND day=? AND status='A' LIMIT 1`, sid, day).toArray()[0];
+    if (!rec) return { status: 400, body: { error: "not_absent" } };
+    const subject = `Absence notice — ${String(u.name)} (${day})`.slice(0, 150);
+    const body = str(input.body, 2000) || `${String(u.name)} was marked absent on ${day}. If this is unexpected or you have already informed the school, please reply to this email.`;
+    const r = await this.handle(input.confirm === true ? "parent-mail-send" : "parent-mail-preview", a, { student: sid, subject, body, confirm: input.confirm === true });
+    if (r.status === 200 && input.confirm === true) this.sql.exec(`UPDATE att SET alerted=? WHERE student=? AND day=?`, Date.now(), sid, day);
+    return r.status === 200 ? { status: 200, body: { ...(r.body as Json), subject, body, today: modToday() } } : r;
+  }
+
   private inScope(a: Actor, cls: string, section: string): boolean {
     if (a.role === "admin") return true;
     if (a.role !== "teacher") return false;
