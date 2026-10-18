@@ -9,7 +9,7 @@ import { LmsBell } from "@/components/lms/LmsBell";
 import { mailApi } from "@/lib/mail";
 import { useI18n } from "@/lib/i18n";
 
-type Tab = "youtube" | "sitepages" | "home" | "pages" | "videos" | "quizzes" | "certificate" | "banners" | "announcements" | "teacher" | "forum" | "results" | "activities" | "settings" | "students" | "teachers" | "setup" | "lmshw" | "classes" | "mail" | "homepage" | "staff" | "messages" | "notices" | "vcomments";
+type Tab = "youtube" | "sitepages" | "home" | "pages" | "quizzes" | "certificate" | "banners" | "announcements" | "teacher" | "forum" | "results" | "activities" | "settings" | "students" | "teachers" | "setup" | "lmshw" | "classes" | "mail" | "homepage" | "staff" | "messages" | "notices" | "vcomments";
 
 type Props = {
   busy: boolean;
@@ -26,7 +26,7 @@ type Props = {
 };
 
 const GROUPS: { id: string; en: string; ar: string; ids: Tab[] }[] = [
-  { id: "site", en: "Settings", ar: "إعدادات الموقع", ids: ["homepage", "teacher", "banners", "announcements", "videos", "youtube", "sitepages", "settings"] },
+  { id: "site", en: "Settings", ar: "إعدادات الموقع", ids: ["homepage", "teacher", "banners", "announcements", "youtube", "sitepages", "settings"] },
   { id: "teach", en: "Teaching and Learning", ar: "التعليم والتعلّم", ids: ["setup", "pages", "classes"] },
   { id: "members", en: "Members", ar: "الأعضاء", ids: ["students", "teachers", "staff"] },
   { id: "assess", en: "Assessment", ar: "التقييم", ids: ["quizzes", "lmshw", "certificate", "results"] },
@@ -46,7 +46,6 @@ const DESC: Partial<Record<Tab, [string, string]>> = {
   banners: ["Slides at the top of the home page.", "الشرائح أعلى الصفحة الرئيسية."],
   announcements: ["The scrolling ticker and news items.", "الشريط المتحرك والأخبار."],
   teacher: ["Your public About page: profile, experience, education and more.", "صفحة نبذة عني العامة: الملف والخبرات والتعليم وغيرها."],
-  videos: ["YouTube videos listed on the website.", "مقاطع يوتيوب المعروضة على الموقع."],
   youtube: ["Channel library, playlist pages in the menu, and uploads to YouTube.", "مكتبة القناة وصفحات القوائم في القائمة والرفع إلى يوتيوب."],
   sitepages: ["Add, edit and delete website pages and choose their menu placement.", "أضف الصفحات وعدّلها واحذفها واختر موضعها في القوائم."],
   quizzes: ["Create, enable and host assessments.", "أنشئ التقييمات وفعّلها واستضفها."],
@@ -77,7 +76,6 @@ const ICONS: Record<Tab, ReactNode> = {
   results: <><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" /></>,
   activities: <><rect x="3" y="4" width="18" height="12" rx="2" /><path d="M8 20h8M12 16v4M7 9h4M7 12h7" /></>,
   pages: <><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z" /><path d="M4 20.5A2.5 2.5 0 0 1 6.5 18H20v3H6.5A2.5 2.5 0 0 1 4 20.5z" /></>,
-  videos: <><rect x="3" y="5" width="18" height="14" rx="3" /><path d="M10 9.5v5l4.5-2.5z" /></>,
   youtube: <><rect x="2.5" y="5" width="19" height="14" rx="4" /><path d="M10 9v6l5-3z" /></>,
   sitepages: <><path d="M6 3h9l4 4v14H6z" /><path d="M14 3v5h5M9 13h7M9 17h5" /></>,
   announcements: <><path d="M3 11v2a1 1 0 0 0 1 1h3l5 4V6L7 10H4a1 1 0 0 0-1 1z" /><path d="M16 8a5 5 0 0 1 0 8" /></>,

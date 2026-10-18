@@ -10,8 +10,6 @@ import { LmsHomeCard } from "@/components/lms/LmsEntry";
 import { siteConfig } from "@/content/site";
 import {
   listPublishedPages,
-  listPublishedVideos,
-  youtubeThumbUrl,
 } from "@/lib/content";
 import { loadContentDataSync } from "@/lib/contentServer";
 import { listPublishedBanners } from "@/lib/banners";
@@ -20,11 +18,11 @@ import { listPublishedQuizzes } from "@/lib/quiz";
 import { loadQuizzesSync } from "@/lib/quizServer";
 import { loadHomepageSync } from "@/lib/homepageServer";
 import type { HomeSection } from "@/lib/homepage";
+import { HomeVideos } from "@/components/home/HomeVideos";
 import { BlockHeading, CustomSection, IntroBlock } from "@/components/home/HomeBlocks";
 
 export default function HomePage() {
   const data = loadContentDataSync();
-  const videos = listPublishedVideos(data).slice(0, 24);
   const pages = listPublishedPages(data).slice(0, 24);
   const banners = listPublishedBanners(loadBannersSync());
   const quizzes = listPublishedQuizzes(loadQuizzesSync());
@@ -68,48 +66,7 @@ export default function HomePage() {
 
       );
       case "videos": return (
-      <section className="band-cream border-y border-sun-border/30">
-        <div className="mx-auto max-w-6xl px-4 py-7 sm:px-6 sm:py-10">
-          {videos.length === 0 ? (
-            <>
-              <div className="mb-8">
-                <p className="eyebrow">Video lessons</p>
-                <h2 className="mt-2 text-2xl font-extrabold tracking-tight">Latest from your teacher</h2>
-              </div>
-              <p className="text-sm text-muted">No published videos yet. Check back soon.</p>
-            </>
-          ) : (
-            <CardCarousel
-              label="Video lessons"
-              labelAr="دروس الفيديو"
-              testId="home-videos-carousel"
-              moreHref="/videos"
-              moreTestId="home-videos-more"
-              heading={<BlockHeading s={sec} eyebrow="Video lessons" title="Latest from your teacher" />}
-            >
-              {videos.slice(0, sec.count || 9).map((video) => (
-                <Link key={video.id} href={`/videos#${video.id}`} className="group">
-                  <Card className="h-full overflow-hidden p-0! transition group-hover:-translate-y-0.5 group-hover:border-sun-border">
-                    <div className="relative aspect-video overflow-hidden bg-accent-soft">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={youtubeThumbUrl(video.youtubeId)}
-                        alt=""
-                        className="h-full w-full object-cover transition group-hover:scale-[1.02]"
-                      />
-                    </div>
-                    <div className="p-5">
-                      <h3 className="font-semibold group-hover:text-primary">{video.title}</h3>
-                      <p className="mt-2 line-clamp-2 text-sm text-muted">{video.description}</p>
-                    </div>
-                  </Card>
-                </Link>
-              ))}
-            </CardCarousel>
-          )}
-        </div>
-      </section>
-
+        <HomeVideos count={sec.count || 9} heading={<BlockHeading s={sec} eyebrow="Video lessons" title="Latest from your teacher" />} />
       );
       case "lessons": return (
       <Section>

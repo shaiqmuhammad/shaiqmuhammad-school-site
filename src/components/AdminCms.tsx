@@ -6,7 +6,7 @@ import { LmsAnnounceAdmin, MessagesPanel } from "@/components/lms/Messages";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import {
-  type ContentData, type ContentPage, type ContentVideo, type TeacherProfile,
+  type ContentData, type ContentPage, type TeacherProfile,
   defaultTeacher, extractYouTubeId, GITHUB_CONTENT_PATH,
   GITHUB_FORUM_PATH, loadContentData, newId, normalizeContentData, slugify,
 } from "@/lib/content";
@@ -45,15 +45,13 @@ import {
   emptySettings, GITHUB_SETTINGS_PATH, loadSiteSettings, normalizeSettings, type SiteSettings,
 } from "@/lib/siteSettings";
 import { AdminChrome } from "@/components/AdminChrome";
-import { AdminVideosTab } from "@/components/AdminVideosTab";
 import { AdminHome } from "@/components/AdminHome";
 import AdminSettings from "@/components/AdminSettings";
 import { useI18n } from "@/lib/i18n";
 
-type Tab = "youtube" | "sitepages" | "home" | "pages" | "videos" | "quizzes" | "certificate" | "banners" | "announcements" | "teacher" | "forum" | "results" | "activities" | "settings" | "students" | "teachers" | "setup" | "lmshw" | "classes" | "mail" | "homepage" | "staff" | "messages" | "notices" | "vcomments";
-const HASH_TABS: Tab[] = ["youtube", "sitepages", "pages", "videos", "quizzes", "certificate", "banners", "announcements", "teacher", "forum", "results", "activities", "settings", "students", "teachers", "setup", "classes", "lmshw", "mail", "homepage", "staff", "messages", "notices", "vcomments"];
+type Tab = "youtube" | "sitepages" | "home" | "pages" | "quizzes" | "certificate" | "banners" | "announcements" | "teacher" | "forum" | "results" | "activities" | "settings" | "students" | "teachers" | "setup" | "lmshw" | "classes" | "mail" | "homepage" | "staff" | "messages" | "notices" | "vcomments";
+const HASH_TABS: Tab[] = ["youtube", "sitepages", "pages", "quizzes", "certificate", "banners", "announcements", "teacher", "forum", "results", "activities", "settings", "students", "teachers", "setup", "classes", "lmshw", "mail", "homepage", "staff", "messages", "notices", "vcomments"];
 const emptyPage = (): ContentPage => ({ id: newId("page"), slug: "", title: "", excerpt: "", body: "", published: true, updatedAt: new Date().toISOString() });
-const emptyVideo = (): ContentVideo => ({ id: newId("video"), title: "", youtubeId: "", description: "", published: true, updatedAt: new Date().toISOString() });
 
 export default function AdminCms() {
   const router = useRouter();
@@ -62,7 +60,7 @@ export default function AdminCms() {
   const [tab, setTab] = useState<Tab>("home");
   // Deep links: /admin#students, #teachers, #setup, #lmshw, #forum … open that tab; the hash follows the tab.
   useEffect(() => {
-    const h = window.location.hash.slice(1) as Tab;
+    const h = (window.location.hash.slice(1) === "videos" ? "youtube" : window.location.hash.slice(1)) as Tab;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- the URL hash is only readable after hydration
     if (HASH_TABS.includes(h)) setTab(h);
     // Links like /admin#teachers clicked while already on /admin (e.g. from a notification) switch tabs too.
@@ -84,8 +82,6 @@ export default function AdminCms() {
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
   const [editingPage, setEditingPage] = useState<ContentPage | null>(null);
-  const [editingVideo, setEditingVideo] = useState<ContentVideo | null>(null);
-  const [youtubeInput, setYoutubeInput] = useState("");
   const [hasToken, setHasToken] = useState(false);
   const [imageUrlDraft, setImageUrlDraft] = useState("");
   const [ytDraft, setYtDraft] = useState("");
@@ -179,7 +175,7 @@ export default function AdminCms() {
   /** Logo button: back to the dashboard and re-fetch everything that is published. */
   function goHomeAndRefresh() {
     const dirty =
-      hasUnpublished || editingPage || editingVideo || editingThread ||
+      hasUnpublished || editingPage || editingThread ||
       (otherSnapshots.quizzes !== undefined && otherSnapshots.quizzes !== JSON.stringify(quizzesData)) ||
       (otherSnapshots.forum !== undefined && otherSnapshots.forum !== JSON.stringify(forum)) ||
       (otherSnapshots.banners !== undefined && otherSnapshots.banners !== JSON.stringify(bannersData)) ||
@@ -188,7 +184,7 @@ export default function AdminCms() {
       (otherSnapshots.settings !== undefined && otherSnapshots.settings !== JSON.stringify(siteSettings)) ||
       (otherSnapshots.results !== undefined && otherSnapshots.results !== JSON.stringify(quizResults));
     if (dirty && !confirm(lang === "ar" ? "إعادة تحميل أحدث محتوى منشور؟ ستُفقد التغييرات غير المنشورة." : "Reload the latest published content? Changes you haven't published will be lost.")) return;
-    setEditingPage(null); setEditingVideo(null); setEditingThread(null); setYoutubeInput("");
+    setEditingPage(null); setEditingThread(null);
     setStatus("");
     setTab("home");
     refreshTokenFlag();
@@ -214,17 +210,6 @@ export default function AdminCms() {
     setData((prev) => ({ ...prev, pages: prev.pages.some((p) => p.id === next.id) ? prev.pages.map((p) => (p.id === next.id ? next : p)) : [...prev.pages, next] }));
     setEditingPage(null);
     setStatus(`Saved page "${next.title}" locally.`);
-  }
-
-  function saveVideo(e: FormEvent) {
-    e.preventDefault();
-    if (!editingVideo) return;
-    const idFromInput = extractYouTubeId(youtubeInput || editingVideo.youtubeId);
-    if (!editingVideo.title.trim() || !idFromInput) { setStatus("Title and YouTube URL/ID required."); return; }
-    const next = { ...editingVideo, title: editingVideo.title.trim(), youtubeId: idFromInput, description: editingVideo.description.trim(), updatedAt: new Date().toISOString() };
-    setData((prev) => ({ ...prev, videos: prev.videos.some((v) => v.id === next.id) ? prev.videos.map((v) => (v.id === next.id ? next : v)) : [...prev.videos, next] }));
-    setEditingVideo(null); setYoutubeInput("");
-    setStatus(`Saved video "${next.title}" locally.`);
   }
 
   function saveTeacher(e: FormEvent) {
@@ -378,25 +363,6 @@ export default function AdminCms() {
               ))}
             </ul>
           </section>
-        )}
-        {tab==="videos" && (
-          <AdminVideosTab
-            videos={data.videos}
-            editingVideo={editingVideo}
-            youtubeInput={youtubeInput}
-            busy={busy}
-            input={input}
-            btn={btn}
-            btnGhost={btnGhost}
-            onNew={()=>{setEditingVideo(emptyVideo());setYoutubeInput("");}}
-            onEdit={(video)=>{setEditingVideo({...video});setYoutubeInput(video.youtubeId);}}
-            onDelete={(video)=>{if(confirm(`Delete "${video.title}"?`)) setData((prev)=>({...prev,videos:prev.videos.filter((v)=>v.id!==video.id)}));}}
-            onCancel={()=>{setEditingVideo(null);setYoutubeInput("");}}
-            onSave={saveVideo}
-            onYoutubeInput={setYoutubeInput}
-            onChangeVideo={setEditingVideo}
-            onPublish={publishContent}
-          />
         )}
         {tab==="quizzes" && <AdminQuizzes setStatus={setStatus} onNeedToken={()=>setTab("settings")} data={quizzesData} setData={setQuizzesData} results={quizResults} setResults={setQuizResults} />}
         {tab==="quizzes" && <div className="mt-6"><LmsAssessAdmin quizzes={quizzesData.quizzes} /></div>}
