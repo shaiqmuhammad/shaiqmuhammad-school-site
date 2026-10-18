@@ -1,5 +1,6 @@
 "use client";
 
+import { dlGrant } from "@/lib/dl";
 import { downloadBlob, escapeHtml, htmlBlocksToPdf, isArabic, safeFileName } from "@/lib/exportUtils";
 import type { ResultRow, SessionResults } from "@/lib/groupSession";
 import { barChartSvg, classAverage, donutGridSvg, questionStats, svgToPngDataUrl } from "@/lib/resultsCharts";
@@ -153,6 +154,7 @@ async function toPdf(data: SessionResults, filename: string): Promise<void> {
 }
 
 export async function downloadResults(data: SessionResults, format: ResultsFormat): Promise<void> {
+  if (!(await dlGrant("export"))) return;
   const name = `${safeFileName(data.title)} - results ${data.code}.${format}`;
   if (format === "xlsx") return downloadBlob(await toXlsx(data), name);
   if (format === "pptx") return downloadBlob(await toPptx(data), name);

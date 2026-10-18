@@ -1,4 +1,5 @@
 import { jsPDF } from "jspdf";
+import { dlGrant } from "@/lib/dl";
 import type { CertificateTemplate, QuizResult } from "@/lib/quiz";
 import { designFor, loadCertCollection, PAGE_H, PAGE_W, renderCertificate, type CertDesign } from "@/lib/certificateDesign";
 
@@ -28,6 +29,7 @@ export async function buildCertificatePdf(payload: CertificatePayload): Promise<
 }
 
 export async function downloadCertificatePdf(payload: CertificatePayload): Promise<void> {
+  if (!(await dlGrant("export"))) return;
   const { doc, fileName } = await buildCertificatePdf(payload);
   doc.save(fileName);
 }

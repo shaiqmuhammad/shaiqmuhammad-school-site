@@ -1,5 +1,6 @@
 "use client";
 
+import { dlGrant } from "@/lib/dl";
 import { downloadBlob, escapeHtml, htmlBlocksToPdf, imageToPng, isArabic, safeFileName } from "@/lib/exportUtils";
 import { optionLetter, quizMaxScore, wordBank, type Quiz, type QuizQuestion } from "@/lib/quiz";
 
@@ -216,6 +217,7 @@ function lineHtml(l: Line): string {
 }
 
 export async function downloadPaper(quiz: Quiz, kind: PaperKind, format: PaperFormat): Promise<void> {
+  if (!(await dlGrant("export"))) return;
   const name = `${safeFileName(quiz.title)} - ${kind === "paper" ? "Question paper" : "Answer key"}.${format}`;
   if (format === "docx") return downloadBlob(await toDocx(quiz, kind), name);
   if (format === "xlsx") return downloadBlob(await toXlsx(quiz, kind), name);

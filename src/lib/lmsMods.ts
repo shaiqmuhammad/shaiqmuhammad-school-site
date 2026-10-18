@@ -1,6 +1,7 @@
 "use client";
 
 import { getServerSession } from "@/lib/adminServer";
+import { dlGrant } from "@/lib/dl";
 import { downloadBlob } from "@/lib/exportUtils";
 import { ASSESSMENT_API_BASE } from "@/lib/groupSession";
 import { lmsSession, LmsError } from "@/lib/lms";
@@ -59,6 +60,7 @@ export function weekStart(d: string) { const x = new Date(`${d}T00:00:00Z`); ret
 
 /** Excel download of one table. */
 export async function xlsxTable(sheet: string, headers: string[], rows: (string | number)[][], filename: string, widths?: number[]) {
+  if (!(await dlGrant("export"))) return;
   const ExcelJS = (await import("exceljs")).default;
   const wb = new ExcelJS.Workbook(); const ws = wb.addWorksheet(sheet.slice(0, 30));
   ws.columns = headers.map((h, i) => ({ header: h, key: `c${i}`, width: widths?.[i] || Math.min(50, Math.max(12, h.length + 4)) }));
@@ -70,6 +72,7 @@ export async function xlsxTable(sheet: string, headers: string[], rows: (string 
 
 /** PDF of one table, drawn on canvas first so Arabic text shapes correctly (jsPDF alone can't). */
 export async function pdfTable(opts: { title: string; subtitle?: string; headers: string[]; rows: (string | number)[][]; filename: string; rtl?: boolean }) {
+  if (!(await dlGrant("export"))) return;
   const { jsPDF } = await import("jspdf");
   const W = 842, H = 595, M = 28, S = 2, RH = 20, HEAD = 62;
   const font = `"Nunito", "Segoe UI", Arial, "Noto Naskh Arabic", sans-serif`;
