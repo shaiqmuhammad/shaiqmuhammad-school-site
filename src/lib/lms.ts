@@ -66,6 +66,13 @@ export function lmsSession(): Session | null {
   }
   return null;
 }
+function storeSession(r: { token: string; exp: number; user: LmsUser }): Session {
+  const s: Session = { token: r.token, exp: r.exp, user: { id: r.user.id, role: r.user.role, name: r.user.name, cls: r.user.cls, perms: r.user.perms, scope: r.user.scope } };
+  localStorage.setItem(SESSION_KEY, JSON.stringify(s));
+  localStorage.setItem("sm_lms_login_at", String(Date.now()));
+  return s;
+}
+export type LoginCard = { id: string; name: string; username: string; cls: string; section: string; avatar: string; disabled: boolean; pin: string | null; token: string };
 export function lmsSignOut() {
   localStorage.removeItem(SESSION_KEY);
 }
@@ -124,10 +131,7 @@ export const lmsApi = {
   viewAsLog: () => call<{ items: { uid: string; name: string; role: string; at: number }[] }>("viewas-log", undefined, { asAdmin: true }),
   async login(username: string, pin: string) {
     const r = await call<{ token: string; exp: number; user: LmsUser }>("login", { username, pin });
-    const s: Session = { token: r.token, exp: r.exp, user: { id: r.user.id, role: r.user.role, name: r.user.name, cls: r.user.cls, perms: r.user.perms, scope: r.user.scope } };
-    localStorage.setItem(SESSION_KEY, JSON.stringify(s));
-    localStorage.setItem("sm_lms_login_at", String(Date.now()));
-    return s;
+    return storeSession(r);
   },
   me: () => call<{ user: Actor }>("me"),
   dashboard: (asAdmin = false) =>
@@ -165,7 +169,14 @@ export const lmsApi = {
   catalogSave: (item: { kind: "subject" | "class" | "section"; id?: string; name: string; parent?: string }) => call<Catalog & { ok: true; id: string }>("catalog-save", item, { asAdmin: true }),
   catalogDelete: (id: string) => call<Catalog & { ok: true }>("catalog-delete", { id }, { asAdmin: true }),
   /** Admin only: decrypted PINs (null = stored before PIN viewing existed → reset to view). */
-  pinsView: (ids?: string[]) => call<{ pins: Record<string, string | null> }>("pins-view", { ids }, { asAdmin: true }),
+  pinsView: (ids?: string[], asAdmin = true) => call<{ pins: Record<string, string | null> }>("pins-view", { ids }, { asAdmin }),
+  loginsList: (asAdmin = false) => call<{ items: LoginCard[] }>("logins-list", undefined, { asAdmin }),
+  loginTokenReset: (id: string, asAdmin = false) => call<{ token: string }>("login-token-reset", { id }, { asAdmin }),
+  changePin: (current: string, next: string) => call<{ ok: true }>("pin-change", { current, next }),
+  async qrLogin(t: string) {
+    const r = await call<{ token: string; exp: number; user: LmsUser }>("qr-login", { t });
+    return storeSession(r);
+  },
   notes: (asAdmin = false) => call<{ items: Note[]; unread: number }>("notes", undefined, { asAdmin }),
   notesRead: (ids?: string[], asAdmin = false) => call<{ ok: true }>("notes-read", { ids }, { asAdmin }),
   adminPrefs: (p?: { quick: { tab: string; label: string; icon?: string }[]; dashIcon?: string }) => call<{ quick: { tab: string; label: string; icon?: string }[] | null; dashIcon: string }>("admin-prefs", p, { asAdmin: true }),

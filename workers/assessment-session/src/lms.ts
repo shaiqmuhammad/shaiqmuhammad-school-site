@@ -207,7 +207,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     initMods(this.sql);
     const cols = (t: string) => new Set(this.sql.exec(`PRAGMA table_info(${t})`).toArray().map((r) => String(r.name)));
     const uc = cols("users");
-    for (const [c, def] of [["section", "TEXT DEFAULT ''"], ["subjects", "TEXT DEFAULT '[]'"], ["scope", "TEXT DEFAULT '[]'"], ["pin_enc", "TEXT"]] as const) if (!uc.has(c)) this.sql.exec(`ALTER TABLE users ADD COLUMN ${c} ${def}`);
+    for (const [c, def] of [["section", "TEXT DEFAULT ''"], ["subjects", "TEXT DEFAULT '[]'"], ["scope", "TEXT DEFAULT '[]'"], ["pin_enc", "TEXT"], ["qr_token", "TEXT"]] as const) if (!uc.has(c)) this.sql.exec(`ALTER TABLE users ADD COLUMN ${c} ${def}`);
     if (!cols("subs").has("audio")) this.sql.exec(`ALTER TABLE subs ADD COLUMN audio TEXT DEFAULT ''`);
     // Quran traffic-light grade (green/yellow = passed, red = practise again) + every graded attempt kept.
     if (!cols("subs").has("grade")) this.sql.exec(`ALTER TABLE subs ADD COLUMN grade TEXT DEFAULT ''`);
@@ -355,6 +355,16 @@ export class LmsStore extends DurableObject<LmsEnv> {
     if (!r || r.disabled) return null;
     const u = this.publicUser(r);
     return { id: u.id, role: u.role, name: u.name, cls: u.cls, perms: u.perms, scope: u.scope };
+  }
+
+  /** Sign a student in from the long random token in their QR card. Revoked by regenerating the token. */
+  async qrLogin(token: string, ip: string): Promise<Reply> {
+    if (this.failCount(`ip:${ip}`) >= 25) return { status: 429, body: { error: "too_many_attempts" } };
+    const r = token.length >= 30 ? this.sql.exec(`SELECT * FROM users WHERE qr_token=? AND role='student'`, token).toArray()[0] : undefined;
+    if (!r) { this.sql.exec(`INSERT INTO fails (k, t) VALUES (?, ?)`, `ip:${ip}`, Date.now()); return { status: 401, body: { error: "bad_login" } }; }
+    if (r.disabled) return { status: 403, body: { error: "blocked" } };
+    this.sql.exec(`UPDATE users SET last_login=? WHERE id=?`, Date.now(), String(r.id));
+    return { status: 200, body: { uid: String(r.id), user: this.publicUser(r) } };
   }
 
   async login(username: string, pin: string, ip: string): Promise<Reply> {
@@ -1174,14 +1184,61 @@ export class LmsStore extends DurableObject<LmsEnv> {
       }
 
       case "pins-view": {
-        // Admin only, deliberately not a teacher permission.
-        if (a.role !== "admin") return { status: 403, body: { error: "admin_only" } };
+        // Admin: everyone. Teachers with student "View": only students inside their own classes/sections.
+        const tview = a.role === "teacher" && !a.viewAs && stuCan(a, "view");
+        if (a.role !== "admin" && !tview) return { status: 403, body: { error: "forbidden" } };
         if (!(await pinKey(this.env))) return { status: 503, body: { error: "pin_key_missing" } };
         const ids = strList(input.ids, 3000);
-        const rows = ids.length ? this.sql.exec(`SELECT id, pin_enc FROM users`).toArray().filter((r) => ids.includes(String(r.id))) : this.sql.exec(`SELECT id, pin_enc FROM users`).toArray();
+        let rows = this.sql.exec(`SELECT id, role, cls, section, pin_enc FROM users`).toArray();
+        if (ids.length) rows = rows.filter((r) => ids.includes(String(r.id)));
+        if (tview) rows = rows.filter((r) => r.role === "student" && this.inScope(a, String(r.cls || ""), String(r.section || "")));
         const pins: Record<string, string | null> = {};
         for (const r of rows) pins[String(r.id)] = await openPin(this.env, r.pin_enc);
         return { status: 200, body: { pins } };
+      }
+
+      case "logins-list": {
+        // Student Logins cards: username, PIN and the QR login token for every student the caller may see.
+        const tview = a.role === "teacher" && !a.viewAs && stuCan(a, "view");
+        if (a.role !== "admin" && !tview) return { status: 403, body: { error: "forbidden" } };
+        if (!(await pinKey(this.env))) return { status: 503, body: { error: "pin_key_missing" } };
+        const rows = this.sql.exec(`SELECT * FROM users WHERE role='student' ORDER BY cls, section, name`).toArray().filter((r) => a.role === "admin" || this.inScope(a, String(r.cls || ""), String(r.section || "")));
+        const items = [];
+        for (const r of rows) {
+          let tok = String(r.qr_token || "");
+          if (!tok) { tok = b64url(crypto.getRandomValues(new Uint8Array(32))); this.sql.exec(`UPDATE users SET qr_token=? WHERE id=?`, tok, String(r.id)); }
+          items.push({ id: String(r.id), name: String(r.name), username: String(r.username), cls: String(r.cls || ""), section: String(r.section || ""), avatar: avatarOf(r), disabled: Boolean(r.disabled), pin: await openPin(this.env, r.pin_enc), token: tok });
+        }
+        return { status: 200, body: { items } };
+      }
+
+      case "login-token-reset": {
+        // Regenerate (revoke) a student's QR login token. Admin, or a teacher with student Edit for a student in scope.
+        if (a.viewAs || (a.role !== "admin" && !(a.role === "teacher" && stuCan(a, "edit")))) return { status: 403, body: { error: "forbidden" } };
+        const r = this.userRow("id=?", str(input.id, 40));
+        if (!r || r.role !== "student") return { status: 404, body: { error: "not_found" } };
+        if (a.role !== "admin" && !this.inScope(a, String(r.cls || ""), String(r.section || ""))) return { status: 403, body: { error: "not_your_class" } };
+        const tok = b64url(crypto.getRandomValues(new Uint8Array(32)));
+        this.sql.exec(`UPDATE users SET qr_token=? WHERE id=?`, tok, String(r.id));
+        return { status: 200, body: { token: tok } };
+      }
+
+      case "pin-change": {
+        // Students and teachers change their OWN PIN (current PIN required). Parents/admin: not here.
+        if (a.viewAs || (a.role !== "student" && a.role !== "teacher")) return { status: 403, body: { error: "forbidden" } };
+        const key = `pc:${a.id}`;
+        if (this.failCount(key) >= 5) return { status: 429, body: { error: "too_many_attempts" } };
+        const cur = str(input.current, 8), next = str(input.next, 8);
+        const r = this.userRow("id=?", a.id);
+        if (!r || !validPin(cur) || !safeEqual(await hashPin(cur, fromB64url(String(r.salt))), String(r.hash))) {
+          this.sql.exec(`INSERT INTO fails (k, t) VALUES (?, ?)`, key, Date.now());
+          return { status: 401, body: { error: "wrong_current_pin" } };
+        }
+        if (!/^\d{6,8}$/.test(next)) return { status: 400, body: { error: "pin_min_6" } };
+        if (next === cur) return { status: 400, body: { error: "pin_same" } };
+        await this.setPin(a.id, next);
+        this.sql.exec(`DELETE FROM fails WHERE k=?`, key);
+        return { status: 200, body: { ok: true } };
       }
 
       case "hw-save": {
@@ -2088,6 +2145,15 @@ export async function handleLms(request: Request, env: LmsEnv, action: string): 
     } catch {
       return reply(origin, { error: "bad_json" }, 400);
     }
+  }
+  if (action === "qr-login") {
+    if (request.method !== "POST") return reply(origin, { error: "method" }, 405);
+    if (!env.SESSION_SIGNING_KEY) return reply(origin, { error: "not_configured" }, 503);
+    const r = (await store.qrLogin(str(body.t, 80), request.headers.get("CF-Connecting-IP") || "?")) as unknown as Reply;
+    if (r.status !== 200) return reply(origin, r.body, r.status);
+    const ok = r.body as { uid: string; user: unknown };
+    const t = await issueUserToken(env, ok.uid);
+    return reply(origin, { ...t, user: ok.user });
   }
   if (action === "login") {
     if (request.method !== "POST") return reply(origin, { error: "method" }, 405);
