@@ -5,7 +5,7 @@ import { useI18n } from "@/lib/i18n";
 import { lmsApi } from "@/lib/lms";
 import { mailApi } from "@/lib/mail";
 
-export type AdminHomeTab = "pages" | "videos" | "quizzes" | "certificate" | "banners" | "announcements" | "teacher" | "forum" | "settings" | "students" | "teachers" | "lmshw" | "mail" | "activities" | "classes";
+export type AdminHomeTab = "pages" | "quizzes" | "certificate" | "banners" | "announcements" | "teacher" | "forum" | "settings" | "students" | "teachers" | "lmshw" | "mail" | "activities" | "classes";
 
 type Stat = { label: string; value: string; tab: AdminHomeTab };
 
@@ -35,7 +35,6 @@ export function AdminHome({ counts, refreshedAt, refreshing, hasToken, onTab }: 
     { label: tr("Active assessments", "التقييمات النشطة"), value: `${counts.assessmentsEnabled} / ${counts.assessments}`, tab: "quizzes" },
     { label: tr("Published results", "النتائج المنشورة"), value: String(counts.results), tab: "quizzes" },
     { label: tr("Lesson pages", "صفحات الدروس"), value: String(counts.pages), tab: "pages" },
-    { label: tr("Videos", "الفيديوهات"), value: String(counts.videos), tab: "videos" },
     { label: tr("Forum threads", "مواضيع المنتدى"), value: String(counts.threads), tab: "forum" },
     { label: tr("Announcements", "الإعلانات"), value: String(counts.announcements), tab: "announcements" },
     { label: tr("Banners", "اللافتات"), value: String(counts.banners), tab: "banners" },
