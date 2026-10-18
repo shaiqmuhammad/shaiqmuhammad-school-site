@@ -72,7 +72,7 @@ const MAX_HW = 2000;
 const FAIL_WINDOW = 15 * 60_000;
 const PERMS = ["assign", "review", "manageUsers", "viewAll", "staff"] as const;
 const STU_OPS = ["view", "add", "edit", "block", "delete"] as const;
-const STU_PERM = /^stu:(view|add|edit|block|delete)$/;
+const STU_PERM = /^stu:(view|add|edit|block|delete|none)$/;
 /** Cartoon avatar code: stored reroll, else derived from id + gender (gender itself never leaves the server for non-admins). */
 function avatarOf(r: Record<string, unknown>): string {
   const g = r.gender === "b" || r.gender === "g" ? String(r.gender) : "n";
@@ -544,7 +544,8 @@ export class LmsStore extends DurableObject<LmsEnv> {
             if (a.role === "teacher" && !this.inScope(a, String(existing.cls || ""), String(existing.section || ""))) { errors.push({ row: i + 1, username, error: "not_your_class" }); continue; }
             if (isAdm && role === "student") this.savePrivate(String(existing.id), raw, gender);
             this.sql.exec(`UPDATE users SET username=?, name=?, role=?, cls=?, section=?, subjects=?, scope=?, perms=?, disabled=?, email=? WHERE id=?`, username, name, role, cls, section, JSON.stringify(subjects), JSON.stringify(scope), JSON.stringify(perms), stuCan(a, "block") ? (raw.disabled ? 1 : 0) : Number(existing.disabled || 0), raw.email === undefined ? String(existing.email || "") : email, String(existing.id));
-            if (pin) await this.setPin(String(existing.id), pin);
+            if (pin && a.role === "admin") await this.setPin(String(existing.id), pin);
+            if (a.role !== "admin" && role === "student") { const pp = name.split(/\s+/); this.sql.exec(`UPDATE users SET first_name=?, last_name=? WHERE id=?`, pp[0] || "", pp.slice(1).join(" "), String(existing.id)); }
           } else {
             if (Number(this.sql.exec(`SELECT COUNT(*) AS n FROM users`).one().n) >= MAX_USERS) { errors.push({ row: i + 1, username, error: "full" }); continue; }
             if (!pin) pin = newPin();
@@ -591,11 +592,12 @@ export class LmsStore extends DurableObject<LmsEnv> {
       }
 
       case "user-pin": {
+        // Teachers can never set or reset a student's PIN (that would let them sign in as the student).
+        if (a.role !== "admin") return { status: 403, body: { error: "admin_only" } };
         if (!stuCan(a, "edit")) return { status: 403, body: { error: "forbidden" } };
         const r = this.userRow("id=?", str(input.id, 40));
         if (!r) return { status: 404, body: { error: "not_found" } };
         if ((r.role === "teacher" || r.role === "parent") && a.role !== "admin") return { status: 403, body: { error: "admin_only" } };
-        if (a.role === "teacher" && !this.inScope(a, String(r.cls || ""), String(r.section || ""))) return { status: 403, body: { error: "not_your_class" } };
         const pin = str(input.pin, 8) || newPin();
         if (!validPin(pin)) return { status: 400, body: { error: "pin_digits" } };
         await this.setPin(String(r.id), pin);

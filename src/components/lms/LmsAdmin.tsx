@@ -82,7 +82,7 @@ function PersonForm({ role, catalog, initial, onSave, submitLabel, testPrefix, s
       {!initial && <input className={inputCls} placeholder={tr("PIN (auto)", "الرقم السري (تلقائي)")} value={f.pin} onChange={(e) => setF({ ...f, pin: e.target.value.replace(/\D/g, "").slice(0, 8) })} inputMode="numeric" dir="ltr" data-testid={`${testPrefix}-pin`} aria-label="PIN" />}
       {role === "teacher" && (
         <div className="space-y-2 sm:col-span-6">
-          <p className="text-sm font-semibold">{tr("Subjects", "المواد")}</p>
+          {!initial && <><p className="text-sm font-semibold">{tr("Subjects", "المواد")}</p>
           <div className="flex flex-wrap gap-1.5">
             {catalog.subjects.map((s) => <button key={s.id} type="button" aria-pressed={f.subjects.includes(s.name)} className={chip(f.subjects.includes(s.name))} onClick={() => toggle("subjects", s.name)} data-testid={`${testPrefix}-subject`}>{s.name}</button>)}
             {!catalog.subjects.length && <span className="text-sm opacity-60">{tr("No subjects yet — add them in Classes & Subjects.", "لا توجد مواد — أضفها في الصفوف والمواد.")}</span>}
@@ -92,17 +92,8 @@ function PersonForm({ role, catalog, initial, onSave, submitLabel, testPrefix, s
             {catalog.classes.flatMap((c) => [c.name, ...catalog.sections.filter((s) => s.classId === c.id).map((s) => `${c.name}|${s.name}`)]).map((v) => (
               <button key={v} type="button" aria-pressed={f.scope.includes(v)} className={chip(f.scope.includes(v))} onClick={() => toggle("scope", v)} data-testid={`${testPrefix}-scope`}>{v.includes("|") ? `${clsNum(v.split("|")[0])}${secLetter(v.split("|")[1])}` : tr("Class ", "الصف ") + clsNum(v)}</button>
             ))}
-          </div>
-          <div className="flex flex-wrap gap-3 text-sm">
-            {PERMS.map((p) => <label key={p} className="flex items-center gap-1.5"><input type="checkbox" checked={f.perms.includes(p)} onChange={() => toggle("perms", p)} data-testid={`lms-perm-${p}`} /> {tr(PERM_LABEL[p][0], PERM_LABEL[p][1])}</label>)}
-          </div>
-          {f.perms.includes("manageUsers") && (
-            <div className="flex flex-wrap items-center gap-3 rounded-2xl bg-black/[0.04] px-3 py-2 text-sm dark:bg-white/5" data-testid="stu-switches">
-              <b className="text-xs uppercase opacity-70">{tr("Student accounts (own classes)", "حسابات الطلاب (صفوفه فقط)")}</b>
-              {(["view", "add", "edit", "block", "delete"] as const).map((op) => <label key={op} className="flex items-center gap-1.5"><input type="checkbox" checked={stuUi(f.perms, op)} onChange={() => setF((x) => { const has = x.perms.filter((q) => q.startsWith("stu:")); const cur = has.length ? has : ["view", "add", "edit", "block", "delete"].map((o) => `stu:${o}`); const k = `stu:${op}`; const next = cur.includes(k) ? cur.filter((q) => q !== k) : [...cur, k]; return { ...x, perms: [...x.perms.filter((q) => !q.startsWith("stu:")), ...(next.length === 5 ? [] : next)] }; })} data-testid={`stu-${op}`} /> {op === "view" ? tr("View", "عرض") : op === "add" ? tr("Add students", "إضافة طلاب") : op === "edit" ? tr("Edit", "تعديل") : op === "block" ? tr("Block", "إيقاف") : tr("Delete", "حذف")}</label>)}
-            </div>
-          )}
-          <ClassroomAccess perms={f.perms} toggle={(v) => toggle("perms", v)} chip={chip} />
+          </div></>}
+<ClassroomAccess perms={f.perms} toggle={(v) => toggle("perms", v)} chip={chip} />
           <ModuleAccess perms={f.perms} setPerms={(p) => setF((x) => ({ ...x, perms: p }))} />
         </div>
       )}
@@ -112,10 +103,27 @@ function PersonForm({ role, catalog, initial, onSave, submitLabel, testPrefix, s
   );
 }
 
+/** Student-account switches (own classes only). "stu:none" = everything off (an empty list would mean legacy full access). */
+function StudentAccess({ perms, setPerms }: { perms: string[]; setPerms: (p: string[]) => void }) {
+  const { tr } = useTr();
+  const ops = ["view", "add", "edit", "block", "delete"] as const;
+  const L = { view: tr("View", "عرض"), add: tr("Add students", "إضافة طلاب"), edit: tr("Edit", "تعديل"), block: tr("Block", "إيقاف"), delete: tr("Delete", "حذف") };
+  const flip = (op: (typeof ops)[number]) => { const cur = ops.filter((o) => stuUi(perms, o)); const next = cur.includes(op) ? cur.filter((o) => o !== op) : [...cur, op]; setPerms([...perms.filter((q) => !q.startsWith("stu:")), ...(next.length === 5 ? [] : next.length === 0 ? ["stu:none"] : next.map((o) => `stu:${o}`))]); };
+  return (
+    <div className="rounded-2xl border border-dashed border-black/15 p-3 dark:border-white/20" data-testid="stu-switches">
+      <p className="mb-2 text-sm font-bold">🎓 {tr("Student accounts (own classes only)", "حسابات الطلاب (صفوفه فقط)")}</p>
+      <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">{ops.map((op) => <label key={op} className="flex items-center gap-1.5"><input type="checkbox" checked={stuUi(perms, op)} onChange={() => flip(op)} data-testid={`stu-${op}`} /> {L[op]}</label>)}</div>
+    </div>
+  );
+}
+
 /** Admin → Teachers → "🔐 Permissions": module access (Quran Homework, Attendance, Behaviour, Curriculum, Downloads), classroom access and general permissions in one clear panel. */
-function PermissionsModal({ u, onClose, onSaved, asAdmin }: { u: LmsUser; onClose: () => void; onSaved: () => void; asAdmin: boolean }) {
+function PermissionsModal({ u, onClose, onSaved, asAdmin, catalog }: { catalog: Catalog; u: LmsUser; onClose: () => void; onSaved: () => void; asAdmin: boolean }) {
   const { tr } = useTr();
   const [perms, setPerms] = useState<string[]>(u.perms || []);
+  const [subjects, setSubjects] = useState<string[]>(u.subjects || []);
+  const [scope, setScope] = useState<string[]>(u.scope || []);
+  const tog = (xs: string[], v: string) => (xs.includes(v) ? xs.filter((y) => y !== v) : [...xs, v]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   useEffect(() => { const k = (e: KeyboardEvent) => e.key === "Escape" && onClose(); document.addEventListener("keydown", k); return () => document.removeEventListener("keydown", k); }, [onClose]);
@@ -123,18 +131,25 @@ function PermissionsModal({ u, onClose, onSaved, asAdmin }: { u: LmsUser; onClos
   const chip = (on: boolean) => `rounded-full border px-3 py-1 text-sm font-semibold ${on ? "border-transparent bg-header text-sun" : "border-black/10 dark:border-white/15"}`;
   const save = async () => {
     setBusy(true); setErr("");
-    try { const r = await lmsApi.saveUsers([{ ...u, perms }], asAdmin); if (r.errors.length) throw new Error(r.errors[0].error); onSaved(); } catch (e) { setErr(e instanceof Error ? e.message : lmsErrorText(e, tr)); setBusy(false); }
+    try { const r = await lmsApi.saveUsers([{ ...u, perms, subjects, scope }], asAdmin); if (r.errors.length) throw new Error(r.errors[0].error); onSaved(); } catch (e) { setErr(e instanceof Error ? e.message : lmsErrorText(e, tr)); setBusy(false); }
   };
   return (
     <div className="fixed inset-0 z-[2147483000] grid place-items-end bg-black/60 sm:place-items-center sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()} role="dialog" aria-modal="true" aria-label={tr("Permissions", "الصلاحيات")} data-testid="perm-modal">
       <div className="max-h-[94vh] w-full overflow-y-auto rounded-t-3xl bg-white p-4 text-[#1b2f44] shadow-2xl dark:bg-[#12273b] dark:text-white sm:max-w-3xl sm:rounded-3xl sm:p-6">
         <div className="mb-3 flex items-center gap-3"><h3 className="min-w-0 flex-1 text-lg font-extrabold">🔐 {tr("Permissions", "الصلاحيات")} — <span dir="auto">{u.name}</span></h3><button type="button" className={smallBtn} onClick={onClose} aria-label={tr("Close", "إغلاق")}>✕</button></div>
         <div className="space-y-3">
+          <div className="rounded-2xl border border-dashed border-black/15 p-3 dark:border-white/20" data-testid="perm-subjects">
+            <p className="mb-2 text-sm font-bold">📚 {tr("Subjects taught", "المواد")}</p>
+            <div className="flex flex-wrap gap-1.5">{catalog.subjects.map((x) => <button key={x.id} type="button" aria-pressed={subjects.includes(x.name)} className={chip(subjects.includes(x.name))} onClick={() => setSubjects((c) => tog(c, x.name))}>{x.name}</button>)}{!catalog.subjects.length && <span className="text-sm opacity-60">{tr("No subjects yet.", "لا توجد مواد.")}</span>}</div>
+            <p className="mb-2 mt-3 text-sm font-bold">🏫 {tr("Classes / sections taught (empty = all)", "الصفوف / الشعب (فارغ = الكل)")}</p>
+            <div className="flex flex-wrap gap-1.5">{catalog.classes.flatMap((c) => [c.name, ...catalog.sections.filter((x) => x.classId === c.id).map((x) => `${c.name}|${x.name}`)]).map((v) => <button key={v} type="button" aria-pressed={scope.includes(v)} className={chip(scope.includes(v))} onClick={() => setScope((c) => tog(c, v))} data-testid="perm-scope">{v.includes("|") ? `${clsNum(v.split("|")[0])}${secLetter(v.split("|")[1])}` : tr("Class ", "الصف ") + clsNum(v)}</button>)}</div>
+          </div>
           <ModuleAccess perms={perms} setPerms={setPerms} />
           <div className="rounded-2xl border border-dashed border-black/15 p-3 dark:border-white/20">
             <p className="mb-2 text-sm font-bold">✅ {tr("General permissions", "الصلاحيات العامة")}</p>
             <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">{PERMS.map((p) => <label key={p} className="flex items-center gap-1.5"><input type="checkbox" checked={perms.includes(p)} onChange={() => toggle(p)} /> {tr(PERM_LABEL[p][0], PERM_LABEL[p][1])}</label>)}</div>
           </div>
+          {perms.includes("manageUsers") && <StudentAccess perms={perms} setPerms={setPerms} />}
           <ClassroomAccess perms={perms} toggle={toggle} chip={chip} />
         </div>
         {err && <p className="mt-3 rounded-xl bg-rose-100 px-3 py-2 text-sm text-rose-800" role="alert">{err}</p>}
@@ -288,7 +303,7 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
 
   return (
     <Frame embedded={embedded} title={title}>
-      {permFor && <PermissionsModal u={permFor} onClose={() => setPermFor(null)} onSaved={() => { setPermFor(null); load(); }} asAdmin={asAdmin} />}
+      {permFor && <PermissionsModal catalog={catalog} u={permFor} onClose={() => setPermFor(null)} onSaved={() => { setPermFor(null); load(); }} asAdmin={asAdmin} />}
       <div className={embedded ? "w-full space-y-4" : "w-full flex-1 space-y-4 px-3 py-5 sm:px-6"} data-testid="lms-admin" data-role={role}>
         {err && <p className="rounded-xl bg-rose-100 px-4 py-2 text-rose-800" role="alert">{err}</p>}
 
@@ -463,10 +478,10 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
                         <td className={td + " whitespace-nowrap"}>
                           <span className="inline-flex gap-0.5">
                             {canOp("edit") && <button type="button" className={iconBtn} onClick={() => setEdit(edit === u.id ? null : u.id)} aria-label={tr(`Edit ${u.name}`, `تعديل ${u.name}`)} title={tr("Edit", "تعديل")} aria-expanded={edit === u.id} data-testid="lms-user-edit">✏️</button>}
-                            <a className={iconBtn} href={`/lms?${new URLSearchParams({ viewAs: u.id, n: u.name, r: u.role, c: u.cls || "" })}`} target="_blank" rel="noopener" aria-label={tr(`View as ${u.name} (read-only)`, `عرض كـ ${u.name} (للعرض فقط)`)} title={tr("View as (read-only, new tab)", "عرض كـ (للعرض فقط، تبويب جديد)")} data-testid="lms-user-viewas">👁</a>
+                            {asAdmin && <a className={iconBtn} href={`/lms?${new URLSearchParams({ viewAs: u.id, n: u.name, r: u.role, c: u.cls || "" })}`} target="_blank" rel="noopener" aria-label={tr(`View as ${u.name} (read-only)`, `عرض كـ ${u.name} (للعرض فقط)`)} title={tr("View as (read-only, new tab)", "عرض كـ (للعرض فقط، تبويب جديد)")} data-testid="lms-user-viewas">👁</a>}
                             {u.email && <button type="button" className={iconBtn} onClick={async () => { if (!confirm(tr(`Email the username and PIN to ${u.email}?`, `إرسال اسم المستخدم والرقم السري إلى ${u.email}؟`))) return; try { await mailApi.emailPin(u.id); alert(tr("Sent.", "تم الإرسال.")); } catch (e) { const c = (e as Error).message; alert(c === "mail_not_configured" ? tr("Email isn't connected yet.", "البريد غير متصل بعد.") : c === "reset_pin_first" ? tr("Reset the PIN first so it can be sent.", "أعد تعيين الرقم السري أولاً.") : tr("Couldn't send.", "تعذر الإرسال.")); } }} aria-label={tr(`Email PIN to ${u.email}`, `إرسال الرقم السري إلى ${u.email}`)} title={tr(`Email sign-in details to ${u.email}`, `إرسال بيانات الدخول إلى ${u.email}`)} data-testid="lms-user-email-pin">📧</button>}
                             {role === "student" && <button type="button" className={iconBtn} onClick={() => setProg(prog === u.id ? null : u.id)} aria-label={tr(`Progress of ${u.name}`, `تقدم ${u.name}`)} title={tr("Progress & tracker", "التقدم والمتابعة")} aria-expanded={prog === u.id} data-testid="lms-user-progress">📈</button>}
-                            {canOp("edit") && <button type="button" className={iconBtn} onClick={async () => { if (!confirm(tr(`Give ${u.name} a new PIN?`, `رقم سري جديد لـ ${u.name}؟`))) return; const r = await lmsApi.resetPin(u.id, undefined, asAdmin).catch(() => null); if (r) { setPins((p) => [{ username: u.username, name: u.name, pin: r.pin }, ...p]); load(); } }} aria-label={tr(`Reset PIN for ${u.name}`, `إعادة تعيين رقم ${u.name}`)} title={tr("Reset PIN", "إعادة تعيين الرقم")} data-testid="lms-user-pin">🔑</button>}
+                            {asAdmin && <button type="button" className={iconBtn} onClick={async () => { if (!confirm(tr(`Give ${u.name} a new PIN?`, `رقم سري جديد لـ ${u.name}؟`))) return; const r = await lmsApi.resetPin(u.id, undefined, asAdmin).catch(() => null); if (r) { setPins((p) => [{ username: u.username, name: u.name, pin: r.pin }, ...p]); load(); } }} aria-label={tr(`Reset PIN for ${u.name}`, `إعادة تعيين رقم ${u.name}`)} title={tr("Reset PIN", "إعادة تعيين الرقم")} data-testid="lms-user-pin">🔑</button>}
                             {canOp("block") && <button type="button" className={iconBtn} onClick={async () => { await lmsApi.setStatus([u.id], !u.disabled, asAdmin).catch((e) => setErr(lmsErrorText(e, tr))); load(); }} aria-label={u.disabled ? tr(`Activate ${u.name}`, `تفعيل ${u.name}`) : tr(`Block ${u.name}`, `إيقاف ${u.name}`)} title={u.disabled ? tr("Activate", "تفعيل") : tr("Block", "إيقاف")} data-testid="lms-user-toggle">{u.disabled ? "✅" : "⛔"}</button>}
                             {canOp("delete") && <button type="button" className={iconBtn + " text-rose-600"} onClick={async () => { if (!confirm(tr(`Delete ${u.name} and their homework?`, `حذف ${u.name} وواجباته؟`))) return; await lmsApi.deleteUser(u.id, asAdmin).catch(() => undefined); load(); }} aria-label={tr(`Delete ${u.name}`, `حذف ${u.name}`)} title={tr("Delete", "حذف")} data-testid="lms-user-delete">🗑</button>}
                           </span>
