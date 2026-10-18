@@ -1,12 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { cardCls, field, Head, Toast, useRoster } from "@/components/lms/mods/ModUi";
+import { cardCls, field, Toast, useRoster } from "@/components/lms/mods/ModUi";
 import { useTr } from "@/components/lms/useLms";
 import { modCall, modErr } from "@/lib/lmsMods";
 
 type Sw = { audio?: boolean; export?: boolean };
-type Cfg = { students?: Sw; classes?: Record<string, Sw> };
+type Cfg = { qr?: boolean; students?: Sw; classes?: Record<string, Sw> };
 
 /** Admin → Downloads: allow / block audio-file and Excel/PDF downloads for students (all, or per class). Teachers are set per teacher in Module access. */
 export function AdminDownloads() {
@@ -35,12 +35,15 @@ export function AdminDownloads() {
   );
   return (
     <div className="space-y-4" data-testid="admin-downloads">
-      <Head icon="⬇️" title={tr("Downloads", "التنزيلات")} sub={tr("Allow or block downloads. Students can still play audio on the page. Teachers are set per teacher (Teachers → Module access).", "السماح بالتنزيل أو منعه. يبقى تشغيل الصوت متاحًا في الصفحة. المعلمون يُضبطون لكل معلم (المعلمون ← صلاحيات الوحدات).")} />
       <Toast msg={msg} bad={bad} />
       <section className={cardCls + " space-y-3"}>
         <h3 className="font-extrabold">🎒 {tr("All students", "كل الطلاب")}</h3>
         {row("audio", "Allow downloading audio recordings", "السماح بتنزيل التسجيلات الصوتية")}
         {row("export", "Allow Excel / PDF downloads (results, certificates, reports)", "السماح بتنزيل إكسل / PDF (النتائج، الشهادات، التقارير)")}
+      </section>
+      <section className={cardCls + " space-y-1"}>
+        <label className="flex items-center gap-3 text-sm font-semibold"><input type="checkbox" className="h-5 w-5" checked={cfg.qr !== false} onChange={(e) => save({ ...cfg, qr: e.target.checked })} data-testid="dl-qr" /> {tr("Allow download on QR / parent pages (no account)", "السماح بالتنزيل في صفحات QR / ولي الأمر (بدون حساب)")}</label>
+        <p className="text-xs opacity-70">{tr("Playback always works. This only controls the Download button and direct download requests.", "التشغيل يعمل دائمًا. هذا يتحكم بزر التنزيل وطلبات التنزيل المباشرة فقط.")}</p>
       </section>
       <section className={cardCls}>
         <h3 className="mb-1 font-extrabold">🏫 {tr("Per-class override", "استثناء لكل صف")}</h3>

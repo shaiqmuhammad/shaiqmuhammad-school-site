@@ -172,7 +172,7 @@ const stuCan = (a: Actor, op: (typeof STU_OPS)[number]) => {
 };
 /** Download switches. Everything stays allowed until the admin turns a switch off. Teachers: "nodl:audio" / "nodl:export" in perms. Students: global setting + optional per-class override. Parents: none. */
 type DlKind = "audio" | "export";
-type DlCfg = { students?: Partial<Record<DlKind, boolean>>; classes?: Record<string, Partial<Record<DlKind, boolean>>> };
+type DlCfg = { qr?: boolean; students?: Partial<Record<DlKind, boolean>>; classes?: Record<string, Partial<Record<DlKind, boolean>>> };
 
 /** Quran Homework module switches. Teachers without an explicit set (no "qhw:set") keep full legacy access; admin always has everything. */
 const qhwOf = (a: Actor) => {
@@ -332,6 +332,8 @@ export class LmsStore extends DurableObject<LmsEnv> {
   async putSetting(k: string, v: string): Promise<void> { this.sql.exec(`INSERT OR REPLACE INTO settings (k, v) VALUES (?, ?)`, k, v.slice(0, 20000)); }
 
   private dlCfg(): DlCfg { try { return JSON.parse(this.setting("dl:cfg", "{}")) as DlCfg; } catch { return {}; } }
+  /** Account-less pages (QR homework card, public links): may audio be downloaded? Default yes. */
+  async qrDlAllowed(): Promise<boolean> { return this.dlCfg().qr !== false; }
   /** May this person download (kind)? Admin always. */
   dlOf(a: Actor, kind: DlKind): boolean {
     if (a.role === "admin") return true;
@@ -490,6 +492,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         if (a.role !== "admin" || a.viewAs) return { status: 403, body: { error: "admin_only" } };
         const pick = (o: unknown) => { const r: Partial<Record<DlKind, boolean>> = {}; const x = (o && typeof o === "object" ? o : {}) as Json; for (const k of ["audio", "export"] as const) if (typeof x[k] === "boolean") r[k] = x[k] as boolean; return r; };
         const cfg: DlCfg = { students: pick(input.students), classes: {} };
+        if (typeof input.qr === "boolean") cfg.qr = input.qr;
         const cl = (input.classes && typeof input.classes === "object" ? input.classes : {}) as Record<string, unknown>;
         for (const [k, v] of Object.entries(cl).slice(0, 60)) { const p = pick(v); if (Object.keys(p).length) cfg.classes![str(k, 60)] = p; }
         this.sql.exec(`INSERT OR REPLACE INTO settings (k, v) VALUES ('dl:cfg', ?)`, JSON.stringify(cfg));
@@ -681,6 +684,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         if (!r) return { status: 404, body: { error: "not_found" } };
         const [c, s2] = String(r.wkey).split("|");
         if (!this.wallAllowed(a, c, s2 || "")) return { status: 403, body: { error: "forbidden" } };
+        if (input.dl && !this.dlOf(a, "audio")) return { status: 403, body: { error: "download_not_allowed" } };
         return { status: 200, body: { image: String(r.image || ""), audio: String(r.audio || "") } };
       }
       case "wall-post": {
@@ -1993,6 +1997,7 @@ export async function handleLms(request: Request, env: LmsEnv, action: string): 
   const store = env.LMS.get(env.LMS.idFromName("main"));
   if (action === "qr-audio") {
     const q = new URL(request.url).searchParams;
+    if (q.get("dl") === "1" && !(await store.qrDlAllowed())) return reply(origin, { error: "download_not_allowed" }, 403);
     const r = (await store.qrAudio(str(q.get("t"), 80), str(q.get("id"), 40))) as unknown as { status: number; mime?: string; data?: ArrayBuffer };
     if (r.status !== 200 || !r.data) return reply(origin, { error: "not_found" }, 404);
     return new Response(r.data, { headers: { ...corsHeaders(origin), "Content-Type": r.mime || "audio/mpeg", "Cache-Control": "private, max-age=3600", "X-Robots-Tag": "noindex" } });
@@ -2049,7 +2054,7 @@ export async function handleLms(request: Request, env: LmsEnv, action: string): 
   }
   if (action === "qr") {
     const r = (await store.qrView(str(new URL(request.url).searchParams.get("t") || body.t, 80))) as unknown as Reply;
-    return reply(origin, r.body, r.status);
+    return reply(origin, r.status === 200 ? { ...(r.body as object), dl: await store.qrDlAllowed() } : r.body, r.status);
   }
   if (action.startsWith("vid-pub-")) {
     const a0 = await lmsActor(request, env, store).catch(() => null);

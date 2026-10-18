@@ -72,7 +72,7 @@ export function lmsSignOut() {
 
 /** Admin read-only "view as" (this browser tab only; never touches the user's real LMS session). */
 export type QrLink = { student: string; name: string; cls: string; section: string; token: string };
-export type QrView = { student: string; cls: string; section: string; homework: { title: string; kind: "quran" | "general"; data: Partial<QuranData> }; status: string; grade: Grade | ""; scores?: Scores | null; recordings: string[]; attempts: { n: number; grade: Grade; audio: string; at: number; scores?: Scores }[]; feedback: { by: string; text: string; audio: string; at: number }[]; tracker: TrackerRow[] };
+export type QrView = { dl?: boolean; student: string; cls: string; section: string; homework: { title: string; kind: "quran" | "general"; data: Partial<QuranData> }; status: string; grade: Grade | ""; scores?: Scores | null; recordings: string[]; attempts: { n: number; grade: Grade; audio: string; at: number; scores?: Scores }[]; feedback: { by: string; text: string; audio: string; at: number }[]; tracker: TrackerRow[] };
 export type ViewAs = { id: string; name: string; role: "student" | "teacher"; cls: string };
 export function viewAs(): ViewAs | null {
   if (typeof window === "undefined") return null;
@@ -120,7 +120,7 @@ export const lmsApi = {
   hwLocks: (hw: string, opts: { student?: string; unlock?: boolean } = {}, asAdmin = false) => (opts.student ? call<{ locks: { student: string; name: string; section: string; lockedBy: Homework["lockedBy"]; unlocked: boolean }[] }>("hw-unlock", { hw, ...opts }, { asAdmin }) : call<{ locks: { student: string; name: string; section: string; lockedBy: Homework["lockedBy"]; unlocked: boolean }[] }>("hw-unlock", undefined, { asAdmin, query: { hw } })),
   qrLinks: (hw: string, opts: { student?: string; reset?: boolean; revoke?: boolean } = {}, asAdmin = false) => (opts.student ? call<{ links: QrLink[]; teacher: string }>("qr-links", { hw, ...opts }, { asAdmin }) : call<{ links: QrLink[]; teacher: string }>("qr-links", undefined, { asAdmin, query: { hw } })),
   qrView: (t: string) => call<QrView>("qr", undefined, { query: { t } }),
-  qrAudioUrl: (t: string, id: string) => `${ASSESSMENT_API_BASE}/api/lms/qr-audio?t=${encodeURIComponent(t)}&id=${encodeURIComponent(id)}`,
+  qrAudioUrl: (t: string, id: string, dl = false) => `${ASSESSMENT_API_BASE}/api/lms/qr-audio?t=${encodeURIComponent(t)}&id=${encodeURIComponent(id)}${dl ? "&dl=1" : ""}`,
   viewAsLog: () => call<{ items: { uid: string; name: string; role: string; at: number }[] }>("viewas-log", undefined, { asAdmin: true }),
   async login(username: string, pin: string) {
     const r = await call<{ token: string; exp: number; user: LmsUser }>("login", { username, pin });
@@ -186,7 +186,7 @@ export const lmsApi = {
   assessResults: () => call<{ items: { id: string; kind: string; quizTitle: string; name: string; score: number; maxScore: number; percentage: number; correct: number; wrong: number; finishedAt: number; rank: number | null; sessionCode: string | null }[] }>("assess-results"),
   wallClasses: () => call<{ items: { key: string; label: string }[]; canPost: boolean }>("wall-classes"),
   wallList: (key: string) => call<{ posts: WallPost[]; canModerate: boolean }>("wall-list", { key }),
-  wallMedia: (id: string) => call<{ image: string; audio: string }>("wall-media", { id }),
+  wallMedia: (id: string, dl = false) => call<{ image: string; audio: string }>("wall-media", dl ? { id, dl: true } : { id }),
   wallPost: (key: string, text: string, image?: string, audio?: string) => call<{ ok: true }>("wall-post", { key, text, image, audio }),
   wallComment: (post: string, text: string) => call<{ ok: true }>("wall-comment", { post, text }),
   wallLike: (post: string) => call<{ ok: true }>("wall-like", { post }),
