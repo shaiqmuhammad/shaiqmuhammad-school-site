@@ -112,6 +112,39 @@ function PersonForm({ role, catalog, initial, onSave, submitLabel, testPrefix, s
   );
 }
 
+/** Admin → Teachers → "🔐 Permissions": module access (Quran Homework, Attendance, Behaviour, Curriculum, Downloads), classroom access and general permissions in one clear panel. */
+function PermissionsModal({ u, onClose, onSaved, asAdmin }: { u: LmsUser; onClose: () => void; onSaved: () => void; asAdmin: boolean }) {
+  const { tr } = useTr();
+  const [perms, setPerms] = useState<string[]>(u.perms || []);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  useEffect(() => { const k = (e: KeyboardEvent) => e.key === "Escape" && onClose(); document.addEventListener("keydown", k); return () => document.removeEventListener("keydown", k); }, [onClose]);
+  const toggle = (v: string) => setPerms((p) => (p.includes(v) ? p.filter((x) => x !== v) : [...p, v]));
+  const chip = (on: boolean) => `rounded-full border px-3 py-1 text-sm font-semibold ${on ? "border-transparent bg-header text-sun" : "border-black/10 dark:border-white/15"}`;
+  const save = async () => {
+    setBusy(true); setErr("");
+    try { const r = await lmsApi.saveUsers([{ ...u, perms }], asAdmin); if (r.errors.length) throw new Error(r.errors[0].error); onSaved(); } catch (e) { setErr(e instanceof Error ? e.message : lmsErrorText(e, tr)); setBusy(false); }
+  };
+  return (
+    <div className="fixed inset-0 z-[2147483000] grid place-items-end bg-black/60 sm:place-items-center sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()} role="dialog" aria-modal="true" aria-label={tr("Permissions", "الصلاحيات")} data-testid="perm-modal">
+      <div className="max-h-[94vh] w-full overflow-y-auto rounded-t-3xl bg-white p-4 text-[#1b2f44] shadow-2xl dark:bg-[#12273b] dark:text-white sm:max-w-3xl sm:rounded-3xl sm:p-6">
+        <div className="mb-3 flex items-center gap-3"><h3 className="min-w-0 flex-1 text-lg font-extrabold">🔐 {tr("Permissions", "الصلاحيات")} — <span dir="auto">{u.name}</span></h3><button type="button" className={smallBtn} onClick={onClose} aria-label={tr("Close", "إغلاق")}>✕</button></div>
+        <div className="space-y-3">
+          <ModuleAccess perms={perms} setPerms={setPerms} />
+          <div className="rounded-2xl border border-dashed border-black/15 p-3 dark:border-white/20">
+            <p className="mb-2 text-sm font-bold">✅ {tr("General permissions", "الصلاحيات العامة")}</p>
+            <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">{PERMS.map((p) => <label key={p} className="flex items-center gap-1.5"><input type="checkbox" checked={perms.includes(p)} onChange={() => toggle(p)} /> {tr(PERM_LABEL[p][0], PERM_LABEL[p][1])}</label>)}</div>
+          </div>
+          <ClassroomAccess perms={perms} toggle={toggle} chip={chip} />
+        </div>
+        {err && <p className="mt-3 rounded-xl bg-rose-100 px-3 py-2 text-sm text-rose-800" role="alert">{err}</p>}
+        <p className="mt-3 text-xs opacity-70">{tr("Changes apply to the teacher straight away.", "تسري التغييرات على المعلم فورًا.")}</p>
+        <div className="mt-4 flex justify-end gap-2"><button type="button" className={smallBtn} onClick={onClose}>{tr("Cancel", "إلغاء")}</button><button type="button" className={primaryBtn} disabled={busy} onClick={save} data-testid="perm-modal-save">{busy ? "…" : tr("Save permissions", "حفظ الصلاحيات")}</button></div>
+      </div>
+    </div>
+  );
+}
+
 /** Admin area renders these without the LMS top bar; on /lms they sit in the LMS shell. */
 function Frame({ embedded, title, children }: { embedded: boolean; title: string; children: React.ReactNode }) {
   if (embedded) return <>{children}</>;
@@ -133,6 +166,7 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
   const [users, setUsers] = useState<LmsUser[] | null>(null);
   const [catalog, setCatalog] = useState<Catalog>(EMPTY);
   const [err, setErr] = useState("");
+  const [permFor, setPermFor] = useState<LmsUser | null>(null);
   const [q, setQ] = useState("");
   const [fCls, setFCls] = useState("");
   const [fSec, setFSec] = useState("");
@@ -254,6 +288,7 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
 
   return (
     <Frame embedded={embedded} title={title}>
+      {permFor && <PermissionsModal u={permFor} onClose={() => setPermFor(null)} onSaved={() => { setPermFor(null); load(); }} asAdmin={asAdmin} />}
       <div className={embedded ? "w-full space-y-4" : "w-full flex-1 space-y-4 px-3 py-5 sm:px-6"} data-testid="lms-admin" data-role={role}>
         {err && <p className="rounded-xl bg-rose-100 px-4 py-2 text-rose-800" role="alert">{err}</p>}
 
@@ -394,7 +429,7 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
                     <Fragment key={u.id}>
                       <tr className={`${zebra} transition hover:bg-sky-50 dark:hover:bg-sky-900/20`} data-testid="lms-user">
                         <td className={`${td} sticky start-0 z-10 ${zebra}`}><input type="checkbox" checked={sel.has(u.id)} onChange={(e) => setSel((x) => { const n = new Set(x); if (e.target.checked) n.add(u.id); else n.delete(u.id); return n; })} aria-label={tr(`Select ${u.name}`, `تحديد ${u.name}`)} data-testid="lms-select" /></td>
-                        <td className={`${td} sticky start-10 z-10 min-w-[9rem] max-w-[14rem] font-semibold leading-snug ${zebra}`} dir="auto" data-testid="col-name"><PresenceDot seen={u.lastSeen} className="me-1.5 align-middle" />{u.name}</td>
+                        <td className={`${td} sticky start-10 z-10 min-w-[9rem] max-w-[14rem] font-semibold leading-snug ${zebra}`} dir="auto" data-testid="col-name"><PresenceDot seen={u.lastSeen} className="me-1.5 align-middle" />{u.name}{role === "teacher" && asAdmin && <button type="button" onClick={() => setPermFor(u)} className="mt-1 flex items-center gap-1 rounded-full bg-sun/90 px-2.5 py-0.5 text-[11px] font-extrabold text-[#0b1b2b] shadow-sm hover:brightness-95" data-testid="lms-user-perms">🔐 {tr("Permissions", "الصلاحيات")}</button>}</td>
                         <td className={`${td} max-w-[11rem] truncate font-mono text-[13px]`} dir="ltr" title={u.username} data-testid="col-username">{u.username}</td>
                         {asAdmin && (
                           <td className={td} data-testid="lms-pin-cell">
@@ -547,7 +582,7 @@ function ModuleAccess({ perms, setPerms }: { perms: string[]; setPerms: (p: stri
   const qOps: ["show" | "view" | "add" | "edit" | "delete", string, string][] = [["show", "Show tab", "إظهار التبويب"], ["view", "View", "عرض"], ["add", "Add", "إضافة"], ["edit", "Edit", "تعديل"], ["delete", "Delete", "حذف"]];
   return (
     <div className="space-y-2 rounded-2xl border border-dashed border-black/15 p-3 dark:border-white/20" data-testid="lms-module-access">
-      <p className="text-sm font-bold">🧩 {tr("Modules (own classes only)", "الوحدات (صفوفه فقط)")}</p>
+      <p className="text-sm font-bold">🧩 {tr("Module access (own classes only)", "صلاحيات الوحدات (صفوفه فقط)")}</p>
       {mods.map(([m, en, ar]) => (
         <div key={m} className="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
           <span className="min-w-[10rem] font-semibold">{tr(en, ar)}</span>
@@ -557,7 +592,7 @@ function ModuleAccess({ perms, setPerms }: { perms: string[]; setPerms: (p: stri
         </div>
       ))}
       <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm" data-testid="perm-qhw">
-        <span className="min-w-[10rem] font-semibold">📖 {tr("Quran Homework", "واجب القرآن")}</span>
+        <span className="min-w-[10rem] font-extrabold">📖 {tr("Quran Homework", "واجب القرآن")}</span>
         {qOps.map(([op, en, ar]) => <label key={op} className="flex items-center gap-1.5"><input type="checkbox" checked={q(op)} onChange={(e) => setQ(op, e.target.checked)} data-testid={`perm-qhw-${op}`} /> {tr(en, ar)}</label>)}
       </div>
       <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm" data-testid="perm-dl">

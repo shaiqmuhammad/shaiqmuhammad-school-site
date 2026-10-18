@@ -1,5 +1,6 @@
 "use client";
 
+import { StudentPicker } from "@/components/lms/StudentPicker";
 import { dlGrant } from "@/lib/dl";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AssessmentShell } from "@/components/assessment/AssessmentShell";
@@ -102,9 +103,9 @@ export function LmsClassesPage() {
         <div className="flex flex-wrap gap-2" data-testid="cls-tabs">
           <button type="button" aria-pressed={!view} onClick={() => setView("")} className={`${pill} ${!view ? "!bg-header !text-sun" : ""}`}>{tr("All", "الكل")} ({roster?.length ?? 0})</button>
           {classes.map((c) => <button key={c} type="button" aria-pressed={view === c} onClick={() => setView(c)} className={`${pill} ${view === c ? "!bg-header !text-sun" : ""}`} data-testid="cls-tab">{label(c)}</button>)}
-          {groups.map((g) => <button key={g.id} type="button" aria-pressed={view === "g:" + g.id} onClick={() => setView("g:" + g.id)} className={`${pill} ${view === "g:" + g.id ? "!bg-header !text-sun" : ""}`} data-testid="cls-group-tab">👥 {g.name}</button>)}
+          {groups.map((g) => <button key={g.id} type="button" aria-pressed={view === "g:" + g.id} onClick={() => setView("g:" + g.id)} className={`${pill} ${view === "g:" + g.id ? "!bg-header !text-sun" : ""}`} data-testid="cls-group-tab" title={g.assigned ? tr("Assigned by admin", "مُسندة من الإدارة") : undefined}>{g.assigned ? "📌" : "👥"} {g.name}</button>)}
           <button type="button" className={pill} onClick={() => setEditGrp("new")} data-testid="cls-new-group">＋ {tr("Group", "مجموعة")}</button>
-          {view.startsWith("g:") && <button type="button" className={pill} onClick={() => setEditGrp(groups.find((g) => g.id === view.slice(2)) || null)}>✎ {tr("Edit group", "تعديل المجموعة")}</button>}
+          {view.startsWith("g:") && !groups.find((g) => g.id === view.slice(2))?.assigned && <button type="button" className={pill} onClick={() => setEditGrp(groups.find((g) => g.id === view.slice(2)) || null)}>✎ {tr("Edit group", "تعديل المجموعة")}</button>}
         </div>
         {err && <p className="rounded-2xl bg-rose-100 px-4 py-2 text-sm text-rose-800">{err}</p>}
         {roster === null ? <p className="opacity-70">{tr("Loading…", "جارٍ التحميل…")}</p> : !shown.length ? <p className="glass rounded-3xl p-8 text-center opacity-80">{tr("No students here yet.", "لا يوجد طلاب هنا بعد.")}</p> : (
@@ -184,16 +185,11 @@ function GroupEditor({ group, roster, onClose }: { group: StudentGroup | null; r
   const { tr } = useTr();
   const [name, setName] = useState(group?.name || "");
   const [sel, setSel] = useState<string[]>(group?.students || []);
-  const [q, setQ] = useState("");
-  const list = roster.filter((s) => !q || s.name.toLowerCase().includes(q.toLowerCase()));
   return (
     <Modal onClose={() => onClose()} label={tr("Group", "مجموعة")}>
       <h2 className="mb-3 text-lg font-extrabold">{group ? tr("Edit group", "تعديل المجموعة") : tr("New group", "مجموعة جديدة")}</h2>
       <input className={inp} placeholder={tr("Group name", "اسم المجموعة")} value={name} onChange={(e) => setName(e.target.value)} data-testid="grp-name" />
-      <input className={inp + " mt-2"} placeholder={tr("Search students…", "ابحث عن طالب…")} value={q} onChange={(e) => setQ(e.target.value)} />
-      <div className="mt-2 max-h-64 space-y-1 overflow-y-auto rounded-xl border border-black/10 p-2 dark:border-white/15">
-        {list.map((s) => <label key={s.id} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={sel.includes(s.id)} onChange={() => setSel(sel.includes(s.id) ? sel.filter((x) => x !== s.id) : [...sel, s.id])} data-testid="grp-pick" /><Avatar code={s.avatar} size={24} /><span dir="auto">{s.name}</span><span className="opacity-60">{[s.cls, s.section].filter(Boolean).join(" · ")}</span></label>)}
-      </div>
+      <StudentPicker students={roster} sel={sel} onChange={setSel} />
       <div className="mt-4 flex items-center gap-2">
         <button type="button" className="rounded-full bg-sun px-4 py-2 text-sm font-bold text-[#0b1b2b] disabled:opacity-50" disabled={!name.trim()} onClick={() => lmsApi.grpSave({ id: group?.id, name: name.trim(), students: sel }).then(() => onClose("saved"))} data-testid="grp-save">{tr("Save", "حفظ")} ({sel.length})</button>
         {group && <button type="button" className="rounded-full px-3 py-2 text-sm text-rose-600" onClick={() => { if (confirm(tr("Delete this group?", "حذف هذه المجموعة؟"))) lmsApi.grpDelete(group.id).then(() => onClose("deleted")); }} data-testid="grp-delete">🗑 {tr("Delete", "حذف")}</button>}

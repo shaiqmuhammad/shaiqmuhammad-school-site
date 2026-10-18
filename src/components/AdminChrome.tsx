@@ -9,7 +9,7 @@ import { LmsBell } from "@/components/lms/LmsBell";
 import { mailApi } from "@/lib/mail";
 import { useI18n } from "@/lib/i18n";
 
-type Tab = "downloads" | "parents" | "attendance" | "behaviour" | "curriculum" | "youtube" | "sitepages" | "home" | "pages" | "quizzes" | "certificate" | "banners" | "announcements" | "teacher" | "forum" | "results" | "activities" | "settings" | "students" | "teachers" | "setup" | "lmshw" | "classes" | "mail" | "homepage" | "staff" | "messages" | "notices" | "vcomments";
+type Tab = "groups" | "downloads" | "parents" | "attendance" | "behaviour" | "curriculum" | "youtube" | "sitepages" | "home" | "pages" | "quizzes" | "certificate" | "banners" | "announcements" | "teacher" | "forum" | "results" | "activities" | "settings" | "students" | "teachers" | "setup" | "lmshw" | "classes" | "mail" | "homepage" | "staff" | "messages" | "notices" | "vcomments";
 
 type Props = {
   busy: boolean;
@@ -28,7 +28,7 @@ type Props = {
 const GROUPS: { id: string; en: string; ar: string; ids: Tab[] }[] = [
   { id: "site", en: "Settings", ar: "إعدادات الموقع", ids: ["homepage", "teacher", "banners", "announcements", "youtube", "sitepages", "settings"] },
   { id: "teach", en: "Teaching and Learning", ar: "التعليم والتعلّم", ids: ["setup", "curriculum", "pages", "classes"] },
-  { id: "members", en: "Members", ar: "الأعضاء", ids: ["students", "teachers", "parents", "downloads", "staff", "attendance", "behaviour"] },
+  { id: "members", en: "Members", ar: "الأعضاء", ids: ["students", "teachers", "parents", "groups", "downloads", "staff", "attendance", "behaviour"] },
   { id: "assess", en: "Assessment", ar: "التقييم", ids: ["quizzes", "lmshw", "certificate", "results"] },
   { id: "tools", en: "Teaching Tools", ar: "أدوات التدريس", ids: ["activities"] },
   { id: "community", en: "Community", ar: "التواصل", ids: ["messages", "notices", "vcomments", "forum", "mail"] },
@@ -63,6 +63,7 @@ const DESC: Partial<Record<Tab, [string, string]>> = {
 };
 const MOD_DESC: Partial<Record<Tab, [string, string]>> = {
   attendance: ["Take the register per class, date and period; reports, attendance % and overview.", "سجّل الحضور لكل صف وتاريخ وحصة؛ تقارير ونسب ونظرة عامة."],
+  groups: ["Groups of classes, sections and students, assigned to teachers.", "مجموعات من صفوف وشعب وطلاب تُسند للمعلمين."],
   downloads: ["Allow or block audio and Excel/PDF downloads for students (all or per class).", "السماح بتنزيل الصوت وإكسل/PDF للطلاب أو منعه (للجميع أو لكل صف)."],
   parents: ["Parent logins linked to students. Admin only; parents see their own children read-only.", "حسابات أولياء الأمور المرتبطة بالطلاب. للإدارة فقط؛ يرون أبناءهم للعرض فقط."],
   behaviour: ["Positive and concern log with follow-up, class overview and reports. Staff only.", "سجل السلوك الإيجابي والملاحظات مع المتابعة والتقارير. للموظفين فقط."],
@@ -79,6 +80,7 @@ const COLLAPSE_KEY = "sm-admin-sidebar-collapsed";
 /** Small line icons for the sidebar rail (24px grid, currentColor). */
 const ICONS: Record<Tab, ReactNode> = {
   attendance: <><rect x="4" y="4" width="16" height="17" rx="2" /><path d="M8 2v4M16 2v4M4 10h16M9 15l2 2 4-4" /></>,
+  groups: <><circle cx="8" cy="9" r="3" /><circle cx="16.5" cy="10" r="2.5" /><path d="M2.5 19a5.5 5.5 0 0 1 11 0M14 19a4 4 0 0 1 7.5 0" /></>,
   downloads: <><path d="M12 4v11M7 11l5 5 5-5M5 20h14" /></>,
   parents: <><circle cx="9" cy="8" r="3.2" /><path d="M3 20a6 6 0 0 1 12 0M16 5a3 3 0 0 1 0 6M18 20a5 5 0 0 0-3-4.6" /></>,
   behaviour: <><path d="M12 21s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.6-7 10-7 10z" /></>,
@@ -130,7 +132,7 @@ function MailIcon({ unread, onClick, label }: { unread: number; onClick: () => v
   );
 }
 
-const WIDE = ["downloads", "parents", "attendance", "behaviour", "curriculum", "youtube", "sitepages", "students", "teachers", "classes", "lmshw", "mail", "home", "homepage"];
+const WIDE = ["groups", "downloads", "parents", "attendance", "behaviour", "curriculum", "youtube", "sitepages", "students", "teachers", "classes", "lmshw", "mail", "home", "homepage"];
 
 export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPublishAll, onLogout, pendingCount = 0, onBell, children }: Props) {
   const { t, lang } = useI18n();
@@ -187,7 +189,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
   const drawerRef = useRef<HTMLDivElement>(null);
   const homeLabel = tr("Admin home — refresh content", "الرئيسية وتحديث المحتوى");
   const label = (id: Tab) =>
-    id === "home" ? tr("Dashboard", "لوحة التحكم") : id === "announcements" ? tr("Announcements", "الإعلانات") : id === "results" ? tr("Results", "النتائج") : id === "activities" ? tr("Activities", "الأنشطة") : id === "students" ? tr("Students", "الطلاب") : id === "teachers" ? tr("Teachers", "المعلمون") : id === "setup" ? tr("Classes & Subjects", "الصفوف والمواد") : id === "lmshw" ? tr("Homework", "الواجبات") : id === "mail" ? tr("Mail", "البريد") : id === "homepage" ? tr("Homepage", "الصفحة الرئيسية") : id === "downloads" ? tr("Downloads", "التنزيلات") : id === "parents" ? tr("Parents", "أولياء الأمور") : id === "attendance" ? tr("Attendance", "الحضور") : id === "behaviour" ? tr("Behaviour", "السلوك") : id === "curriculum" ? tr("Curriculum", "المنهج") : id === "classes" ? tr("Classes", "الصفوف") : id === "staff" ? tr("Staff", "الموظفون") : id === "vcomments" ? tr("Video comments", "تعليقات الفيديو") : id === "messages" ? tr("Messages", "الرسائل") : id === "notices" ? tr("Class announcements", "إعلانات الصفوف") : id === "pages" ? tr("Learning Pages", "صفحات التعلّم") : id === "youtube" ? "YouTube" : id === "sitepages" ? tr("Pages & menu", "الصفحات والقوائم") : t(`admin.tab.${id}`);
+    id === "home" ? tr("Dashboard", "لوحة التحكم") : id === "announcements" ? tr("Announcements", "الإعلانات") : id === "results" ? tr("Results", "النتائج") : id === "activities" ? tr("Activities", "الأنشطة") : id === "students" ? tr("Students", "الطلاب") : id === "teachers" ? tr("Teachers", "المعلمون") : id === "setup" ? tr("Classes & Subjects", "الصفوف والمواد") : id === "lmshw" ? tr("Homework", "الواجبات") : id === "mail" ? tr("Mail", "البريد") : id === "homepage" ? tr("Homepage", "الصفحة الرئيسية") : id === "groups" ? tr("Groups", "المجموعات") : id === "downloads" ? tr("Downloads", "التنزيلات") : id === "parents" ? tr("Parents", "أولياء الأمور") : id === "attendance" ? tr("Attendance", "الحضور") : id === "behaviour" ? tr("Behaviour", "السلوك") : id === "curriculum" ? tr("Curriculum", "المنهج") : id === "classes" ? tr("Classes", "الصفوف") : id === "staff" ? tr("Staff", "الموظفون") : id === "vcomments" ? tr("Video comments", "تعليقات الفيديو") : id === "messages" ? tr("Messages", "الرسائل") : id === "notices" ? tr("Class announcements", "إعلانات الصفوف") : id === "pages" ? tr("Learning Pages", "صفحات التعلّم") : id === "youtube" ? "YouTube" : id === "sitepages" ? tr("Pages & menu", "الصفحات والقوائم") : t(`admin.tab.${id}`);
 
   useEffect(() => {
     try {
