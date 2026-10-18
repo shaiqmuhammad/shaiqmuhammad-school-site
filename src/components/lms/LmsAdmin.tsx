@@ -203,6 +203,8 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
   const [sort, setSort] = useState<{ key: string; dir: 1 | -1 }>({ key: "name", dir: 1 });
   const [page, setPage] = useState(0);
   const [sel, setSel] = useState<Set<string>>(new Set());
+  const myScope = !asAdmin ? actor?.scope || [] : [];
+  const scopedCatalog = (c: Catalog): Catalog => !myScope.length ? c : { ...c, classes: c.classes.filter((x) => myScope.some((t) => t === x.name || t.startsWith(x.name + "|"))), sections: c.sections.filter((x) => myScope.some((t) => t === x.cls || t === `${x.cls}|${x.name}`)) };
   const canOp = (op: "view" | "add" | "edit" | "block" | "delete") => asAdmin || stuUi(actor?.perms || [], op);
   const allowed = embedded || (role === "student" && actor?.role === "teacher" && actor.perms.includes("manageUsers"));
   const title = staff ? tr("Staff", "الموظفون") : role === "teacher" ? tr("Teachers", "المعلمون") : tr("Students", "الطلاب");
@@ -328,7 +330,7 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
           <div className="flex flex-wrap items-center gap-1.5" role="toolbar" aria-label={tr("Actions", "إجراءات")}>
             {(asAdmin || role !== "student" || canOp("add")) && <HeadBtn label={role === "teacher" ? tr("Add teacher", "إضافة معلم") : tr("Add student", "إضافة طالب")} text={tr("Add", "إضافة")} primary onClick={() => setDrawer("add")} testId="lms-toggle-add" icon={<path d="M15 19a6 6 0 0 0-12 0M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm10-3v6m3-3h-6" />} />}
             {(asAdmin || role !== "student" || canOp("add")) && <HeadBtn label={tr("Bulk add from Excel", "إضافة جماعية من إكسل")} text={tr("Bulk add", "إضافة جماعية")} onClick={() => setDrawer("bulk")} testId="lms-toggle-bulk" icon={<path d="M12 16V4m0 0-4 4m4-4 4 4M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" />} />}
-            <HeadBtn label={role === "teacher" ? tr("Teachers template (Excel)", "قالب المعلمين (إكسل)") : tr("Students template (Excel)", "قالب الطلاب (إكسل)")} text={tr("Template", "القالب")} onClick={() => downloadUsersTemplate(role, catalog)} testId="lms-template" icon={<path d="M12 4v12m0 0-4-4m4 4 4-4M4 20h16" />} />
+            {(asAdmin || role !== "student" || canOp("add")) && <HeadBtn label={role === "teacher" ? tr("Teachers template (Excel)", "قالب المعلمين (إكسل)") : tr("Students template (Excel)", "قالب الطلاب (إكسل)")} text={tr("Template", "القالب")} onClick={() => downloadUsersTemplate(role, catalog)} testId="lms-template" icon={<path d="M12 4v12m0 0-4-4m4 4 4-4M4 20h16" />} />}
             {asAdmin && role === "student" && <HeadBtn label={tr("Export all fields (Excel, admin only)", "تصدير كل الحقول (إكسل)")} text={tr("Export", "تصدير")} icon={<svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden><path d="M12 3v12m0 0-4-4m4 4 4-4M5 21h14" /></svg>} onClick={() => exportStudentsXlsx(people).catch((e) => setErr(lmsErrorText(e, tr)))} testId="lms-export-all" />}
             {asAdmin && <HeadBtn label={tr("Download sign-in sheet (shown rows)", "تنزيل ورقة الدخول (الصفوف المعروضة)")} text={tr("Sign-in sheet", "ورقة الدخول")} onClick={async () => { try { await downloadSignInSheet(sorted, await allPins(), role); } catch (e) { setErr(lmsErrorText(e, tr)); } }} testId="lms-signin-sheet" icon={<path d="M6 3h9l4 4v14H6zM14 3v5h5M9 13h7M9 17h7M9 9h2" />} />}
             {asAdmin && role === "student" && <HeadBtn label={tr("All homework (ZIP)", "كل الواجبات (ZIP)")} text="ZIP" onClick={() => exportAllHomeworkZip(asAdmin).catch((e) => setErr(lmsErrorText(e, tr)))} testId="lms-admin-export" icon={<path d="M4 7h16v13H4zM4 7l2-3h12l2 3M10 11h4" />} />}
@@ -352,7 +354,7 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
                 <button type="button" className={iconBtn} onClick={() => setDrawer(null)} aria-label={tr("Close", "إغلاق")} title={tr("Close", "إغلاق")} data-testid="lms-drawer-close">✕</button>
               </div>
               {drawer === "add" ? (
-                <PersonForm admin={asAdmin} staff={staff} role={role} catalog={catalog} onSave={async (r) => { if (await saveMany([r])) setDrawer(null); }} submitLabel={"+ " + tr("Add", "إضافة")} testPrefix="lms-new" />
+                <PersonForm admin={asAdmin} staff={staff} role={role} catalog={scopedCatalog(catalog)} onSave={async (r) => { if (await saveMany([r])) setDrawer(null); }} submitLabel={"+ " + tr("Add", "إضافة")} testPrefix="lms-new" />
               ) : (
                 <div className="space-y-3">
                   <p className="text-sm opacity-75">{tr("1. Download the template · 2. Fill one row per person · 3. Upload it here and check the preview.", "١. نزّل القالب · ٢. صف لكل شخص · ٣. ارفعه هنا وراجع المعاينة.")}</p>
@@ -501,7 +503,7 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
                         <tr>
                           <td colSpan={cols.length + 1} className="border-t border-black/5 bg-black/[0.03] p-3 dark:border-white/10 dark:bg-white/5">
                             <div className="sticky start-0 w-[calc(100vw-6.75rem)] max-w-full">
-                            <PersonForm admin={asAdmin} staff={staff} role={role} catalog={catalog} initial={u} onSave={async (r) => { if (await saveMany([r])) setEdit(null); }} submitLabel={tr("Save", "حفظ")} testPrefix="lms-edit" />
+                            <PersonForm admin={asAdmin} staff={staff} role={role} catalog={scopedCatalog(catalog)} initial={u} onSave={async (r) => { if (await saveMany([r])) setEdit(null); }} submitLabel={tr("Save", "حفظ")} testPrefix="lms-edit" />
                             </div>
                           </td>
                         </tr>
