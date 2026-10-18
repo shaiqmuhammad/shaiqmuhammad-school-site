@@ -1,8 +1,11 @@
 "use client";
 
+import { dlAllowed } from "@/lib/dl";
+
 /** Shared helpers for client-side downloads (Word / Excel / PowerPoint / PDF). */
 
 export function downloadBlob(blob: Blob, filename: string): void {
+  if (!dlAllowed("export")) { alert("Downloads are switched off for your account. / التنزيل غير مفعّل لحسابك."); return; }
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;

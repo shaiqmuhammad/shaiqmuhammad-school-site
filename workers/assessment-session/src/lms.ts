@@ -49,7 +49,7 @@ export interface LmsEnv extends AdminEnv, StorageEnv, MailEnv {
 
 type Json = Record<string, unknown>;
 /** Actions allowed in admin read-only "view as" mode. */
-const VIEW_AS_READ = new Set(["dashboard", "hw", "progress", "quran-map", "leaderboard", "notes", "catalog", "me", "ann-list", "msg-threads", "msg-thread", "msg-contacts", "assess-list", "cur-list", "cur-for", "tquiz-get", "tquiz-list", "class-roster", "pcat-list", "pts-list", "grp-list", "report-log"]);
+const VIEW_AS_READ = new Set(["dl-policy", "dl-grant", "dashboard", "hw", "progress", "quran-map", "leaderboard", "notes", "catalog", "me", "ann-list", "msg-threads", "msg-thread", "msg-contacts", "assess-list", "cur-list", "cur-for", "tquiz-get", "tquiz-list", "class-roster", "pcat-list", "pts-list", "grp-list", "report-log"]);
 
 /** Which LMS notifications also go out by email (when the user has an email and mail is configured). */
 const EMAIL_KINDS: Record<string, [string, string]> = {
@@ -170,6 +170,10 @@ const stuCan = (a: Actor, op: (typeof STU_OPS)[number]) => {
   const has = a.perms.filter((p) => STU_PERM.test(p));
   return has.length === 0 ? true : has.includes(`stu:${op}`);
 };
+/** Download switches. Everything stays allowed until the admin turns a switch off. Teachers: "nodl:audio" / "nodl:export" in perms. Students: global setting + optional per-class override. Parents: none. */
+type DlKind = "audio" | "export";
+type DlCfg = { students?: Partial<Record<DlKind, boolean>>; classes?: Record<string, Partial<Record<DlKind, boolean>>> };
+
 /** Quran Homework module switches. Teachers without an explicit set (no "qhw:set") keep full legacy access; admin always has everything. */
 const qhwOf = (a: Actor) => {
   if (a.role === "admin") return { set: true, show: true, view: true, add: true, edit: true, del: true };
@@ -327,6 +331,18 @@ export class LmsStore extends DurableObject<LmsEnv> {
   async getSetting(k: string): Promise<string> { return this.setting(k, ""); }
   async putSetting(k: string, v: string): Promise<void> { this.sql.exec(`INSERT OR REPLACE INTO settings (k, v) VALUES (?, ?)`, k, v.slice(0, 20000)); }
 
+  private dlCfg(): DlCfg { try { return JSON.parse(this.setting("dl:cfg", "{}")) as DlCfg; } catch { return {}; } }
+  /** May this person download (kind)? Admin always. */
+  dlOf(a: Actor, kind: DlKind): boolean {
+    if (a.role === "admin") return true;
+    if (a.role === "teacher") return !a.perms.includes(`nodl:${kind}`);
+    if (a.role !== "student") return false;
+    const c = this.dlCfg();
+    const o = c.classes?.[a.cls]?.[kind];
+    if (typeof o === "boolean") return o;
+    const g = c.students?.[kind];
+    return typeof g === "boolean" ? g : true;
+  }
   private setting(k: string, def = ""): string {
     return String(this.sql.exec(`SELECT v FROM settings WHERE k=?`, k).toArray()[0]?.v ?? def);
   }
@@ -426,6 +442,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     return { status: 200, body: { ok: true, id } };
   }
 
+  async dlAllowed(a: Actor, kind: DlKind): Promise<boolean> { return this.dlOf(a, kind); }
   async audioGet(a: Actor, id: string): Promise<{ status: number; mime?: string; data?: ArrayBuffer; error?: string }> {
     const b = this.sql.exec(`SELECT * FROM blobs WHERE id=?`, id).toArray()[0];
     if (!b) return { status: 404, error: "not_found" };
@@ -463,6 +480,21 @@ export class LmsStore extends DurableObject<LmsEnv> {
     if (/^par-(list|save|delete|import)$/.test(action)) return this.parAdmin(a, action, input);
     if (/^(att|beh|cur)-/.test(action)) return modHandle({ sql: this.sql, hwList: () => this.allHomework().map((h) => ({ id: h.id, title: h.title, kind: h.kind, cls: h.cls, section: h.section, students: h.students, createdBy: h.createdBy })), inScope: (x, c, s) => this.inScope(x, c, s), userRow: (w, g) => this.userRow(w, g) }, action, a, input);
     switch (action) {
+      case "dl-policy": return { status: 200, body: { audio: this.dlOf(a, "audio"), export: this.dlOf(a, "export") } };
+      case "dl-grant": {
+        const k = input.kind === "audio" ? "audio" : "export";
+        return this.dlOf(a, k) ? { status: 200, body: { ok: true } } : { status: 403, body: { error: "download_not_allowed" } };
+      }
+      case "dl-get": return a.role === "admin" && !a.viewAs ? { status: 200, body: this.dlCfg() } : { status: 403, body: { error: "admin_only" } };
+      case "dl-set": {
+        if (a.role !== "admin" || a.viewAs) return { status: 403, body: { error: "admin_only" } };
+        const pick = (o: unknown) => { const r: Partial<Record<DlKind, boolean>> = {}; const x = (o && typeof o === "object" ? o : {}) as Json; for (const k of ["audio", "export"] as const) if (typeof x[k] === "boolean") r[k] = x[k] as boolean; return r; };
+        const cfg: DlCfg = { students: pick(input.students), classes: {} };
+        const cl = (input.classes && typeof input.classes === "object" ? input.classes : {}) as Record<string, unknown>;
+        for (const [k, v] of Object.entries(cl).slice(0, 60)) { const p = pick(v); if (Object.keys(p).length) cfg.classes![str(k, 60)] = p; }
+        this.sql.exec(`INSERT OR REPLACE INTO settings (k, v) VALUES ('dl:cfg', ?)`, JSON.stringify(cfg));
+        return { status: 200, body: cfg };
+      }
       case "me":
         return { status: 200, body: { user: a } };
 
@@ -481,7 +513,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
           const role: Role = raw.role === "teacher" ? "teacher" : "student";
           // Only the admin can create or edit teachers.
           if (role === "teacher" && a.role !== "admin") { errors.push({ row: i + 1, username, error: "admin_only" }); continue; }
-          const perms = role === "teacher" ? (Array.isArray(raw.perms) ? (raw.perms as unknown[]).map(String).filter((p) => (PERMS as readonly string[]).includes(p) || STU_PERM.test(p) || /^(act|host):[\w*-]{1,80}$/.test(p) || /^(att|beh):(view|edit)$|^cur:(view|edit|delete)$|^qhw:(set|show|view|add|edit|delete)$/.test(p)).slice(0, 80) : ["assign", "review"]) : [];
+          const perms = role === "teacher" ? (Array.isArray(raw.perms) ? (raw.perms as unknown[]).map(String).filter((p) => (PERMS as readonly string[]).includes(p) || STU_PERM.test(p) || /^(act|host):[\w*-]{1,80}$/.test(p) || /^(att|beh):(view|edit)$|^cur:(view|edit|delete)$|^qhw:(set|show|view|add|edit|delete)$|^nodl:(audio|export)$/.test(p)).slice(0, 80) : ["assign", "review"]) : [];
           const cls = str(raw.cls, 40);
           const section = role === "student" ? str(raw.section, 40) : "";
           const subjects = role === "teacher" ? strList(raw.subjects) : [];
@@ -1428,6 +1460,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
 
       case "export": {
         if (!isStaff(a)) return { status: 403, body: { error: "forbidden" } };
+        if (!this.dlOf(a, "export")) return { status: 403, body: { error: "download_not_allowed" } };
         const hw = this.allHomework().filter((h) => a.role === "admin" || a.perms.includes("viewAll") || h.createdBy === a.id);
         const ids = new Set(hw.map((h) => h.id));
         const users = this.sql.exec(`SELECT id, username, name, role, cls, section FROM users`).toArray().map((r) => ({ id: String(r.id), username: String(r.username), name: String(r.name), role: String(r.role), cls: String(r.cls || ""), section: String(r.section || "") }));
@@ -1703,7 +1736,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     switch (action) {
       case "me": return { status: 200, body: { user: { ...a, children: kids } } };
       case "par-children": return { status: 200, body: { children: kids } };
-      case "notes": case "notes-read": case "msg-contacts": case "msg-threads": case "msg-thread": case "msg-send":
+      case "dl-policy": case "dl-grant": case "notes": case "notes-read": case "msg-contacts": case "msg-threads": case "msg-thread": case "msg-send":
         return this.handle(action, a, pass(input));
     }
     const CHILD = new Set(["dashboard", "hw", "assess-list", "cur-list", "ann-list", "wall-classes", "wall-list", "wall-media", "par-att", "par-beh", "par-results"]);
@@ -1970,6 +2003,7 @@ export async function handleLms(request: Request, env: LmsEnv, action: string): 
     if (a.viewAs && action !== "audio") return reply(origin, { error: "read_only" }, 403);
     const q = Object.fromEntries(new URL(request.url).searchParams) as Json;
     if (action === "audio") {
+      if (q.dl === "1" && !(await store.dlAllowed(a, "audio"))) return reply(origin, { error: "download_not_allowed" }, 403);
       const r = (await store.audioGet(a, str(q.id, 40))) as unknown as { status: number; mime?: string; data?: ArrayBuffer; error?: string };
       if (r.status !== 200 || !r.data) return reply(origin, { error: r.error }, r.status);
       return new Response(r.data, { headers: { ...corsHeaders(origin), "Content-Type": r.mime || "application/octet-stream", "Cache-Control": "private, max-age=86400" } });

@@ -224,9 +224,9 @@ export const lmsApi = {
     return data as { ok: true; id: string };
   },
   /** Fetches a recording (auth header) and returns an object URL for <audio> / download. */
-  async audioUrl(id: string, asAdmin = false) {
-    const res = await fetch(`${ASSESSMENT_API_BASE}/api/lms/audio?id=${encodeURIComponent(id)}`, { headers: authHeaders(asAdmin) }).catch(() => null);
-    if (!res?.ok) throw new LmsError(res ? "not_found" : "network", res?.status || 0);
+  async audioUrl(id: string, asAdmin = false, download = false) {
+    const res = await fetch(`${ASSESSMENT_API_BASE}/api/lms/audio?id=${encodeURIComponent(id)}${download ? "&dl=1" : ""}`, { headers: authHeaders(asAdmin) }).catch(() => null);
+    if (!res?.ok) throw new LmsError(res ? (res.status === 403 ? "download_not_allowed" : "not_found") : "network", res?.status || 0);
     const blob = await res.blob();
     return { url: URL.createObjectURL(blob), type: blob.type };
   },
@@ -236,6 +236,7 @@ export const lmsApi = {
 export function lmsErrorText(e: unknown, tr: (en: string, ar: string) => string): string {
   const c = e instanceof LmsError ? e.code : "";
   const m: Record<string, [string, string]> = {
+    download_not_allowed: ["Downloads are switched off for your account.", "التنزيل غير مفعّل لحسابك."],
     confirm_required: ["Please preview and confirm before sending.", "يرجى المعاينة والتأكيد قبل الإرسال."],
     mail_error: ["The email could not be sent. Try again later.", "تعذّر إرسال البريد. حاول لاحقًا."],
     no_add_permission: ["You don't have permission to add students.", "ليست لديك صلاحية إضافة الطلاب."],
