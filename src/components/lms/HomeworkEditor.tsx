@@ -6,9 +6,9 @@ import { card, inputCls, smallBtn, useTr } from "@/components/lms/useLms";
 import { lmsApi, lmsErrorText, quranChapters, RECITERS, type Chapter, type GeneralData, type Homework, type QuranData, type Slide, type Catalog, type DashStudent, type StudentGroup } from "@/lib/lms";
 
 /** Create / edit a homework (Quran verses or general slides) for a class or chosen students. */
-export function HomeworkEditor({ initial, classes, students, catalog, scope = [], asAdmin, onSaved, onCancel }: { initial?: Homework; classes: { cls: string; students: number }[]; students: DashStudent[]; catalog?: Catalog; scope?: string[]; asAdmin: boolean; onSaved: (id: string) => void; onCancel: () => void }) {
+export function HomeworkEditor({ initial, classes, students, catalog, scope = [], asAdmin, onSaved, onCancel, kinds = ["quran", "general"] }: { kinds?: ("quran" | "general")[]; initial?: Homework; classes: { cls: string; students: number }[]; students: DashStudent[]; catalog?: Catalog; scope?: string[]; asAdmin: boolean; onSaved: (id: string) => void; onCancel: () => void }) {
   const { tr } = useTr();
-  const [kind, setKind] = useState<"quran" | "general">(initial?.kind || "quran");
+  const [kind, setKind] = useState<"quran" | "general">(initial?.kind || kinds[0]);
   const [title, setTitle] = useState(initial?.title || "");
   const [cls, setCls] = useState(initial?.cls ?? (scope[0]?.split("|")[0] || ""));
   const [pick, setPick] = useState<string[]>(initial?.students || []);
@@ -93,7 +93,7 @@ export function HomeworkEditor({ initial, classes, students, catalog, scope = []
       data-testid="hw-editor"
     >
       <div className="flex flex-wrap gap-2" role="radiogroup">
-        {(["quran", "general"] as const).map((k) => (
+        {kinds.map((k) => (
           <button key={k} type="button" role="radio" aria-checked={kind === k} onClick={() => setKind(k)} className={`rounded-full px-4 py-2 font-bold ${kind === k ? "bg-header text-sun" : "glass"}`} data-testid={`hw-kind-${k}`}>
             {k === "quran" ? "📖 " + tr("Quran", "قرآن") : "📝 " + tr("General", "عام")}
           </button>

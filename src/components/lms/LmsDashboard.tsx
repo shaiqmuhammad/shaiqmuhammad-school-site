@@ -61,6 +61,7 @@ export function LmsDashboard() {
   useEffect(() => {
     if (!ready) return;
     if (!actor) return;
+    if (actor.role === "parent") { router.replace("/lms/family"); return; }
     load();
     quranChapters().then(setChapters);
   }, [ready, actor, load, router]);
@@ -174,12 +175,12 @@ export function LmsDashboard() {
                 ⬇ {busy ? "…" : tr("Export all homework (ZIP)", "تصدير كل الواجبات (ZIP)")}
               </button>
               <a className={smallBtn} href="/lms/activities" data-testid="lms-classroom-link">🎲 {tr("Classroom activities", "الأنشطة الصفية")}</a>
-              <a className={smallBtn} href="/lms/map" data-testid="lms-map-link">🗺️ {tr("Class Quran map", "خريطة القرآن للصف")}</a>
+              {(dash as { quran?: { show: boolean } }).quran?.show !== false && <a className={smallBtn} href="/lms/map" data-testid="lms-map-link">🗺️ {tr("Class Quran map", "خريطة القرآن للصف")}</a>}
               <span className="text-sm opacity-70">{(dash.classes || []).map((c) => `${c.cls || "—"}: ${c.students}`).join(" · ")}</span>
             </div>
             <div className={card + " py-3"}><LeaderboardSetting /></div>
             {creating && (
-              <HomeworkEditor classes={dash.classes || []} students={dash.students || []} catalog={dash.catalog} scope={dash.scope} asAdmin={asAdmin} onCancel={() => setCreating(false)} onSaved={(id) => router.push(`/lms/homework?id=${id}`)} />
+              <HomeworkEditor classes={dash.classes || []} students={dash.students || []} catalog={dash.catalog} scope={dash.scope} asAdmin={asAdmin} kinds={(dash as { quran?: { add: boolean } }).quran && !(dash as { quran?: { add: boolean } }).quran!.add ? ["general"] : ["quran", "general"]} onCancel={() => setCreating(false)} onSaved={(id) => router.push(`/lms/homework?id=${id}`)} />
             )}
             <section id="homework" className="scroll-mt-28">
               <h2 className="mb-3 text-xl font-bold">{tr("Homework", "الواجبات")} ({dash.homework.length})</h2>

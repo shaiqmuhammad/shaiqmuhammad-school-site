@@ -13,6 +13,7 @@ import { AssessmentShell, primaryBtn } from "@/components/assessment/AssessmentS
 import { HomeworkEditor } from "@/components/lms/HomeworkEditor";
 import { studentQrCardsPdf } from "@/components/lms/lmsFiles";
 import { FeedbackText, ScoreBadges, ScoreGrader } from "@/components/lms/QuranScores";
+import { qhwPerm } from "@/lib/lmsMods";
 import { GRADE_STYLE, STATUS_STYLE, card, gradeLabel, inputCls, smallBtn, statusLabel, useLmsActor, useTr } from "@/components/lms/useLms";
 import { quranExtras, ayahAudio, lmsApi, lmsErrorText, quranChapters, quranVerses, type Chapter, type GeneralData, type QuranData, type Submission, type Attempt, type Mistake, type QrLink, type Catalog, type DashStudent } from "@/lib/lms";
 
@@ -396,7 +397,7 @@ export function LmsHomework() {
                 <button type="button" className={smallBtn} onClick={async () => { try { const r = await lmsApi.qrLinks(hw.id, {}, asAdmin); await studentQrCardsPdf(hw, { surahEn: ch?.name_simple, surahAr: ch?.name_arabic, verses: q ? `${tr("verses", "الآيات")} ${q.from}–${q.to}` : "", teacher: r.teacher, links: r.links }); } catch { setErr(tr("Couldn't make the QR cards.", "تعذر إنشاء بطاقات QR.")); } }} data-testid="hw-qr-pdf">🔳 {tr("Student QR cards (PDF)", "بطاقات QR للطلاب (PDF)")}</button>
                 <QrLinks hwId={hw.id} asAdmin={asAdmin} />
                 {hw.kind === "quran" && <LockList hwId={hw.id} asAdmin={asAdmin} />}
-                <button
+{(hw.kind !== "quran" || qhwPerm(actor?.perms, actor?.role === "admin").edit) && (<button
                   type="button"
                   className={smallBtn}
                   onClick={async () => {
@@ -407,8 +408,8 @@ export function LmsHomework() {
                   data-testid="hw-edit"
                 >
                   ✏️ {tr("Edit", "تعديل")}
-                </button>
-                <button
+                </button> )}
+{(hw.kind !== "quran" || qhwPerm(actor?.perms, actor?.role === "admin").del) && (<button
                   type="button"
                   className={smallBtn + " text-rose-600"}
                   onClick={async () => {
@@ -419,7 +420,7 @@ export function LmsHomework() {
                   data-testid="hw-delete"
                 >
                   🗑 {tr("Delete", "حذف")}
-                </button>
+                </button> )}
               </div>
             )}
             {editing && <HomeworkEditor initial={hw} classes={extra.classes} students={extra.students} catalog={extra.catalog} scope={extra.scope} asAdmin={asAdmin} onCancel={() => setEditing(false)} onSaved={() => { setEditing(false); load(); }} />}

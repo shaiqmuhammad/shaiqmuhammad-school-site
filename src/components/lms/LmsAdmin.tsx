@@ -530,6 +530,19 @@ function ModuleAccess({ perms, setPerms }: { perms: string[]; setPerms: (p: stri
     for (const k of ["view", "edit", "delete"] as const) if (cur[k]) next.add(`${m}:${k}`);
     setPerms([...next]);
   };
+  // Quran Homework: Show/Hide, View, Add, Edit, Delete. A teacher without a saved set keeps full (legacy) access, shown as all on.
+  const qSet = perms.includes("qhw:set");
+  const q = (op: string) => (qSet ? perms.includes(`qhw:${op}`) : true);
+  const setQ = (op: "show" | "view" | "add" | "edit" | "delete", on: boolean) => {
+    const cur: Record<string, boolean> = { show: q("show"), view: q("view"), add: q("add"), edit: q("edit"), delete: q("delete") };
+    cur[op] = on;
+    // Add / Edit / Delete need View (and Show); switching View off clears them.
+    if (on && op !== "show") { cur.view = true; cur.show = true; }
+    if (op === "view" && !on) { cur.add = false; cur.edit = false; cur.delete = false; }
+    if (op === "show" && !on) { cur.view = false; cur.add = false; cur.edit = false; cur.delete = false; }
+    setPerms([...perms.filter((p) => !p.startsWith("qhw:")), "qhw:set", ...Object.keys(cur).filter((k) => cur[k]).map((k) => `qhw:${k}`)]);
+  };
+  const qOps: ["show" | "view" | "add" | "edit" | "delete", string, string][] = [["show", "Show tab", "إظهار التبويب"], ["view", "View", "عرض"], ["add", "Add", "إضافة"], ["edit", "Edit", "تعديل"], ["delete", "Delete", "حذف"]];
   return (
     <div className="space-y-2 rounded-2xl border border-dashed border-black/15 p-3 dark:border-white/20" data-testid="lms-module-access">
       <p className="text-sm font-bold">🧩 {tr("Modules (own classes only)", "الوحدات (صفوفه فقط)")}</p>
@@ -541,6 +554,10 @@ function ModuleAccess({ perms, setPerms }: { perms: string[]; setPerms: (p: stri
           {m === "cur" && <label className="flex items-center gap-1.5"><input type="checkbox" checked={has(m, "delete")} onChange={(e) => set(m, "delete", e.target.checked)} data-testid="perm-cur-delete" /> {tr("Delete", "حذف")}</label>}
         </div>
       ))}
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm" data-testid="perm-qhw">
+        <span className="min-w-[10rem] font-semibold">📖 {tr("Quran Homework", "واجب القرآن")}</span>
+        {qOps.map(([op, en, ar]) => <label key={op} className="flex items-center gap-1.5"><input type="checkbox" checked={q(op)} onChange={(e) => setQ(op, e.target.checked)} data-testid={`perm-qhw-${op}`} /> {tr(en, ar)}</label>)}
+      </div>
     </div>
   );
 }
