@@ -122,6 +122,8 @@ function PermissionsModal({ u, onClose, onSaved, asAdmin, catalog }: { catalog: 
   const [perms, setPerms] = useState<string[]>(u.perms || []);
   const [subjects, setSubjects] = useState<string[]>(u.subjects || []);
   const [scope, setScope] = useState<string[]>(u.scope || []);
+  const [others, setOthers] = useState<LmsUser[]>([]);
+  useEffect(() => { lmsApi.users(asAdmin).then((r) => setOthers(r.users.filter((x) => x.role === "teacher" && x.id !== u.id))).catch(() => undefined); }, [asAdmin, u.id]);
   const tog = (xs: string[], v: string) => (xs.includes(v) ? xs.filter((y) => y !== v) : [...xs, v]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -143,7 +145,7 @@ function PermissionsModal({ u, onClose, onSaved, asAdmin, catalog }: { catalog: 
             <p className="mb-2 mt-3 text-sm font-bold">🏫 {tr("Classes / sections taught (empty = all)", "الصفوف / الشعب (فارغ = الكل)")}</p>
             <div className="flex flex-wrap gap-1.5">{catalog.classes.flatMap((c) => [c.name, ...catalog.sections.filter((x) => x.classId === c.id).map((x) => `${c.name}|${x.name}`)]).map((v) => <button key={v} type="button" aria-pressed={scope.includes(v)} className={chip(scope.includes(v))} onClick={() => setScope((c) => tog(c, v))} data-testid="perm-scope">{v.includes("|") ? `${clsNum(v.split("|")[0])}${secLetter(v.split("|")[1])}` : tr("Class ", "الصف ") + clsNum(v)}</button>)}</div>
           </div>
-          <ModuleAccess perms={perms} setPerms={setPerms} />
+          <ModuleAccess perms={perms} setPerms={setPerms} teachers={others} />
           <div className="rounded-2xl border border-dashed border-black/15 p-3 dark:border-white/20">
             <p className="mb-2 text-sm font-bold">✅ {tr("General permissions", "الصلاحيات العامة")}</p>
             <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">{PERMS.map((p) => <label key={p} className="flex items-center gap-1.5"><input type="checkbox" checked={perms.includes(p)} onChange={() => toggle(p)} /> {tr(PERM_LABEL[p][0], PERM_LABEL[p][1])}</label>)}</div>
@@ -568,12 +570,14 @@ function Stat({ label, value, tone, onClick, active, small }: { label: string; v
 const ACTS: [string, string, string][] = [["wall", "Shared Wall", "الجدار المشترك"], ["wheel", "Wheel", "العجلة"], ["randomiser", "Randomiser", "العشوائي"], ["wordcloud", "Word Cloud", "سحابة الكلمات"], ["poll", "Poll", "استطلاع"], ["survey", "Survey", "استبيان"], ["tps", "Think/Pair/Share", "فكّر/شارك"], ["vote", "Vote", "تصويت"]];
 
 /** Admin → teacher form: per-module View / Add-Edit switches (own classes only; enforced on the server). */
-function ModuleAccess({ perms, setPerms }: { perms: string[]; setPerms: (p: string[]) => void }) {
+const MOD_TOKEN = /^(hide:|att:|beh:|cur:|qhw:|nodl:)/;
+function ModuleAccess({ perms, setPerms, teachers }: { perms: string[]; setPerms: (p: string[]) => void; teachers?: LmsUser[] }) {
   const { tr } = useTr();
-  const mods: [string, string, string][] = [["att", "🗓️ Attendance Register", "🗓️ سجل الحضور"], ["beh", "🌟 Behaviour", "🌟 السلوك"], ["cur", "📚 Curriculum", "📚 المنهج"]];
+  const [from, setFrom] = useState("");
+  const [note, setNote] = useState("");
   const has = (m: string, op: string) => perms.includes(`${m}:${op}`);
   const viewOn = (m: string) => has(m, "view") || has(m, "edit") || has(m, "delete");
-  // Add/Edit and Delete each imply View; switching View off switches them off too.
+  // Add/Edit and Delete each imply Show; hiding the module switches them off too.
   const set = (m: string, op: "view" | "edit" | "delete", on: boolean) => {
     const next = new Set(perms.filter((p) => !p.startsWith(`${m}:`)));
     const cur = { view: viewOn(m), edit: has(m, "edit"), delete: has(m, "delete") };
@@ -581,13 +585,15 @@ function ModuleAccess({ perms, setPerms }: { perms: string[]; setPerms: (p: stri
     for (const k of ["view", "edit", "delete"] as const) if (cur[k]) next.add(`${m}:${k}`);
     setPerms([...next]);
   };
+  // Simple modules: shown unless "hide:<module>" is present (so existing teachers keep their current access).
+  const shown = (m: string) => !perms.includes(`hide:${m}`);
+  const setShown = (m: string, on: boolean) => setPerms([...perms.filter((p) => p !== `hide:${m}`), ...(on ? [] : [`hide:${m}`])]);
   // Quran Homework: Show/Hide, View, Add, Edit, Delete. A teacher without a saved set keeps full (legacy) access, shown as all on.
   const qSet = perms.includes("qhw:set");
   const q = (op: string) => (qSet ? perms.includes(`qhw:${op}`) : true);
   const setQ = (op: "show" | "view" | "add" | "edit" | "delete", on: boolean) => {
     const cur: Record<string, boolean> = { show: q("show"), view: q("view"), add: q("add"), edit: q("edit"), delete: q("delete") };
     cur[op] = on;
-    // Add / Edit / Delete need View (and Show); switching View off clears them.
     if (on && op !== "show") { cur.view = true; cur.show = true; }
     if (op === "view" && !on) { cur.add = false; cur.edit = false; cur.delete = false; }
     if (op === "show" && !on) { cur.view = false; cur.add = false; cur.edit = false; cur.delete = false; }
@@ -595,26 +601,62 @@ function ModuleAccess({ perms, setPerms }: { perms: string[]; setPerms: (p: stri
   };
   const dlOn = (k: "audio" | "export") => !perms.includes(`nodl:${k}`);
   const setDl = (k: "audio" | "export", on: boolean) => setPerms([...perms.filter((p) => p !== `nodl:${k}`), ...(on ? [] : [`nodl:${k}`])]);
-  const qOps: ["show" | "view" | "add" | "edit" | "delete", string, string][] = [["show", "Show tab", "إظهار التبويب"], ["view", "View", "عرض"], ["add", "Add", "إضافة"], ["edit", "Edit", "تعديل"], ["delete", "Delete", "حذف"]];
+  const rest = perms.filter((p) => !MOD_TOKEN.test(p));
+  const preset = (kind: "full" | "view" | "min") => {
+    const t: string[] = [];
+    if (kind === "full") t.push("att:view", "att:edit", "beh:view", "beh:edit", "cur:view", "cur:edit", "cur:delete", "qhw:set", "qhw:show", "qhw:view", "qhw:add", "qhw:edit", "qhw:delete");
+    if (kind === "view") t.push("att:view", "beh:view", "cur:view", "qhw:set", "qhw:show", "qhw:view", "nodl:audio", "nodl:export");
+    if (kind === "min") t.push("hide:messaging", "hide:wall", "hide:activities", "qhw:set", "nodl:audio", "nodl:export");
+    setPerms([...rest, ...t]);
+    setNote(kind === "full" ? tr("Preset applied: Full access — remember to Save.", "تم تطبيق: وصول كامل — لا تنس الحفظ.") : kind === "view" ? tr("Preset applied: View only — remember to Save.", "تم تطبيق: عرض فقط — لا تنس الحفظ.") : tr("Preset applied: Minimal — remember to Save.", "تم تطبيق: الحد الأدنى — لا تنس الحفظ."));
+  };
+  const copyFrom = () => { const t = (teachers || []).find((x) => x.id === from); if (!t) return; setPerms([...(t.perms || [])]); setNote(tr(`Copied permissions from ${t.name} (not subjects/classes) — remember to Save.`, `تم نسخ الصلاحيات من ${t.name} (دون المواد/الصفوف) — لا تنس الحفظ.`)); };
+  const show = (on: boolean, onChange: (v: boolean) => void, id: string) => (
+    <label className={`flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-extrabold ${on ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-100" : "bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-100"}`}>
+      <input type="checkbox" checked={on} onChange={(e) => onChange(e.target.checked)} data-testid={id} /> {on ? tr("Shown", "ظاهر") : tr("Hidden", "مخفي")}
+    </label>
+  );
+  const sub = (on: boolean, kids: React.ReactNode) => on ? <div className="ms-4 flex flex-wrap gap-x-4 gap-y-1 border-s-2 border-black/10 ps-3 text-sm dark:border-white/15">{kids}</div> : null;
+  const cb = (checked: boolean, onChange: (v: boolean) => void, label: string, id: string) => <label className="flex items-center gap-1.5"><input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} data-testid={id} /> {label}</label>;
+  const simple: [string, string, string][] = [["messaging", "💬 Messaging", "💬 الرسائل"], ["wall", "🧱 Class Wall", "🧱 جدار الصف"], ["activities", "🎲 Activities", "🎲 الأنشطة"], ["homework", "📝 Homework", "📝 الواجبات"], ["assessments", "✅ Assessments", "✅ التقييمات"]];
+  const fine: [string, string, string, boolean][] = [["att", "🗓️ Attendance Register", "🗓️ سجل الحضور", false], ["beh", "🌟 Behaviour", "🌟 السلوك", false], ["cur", "📚 Curriculum", "📚 المنهج", true]];
+  const qOps: ["view" | "add" | "edit" | "delete", string, string][] = [["view", "View", "عرض"], ["add", "Add", "إضافة"], ["edit", "Edit", "تعديل"], ["delete", "Delete", "حذف"]];
   return (
-    <div className="space-y-2 rounded-2xl border border-dashed border-black/15 p-3 dark:border-white/20" data-testid="lms-module-access">
-      <p className="text-sm font-bold">🧩 {tr("Module access (own classes only)", "صلاحيات الوحدات (صفوفه فقط)")}</p>
-      {mods.map(([m, en, ar]) => (
-        <div key={m} className="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
-          <span className="min-w-[10rem] font-semibold">{tr(en, ar)}</span>
-          <label className="flex items-center gap-1.5"><input type="checkbox" checked={viewOn(m)} onChange={(e) => set(m, "view", e.target.checked)} data-testid={`perm-${m}-view`} /> {tr("View", "عرض")}</label>
-          <label className="flex items-center gap-1.5"><input type="checkbox" checked={has(m, "edit")} onChange={(e) => set(m, "edit", e.target.checked)} data-testid={`perm-${m}-edit`} /> {tr("Add / Edit", "إضافة / تعديل")}</label>
-          {m === "cur" && <label className="flex items-center gap-1.5"><input type="checkbox" checked={has(m, "delete")} onChange={(e) => set(m, "delete", e.target.checked)} data-testid="perm-cur-delete" /> {tr("Delete", "حذف")}</label>}
-        </div>
-      ))}
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm" data-testid="perm-qhw">
-        <span className="min-w-[10rem] font-extrabold">📖 {tr("Quran Homework", "واجب القرآن")}</span>
-        {qOps.map(([op, en, ar]) => <label key={op} className="flex items-center gap-1.5"><input type="checkbox" checked={q(op)} onChange={(e) => setQ(op, e.target.checked)} data-testid={`perm-qhw-${op}`} /> {tr(en, ar)}</label>)}
+    <div className="space-y-3 rounded-2xl border border-dashed border-black/15 p-3 dark:border-white/20" data-testid="lms-module-access">
+      <p className="text-sm font-bold">🧩 {tr("Modules — Show / Hide (own classes only)", "الوحدات — إظهار / إخفاء (صفوفه فقط)")}</p>
+      <div className="flex flex-wrap items-center gap-2 text-sm" data-testid="perm-presets">
+        <span className="text-xs font-bold uppercase opacity-70">{tr("Quick presets", "إعدادات سريعة")}</span>
+        <button type="button" className={smallBtn} onClick={() => preset("full")} data-testid="preset-full">{tr("Full access", "وصول كامل")}</button>
+        <button type="button" className={smallBtn} onClick={() => preset("view")} data-testid="preset-view">{tr("View only", "عرض فقط")}</button>
+        <button type="button" className={smallBtn} onClick={() => preset("min")} data-testid="preset-min">{tr("Minimal", "الحد الأدنى")}</button>
+        {!!teachers?.length && <><span className="ms-2 text-xs font-bold uppercase opacity-70">{tr("Copy from", "نسخ من")}</span>
+          <select className={inputCls + " !w-auto"} value={from} onChange={(e) => setFrom(e.target.value)} aria-label={tr("Copy permissions from", "نسخ الصلاحيات من")} data-testid="perm-copy-select"><option value="">{tr("Pick a teacher…", "اختر معلمًا…")}</option>{teachers.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</select>
+          <button type="button" className={smallBtn} disabled={!from} onClick={copyFrom} data-testid="perm-copy-btn">{tr("Copy", "نسخ")}</button></>}
       </div>
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm" data-testid="perm-dl">
-        <span className="min-w-[10rem] font-semibold">⬇️ {tr("Downloads", "التنزيلات")}</span>
-        <label className="flex items-center gap-1.5"><input type="checkbox" checked={dlOn("audio")} onChange={(e) => setDl("audio", e.target.checked)} data-testid="perm-dl-audio" /> {tr("Download audio", "تنزيل الصوت")}</label>
-        <label className="flex items-center gap-1.5"><input type="checkbox" checked={dlOn("export")} onChange={(e) => setDl("export", e.target.checked)} data-testid="perm-dl-export" /> {tr("Download Excel / PDF", "تنزيل إكسل / PDF")}</label>
+      {note && <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300" role="status" data-testid="perm-note">{note}</p>}
+      <div className="grid gap-2 md:grid-cols-2">
+        {simple.map(([m, en, ar]) => (
+          <div key={m} className="flex items-center justify-between gap-2 rounded-xl bg-black/[0.03] px-3 py-2 dark:bg-white/5" data-testid={`perm-mod-${m}`}>
+            <span className="text-sm font-semibold">{tr(en, ar)}</span>{show(shown(m), (v) => setShown(m, v), `perm-show-${m}`)}
+          </div>
+        ))}
+        {fine.map(([m, en, ar, del]) => (
+          <div key={m} className="space-y-1.5 rounded-xl bg-black/[0.03] px-3 py-2 dark:bg-white/5" data-testid={`perm-mod-${m}`}>
+            <div className="flex items-center justify-between gap-2"><span className="text-sm font-semibold">{tr(en, ar)}</span>{show(viewOn(m), (v) => set(m, "view", v), `perm-${m}-view`)}</div>
+            {sub(viewOn(m), <>{cb(has(m, "edit"), (v) => set(m, "edit", v), tr("Add / Edit", "إضافة / تعديل"), `perm-${m}-edit`)}{del && cb(has(m, "delete"), (v) => set(m, "delete", v), tr("Delete", "حذف"), "perm-cur-delete")}</>)}
+          </div>
+        ))}
+        <div className="space-y-1.5 rounded-xl bg-black/[0.03] px-3 py-2 dark:bg-white/5" data-testid="perm-qhw">
+          <div className="flex items-center justify-between gap-2"><span className="text-sm font-semibold">📖 {tr("Quran Homework", "واجب القرآن")}</span>{show(q("show"), (v) => setQ("show", v), "perm-qhw-show")}</div>
+          {sub(q("show"), qOps.map(([op, en, ar]) => <Fragment key={op}>{cb(q(op), (v) => setQ(op, v), tr(en, ar), `perm-qhw-${op}`)}</Fragment>))}
+        </div>
+        <div className="space-y-1.5 rounded-xl bg-black/[0.03] px-3 py-2 dark:bg-white/5" data-testid="perm-dl">
+          <div className="text-sm font-semibold">⬇️ {tr("Downloads", "التنزيلات")}</div>
+          <div className="ms-4 flex flex-wrap gap-x-4 gap-y-1 border-s-2 border-black/10 ps-3 text-sm dark:border-white/15">
+            {cb(dlOn("audio"), (v) => setDl("audio", v), tr("Download audio", "تنزيل الصوت"), "perm-dl-audio")}
+            {cb(dlOn("export"), (v) => setDl("export", v), tr("Download Excel / PDF", "تنزيل إكسل / PDF"), "perm-dl-export")}
+          </div>
+        </div>
       </div>
     </div>
   );
