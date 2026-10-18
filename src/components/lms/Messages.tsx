@@ -81,7 +81,7 @@ function ChatsPanel({ asAdmin = false }: { asAdmin?: boolean }) {
               {contacts.filter((c) => c.name.toLowerCase().includes(q.toLowerCase())).slice(0, 60).map((c) => (
                 <li key={c.id}><button type="button" className="flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-start text-sm hover:bg-sun/20" onClick={() => open({ with: c.id, name: c.name, canReply: true })} data-testid="msg-contact">
                   <span className="grid h-7 w-7 place-items-center rounded-full bg-header text-[10px] font-bold text-white">{initials(c.name)}</span>
-                  <span className="min-w-0 flex-1 truncate">{c.name}</span><PresenceDot seen={c.seen} label /><span className="text-[11px] opacity-60">{c.role === "admin" ? tr("Admin", "الإدارة") : c.role === "teacher" ? tr("Teacher", "معلم") : c.cls}</span>
+                  <span className="min-w-0 flex-1 truncate">{c.name}</span><PresenceDot seen={c.seen} label /><span className="text-[11px] opacity-60">{c.role === "admin" ? tr("Admin", "الإدارة") : c.role === "teacher" ? tr("Teacher", "معلم") : c.role === "parent" ? tr("Parent", "ولي أمر") + (c.cls ? " · " + c.cls.replace(/^Parent · /, "") : "") : c.cls}</span>
                 </button></li>
               ))}
             </ul>

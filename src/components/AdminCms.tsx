@@ -1,6 +1,7 @@
 "use client";
 
 import { Attendance } from "@/components/lms/mods/Attendance";
+import { AdminParents } from "@/components/lms/mods/Parents";
 import { Behaviour } from "@/components/lms/mods/Behaviour";
 import { Curriculum } from "@/components/lms/mods/Curriculum";
 import { AdminYouTube, AdminPageManager } from "@/components/AdminYouTube";
@@ -52,8 +53,8 @@ import { AdminHome } from "@/components/AdminHome";
 import AdminSettings from "@/components/AdminSettings";
 import { useI18n } from "@/lib/i18n";
 
-type Tab = "attendance" | "behaviour" | "curriculum" | "youtube" | "sitepages" | "home" | "pages" | "quizzes" | "certificate" | "banners" | "announcements" | "teacher" | "forum" | "results" | "activities" | "settings" | "students" | "teachers" | "setup" | "lmshw" | "classes" | "mail" | "homepage" | "staff" | "messages" | "notices" | "vcomments";
-const HASH_TABS: Tab[] = ["attendance", "behaviour", "curriculum", "youtube", "sitepages", "pages", "quizzes", "certificate", "banners", "announcements", "teacher", "forum", "results", "activities", "settings", "students", "teachers", "setup", "classes", "lmshw", "mail", "homepage", "staff", "messages", "notices", "vcomments"];
+type Tab = "parents" | "attendance" | "behaviour" | "curriculum" | "youtube" | "sitepages" | "home" | "pages" | "quizzes" | "certificate" | "banners" | "announcements" | "teacher" | "forum" | "results" | "activities" | "settings" | "students" | "teachers" | "setup" | "lmshw" | "classes" | "mail" | "homepage" | "staff" | "messages" | "notices" | "vcomments";
+const HASH_TABS: Tab[] = ["parents", "attendance", "behaviour", "curriculum", "youtube", "sitepages", "pages", "quizzes", "certificate", "banners", "announcements", "teacher", "forum", "results", "activities", "settings", "students", "teachers", "setup", "classes", "lmshw", "mail", "homepage", "staff", "messages", "notices", "vcomments"];
 const emptyPage = (): ContentPage => ({ id: newId("page"), slug: "", title: "", excerpt: "", body: "", published: true, updatedAt: new Date().toISOString() });
 
 export default function AdminCms() {
@@ -403,6 +404,7 @@ export default function AdminCms() {
         {tab==="classes" && <AdminClasses />}
         {tab==="attendance" && <Attendance asAdmin />}
         {tab==="behaviour" && <Behaviour asAdmin />}
+        {tab==="parents" && <AdminParents />}
         {tab==="curriculum" && <Curriculum asAdmin />}
         {tab==="forum" && (
           <section className="space-y-4">
