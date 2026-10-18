@@ -35,10 +35,14 @@ export function AdminGroups() {
   const copy = async (g: StudentGroup) => { try { await modCall("grp-admin-copy", { id: g.id }, true); setMsg(tr("Copied — edit the copy to change its subject, classes or teachers.", "تم النسخ — عدّل النسخة لتغيير المادة أو الصفوف أو المعلمين.")); setBad(false); load(); } catch (e) { setMsg(modErr(e, tr)); setBad(true); } };
   const save = async () => {
     if (!d) return;
-    try { await modCall("grp-admin-save", { id: d.id, name: d.name, subject: d.subject, classes: d.classes, students: d.students, teachers: d.teachers }, true); setD(null); setMsg(tr("Saved.", "تم الحفظ.")); setBad(false); load(); } catch (e) { setMsg(modErr(e, tr)); setBad(true); }
+    try { await modCall("grp-admin-save", { id: d.id, name: d.name, subject: d.subject, classes: [], students: d.students, teachers: d.teachers }, true); setD(null); setMsg(tr("Saved.", "تم الحفظ.")); setBad(false); load(); } catch (e) { setMsg(modErr(e, tr)); setBad(true); }
   };
   const del = async (g: StudentGroup) => { if (!confirm(tr("Delete this group?", "حذف هذه المجموعة؟"))) return; try { await lmsApi.grpDelete(g.id, true); setMsg(tr("Deleted.", "تم الحذف.")); setBad(false); load(); } catch (e) { setMsg(modErr(e, tr)); setBad(true); } };
-  const tog = (k: "classes" | "teachers", v: string) => d && setD({ ...d, [k]: d[k].includes(v) ? d[k].filter((x) => x !== v) : [...d[k], v] });
+  const members = (t: string) => (students || []).filter((s) => (t.includes("|") ? s.cls === t.split("|")[0] && s.section === t.split("|")[1] : s.cls === t)).map((s) => s.id);
+  // Picking a class/section chip lists and pre-selects ALL its students (untick any); picking it again removes them.
+  const pickTab = (t: string) => { if (!d) return; const ids = members(t); if (d.classes.includes(t)) { setD({ ...d, classes: d.classes.filter((x) => x !== t), students: d.students.filter((x) => !ids.includes(x)) }); } else { setD({ ...d, classes: [...d.classes, t], students: [...new Set([...d.students, ...ids])] }); } };
+  const baseIds = useMemo(() => d ? d.classes.flatMap(members) : [], [d?.classes, students]); // eslint-disable-line react-hooks/exhaustive-deps
+  const tog = (k: "teachers", v: string) => d && setD({ ...d, [k]: d[k].includes(v) ? d[k].filter((x) => x !== v) : [...d[k], v] });
   const chip = (on: boolean) => `rounded-full border px-3 py-1 text-sm font-semibold ${on ? "border-transparent bg-header text-sun" : "border-black/10 dark:border-white/15"}`;
   return (
     <div className="space-y-3" data-testid="admin-groups">
@@ -82,7 +86,7 @@ export function AdminGroups() {
               {g.subject && <p className="text-xs font-bold uppercase tracking-wide opacity-70" data-testid="ag-subject">📚 {g.subject}</p>}
               <p className="mt-1 text-sm opacity-80">{(g.classes || []).length ? (g.classes || []).map(scopeLabel).join("، ") : ""}{(g.classes || []).length && (g.rawStudents || []).length ? " + " : ""}{(g.rawStudents || []).length ? tr(`${(g.rawStudents || []).length} students`, `${(g.rawStudents || []).length} طالب`) : ""}</p>
               <p className="mt-1 text-sm">{tr("Teachers", "المعلمون")}: {(g.teachers || []).length ? (g.teachers || []).map(tname).join("، ") : <i className="opacity-60">{tr("none", "لا أحد")}</i>}</p>
-              <div className="mt-3 flex gap-2"><button type="button" className={btn + " !py-1"} onClick={() => setD({ id: g.id, name: g.name, subject: g.subject || "", classes: g.classes || [], students: g.rawStudents || [], teachers: g.teachers || [] })} data-testid="ag-edit">✎ {tr("Edit", "تعديل")}</button><button type="button" className={btn + " !py-1"} onClick={() => copy(g)} data-testid="ag-copy">⧉ {tr("Copy", "نسخ")}</button><button type="button" className={btn + " !py-1 text-rose-600"} onClick={() => del(g)} data-testid="ag-del">🗑</button></div>
+              <div className="mt-3 flex gap-2"><button type="button" className={btn + " !py-1"} onClick={() => setD({ id: g.id, name: g.name, subject: g.subject || "", classes: g.classes || [], students: [...new Set([...(g.rawStudents || []), ...(g.classes || []).flatMap(members)])], teachers: g.teachers || [] })} data-testid="ag-edit">✎ {tr("Edit", "تعديل")}</button><button type="button" className={btn + " !py-1"} onClick={() => copy(g)} data-testid="ag-copy">⧉ {tr("Copy", "نسخ")}</button><button type="button" className={btn + " !py-1 text-rose-600"} onClick={() => del(g)} data-testid="ag-del">🗑</button></div>
             </article>
           ))}
         </div>
@@ -91,10 +95,10 @@ export function AdminGroups() {
         <Modal title={d.id ? tr("Edit group", "تعديل المجموعة") : tr("New group", "مجموعة جديدة")} onClose={() => setD(null)} wide>
           <input className={field} placeholder={tr("Group name", "اسم المجموعة")} value={d.name} onChange={(e) => setD({ ...d, name: e.target.value })} dir="auto" data-testid="ag-name" />
           <label className="mt-3 block text-sm font-bold">{tr("Subject (optional)", "المادة (اختياري)")}<select className={field + " mt-1"} value={d.subject} onChange={(e) => setD({ ...d, subject: e.target.value })} data-testid="ag-subject-select"><option value="">{tr("— none —", "— بلا —")}</option>{subjects.map((x) => <option key={x} value={x}>{x}</option>)}</select></label>
-          <p className="mt-4 text-sm font-bold">{tr("Whole classes / sections", "صفوف / شعب كاملة")}</p>
-          <div className="mt-1 flex flex-wrap gap-1.5" data-testid="ag-classes">{tokens.map((t) => <button key={t} type="button" aria-pressed={d.classes.includes(t)} className={chip(d.classes.includes(t))} onClick={() => tog("classes", t)}>{t.includes("|") ? `${clsNum(t.split("|")[0])}${secLetter(t.split("|")[1])}` : clsNum(t)}</button>)}</div>
-          <p className="mt-4 text-sm font-bold">{tr("Individual students", "طلاب أفراد")} ({d.students.length})</p>
-          <StudentPicker students={students || []} sel={d.students} onChange={(ids) => setD({ ...d, students: ids })} height="max-h-48" />
+          <p className="mt-4 text-sm font-bold">{tr("Pick classes / sections — their students are listed and pre-selected", "اختر الصفوف / الشعب — يتم عرض طلابها وتحديدهم")}</p>
+          <div className="mt-1 flex flex-wrap gap-1.5" data-testid="ag-classes">{tokens.map((t) => <button key={t} type="button" aria-pressed={d.classes.includes(t)} className={chip(d.classes.includes(t))} onClick={() => pickTab(t)} data-testid="ag-class-chip">{t.includes("|") ? `${clsNum(t.split("|")[0])}${secLetter(t.split("|")[1])}` : clsNum(t)}</button>)}</div>
+          <p className="mt-4 text-sm font-bold">{tr("Students in this group", "طلاب المجموعة")} <span data-testid="ag-count">({d.students.length})</span></p>
+          <StudentPicker students={students || []} base={baseIds} sel={d.students} onChange={(ids) => setD({ ...d, students: ids })} height="max-h-48" />
           <p className="mt-4 text-sm font-bold">{tr("Assign to teachers", "إسناد للمعلمين")} ({d.teachers.length})</p>
           <div className="mt-1 flex flex-wrap gap-1.5" data-testid="ag-teachers">{teachers.map((t) => <button key={t.id} type="button" aria-pressed={d.teachers.includes(t.id)} className={chip(d.teachers.includes(t.id))} onClick={() => tog("teachers", t.id)}>{t.name}</button>)}</div>
           <div className="mt-5 flex justify-end gap-2"><button type="button" className={btn} onClick={() => setD(null)}>{tr("Cancel", "إلغاء")}</button><button type="button" className={btnCta} disabled={!d.name.trim()} onClick={save} data-testid="ag-save">{tr("Save", "حفظ")}</button></div>
