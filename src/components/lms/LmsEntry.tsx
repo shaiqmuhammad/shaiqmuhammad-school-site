@@ -139,9 +139,9 @@ function TeacherMenu({ ar }: { ar: boolean }) {
   const tools = true; // every teacher can run any classroom activity
   type Item = [string, string, string]; // href, label, icon path
   const groups: [string, string, Item[]][] = [
-    ["learn", t("Teaching and Learning", "التعليم والتعلّم"), [["/lms/classes", t("My classes", "صفوفي"), "M4 6h16M4 12h16M4 18h10"], ["/lms/wall", t("Class Wall", "جدار الصف"), "M4 5h16v14H4zM4 11h16M10 5v6M15 11v8"], ["/lms/map", t("Class Quran map", "خريطة القرآن للصف"), "M4 5h16v14H4zM9 5v14M15 5v14"], ["/lms/points", t("Points report", "تقرير النقاط"), "M5 20V10m7 10V4m7 16v-7"], ...(perms.includes("cur:view") || perms.includes("cur:edit") ? [["/lms/curriculum", t("Curriculum", "المنهج"), "M4 5h6a2 2 0 0 1 2 2v13a2 2 0 0 0-2-2H4zM20 5h-6a2 2 0 0 0-2 2v13a2 2 0 0 1 2-2h6z"] as Item] : [])]],
+    ["learn", t("Teaching and Learning", "التعليم والتعلّم"), [["/lms/classes", t("My classes", "صفوفي"), "M4 6h16M4 12h16M4 18h10"], ["/lms/wall", t("Class Wall", "جدار الصف"), "M4 5h16v14H4zM4 11h16M10 5v6M15 11v8"], ["/lms/map", t("Class Quran map", "خريطة القرآن للصف"), "M4 5h16v14H4zM9 5v14M15 5v14"], ["/lms/points", t("Points report", "تقرير النقاط"), "M5 20V10m7 10V4m7 16v-7"], ...(perms.includes("cur:view") || perms.includes("cur:edit") || perms.includes("cur:delete") ? [["/lms/curriculum", t("Curriculum", "المنهج"), "M4 5h6a2 2 0 0 1 2 2v13a2 2 0 0 0-2-2H4zM20 5h-6a2 2 0 0 0-2 2v13a2 2 0 0 1 2-2h6z"] as Item] : [])]],
     ...(() => {
-      const pm = (m: string) => perms.includes(`${m}:view`) || perms.includes(`${m}:edit`);
+      const pm = (m: string) => perms.includes(`${m}:view`) || perms.includes(`${m}:edit`) || perms.includes(`${m}:delete`);
       const items: Item[] = [
         ...(perms.includes("manageUsers") || perms.some((p) => p.startsWith("stu:")) ? [["/lms/students", t("My students", "طلابي"), "M16 11a4 4 0 1 0-8 0m-3 9a7 7 0 0 1 14 0"] as Item] : []),
         ...(pm("att") ? [["/lms/attendance", t("Attendance", "الحضور"), "M5 4h14v17H5zM9 2v4M15 2v4M5 10h14M9 15l2 2 4-4"] as Item] : []),

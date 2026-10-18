@@ -1,5 +1,6 @@
 "use client";
 
+import { CurChip } from "@/components/lms/mods/CurChip";
 import { Amiri_Quran } from "next/font/google";
 
 
@@ -387,6 +388,7 @@ export function LmsHomework() {
                 {subtitle}
                 {hw.due ? ` · ${tr("due", "التسليم")} ${new Date(hw.due).toLocaleDateString(lang === "ar" ? "ar" : "en-GB")}` : ""}
               </p>
+              <CurChip type="hw" id={hw.id} asAdmin={asAdmin} />
               {hw.kind === "quran" && q?.notes && <p className="rounded-2xl bg-amber-50 px-3 py-2 dark:bg-amber-900/30" dir="auto">📌 {q.notes}</p>}
             </header>
             {staff && (

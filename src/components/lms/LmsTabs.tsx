@@ -74,11 +74,12 @@ export function LmsTabs() {
   }, [open]);
   if (!ready || !actor || actor.viewAs) return null;
   const staff = actor.role !== "student";
-  const pm = (m: string) => actor.perms?.includes(`${m}:view`) || actor.perms?.includes(`${m}:edit`);
+  const pm = (m: string) => actor.perms?.includes(`${m}:view`) || actor.perms?.includes(`${m}:edit`) || actor.perms?.includes(`${m}:delete`);
   const extra: Tab[] = [
     ...(pm("att") ? [{ id: "att", href: "/lms/attendance", en: "Attendance", ar: "الحضور", icon: I.att, lvl: 3 } as Tab] : []),
     ...(pm("beh") ? [{ id: "beh", href: "/lms/behaviour", en: "Behaviour", ar: "السلوك", icon: I.beh, lvl: 3 } as Tab] : []),
-    ...(pm("cur") ? [{ id: "cur", href: "/lms/curriculum", en: "Curriculum", ar: "المنهج", icon: I.cur, lvl: 3 } as Tab] : []),
+    ...(!staff ? [{ id: "cur", href: "/lms/curriculum", en: "Curriculum", ar: "المنهج", icon: I.cur, lvl: 3 } as Tab] : []),
+    ...(staff && pm("cur") ? [{ id: "cur", href: "/lms/curriculum", en: "Curriculum", ar: "المنهج", icon: I.cur, lvl: 3 } as Tab] : []),
   ];
   const tabs = staff ? [...TEACHER, ...extra] : STUDENT;
   const dashName = staff ? tr("Teacher Dashboard", "لوحة المعلم") : tr("Student Dashboard", "لوحة الطالب");
