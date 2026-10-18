@@ -207,6 +207,7 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
   const myScope = !asAdmin ? actor?.scope || [] : [];
   const scopedCatalog = (c: Catalog): Catalog => !myScope.length ? c : { ...c, classes: c.classes.filter((x) => myScope.some((t) => t === x.name || t.startsWith(x.name + "|"))), sections: c.sections.filter((x) => myScope.some((t) => t === x.cls || t === `${x.cls}|${x.name}`)) };
   const canOp = (op: "view" | "add" | "edit" | "block" | "delete") => asAdmin || stuUi(actor?.perms || [], op);
+  const showPin = asAdmin || (role === "student" && canOp("view"));
   const allowed = embedded || (role === "student" && actor?.role === "teacher" && actor.perms.includes("manageUsers"));
   const title = staff ? tr("Staff", "الموظفون") : role === "teacher" ? tr("Teachers", "المعلمون") : tr("Students", "الطلاب");
 
@@ -221,7 +222,7 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
   /** Admin-only PIN lookup, fetched once on first use. */
   async function allPins() {
     if (known) return known;
-    const r = await lmsApi.pinsView();
+    const r = await lmsApi.pinsView(undefined, asAdmin);
     setKnown(r.pins);
     return r.pins;
   }
@@ -282,7 +283,7 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
   const cols: { key: string; label: string; sort: boolean }[] = [
     { key: "name", label: tr("Name", "الاسم"), sort: true },
     { key: "username", label: tr("Username", "اسم المستخدم"), sort: true },
-    ...(asAdmin ? [{ key: "pin", label: "PIN", sort: false }] : []),
+    ...(showPin ? [{ key: "pin", label: "PIN", sort: false }] : []),
     ...(role === "student"
       ? [{ key: "cls", label: tr("Class", "الصف"), sort: true }, { key: "section", label: tr("Section", "الشعبة"), sort: true }]
       : [{ key: "subjects", label: tr("Subjects", "المواد"), sort: true }, { key: "classes", label: tr("Classes", "الصفوف"), sort: true }, { key: "sections", label: tr("Sections", "الشعب"), sort: true }]),
@@ -449,7 +450,7 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
                         <td className={`${td} sticky start-0 z-10 ${zebra}`}><input type="checkbox" checked={sel.has(u.id)} onChange={(e) => setSel((x) => { const n = new Set(x); if (e.target.checked) n.add(u.id); else n.delete(u.id); return n; })} aria-label={tr(`Select ${u.name}`, `تحديد ${u.name}`)} data-testid="lms-select" /></td>
                         <td className={`${td} sticky start-10 z-10 min-w-[9rem] max-w-[14rem] font-semibold leading-snug ${zebra}`} dir="auto" data-testid="col-name"><PresenceDot seen={u.lastSeen} className="me-1.5 align-middle" />{u.name}{role === "teacher" && asAdmin && <button type="button" onClick={() => setPermFor(u)} className="mt-1 flex items-center gap-1 rounded-full bg-sun/90 px-2.5 py-0.5 text-[11px] font-extrabold text-[#0b1b2b] shadow-sm hover:brightness-95" data-testid="lms-user-perms">🔐 {tr("Permissions", "الصلاحيات")}</button>}</td>
                         <td className={`${td} max-w-[11rem] truncate font-mono text-[13px]`} dir="ltr" title={u.username} data-testid="col-username">{u.username}</td>
-                        {asAdmin && (
+                        {showPin && (
                           <td className={td} data-testid="lms-pin-cell">
                             {!u.hasPin ? (
                               <span className="text-xs opacity-70" data-testid="lms-pin-reset-hint">{tr("Reset PIN to view", "أعد تعيين الرقم لعرضه")}</span>

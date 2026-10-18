@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTr, useLmsActor } from "@/components/lms/useLms";
 import { qhwPerm } from "@/lib/lmsMods";
+import { stuUi } from "@/lib/lms";
 
 type Tab = { id: string; href: string; hash?: string; en: string; ar: string; icon: string; lvl: 0 | 1 | 2 | 3 };
 const I = {
@@ -83,6 +84,8 @@ export function LmsTabs() {
     ...(!staff && !isParent ? [{ id: "cur", href: "/lms/curriculum", en: "Curriculum", ar: "المنهج", icon: I.cur, lvl: 3 } as Tab] : []),
     ...(staff && pm("cur") ? [{ id: "cur", href: "/lms/curriculum", en: "Curriculum", ar: "المنهج", icon: I.cur, lvl: 3 } as Tab] : []),
   ];
+  const loginsTab: Tab[] = staff && stuUi(actor.perms || [], "view") ? [{ id: "logins", href: "/lms/logins", en: "Student Logins", ar: "دخول الطلاب", icon: "M15 7a4 4 0 1 1-3.9 4.9L4 19v-3h3v-2h2l1.2-1.2A4 4 0 0 1 15 7z", lvl: 3 }] : [];
+  const acctTab: Tab[] = !isParent ? [{ id: "acct", href: "/lms/account", en: "My account", ar: "حسابي", icon: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 8a7 7 0 0 1 14 0", lvl: 3 }] : [];
   const qOn = staff && qhwPerm(actor.perms).show;
   const qTab: Tab[] = qOn ? [{ id: "qhw", href: "/lms/quran", en: "Quran Homework", ar: "واجب القرآن", icon: I.quran, lvl: 2 }] : [];
   const PARENT: Tab[] = [
@@ -91,7 +94,7 @@ export function LmsTabs() {
   ];
   const HID: Record<string, string> = { hw: "homework", assess: "assessments", msg: "messaging", wall: "wall", act: "activities" };
   const shownT = (t: Tab) => !(HID[t.id] && actor.perms?.includes(`hide:${HID[t.id]}`));
-  const tabs = isParent ? PARENT : staff ? [...TEACHER.slice(0, 3), ...qTab, ...TEACHER.slice(3), ...extra].filter(shownT) : [...STUDENT, ...extra];
+  const tabs = isParent ? PARENT : staff ? [...TEACHER.slice(0, 3), ...qTab, ...TEACHER.slice(3), ...extra, ...loginsTab, ...acctTab].filter(shownT) : [...STUDENT, ...extra, ...acctTab];
   const dashName = isParent ? tr("Parent Dashboard", "لوحة ولي الأمر") : staff ? tr("Teacher Dashboard", "لوحة المعلم") : tr("Student Dashboard", "لوحة الطالب");
   const isActive = (t: Tab) => (t.href === "/lms" ? path === "/lms" && (t.hash ? hash === t.hash : !tabs.some((x) => x.hash && x.hash === hash)) : path === t.href);
   const cur = tabs.find(isActive);
