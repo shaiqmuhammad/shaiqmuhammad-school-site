@@ -21,12 +21,13 @@ export type AttReport = { from: string; to: string; settings: { windowDays: numb
 export type AttGroup = { cls: string; section: string; students: number; P: number; A: number; L: number; E: number; marked: number; periods: string[]; by: string[] };
 export type Beh = { id: string; student: string; name: string; cls: string; section: string; day: string; kind: "positive" | "concern"; category: string; severity: number; note: string; action: string; follow: "none" | "open" | "in_progress" | "done"; followNote: string; sensitive: boolean; restricted: boolean; by: string; mine: boolean; at: number };
 export type CurLesson = { title: string; note: string; done?: boolean };
-export type CurUnit = { id: string; subject: string; yr: string; term: string; title: string; objectives: string; lessons: CurLesson[]; resources: { label: string; url: string }[]; wkFrom: number; wkTo: number; status: "planned" | "in_progress" | "taught"; quiz: string; page: string; ord: number; by: string; updated: number };
+export type CurUnit = { id: string; subject: string; yr: string; term: string; title: string; objectives: string; lessons: CurLesson[]; resources: { label: string; url: string }[]; wkFrom: number; wkTo: number; status: "planned" | "in_progress" | "taught"; quiz: string; page: string; ord: number; by: string; updated: number; notes?: string; links?: CurLink[] };
+export type CurLink = { t: "hw" | "quiz"; id: string; title?: string; mode?: string };
 export type Roster = { id: string; name: string; cls: string; section: string };
 export type Cat = { subjects: { id: string; name: string }[]; classes: { id: string; name: string }[]; sections: { id: string; name: string; classId: string; cls: string }[] };
 
 /** Staff modules switch (View / Add-Edit) from the teacher's permission strings. Admin: always both. */
-export const modPerm = (perms: string[] | undefined, isAdmin: boolean, m: "att" | "beh" | "cur") => ({ view: isAdmin || !!perms?.includes(`${m}:view`) || !!perms?.includes(`${m}:edit`), edit: isAdmin || !!perms?.includes(`${m}:edit`) });
+export const modPerm = (perms: string[] | undefined, isAdmin: boolean, m: "att" | "beh" | "cur") => ({ view: isAdmin || !!perms?.includes(`${m}:view`) || !!perms?.includes(`${m}:edit`) || !!perms?.includes(`${m}:delete`), edit: isAdmin || !!perms?.includes(`${m}:edit`), del: isAdmin || !!perms?.includes(`${m}:delete`) });
 
 export async function modCall<T>(action: string, body: unknown, asAdmin: boolean): Promise<T> {
   const tok = asAdmin ? getServerSession()?.token : lmsSession()?.token;

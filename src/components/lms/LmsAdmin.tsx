@@ -520,12 +520,15 @@ const ACTS: [string, string, string][] = [["wall", "Shared Wall", "الجدار 
 function ModuleAccess({ perms, setPerms }: { perms: string[]; setPerms: (p: string[]) => void }) {
   const { tr } = useTr();
   const mods: [string, string, string][] = [["att", "🗓️ Attendance Register", "🗓️ سجل الحضور"], ["beh", "🌟 Behaviour", "🌟 السلوك"], ["cur", "📚 Curriculum", "📚 المنهج"]];
-  const level = (m: string) => (perms.includes(`${m}:edit`) ? 2 : perms.includes(`${m}:view`) ? 1 : 0);
-  const set = (m: string, op: "view" | "edit", on: boolean) => {
-    const rest = perms.filter((p) => p !== `${m}:view` && p !== `${m}:edit`);
-    // Add/Edit implies View; switching View off also switches Add/Edit off.
-    const lvl = op === "edit" ? (on ? 2 : 1) : on ? Math.max(level(m), 1) : 0;
-    setPerms([...rest, ...(lvl >= 1 ? [`${m}:view`] : []), ...(lvl >= 2 ? [`${m}:edit`] : [])]);
+  const has = (m: string, op: string) => perms.includes(`${m}:${op}`);
+  const viewOn = (m: string) => has(m, "view") || has(m, "edit") || has(m, "delete");
+  // Add/Edit and Delete each imply View; switching View off switches them off too.
+  const set = (m: string, op: "view" | "edit" | "delete", on: boolean) => {
+    const next = new Set(perms.filter((p) => !p.startsWith(`${m}:`)));
+    const cur = { view: viewOn(m), edit: has(m, "edit"), delete: has(m, "delete") };
+    if (op === "view") { cur.view = on; if (!on) { cur.edit = false; cur.delete = false; } } else { cur[op] = on; if (on) cur.view = true; }
+    for (const k of ["view", "edit", "delete"] as const) if (cur[k]) next.add(`${m}:${k}`);
+    setPerms([...next]);
   };
   return (
     <div className="space-y-2 rounded-2xl border border-dashed border-black/15 p-3 dark:border-white/20" data-testid="lms-module-access">
@@ -533,8 +536,9 @@ function ModuleAccess({ perms, setPerms }: { perms: string[]; setPerms: (p: stri
       {mods.map(([m, en, ar]) => (
         <div key={m} className="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
           <span className="min-w-[10rem] font-semibold">{tr(en, ar)}</span>
-          <label className="flex items-center gap-1.5"><input type="checkbox" checked={level(m) >= 1} onChange={(e) => set(m, "view", e.target.checked)} data-testid={`perm-${m}-view`} /> {tr("View", "عرض")}</label>
-          <label className="flex items-center gap-1.5"><input type="checkbox" checked={level(m) >= 2} onChange={(e) => set(m, "edit", e.target.checked)} data-testid={`perm-${m}-edit`} /> {tr("Add / Edit", "إضافة / تعديل")}</label>
+          <label className="flex items-center gap-1.5"><input type="checkbox" checked={viewOn(m)} onChange={(e) => set(m, "view", e.target.checked)} data-testid={`perm-${m}-view`} /> {tr("View", "عرض")}</label>
+          <label className="flex items-center gap-1.5"><input type="checkbox" checked={has(m, "edit")} onChange={(e) => set(m, "edit", e.target.checked)} data-testid={`perm-${m}-edit`} /> {tr("Add / Edit", "إضافة / تعديل")}</label>
+          {m === "cur" && <label className="flex items-center gap-1.5"><input type="checkbox" checked={has(m, "delete")} onChange={(e) => set(m, "delete", e.target.checked)} data-testid="perm-cur-delete" /> {tr("Delete", "حذف")}</label>}
         </div>
       ))}
     </div>
