@@ -73,8 +73,8 @@ function Register({ asAdmin, canEdit }: { asAdmin: boolean; canEdit: boolean }) 
     <div className={cardCls}>
       <div className="flex flex-wrap items-center gap-2">
         <ClassSelect groups={groups} value={cur} onChange={(v) => { setG(v); }} testId="att-class" />
-        <input type="date" className={field + " w-auto"} value={day} max={todayStr()} onChange={(e) => e.target.value && setDay(e.target.value)} aria-label={tr("Date", "التاريخ")} data-testid="att-date" />
-        <select className={field + " w-auto"} value={period} onChange={(e) => setPeriod(e.target.value)} aria-label={tr("Period", "الحصة")} data-testid="att-period">
+        <input type="date" className={field + " w-auto!"} value={day} max={todayStr()} onChange={(e) => e.target.value && setDay(e.target.value)} aria-label={tr("Date", "التاريخ")} data-testid="att-date" />
+        <select className={field + " w-auto!"} value={period} onChange={(e) => setPeriod(e.target.value)} aria-label={tr("Period", "الحصة")} data-testid="att-period">
           {PERIODS.map((p) => <option key={p} value={p}>{p === "Day" ? tr("Whole day", "اليوم كله") : p === "AM" ? tr("Morning", "صباحًا") : p === "PM" ? tr("Afternoon", "ظهرًا") : tr(`Period ${p.slice(1)}`, `الحصة ${p.slice(1)}`)}{data?.periods.includes(p) ? " ✓" : ""}</option>)}
         </select>
         <span className="flex-1" />
@@ -150,8 +150,8 @@ function Reports({ asAdmin }: { asAdmin: boolean }) {
     <div className="space-y-4">
       <div className={cardCls + " flex flex-wrap items-center gap-2"}>
         <div className="flex gap-1">{(["day", "week", "month", "custom"] as const).map((r) => <button key={r} type="button" className={btn + (range === r ? " !bg-[var(--cta)] !text-[var(--cta-foreground)]" : "")} onClick={() => pick(r)} data-testid={`att-range-${r}`}>{{ day: tr("Daily", "يومي"), week: tr("Weekly", "أسبوعي"), month: tr("Monthly", "شهري"), custom: tr("Custom", "مخصص") }[r]}</button>)}</div>
-        <input type="date" className={field + " w-auto"} value={from} onChange={(e) => { setRange("custom"); setFrom(e.target.value); }} aria-label={tr("From", "من")} />
-        <input type="date" className={field + " w-auto"} value={to} max={todayStr()} onChange={(e) => { setRange("custom"); setTo(e.target.value); }} aria-label={tr("To", "إلى")} />
+        <input type="date" className={field + " w-auto!"} value={from} onChange={(e) => { setRange("custom"); setFrom(e.target.value); }} aria-label={tr("From", "من")} />
+        <input type="date" className={field + " w-auto!"} value={to} max={todayStr()} onChange={(e) => { setRange("custom"); setTo(e.target.value); }} aria-label={tr("To", "إلى")} />
         <ClassSelect groups={groups} value={g} onChange={setG} all={tr("All my classes", "كل صفوفي")} testId="att-rep-class" />
         <span className="flex-1" />
         <button type="button" className={btn} onClick={() => xlsxTable("Attendance", head, body, `${name}.xlsx`)} disabled={!rows.length} data-testid="att-xlsx">⬇ Excel</button>
@@ -164,7 +164,7 @@ function Reports({ asAdmin }: { asAdmin: boolean }) {
       {!!rep?.daily.length && (
         <div className={cardCls} data-testid="att-chart">
           <p className="mb-2 text-sm font-bold">{tr("Daily attendance", "الحضور اليومي")}</p>
-          <div className="flex h-28 items-end gap-1 overflow-x-auto">{rep.daily.map((d) => { const t = d.P + d.A + d.L + d.E; return <div key={d.day} className="flex min-w-[1.4rem] flex-1 flex-col justify-end" title={`${d.day}: P${d.P} A${d.A} L${d.L} E${d.E}`}><div className="flex flex-col-reverse overflow-hidden rounded-t" style={{ height: `${(t / max) * 100}%` }}><div className="bg-emerald-600" style={{ flex: d.P }} /><div className="bg-amber-500" style={{ flex: d.L }} /><div className="bg-sky-600" style={{ flex: d.E }} /><div className="bg-rose-600" style={{ flex: d.A }} /></div><span className="mt-1 text-center text-[10px] opacity-60">{d.day.slice(8)}</span></div>; })}</div>
+          <div className="flex h-28 items-end gap-1 overflow-x-auto">{rep.daily.map((d) => { const t = d.P + d.A + d.L + d.E; return <div key={d.day} className="flex h-full min-w-[1.4rem] flex-1 flex-col justify-end" title={`${d.day}: P${d.P} A${d.A} L${d.L} E${d.E}`}><div className="flex flex-col-reverse overflow-hidden rounded-t" style={{ height: `${(t / max) * 100}%` }}><div className="bg-emerald-600" style={{ flex: d.P }} /><div className="bg-amber-500" style={{ flex: d.L }} /><div className="bg-sky-600" style={{ flex: d.E }} /><div className="bg-rose-600" style={{ flex: d.A }} /></div><span className="mt-1 text-center text-[10px] opacity-60">{d.day.slice(8)}</span></div>; })}</div>
         </div>
       )}
       <div className={cardCls + " overflow-x-auto p-0"}>
@@ -204,7 +204,7 @@ function Overview({ asAdmin }: { asAdmin: boolean }) {
   return (
     <div className="space-y-4">
       <div className={cardCls + " flex flex-wrap items-center gap-2"}>
-        <input type="date" className={field + " w-auto"} value={day} max={todayStr()} onChange={(e) => e.target.value && setDay(e.target.value)} aria-label={tr("Date", "التاريخ")} data-testid="att-ov-date" />
+        <input type="date" className={field + " w-auto!"} value={day} max={todayStr()} onChange={(e) => e.target.value && setDay(e.target.value)} aria-label={tr("Date", "التاريخ")} data-testid="att-ov-date" />
         <button type="button" className={btn} onClick={() => setDay(addDays(day, -1))}>‹</button><button type="button" className={btn} onClick={() => day < todayStr() && setDay(addDays(day, 1))}>›</button>
         <span className="flex-1" />
         <button type="button" className={btn} onClick={() => xlsxTable("Overview", head, body, `attendance-overview-${day}.xlsx`)} disabled={!body.length}>⬇ Excel</button>

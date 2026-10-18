@@ -83,7 +83,7 @@ export const groupLabel = (g: { cls: string; section: string }, tr: (en: string,
 export function ClassSelect({ groups, value, onChange, all, testId = "mod-class" }: { groups: { key: string; cls: string; section: string }[]; value: string; onChange: (v: string) => void; all?: string; testId?: string }) {
   const { tr } = useTr();
   return (
-    <select className={field + " w-auto"} value={value} onChange={(e) => onChange(e.target.value)} aria-label={tr("Class / section", "الصف / الشعبة")} data-testid={testId}>
+    <select className={field + " w-auto!"} value={value} onChange={(e) => onChange(e.target.value)} aria-label={tr("Class / section", "الصف / الشعبة")} data-testid={testId}>
       {all && <option value="">{all}</option>}
       {groups.map((g) => <option key={g.key} value={g.key}>{groupLabel(g, tr)}</option>)}
     </select>
