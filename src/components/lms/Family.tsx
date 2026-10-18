@@ -294,5 +294,5 @@ function PostMedia({ kid, id, image, audio }: { kid: string; id: string; image: 
   const load = useCallback(() => { if (image || audio) modCall<{ image: string; audio: string }>("wall-media", { id, child: kid }, false).then(setM).catch(() => undefined); }, [id, kid, image, audio]);
   useEffect(() => { load(); }, [load]);
   if (!m) return null;
-  return <div className="mt-2 space-y-2">{m.image && /* eslint-disable-next-line @next/next/no-img-element */ <img src={m.image} alt="" className="max-h-96 w-full rounded-2xl bg-black/5 object-contain" />}{m.audio && <audio controls src={m.audio} className="w-full" />}</div>;
+  return <div className="mt-2 space-y-2">{m.image && /* eslint-disable-next-line @next/next/no-img-element */ <img src={m.image} alt="" className="max-h-96 w-full rounded-2xl bg-black/5 object-contain" />}{m.audio && <audio controls controlsList="nodownload" onContextMenu={(e) => e.preventDefault()} src={m.audio} className="w-full" />}</div>;
 }

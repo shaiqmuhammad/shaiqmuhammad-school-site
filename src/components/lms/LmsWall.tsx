@@ -1,5 +1,6 @@
 "use client";
 
+import { refreshDl, useDl } from "@/lib/dl";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AssessmentShell } from "@/components/assessment/AssessmentShell";
 import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
@@ -22,12 +23,14 @@ const toDataUrl = (b: Blob) => new Promise<string>((res, rej) => { const r = new
 
 function Media({ id, image, audio }: { id: string; image: boolean; audio: boolean }) {
   const [m, setM] = useState<{ image: string; audio: string } | null>(null);
+  const dl = useDl();
   useEffect(() => { if (image || audio) lmsApi.wallMedia(id).then(setM).catch(() => undefined); }, [id, image, audio]);
   if (!m) return null;
   return (
     <div className="mt-3 space-y-2">
       {m.image && /* eslint-disable-next-line @next/next/no-img-element */ <img src={m.image} alt="" className="max-h-96 w-full rounded-2xl object-contain bg-black/5" />}
-      {m.audio && <audio controls src={m.audio} className="w-full" />}
+      {m.audio && <audio controls src={m.audio} className="w-full" controlsList={dl.audio ? undefined : "nodownload"} onContextMenu={dl.audio ? undefined : (e) => e.preventDefault()} />}
+      {m.audio && dl.audio && <button type="button" className={pill} data-testid="wall-audio-download" onClick={() => lmsApi.wallMedia(id, true).then((r) => { const a = document.createElement("a"); a.href = r.audio; a.download = `wall-audio-${id}.webm`; document.body.appendChild(a); a.click(); a.remove(); }).catch(() => { alert("Downloads are switched off for your account. / التنزيل غير مفعّل لحسابك."); refreshDl(); })}>⬇ Download</button>}
     </div>
   );
 }
