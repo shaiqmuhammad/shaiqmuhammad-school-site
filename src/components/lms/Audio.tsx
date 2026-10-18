@@ -1,5 +1,6 @@
 "use client";
 
+import { refreshDl, useDl } from "@/lib/dl";
 import { useEffect, useRef, useState } from "react";
 import { lmsApi, lmsErrorText } from "@/lib/lms";
 import { smallBtn, useTr } from "@/components/lms/useLms";
@@ -127,6 +128,7 @@ export function AudioClip({ id, asAdmin = false, label, onDelete, testId = "clip
   const { tr } = useTr();
   const [src, setSrc] = useState<{ url: string; type: string } | null>(null);
   const [err, setErr] = useState("");
+  const dl = useDl();
   useEffect(() => () => { if (src) URL.revokeObjectURL(src.url); }, [src]);
   const ext = src?.type.includes("mpeg") ? "mp3" : src?.type.includes("mp4") ? "m4a" : src?.type.includes("ogg") ? "ogg" : "webm";
   return (
@@ -137,7 +139,7 @@ export function AudioClip({ id, asAdmin = false, label, onDelete, testId = "clip
       ) : (
         <>
           <audio controls autoPlay src={src.url} className="h-10 max-w-full" data-testid={`${testId}-audio`} />
-          <a className={smallBtn} href={src.url} download={`recording-${id}.${ext}`} data-testid={`${testId}-download`}>⬇ {tr("Download", "تنزيل")}</a>
+          {dl.audio && <button type="button" className={smallBtn} onClick={() => lmsApi.audioUrl(id, asAdmin, true).then((r) => { const a = document.createElement("a"); a.href = r.url; a.download = `recording-${id}.${ext}`; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(r.url), 4000); }).catch((e) => { setErr(lmsErrorText(e, tr)); refreshDl(); })} data-testid={`${testId}-download`}>⬇ {tr("Download", "تنزيل")}</button>}
         </>
       )}
       {onDelete && <button type="button" className={smallBtn + " text-rose-600"} onClick={onDelete} aria-label={tr("Delete recording", "حذف التسجيل")} title={tr("Delete recording", "حذف التسجيل")} data-testid={`${testId}-delete`}>🗑</button>}

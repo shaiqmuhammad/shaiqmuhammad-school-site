@@ -542,6 +542,8 @@ function ModuleAccess({ perms, setPerms }: { perms: string[]; setPerms: (p: stri
     if (op === "show" && !on) { cur.view = false; cur.add = false; cur.edit = false; cur.delete = false; }
     setPerms([...perms.filter((p) => !p.startsWith("qhw:")), "qhw:set", ...Object.keys(cur).filter((k) => cur[k]).map((k) => `qhw:${k}`)]);
   };
+  const dlOn = (k: "audio" | "export") => !perms.includes(`nodl:${k}`);
+  const setDl = (k: "audio" | "export", on: boolean) => setPerms([...perms.filter((p) => p !== `nodl:${k}`), ...(on ? [] : [`nodl:${k}`])]);
   const qOps: ["show" | "view" | "add" | "edit" | "delete", string, string][] = [["show", "Show tab", "إظهار التبويب"], ["view", "View", "عرض"], ["add", "Add", "إضافة"], ["edit", "Edit", "تعديل"], ["delete", "Delete", "حذف"]];
   return (
     <div className="space-y-2 rounded-2xl border border-dashed border-black/15 p-3 dark:border-white/20" data-testid="lms-module-access">
@@ -557,6 +559,11 @@ function ModuleAccess({ perms, setPerms }: { perms: string[]; setPerms: (p: stri
       <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm" data-testid="perm-qhw">
         <span className="min-w-[10rem] font-semibold">📖 {tr("Quran Homework", "واجب القرآن")}</span>
         {qOps.map(([op, en, ar]) => <label key={op} className="flex items-center gap-1.5"><input type="checkbox" checked={q(op)} onChange={(e) => setQ(op, e.target.checked)} data-testid={`perm-qhw-${op}`} /> {tr(en, ar)}</label>)}
+      </div>
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm" data-testid="perm-dl">
+        <span className="min-w-[10rem] font-semibold">⬇️ {tr("Downloads", "التنزيلات")}</span>
+        <label className="flex items-center gap-1.5"><input type="checkbox" checked={dlOn("audio")} onChange={(e) => setDl("audio", e.target.checked)} data-testid="perm-dl-audio" /> {tr("Download audio", "تنزيل الصوت")}</label>
+        <label className="flex items-center gap-1.5"><input type="checkbox" checked={dlOn("export")} onChange={(e) => setDl("export", e.target.checked)} data-testid="perm-dl-export" /> {tr("Download Excel / PDF", "تنزيل إكسل / PDF")}</label>
       </div>
     </div>
   );
