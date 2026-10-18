@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTr, useLmsActor } from "@/components/lms/useLms";
+import { qhwPerm } from "@/lib/lmsMods";
 
 type Tab = { id: string; href: string; hash?: string; en: string; ar: string; icon: string; lvl: 0 | 1 | 2 | 3 };
 const I = {
@@ -73,16 +74,23 @@ export function LmsTabs() {
     return () => { document.removeEventListener("mousedown", close); document.removeEventListener("keydown", close); window.removeEventListener("resize", place); window.removeEventListener("scroll", place, true); };
   }, [open]);
   if (!ready || !actor || actor.viewAs) return null;
-  const staff = actor.role !== "student";
+  const isParent = actor.role === "parent";
+  const staff = actor.role === "teacher";
   const pm = (m: string) => actor.perms?.includes(`${m}:view`) || actor.perms?.includes(`${m}:edit`) || actor.perms?.includes(`${m}:delete`);
   const extra: Tab[] = [
     ...(pm("att") ? [{ id: "att", href: "/lms/attendance", en: "Attendance", ar: "الحضور", icon: I.att, lvl: 3 } as Tab] : []),
     ...(pm("beh") ? [{ id: "beh", href: "/lms/behaviour", en: "Behaviour", ar: "السلوك", icon: I.beh, lvl: 3 } as Tab] : []),
-    ...(!staff ? [{ id: "cur", href: "/lms/curriculum", en: "Curriculum", ar: "المنهج", icon: I.cur, lvl: 3 } as Tab] : []),
+    ...(!staff && !isParent ? [{ id: "cur", href: "/lms/curriculum", en: "Curriculum", ar: "المنهج", icon: I.cur, lvl: 3 } as Tab] : []),
     ...(staff && pm("cur") ? [{ id: "cur", href: "/lms/curriculum", en: "Curriculum", ar: "المنهج", icon: I.cur, lvl: 3 } as Tab] : []),
   ];
-  const tabs = staff ? [...TEACHER, ...extra] : [...STUDENT, ...extra];
-  const dashName = staff ? tr("Teacher Dashboard", "لوحة المعلم") : tr("Student Dashboard", "لوحة الطالب");
+  const qOn = staff && qhwPerm(actor.perms).show;
+  const qTab: Tab[] = qOn ? [{ id: "qhw", href: "/lms/quran", en: "Quran Homework", ar: "واجب القرآن", icon: I.quran, lvl: 2 }] : [];
+  const PARENT: Tab[] = [
+    { id: "dash", href: "/lms/family", en: "Dashboard", ar: "اللوحة", icon: I.dash, lvl: 0 },
+    { id: "msg", href: "/lms/messages", en: "Messages", ar: "الرسائل", icon: I.msg, lvl: 0 },
+  ];
+  const tabs = isParent ? PARENT : staff ? [...TEACHER.slice(0, 3), ...qTab, ...TEACHER.slice(3), ...extra] : [...STUDENT, ...extra];
+  const dashName = isParent ? tr("Parent Dashboard", "لوحة ولي الأمر") : staff ? tr("Teacher Dashboard", "لوحة المعلم") : tr("Student Dashboard", "لوحة الطالب");
   const isActive = (t: Tab) => (t.href === "/lms" ? path === "/lms" && (t.hash ? hash === t.hash : !tabs.some((x) => x.hash && x.hash === hash)) : path === t.href);
   const cur = tabs.find(isActive);
   const hasMore = tabs.some((t) => t.lvl > 0);
