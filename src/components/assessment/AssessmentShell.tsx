@@ -65,7 +65,7 @@ export function AssessmentShell({ title, exitHref = "/assessments", onExit, seco
               <path d="M6 6l12 12M18 6L6 18" />
             </svg>
           </Link>
-          {rail && <span className="hidden md:inline-flex"><HijriPill /></span>}
+          {rail && <span className="hidden md:inline-flex"><GregPill /></span>}
           {title ? (
             <p className="min-w-0 flex-1 truncate text-sm font-extrabold text-white sm:text-base">{title}</p>
           ) : (
@@ -91,7 +91,7 @@ export function AssessmentShell({ title, exitHref = "/assessments", onExit, seco
               <span dir="ltr">{formatClock(secondsLeft as number)}</span>
             </div>
           )}
-          {rail && <span className="hidden md:inline-flex"><GregPill /></span>}
+          {rail && <span className="hidden md:inline-flex"><HijriPill /></span>}
           {actions}
           {toolbar ?? (
             <>
@@ -100,7 +100,7 @@ export function AssessmentShell({ title, exitHref = "/assessments", onExit, seco
             </>
           )}
         </div>
-        {rail && <div className="flex items-center justify-between gap-2 border-t border-white/10 px-3 py-1.5 md:hidden" data-testid="lms-date-row"><HijriPill compact /><GregPill compact /></div>}
+        {rail && <div className="flex items-center justify-between gap-2 border-t border-white/10 px-3 py-1.5 md:hidden" data-testid="lms-date-row"><GregPill compact /><HijriPill compact /></div>}
         {progress && progress.total > 0 && (
           <div className="mx-auto flex max-w-5xl gap-1 px-3 pb-2.5 sm:px-6" aria-label={a("questionOf", { i: progress.current + 1, n: progress.total })}>
             {Array.from({ length: progress.total }, (_, i) => {
