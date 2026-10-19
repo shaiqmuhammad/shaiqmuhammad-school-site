@@ -64,7 +64,7 @@ function Composer({ wkey, onDone }: { wkey: string; onDone: () => void }) {
     <div className="glass rounded-3xl p-4" data-testid="wall-composer">
       <textarea className="w-full rounded-2xl border border-black/10 bg-white px-3 py-2 dark:border-white/15 dark:bg-white/5" rows={3} maxLength={1500} placeholder={tr("Write a message to the class…", "اكتب رسالة للصف…")} value={text} onChange={(e) => setText(e.target.value)} dir="auto" data-testid="wall-text" />
       {image && /* eslint-disable-next-line @next/next/no-img-element */ <img src={image} alt="" className="mt-2 max-h-40 rounded-xl" />}
-      {audio && <audio controls src={audio} className="mt-2 w-full" />}
+      {audio && <audio controls controlsList="nodownload" onContextMenu={(e) => e.preventDefault()} src={audio} className="mt-2 w-full" />}
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <label className={pill + " cursor-pointer"}>🖼 {tr("Picture", "صورة")}<input type="file" accept="image/*" className="hidden" data-testid="wall-image" onChange={async (e) => { const f = e.target.files?.[0]; if (f) setImage(await shrink(f).catch(() => "")); e.target.value = ""; }} /></label>
         {rec ? <button type="button" className={pill + " !bg-rose-100 !text-rose-800"} onClick={() => { rec.stop(); setRec(null); }} data-testid="wall-rec-stop">⏹ {tr("Stop", "إيقاف")}</button> : <button type="button" className={pill} onClick={startRec} data-testid="wall-rec">🎙 {tr("Record audio", "تسجيل صوتي")}</button>}

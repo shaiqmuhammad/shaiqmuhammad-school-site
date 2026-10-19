@@ -11,7 +11,7 @@ export function QuizMedia({ media }: { media?: QuestionMedia }) {
         <img src={media.imageUrl} alt="Question illustration" className="max-h-80 w-auto rounded-xl border border-card-border" />
       )}
       {media.audioUrl && (
-        <audio controls src={media.audioUrl} className="w-full max-w-md">
+        <audio controls controlsList="nodownload" onContextMenu={(e) => e.preventDefault()} src={media.audioUrl} className="w-full max-w-md">
           Your browser does not support audio.
         </audio>
       )}
