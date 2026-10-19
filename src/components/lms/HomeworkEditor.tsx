@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { primaryBtn } from "@/components/assessment/AssessmentShell";
+import { WhoPicker } from "@/components/lms/WhoPicker";
 import { card, inputCls, smallBtn, useTr } from "@/components/lms/useLms";
 import { grpLabel, lmsApi, lmsErrorText, quranChapters, RECITERS, type Chapter, type GeneralData, type Homework, type QuranData, type Slide, type Catalog, type DashStudent, type StudentGroup } from "@/lib/lms";
 
@@ -79,11 +80,12 @@ export function HomeworkEditor({ initial, classes, students, catalog, scope = []
       className={card + " space-y-4"}
       onSubmit={async (e) => {
         e.preventDefault();
+        if (!asAdmin && !pick.length && !initial?.cls) { setErr(tr("Pick a group, a class/section or some students first.", "اختر مجموعة أو صفًا/شعبة أو طلابًا أولًا.")); return; }
         setBusy(true);
         setErr("");
         try {
           const data = kind === "quran" ? { surah, from, to: Math.max(from, to), reciter, notes, translit, translation } : { slides: slides.filter((s) => s.title || s.text || s.image), question };
-          const r = await lmsApi.saveHomework({ id: initial?.id, kind, title: title.trim() || (kind === "quran" && ch ? `${ch.name_simple} ${from}–${to}` : ""), cls: who === "students" ? "" : cls, section: who === "students" ? "" : section || (cls && !wholeClassOk(cls) ? sectionsOf(cls)[0] || "" : ""), students: pick, due: due ? new Date(due + "T23:59:00").getTime() : null, data: data as QuranData | GeneralData }, asAdmin);
+          const r = await lmsApi.saveHomework({ id: initial?.id, kind, title: title.trim() || (kind === "quran" && ch ? `${ch.name_simple} ${from}–${to}` : ""), cls: who === "students" || (!asAdmin && pick.length) ? "" : cls, section: who === "students" || (!asAdmin && pick.length) ? "" : section || (cls && !wholeClassOk(cls) ? sectionsOf(cls)[0] || "" : ""), students: pick, due: due ? new Date(due + "T23:59:00").getTime() : null, data: data as QuranData | GeneralData }, asAdmin);
           onSaved(r.id);
         } catch (x) {
           setErr(lmsErrorText(x, tr));
@@ -164,6 +166,7 @@ export function HomeworkEditor({ initial, classes, students, catalog, scope = []
       <div className="grid gap-3 sm:grid-cols-3">
         <fieldset className="space-y-2 text-sm sm:col-span-2">
           <legend className="font-semibold">{tr("Assign to", "إسناد إلى")}</legend>
+          {!asAdmin ? <WhoPicker students={students} groups={groups.filter((g) => g.assigned).map((g) => ({ ...g, students: g.students.filter((id) => students.some((x) => x.id === id)) }))} value={pick} onChange={setPick} /> : (<>
           <div className="flex flex-wrap gap-2" role="radiogroup">
             {(["class", "students"] as const).map((k) => (
               <button key={k} type="button" role="radio" aria-checked={who === k} onClick={() => setWho(k)} className={`rounded-full px-3 py-1.5 font-bold ${who === k ? "bg-header text-sun" : "glass"}`} data-testid={`hw-who-${k}`}>
@@ -193,6 +196,7 @@ export function HomeworkEditor({ initial, classes, students, catalog, scope = []
           ) : (
             picker
           )}
+          </>)}
         </fieldset>
         <label className="block text-sm font-semibold">
           {tr("Due date (optional)", "تاريخ التسليم (اختياري)")}

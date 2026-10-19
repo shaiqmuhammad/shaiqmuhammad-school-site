@@ -5,7 +5,8 @@ import { AssessmentShell } from "@/components/assessment/AssessmentShell";
 import { AdminQuestionEditor } from "@/components/AdminQuestionEditor";
 import { QuizPlayer } from "@/components/QuizPlayer";
 import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
-import { lmsApi, lmsErrorText, type Assignment, type Catalog, type StudentGroup, type MsgContact } from "@/lib/lms";
+import { WhoPicker, useWho } from "@/components/lms/WhoPicker";
+import { lmsApi, lmsErrorText, type Assignment } from "@/lib/lms";
 import { defaultCertificate, emptyQuestion, loadQuizzesData, normalizeQuiz, type Quiz } from "@/lib/quiz";
 import { useTr } from "@/components/lms/useLms";
 
@@ -84,31 +85,20 @@ export function LmsQuizEditPage() {
 /** Assign an assessment to a class/section or chosen students, individual or teacher-led group, optional due date. */
 export function AssignForm({ quiz, title, asAdmin = false, onDone }: { quiz: string; title: string; asAdmin?: boolean; onDone: () => void }) {
   const { tr } = useTr();
-  const [cat, setCat] = useState<Catalog | null>(null);
-  const [people, setPeople] = useState<MsgContact[]>([]);
+  const who = useWho(asAdmin);
   const [f, setF] = useState({ mode: "individual" as "individual" | "group", cls: "", section: "", students: [] as string[], due: "" });
   const [msg, setMsg] = useState("");
-  const [groups, setGroups] = useState<StudentGroup[]>([]);
-  useEffect(() => { lmsApi.grpList(asAdmin).then((r) => setGroups(r.items)).catch(() => undefined); }, [asAdmin]);
-  useEffect(() => { lmsApi.catalog(asAdmin).then(setCat).catch(() => undefined); lmsApi.msgContacts(asAdmin).then((r) => setPeople(r.items.filter((x) => x.role === "student"))).catch(() => undefined); }, [asAdmin]);
   const submit = async () => {
-    try { const r = await lmsApi.assessAssign({ quiz, title, mode: f.mode, cls: f.cls, section: f.section, students: f.students, due: f.due ? new Date(f.due + "T23:59:00").getTime() : null }, asAdmin); setMsg(tr(`Assigned to ${r.sent} students ✓`, `أُسند إلى ${r.sent} طالبًا ✓`)); onDone(); } catch (e) { setMsg(lmsErrorText(e, tr)); }
+    try { const r = await lmsApi.assessAssign({ quiz, title, mode: f.mode, cls: "", section: "", students: f.students, due: f.due ? new Date(f.due + "T23:59:00").getTime() : null }, asAdmin); setMsg(tr(`Assigned to ${r.sent} students ✓`, `أُسند إلى ${r.sent} طالبًا ✓`)); onDone(); } catch (e) { setMsg(lmsErrorText(e, tr)); }
   };
   return (
     <div className="space-y-2 rounded-2xl border border-dashed border-black/15 p-3 text-sm dark:border-white/20" data-testid="assign-form">
       <div className="flex flex-wrap gap-2">
         {(["individual", "group"] as const).map((m) => <button key={m} type="button" aria-pressed={f.mode === m} onClick={() => setF({ ...f, mode: m })} className={`rounded-full px-3 py-1 text-xs font-bold ring-1 ring-black/10 ${f.mode === m ? "bg-sun text-[#0b1b2b]" : ""}`} data-testid={`assign-mode-${m}`}>{m === "individual" ? tr("Individual (students start it)", "فردي (يبدأه الطالب)") : tr("Group (led by teacher)", "جماعي (يقوده المعلم)")}</button>)}
       </div>
-      <div className="grid gap-2 sm:grid-cols-3">
-        <select className={inputCls} value={f.cls} onChange={(e) => setF({ ...f, cls: e.target.value, section: "" })} data-testid="assign-class"><option value="">{tr("Class…", "الصف…")}</option>{(cat?.classes || []).map((c) => <option key={c.name}>{c.name}</option>)}</select>
-        <select className={inputCls} value={f.section} disabled={!f.cls} onChange={(e) => setF({ ...f, section: e.target.value })}><option value="">{tr("All sections", "كل الشعب")}</option>{(cat?.sections || []).filter((s) => s.cls === f.cls).map((s) => <option key={s.name}>{s.name}</option>)}</select>
-        <label className="flex items-center gap-2">{tr("Due", "الموعد")}<input type="date" className={inputCls} value={f.due} onChange={(e) => setF({ ...f, due: e.target.value })} /></label>
-      </div>
-      {groups.length > 0 && <select className={inputCls} value="" onChange={(e) => { const g = groups.find((x) => x.id === e.target.value); if (g) setF({ ...f, students: [...new Set([...f.students, ...g.students])] }); }} data-testid="assign-group"><option value="">{tr("＋ Add a custom group…", "＋ إضافة مجموعة مخصصة…")}</option>{groups.map((g) => <option key={g.id} value={g.id}>{g.name} ({g.students.length})</option>)}</select>}
-      <details><summary className="cursor-pointer text-xs opacity-70">{tr("…or pick individual students", "…أو اختر طلابًا محددين")} {f.students.length ? `(${f.students.length})` : ""}</summary>
-        <div className="mt-2 flex max-h-40 flex-wrap gap-1 overflow-y-auto">{people.map((p) => <button key={p.id} type="button" aria-pressed={f.students.includes(p.id)} onClick={() => setF({ ...f, students: f.students.includes(p.id) ? f.students.filter((x) => x !== p.id) : [...f.students, p.id] })} className={`rounded-full px-2 py-0.5 text-xs ring-1 ring-black/10 ${f.students.includes(p.id) ? "bg-sun text-[#0b1b2b]" : ""}`}>{p.name}</button>)}</div>
-      </details>
-      <div className="flex items-center gap-2"><button type="button" disabled={!f.cls && !f.students.length} className="rounded-full bg-header px-4 py-1.5 text-xs font-bold text-white disabled:opacity-50" onClick={submit} data-testid="assign-submit">{tr("Assign", "إسناد")}</button><span className="text-xs">{msg}</span></div>
+      {who ? <WhoPicker students={who.students} groups={who.groups} value={f.students} onChange={(ids) => setF({ ...f, students: ids })} /> : <p className="opacity-60">…</p>}
+      <label className="flex items-center gap-2">{tr("Due", "الموعد")}<input type="date" className={inputCls + " !w-auto"} value={f.due} onChange={(e) => setF({ ...f, due: e.target.value })} /></label>
+      <div className="flex items-center gap-2"><button type="button" disabled={!f.students.length} className="rounded-full bg-header px-4 py-1.5 text-xs font-bold text-white disabled:opacity-50" onClick={submit} data-testid="assign-submit">{tr("Assign", "إسناد")}</button><span className="text-xs">{msg}</span></div>
     </div>
   );
 }
