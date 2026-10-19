@@ -23,7 +23,7 @@
  */
 import { DurableObject } from "cloudflare:workers";
 import { corsHeaders, reply, verifyToken, type AdminEnv } from "./admin";
-import { teacherWithPerm, type LmsEnv } from "./lms";
+import { teacherIdOf, teacherWithPerm, type LmsEnv } from "./lms";
 
 export interface ActivityEnv extends AdminEnv {
   ACTIVITIES: DurableObjectNamespace<ClassActivity>;
@@ -33,7 +33,9 @@ export const ACTIVITY_TYPES = ["wall", "wordcloud", "poll", "survey", "tps", "vo
 export type ActivityType = (typeof ACTIVITY_TYPES)[number];
 
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-const TTL_MS = 7 * 24 * 3600 * 1000;
+// Running activities stay until the teacher ends/deletes them (a year as a safety net); ended ones keep their results for 30 days.
+const TTL_MS = 365 * 24 * 3600 * 1000;
+const ENDED_KEEP_MS = 30 * 24 * 3600 * 1000;
 const MAX_PARTS = 200;
 const MAX_ITEMS = 600;
 const MAX_IMAGES = 60;
@@ -164,6 +166,7 @@ export class ClassActivity extends DurableObject<ActivityEnv> {
 
   async alarm() {
     const m = this.meta();
+    if (m && !m.endedAt && m.expiresAt < m.createdAt + TTL_MS) { m.expiresAt = m.createdAt + TTL_MS; this.saveMeta(m); }
     if (!m || Date.now() >= m.expiresAt) await this.ctx.storage.deleteAll();
     else await this.ctx.storage.setAlarm(m.expiresAt);
   }
@@ -195,6 +198,8 @@ export class ClassActivity extends DurableObject<ActivityEnv> {
       return { status: 200, body: { hostKey: m.hostKey, ...this.info(m) } };
     }
     const m = this.meta();
+    // Older activities were created with a 7-day life: never let an un-ended one expire silently.
+    if (m && !m.endedAt && m.expiresAt < m.createdAt + TTL_MS && Date.now() < m.expiresAt) { m.expiresAt = m.createdAt + TTL_MS; this.saveMeta(m); await this.ctx.storage.setAlarm(m.expiresAt); }
     if (!m || Date.now() >= m.expiresAt) return { status: 404, body: { error: "not_found" } };
     const isHost = typeof input.hostKey === "string" && input.hostKey === m.hostKey;
     const hostOnly = () => (isHost ? null : { status: 403, body: { error: "host_only" } });
@@ -380,7 +385,9 @@ export class ClassActivity extends DurableObject<ActivityEnv> {
         const h = hostOnly();
         if (h) return h;
         m.endedAt = Date.now();
+        m.expiresAt = Math.min(m.expiresAt, Date.now() + ENDED_KEEP_MS);
         this.saveMeta(m);
+        await this.ctx.storage.setAlarm(m.expiresAt);
         return { status: 200, body: { ok: true } };
       }
 
@@ -575,16 +582,32 @@ export async function handleActivity(request: Request, env: ActivityEnv, parts: 
     const type = String(body.type) as ActivityType;
     if (!ACTIVITY_TYPES.includes(type)) return reply(origin, { error: "bad_type" }, 400);
     // Admin, or a teacher the admin granted this activity type to.
-    if (!(await verifyToken(env, request.headers.get("Authorization"))) && !(await teacherWithPerm(request, env as unknown as LmsEnv, "act:*"))) return reply(origin, { error: "unauthorized" }, 401);
+    const owner = await ownerOf(request, env);
+    if (!owner) return reply(origin, { error: "unauthorized" }, 401);
     for (let attempt = 0; attempt < 8; attempt++) {
       const code = rand(5, ALPHABET);
       const stub = env.ACTIVITIES.get(env.ACTIVITIES.idFromName(code));
       const r = (await stub.handle("init", "POST", { ...body, code, type })) as unknown as Reply;
+      if (r.status === 200) { const b = r.body as { hostKey: string; title: string }; await lmsStore(env).actReg(owner, code, type, b.title, b.hostKey); }
       if (r.status !== 409) return reply(origin, r.body, r.status);
     }
     return reply(origin, { error: "try_again" }, 503);
   }
 
+  if (parts[2] === "mine") {
+    // The signed-in teacher's (or admin's) activities on ANY device: code + hostKey to resume, end or delete.
+    const owner = await ownerOf(request, env);
+    if (!owner) return reply(origin, { error: "unauthorized" }, 401);
+    const rows = (await lmsStore(env).actList(owner)) as unknown as { code: string; type: string; title: string; hostKey: string; created: number }[];
+    const items = [];
+    for (const x of rows) {
+      const i = (await env.ACTIVITIES.get(env.ACTIVITIES.idFromName(x.code)).handle("info", "GET", {})) as unknown as Reply;
+      if (i.status === 404) { await lmsStore(env).actDel(x.code); continue; }
+      const b = i.body as { ended: boolean; expiresAt: number; createdAt: number; title: string; participantCount: number };
+      items.push({ code: x.code, type: x.type, title: b.title || x.title, hostKey: x.hostKey, createdAt: b.createdAt, expiresAt: b.expiresAt, ended: b.ended, participants: b.participantCount });
+    }
+    return reply(origin, { items });
+  }
   const code = String(parts[2] || "").toUpperCase();
   if (!/^[A-Z0-9]{5}$/.test(code)) return reply(origin, { error: "bad_code" }, 400);
   const action = parts[3] || "info";
@@ -597,5 +620,14 @@ export async function handleActivity(request: Request, env: ActivityEnv, parts: 
   }
   const input: Json = { ...Object.fromEntries(url.searchParams), ...body };
   const r = (await stub.handle(action, request.method, input)) as unknown as Reply;
+  if (r.status === 200 && action === "destroy") await lmsStore(env).actDel(code);
   return reply(origin, r.body, r.status);
+}
+
+const lmsStore = (env: ActivityEnv) => { const e = env as unknown as LmsEnv; return e.LMS.get(e.LMS.idFromName("main")); };
+/** Who owns created activities: "admin" for the admin session, else the active teacher's id. */
+async function ownerOf(request: Request, env: ActivityEnv): Promise<string | null> {
+  if (await verifyToken(env, request.headers.get("Authorization"))) return "admin";
+  if (!(await teacherWithPerm(request, env as unknown as LmsEnv, "act:*"))) return null;
+  return teacherIdOf(request, env as unknown as LmsEnv);
 }

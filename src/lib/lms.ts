@@ -49,6 +49,7 @@ export const stuUi = (perms: string[], op: "view" | "add" | "edit" | "block" | "
 export const PERMS = ["assign", "review", "manageUsers", "viewAll"] as const;
 
 export class LmsError extends Error {
+  data?: Record<string, unknown>;
   constructor(public code: string, public status: number) {
     super(code);
   }
@@ -60,7 +61,12 @@ type Session = { token: string; exp: number; user: Actor };
 export function lmsSession(): Session | null {
   if (typeof window === "undefined") return null;
   try {
-    const s = JSON.parse(localStorage.getItem(SESSION_KEY) || "null") as Session | null;
+    let s = JSON.parse(localStorage.getItem(SESSION_KEY) || "null") as Session | null;
+    if (!s?.token) {
+      // Fallback copy in a first-party cookie (some phone browsers clear site storage); restore it.
+      const m = document.cookie.match(/(?:^|; )sm_lms_s=([^;]*)/);
+      if (m) { s = JSON.parse(decodeURIComponent(m[1])) as Session; if (s?.token) localStorage.setItem(SESSION_KEY, JSON.stringify(s)); }
+    }
     if (s?.token && s.exp > Date.now()) return s;
   } catch {
     // ignore
@@ -71,7 +77,17 @@ function storeSession(r: { token: string; exp: number; user: LmsUser }): Session
   const s: Session = { token: r.token, exp: r.exp, user: { id: r.user.id, role: r.user.role, name: r.user.name, cls: r.user.cls, perms: r.user.perms, scope: r.user.scope } };
   localStorage.setItem(SESSION_KEY, JSON.stringify(s));
   localStorage.setItem("sm_lms_login_at", String(Date.now()));
+  localStorage.setItem("sm_lms_renew_at", String(Date.now()));
+  writeSessionCookie(s);
   return s;
+}
+function writeSessionCookie(s: Session | null) {
+  try {
+    if (!s) { document.cookie = "sm_lms_s=; Max-Age=0; Path=/; SameSite=Lax; Secure"; return; }
+    let v = encodeURIComponent(JSON.stringify(s));
+    if (v.length > 3800) v = encodeURIComponent(JSON.stringify({ ...s, user: { ...s.user, scope: [] } }));
+    if (v.length <= 3900) document.cookie = `sm_lms_s=${v}; Max-Age=${3650 * 86400}; Path=/; SameSite=Lax; Secure`;
+  } catch { /* ignore */ }
 }
 export type LoginCard = { id: string; name: string; username: string; cls: string; section: string; avatar: string; disabled: boolean; pin: string | null; token: string };
 let renewing = false;
@@ -79,7 +95,8 @@ let renewing = false;
 export async function lmsRenew(force = false) {
   const s = lmsSession();
   if (!s || renewing || typeof window === "undefined") return;
-  if (!force && s.exp - Date.now() > 25 * 864e5) return;
+  // Sliding renewal on visits (at most once a day): the session never runs out while it is being used.
+  if (!force && Date.now() - Number(localStorage.getItem("sm_lms_renew_at") || 0) < 864e5) return;
   renewing = true;
   try {
     const r = await call<{ token: string; exp: number; user: LmsUser }>("refresh", {});
@@ -89,6 +106,7 @@ export async function lmsRenew(force = false) {
 }
 export function lmsSignOut() {
   localStorage.removeItem(SESSION_KEY);
+  writeSessionCookie(null);
 }
 
 /** Admin read-only "view as" (this browser tab only; never touches the user's real LMS session). */
@@ -144,7 +162,7 @@ async function call<T>(action: string, body?: unknown, opts: { asAdmin?: boolean
       }
     } catch { /* ignore */ }
   }
-  if (!res.ok) throw new LmsError(data.error || "error", res.status);
+  if (!res.ok) { const er = new LmsError(data.error || "error", res.status); er.data = data as Record<string, unknown>; throw er; }
   return data;
 }
 
@@ -192,7 +210,7 @@ export const lmsApi = {
   review: (id: string, patch: { comment?: string; like?: boolean; status?: "approved" | "returned"; grade?: Grade; scores?: { m: Level; t: Level; r: Level; notes?: { m?: string; t?: string; r?: string } } }, asAdmin = false) => call<{ ok: true }>("sub-review", { id, ...patch }, { asAdmin }),
   catalog: (asAdmin = false) => call<Catalog>("catalog", undefined, { asAdmin }),
   catalogSave: (item: { kind: "subject" | "class" | "section"; id?: string; name: string; parent?: string }) => call<Catalog & { ok: true; id: string }>("catalog-save", item, { asAdmin: true }),
-  catalogDelete: (id: string) => call<Catalog & { ok: true }>("catalog-delete", { id }, { asAdmin: true }),
+  catalogDelete: (id: string, force = false) => call<Catalog & { ok: true }>("catalog-delete", { id, force }, { asAdmin: true }),
   /** Admin only: decrypted PINs (null = stored before PIN viewing existed → reset to view). */
   pinsView: (ids?: string[], asAdmin = true) => call<{ pins: Record<string, string | null> }>("pins-view", { ids }, { asAdmin }),
   loginsList: (asAdmin = false) => call<{ items: LoginCard[] }>("logins-list", undefined, { asAdmin }),

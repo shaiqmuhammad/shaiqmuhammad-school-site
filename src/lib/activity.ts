@@ -98,6 +98,12 @@ export const activityApi = {
     if (!tok) return Promise.reject(new ActivityError("unauthorized", 401));
     return call<ActivityInfo & { hostKey: string }>("create", input, { Authorization: `Bearer ${tok}` });
   },
+  /** This teacher's/admin's activities on any device (server-side list). */
+  mine: () => {
+    const tok = actingAs() === "lms" ? lmsSession()?.token : getServerSession()?.token || lmsSession()?.token;
+    if (!tok) return Promise.resolve({ items: [] as (HostedActivity & { ended: boolean; participants: number })[] });
+    return call<{ items: (HostedActivity & { ended: boolean; participants: number })[] }>("mine", undefined, { Authorization: `Bearer ${tok}` });
+  },
   info: (code: string) => call<ActivityInfo>(code),
   join: (code: string, name: string, deviceId: string) => call<ActivityInfo & { pid: string; token: string; name: string }>(`${code}/join`, { name, deviceId }),
   state: (code: string, who: Who, since?: number) => call<ActivityState | { same: true; rev: number; now: number }>(`${code}/state${q({ ...who, since })}`),

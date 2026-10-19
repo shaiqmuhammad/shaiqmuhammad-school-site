@@ -66,7 +66,7 @@ export type Role = "student" | "teacher" | "parent";
 export type Actor = { id: string; role: Role | "admin"; name: string; cls: string; perms: string[]; scope?: string[]; stu?: string[]; viewAs?: boolean };
 type CatKind = "subject" | "class" | "section";
 
-const TOKEN_DAYS = 30;
+const TOKEN_DAYS = 3650; // effectively "until you log out" (sliding renewal on visits); logout, block or PIN reset end it
 const MAX_USERS = 3000;
 const MAX_HW = 2000;
 const FAIL_WINDOW = 15 * 60_000;
@@ -463,6 +463,19 @@ export class LmsStore extends DurableObject<LmsEnv> {
     return String(this.sql.exec(`SELECT v FROM settings WHERE k=?`, k).toArray()[0]?.v ?? def);
   }
 
+  /** Server-side list of each teacher's classroom activities (so they can resume on any device). */
+  async actReg(owner: string, code: string, type: string, title: string, hostKey: string) {
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS myacts (code TEXT PRIMARY KEY, owner TEXT, type TEXT, title TEXT, host_key TEXT, created INTEGER)`);
+    this.sql.exec(`INSERT OR REPLACE INTO myacts (code, owner, type, title, host_key, created) VALUES (?, ?, ?, ?, ?, ?)`, code, owner, type, title, hostKey, Date.now());
+  }
+  async actList(owner: string) {
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS myacts (code TEXT PRIMARY KEY, owner TEXT, type TEXT, title TEXT, host_key TEXT, created INTEGER)`);
+    return this.sql.exec(`SELECT * FROM myacts WHERE owner=? ORDER BY created DESC LIMIT 60`, owner).toArray().map((r) => ({ code: String(r.code), type: String(r.type), title: String(r.title), hostKey: String(r.host_key), created: Number(r.created) }));
+  }
+  async actDel(code: string) {
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS myacts (code TEXT PRIMARY KEY, owner TEXT, type TEXT, title TEXT, host_key TEXT, created INTEGER)`);
+    this.sql.exec(`DELETE FROM myacts WHERE code=?`, code);
+  }
   /** Short stamp of the current PIN hash; tokens carry it so a PIN change/reset signs out older sessions. */
   pinStamp(uid: string): string { const r = this.userRow("id=?", uid); return r ? String(r.hash || "").slice(0, 10) : ""; }
   async actor(uid: string, pv = ""): Promise<Actor | null> {
@@ -541,6 +554,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
       if (this.lockedFor(h, a.id)) return { status: 409, body: { error: "locked" } };
       let cur = this.sql.exec(`SELECT * FROM subs WHERE hw=? AND student=?`, h.id, a.id).toArray()[0];
       if (cur?.status === "approved") return { status: 409, body: { error: "already_approved" } };
+      if (cur?.status === "submitted") return { status: 409, body: { error: "already_submitted" } };
       if (!cur) {
         this.sql.exec(`INSERT INTO subs (id, hw, student, status, text, practised, updated) VALUES (?, ?, ?, 'draft', '', 0, ?)`, rid("s"), h.id, a.id, Date.now());
         cur = this.sql.exec(`SELECT * FROM subs WHERE hw=? AND student=?`, h.id, a.id).toArray()[0];
@@ -550,10 +564,8 @@ export class LmsStore extends DurableObject<LmsEnv> {
       if (cur.audio && !kept) await this.dropBlob(String(cur.audio));
       await this.files.put(id, data, type);
       this.sql.exec(`INSERT INTO blobs (id, owner, sub, kind, mime, size, created) VALUES (?, ?, ?, 'rec', ?, ?, ?)`, id, a.id, String(cur.id), type, data.byteLength, Date.now());
-      // Saving a recording hands it in: the teacher sees it straight away ("Sent to teacher ✓").
-      const was = String(cur.status);
-      this.sql.exec(`UPDATE subs SET audio=?, status='submitted', submitted_at=COALESCE(NULLIF(submitted_at,0), ?), updated=? WHERE id=?`, id, Date.now(), Date.now(), String(cur.id));
-      if (was !== "submitted") this.notify([String(h.createdBy), "admin"], "sub_new", { hw: h.id, title: h.title, student: a.name });
+      // A recording is the student's working copy (re-record replaces it); handing in is a separate, one-time "Submit Your Homework".
+      this.sql.exec(`UPDATE subs SET audio=?, status=CASE WHEN status='returned' THEN 'returned' ELSE 'draft' END, updated=? WHERE id=?`, id, Date.now(), String(cur.id));
       this.touch(a.id);
       return { status: 200, body: { ok: true, id, sub: this.sub(h.id, a.id) } };
     }
@@ -844,7 +856,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         if (!isStaff(a) || a.viewAs || !key.startsWith("g:") || !this.wallKeyOk(a, key)) return { status: 403, body: { error: "forbidden" } };
         const text = wallText(input.text, 1500);
         const image = String(input.image || ""), audio = String(input.audio || "");
-        if ((image && (!/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(image) || image.length > 330_000)) || (audio && (!/^data:audio\/[a-z0-9.+-]+(;codecs=[a-z0-9.,-]+)?;base64,[A-Za-z0-9+/=]+$/i.test(audio) || audio.length > 900_000))) return { status: 400, body: { error: "bad_media" } };
+        if ((image && (!/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(image) || image.length > 1_000_000)) || (audio && (!/^data:audio\/[a-z0-9.+-]+(;codecs=[a-z0-9.,-]+)?;base64,[A-Za-z0-9+/=]+$/i.test(audio) || audio.length > 900_000))) return { status: 400, body: { error: "bad_media" } };
         if (!text && !image && !audio) return { status: 400, body: { error: "empty" } };
         this.sql.exec(`INSERT INTO wall (id, wkey, by, name, text, image, audio, pinned, at) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)`, rid("wp"), key, a.id, a.name, text, image, audio, Date.now());
         return { status: 200, body: { ok: true } };
@@ -1304,11 +1316,31 @@ export class LmsStore extends DurableObject<LmsEnv> {
         const n = String(r.name);
         const users = this.sql.exec(`SELECT cls, section, subjects, scope FROM users`).toArray();
         const scopeHas = (u: Record<string, unknown>, f: (s: string) => boolean) => (JSON.parse(String(u.scope || "[]")) as string[]).some(f);
-        let used = 0;
-        if (r.kind === "subject") used = users.filter((u) => (JSON.parse(String(u.subjects || "[]")) as string[]).includes(n)).length;
-        if (r.kind === "class") used = users.filter((u) => u.cls === n || scopeHas(u, (s) => s.split("|")[0] === n)).length + Number(this.sql.exec(`SELECT COUNT(*) AS c FROM catalog WHERE parent=?`, String(r.id)).one().c) + Number(this.sql.exec(`SELECT COUNT(*) AS c FROM homework WHERE cls=?`, n).one().c);
-        if (r.kind === "section") { const k = this.className(String(r.parent)); used = users.filter((u) => (u.cls === k && u.section === n) || scopeHas(u, (s) => s === `${k}|${n}`)).length + Number(this.sql.exec(`SELECT COUNT(*) AS c FROM homework WHERE cls=? AND section=?`, k, n).one().c); }
-        if (used) return { status: 409, body: { error: "in_use", count: used } };
+        // In use? Report what uses it; "force" removes it everywhere (people are unassigned, never deleted; homework keeps its old label).
+        const k = r.kind === "section" ? this.className(String(r.parent)) : n;
+        const isCls = (u: Record<string, unknown>) => r.kind === "class" ? u.cls === n : r.kind === "section" ? u.cls === k && u.section === n : false;
+        const tokHit = (t: string) => r.kind === "class" ? t.split("|")[0] === n : r.kind === "section" ? t === `${k}|${n}` : false;
+        const det = {
+          students: users.filter((u) => r.kind === "subject" ? false : isCls(u)).length,
+          teachers: users.filter((u) => r.kind === "subject" ? (JSON.parse(String(u.subjects || "[]")) as string[]).includes(n) : scopeHas(u, tokHit)).length,
+          sections: r.kind === "class" ? Number(this.sql.exec(`SELECT COUNT(*) AS c FROM catalog WHERE parent=?`, String(r.id)).one().c) : 0,
+          homework: r.kind === "class" ? Number(this.sql.exec(`SELECT COUNT(*) AS c FROM homework WHERE cls=?`, n).one().c) : r.kind === "section" ? Number(this.sql.exec(`SELECT COUNT(*) AS c FROM homework WHERE cls=? AND section=?`, k, n).one().c) : 0,
+        };
+        const used = det.students + det.teachers + det.sections + det.homework;
+        if (used && !input.force) return { status: 409, body: { error: "in_use", count: used, detail: det } };
+        if (used) {
+          const all = this.sql.exec(`SELECT id, cls, section, subjects, scope FROM users`).toArray();
+          for (const u of all) {
+            const id = String(u.id);
+            if (r.kind === "subject") { const sub = JSON.parse(String(u.subjects || "[]")) as string[]; if (sub.includes(n)) this.sql.exec(`UPDATE users SET subjects=? WHERE id=?`, JSON.stringify(sub.filter((x) => x !== n)), id); continue; }
+            if (r.kind === "class" && u.cls === n) this.sql.exec(`UPDATE users SET cls='', section='' WHERE id=?`, id);
+            if (r.kind === "section" && u.cls === k && u.section === n) this.sql.exec(`UPDATE users SET section='' WHERE id=?`, id);
+            const sc = JSON.parse(String(u.scope || "[]")) as string[];
+            if (sc.some(tokHit)) this.sql.exec(`UPDATE users SET scope=? WHERE id=?`, JSON.stringify(sc.filter((t) => !tokHit(t))), id);
+          }
+          if (r.kind !== "subject") for (const g of this.sql.exec(`SELECT id, classes FROM grp`).toArray()) { const t = JSON.parse(String(g.classes || "[]")) as string[]; if (t.some(tokHit)) this.sql.exec(`UPDATE grp SET classes=? WHERE id=?`, JSON.stringify(t.filter((x) => !tokHit(x))), String(g.id)); }
+          if (r.kind === "class") this.sql.exec(`DELETE FROM catalog WHERE parent=?`, String(r.id));
+        }
         this.sql.exec(`DELETE FROM catalog WHERE id=?`, String(r.id));
         return { status: 200, body: { ok: true, ...this.catalog() } };
       }
@@ -1478,6 +1510,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         if (this.lockedFor(h, a.id)) return { status: 409, body: { error: "locked" } };
         const cur = this.sql.exec(`SELECT * FROM subs WHERE hw=? AND student=?`, h.id, a.id).toArray()[0];
         if (cur?.status === "approved") return { status: 409, body: { error: "already_approved" } };
+      if (cur?.status === "submitted") return { status: 409, body: { error: "already_submitted" } };
         const status = input.submit === true ? "submitted" : cur?.status === "returned" ? "returned" : "draft";
         const text = str(input.text, 4000);
         const practised = input.practised === true ? 1 : 0;
@@ -2287,7 +2320,7 @@ export async function handleLms(request: Request, env: LmsEnv, action: string): 
   let body: Json = {};
   if (request.method === "POST") {
     const text = await request.text();
-    if (text.length > 200_000) return reply(origin, { error: "too_large" }, 413);
+    if (text.length > (action === "wall-post" ? 2_200_000 : 200_000)) return reply(origin, { error: "too_large" }, 413);
     try {
       body = JSON.parse(text || "{}") as Json;
     } catch {
@@ -2354,6 +2387,11 @@ export async function handleLms(request: Request, env: LmsEnv, action: string): 
     return reply(origin, { ...(r.body as object), ...t }, 200);
   }
   return reply(origin, r.body, r.status);
+}
+
+/** The verified LMS user id behind a request (no role check). */
+export async function teacherIdOf(request: Request, env: LmsEnv): Promise<string | null> {
+  return (await verifyUserTokenPv(env, request.headers.get("Authorization")))?.uid ?? null;
 }
 
 /** A signed-in, active teacher holding an extra permission like "act:wall" or "host:<quiz>" (Classroom Activities access). */
