@@ -99,8 +99,8 @@ export function LmsTabs() {
   };
   const label = (t: Tab) => (lang === "ar" ? t.ar : t.en);
   return (
-    <nav className="z-40 shrink-0 bg-header text-white max-md:sticky max-md:top-0 max-md:border-b max-md:border-white/10 md:sticky md:top-0 md:h-dvh md:w-[108px] md:overflow-y-auto" aria-label={tr("Main sections", "الأقسام الرئيسية")} data-testid="lms-tabs">
-      <div className="flex gap-1.5 overflow-x-auto px-2 py-2 [scrollbar-width:none] md:flex-col md:items-center md:overflow-x-visible md:px-2 md:py-3">
+    <nav className="z-40 shrink-0 bg-header text-white max-md:border-b max-md:border-white/10 md:sticky md:top-0 md:h-dvh md:w-[108px] md:overflow-y-auto" aria-label={tr("Main sections", "الأقسام الرئيسية")} data-testid="lms-tabs">
+      <div className="flex flex-wrap justify-center gap-1.5 px-2 py-2 md:flex-col md:flex-nowrap md:items-center md:px-2 md:py-3">
         <Link href="/" className="hidden shrink-0 md:block" aria-label={tr("Home", "الرئيسية")} data-testid="lms-rail-logo"><img src="/logo.svg" alt="" width={52} height={52} className="h-[52px] w-[52px] rounded-full" /></Link>
         {tabs.map((t, i) => {
           const on = isActive(t);

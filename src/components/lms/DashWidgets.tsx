@@ -31,7 +31,7 @@ export function useUnreadMsgs() {
 /** Horizontal, swipeable card carousel of big colourful widgets (dashboard content). */
 export function DashCarousel({ items, testId = "lms-widgets" }: { items: Widget[]; testId?: string }) {
   return (
-    <div className="-mx-3 flex snap-x snap-mandatory gap-3.5 overflow-x-auto px-3 pb-3 pt-1 sm:mx-0 sm:px-0 [scrollbar-width:thin]" data-testid={testId} role="list">
+    <div className="flex flex-wrap gap-3.5 pb-3 pt-1 max-sm:gap-3" data-testid={testId} role="list">
       {items.map((w) => {
         const inner = (
           <>
@@ -44,7 +44,7 @@ export function DashCarousel({ items, testId = "lms-widgets" }: { items: Widget[
             </span>
           </>
         );
-        const cls = `relative flex min-h-[158px] w-[200px] shrink-0 snap-start flex-col justify-between rounded-[28px] p-5 shadow-[0_10px_22px_-12px_rgba(23,52,79,0.5)] transition hover:-translate-y-0.5 max-sm:w-[170px] max-sm:min-h-[140px] max-sm:p-4 ${TONE[w.tone]}`;
+        const cls = `relative flex min-h-[158px] w-[200px] grow flex-col justify-between rounded-[28px] p-5 shadow-[0_10px_22px_-12px_rgba(23,52,79,0.5)] transition hover:-translate-y-0.5 max-sm:w-[calc(50%-6px)] max-sm:min-h-[140px] max-sm:p-4 ${TONE[w.tone]}`;
         return w.href ? <a key={w.title} href={w.href} role="listitem" className={cls} data-testid="widget">{inner}</a> : <div key={w.title} role="listitem" className={cls} data-testid="widget">{inner}</div>;
       })}
     </div>

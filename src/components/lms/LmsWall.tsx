@@ -141,7 +141,7 @@ export function LmsWallPage() {
           <>
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="me-auto text-2xl font-extrabold">🧱 {tr("Class Wall", "جدار الصف")}</h1>
-              {classes.length > 1 && <select className="rounded-xl border border-black/10 bg-white px-3 py-2 text-sm dark:border-white/15 dark:bg-white/5" value={key} onChange={(e) => { setPosts(null); setKey(e.target.value); }} data-testid="wall-class">{classes.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}</select>}
+              {classes.length > 1 && <div className="flex w-full flex-wrap gap-1.5" data-testid="wall-class">{classes.map((c) => <button key={c.key} type="button" aria-pressed={key === c.key} data-testid="wall-class-tab" className={`rounded-full border px-3 py-1.5 text-sm font-bold ${key === c.key ? "border-transparent bg-header text-sun" : "border-black/10 bg-white/80 dark:border-white/15 dark:bg-white/10"}`} onClick={() => { setPosts(null); setKey(c.key); }}>🧱 {c.label}</button>)}</div>}
               {classes.length === 1 && <span className="rounded-full bg-sun/70 px-3 py-1 text-sm font-bold">{classes[0].label}</span>}
             </div>
             {err && <p className="rounded-xl bg-rose-100 px-4 py-2 text-rose-800" role="alert">{err}</p>}
