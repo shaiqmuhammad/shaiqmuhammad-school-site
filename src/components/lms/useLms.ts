@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { clearServerSession, getServerSession } from "@/lib/adminServer";
-import { lmsApi, lmsSession, viewAs, type Actor } from "@/lib/lms";
+import { lmsApi, lmsRenew, lmsSession, viewAs, type Actor } from "@/lib/lms";
 import { useI18n } from "@/lib/i18n";
 
 export const ADMIN_ACTOR: Actor = { id: "admin", role: "admin", name: "Admin", cls: "", perms: ["assign", "review", "manageUsers", "viewAll"] };
@@ -18,6 +18,7 @@ export function useLmsActor(): { actor: Actor | null; asAdmin: false; ready: boo
       ["viewAs", "n", "r", "c"].forEach((k) => p.delete(k));
       window.history.replaceState(null, "", window.location.pathname + (p.toString() ? `?${p}` : ""));
     }
+    lmsRenew();
     const va = viewAs();
     // eslint-disable-next-line react-hooks/set-state-in-effect -- storage is only readable after hydration
     if (va) { setSt({ actor: { id: va.id, role: va.role, name: va.name, cls: va.cls, perms: va.role === "teacher" ? ["assign", "review"] : [], viewAs: true } as Actor, asAdmin: false, ready: true, adminElsewhere: false }); return; }
@@ -29,7 +30,7 @@ export function useLmsActor(): { actor: Actor | null; asAdmin: false; ready: boo
       lmsApi.me().then((r) => {
         const u = r.user;
         if (JSON.stringify([u.perms, u.scope]) === JSON.stringify([cur.user.perms, cur.user.scope])) return;
-        const next = { ...cur, user: { ...cur.user, perms: u.perms, scope: u.scope } };
+        const fresh = lmsSession() || cur; const next = { ...fresh, user: { ...fresh.user, perms: u.perms, scope: u.scope } };
         try { localStorage.setItem("sm_lms_session_v1", JSON.stringify(next)); } catch { /* ignore */ }
         setSt((x) => ({ ...x, actor: next.user }));
       }).catch(() => undefined);

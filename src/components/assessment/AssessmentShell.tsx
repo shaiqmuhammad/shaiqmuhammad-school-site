@@ -3,7 +3,8 @@
 import { LmsTabs } from "@/components/lms/LmsTabs";
 import { useLmsExit } from "@/lib/useLmsExit";
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { lmsRenew } from "@/lib/lms";
+import { useEffect, type ReactNode } from "react";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { formatClock, useAssessmentText } from "@/lib/assessmentI18n";
@@ -33,6 +34,7 @@ type Props = {
 export function AssessmentShell({ title, exitHref = "/assessments", onExit, secondsLeft, progress, actions, toolbar, wide = false, children }: Props) {
   const { a } = useAssessmentText();
   const exitTo = useLmsExit(exitHref);
+  useEffect(() => { lmsRenew(); }, []);
   const showTimer = typeof secondsLeft === "number";
   const low = showTimer && (secondsLeft as number) <= 30;
   const warn = showTimer && !low && (secondsLeft as number) <= 120;

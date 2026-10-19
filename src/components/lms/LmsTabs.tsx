@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useTr, useLmsActor } from "@/components/lms/useLms";
 import { qhwPerm } from "@/lib/lmsMods";
+import { setOrigin } from "@/lib/origin";
 import { useUnreadMsgs } from "@/components/lms/DashWidgets";
 import { stuUi } from "@/lib/lms";
 
@@ -52,6 +53,7 @@ const DISC = ["bg-sun text-[#0b1b2b]", "bg-[#2e9c8f] text-white", "bg-coral text
 export function LmsTabs() {
   const { tr, lang } = useTr();
   const { actor, ready } = useLmsActor();
+  useEffect(() => { setOrigin("lms"); }, []);
   const unread = useUnreadMsgs();
   const [path, setPath] = useState("");
   const [hash, setHash] = useState("");
