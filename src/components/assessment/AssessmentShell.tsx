@@ -41,7 +41,7 @@ export function AssessmentShell({ title, exitHref = "/assessments", onExit, seco
   const rail = Boolean(toolbar) && !showTimer; // LMS pages: the icon rail is the only navigation
 
   return (
-    <div className={`relative flex min-h-dvh flex-col ${rail ? "md:flex-row" : ""} overflow-x-clip bg-gradient-to-br from-cream via-white to-white text-[#1b2f44] dark:from-[#0d1b2a] dark:via-[#0d1b2a] dark:to-[#10263b] dark:text-[#e6eef6]`}>
+    <div className={`relative flex min-h-dvh ${rail ? "flex-row" : "flex-col"} overflow-x-clip bg-gradient-to-br from-cream via-white to-white text-[#1b2f44] dark:from-[#0d1b2a] dark:via-[#0d1b2a] dark:to-[#10263b] dark:text-[#e6eef6]`}>
       <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute -top-24 -start-24 h-72 w-72 rounded-full bg-teal-brand/15 blur-3xl dark:bg-teal-brand/15" />
         <div className="absolute -bottom-24 -end-16 h-80 w-80 rounded-full bg-sun/30 blur-3xl dark:bg-sun/10" />

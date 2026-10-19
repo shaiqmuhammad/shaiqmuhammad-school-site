@@ -47,14 +47,24 @@ const EMOJI: Record<string, string> = { dash: "🏠", hw: "📝", assess: "✅",
 const DISC = ["bg-sun text-[#0b1b2b]", "bg-[#2e9c8f] text-white", "bg-coral text-[#3b1710]", "bg-[#bfdff3] text-header", "bg-[#cdebe4] text-[#0f4a42]", "bg-[#fde0d9] text-[#6b2b1d]"];
 
 /**
- * The ONE navigation of the LMS (student, teacher and parent): a big colourful icon rail on desktop that becomes a
- * scrolling icon strip at the top on mobile. Hidden modules never appear (server-enforced separately).
+ * The ONE navigation of the LMS (student, teacher and parent): a colourful LEFT icon rail on every screen size
+ * (narrow on phones), collapsible on both. Hidden modules never appear (server-enforced separately).
  */
 export function LmsTabs() {
   const { tr, lang } = useTr();
   const { actor, ready } = useLmsActor();
   useEffect(() => { setOrigin("lms"); }, []);
   const unread = useUnreadMsgs();
+  // Collapsible rail, remembered per device type: desktop collapses to icons only, phones hide it behind a small button.
+  const [mob, setMob] = useState(false);
+  const [col, setCol] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)");
+    const upd = () => { setMob(mq.matches); setCol(localStorage.getItem(mq.matches ? "sm-rail-m" : "sm-rail-d") === "1"); };
+    upd(); mq.addEventListener("change", upd);
+    return () => mq.removeEventListener("change", upd);
+  }, []);
+  const toggle = (v: boolean) => { setCol(v); try { localStorage.setItem(mob ? "sm-rail-m" : "sm-rail-d", v ? "1" : "0"); } catch { /* ignore */ } };
   const [path, setPath] = useState("");
   const [hash, setHash] = useState("");
   useEffect(() => {
@@ -100,17 +110,24 @@ export function LmsTabs() {
     return path === t.href;
   };
   const label = (t: Tab) => (lang === "ar" ? t.ar : t.en);
+  const slim = col && !mob; // desktop, collapsed: icons only
+  if (col && mob) {
+    return (
+      <button type="button" onClick={() => toggle(false)} className="fixed bottom-4 start-3 z-50 grid h-12 w-12 place-items-center rounded-full bg-header text-[22px] text-white shadow-xl ring-2 ring-sun" aria-label={tr("Show menu", "إظهار القائمة")} title={tr("Show menu", "إظهار القائمة")} data-testid="lms-rail-open">☰</button>
+    );
+  }
   return (
-    <nav className="z-40 shrink-0 bg-header text-white max-md:border-b max-md:border-white/10 md:sticky md:top-0 md:h-dvh md:w-[108px] md:overflow-y-auto" aria-label={tr("Main sections", "الأقسام الرئيسية")} data-testid="lms-tabs">
-      <div className="flex flex-wrap justify-center gap-1.5 px-2 py-2 md:flex-col md:flex-nowrap md:items-center md:px-2 md:py-3">
-        <Link href="/" className="hidden shrink-0 md:block" aria-label={tr("Home", "الرئيسية")} data-testid="lms-rail-logo"><img src="/logo.svg" alt="" width={52} height={52} className="h-[52px] w-[52px] rounded-full" /></Link>
+    <nav className={`sticky top-0 z-40 h-dvh shrink-0 overflow-y-auto overflow-x-hidden bg-header text-white [scrollbar-width:none] ${slim ? "w-[68px]" : "w-[64px] md:w-[108px]"}`} aria-label={tr("Main sections", "الأقسام الرئيسية")} data-testid="lms-tabs" data-collapsed={col ? "1" : "0"}>
+      <div className="flex flex-col items-center gap-1 px-1 py-2 md:gap-1.5 md:px-2 md:py-3">
+        <button type="button" onClick={() => toggle(!col)} className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white/10 text-sm font-black text-white hover:bg-white/20" aria-label={col ? tr("Expand menu", "توسيع القائمة") : tr("Collapse menu", "طي القائمة")} title={col ? tr("Expand menu", "توسيع القائمة") : tr("Collapse menu", "طي القائمة")} data-testid="lms-rail-toggle"><span className="rtl:rotate-180" aria-hidden>{col ? "»" : "«"}</span></button>
+        <Link href="/" className={`hidden shrink-0 ${slim ? "" : "md:block"}`} aria-label={tr("Home", "الرئيسية")} data-testid="lms-rail-logo"><img src="/logo.svg" alt="" width={52} height={52} className="h-[52px] w-[52px] rounded-full" /></Link>
         {tabs.map((t, i) => {
           const on = isActive(t);
           return (
-            <a key={t.id} href={t.href + (t.hash || "")} onClick={() => { if (t.hash) setTimeout(() => { setPath(window.location.pathname.replace(/\/$/, "") || "/"); setHash(window.location.hash); }, 0); }} aria-current={on ? "page" : undefined} data-testid={`lms-tab-${t.id}`} className={`relative flex w-[76px] shrink-0 flex-col items-center gap-1 rounded-2xl px-1 py-2 text-center text-[11.5px] font-extrabold leading-tight transition md:w-[92px] ${on ? "bg-sun text-[#0b1b2b] shadow-lg" : "text-white/90 hover:bg-white/10"}`}>
-              <span className={`grid h-11 w-11 place-items-center rounded-full text-[26px] leading-none max-md:h-10 max-md:w-10 max-md:text-[22px] ${on ? "bg-white" : DISC[i % DISC.length]}`} aria-hidden>{EMOJI[t.id] || "⭐"}</span>
-              <span className="line-clamp-2 break-words">{label(t)}</span>
-              {t.id === "msg" && unread > 0 && <span className="absolute end-1.5 top-1 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-extrabold text-white" data-testid="msg-badge">{unread > 99 ? "99+" : unread}</span>}
+            <a key={t.id} href={t.href + (t.hash || "")} title={label(t)} onClick={() => { if (t.hash) setTimeout(() => { setPath(window.location.pathname.replace(/\/$/, "") || "/"); setHash(window.location.hash); }, 0); }} aria-current={on ? "page" : undefined} aria-label={label(t)} data-testid={`lms-tab-${t.id}`} className={`relative flex shrink-0 flex-col items-center gap-0.5 rounded-2xl px-0.5 py-1.5 text-center font-extrabold leading-tight transition md:gap-1 md:py-2 ${slim ? "w-[56px]" : "w-[58px] text-[9px] md:w-[92px] md:px-1 md:text-[11.5px]"} ${on ? "bg-sun text-[#0b1b2b] shadow-lg" : "text-white/90 hover:bg-white/10"}`}>
+              <span className={`grid h-10 w-10 place-items-center rounded-full text-[22px] leading-none ${slim ? "" : "md:h-11 md:w-11 md:text-[26px]"} ${on ? "bg-white" : DISC[i % DISC.length]}`} aria-hidden>{EMOJI[t.id] || "⭐"}</span>
+              {!slim && <span className="line-clamp-2 w-full break-words max-md:line-clamp-1 max-md:truncate">{label(t)}</span>}
+              {t.id === "msg" && unread > 0 && <span className="absolute end-0.5 top-0.5 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-extrabold text-white" data-testid="msg-badge">{unread > 99 ? "99+" : unread}</span>}
             </a>
           );
         })}
