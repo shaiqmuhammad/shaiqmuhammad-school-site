@@ -1,6 +1,6 @@
 "use client";
 
-import { FeedbackText, ScoreBadges, TrackerEntries } from "@/components/lms/QuranScores";
+import { FeedbackText, ScoreBadges } from "@/components/lms/QuranScores";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { GRADE_STYLE, card, gradeLabel, useTr } from "@/components/lms/useLms";
@@ -54,6 +54,9 @@ export function QrPage() {
   const audio = (id: string, label: string, testId: string, at?: number) => <AudioCard key={id} src={lmsApi.qrAudioUrl(t, id)} title={label} name={d?.student || ""} at={at ?? (d?.recAt?.[id] || d?.attempts.find((x) => x.audio === id)?.at)} testId={testId} />;
   const q = d?.homework.data as QuranData | undefined;
   const verses = (x?: QuranData) => { const n = x?.from && x?.to ? x.to - x.from + 1 : ch?.verses_count || 0; return lang === "ar" ? `${n} ${n === 1 ? "آية" : "آيات"}` : `${n} ${n === 1 ? "verse" : "verses"}`; };
+  const when = d ? Math.max(0, ...Object.values(d.recAt || {}), ...d.attempts.map((x) => x.at || 0), ...d.tracker.filter((x) => !q?.surah || x.surah === q.surah).map((x) => x.approved || 0)) : 0;
+  const dateText = when ? new Date(when).toLocaleDateString(lang === "ar" ? "ar" : "en-GB", { day: "numeric", month: "long", year: "numeric" }) : "";
+  const statusText = d ? ({ approved: tr("Approved ✓", "تم الاعتماد ✓"), submitted: tr("Submitted — waiting for review", "تم التسليم — بانتظار المراجعة"), assigned: tr("Not submitted yet", "لم يُسلَّم بعد") } as Record<string, string>)[d.status] || "" : "";
   return (
     <main className="min-h-dvh bg-gradient-to-b from-sky-50 to-white px-3 py-6 text-header dark:from-[#0b1622] dark:to-[#0f1a26] dark:text-white" data-testid="qr-page">
       <div className="mx-auto max-w-3xl space-y-4">
@@ -70,6 +73,8 @@ export function QrPage() {
               <p className="mt-2 text-lg font-bold" dir="auto">
                 {d.homework.kind === "quran" && ch ? `${lang === "ar" ? `سورة ${ch.name_arabic}` : `Surah ${ch.name_simple}`} · ${verses(q)}` : d.homework.title}
               </p>
+              {dateText && <p className="mt-1 text-sm font-semibold text-sun" data-testid="qr-date">📅 {dateText}</p>}
+              {statusText && !d.grade ? <p className="mt-2 text-sm opacity-90" data-testid="qr-status">{statusText}</p> : null}
               {d.grade ? <span className={`mt-3 inline-block rounded-full px-3 py-1 text-sm font-bold ${GRADE_STYLE[d.grade]}`} data-testid="qr-grade">{gradeLabel(d.grade, tr)}</span> : null}
               {d.scores && <div className="mt-3 space-y-2"><ScoreBadges s={d.scores} /><FeedbackText s={d.scores} /></div>}
             </header>
@@ -86,14 +91,6 @@ export function QrPage() {
                 </div>
               )) : <p className="opacity-70">{tr("No feedback yet.", "لا ملاحظات بعد.")}</p>}
             </section>
-            {d.homework.kind === "quran" && (
-              <section className={card + " space-y-2"}>
-                <h2 className="text-xl font-bold">📈 {tr("Tracker", "متابعة الحفظ")}</h2>
-                {d.tracker.length ? (
-                  <div data-testid="qr-tracker"><TrackerEntries rows={d.tracker} surahName={() => ch?.name_simple || ""} /></div>
-                ) : <p className="opacity-70">{tr("Not graded yet.", "لم يُقيّم بعد.")}</p>}
-              </section>
-            )}
           </>
         )}
       </div>
