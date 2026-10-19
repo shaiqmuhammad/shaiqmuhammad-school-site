@@ -1495,9 +1495,10 @@ export class LmsStore extends DurableObject<LmsEnv> {
         if (a.role === "student" || a.role === "parent") return { status: 403, body: { error: "forbidden" } };
         const qd = qhwOf(a);
         if (a.role === "teacher" && !(qd.show && qd.view)) return { status: 403, body: { error: "quran_not_allowed" } };
-        const hws = new Map(this.allHomework().filter((h) => h.kind === "quran" && (a.role === "admin" || a.perms.includes("viewAll") || h.createdBy === a.id)).map((h) => [h.id, h]));
+        const hws = new Map(this.allHomework().filter((h) => h.kind === "quran").map((h) => [h.id, h]));
+        const mine = (h: { createdBy: string }, r: Record<string, unknown>) => a.role === "admin" || a.perms.includes("viewAll") || h.createdBy === a.id || (JSON.parse(String(r.attempts || "[]")) as { by: string }[]).some((x) => x.by === a.name);
         const names = new Map(this.sql.exec(`SELECT id, name, cls, section FROM users`).toArray().map((r) => [String(r.id), { name: String(r.name), cls: String(r.cls || ""), section: String(r.section || "") }]));
-        const items = this.sql.exec(`SELECT * FROM subs WHERE grade != '' AND status IN ('approved','returned') ORDER BY updated DESC LIMIT 1000`).toArray().filter((r) => hws.has(String(r.hw))).map((r) => {
+        const items = this.sql.exec(`SELECT * FROM subs WHERE grade != '' AND status IN ('approved','returned') ORDER BY updated DESC LIMIT 1000`).toArray().filter((r) => hws.has(String(r.hw)) && mine(hws.get(String(r.hw))!, r)).map((r) => {
           const h = hws.get(String(r.hw))!; const at = JSON.parse(String(r.attempts || "[]")) as { at: number; by: string }[]; const last = at[at.length - 1];
           const u = names.get(String(r.student));
           return { id: String(r.id), hw: h.id, title: h.title, data: h.data, student: String(r.student), name: u?.name ?? "?", cls: u?.cls ?? "", section: u?.section ?? "", grade: String(r.grade), status: String(r.status), scores: r.scores ? JSON.parse(String(r.scores)) : null, gradedAt: last?.at || Number(r.updated), by: last?.by || "" };
