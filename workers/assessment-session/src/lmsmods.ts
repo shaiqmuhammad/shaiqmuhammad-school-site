@@ -14,7 +14,7 @@ export type HwLite = { id: string; title: string; kind: string; cls: string; sec
 export type ModCtx = {
   sql: SqlStorage;
   hwList: () => HwLite[];
-  inScope: (a: Actor, cls: string, section: string) => boolean;
+  inScope: (a: Actor, cls: string, section: string, sid?: string) => boolean;
   userRow: (where: string, arg: string) => Record<string, unknown> | undefined;
 };
 
@@ -87,7 +87,7 @@ const attSettings = (c: ModCtx) => ({ windowDays: setting(c, "att:window", 7), l
 /** Active students the actor may see (admin: all). Optional class / section filter. */
 function students(c: ModCtx, a: Actor, cls: string, section: string) {
   return c.sql.exec(`SELECT id, name, cls, section, email, avatar FROM users WHERE role='student' AND disabled=0 ORDER BY cls, section, name`).toArray()
-    .filter((r) => (!cls || r.cls === cls) && (!section || r.section === section) && c.inScope(a, String(r.cls || ""), String(r.section || "")));
+    .filter((r) => (!cls || r.cls === cls) && (!section || r.section === section) && c.inScope(a, String(r.cls || ""), String(r.section || ""), String(r.id)));
 }
 const place = (c: ModCtx, sid: string): [string, string] | null => { const u = c.userRow("id=? AND role='student'", sid); return u ? [String(u.cls || ""), String(u.section || "")] : null; };
 const forbid = (e = "forbidden"): Reply => ({ status: 403, body: { error: e } });
@@ -133,7 +133,7 @@ export async function modHandle(c: ModCtx, action: string, a: Actor, input: Json
       for (const m of marks) {
         const sid = str(m.student, 40), status = String(m.status);
         const pl = place(c, sid);
-        if (!pl || !STATUS.includes(status) || !c.inScope(a, pl[0], pl[1])) { skipped++; continue; }
+        if (!pl || !STATUS.includes(status) || !c.inScope(a, pl[0], pl[1], sid)) { skipped++; continue; }
         sql.exec(`INSERT INTO att (id, student, cls, section, day, period, status, note, by, by_name, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(student, day, period) DO UPDATE SET status=excluded.status, note=excluded.note, by=excluded.by, by_name=excluded.by_name, at=excluded.at, cls=excluded.cls, section=excluded.section`, rid("at"), sid, pl[0], pl[1], day, period, status, str(m.note, 200), a.id, a.name, now);
         saved++;
       }
@@ -143,7 +143,7 @@ export async function modHandle(c: ModCtx, action: string, a: Actor, input: Json
       if (a.viewAs || !modCan(a, "att", "edit")) return forbid();
       const sid = str(input.student, 40), day = String(input.day), period = str(input.period, 12) || "Day";
       const pl = place(c, sid);
-      if (!pl || !c.inScope(a, pl[0], pl[1])) return forbid("not_your_class");
+      if (!pl || !c.inScope(a, pl[0], pl[1], sid)) return forbid("not_your_class");
       if (a.role !== "admin" && Math.floor((dayMs(today()) - dayMs(day)) / 864e5) > attSettings(c).windowDays) return forbid("edit_window_closed");
       sql.exec(`DELETE FROM att WHERE student=? AND day=? AND period=?`, sid, day, period);
       return { status: 200, body: { ok: true } };
@@ -208,7 +208,7 @@ export async function modHandle(c: ModCtx, action: string, a: Actor, input: Json
     case "beh-save": {
       if (a.viewAs || !modCan(a, "beh", "edit")) return forbid();
       const sid = str(input.student, 40), pl = place(c, sid);
-      if (!pl || !c.inScope(a, pl[0], pl[1])) return forbid("not_your_class");
+      if (!pl || !c.inScope(a, pl[0], pl[1], sid)) return forbid("not_your_class");
       const kind = input.kind === "positive" ? "positive" : "concern";
       const category = str(input.category, 40) || "Other";
       const day = DAY.test(String(input.day)) ? String(input.day) : today();
@@ -222,7 +222,7 @@ export async function modHandle(c: ModCtx, action: string, a: Actor, input: Json
       const ex = id ? sql.exec(`SELECT * FROM beh WHERE id=?`, id).toArray()[0] : undefined;
       if (ex) {
         const ep = place(c, String(ex.student));
-        if (!ep || !c.inScope(a, ep[0], ep[1])) return forbid("not_your_class");
+        if (!ep || !c.inScope(a, ep[0], ep[1], String(ex.student))) return forbid("not_your_class");
         if (a.role !== "admin" && ex.sensitive && ex.by !== a.id) return forbid("sensitive");
         sql.exec(`UPDATE beh SET day=?, kind=?, category=?, severity=?, note=?, action=?, follow=?, follow_note=?, sensitive=?, updated=? WHERE id=?`, day, kind, category, severity, note, action2, follow, followNote, sens, now, id);
         return { status: 200, body: { ok: true, id } };
@@ -238,7 +238,7 @@ export async function modHandle(c: ModCtx, action: string, a: Actor, input: Json
       const r = sql.exec(`SELECT * FROM beh WHERE id=?`, str(input.id, 40)).toArray()[0];
       if (!r) return { status: 404, body: { error: "not_found" } };
       const pl = place(c, String(r.student));
-      if (!pl || !c.inScope(a, pl[0], pl[1])) return forbid("not_your_class");
+      if (!pl || !c.inScope(a, pl[0], pl[1], String(r.student))) return forbid("not_your_class");
       if (a.role !== "admin" && r.sensitive && r.by !== a.id) return forbid("sensitive");
       const follow = FOLLOW.includes(String(input.follow)) ? String(input.follow) : "open";
       sql.exec(`UPDATE beh SET follow=?, follow_note=COALESCE(NULLIF(?, ''), follow_note), updated=? WHERE id=?`, follow, str(input.followNote, 600), Date.now(), String(r.id));
@@ -255,7 +255,7 @@ export async function modHandle(c: ModCtx, action: string, a: Actor, input: Json
     case "beh-points": {
       if (!modCan(a, "beh", "view")) return forbid();
       const sid = str(input.student, 40), pl = place(c, sid);
-      if (!pl || !c.inScope(a, pl[0], pl[1])) return forbid("not_your_class");
+      if (!pl || !c.inScope(a, pl[0], pl[1], sid)) return forbid("not_your_class");
       const tot = Number(sql.exec(`SELECT COALESCE(SUM(pts),0) AS t FROM pts WHERE student=?`, sid).one().t);
       const recent = sql.exec(`SELECT label, pts, icon, by, at FROM pts WHERE student=? ORDER BY at DESC LIMIT 15`, sid).toArray().map((r) => ({ label: String(r.label), pts: Number(r.pts), icon: String(r.icon || ""), by: String(r.by), at: Number(r.at) }));
       const att = sql.exec(`SELECT status, COUNT(*) AS n FROM att WHERE student=? GROUP BY status`, sid).toArray().reduce((m, r) => ({ ...m, [String(r.status)]: Number(r.n) }), {} as Record<string, number>);
