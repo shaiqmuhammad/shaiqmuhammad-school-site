@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { adminRelogin, card, inputCls, smallBtn, useTr } from "@/components/lms/useLms";
-import { lmsApi, lmsErrorText, type Catalog } from "@/lib/lms";
+import { lmsApi, lmsErrorText, type Catalog, type LmsError } from "@/lib/lms";
 
 type Item = { id: string; name: string };
 
@@ -57,7 +57,18 @@ export function LmsSetup() {
       return false;
     }
   };
-  const del = (it: Item) => { if (confirm(tr(`Delete ${it.name}?`, `حذف ${it.name}؟`))) run(lmsApi.catalogDelete(it.id)); };
+  const del = async (it: Item) => {
+    if (!confirm(tr(`Delete ${it.name}?`, `حذف ${it.name}؟`))) return;
+    try { setCat(await lmsApi.catalogDelete(it.id)); setErr(""); }
+    catch (e) {
+      const d = (e as LmsError).data?.detail as { students: number; teachers: number; sections: number; homework: number } | undefined;
+      if ((e as LmsError).code !== "in_use" || !d) { setErr(lmsErrorText(e, tr)); return; }
+      const parts = [d.students && tr(`${d.students} student(s)`, `${d.students} طالب`), d.teachers && tr(`${d.teachers} teacher(s)`, `${d.teachers} معلم`), d.sections && tr(`${d.sections} section(s)`, `${d.sections} شعبة`), d.homework && tr(`${d.homework} homework`, `${d.homework} واجب`)].filter(Boolean).join(", ");
+      if (confirm(tr(`${it.name} is still used by ${parts}.\n\nDelete it anyway? Students/teachers are NOT deleted — they are just unassigned from it (sections inside a class are removed; homework keeps its old label).`, `${it.name} ما زال مستخدمًا (${parts}).\n\nالحذف على أي حال؟ لن يُحذف الطلاب/المعلمون، بل يُلغى ربطهم فقط.`))) {
+        try { setCat(await lmsApi.catalogDelete(it.id, true)); setErr(""); } catch (e2) { setErr(lmsErrorText(e2, tr)); }
+      } else setErr(tr(`${it.name} was not deleted — it is used by ${parts}.`, `لم يُحذف ${it.name} — مستخدم من ${parts}.`));
+    }
+  };
 
   return (
     <>

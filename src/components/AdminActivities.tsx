@@ -43,10 +43,18 @@ export function AdminActivities({ allowed }: { allowed?: string[] } = {}) {
   const [now, setNow] = useState(0);
   const router = useRouter();
 
+  const [srv, setSrv] = useState<Record<string, { ended: boolean; participants: number }>>({});
+  // Running activities live on the server per teacher: pull them so any device can resume / end / delete.
+  const refreshMine = () => activityApi.mine().then((r) => {
+    for (const x of r.items) saveHosted({ code: x.code, hostKey: x.hostKey, type: x.type, title: x.title, createdAt: x.createdAt, expiresAt: x.expiresAt });
+    setSrv(Object.fromEntries(r.items.map((x) => [x.code, { ended: x.ended, participants: x.participants }])));
+    setHosted(loadHosted());
+  }).catch(() => undefined);
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setHosted(loadHosted());
     setNow(Date.now());
+    refreshMine();
   }, []);
 
   const ready = READY_TYPES.includes(type);
@@ -171,7 +179,7 @@ export function AdminActivities({ allowed }: { allowed?: string[] } = {}) {
       </section>
 
       <section className="glass rounded-3xl p-5">
-        <h2 className="text-lg font-bold">{tr("Your activities on this device", "أنشطتك على هذا الجهاز")}</h2>
+        <h2 className="text-lg font-bold">{tr("Running / my activities", "أنشطتي الجارية")}</h2>
         {hosted.length === 0 ? (
           <p className="mt-2 text-sm opacity-70">{tr("None yet.", "لا يوجد بعد.")}</p>
         ) : (
@@ -186,12 +194,13 @@ export function AdminActivities({ allowed }: { allowed?: string[] } = {}) {
                     <span className="block truncate font-semibold">{h.title || (lang === "ar" ? l.ar : l.en)}</span>
                     <span className="block text-xs opacity-70" dir="auto">
                       <span className="font-mono font-bold" dir="ltr">{h.code}</span> · {new Date(h.createdAt).toLocaleString(lang === "ar" ? "ar" : "en-GB", { timeZone: "Asia/Dubai", dateStyle: "medium", timeStyle: "short" })}
-                      {expired ? ` · ${tr("expired", "منتهي")}` : ""}
+                      {expired ? ` · ${tr("expired", "منتهي")}` : srv[h.code]?.ended ? ` · ${tr("ended", "انتهى")}` : srv[h.code] ? ` · 🟢 ${tr("running", "جارٍ")} · ${srv[h.code].participants} ${tr("joined", "منضم")}` : ""}
                     </span>
                   </span>
                   {!expired && (
                     <>
-                      <a className={btnGhost} href={`/activities/host?code=${h.code}`}>{tr("Open host screen", "فتح شاشة المعلم")}</a>
+                      <a className={btnGhost} href={`/activities/host?code=${h.code}`} data-testid="hosted-resume">{srv[h.code]?.ended ? tr("Open results", "عرض النتائج") : tr("Resume", "متابعة")}</a>
+                      {!srv[h.code]?.ended && <button type="button" className={btnGhost} data-testid="hosted-end" onClick={async () => { if (!confirm(tr("End this activity? Students can no longer join or answer.", "إنهاء هذا النشاط؟ لن يتمكن الطلاب من الانضمام أو الإجابة."))) return; await activityApi.end(h.code, h.hostKey).catch(() => undefined); refreshMine(); }}>{tr("End", "إنهاء")}</button>}
                       <button type="button" className={btnGhost} onClick={() => navigator.clipboard?.writeText(joinUrl(h.code)).catch(() => undefined)}>{tr("Copy join link", "نسخ رابط الانضمام")}</button>
                     </>
                   )}
@@ -203,6 +212,7 @@ export function AdminActivities({ allowed }: { allowed?: string[] } = {}) {
                       if (!expired) await activityApi.destroy(h.code, h.hostKey).catch(() => undefined);
                       forgetHosted(h.code);
                       setHosted(loadHosted());
+                      refreshMine();
                     }}
                   >
                     {tr("Delete", "حذف")}

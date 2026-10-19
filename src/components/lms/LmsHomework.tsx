@@ -191,14 +191,14 @@ function StudentWork({ hw, sub, reload, chapters = [] }: { hw: Data["homework"];
   const [practised, setPractised] = useState(sub?.practised || false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
-  const locked = sub?.status === "approved" || !!hw.locked;
+  const locked = sub?.status === "approved" || sub?.status === "submitted" || !!hw.locked;
   const again = hw.kind === "quran" && sub?.grade === "red" && sub.status === "returned";
   const save = async (submit: boolean) => {
     setBusy(true);
     setMsg("");
     try {
       await lmsApi.saveSub(hw.id, text, practised, submit);
-      setMsg(submit ? tr("Sent to your teacher ✓", "أُرسل إلى معلمك ✓") : tr("Saved ✓", "تم الحفظ ✓"));
+      setMsg(submit ? tr("✅ Your homework has been submitted! Your teacher will check it soon.", "✅ تم تسليم واجبك! سيراجعه معلمك قريبًا.") : tr("Saved ✓", "تم الحفظ ✓"));
       reload();
     } catch (e) {
       setMsg(lmsErrorText(e, tr));
@@ -215,7 +215,7 @@ function StudentWork({ hw, sub, reload, chapters = [] }: { hw: Data["homework"];
         {sub?.scores && <ScoreBadges s={sub.scores} />}
       </div>
       {hw.locked && <p className="rounded-2xl bg-black/5 px-3 py-2 font-semibold dark:bg-white/10" data-testid="hw-locked">🔒 {hw.lockedBy ? tr(`Finish Surah ${lockName(hw.lockedBy.surah, "en")} verses ${hw.lockedBy.from}–${hw.lockedBy.to} first — your teacher must pass them (green or yellow).`, `أكمل سورة ${lockName(hw.lockedBy.surah, "ar")} الآيات ${hw.lockedBy.from}–${hw.lockedBy.to} أولًا — يجب أن يجتازها معلمك (أخضر أو أصفر).`) : tr("Finish the earlier verses first — your teacher must pass them (green or yellow).", "أكمل الآيات السابقة أولًا — يجب أن يجتازها معلمك (أخضر أو أصفر).")}</p>}
-      {again && <p className="rounded-2xl bg-rose-50 px-3 py-2 font-semibold text-rose-900 dark:bg-rose-900/30 dark:text-rose-100" data-testid="hw-practise-again">🔴 {tr("Practise again: same verses. Listen to your teacher's feedback, practise, then record again and hand in.", "تدرّب مجددًا: نفس الآيات. استمع لتعليق معلمك، تدرّب، ثم سجّل مجددًا وسلّم.")}</p>}
+      {again && <p className="rounded-2xl bg-rose-50 px-3 py-2 font-semibold text-rose-900 dark:bg-rose-900/30 dark:text-rose-100" data-testid="hw-practise-again">🔴 {tr("Practise again: same verses. Listen to your teacher's feedback, practise, then record again and submit.", "تدرّب مجددًا: نفس الآيات. استمع لتعليق معلمك، تدرّب، ثم سجّل مجددًا وسلّم.")}</p>}
       {sub?.scores && sub.status !== "submitted" && <FeedbackText s={sub.scores} />}
       {sub?.status === "approved" && sub.grade && <p className="rounded-2xl bg-emerald-50 px-3 py-2 font-semibold text-emerald-900 dark:bg-emerald-900/30 dark:text-emerald-100" data-testid="hw-passed">🎉 {tr("Passed! You can move on to the next verses.", "نجحت! يمكنك الانتقال إلى الآيات التالية.")}</p>}
       {hw.kind === "quran" ? (
@@ -226,21 +226,21 @@ function StudentWork({ hw, sub, reload, chapters = [] }: { hw: Data["homework"];
           {sub?.audio ? (
             <AudioClip id={sub.audio} label={"🎙️ " + tr("My recitation", "تلاوتي")} testId="my-rec" onDelete={locked ? undefined : async () => { if (confirm(tr("Delete this recording?", "حذف هذا التسجيل؟"))) { await lmsApi.audioDelete(sub.audio!).catch(() => undefined); reload(); } }} />
           ) : null}
-{sub?.audio && sub.status === "submitted" && <p className="font-semibold text-emerald-700 dark:text-emerald-300" data-testid="rec-sent">✓ {tr("Sent to teacher", "أُرسل للمعلم")}</p>}
-          {!locked && sub?.status !== "approved" && <AudioRecorder label={sub?.audio ? tr("Record again (replaces the old one)", "سجّل مجددًا (يستبدل القديم)") : tr("Record your recitation (up to 3 minutes)", "سجّل تلاوتك (حتى 3 دقائق)")} testId="rec-student" saveLabel={tr("Send to teacher", "أرسل للمعلم")} onSave={async (b) => { await lmsApi.audioUpload({ hw: hw.id }, b); reload(); }} />}
+{sub?.status === "submitted" && <p className="rounded-2xl bg-emerald-50 px-3 py-2 font-semibold text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200" data-testid="rec-sent">✅ {tr("Submitted — waiting for your teacher.", "تم التسليم — بانتظار معلمك.")}</p>}
+          {!locked && sub?.status !== "approved" && <AudioRecorder label={sub?.audio ? tr("Record again (replaces the old one)", "سجّل مجددًا (يستبدل القديم)") : tr("Record your recitation (up to 3 minutes)", "سجّل تلاوتك (حتى 3 دقائق)")} testId="rec-student" saveLabel={tr("Save recording", "حفظ التسجيل")} onSave={async (b) => { await lmsApi.audioUpload({ hw: hw.id }, b); setMsg(tr("Recording saved ✓ — press “Submit Your Homework” when you are ready.", "تم حفظ التسجيل ✓ — اضغط «سلّم واجبك» عندما تكون جاهزًا.")); reload(); }} />}
         </>
       ) : (
         <>
           {(hw.data as GeneralData).question && <p className="text-lg font-semibold" dir="auto">{(hw.data as GeneralData).question}</p>}
           {sub?.audio && <AudioClip id={sub.audio} label={"🎙️ " + tr("My audio answer", "إجابتي الصوتية")} testId="my-rec" onDelete={locked ? undefined : async () => { if (confirm(tr("Delete this recording?", "حذف هذا التسجيل؟"))) { await lmsApi.audioDelete(sub.audio!).catch(() => undefined); reload(); } }} />}
-{sub?.audio && sub.status === "submitted" && <p className="font-semibold text-emerald-700 dark:text-emerald-300" data-testid="rec-sent">✓ {tr("Sent to teacher", "أُرسل للمعلم")}</p>}
-          {!locked && sub?.status !== "approved" && <AudioRecorder label={tr("Audio answer (optional, up to 3 minutes)", "إجابة صوتية (اختياري، حتى 3 دقائق)")} testId="rec-student" saveLabel={tr("Send to teacher", "أرسل للمعلم")} onSave={async (b) => { await lmsApi.audioUpload({ hw: hw.id }, b); reload(); }} />}
+{sub?.status === "submitted" && <p className="rounded-2xl bg-emerald-50 px-3 py-2 font-semibold text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200" data-testid="rec-sent">✅ {tr("Submitted — waiting for your teacher.", "تم التسليم — بانتظار معلمك.")}</p>}
+          {!locked && sub?.status !== "approved" && <AudioRecorder label={tr("Audio answer (optional, up to 3 minutes)", "إجابة صوتية (اختياري، حتى 3 دقائق)")} testId="rec-student" saveLabel={tr("Save recording", "حفظ التسجيل")} onSave={async (b) => { await lmsApi.audioUpload({ hw: hw.id }, b); setMsg(tr("Recording saved ✓ — press “Submit Your Homework” when you are ready.", "تم حفظ التسجيل ✓ — اضغط «سلّم واجبك» عندما تكون جاهزًا.")); reload(); }} />}
         </>
       )}
       <textarea className={inputCls + " min-h-28"} value={text} onChange={(e) => setText(e.target.value)} disabled={locked} maxLength={4000} dir="auto" placeholder={hw.kind === "quran" ? tr("A note for your teacher (optional)", "ملاحظة لمعلمك (اختياري)") : tr("Your answer", "إجابتك")} data-testid="hw-text" />
       {!locked && (
         <div className="flex flex-wrap gap-2">
-          <button type="button" className={primaryBtn} disabled={busy || (hw.kind === "general" ? !text.trim() : !practised)} onClick={() => save(true)} data-testid="hw-submit">{tr("Hand in", "تسليم")}</button>
+          <button type="button" className={primaryBtn} disabled={busy || (hw.kind === "general" ? !text.trim() && !sub?.audio : !practised || !sub?.audio)} onClick={() => { if (confirm(tr("Submit your homework now? You can only submit once.", "تسليم واجبك الآن؟ يمكنك التسليم مرة واحدة فقط."))) save(true); }} data-testid="hw-submit">📤 {tr("Submit Your Homework", "سلّم واجبك")}</button>
           <button type="button" className={smallBtn} disabled={busy} onClick={() => save(false)} data-testid="hw-draft">{tr("Save for later", "حفظ لاحقًا")}</button>
         </div>
       )}

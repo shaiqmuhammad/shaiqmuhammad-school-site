@@ -10,14 +10,28 @@ import { lmsApi, lmsErrorText, lmsSession, type WallClass, type WallPost } from 
 const pill = "inline-flex items-center gap-1.5 rounded-full border border-black/10 bg-white/80 px-3 py-1.5 text-sm font-bold transition hover:bg-white disabled:opacity-50 dark:border-white/15 dark:bg-white/10";
 
 /** Shrink a picture in the browser to a small JPEG (the wall keeps pictures under ~200 KB). */
+/** Phone photos (3–12 MB JPEG/HEIC): decode with the browser, resize to max 1600px and re-encode as JPEG under ~850 KB. */
+async function decode(file: File): Promise<CanvasImageSource & { width: number; height: number }> {
+  try { return await createImageBitmap(file, { imageOrientation: "from-image" } as ImageBitmapOptions); } catch { /* fall back to <img> (Safari decodes HEIC there) */ }
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image();
+    img.decoding = "async";
+    await new Promise<void>((res, rej) => { img.onload = () => res(); img.onerror = () => rej(new Error("decode")); img.src = url; });
+    return Object.assign(img, { width: img.naturalWidth, height: img.naturalHeight });
+  } finally { setTimeout(() => URL.revokeObjectURL(url), 5000); }
+}
 async function shrink(file: File): Promise<string> {
-  const bmp = await createImageBitmap(file);
-  const k = Math.min(1, 960 / Math.max(bmp.width, bmp.height));
-  const c = document.createElement("canvas");
-  c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
-  c.getContext("2d")!.drawImage(bmp, 0, 0, c.width, c.height);
-  for (const q of [0.78, 0.6, 0.45]) { const u = c.toDataURL("image/jpeg", q); if (u.length < 300_000) return u; }
-  return c.toDataURL("image/jpeg", 0.35);
+  const bmp = await decode(file);
+  let max = 1600;
+  for (let pass = 0; pass < 3; pass++, max = Math.round(max * 0.75)) {
+    const k = Math.min(1, max / Math.max(bmp.width, bmp.height));
+    const c = document.createElement("canvas");
+    c.width = Math.max(1, Math.round(bmp.width * k)); c.height = Math.max(1, Math.round(bmp.height * k));
+    const ctx = c.getContext("2d")!; ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, c.width, c.height); ctx.drawImage(bmp, 0, 0, c.width, c.height);
+    for (const q of [0.82, 0.7, 0.58]) { const u = c.toDataURL("image/jpeg", q); if (u.startsWith("data:image/jpeg") && u.length < 880_000) return u; }
+  }
+  throw new Error("too_big");
 }
 const toDataUrl = (b: Blob) => new Promise<string>((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = rej; r.readAsDataURL(b); });
 
@@ -58,7 +72,7 @@ function Composer({ wkey, groups, onDone }: { wkey: string; groups: WallClass[];
   const send = async () => {
     setBusy(true); setErr("");
     try { for (const k of aud.length ? aud : [wkey]) await lmsApi.wallPost(k, text, image || undefined, audio || undefined); setText(""); setImage(""); setAudio(""); onDone(); }
-    catch (e) { setErr(lmsErrorText(e, tr)); }
+    catch (e) { const c = (e as { code?: string }).code; setErr(c === "too_large" ? tr("The picture/recording is too large to post. Try a shorter recording or another picture.", "الصورة/التسجيل كبير جدًا. جرّب تسجيلًا أقصر أو صورة أخرى.") : c === "bad_media" ? tr("This file type can't be posted. Use a photo (JPEG/PNG) or an audio recording.", "لا يمكن نشر هذا النوع من الملفات.") : c === "network" ? tr("Couldn't reach the server — check the connection and try again.", "تعذر الاتصال — تحقق من الشبكة وحاول مجددًا.") : lmsErrorText(e, tr)); }
     setBusy(false);
   };
   return (
@@ -71,7 +85,7 @@ function Composer({ wkey, groups, onDone }: { wkey: string; groups: WallClass[];
       {image && /* eslint-disable-next-line @next/next/no-img-element */ <img src={image} alt="" className="mt-2 max-h-40 rounded-xl" />}
       {audio && <audio controls controlsList="nodownload" onContextMenu={(e) => e.preventDefault()} src={audio} className="mt-2 w-full" />}
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <label className={pill + " cursor-pointer"}>🖼 {tr("Picture", "صورة")}<input type="file" accept="image/*" className="hidden" data-testid="wall-image" onChange={async (e) => { const f = e.target.files?.[0]; if (f) setImage(await shrink(f).catch(() => "")); e.target.value = ""; }} /></label>
+        <label className={pill + " cursor-pointer"}>🖼 {tr("Picture", "صورة")}<input type="file" accept="image/*" className="hidden" data-testid="wall-image" onChange={async (e) => { const f = e.target.files?.[0]; e.target.value = ""; if (!f) return; setErr(""); setBusy(true); try { setImage(await shrink(f)); } catch (er) { setImage(""); setErr((er as Error).message === "too_big" ? tr("This picture is too large even after shrinking. Please choose another one.", "الصورة كبيرة جدًا حتى بعد التصغير. اختر صورة أخرى.") : tr("This picture format can't be opened on this device (e.g. HEIC). Choose a JPEG/PNG photo, or set the camera to Most Compatible.", "لا يمكن فتح صيغة هذه الصورة على هذا الجهاز (مثل HEIC). اختر صورة JPEG/PNG أو اضبط الكاميرا على الأكثر توافقًا.")); } setBusy(false); }} /></label>
         {rec ? <button type="button" className={pill + " !bg-rose-100 !text-rose-800"} onClick={() => { rec.stop(); setRec(null); }} data-testid="wall-rec-stop">⏹ {tr("Stop", "إيقاف")}</button> : <button type="button" className={pill} onClick={startRec} data-testid="wall-rec">🎙 {tr("Record audio", "تسجيل صوتي")}</button>}
         <label className={pill + " cursor-pointer"}>🎵 {tr("Audio file", "ملف صوتي")}<input type="file" accept="audio/*" className="hidden" onChange={async (e) => { const f = e.target.files?.[0]; if (f) { const d = await toDataUrl(f); if (d.length > 880_000) setErr(tr("Audio file too large (max ~600 KB).", "الملف كبير (الحد نحو 600 ك.ب).")); else setAudio(d); } e.target.value = ""; }} /></label>
         <span className="flex-1" />
