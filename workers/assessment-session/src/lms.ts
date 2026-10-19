@@ -804,14 +804,21 @@ export class LmsStore extends DurableObject<LmsEnv> {
         return { status: 200, body: { items: rows.filter((r) => (JSON.parse(String(r.students)) as string[]).includes(a.id)).map((r) => ({ code: String(r.code), type: String(r.type), title: String(r.title), teacher: String(r.owner_name), at: Number(r.at) })) } };
       }
       case "wall-classes": {
-        const rows = a.role === "student"
-          ? [this.placeOf(a.id)].filter((p) => p[0] !== "\u0000")
-          : (this.sql.exec(`SELECT DISTINCT cls, section FROM users WHERE role='student' AND disabled=0 AND cls<>'' ORDER BY cls, section`).toArray().map((r) => [String(r.cls), String(r.section || "")] as [string, string])).filter(([c, s2]) => this.inScope(a, c, s2));
-        return { status: 200, body: { items: rows.map(([c, s2]) => ({ key: `${c}|${s2}`, label: [c, s2].filter(Boolean).join(" · ") })), canPost: isStaff(a) && !a.viewAs } };
+        const staff = isStaff(a);
+        const names = new Map(this.sql.exec(`SELECT id, name FROM users WHERE role='student'`).toArray().map((r) => [String(r.id), String(r.name)]));
+        const grps = this.wallGroups().filter((g) => (a.role === "student" ? g.ids.includes(a.id) : a.role === "admin" || g.teachers.includes(a.id)));
+        const items: { key: string; label: string; group?: boolean; members?: { id: string; name: string }[]; count?: number }[] = grps.map((g) => ({
+          key: `g:${g.id}`, label: g.subject ? `${g.name} · ${g.subject}` : g.name, group: true, count: g.ids.length,
+          ...(staff ? { members: g.ids.filter((sid) => a.role === "admin" || this.inScope(a, ...this.placeOf(sid), sid)).map((sid) => ({ id: sid, name: names.get(sid) || "" })).sort((x, y) => x.name.localeCompare(y.name)) } : {}),
+        }));
+        // Older class-based walls that already have posts stay visible (read/comment) to the people in that class.
+        const old = this.sql.exec(`SELECT DISTINCT wkey FROM wall WHERE wkey NOT LIKE 'g:%'`).toArray().map((r) => String(r.wkey)).filter((k) => this.wallKeyOk(a, k));
+        for (const k of old) items.push({ key: k, label: k.split("|").filter(Boolean).join(" · ") });
+        return { status: 200, body: { items, canPost: staff && !a.viewAs && grps.length > 0 } };
       }
       case "wall-list": {
-        const key = str(input.key, 80); const [c, s2] = key.split("|");
-        if (!this.wallAllowed(a, c, s2 || "")) return { status: 403, body: { error: "forbidden" } };
+        const key = str(input.key, 80);
+        if (!this.wallKeyOk(a, key)) return { status: 403, body: { error: "forbidden" } };
         const posts = this.sql.exec(`SELECT id, by, name, text, image IS NOT NULL AND image<>'' AS hasImg, audio IS NOT NULL AND audio<>'' AS hasAud, pinned, at FROM wall WHERE wkey=? ORDER BY pinned DESC, at DESC LIMIT 60`, key).toArray();
         const out = posts.map((p) => ({
           id: String(p.id), name: String(p.name), text: String(p.text), hasImage: !!p.hasImg, hasAudio: !!p.hasAud, pinned: !!p.pinned, at: Number(p.at),
@@ -823,14 +830,13 @@ export class LmsStore extends DurableObject<LmsEnv> {
       case "wall-media": {
         const r = this.sql.exec(`SELECT wkey, image, audio FROM wall WHERE id=?`, str(input.id, 40)).toArray()[0];
         if (!r) return { status: 404, body: { error: "not_found" } };
-        const [c, s2] = String(r.wkey).split("|");
-        if (!this.wallAllowed(a, c, s2 || "")) return { status: 403, body: { error: "forbidden" } };
+        if (!this.wallKeyOk(a, String(r.wkey))) return { status: 403, body: { error: "forbidden" } };
         if (input.dl && !this.dlOf(a, "audio")) return { status: 403, body: { error: "download_not_allowed" } };
         return { status: 200, body: { image: String(r.image || ""), audio: String(r.audio || "") } };
       }
       case "wall-post": {
-        const key = str(input.key, 80); const [c, s2] = key.split("|");
-        if (!isStaff(a) || a.viewAs || !c || !this.inScope(a, c, s2 || "")) return { status: 403, body: { error: "forbidden" } };
+        const key = str(input.key, 80);
+        if (!isStaff(a) || a.viewAs || !key.startsWith("g:") || !this.wallKeyOk(a, key)) return { status: 403, body: { error: "forbidden" } };
         const text = wallText(input.text, 1500);
         const image = String(input.image || ""), audio = String(input.audio || "");
         if ((image && (!/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(image) || image.length > 330_000)) || (audio && (!/^data:audio\/[a-z0-9.+-]+(;codecs=[a-z0-9.,-]+)?;base64,[A-Za-z0-9+/=]+$/i.test(audio) || audio.length > 900_000))) return { status: 400, body: { error: "bad_media" } };
@@ -841,8 +847,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
       case "wall-comment": {
         const p = this.sql.exec(`SELECT wkey FROM wall WHERE id=?`, str(input.post, 40)).toArray()[0];
         if (!p || a.viewAs) return { status: 404, body: { error: "not_found" } };
-        const [c, s2] = String(p.wkey).split("|");
-        if (!this.wallAllowed(a, c, s2 || "")) return { status: 403, body: { error: "forbidden" } };
+        if (!this.wallKeyOk(a, String(p.wkey))) return { status: 403, body: { error: "forbidden" } };
         const text = wallText(input.text, 400);
         if (!text) return { status: 400, body: { error: "empty" } };
         const recent = Number(this.sql.exec(`SELECT COUNT(*) AS n FROM wcom WHERE by=? AND at>?`, a.id, Date.now() - 60_000).one().n);
@@ -853,8 +858,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
       case "wall-like": {
         const p = this.sql.exec(`SELECT wkey FROM wall WHERE id=?`, str(input.post, 40)).toArray()[0];
         if (!p || a.viewAs) return { status: 404, body: { error: "not_found" } };
-        const [c, s2] = String(p.wkey).split("|");
-        if (!this.wallAllowed(a, c, s2 || "")) return { status: 403, body: { error: "forbidden" } };
+        if (!this.wallKeyOk(a, String(p.wkey))) return { status: 403, body: { error: "forbidden" } };
         const id = str(input.post, 40);
         if (this.sql.exec(`SELECT 1 FROM wlike WHERE post=? AND by=?`, id, a.id).toArray().length) this.sql.exec(`DELETE FROM wlike WHERE post=? AND by=?`, id, a.id);
         else this.sql.exec(`INSERT INTO wlike (post, by) VALUES (?, ?)`, id, a.id);
@@ -867,15 +871,13 @@ export class LmsStore extends DurableObject<LmsEnv> {
         if (op === "delcom") {
           const m = this.sql.exec(`SELECT w.wkey FROM wcom c JOIN wall w ON w.id=c.post WHERE c.id=?`, str(input.id, 40)).toArray()[0];
           if (!m) return { status: 404, body: { error: "not_found" } };
-          const [c, s2] = String(m.wkey).split("|");
-          if (!this.inScope(a, c, s2 || "")) return { status: 403, body: { error: "forbidden" } };
+          if (!this.wallKeyOk(a, String(m.wkey))) return { status: 403, body: { error: "forbidden" } };
           this.sql.exec(`DELETE FROM wcom WHERE id=?`, str(input.id, 40));
           return { status: 200, body: { ok: true } };
         }
         const p = this.sql.exec(`SELECT wkey FROM wall WHERE id=?`, str(input.id, 40)).toArray()[0];
         if (!p) return { status: 404, body: { error: "not_found" } };
-        const [c, s2] = String(p.wkey).split("|");
-        if (!this.inScope(a, c, s2 || "")) return { status: 403, body: { error: "forbidden" } };
+        if (!this.wallKeyOk(a, String(p.wkey))) return { status: 403, body: { error: "forbidden" } };
         const id = str(input.id, 40);
         if (op === "delete") { this.sql.exec(`DELETE FROM wcom WHERE post=?`, id); this.sql.exec(`DELETE FROM wlike WHERE post=?`, id); this.sql.exec(`DELETE FROM wall WHERE id=?`, id); }
         else if (op === "pin" || op === "unpin") this.sql.exec(`UPDATE wall SET pinned=? WHERE id=?`, op === "pin" ? 1 : 0, id);
@@ -1957,6 +1959,28 @@ export class LmsStore extends DurableObject<LmsEnv> {
   }
   /** Teacher's class scope (no scope = all classes); admin always. */
   /** Who may open a class wall: that class's students, teachers whose scope covers it, and admin. */
+  /** Admin-made student groups (walls are per group): full member ids = listed students + whole classes/sections. */
+  private wallGroups(): { id: string; name: string; subject: string; teachers: string[]; ids: string[] }[] {
+    const stu = this.sql.exec(`SELECT id, cls, section FROM users WHERE role='student' AND disabled=0`).toArray();
+    return this.sql.exec(`SELECT * FROM grp WHERE admin=1 ORDER BY name`).toArray().map((r) => {
+      const toks = JSON.parse(String(r.classes || "[]")) as string[];
+      const ids = new Set(JSON.parse(String(r.students || "[]")) as string[]);
+      for (const u of stu) for (const t of toks) { const [c, sc] = t.split("|"); if (String(u.cls) === c && (!sc || String(u.section) === sc)) ids.add(String(u.id)); }
+      return { id: String(r.id), name: String(r.name), subject: String(r.subject || ""), teachers: JSON.parse(String(r.teachers || "[]")) as string[], ids: [...ids] };
+    });
+  }
+  /** May this actor read/write the wall with this key? "g:<groupId>" = group wall; "Class|Section" = older class wall (still readable). */
+  private wallKeyOk(a: Actor, key: string): boolean {
+    if (key.startsWith("g:")) {
+      const g = this.wallGroups().find((x) => x.id === key.slice(2));
+      if (!g) return false;
+      if (a.role === "admin") return true;
+      if (a.role === "student") return g.ids.includes(a.id);
+      return a.role === "teacher" && g.teachers.includes(a.id);
+    }
+    const [c, s2] = key.split("|");
+    return this.wallAllowed(a, c, s2 || "");
+  }
   private wallAllowed(a: Actor, cls: string, section: string): boolean {
     if (!cls) return false;
     if (a.role === "student") { const [c, s2] = this.placeOf(a.id); return c === cls && s2 === section; }
