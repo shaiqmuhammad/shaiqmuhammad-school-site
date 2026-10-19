@@ -1347,20 +1347,14 @@ export class LmsStore extends DurableObject<LmsEnv> {
       }
 
       case "pin-change": {
-        // Students and teachers change their OWN PIN (current PIN required). Parents/admin: not here.
-        if (a.viewAs || (a.role !== "student" && a.role !== "teacher")) return { status: 403, body: { error: "forbidden" } };
+        // Students, teachers and parents change their OWN PIN from an active signed-in session (no current PIN asked). Admin/view-as: not here.
+        if (a.viewAs || (a.role !== "student" && a.role !== "teacher" && a.role !== "parent")) return { status: 403, body: { error: "forbidden" } };
         const key = `pc:${a.id}`;
         if (this.failCount(key) >= 5) return { status: 429, body: { error: "too_many_attempts" } };
-        const cur = str(input.current, 8), next = str(input.next, 8);
-        const r = this.userRow("id=?", a.id);
-        if (!r || !validPin(cur) || !safeEqual(await hashPin(cur, fromB64url(String(r.salt))), String(r.hash))) {
-          this.sql.exec(`INSERT INTO fails (k, t) VALUES (?, ?)`, key, Date.now());
-          return { status: 401, body: { error: "wrong_current_pin" } };
-        }
+        const next = str(input.next, 8);
         if (!/^\d{6,8}$/.test(next)) return { status: 400, body: { error: "pin_min_6" } };
-        if (next === cur) return { status: 400, body: { error: "pin_same" } };
+        this.sql.exec(`INSERT INTO fails (k, t) VALUES (?, ?)`, key, Date.now());
         await this.setPin(a.id, next);
-        this.sql.exec(`DELETE FROM fails WHERE k=?`, key);
         return { status: 200, body: { ok: true } };
       }
 
@@ -1980,7 +1974,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     switch (action) {
       case "me": return { status: 200, body: { user: { ...a, children: kids } } };
       case "par-children": return { status: 200, body: { children: kids } };
-      case "dl-policy": case "dl-grant": case "notes": case "notes-read": case "msg-contacts": case "msg-threads": case "msg-thread": case "msg-send":
+      case "pin-change": case "dl-policy": case "dl-grant": case "notes": case "notes-read": case "msg-contacts": case "msg-threads": case "msg-thread": case "msg-send":
         return this.handle(action, a, pass(input));
     }
     const CHILD = new Set(["dashboard", "hw", "assess-list", "cur-list", "ann-list", "wall-classes", "wall-list", "wall-media", "par-att", "par-beh", "par-results"]);
