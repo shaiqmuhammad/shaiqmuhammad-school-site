@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AssessmentShell } from "@/components/assessment/AssessmentShell";
 import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
 import { useTr } from "@/components/lms/useLms";
-import { lmsApi, lmsErrorText, lmsSession, type WallPost } from "@/lib/lms";
+import { lmsApi, lmsErrorText, lmsSession, type WallClass, type WallPost } from "@/lib/lms";
 
 const pill = "inline-flex items-center gap-1.5 rounded-full border border-black/10 bg-white/80 px-3 py-1.5 text-sm font-bold transition hover:bg-white disabled:opacity-50 dark:border-white/15 dark:bg-white/10";
 
@@ -35,7 +35,8 @@ function Media({ id, image, audio }: { id: string; image: boolean; audio: boolea
   );
 }
 
-function Composer({ wkey, onDone }: { wkey: string; onDone: () => void }) {
+function Composer({ wkey, groups, onDone }: { wkey: string; groups: WallClass[]; onDone: () => void }) {
+  const [aud, setAud] = useState<string[]>([wkey]);
   const { tr } = useTr();
   const [text, setText] = useState("");
   const [image, setImage] = useState("");
@@ -56,12 +57,16 @@ function Composer({ wkey, onDone }: { wkey: string; onDone: () => void }) {
   };
   const send = async () => {
     setBusy(true); setErr("");
-    try { await lmsApi.wallPost(wkey, text, image || undefined, audio || undefined); setText(""); setImage(""); setAudio(""); onDone(); }
+    try { for (const k of aud.length ? aud : [wkey]) await lmsApi.wallPost(k, text, image || undefined, audio || undefined); setText(""); setImage(""); setAudio(""); onDone(); }
     catch (e) { setErr(lmsErrorText(e, tr)); }
     setBusy(false);
   };
   return (
     <div className="glass rounded-3xl p-4" data-testid="wall-composer">
+      <div className="mb-2" data-testid="wall-audience">
+        <p className="mb-1 text-sm font-bold">👥 {tr("Post to (choose groups)", "انشر إلى (اختر المجموعات)")}</p>
+        <div className="flex flex-wrap gap-1.5">{groups.map((g) => { const on = aud.includes(g.key); return <button key={g.key} type="button" aria-pressed={on} data-testid="wall-aud-chip" dir="auto" onClick={() => setAud(on ? aud.filter((x) => x !== g.key) : [...aud, g.key])} className={`rounded-full border px-3 py-1 text-sm font-bold ${on ? "border-transparent bg-header text-sun" : "border-black/10 bg-white/80 dark:border-white/15 dark:bg-white/10"}`}>{on ? "✓ " : ""}{g.label}</button>; })}</div>
+      </div>
       <textarea className="w-full rounded-2xl border border-black/10 bg-white px-3 py-2 dark:border-white/15 dark:bg-white/5" rows={3} maxLength={1500} placeholder={tr("Write a message to the class…", "اكتب رسالة للصف…")} value={text} onChange={(e) => setText(e.target.value)} dir="auto" data-testid="wall-text" />
       {image && /* eslint-disable-next-line @next/next/no-img-element */ <img src={image} alt="" className="mt-2 max-h-40 rounded-xl" />}
       {audio && <audio controls controlsList="nodownload" onContextMenu={(e) => e.preventDefault()} src={audio} className="mt-2 w-full" />}
@@ -70,7 +75,7 @@ function Composer({ wkey, onDone }: { wkey: string; onDone: () => void }) {
         {rec ? <button type="button" className={pill + " !bg-rose-100 !text-rose-800"} onClick={() => { rec.stop(); setRec(null); }} data-testid="wall-rec-stop">⏹ {tr("Stop", "إيقاف")}</button> : <button type="button" className={pill} onClick={startRec} data-testid="wall-rec">🎙 {tr("Record audio", "تسجيل صوتي")}</button>}
         <label className={pill + " cursor-pointer"}>🎵 {tr("Audio file", "ملف صوتي")}<input type="file" accept="audio/*" className="hidden" onChange={async (e) => { const f = e.target.files?.[0]; if (f) { const d = await toDataUrl(f); if (d.length > 880_000) setErr(tr("Audio file too large (max ~600 KB).", "الملف كبير (الحد نحو 600 ك.ب).")); else setAudio(d); } e.target.value = ""; }} /></label>
         <span className="flex-1" />
-        <button type="button" className="rounded-full bg-sun px-5 py-2 font-extrabold text-[#0b1b2b] disabled:opacity-50" disabled={busy || (!text.trim() && !image && !audio)} onClick={send} data-testid="wall-send">{busy ? "…" : tr("Post", "نشر")}</button>
+        <button type="button" className="rounded-full bg-sun px-5 py-2 font-extrabold text-[#0b1b2b] disabled:opacity-50" disabled={busy || !aud.length || (!text.trim() && !image && !audio)} onClick={send} data-testid="wall-send">{busy ? "…" : tr("Post", "نشر")}</button>
       </div>
       {err && <p className="mt-2 text-sm text-rose-700" role="alert">{err}</p>}
     </div>
@@ -115,7 +120,7 @@ function PostCard({ p, mod, reload }: { p: WallPost; mod: boolean; reload: () =>
 export function LmsWallPage() {
   const { tr } = useTr();
   const [on, setOn] = useState<boolean | null>(null);
-  const [classes, setClasses] = useState<{ key: string; label: string }[]>([]);
+  const [classes, setClasses] = useState<WallClass[]>([]);
   const [canPost, setCanPost] = useState(false);
   const [key, setKey] = useState("");
   const [posts, setPosts] = useState<WallPost[] | null>(null);
@@ -141,11 +146,12 @@ export function LmsWallPage() {
           <>
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="me-auto text-2xl font-extrabold">🧱 {tr("Class Wall", "جدار الصف")}</h1>
-              {classes.length > 1 && <div className="flex w-full flex-wrap gap-1.5" data-testid="wall-class">{classes.map((c) => <button key={c.key} type="button" aria-pressed={key === c.key} data-testid="wall-class-tab" className={`rounded-full border px-3 py-1.5 text-sm font-bold ${key === c.key ? "border-transparent bg-header text-sun" : "border-black/10 bg-white/80 dark:border-white/15 dark:bg-white/10"}`} onClick={() => { setPosts(null); setKey(c.key); }}>🧱 {c.label}</button>)}</div>}
+              {classes.length > 1 && <div className="flex w-full flex-wrap gap-1.5" data-testid="wall-class">{classes.map((c) => <button key={c.key} type="button" aria-pressed={key === c.key} data-testid="wall-class-tab" className={`rounded-full border px-3 py-1.5 text-sm font-bold ${key === c.key ? "border-transparent bg-header text-sun" : "border-black/10 bg-white/80 dark:border-white/15 dark:bg-white/10"}`} onClick={() => { setPosts(null); setKey(c.key); }}>{c.group ? "👥" : "🧱"} {c.label}</button>)}</div>}
               {classes.length === 1 && <span className="rounded-full bg-sun/70 px-3 py-1 text-sm font-bold">{classes[0].label}</span>}
             </div>
             {err && <p className="rounded-xl bg-rose-100 px-4 py-2 text-rose-800" role="alert">{err}</p>}
-            {canPost && key && <Composer wkey={key} onDone={load} />}
+            {(() => { const cur = classes.find((c) => c.key === key); return cur?.group && cur.members ? <section className="glass rounded-3xl p-4" data-testid="wall-members"><p className="mb-2 text-sm font-bold">🧑‍🎓 {tr(`Students in this group (${cur.members.length})`, `طلاب هذه المجموعة (${cur.members.length})`)}</p><div className="flex flex-wrap gap-1.5">{cur.members.map((m) => <span key={m.id} className="rounded-full bg-sun/50 px-2.5 py-0.5 text-xs font-bold" dir="auto" data-testid="wall-member">{m.name}</span>)}</div></section> : null; })()}
+            {canPost && key.startsWith("g:") && <Composer key={key} wkey={key} groups={classes.filter((c) => c.group)} onDone={load} />}
             {posts === null ? <p className="p-8 text-center opacity-70">{tr("Loading…", "جارٍ التحميل…")}</p>
               : !classes.length ? <p className="glass rounded-3xl p-8 text-center opacity-80">{tr("No class wall available for you yet.", "لا يوجد جدار صف متاح لك بعد.")}</p>
               : !posts.length ? <p className="glass rounded-3xl p-8 text-center opacity-80">{tr("No posts yet.", "لا توجد منشورات بعد.")}</p>

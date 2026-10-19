@@ -19,6 +19,7 @@ export type Comment = { by: string; text: string; at: number; audio?: string };
 export type RosterStudent = { id: string; name: string; cls: string; section: string; avatar: string; parentEmail: boolean; points: number; seen: number };
 export type PointCat = { id: string; label: string; pts: number; icon: string };
 export type PointRow = { id: string; student: string; name: string; label: string; pts: number; icon: string; by: string; at: number };
+export type WallClass = { key: string; label: string; group?: boolean; count?: number; members?: { id: string; name: string }[] };
 export type StudentGroup = { id: string; name: string; subject?: string; students: string[]; owner: string; assigned?: boolean; adminGroup?: boolean; classes?: string[]; teachers?: string[]; rawStudents?: string[] };
 export type ReportView = { kind: "points" | "quran"; id: string; name: string; cls: string; section: string; avatar: string; points?: { label: string; pts: number; icon: string; by: string; at: number }[]; tracker?: TrackerRow[]; progress?: unknown };
 export type Assignment = { id: string; quiz: string; title: string; mode: "individual" | "group"; cls: string; section: string; students: string[]; due: number | null; by: string; created: number };
@@ -196,7 +197,7 @@ export const lmsApi = {
   reportLog: () => call<{ items: { id: string; student: string; kind: string; to: string; by: string; at: number; ok: boolean }[] }>("report-log"),
   reportView: (t: string) => call<ReportView>("report", undefined, { query: { t } }),
   assessResults: () => call<{ items: { id: string; kind: string; quizTitle: string; name: string; score: number; maxScore: number; percentage: number; correct: number; wrong: number; finishedAt: number; rank: number | null; sessionCode: string | null }[] }>("assess-results"),
-  wallClasses: () => call<{ items: { key: string; label: string }[]; canPost: boolean }>("wall-classes"),
+  wallClasses: () => call<{ items: WallClass[]; canPost: boolean }>("wall-classes"),
   wallList: (key: string) => call<{ posts: WallPost[]; canModerate: boolean }>("wall-list", { key }),
   wallMedia: (id: string, dl = false) => call<{ image: string; audio: string }>("wall-media", dl ? { id, dl: true } : { id }),
   wallPost: (key: string, text: string, image?: string, audio?: string) => call<{ ok: true }>("wall-post", { key, text, image, audio }),
