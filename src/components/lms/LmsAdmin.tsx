@@ -87,12 +87,7 @@ function PersonForm({ role, catalog, initial, onSave, submitLabel, testPrefix, s
             {catalog.subjects.map((s) => <button key={s.id} type="button" aria-pressed={f.subjects.includes(s.name)} className={chip(f.subjects.includes(s.name))} onClick={() => toggle("subjects", s.name)} data-testid={`${testPrefix}-subject`}>{s.name}</button>)}
             {!catalog.subjects.length && <span className="text-sm opacity-60">{tr("No subjects yet — add them in Classes & Subjects.", "لا توجد مواد — أضفها في الصفوف والمواد.")}</span>}
           </div>
-          <p className="text-sm font-semibold">{tr("Classes / sections taught (empty = all)", "الصفوف / الشعب (فارغ = الكل)")}</p>
-          <div className="flex flex-wrap gap-1.5">
-            {catalog.classes.flatMap((c) => [c.name, ...catalog.sections.filter((s) => s.classId === c.id).map((s) => `${c.name}|${s.name}`)]).map((v) => (
-              <button key={v} type="button" aria-pressed={f.scope.includes(v)} className={chip(f.scope.includes(v))} onClick={() => toggle("scope", v)} data-testid={`${testPrefix}-scope`}>{v.includes("|") ? `${clsNum(v.split("|")[0])}${secLetter(v.split("|")[1])}` : tr("Class ", "الصف ") + clsNum(v)}</button>
-            ))}
-          </div></>}
+          <p className="text-xs opacity-70" data-testid="grp-hint">{tr("Students come from Groups: after saving, assign groups in Admin → Members → Groups.", "الطلاب يأتون من المجموعات: بعد الحفظ أسند المجموعات من الإدارة ← الأعضاء ← المجموعات.")}</p></>}
 <p className="text-xs opacity-70" data-testid="perm-hint">{initial ? tr("Subjects, classes and all permissions are set from the 🔐 Permissions button in the Teachers list.", "المواد والصفوف وكل الصلاحيات من زر 🔐 الصلاحيات في قائمة المعلمين.") : tr("After adding, use 🔐 Permissions in the Teachers list to set access.", "بعد الإضافة، استخدم 🔐 الصلاحيات في قائمة المعلمين لضبط الوصول.")}</p>
         </div>
       )}
@@ -121,7 +116,7 @@ function PermissionsModal({ u, onClose, onSaved, asAdmin, catalog }: { catalog: 
   const { tr } = useTr();
   const [perms, setPerms] = useState<string[]>(u.perms || []);
   const [subjects, setSubjects] = useState<string[]>(u.subjects || []);
-  const [scope, setScope] = useState<string[]>(u.scope || []);
+  const scope = u.scope || [];
   const [others, setOthers] = useState<LmsUser[]>([]);
   useEffect(() => { lmsApi.users(asAdmin).then((r) => setOthers(r.users.filter((x) => x.role === "teacher" && x.id !== u.id))).catch(() => undefined); }, [asAdmin, u.id]);
   const tog = (xs: string[], v: string) => (xs.includes(v) ? xs.filter((y) => y !== v) : [...xs, v]);
@@ -142,8 +137,8 @@ function PermissionsModal({ u, onClose, onSaved, asAdmin, catalog }: { catalog: 
           <div className="rounded-2xl border border-dashed border-black/15 p-3 dark:border-white/20" data-testid="perm-subjects">
             <p className="mb-2 text-sm font-bold">📚 {tr("Subjects taught", "المواد")}</p>
             <div className="flex flex-wrap gap-1.5">{catalog.subjects.map((x) => <button key={x.id} type="button" aria-pressed={subjects.includes(x.name)} className={chip(subjects.includes(x.name))} onClick={() => setSubjects((c) => tog(c, x.name))}>{x.name}</button>)}{!catalog.subjects.length && <span className="text-sm opacity-60">{tr("No subjects yet.", "لا توجد مواد.")}</span>}</div>
-            <p className="mb-2 mt-3 text-sm font-bold">🏫 {tr("Classes / sections taught (empty = all)", "الصفوف / الشعب (فارغ = الكل)")}</p>
-            <div className="flex flex-wrap gap-1.5">{catalog.classes.flatMap((c) => [c.name, ...catalog.sections.filter((x) => x.classId === c.id).map((x) => `${c.name}|${x.name}`)]).map((v) => <button key={v} type="button" aria-pressed={scope.includes(v)} className={chip(scope.includes(v))} onClick={() => setScope((c) => tog(c, v))} data-testid="perm-scope">{v.includes("|") ? `${clsNum(v.split("|")[0])}${secLetter(v.split("|")[1])}` : tr("Class ", "الصف ") + clsNum(v)}</button>)}</div>
+            <p className="mb-2 mt-3 text-sm font-bold">👥 {tr("Student groups", "مجموعات الطلاب")}</p>
+            <div className="flex flex-wrap items-center gap-1.5" data-testid="perm-groups">{(u.groups || []).map((g) => <span key={g.id} className="rounded-full bg-black/5 px-3 py-1 text-xs font-bold dark:bg-white/10" dir="auto">{g.name}{g.subject ? ` · ${g.subject}` : ""}</span>)}{!(u.groups || []).length && <span className="text-xs text-rose-700 dark:text-rose-300">{tr("No groups assigned — this teacher sees no students.", "لا توجد مجموعات — لا يرى المعلم أي طالب.")}</span>}<a className="text-xs font-bold underline" href="/admin#groups" data-testid="perm-groups-link">{tr("Manage in Admin → Members → Groups", "إدارة من الإدارة ← الأعضاء ← المجموعات")}</a></div>
           </div>
           <ModuleAccess perms={perms} setPerms={setPerms} teachers={others} />
           <div className="rounded-2xl border border-dashed border-black/15 p-3 dark:border-white/20">
@@ -265,11 +260,10 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
   const list = people.filter((u) => {
     if (q && !`${u.name} ${u.username}`.toLowerCase().includes(q.toLowerCase())) return false;
     if (role === "student") return (!fCls || u.cls === fCls) && (!fSec || u.section === fSec);
-    return (!fSub || u.subjects.includes(fSub)) && (!fCls || !u.scope.length || u.scope.some((s) => s.split("|")[0] === fCls)) && (!fSec || u.scope.includes(`${fCls}|${fSec}`));
+    return (!fSub || u.subjects.includes(fSub)) && true;
   });
   const errText = (e: string) => ({ username: tr("username must be 3+ letters/numbers", "اسم المستخدم 3 أحرف على الأقل"), username_taken: tr("username already used", "اسم المستخدم مستخدم"), name: tr("name missing", "الاسم مفقود"), pin_digits: tr("PIN must be 4–8 digits", "الرقم السري من 4 إلى 8 أرقام"), admin_only: tr("only the admin can edit teachers", "فقط المدير يعدّل المعلمين"), full: tr("user limit reached", "تم بلوغ الحد"), unknown_class: tr("class not in Classes & Subjects", "الصف غير موجود في القائمة"), unknown_section: tr("section not in that class", "الشعبة ليست في هذا الصف"), unknown_subject: tr("subject not in the list", "المادة غير موجودة"), unknown_scope: tr("class/section not in the list", "الصف/الشعبة غير موجود") })[e] || e;
   const secOpts = catalog.sections.filter((s) => s.cls === fCls);
-  const teacherClasses = (u: LmsUser) => [...new Set(u.scope.map((x) => x.split("|")[0]))];
   const teacherSections = (u: LmsUser) => u.scope.filter((x) => x.includes("|")).map((x) => x.split("|")[1]);
   // Optional student columns (admin sees every field; teachers only "parent email on file").
   const EXTRA: [string, string, string, (u: LmsUser) => string][] = role !== "student" ? [] : asAdmin ? [
@@ -286,12 +280,12 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
     ...(showPin ? [{ key: "pin", label: "PIN", sort: false }] : []),
     ...(role === "student"
       ? [{ key: "cls", label: tr("Class", "الصف"), sort: true }, { key: "section", label: tr("Section", "الشعبة"), sort: true }]
-      : [{ key: "subjects", label: tr("Subjects", "المواد"), sort: true }, { key: "classes", label: tr("Classes", "الصفوف"), sort: true }, { key: "sections", label: tr("Sections", "الشعب"), sort: true }]),
+      : [{ key: "subjects", label: tr("Subjects", "المواد"), sort: true }, { key: "groups", label: tr("Groups", "المجموعات"), sort: true }]),
     ...extraOn.map((e) => ({ key: "x_" + e[0], label: tr(e[1], e[2]), sort: true })),
     { key: "status", label: tr("Status", "الحالة"), sort: true },
     { key: "actions", label: tr("Actions", "إجراءات"), sort: false },
   ];
-  const sortVal = (u: LmsUser): string => ({ name: u.name, username: u.username, cls: u.cls, section: u.section, subjects: u.subjects.join(","), classes: teacherClasses(u).join(","), sections: teacherSections(u).join(","), status: u.disabled ? "1" : "0", ...Object.fromEntries(EXTRA.map((e) => ["x_" + e[0], e[3](u)])) })[sort.key] ?? "";
+  const sortVal = (u: LmsUser): string => ({ name: u.name, username: u.username, cls: u.cls, section: u.section, subjects: u.subjects.join(","), groups: (u.groups || []).map((g) => g.name).join(","), sections: teacherSections(u).join(","), status: u.disabled ? "1" : "0", ...Object.fromEntries(EXTRA.map((e) => ["x_" + e[0], e[3](u)])) })[sort.key] ?? "";
   const filtered = list.filter((u) => !fStatus || (fStatus === "blocked") === u.disabled);
   const sorted = [...filtered].sort((x, y) => sortVal(x).localeCompare(sortVal(y), undefined, { numeric: true, sensitivity: "base" }) * sort.dir);
   const PAGE = 25;
@@ -398,14 +392,14 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
                 {catalog.subjects.map((s) => <option key={s.id}>{s.name}</option>)}
               </select>
             )}
-            <select className={inputCls + " mt-0 w-auto! min-w-[9rem]"} value={fCls} onChange={(e) => { setFCls(e.target.value); setFSec(""); }} data-testid="lms-filter-class" aria-label={tr("Class", "الصف")}>
+            {role === "student" && <><select className={inputCls + " mt-0 w-auto! min-w-[9rem]"} value={fCls} onChange={(e) => { setFCls(e.target.value); setFSec(""); }} data-testid="lms-filter-class" aria-label={tr("Class", "الصف")}>
               <option value="">{tr("All classes", "كل الصفوف")}</option>
               {catalog.classes.map((c) => <option key={c.id} value={c.name}>{clsNum(c.name)}</option>)}
             </select>
             <select className={inputCls + " mt-0 w-auto! min-w-[9rem]"} value={fSec} onChange={(e) => setFSec(e.target.value)} disabled={!secOpts.length} data-testid="lms-filter-section" aria-label={tr("Section", "الشعبة")}>
               <option value="">{tr("All sections", "كل الشعب")}</option>
               {secOpts.map((s) => <option key={s.id} value={s.name}>{secLetter(s.name)}</option>)}
-            </select>
+            </select></>}
             {EXTRA.length > 0 && <div className="relative"><button type="button" className={smallBtn} onClick={() => setColMenu(!colMenu)} aria-expanded={colMenu} data-testid="lms-cols-btn">▥ {tr("Columns", "الأعمدة")}</button>
               {colMenu && <div className="absolute end-0 z-40 mt-1 w-52 rounded-2xl border border-black/10 bg-white p-2 text-sm shadow-xl dark:border-white/15 dark:bg-[#13202e]" data-testid="lms-cols-menu">{EXTRA.map((e) => <label key={e[0]} className="flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-black/5 dark:hover:bg-white/10"><input type="checkbox" checked={showCols.includes(e[0])} onChange={() => toggleCol(e[0])} />{tr(e[1], e[2])}</label>)}</div>}</div>}
             <select className={inputCls + " mt-0 w-auto! min-w-[9rem]"} value={fStatus} onChange={(e) => { setFStatus(e.target.value as typeof fStatus); setPage(0); }} data-testid="lms-filter-status" aria-label={tr("Status", "الحالة")}>
@@ -471,8 +465,7 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
                         ) : (
                           <>
                             <td className={td} data-testid="col-subjects">{u.subjects.join(", ") || "—"}</td>
-                            <td className={td} data-testid="col-classes" title={teacherClasses(u).map(clsNum).join(", ")}>{shortList(teacherClasses(u).map(clsNum)) || tr("All", "الكل")}</td>
-                            <td className={td} data-testid="col-sections" title={teacherSections(u).map(secLetter).join(", ")}>{shortList(teacherSections(u).map(secLetter)) || "—"}</td>
+                            <td className={td} data-testid="col-groups" title={(u.groups || []).map((g) => g.name).join(", ")}>{shortList((u.groups || []).map((g) => g.name)) || <span className="text-rose-700 dark:text-rose-300">{tr("None", "لا شيء")}</span>}</td>
                           </>
                         )}
                         {extraOn.map((e) => <td key={e[0]} className={td + " whitespace-nowrap text-[13px]"} data-testid={`col-${e[0]}`} dir="auto">{e[3](u) || "—"}</td>)}

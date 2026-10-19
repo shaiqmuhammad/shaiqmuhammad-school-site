@@ -24,7 +24,7 @@ export function HomeworkEditor({ initial, classes, students, catalog, scope = []
   const classNames = [...new Set([...(catalog?.classes || []).map((c) => c.name), ...classes.map((c) => c.cls).filter(Boolean)])].filter((c) => inScope(c));
   const sectionsOf = (c: string) => (catalog?.sections || []).filter((x) => x.cls === c && inScope(c, x.name)).map((x) => x.name);
   const wholeClassOk = (c: string) => !scope.length || scope.includes(c);
-  const shownStudents = students.filter((s) => inScope(s.cls, s.section) && (!fCls || s.cls === fCls) && (!fSec || s.section === fSec));
+  const shownStudents = students.filter((s) => (!fCls || s.cls === fCls) && (!fSec || s.section === fSec));
   const [due, setDue] = useState(initial?.due ? new Date(initial.due).toISOString().slice(0, 10) : "");
   const q0 = (initial?.kind === "quran" ? initial.data : {}) as Partial<QuranData>;
   const g0 = (initial?.kind === "general" ? initial.data : {}) as Partial<GeneralData>;

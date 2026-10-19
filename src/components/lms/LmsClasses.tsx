@@ -56,7 +56,7 @@ export function LmsClassesPage() {
   const load = useCallback(() => {
     lmsApi.classRoster().then((r) => { setRoster(r.students); setCanManage(r.canManage); }).catch((e) => setErr(lmsErrorText(e, tr)));
     lmsApi.pcatList().then((r) => setCats(r.items)).catch(() => undefined);
-    lmsApi.grpList().then((r) => setGroups(r.items)).catch(() => undefined);
+    lmsApi.grpList().then((r) => setGroups(lmsSession()?.user.role === "teacher" ? r.items.filter((g) => g.assigned) : r.items)).catch(() => undefined);
   }, [tr]);
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load(); }, [load]);
@@ -100,7 +100,7 @@ export function LmsClassesPage() {
         </div>
         <div className="flex flex-wrap gap-2" data-testid="cls-tabs">
           <button type="button" aria-pressed={!view} onClick={() => setView("")} className={`${pill} ${!view ? "!bg-header !text-sun" : ""}`}>{tr("All", "الكل")} ({roster?.length ?? 0})</button>
-          {classes.map((c) => <button key={c} type="button" aria-pressed={view === c} onClick={() => setView(c)} className={`${pill} ${view === c ? "!bg-header !text-sun" : ""}`} data-testid="cls-tab">{label(c)}</button>)}
+          {(lmsSession()?.user.role === "teacher" && groups.length ? [] : classes).map((c) => <button key={c} type="button" aria-pressed={view === c} onClick={() => setView(c)} className={`${pill} ${view === c ? "!bg-header !text-sun" : ""}`} data-testid="cls-tab">{label(c)}</button>)}
           {groups.map((g) => <button key={g.id} type="button" aria-pressed={view === "g:" + g.id} onClick={() => setView("g:" + g.id)} className={`${pill} ${view === "g:" + g.id ? "!bg-header !text-sun" : ""}`} data-testid="cls-group-tab" title={g.assigned ? tr("Assigned by admin", "مُسندة من الإدارة") : undefined}>{g.assigned ? "📌" : "👥"} {grpLabel(g)}</button>)}
         </div>
         {err && <p className="rounded-2xl bg-rose-100 px-4 py-2 text-sm text-rose-800">{err}</p>}
@@ -239,7 +239,7 @@ export function LmsPointsPage() {
   const [from, setFrom] = useState(""); const [to, setTo] = useState("");
   const [stu, setStu] = useState("");
   const [log, setLog] = useState<{ id: string; student: string; kind: string; to: string; by: string; at: number; ok: boolean }[]>([]);
-  useEffect(() => { lmsApi.classRoster().then((r) => setRoster(r.students)).catch(() => undefined); lmsApi.grpList().then((r) => setGroups(r.items)).catch(() => undefined); lmsApi.reportLog().then((r) => setLog(r.items)).catch(() => undefined); }, []);
+  useEffect(() => { lmsApi.classRoster().then((r) => setRoster(r.students)).catch(() => undefined); lmsApi.grpList().then((r) => setGroups(lmsSession()?.user.role === "teacher" ? r.items.filter((g) => g.assigned) : r.items)).catch(() => undefined); lmsApi.reportLog().then((r) => setLog(r.items)).catch(() => undefined); }, []);
   const days = range === "custom" ? 0 : Number(RANGES.find((r) => r[0] === range)?.[3] || 0);
   const ids = useMemo(() => {
     if (stu) return [stu];
