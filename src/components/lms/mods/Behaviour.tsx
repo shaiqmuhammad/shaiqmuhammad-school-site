@@ -28,11 +28,11 @@ export function Behaviour({ asAdmin }: { asAdmin: boolean }) {
   const [edit, setEdit] = useState<Partial<Beh> | null>(null);
   const [profile, setProfile] = useState("");
   const load = useCallback(() => {
-    const [cls, section] = f.g.split("|");
-    modCall<Resp>("beh-list", { cls: cls || "", section: section || "", kind: f.kind, category: f.category, severity: Number(f.severity) || 0, follow: f.follow, from: f.from, to: f.to }, asAdmin).then(setData).catch((e) => { setBad(true); setMsg(modErr(e, tr)); });
-  }, [f.g, f.kind, f.category, f.severity, f.follow, f.from, f.to, asAdmin, tr]);
+    modCall<Resp>("beh-list", { cls: "", section: "", kind: f.kind, category: f.category, severity: Number(f.severity) || 0, follow: f.follow, from: f.from, to: f.to }, asAdmin).then(setData).catch((e) => { setBad(true); setMsg(modErr(e, tr)); });
+  }, [f.kind, f.category, f.severity, f.follow, f.from, f.to, asAdmin, tr]);
   useEffect(() => { load(); }, [load]);
-  const items = useMemo(() => (data?.items || []).filter((x) => !f.q || `${x.name} ${x.note} ${x.category} ${x.action}`.toLowerCase().includes(f.q.toLowerCase())), [data, f.q]);
+  const gids = useMemo(() => new Set(groups.find((x) => x.key === f.g)?.ids || []), [groups, f.g]);
+  const items = useMemo(() => (data?.items || []).filter((x) => (!f.g || gids.has(x.student)) && (!f.q || `${x.name} ${x.note} ${x.category} ${x.action}`.toLowerCase().includes(f.q.toLowerCase()))), [data, f.q, f.g, gids]);
   const note = (m: string, b = false) => { setMsg(m); setBad(b); };
   const setFollow = async (id: string, follow: string) => { try { await modCall("beh-follow", { id, follow }, asAdmin); load(); } catch (e) { note(modErr(e, tr), true); } };
   const del = async (id: string) => { if (!confirm(tr("Delete this entry?", "حذف هذا السجل؟"))) return; try { await modCall("beh-delete", { id }, asAdmin); load(); } catch (e) { note(modErr(e, tr), true); } };
@@ -46,7 +46,7 @@ export function Behaviour({ asAdmin }: { asAdmin: boolean }) {
       </Head>
       <Tabs testId="beh-tabs" value={tab} onChange={setTab} items={[["log", tr("Log & reports", "السجل والتقارير")], ["overview", tr("Class overview", "نظرة على الصف")], ["profile", tr("Student profile", "ملف الطالب")]]} />
       <div className={cardCls + " mb-4 grid gap-2 sm:grid-cols-3 lg:grid-cols-6"}>
-        <ClassSelect groups={groups} value={f.g} onChange={(g) => setF({ ...f, g })} all={tr("All classes", "كل الصفوف")} testId="beh-class" />
+        <ClassSelect groups={groups} value={f.g} onChange={(g) => setF({ ...f, g })} all={tr("All my groups", "كل مجموعاتي")} testId="beh-class" />
         <select className={field} value={f.kind} onChange={(e) => setF({ ...f, kind: e.target.value, category: "" })} aria-label={tr("Type", "النوع")} data-testid="beh-f-kind"><option value="">{tr("All types", "كل الأنواع")}</option><option value="positive">{tr("Positive", "إيجابي")}</option><option value="concern">{tr("Concern", "ملاحظة")}</option></select>
         <select className={field} value={f.category} onChange={(e) => setF({ ...f, category: e.target.value })} aria-label={tr("Category", "الفئة")}><option value="">{tr("All categories", "كل الفئات")}</option>{cats && [...(f.kind !== "concern" ? cats.positive : []), ...(f.kind !== "positive" ? cats.concern : [])].map((c) => <option key={c}>{c}</option>)}</select>
         <select className={field} value={f.severity} onChange={(e) => setF({ ...f, severity: e.target.value })} aria-label={tr("Severity", "الخطورة")}><option value="">{tr("Any severity", "أي خطورة")}</option>{[1, 2, 3].map((n) => <option key={n} value={n}>{tr(...(SEV[n] as [string, string]))}</option>)}</select>

@@ -3,7 +3,7 @@
 import { DlGate } from "@/components/lms/DlGate";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLmsActor, useTr } from "@/components/lms/useLms";
-import { btn, btnCta, ClassSelect, cardCls, field, groupLabel, Head, Modal, ModPage, td, th, Tabs, Toast, useRoster } from "@/components/lms/mods/ModUi";
+import { btn, btnCta, ClassSelect, cardCls, field, groupLabel, Head, Modal, ModPage, td, th, Tabs, Toast, groupClasses, useRoster } from "@/components/lms/mods/ModUi";
 import { addDays, modCall, modErr, modPerm, pdfTable, STATUS_CLS, STATUS_LABEL, todayStr, weekStart, xlsxTable, type AttGroup, type AttReport, type AttRoster, type Status } from "@/lib/lmsMods";
 
 const PERIODS = ["Day", "AM", "PM", "P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8"];
@@ -42,11 +42,13 @@ function Register({ asAdmin, canEdit }: { asAdmin: boolean; canEdit: boolean }) 
   const [busy, setBusy] = useState(false);
   const [alert, setAlert] = useState<{ id: string; name: string; html?: string; body: string; subject: string; err?: string } | null>(null);
   const cur = g || groups[0]?.key || "";
-  const [cls, section] = cur.split("|");
+  const grp = groups.find((x) => x.key === cur);
+  const pairs = useMemo(() => groupClasses(students, grp?.ids || []).join(","), [students, grp]);
   const load = useCallback(() => {
-    if (!cls && !groups.length) return;
-    modCall<AttRoster>("att-roster", { cls, section, day, period }, asAdmin).then((r) => { setData(r); setMarks(Object.fromEntries(r.students.map((s) => [s.id, { status: s.status, note: s.note }]))); setDirty(false); }).catch((e) => { setMsg(modErr(e, tr)); setBad(true); });
-  }, [cls, section, day, period, asAdmin, groups.length, tr]);
+    if (!pairs) return;
+    const ids = new Set(grp?.ids || []);
+    Promise.all(pairs.split(",").map((p) => { const [cls, section] = p.split("|"); return modCall<AttRoster>("att-roster", { cls, section, day, period }, asAdmin); })).then((rs) => { const r: AttRoster = { ...rs[0], students: rs.flatMap((x) => x.students).filter((s) => ids.has(s.id)), editable: rs.every((x) => x.editable) }; return r; }).then((r) => { setData(r); setMarks(Object.fromEntries(r.students.map((s) => [s.id, { status: s.status, note: s.note }]))); setDirty(false); }).catch((e) => { setMsg(modErr(e, tr)); setBad(true); });
+  }, [pairs, grp, day, period, asAdmin, tr]);
   useEffect(() => { if (students) load(); }, [load, students]);
   const set = (id: string, patch: Partial<{ status: Status | ""; note: string }>) => { setMarks((m) => ({ ...m, [id]: { ...m[id], ...patch } })); setDirty(true); setMsg(""); };
   const counts = useMemo(() => { const c = { P: 0, A: 0, L: 0, E: 0, none: 0 }; for (const s of data?.students || []) { const m = marks[s.id]?.status; if (m) c[m]++; else c.none++; } return c; }, [data, marks]);
@@ -135,9 +137,9 @@ function Reports({ asAdmin }: { asAdmin: boolean }) {
   const [one, setOne] = useState<{ id: string; name: string; rep: AttReport } | null>(null);
   const [err, setErr] = useState("");
   const pick = (r: typeof range) => { setRange(r); const t = todayStr(); if (r === "day") { setFrom(t); setTo(t); } if (r === "week") { setFrom(weekStart(t)); setTo(t); } if (r === "month") { setFrom(t.slice(0, 8) + "01"); setTo(t); } };
-  const [cls, section] = g.split("|");
-  useEffect(() => { modCall<AttReport>("att-report", { from, to, cls: cls || "", section: section || "" }, asAdmin).then((r) => { setRep(r); setErr(""); }).catch((e) => setErr(modErr(e, tr))); }, [from, to, cls, section, asAdmin, tr]);
-  const rows = rep?.students || [];
+  const gids = useMemo(() => new Set(groups.find((x) => x.key === g)?.ids || []), [groups, g]);
+  useEffect(() => { modCall<AttReport>("att-report", { from, to, cls: "", section: "" }, asAdmin).then((r) => { setRep(r); setErr(""); }).catch((e) => setErr(modErr(e, tr))); }, [from, to, asAdmin, tr]);
+  const rows = (rep?.students || []).filter((r) => !g || gids.has(r.id));
   const tot = rows.reduce((a, r) => ({ P: a.P + r.P, A: a.A + r.A, L: a.L + r.L, E: a.E + r.E }), { P: 0, A: 0, L: 0, E: 0 });
   const counted = tot.P + tot.L + tot.A;
   const avg = counted ? Math.round(((tot.P + tot.L) / counted) * 1000) / 10 : null;
@@ -153,11 +155,11 @@ function Reports({ asAdmin }: { asAdmin: boolean }) {
         <div className="flex gap-1">{(["day", "week", "month", "custom"] as const).map((r) => <button key={r} type="button" className={btn + (range === r ? " !bg-[var(--cta)] !text-[var(--cta-foreground)]" : "")} onClick={() => pick(r)} data-testid={`att-range-${r}`}>{{ day: tr("Daily", "يومي"), week: tr("Weekly", "أسبوعي"), month: tr("Monthly", "شهري"), custom: tr("Custom", "مخصص") }[r]}</button>)}</div>
         <input type="date" className={field + " w-auto!"} value={from} onChange={(e) => { setRange("custom"); setFrom(e.target.value); }} aria-label={tr("From", "من")} />
         <input type="date" className={field + " w-auto!"} value={to} max={todayStr()} onChange={(e) => { setRange("custom"); setTo(e.target.value); }} aria-label={tr("To", "إلى")} />
-        <ClassSelect groups={groups} value={g} onChange={setG} all={tr("All my classes", "كل صفوفي")} testId="att-rep-class" />
+        <ClassSelect groups={groups} value={g} onChange={setG} all={tr("All my groups", "كل مجموعاتي")} testId="att-rep-class" />
         <span className="flex-1" />
         <DlGate kind="export">
         <button type="button" className={btn} onClick={() => xlsxTable("Attendance", head, body, `${name}.xlsx`)} disabled={!rows.length} data-testid="att-xlsx">⬇ Excel</button>
-        <button type="button" className={btn} onClick={() => pdfTable({ title: tr("Attendance report", "تقرير الحضور"), subtitle: `${from} → ${to}${g ? " · " + groupLabel({ cls: cls, section: section }, tr) : ""} · ${tr("Low attendance below", "حضور منخفض أقل من")} ${rep?.settings.low}%`, headers: head, rows: body, filename: `${name}.pdf` })} disabled={!rows.length} data-testid="att-pdf">⬇ PDF</button>
+        <button type="button" className={btn} onClick={() => pdfTable({ title: tr("Attendance report", "تقرير الحضور"), subtitle: `${from} → ${to}${g ? " · " + (groups.find((x) => x.key === g)?.name || "") : ""} · ${tr("Low attendance below", "حضور منخفض أقل من")} ${rep?.settings.low}%`, headers: head, rows: body, filename: `${name}.pdf` })} disabled={!rows.length} data-testid="att-pdf">⬇ PDF</button>
         </DlGate>
       </div>
       {err && <Toast msg={err} bad />}

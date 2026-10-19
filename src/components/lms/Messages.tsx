@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { PresenceDot } from "@/components/lms/Presence";
-import { lmsApi, lmsErrorText, type Announcement, type Catalog, type Msg, type MsgContact, type MsgThread } from "@/lib/lms";
+import { grpLabel, lmsApi, lmsErrorText, type Announcement, type Catalog, type Msg, type MsgContact, type MsgThread, type StudentGroup } from "@/lib/lms";
 import { useTr } from "@/components/lms/useLms";
 import { ParentMailPanel } from "@/components/lms/ParentMail";
 
@@ -54,6 +54,9 @@ function ChatsPanel({ asAdmin = false }: { asAdmin?: boolean }) {
   const [text, setText] = useState("");
   const [picking, setPicking] = useState(false);
   const [q, setQ] = useState("");
+  const [grps, setGrps] = useState<StudentGroup[]>([]);
+  const [gsel, setGsel] = useState("");
+  useEffect(() => { lmsApi.grpList(asAdmin).then((r) => setGrps(r.items.filter((x) => (asAdmin ? x.adminGroup : x.assigned)))).catch(() => undefined); }, [asAdmin]);
   const [err, setErr] = useState("");
   const end = useRef<HTMLDivElement>(null);
   const loadThreads = useCallback(() => lmsApi.msgThreads(asAdmin).then((r) => setThreads(r.items)).catch((e) => setErr(lmsErrorText(e, tr))), [asAdmin, tr]);
@@ -77,8 +80,12 @@ function ChatsPanel({ asAdmin = false }: { asAdmin?: boolean }) {
         {picking && (
           <div className="border-b border-black/5 p-3 dark:border-white/10">
             <input autoFocus className="w-full rounded-full border border-black/10 bg-white/80 px-3 py-1.5 text-sm dark:border-white/15 dark:bg-white/5" placeholder={tr("Search people…", "ابحث عن شخص…")} value={q} onChange={(e) => setQ(e.target.value)} />
+            {grps.length > 0 && <div className="mt-2 flex flex-wrap gap-1.5" data-testid="msg-groups">
+              <button type="button" aria-pressed={!gsel} className={`rounded-full border px-2.5 py-1 text-xs font-bold ${!gsel ? "border-transparent bg-header text-sun" : "border-black/10 bg-white/80 dark:border-white/15 dark:bg-white/10"}`} onClick={() => setGsel("")}>{tr("Everyone", "الجميع")}</button>
+              {grps.map((g) => <button key={g.id} type="button" aria-pressed={gsel === g.id} className={`rounded-full border px-2.5 py-1 text-xs font-bold ${gsel === g.id ? "border-transparent bg-header text-sun" : "border-black/10 bg-white/80 dark:border-white/15 dark:bg-white/10"}`} onClick={() => setGsel(g.id)} data-testid="msg-group" dir="auto">👥 {grpLabel(g)} ({g.students.length})</button>)}
+            </div>}
             <ul className="mt-2 max-h-56 overflow-y-auto">
-              {contacts.filter((c) => c.name.toLowerCase().includes(q.toLowerCase())).slice(0, 60).map((c) => (
+              {contacts.filter((c) => !gsel || (grps.find((g) => g.id === gsel)?.students || []).includes(c.id)).filter((c) => c.name.toLowerCase().includes(q.toLowerCase())).slice(0, 60).map((c) => (
                 <li key={c.id}><button type="button" className="flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-start text-sm hover:bg-sun/20" onClick={() => open({ with: c.id, name: c.name, canReply: true })} data-testid="msg-contact">
                   <span className="grid h-7 w-7 place-items-center rounded-full bg-header text-[10px] font-bold text-white">{initials(c.name)}</span>
                   <span className="min-w-0 flex-1 truncate">{c.name}</span><PresenceDot seen={c.seen} label /><span className="text-[11px] opacity-60">{c.role === "admin" ? tr("Admin", "الإدارة") : c.role === "teacher" ? tr("Teacher", "معلم") : c.role === "parent" ? tr("Parent", "ولي أمر") + (c.cls ? " · " + c.cls.replace(/^Parent · /, "") : "") : c.cls}</span>

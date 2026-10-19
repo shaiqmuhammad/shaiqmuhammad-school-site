@@ -5,6 +5,7 @@ import { AssessmentShell } from "@/components/assessment/AssessmentShell";
 import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
 import { useLmsActor, useTr } from "@/components/lms/useLms";
 import { clsNum, secLetter } from "@/lib/classFmt";
+import { grpLabel, lmsApi, type StudentGroup } from "@/lib/lms";
 import { modCall, modPerm, type Roster } from "@/lib/lmsMods";
 
 export const cardCls = "rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm dark:border-white/10 dark:bg-white/5";
@@ -44,8 +45,8 @@ export function Head({ icon, title, sub, children, hide }: { icon: string; title
 
 export function Tabs<T extends string>({ value, onChange, items, testId }: { value: T; onChange: (v: T) => void; items: [T, string][]; testId?: string }) {
   return (
-    <div className="mb-4 flex gap-1 overflow-x-auto rounded-full border border-black/10 bg-black/[0.04] p-1 dark:border-white/10 dark:bg-white/5" role="tablist" data-testid={testId}>
-      {items.map(([id, label]) => <button key={id} type="button" role="tab" aria-selected={value === id} onClick={() => onChange(id)} data-testid={`${testId}-${id}`} className={`shrink-0 rounded-full px-4 py-1.5 text-sm font-bold transition ${value === id ? "bg-[var(--cta)] text-[var(--cta-foreground)] shadow" : "hover:bg-black/5 dark:hover:bg-white/10"}`}>{label}</button>)}
+    <div className="mb-4 flex flex-wrap gap-1 rounded-3xl border border-black/10 bg-black/[0.04] p-1 dark:border-white/10 dark:bg-white/5" role="tablist" data-testid={testId}>
+      {items.map(([id, label]) => <button key={id} type="button" role="tab" aria-selected={value === id} onClick={() => onChange(id)} data-testid={`${testId}-${id}`} className={`rounded-full px-4 py-1.5 text-sm font-bold transition ${value === id ? "bg-[var(--cta)] text-[var(--cta-foreground)] shadow" : "hover:bg-black/5 dark:hover:bg-white/10"}`}>{label}</button>)}
     </div>
   );
 }
@@ -67,25 +68,38 @@ export function Toast({ msg, bad }: { msg: string; bad?: boolean }) {
   return <p role="status" className={`mb-3 rounded-xl px-3 py-2 text-sm font-semibold ${bad ? "bg-rose-100 text-rose-900" : "bg-emerald-100 text-emerald-900"}`} data-testid="mod-msg">{msg}</p>;
 }
 
-/** Staff roster (admin: all students; teacher: own classes/sections only — enforced by the server). */
+export type RGroup = { key: string; name: string; ids: string[]; cls: string; section: string };
+/** Staff roster (admin: all students; teacher: own students only — enforced by the server) plus the assigned Student GROUPS (shared by every picker). */
 export function useRoster(asAdmin: boolean) {
   const [students, setStudents] = useState<Roster[] | null>(null);
-  useEffect(() => { modCall<{ students: Roster[] }>("class-roster", undefined, asAdmin).then((r) => setStudents(r.students)).catch(() => setStudents([])); }, [asAdmin]);
-  const groups = useMemo(() => {
-    const m = new Map<string, { key: string; cls: string; section: string }>();
-    for (const s of students || []) { const k = `${s.cls}|${s.section}`; if (!m.has(k)) m.set(k, { key: k, cls: s.cls, section: s.section }); }
-    return [...m.values()].sort((a, b) => a.cls.localeCompare(b.cls, undefined, { numeric: true }) || a.section.localeCompare(b.section));
-  }, [students]);
+  const [grp, setGrp] = useState<StudentGroup[]>([]);
+  useEffect(() => {
+    modCall<{ students: Roster[] }>("class-roster", undefined, asAdmin).then((r) => setStudents(r.students)).catch(() => setStudents([]));
+    lmsApi.grpList(asAdmin).then((r) => setGrp(r.items.filter((x) => (asAdmin ? x.adminGroup : x.assigned)))).catch(() => setGrp([]));
+  }, [asAdmin]);
+  const groups = useMemo<RGroup[]>(() => {
+    const have = new Set((students || []).map((s) => s.id));
+    return grp.map((g) => ({ key: g.id, name: grpLabel(g), ids: g.students.filter((id) => have.has(id)), cls: "", section: "" })).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+  }, [grp, students]);
   return { students, groups };
+}
+/** The class|section pairs that the given student ids belong to (for endpoints that take a class). */
+export function groupClasses(students: Roster[] | null, ids: string[]) {
+  const set = new Set(ids); const out = new Set<string>();
+  for (const s of students || []) if (set.has(s.id)) out.add(`${s.cls}|${s.section}`);
+  return [...out];
 }
 export const groupLabel = (g: { cls: string; section: string }, tr: (en: string, ar: string) => string) => `${tr("Class", "الصف")} ${clsNum(g.cls)}${g.section ? secLetter(g.section) : ""}`;
 
-export function ClassSelect({ groups, value, onChange, all, testId = "mod-class" }: { groups: { key: string; cls: string; section: string }[]; value: string; onChange: (v: string) => void; all?: string; testId?: string }) {
+/** Group tabs (wrap onto new lines — never a sliding strip). Replaces the old class pickers. */
+export function ClassSelect({ groups, value, onChange, all, testId = "mod-class" }: { groups: RGroup[]; value: string; onChange: (v: string) => void; all?: string; testId?: string }) {
   const { tr } = useTr();
+  const chip = (on: boolean) => `rounded-full border px-3 py-1.5 text-sm font-bold ${on ? "border-transparent bg-header text-sun" : "border-black/10 bg-white/80 dark:border-white/15 dark:bg-white/10"}`;
   return (
-    <select className={field + " w-auto!"} value={value} onChange={(e) => onChange(e.target.value)} aria-label={tr("Class / section", "الصف / الشعبة")} data-testid={testId}>
-      {all && <option value="">{all}</option>}
-      {groups.map((g) => <option key={g.key} value={g.key}>{groupLabel(g, tr)}</option>)}
-    </select>
+    <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label={tr("Student groups", "مجموعات الطلاب")} data-testid={testId}>
+      {all && <button type="button" aria-pressed={value === ""} className={chip(value === "")} onClick={() => onChange("")} data-testid="grp-tab-all">{all}</button>}
+      {groups.map((g) => <button key={g.key} type="button" aria-pressed={value === g.key} className={chip(value === g.key)} onClick={() => onChange(g.key)} data-testid="grp-tab" dir="auto">👥 {g.name} ({g.ids.length})</button>)}
+      {!groups.length && <span className="text-xs opacity-60">{tr("No groups assigned to you yet.", "لا توجد مجموعات مسندة إليك بعد.")}</span>}
+    </div>
   );
 }
