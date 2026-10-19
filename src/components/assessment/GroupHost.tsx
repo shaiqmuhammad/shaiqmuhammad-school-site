@@ -23,6 +23,7 @@ import {
   type StoredHost,
 } from "@/lib/groupSession";
 import { lmsSession } from "@/lib/lms";
+import { actingAs } from "@/lib/origin";
 import { loadQuizzesData, normalizeQuiz, type Quiz } from "@/lib/quiz";
 
 /** Default live-session length (5 minutes = 300 s) when an assessment has no time limit. */
@@ -61,7 +62,7 @@ export function GroupHost() {
     }
     loadQuizzesData()
       .then((d) => {
-        const t = !isAdminAuthenticated() ? lmsSession() : null;
+        const t = actingAs() === "lms" || !isAdminAuthenticated() ? lmsSession() : null;
         const hosts = (t?.user.perms || []).filter((p) => p.startsWith("host:")).map((p) => p.slice(5));
         const list = d.quizzes.filter((q) => q.questions.length > 0 && (!t || hosts.includes("*") || hosts.includes(q.slug) || hosts.includes(q.id)));
         const merged = draft ? [draft, ...list.filter((q) => q.id !== draft!.id)] : list;
@@ -220,7 +221,7 @@ export function GroupHost() {
           <div className={panelCls}>
             <h1 className="text-2xl font-bold">{a("hostTitle")}</h1>
             <p className="mt-3 text-base opacity-80">{a("hostOnly")}</p>
-            <Link href="/admin/login" className={`${primaryBtn} mt-6`}>
+            <Link href={lmsSession() ? "/lms" : "/admin/login"} className={`${primaryBtn} mt-6`}>
               {a("goToAdmin")}
             </Link>
           </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
+import { useLmsExit } from "@/lib/useLmsExit";
 import { useEffect, useState } from "react";
 import { AssessmentShell, ghostBtn, panelCls, primaryBtn } from "@/components/assessment/AssessmentShell";
 import { ActivityHostView } from "@/components/activity/ActivityViews";
@@ -63,6 +64,7 @@ export function ActivityHost() {
   const tr = (en: string, ar: string) => (lang === "ar" ? ar : en);
   const params = useSearchParams();
   const router = useRouter();
+  const home = useLmsExit("/admin");
   const code = (params.get("code") || "").toUpperCase();
   const [hosted, setHosted] = useState<HostedActivity | null | undefined>(undefined);
   useEffect(() => {
@@ -93,7 +95,7 @@ export function ActivityHost() {
             <p className="text-5xl" aria-hidden>🔐</p>
             <h1 className="mt-3 text-2xl font-bold">{error === "not_found" ? tr("This activity has expired or was deleted", "انتهت صلاحية هذا النشاط أو حُذف") : tr("This activity isn't saved on this device", "هذا النشاط غير محفوظ على هذا الجهاز")}</h1>
             <p className="mt-2 opacity-80">{tr("Open it from Admin → Activities on the device that created it, or create a new one.", "افتحه من الإدارة ← الأنشطة على الجهاز الذي أنشأه، أو أنشئ نشاطًا جديدًا.")}</p>
-            <a href="/admin" className={`${primaryBtn} mt-6`}>{tr("Go to Admin", "إلى الإدارة")}</a>
+            <a href={home} className={`${primaryBtn} mt-6`}>{home === "/admin" ? tr("Go to Admin", "إلى الإدارة") : tr("Back to my dashboard", "العودة إلى لوحتي")}</a>
           </div>
         </div>
       </AssessmentShell>
@@ -302,7 +304,7 @@ export function ActivityHost() {
               if (!confirm(tr("Delete this activity and everything in it now? This can't be undone.", "حذف هذا النشاط وكل محتواه الآن؟ لا يمكن التراجع."))) return;
               await activityApi.destroy(code, hostKey).catch(() => undefined);
               forgetHosted(code);
-              router.push("/admin");
+              router.push(home);
             }}
             data-testid="host-destroy"
           >

@@ -74,6 +74,19 @@ function storeSession(r: { token: string; exp: number; user: LmsUser }): Session
   return s;
 }
 export type LoginCard = { id: string; name: string; username: string; cls: string; section: string; avatar: string; disabled: boolean; pin: string | null; token: string };
+let renewing = false;
+/** Sliding renewal: keep a signed-in LMS session alive (30 days from the last visit) without any prompt. */
+export async function lmsRenew(force = false) {
+  const s = lmsSession();
+  if (!s || renewing || typeof window === "undefined") return;
+  if (!force && s.exp - Date.now() > 25 * 864e5) return;
+  renewing = true;
+  try {
+    const r = await call<{ token: string; exp: number; user: LmsUser }>("refresh", {});
+    storeSession({ token: r.token, exp: r.exp, user: { ...r.user, perms: r.user.perms, scope: r.user.scope } as LmsUser });
+  } catch { /* offline or rejected: the next real call decides */ }
+  renewing = false;
+}
 export function lmsSignOut() {
   localStorage.removeItem(SESSION_KEY);
 }
@@ -120,6 +133,17 @@ async function call<T>(action: string, body?: unknown, opts: { asAdmin?: boolean
     throw new LmsError("network", 0);
   }
   const data = (await res.json().catch(() => ({}))) as T & { error?: string };
+  if (res.status === 401 && !opts.asAdmin && !viewAs() && lmsSession() && !["login", "qr-login", "refresh"].includes(action)) {
+    // The session was ended on the server (blocked account / PIN changed elsewhere / expired): back to the right login, then return here.
+    lmsSignOut();
+    try {
+      const p = window.location.pathname;
+      if (p.startsWith("/lms") && !p.startsWith("/lms/login") && !p.startsWith("/lms/qr") && Date.now() - Number(sessionStorage.getItem("sm_lms_relogin") || 0) > 20_000) {
+        sessionStorage.setItem("sm_lms_relogin", String(Date.now()));
+        window.location.assign(`/lms/login/?next=${encodeURIComponent(p + window.location.search)}`);
+      }
+    } catch { /* ignore */ }
+  }
   if (!res.ok) throw new LmsError(data.error || "error", res.status);
   return data;
 }
@@ -173,7 +197,7 @@ export const lmsApi = {
   pinsView: (ids?: string[], asAdmin = true) => call<{ pins: Record<string, string | null> }>("pins-view", { ids }, { asAdmin }),
   loginsList: (asAdmin = false) => call<{ items: LoginCard[] }>("logins-list", undefined, { asAdmin }),
   loginTokenReset: (id: string, asAdmin = false) => call<{ token: string }>("login-token-reset", { id }, { asAdmin }),
-  changePin: (next: string) => call<{ ok: true }>("pin-change", { next }),
+  changePin: async (next: string) => { const r = await call<{ ok: true; token?: string; exp?: number }>("pin-change", { next }); const s = lmsSession(); if (r.token && r.exp && s) localStorage.setItem(SESSION_KEY, JSON.stringify({ ...s, token: r.token, exp: r.exp })); return { ok: true as const }; },
   async qrLogin(t: string) {
     const r = await call<{ token: string; exp: number; user: LmsUser }>("qr-login", { t });
     return storeSession(r);

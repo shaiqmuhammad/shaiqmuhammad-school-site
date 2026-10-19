@@ -1,6 +1,7 @@
 "use client";
 
 import { lmsSession } from "@/lib/lms";
+import { actingAs } from "@/lib/origin";
 import { getServerSession } from "@/lib/adminServer";
 import { ASSESSMENT_API_BASE } from "@/lib/groupSession";
 
@@ -93,7 +94,7 @@ const q = (o: Record<string, string | number | undefined>) =>
 export const activityApi = {
   create: (input: { type: ActivityType; title: string; prompt?: string; settings?: Partial<ActivitySettings> }) => {
     // Admin server session, else a teacher login the admin granted this activity type to.
-    const tok = getServerSession()?.token || lmsSession()?.token;
+    const tok = actingAs() === "lms" ? lmsSession()?.token : getServerSession()?.token || lmsSession()?.token;
     if (!tok) return Promise.reject(new ActivityError("unauthorized", 401));
     return call<ActivityInfo & { hostKey: string }>("create", input, { Authorization: `Bearer ${tok}` });
   },
