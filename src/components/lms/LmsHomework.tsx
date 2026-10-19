@@ -191,6 +191,8 @@ function StudentWork({ hw, sub, reload, chapters = [] }: { hw: Data["homework"];
   const [practised, setPractised] = useState(sub?.practised || false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
+  // The card remounts after a reload; keep the "submitted" success message across that remount.
+  const [justSent] = useState(() => { try { const v = sessionStorage.getItem("sm_hw_sent") === hw.id; if (v) sessionStorage.removeItem("sm_hw_sent"); return v; } catch { return false; } });
   const locked = sub?.status === "approved" || sub?.status === "submitted" || !!hw.locked;
   const again = hw.kind === "quran" && sub?.grade === "red" && sub.status === "returned";
   const save = async (submit: boolean) => {
@@ -198,6 +200,7 @@ function StudentWork({ hw, sub, reload, chapters = [] }: { hw: Data["homework"];
     setMsg("");
     try {
       await lmsApi.saveSub(hw.id, text, practised, submit);
+      if (submit) try { sessionStorage.setItem("sm_hw_sent", hw.id); } catch { /* ignore */ }
       setMsg(submit ? tr("✅ Your homework has been submitted! Your teacher will check it soon.", "✅ تم تسليم واجبك! سيراجعه معلمك قريبًا.") : tr("Saved ✓", "تم الحفظ ✓"));
       reload();
     } catch (e) {
@@ -244,7 +247,7 @@ function StudentWork({ hw, sub, reload, chapters = [] }: { hw: Data["homework"];
           <button type="button" className={smallBtn} disabled={busy} onClick={() => save(false)} data-testid="hw-draft">{tr("Save for later", "حفظ لاحقًا")}</button>
         </div>
       )}
-      {msg && <p className="font-semibold" role="status" data-testid="hw-msg">{msg}</p>}
+      {(msg || (justSent && sub?.status === "submitted")) && <p className="font-semibold" role="status" data-testid="hw-msg">{msg || tr("✅ Your homework has been submitted! Your teacher will check it soon.", "✅ تم تسليم واجبك! سيراجعه معلمك قريبًا.")}</p>}
       {sub && <Comments sub={sub} />}
       {sub?.attempts && sub.attempts.length > 0 && <Attempts list={sub.attempts} />}
     </section>

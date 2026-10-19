@@ -55,11 +55,11 @@ export function LmsBell({ asAdmin = false, variant = "navy", extra, testId = "lm
     const t = n.data.title ? `“${n.data.title}”` : "";
     switch (n.kind) {
       case "hw_new": return tr(`New homework: ${t}`, `واجب جديد: ${t}`);
-      case "sub_new": return tr(`${n.data.student} handed in ${t}`, `سلّم ${n.data.student} ${t}`);
+      case "sub_new": return tr(`${n.data.student} submitted ${t}`, `سلّم ${n.data.student} ${t}`);
       case "feedback": return tr(`${n.data.by} commented on ${t}`, `علّق ${n.data.by} على ${t}`);
       case "feedback_audio": return tr(`${n.data.by} sent voice feedback on ${t}`, `أرسل ${n.data.by} تعليقًا صوتيًا على ${t}`);
       case "graded": return n.data.grade === "red" ? tr(`${t}: 🔴 practise again and re-record`, `${t}: 🔴 تدرّب مجددًا وأعد التسجيل`) : tr(`${t}: ${n.data.grade === "green" ? "🟢" : "🟡"} passed — well done!`, `${t}: ${n.data.grade === "green" ? "🟢" : "🟡"} نجحت — أحسنت!`);
-      case "reminder": return n.data.overdue ? tr(`${t} is overdue — hand it in soon`, `${t} متأخر — سلّمه قريبًا`) : tr(`${t} is due within 24 hours`, `موعد تسليم ${t} خلال 24 ساعة`);
+      case "reminder": return n.data.overdue ? tr(`${t} is overdue — submit it soon`, `${t} متأخر — سلّمه قريبًا`) : tr(`${t} is due within 24 hours`, `موعد تسليم ${t} خلال 24 ساعة`);
       case "revise": return tr(`Time to revise ${t}`, `حان وقت مراجعة ${t}`);
       case "mistakes": return tr(`${n.data.by} marked ${n.data.count} word(s) to fix in ${t}`, `حدّد ${n.data.by} ${n.data.count} كلمة للتصحيح في ${t}`);
       case "announcement": return tr(`Announcement: ${t}`, `إعلان: ${t}`);

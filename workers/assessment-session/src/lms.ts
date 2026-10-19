@@ -57,7 +57,7 @@ const EMAIL_KINDS: Record<string, [string, string]> = {
   graded: ["Your Quran homework was graded", "{title} was graded by {by}."],
   feedback: ["New feedback from your teacher", "{by} left feedback on {title}."],
   feedback_audio: ["Voice feedback from your teacher", "{by} sent voice feedback on {title}."],
-  returned: ["Please try again", "{title} was returned — please practise and hand it in again."],
+  returned: ["Please try again", "{title} was returned — please practise and submit it again."],
   sub_new: ["New submission", "{student} handed in {title}."],
   reminder: ["Homework reminder", "{title} is due soon."],
 };
