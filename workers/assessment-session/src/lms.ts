@@ -145,18 +145,20 @@ async function openPin(env: LmsEnv, sealed: unknown): Promise<string | null> {
 }
 const strList = (v: unknown, max = 40) => (Array.isArray(v) ? v.map((x) => str(x, 81)).filter(Boolean).slice(0, max) : []);
 
-export async function issueUserToken(env: AdminEnv, uid: string) {
+export async function issueUserToken(env: AdminEnv, uid: string, pv = "") {
   const exp = Date.now() + TOKEN_DAYS * 864e5;
-  const payload = b64url(enc.encode(JSON.stringify({ sub: "user", uid, exp })));
+  const payload = b64url(enc.encode(JSON.stringify({ sub: "user", uid, exp, pv })));
   return { token: `${payload}.${b64url(await hmac(env.SESSION_SIGNING_KEY!, payload))}`, exp };
 }
-async function verifyUserToken(env: AdminEnv, header: string | null): Promise<string | null> {
+async function verifyUserToken(env: AdminEnv, header: string | null): Promise<string | null> { return (await verifyUserTokenPv(env, header))?.uid ?? null; }
+/** Verified token: the user id plus the PIN stamp it was issued with (a changed PIN invalidates older tokens). */
+async function verifyUserTokenPv(env: AdminEnv, header: string | null): Promise<{ uid: string; pv: string } | null> {
   if (!env.SESSION_SIGNING_KEY || !header?.startsWith("Bearer ")) return null;
   const [payload, sig] = header.slice(7).trim().split(".");
   if (!payload || !sig || !safeEqual(sig, b64url(await hmac(env.SESSION_SIGNING_KEY, payload)))) return null;
   try {
-    const d = JSON.parse(new TextDecoder().decode(fromB64url(payload))) as { sub?: string; uid?: string; exp?: number };
-    return d.sub === "user" && d.uid && d.exp && d.exp > Date.now() ? d.uid : null;
+    const d = JSON.parse(new TextDecoder().decode(fromB64url(payload))) as { sub?: string; uid?: string; exp?: number; pv?: string };
+    return d.sub === "user" && d.uid && d.exp && d.exp > Date.now() ? { uid: d.uid, pv: d.pv || "" } : null;
   } catch {
     return null;
   }
@@ -461,9 +463,12 @@ export class LmsStore extends DurableObject<LmsEnv> {
     return String(this.sql.exec(`SELECT v FROM settings WHERE k=?`, k).toArray()[0]?.v ?? def);
   }
 
-  async actor(uid: string): Promise<Actor | null> {
+  /** Short stamp of the current PIN hash; tokens carry it so a PIN change/reset signs out older sessions. */
+  pinStamp(uid: string): string { const r = this.userRow("id=?", uid); return r ? String(r.hash || "").slice(0, 10) : ""; }
+  async actor(uid: string, pv = ""): Promise<Actor | null> {
     const r = this.userRow("id=?", uid);
     if (!r || r.disabled) return null;
+    if (pv && String(r.hash || "").slice(0, 10) !== pv) return null;
     return this.mkActor(this.publicUser(r));
   }
 
@@ -2295,7 +2300,7 @@ export async function handleLms(request: Request, env: LmsEnv, action: string): 
     const r = (await store.qrLogin(str(body.t, 80), request.headers.get("CF-Connecting-IP") || "?")) as unknown as Reply;
     if (r.status !== 200) return reply(origin, r.body, r.status);
     const ok = r.body as { uid: string; user: unknown };
-    const t = await issueUserToken(env, ok.uid);
+    const t = await issueUserToken(env, ok.uid, (await store.pinStamp(ok.uid)) as unknown as string);
     return reply(origin, { ...t, user: ok.user });
   }
   if (action === "login") {
@@ -2306,7 +2311,7 @@ export async function handleLms(request: Request, env: LmsEnv, action: string): 
     const r = (await store.login(String(body.username), pin, request.headers.get("CF-Connecting-IP") || "?")) as unknown as Reply;
     if (r.status !== 200) return reply(origin, r.body, r.status);
     const ok = r.body as { uid: string; user: unknown };
-    const t = await issueUserToken(env, ok.uid);
+    const t = await issueUserToken(env, ok.uid, (await store.pinStamp(ok.uid)) as unknown as string);
     return reply(origin, { ...t, user: ok.user });
   }
   if (action === "upload") {
@@ -2336,15 +2341,26 @@ export async function handleLms(request: Request, env: LmsEnv, action: string): 
   if (actor.viewAs && !VIEW_AS_READ.has(action)) return reply(origin, { error: "read_only" }, 403);
   const url = new URL(request.url);
   const input: Json = { ...Object.fromEntries(url.searchParams), ...body, __method: request.method };
+  if (action === "refresh") {
+    // Sliding renewal: a valid, active session gets a fresh 30-day token (never for admin / view-as).
+    if (actor.role === "admin" || actor.viewAs) return reply(origin, { error: "forbidden" }, 403);
+    const t = await issueUserToken(env, actor.id, (await store.pinStamp(actor.id)) as unknown as string);
+    return reply(origin, { ...t, user: actor });
+  }
   const r = (await store.handle(action, actor, input)) as unknown as Reply;
+  if (action === "pin-change" && r.status === 200) {
+    // The user's own PIN change keeps THIS session alive (fresh token with the new stamp); other sessions end.
+    const t = await issueUserToken(env, actor.id, (await store.pinStamp(actor.id)) as unknown as string);
+    return reply(origin, { ...(r.body as object), ...t }, 200);
+  }
   return reply(origin, r.body, r.status);
 }
 
 /** A signed-in, active teacher holding an extra permission like "act:wall" or "host:<quiz>" (Classroom Activities access). */
 export async function teacherWithPerm(request: Request, env: LmsEnv, perm: string): Promise<boolean> {
-  const uid = await verifyUserToken(env, request.headers.get("Authorization"));
-  if (!uid) return false;
-  const u = (await env.LMS.get(env.LMS.idFromName("main")).actor(uid)) as unknown as Actor | null;
+  const tk = await verifyUserTokenPv(env, request.headers.get("Authorization"));
+  if (!tk) return false;
+  const u = (await env.LMS.get(env.LMS.idFromName("main")).actor(tk.uid, tk.pv)) as unknown as Actor | null;
   // Every active teacher may run any classroom activity; hosting a specific assessment still needs an explicit host: permission.
   return !!u && u.role === "teacher" && (perm.startsWith("act:") || u.perms.includes(perm) || u.perms.includes(perm.split(":")[0] + ":*"));
 }
@@ -2362,6 +2378,6 @@ async function lmsActor(request: Request, env: LmsEnv, store: DurableObjectStub<
     }
     return { id: "admin", role: "admin", name: "Admin", cls: "", perms: [...PERMS] };
   }
-  const uid = await verifyUserToken(env, auth);
-  return uid ? ((await store.actor(uid)) as unknown as Actor | null) : null;
+  const tk = await verifyUserTokenPv(env, auth);
+  return tk ? ((await store.actor(tk.uid, tk.pv)) as unknown as Actor | null) : null;
 }
