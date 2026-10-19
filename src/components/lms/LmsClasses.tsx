@@ -302,7 +302,8 @@ export function LmsResultsPage() {
   const [rows, setRows] = useState<Awaited<ReturnType<typeof lmsApi.assessResults>>["items"] | null>(null);
   const [quiz, setQuiz] = useState("");
   const [mode, setMode] = useState("");
-  useEffect(() => { lmsApi.assessResults().then((r) => setRows(r.items)).catch(() => setRows([])); }, []);
+  const [blocked, setBlocked] = useState(false);
+  useEffect(() => { lmsApi.assessResults().then((r) => setRows(r.items)).catch((e) => { setRows([]); if (e instanceof Error && /module_hidden|forbidden/.test(e.message)) setBlocked(true); }); }, []);
   const quizzes = [...new Set((rows || []).map((r) => r.quizTitle))];
   const list = (rows || []).filter((r) => (!quiz || r.quizTitle === quiz) && (!mode || r.kind === mode));
   const fmt = (n: number) => new Date(n).toLocaleString(lang === "ar" ? "ar" : "en-GB", { dateStyle: "medium", timeStyle: "short" });
@@ -318,6 +319,7 @@ export function LmsResultsPage() {
   };
   return (
     <Gate title={tr("Assessment results", "نتائج التقييمات")}>
+      {blocked ? <p className="glass rounded-3xl p-8 text-center font-semibold" data-testid="res-hidden">🔒 {tr("Assessment results are hidden for your account. Ask the admin to show them.", "نتائج التقييمات مخفية لحسابك. اطلب من الإدارة إظهارها.")}</p> : (
       <div className="space-y-4" data-testid="lms-results">
         <div className="flex flex-wrap items-center gap-2 print:hidden">
           <h1 className="me-auto text-2xl font-extrabold">🏅 {tr("Assessment results", "نتائج التقييمات")}</h1>
@@ -330,7 +332,7 @@ export function LmsResultsPage() {
           <div className="glass overflow-x-auto rounded-3xl p-2"><table className="w-full text-sm" data-testid="res-table"><thead><tr className="text-xs uppercase opacity-60">{["Assessment", "Mode", "Student", "Score", "%", "Rank", "Finished"].map((h) => <th key={h} className="px-3 py-2 text-start">{h}</th>)}</tr></thead>
             <tbody>{list.map((r) => <tr key={r.id} className="border-t border-black/5 dark:border-white/10"><td className="px-3 py-1.5">{r.quizTitle}</td><td className="px-3">{r.kind === "group" ? tr("Group", "جماعي") : tr("Individual", "فردي")}</td><td className="px-3" dir="auto">{r.name}</td><td className="px-3">{r.score}/{r.maxScore}</td><td className="px-3 font-bold">{r.percentage}%</td><td className="px-3">{r.rank ?? "—"}</td><td className="px-3 whitespace-nowrap">{fmt(r.finishedAt)}</td></tr>)}</tbody></table></div>
         )}
-      </div>
+      </div>)}
     </Gate>
   );
 }
