@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist_Mono, Noto_Sans_Arabic, Nunito } from "next/font/google";
 import { AnnouncementTicker } from "@/components/AnnouncementTicker";
 import { Footer } from "@/components/Footer";
@@ -40,6 +40,9 @@ const svgIcon = brand.faviconPath
     : []
   : [{ url: "/favicon.svg", type: "image/svg+xml" }];
 const v = brand.faviconPath && brand.version ? `?v=${encodeURIComponent(brand.version)}` : "";
+
+// Opaque phone status-bar colour (updated per page by <ThemeColor />); content never shows through it.
+export const viewport: Viewport = { themeColor: "#1b3a57", width: "device-width", initialScale: 1 };
 
 export const metadata: Metadata = {
   title: {

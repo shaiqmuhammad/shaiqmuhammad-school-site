@@ -91,6 +91,8 @@
   --font-mono: var(--font-geist-mono);
 }
 
+html { background-color: var(--background); }
+
 body {
   background:
     radial-gradient(60rem 30rem at 100% -10%, var(--page-glow-1), transparent 60%),
