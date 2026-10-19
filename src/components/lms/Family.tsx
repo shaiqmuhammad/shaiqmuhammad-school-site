@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AssessmentShell } from "@/components/assessment/AssessmentShell";
 import { Avatar } from "@/components/lms/Avatar";
+import { DashCarousel } from "@/components/lms/DashWidgets";
 import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
 import { Tabs } from "@/components/lms/mods/ModUi";
 import { GRADE_STYLE, STATUS_STYLE, card, gradeLabel, statusLabel, useLmsActor, useTr } from "@/components/lms/useLms";
@@ -36,7 +37,16 @@ function Family({ name }: { name: string }) {
   const ar = lang === "ar";
   const [kids, setKids] = useState<Kid[] | null>(null);
   const [kid, setKid] = useState("");
-  const [sec, setSec] = useState<Sec>("overview");
+  const [sec, setSecState] = useState<Sec>("overview");
+  // The icon rail is the only navigation: sections live in the URL hash (#homework, #att, …).
+  useEffect(() => {
+    const SECS = ["overview", "homework", "assess", "cur", "att", "beh", "quran", "wall"];
+    const read = () => { const h = window.location.hash.slice(1); setSecState((SECS.includes(h) ? h : "overview") as Sec); };
+    read();
+    window.addEventListener("hashchange", read);
+    return () => window.removeEventListener("hashchange", read);
+  }, []);
+  const setSec = (s: Sec) => { history.pushState(null, "", window.location.pathname + (s === "overview" ? "" : `#${s}`)); setSecState(s); window.dispatchEvent(new Event("hashchange")); };
   const [err, setErr] = useState("");
   useEffect(() => {
     modCall<{ children: Kid[] }>("par-children", undefined, false).then((r) => { setKids(r.children); setKid((k) => k || r.children[0]?.id || ""); }).catch((e) => { setKids([]); setErr(modErr(e, tr)); });
@@ -62,9 +72,7 @@ function Family({ name }: { name: string }) {
               </button>
             ))}
           </div>
-          <Tabs<Sec> testId="family-tabs" value={sec} onChange={setSec} items={[["overview", tr("Overview", "نظرة عامة")], ["homework", tr("Homework", "الواجبات")], ["assess", tr("Assessments", "التقييمات")], ["cur", tr("Curriculum", "المنهج")], ["att", tr("Attendance", "الحضور")], ["beh", tr("Behaviour", "السلوك")], ["quran", tr("Quran", "القرآن")], ["wall", tr("Class Wall", "جدار الصف")]]} />
           {k && <Child key={k.id + sec} kid={k} sec={sec} ar={ar} go={setSec} />}
-          <a href="/lms/messages" className="inline-flex items-center gap-2 rounded-full bg-[var(--cta)] px-5 py-2.5 font-extrabold text-[var(--cta-foreground)] shadow" data-testid="family-messages">✉️ {tr("Message your child's teachers", "راسل معلمي ابنك/ابنتك")}</a>
         </>
       )}
     </>
@@ -107,15 +115,14 @@ function Overview({ kid, ar, go }: { kid: Kid; ar: boolean; go: (s: Sec) => void
   void ar;
   return (
     <div className="space-y-4" data-testid="family-overview">
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat icon="📚" label={tr("Homework", "الواجبات")} value={dash.d ? hw.length : "…"} />
-        <Stat icon="✏️" label={tr("Still to do", "المتبقي")} value={dash.d ? todo : "…"} hot />
-        <Stat icon="📅" label={tr("Attendance", "الحضور")} value={att.d ? (att.d.pct == null ? "–" : `${att.d.pct}%`) : "…"} />
-        <Stat icon="⭐" label={tr("Behaviour points", "نقاط السلوك")} value={beh.d ? beh.d.total : "…"} />
-      </div>
-      <div className="flex flex-wrap gap-2">
-        {([["homework", "📝 " + tr("Homework", "الواجبات")], ["assess", "🧪 " + tr("Assessments & results", "التقييمات والنتائج")], ["quran", "📖 " + tr("Quran tracker", "متابعة القرآن")], ["att", "📅 " + tr("Attendance", "الحضور")]] as [Sec, string][]).map(([s, l]) => <button key={s} type="button" onClick={() => go(s)} className="glass rounded-full px-4 py-2 font-bold">{l}</button>)}
-      </div>
+      <DashCarousel testId="family-widgets" items={[
+        { icon: "✏️", title: tr("Still to do", "المتبقي"), value: dash.d ? todo : "…", sub: tr("homework", "واجبات"), href: "/lms/family#homework", tone: "sun", badge: dash.d ? todo : 0 },
+        { icon: "📚", title: tr("Homework", "الواجبات"), value: dash.d ? hw.length : "…", sub: tr("assigned", "مُسندة"), href: "/lms/family#homework", tone: "teal" },
+        { icon: "📅", title: tr("Attendance", "الحضور"), value: att.d ? (att.d.pct == null ? "–" : `${att.d.pct}%`) : "…", sub: tr("this term", "هذا الفصل"), href: "/lms/family#att", tone: "navy" },
+        { icon: "⭐", title: tr("Behaviour points", "نقاط السلوك"), value: beh.d ? beh.d.total : "…", sub: tr("great job!", "أحسنت!"), href: "/lms/family#beh", tone: "coral" },
+        { icon: "📖", title: tr("Quran tracker", "متابعة القرآن"), sub: tr("see progress", "شاهد التقدم"), href: "/lms/family#quran", tone: "mint" },
+        { icon: "🧪", title: tr("Assessments", "التقييمات"), sub: tr("results & due", "النتائج والمستحقة"), href: "/lms/family#assess", tone: "sky" },
+      ]} />
     </div>
   );
 }

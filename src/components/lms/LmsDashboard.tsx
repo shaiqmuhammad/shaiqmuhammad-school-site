@@ -7,6 +7,7 @@ import { AnnFeed } from "@/components/lms/Messages";
 import { CriteriaChart, TrackerEntries } from "@/components/lms/QuranScores";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { DashCarousel, useUnreadMsgs } from "@/components/lms/DashWidgets";
 import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
 import { AssessmentShell, primaryBtn } from "@/components/assessment/AssessmentShell";
 import { HomeworkEditor } from "@/components/lms/HomeworkEditor";
@@ -81,6 +82,7 @@ export function LmsDashboard() {
     const t = setTimeout(apply, 1500);
     return () => { mo.disconnect(); clearTimeout(t); };
   }, [actor, staff, tr]);
+  const unread = useUnreadMsgs();
   const canAssign = actor?.role === "admin" || actor?.perms.includes("assign");
 
   if (ready && !actor) return <NeedLogin adminElsewhere={adminElsewhere} />;
@@ -101,18 +103,21 @@ export function LmsDashboard() {
           </div>
         )}
         {!staff && actor && <LiveActivityBanner />}
-        {actor && <a href="/lms/wall" className="flex items-center gap-3 rounded-3xl border border-black/10 bg-white/70 px-5 py-3 font-bold shadow-sm backdrop-blur transition hover:bg-white dark:border-white/15 dark:bg-white/10" data-testid="lms-wall-link"><span className="text-2xl" aria-hidden>🧱</span>{tr("Class Wall", "جدار الصف")}<span className="ms-auto opacity-50">→</span></a>}
         {dash && <AnnFeed />}
-        {dash && <DashStats items={staff ? [
-          { label: tr("Students", "الطلاب"), value: (dash.students || []).length, icon: "🎒" },
-          { label: tr("Classes", "الصفوف"), value: (dash.classes || []).length, icon: "🏫" },
-          { label: tr("Homework", "الواجبات"), value: dash.homework.length, icon: "📚" },
-          { label: tr("To review", "للمراجعة"), value: dash.homework.reduce((n, h) => n + (Number((h.counts as Record<string, number> | undefined)?.submitted) || 0), 0), icon: "📝", hot: true },
+        {dash && <DashCarousel items={staff ? [
+          { icon: "📝", title: tr("To review", "للمراجعة"), value: dash.homework.reduce((n, h) => n + (Number((h.counts as Record<string, number> | undefined)?.submitted) || 0), 0), sub: tr("submissions waiting", "تسليمات بانتظارك"), href: "/lms#homework", tone: "coral" },
+          { icon: "📚", title: tr("Homework", "الواجبات"), value: dash.homework.length, sub: tr("active", "نشطة"), href: "/lms#homework", tone: "sun" },
+          { icon: "🏫", title: tr("My classes", "صفوفي"), value: (dash.classes || []).length, sub: tr("classes & groups", "صفوف ومجموعات"), href: "/lms/classes", tone: "teal" },
+          { icon: "🎒", title: tr("Students", "الطلاب"), value: (dash.students || []).length, sub: tr("in my groups", "في مجموعاتي"), href: "/lms/classes", tone: "navy" },
+          { icon: "💬", title: tr("Messages", "الرسائل"), value: unread, sub: tr("unread", "غير مقروءة"), href: "/lms/messages", tone: "sky", badge: unread },
+          { icon: "🧱", title: tr("Class Wall", "جدار الصف"), sub: tr("share with your class", "شارك مع صفك"), href: "/lms/wall", tone: "mint" },
         ] : [
-          { label: tr("Homework", "الواجبات"), value: dash.homework.length, icon: "📚" },
-          { label: tr("To do", "للإنجاز"), value: dash.homework.filter((h) => !h.locked && (!h.sub || h.sub.status === "draft" || h.sub.status === "returned")).length, icon: "✏️", hot: true },
-          { label: tr("Passed", "مُجتاز"), value: dash.homework.filter((h) => h.sub?.status === "approved").length, icon: "✅" },
-          { label: tr("Surahs tracked", "سور في المتابعة"), value: (dash.tracker || []).length, icon: "📖" },
+          { icon: "✏️", title: tr("Today's homework", "واجب اليوم"), value: dash.homework.filter((h) => !h.locked && (!h.sub || h.sub.status === "draft" || h.sub.status === "returned")).length, sub: dash.homework.find((h) => !h.sub || h.sub.status === "draft")?.title || tr("All done! 🎉", "أنجزت كل شيء! 🎉"), href: "/lms#homework", tone: "sun" },
+          { icon: "🏆", title: tr("My points", "نقاطي"), value: dash.progress ? `${dash.progress.stars} ⭐` : "—", sub: dash.progress ? tr(`${dash.progress.streak}-day streak 🔥`, `${dash.progress.streak} أيام متتالية 🔥`) : "", href: "/lms#homework", tone: "coral" },
+          { icon: "📖", title: tr("Quran progress", "تقدم القرآن"), value: (dash.tracker || []).length, sub: tr("surahs tracked", "سور في المتابعة"), href: "/lms#tracker", tone: "navy" },
+          { icon: "✅", title: tr("Passed", "مُجتاز"), value: dash.homework.filter((h) => h.sub?.status === "approved").length, sub: tr("homework approved", "واجبات معتمدة"), href: "/lms#homework", tone: "teal" },
+          { icon: "💬", title: tr("Messages", "الرسائل"), value: unread, sub: tr("unread", "غير مقروءة"), href: "/lms/messages", tone: "sky", badge: unread },
+          { icon: "🧱", title: tr("Class Wall", "جدار الصف"), sub: tr("see what's new", "شاهد الجديد"), href: "/lms/wall", tone: "mint" },
         ]} />}
         {err && <p className="rounded-xl bg-rose-100 px-4 py-2 text-rose-800" role="alert">{err}</p>}
         {!dash ? (
@@ -175,8 +180,6 @@ export function LmsDashboard() {
               >
                 ⬇ {busy ? "…" : tr("Export all homework (ZIP)", "تصدير كل الواجبات (ZIP)")}
               </button></DlGate>
-              <a className={smallBtn} href="/lms/activities" data-testid="lms-classroom-link">🎲 {tr("Classroom activities", "الأنشطة الصفية")}</a>
-              {(dash as { quran?: { show: boolean } }).quran?.show !== false && <a className={smallBtn} href="/lms/map" data-testid="lms-map-link">🗺️ {tr("Class Quran map", "خريطة القرآن للصف")}</a>}
               <span className="text-sm opacity-70">{(dash.classes || []).map((c) => `${c.cls || "—"}: ${c.students}`).join(" · ")}</span>
             </div>
             <div className={card + " py-3"}><LeaderboardSetting /></div>
@@ -217,18 +220,5 @@ export function LmsDashboard() {
         )}
       </div>
     </AssessmentShell>
-  );
-}
-
-function DashStats({ items }: { items: { label: string; value: number; icon: string; hot?: boolean }[] }) {
-  return (
-    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" data-testid="lms-dash-stats">
-      {items.map((x) => (
-        <div key={x.label} className={`flex items-center gap-3 rounded-3xl border px-4 py-4 shadow-sm backdrop-blur ${x.hot && x.value > 0 ? "border-sun bg-sun/15" : "border-black/10 bg-white/70 dark:border-white/15 dark:bg-white/5"}`}>
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-black/5 text-xl dark:bg-white/10" aria-hidden>{x.icon}</span>
-          <span className="min-w-0"><span className="block text-2xl font-extrabold leading-none">{x.value}</span><span className="mt-1 block truncate text-xs font-semibold opacity-70">{x.label}</span></span>
-        </div>
-      ))}
-    </div>
   );
 }
