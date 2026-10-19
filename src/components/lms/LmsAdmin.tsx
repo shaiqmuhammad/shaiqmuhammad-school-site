@@ -11,7 +11,7 @@ import { AssessmentShell, primaryBtn } from "@/components/assessment/AssessmentS
 import { exportStudentsXlsx, downloadCredentials, downloadSignInSheet, downloadUsersTemplate, exportAllHomeworkZip, parseUsersXlsx } from "@/components/lms/lmsFiles";
 import { ADMIN_ACTOR, adminRelogin, card, inputCls, smallBtn, useLmsActor, useTr } from "@/components/lms/useLms";
 import { clsNum, secLetter } from "@/lib/classFmt";
-import { lmsApi, lmsErrorText, PERMS, stuUi, scopeLabel, type Catalog, type LmsUser, type Role } from "@/lib/lms";
+import { lmsApi, lmsErrorText, PERMS, stuUi, scopeLabel, grpLabel, type Catalog, type LmsUser, type Role, type StudentGroup } from "@/lib/lms";
 
 type Pins = { username: string; name: string; pin: string }[];
 type Row = Partial<LmsUser & { pin: string }>;
@@ -21,6 +21,7 @@ const PERM_LABEL: Record<string, [string, string]> = {
   manageUsers: ["Manage students", "إدارة الطلاب"],
   viewAll: ["See all homework", "رؤية كل الواجبات"],
 };
+const PHASES = ["EYFS", "Primary", "Secondary"];
 const EMPTY: Catalog = { subjects: [], classes: [], sections: [] };
 
 /** Add / edit one student or teacher, with dropdowns from Classes & Subjects. */
@@ -29,7 +30,7 @@ const shortList = (xs: string[]) => { const u = [...new Set(xs.filter(Boolean))]
 
 function PersonForm({ role, catalog, initial, onSave, submitLabel, testPrefix, staff = false, admin = false }: { admin?: boolean; staff?: boolean; role: Role; catalog: Catalog; initial?: LmsUser; onSave: (r: Row) => Promise<void>; submitLabel: string; testPrefix: string }) {
   const { tr } = useTr();
-  const [f, setF] = useState({ name: initial?.name || "", username: initial?.username || "", cls: initial?.cls || "", section: initial?.section || "", pin: "", email: initial?.email || "", gender: initial?.gender || "", first: initial?.firstName ?? (initial?.name || "").split(/\s+/)[0] ?? "", last: initial?.lastName ?? (initial?.name || "").split(/\s+/).slice(1).join(" "), dob: initial?.dob || "", phone: initial?.phone || "", semail: initial?.semail || "", parentName: initial?.parentName || "", nat: initial?.nationality || "", lang: initial?.prefLang || "", sen: !!initial?.sen, eal: !!initial?.eal, gt: !!initial?.gt, subjects: initial?.subjects || [], scope: initial?.scope || [], perms: initial?.perms || (staff ? ["staff", "review"] : ["assign", "review"]), disabled: initial?.disabled || false });
+  const [f, setF] = useState({ name: initial?.name || "", username: initial?.username || "", cls: initial?.cls || "", section: initial?.section || "", pin: "", email: initial?.email || "", gender: initial?.gender || "", first: initial?.firstName ?? (initial?.name || "").split(/\s+/)[0] ?? "", last: initial?.lastName ?? (initial?.name || "").split(/\s+/).slice(1).join(" "), dob: initial?.dob || "", phone: initial?.phone || "", semail: initial?.semail || "", parentName: initial?.parentName || "", nat: initial?.nationality || "", lang: initial?.prefLang || "", sen: !!initial?.sen, eal: !!initial?.eal, gt: !!initial?.gt, subject: initial?.subject || "", phase: initial?.phase || "", subjects: initial?.subjects || [], scope: initial?.scope || [], perms: initial?.perms || (staff ? ["staff", "review"] : ["assign", "review"]), disabled: initial?.disabled || false });
   const [busy, setBusy] = useState(false);
   const toggle = (k: "subjects" | "scope" | "perms", v: string) => setF((x) => ({ ...x, [k]: x[k].includes(v) ? x[k].filter((y) => y !== v) : [...x[k], v] }));
   const secs = catalog.sections.filter((s) => s.cls === f.cls);
@@ -41,7 +42,7 @@ function PersonForm({ role, catalog, initial, onSave, submitLabel, testPrefix, s
       onSubmit={async (e) => {
         e.preventDefault();
         setBusy(true);
-        await onSave({ id: initial?.id, role, name: role === "student" ? `${f.first.trim()} ${f.last.trim()}`.trim() : f.name.trim(), ...(role === "student" ? { firstName: f.first.trim(), lastName: f.last.trim() } : {}), username: f.username, cls: role === "student" ? f.cls : "", section: role === "student" ? f.section : "", subjects: role === "teacher" ? f.subjects : [], scope: role === "teacher" ? f.scope : [], perms: role === "teacher" ? f.perms : [], pin: f.pin || undefined, disabled: f.disabled, ...(role === "student" ? (admin ? { email: f.email.trim(), parentName: f.parentName.trim(), gender: f.gender, dob: f.dob, phone: f.phone.trim(), semail: f.semail.trim(), nationality: f.nat.trim(), prefLang: f.lang.trim(), sen: f.sen, eal: f.eal, gt: f.gt } : {}) : { email: f.email.trim() }) });
+        await onSave({ id: initial?.id, role, name: role === "student" ? `${f.first.trim()} ${f.last.trim()}`.trim() : f.name.trim(), ...(role === "student" ? { firstName: f.first.trim(), lastName: f.last.trim() } : {}), username: f.username, cls: role === "student" ? f.cls : "", section: role === "student" ? f.section : "", subjects: role === "teacher" ? f.subjects : [], scope: role === "teacher" ? f.scope : [], perms: role === "teacher" ? f.perms : [], pin: f.pin || undefined, disabled: f.disabled, ...(admin ? (role === "student" ? { subject: f.subject, ...(f.phase ? { phase: f.phase } : {}) } : { phase: f.phase }) : {}), ...(role === "student" ? (admin ? { email: f.email.trim(), parentName: f.parentName.trim(), gender: f.gender, dob: f.dob, phone: f.phone.trim(), semail: f.semail.trim(), nationality: f.nat.trim(), prefLang: f.lang.trim(), sen: f.sen, eal: f.eal, gt: f.gt } : {}) : { email: f.email.trim() }) });
         setBusy(false);
         if (!initial) setF((x) => ({ ...x, name: "", first: "", last: "", username: "", pin: "" }));
       }}
@@ -63,6 +64,8 @@ function PersonForm({ role, catalog, initial, onSave, submitLabel, testPrefix, s
         <input type="email" className={inputCls + " sm:col-span-2"} placeholder={tr("Parent email (for reports)", "بريد ولي الأمر (للتقارير)")} value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} dir="ltr" data-testid={`${testPrefix}-email`} />
         <input className={inputCls} placeholder={tr("Nationality", "الجنسية")} value={f.nat} onChange={(e) => setF({ ...f, nat: e.target.value })} data-testid={`${testPrefix}-nat`} />
         <input className={inputCls} placeholder={tr("Preferred language", "اللغة المفضلة")} value={f.lang} onChange={(e) => setF({ ...f, lang: e.target.value })} data-testid={`${testPrefix}-lang`} />
+        <select className={inputCls} value={f.subject} onChange={(e) => setF({ ...f, subject: e.target.value })} aria-label={tr("Subject", "المادة")} data-testid={`${testPrefix}-subject-field`}><option value="">{tr("Subject —", "المادة —")}</option>{[...new Set([...(f.subject ? [f.subject] : []), ...catalog.subjects.map((x) => x.name)])].map((x) => <option key={x} value={x}>{x}</option>)}</select>
+        <select className={inputCls} value={f.phase} onChange={(e) => setF({ ...f, phase: e.target.value })} aria-label={tr("Phase", "المرحلة")} data-testid={`${testPrefix}-phase-field`}><option value="">{tr("Phase — auto from class", "المرحلة — تلقائي من الصف")}</option>{PHASES.map((x) => <option key={x} value={x}>{x}</option>)}</select>
         <div className="flex flex-wrap items-center gap-3 text-sm sm:col-span-6">{([["sen", "SEN", "SEN"], ["eal", "EAL", "EAL"], ["gt", "Gifted & Talented", "موهوب ومتميز"]] as const).map(([k, en, ar]) => <label key={k} className="flex items-center gap-1.5"><input type="checkbox" checked={f[k]} onChange={(e) => setF({ ...f, [k]: e.target.checked })} data-testid={`${testPrefix}-${k}`} /> {tr(en, ar)}</label>)}</div>
       </>)}
       {role === "student" ? (
@@ -87,8 +90,10 @@ function PersonForm({ role, catalog, initial, onSave, submitLabel, testPrefix, s
             {catalog.subjects.map((s) => <button key={s.id} type="button" aria-pressed={f.subjects.includes(s.name)} className={chip(f.subjects.includes(s.name))} onClick={() => toggle("subjects", s.name)} data-testid={`${testPrefix}-subject`}>{s.name}</button>)}
             {!catalog.subjects.length && <span className="text-sm opacity-60">{tr("No subjects yet — add them in Classes & Subjects.", "لا توجد مواد — أضفها في الصفوف والمواد.")}</span>}
           </div>
+          <p className="text-sm font-semibold">{tr("Phase", "المرحلة")}</p>
+          <div className="flex flex-wrap gap-1.5" data-testid={`${testPrefix}-phase-chips`}>{PHASES.map((x) => { const on = f.phase.split(",").includes(x); return <button key={x} type="button" aria-pressed={on} className={chip(on)} onClick={() => setF((y) => ({ ...y, phase: PHASES.filter((z) => (z === x ? !on : y.phase.split(",").includes(z))).join(",") }))}>{x}</button>; })}</div>
           <p className="text-xs opacity-70" data-testid="grp-hint">{tr("Students come from Groups: after saving, assign groups in Admin → Members → Groups.", "الطلاب يأتون من المجموعات: بعد الحفظ أسند المجموعات من الإدارة ← الأعضاء ← المجموعات.")}</p></>}
-<p className="text-xs opacity-70" data-testid="perm-hint">{initial ? tr("Subjects, classes and all permissions are set from the 🔐 Permissions button in the Teachers list.", "المواد والصفوف وكل الصلاحيات من زر 🔐 الصلاحيات في قائمة المعلمين.") : tr("After adding, use 🔐 Permissions in the Teachers list to set access.", "بعد الإضافة، استخدم 🔐 الصلاحيات في قائمة المعلمين لضبط الوصول.")}</p>
+<p className="text-xs opacity-70" data-testid="perm-hint">{initial ? tr("Subjects, class groups and all permissions are set from the 🔐 Permissions button in the Teachers list.", "المواد ومجموعات الصفوف وكل الصلاحيات من زر 🔐 الصلاحيات في قائمة المعلمين.") : tr("After adding, use 🔐 Permissions in the Teachers list to set access.", "بعد الإضافة، استخدم 🔐 الصلاحيات في قائمة المعلمين لضبط الوصول.")}</p>
         </div>
       )}
       {initial && <label className="flex items-center gap-2 text-sm sm:col-span-3"><input type="checkbox" checked={f.disabled} onChange={(e) => setF({ ...f, disabled: e.target.checked })} /> {tr("Disabled (can't sign in)", "معطّل (لا يمكنه الدخول)")}</label>}
@@ -117,6 +122,9 @@ function PermissionsModal({ u, onClose, onSaved, asAdmin, catalog }: { catalog: 
   const [perms, setPerms] = useState<string[]>(u.perms || []);
   const [subjects, setSubjects] = useState<string[]>(u.subjects || []);
   const scope = u.scope || [];
+  const [allGroups, setAllGroups] = useState<StudentGroup[] | null>(null);
+  const [picked, setPicked] = useState<string[]>((u.groups || []).map((g) => g.id));
+  useEffect(() => { lmsApi.grpList(true).then((r) => setAllGroups(r.items.filter((g) => g.adminGroup))).catch(() => setAllGroups([])); }, []);
   const [others, setOthers] = useState<LmsUser[]>([]);
   useEffect(() => { lmsApi.users(asAdmin).then((r) => setOthers(r.users.filter((x) => x.role === "teacher" && x.id !== u.id))).catch(() => undefined); }, [asAdmin, u.id]);
   const tog = (xs: string[], v: string) => (xs.includes(v) ? xs.filter((y) => y !== v) : [...xs, v]);
@@ -127,7 +135,7 @@ function PermissionsModal({ u, onClose, onSaved, asAdmin, catalog }: { catalog: 
   const chip = (on: boolean) => `rounded-full border px-3 py-1 text-sm font-semibold ${on ? "border-transparent bg-header text-sun" : "border-black/10 dark:border-white/15"}`;
   const save = async () => {
     setBusy(true); setErr("");
-    try { const r = await lmsApi.saveUsers([{ ...u, perms, subjects, scope }], asAdmin); if (r.errors.length) throw new Error(r.errors[0].error); onSaved(); } catch (e) { setErr(e instanceof Error ? e.message : lmsErrorText(e, tr)); setBusy(false); }
+    try { const r = await lmsApi.saveUsers([{ ...u, perms, subjects, scope }], asAdmin); if (r.errors.length) throw new Error(r.errors[0].error); if (allGroups) { const before = (u.groups || []).map((g) => g.id); const add = picked.filter((x) => !before.includes(x)), remove = before.filter((x) => !picked.includes(x)); if (add.length || remove.length) await lmsApi.grpAssign(u.id, add, remove); } onSaved(); } catch (e) { setErr(e instanceof Error ? e.message : lmsErrorText(e, tr)); setBusy(false); }
   };
   return (
     <div className="fixed inset-0 z-[2147483000] grid place-items-end bg-black/60 sm:place-items-center sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()} role="dialog" aria-modal="true" aria-label={tr("Permissions", "الصلاحيات")} data-testid="perm-modal">
@@ -137,8 +145,10 @@ function PermissionsModal({ u, onClose, onSaved, asAdmin, catalog }: { catalog: 
           <div className="rounded-2xl border border-dashed border-black/15 p-3 dark:border-white/20" data-testid="perm-subjects">
             <p className="mb-2 text-sm font-bold">📚 {tr("Subjects taught", "المواد")}</p>
             <div className="flex flex-wrap gap-1.5">{catalog.subjects.map((x) => <button key={x.id} type="button" aria-pressed={subjects.includes(x.name)} className={chip(subjects.includes(x.name))} onClick={() => setSubjects((c) => tog(c, x.name))}>{x.name}</button>)}{!catalog.subjects.length && <span className="text-sm opacity-60">{tr("No subjects yet.", "لا توجد مواد.")}</span>}</div>
-            <p className="mb-2 mt-3 text-sm font-bold">👥 {tr("Student groups", "مجموعات الطلاب")}</p>
-            <div className="flex flex-wrap items-center gap-1.5" data-testid="perm-groups">{(u.groups || []).map((g) => <span key={g.id} className="rounded-full bg-black/5 px-3 py-1 text-xs font-bold dark:bg-white/10" dir="auto">{g.name}{g.subject ? ` · ${g.subject}` : ""}</span>)}{!(u.groups || []).length && <span className="text-xs text-rose-700 dark:text-rose-300">{tr("No groups assigned — this teacher sees no students.", "لا توجد مجموعات — لا يرى المعلم أي طالب.")}</span>}<a className="text-xs font-bold underline" href="/admin#groups" data-testid="perm-groups-link">{tr("Manage in Admin → Members → Groups", "إدارة من الإدارة ← الأعضاء ← المجموعات")}</a></div>
+            <p className="mb-2 mt-3 text-sm font-bold">👥 {tr("Class groups", "مجموعات الصفوف")}</p>
+            <div className="flex flex-wrap items-center gap-1.5" data-testid="perm-groups">{(allGroups || []).map((g) => <button key={g.id} type="button" aria-pressed={picked.includes(g.id)} className={chip(picked.includes(g.id))} onClick={() => setPicked((c) => tog(c, g.id))} data-testid="perm-group-chip" dir="auto">{picked.includes(g.id) ? "✓ " : ""}{grpLabel(g)}</button>)}{allGroups && !allGroups.length && <span className="text-xs opacity-70">{tr("No groups yet — create them in Admin → Members → Groups.", "لا توجد مجموعات — أنشئها من الإدارة ← الأعضاء ← المجموعات.")}</span>}{allGroups === null && <span className="text-xs opacity-60">…</span>}</div>
+            {!picked.length && allGroups !== null && <p className="mt-1 text-xs text-rose-700 dark:text-rose-300">{tr("No groups ticked — this teacher sees no students.", "لا توجد مجموعات — لا يرى المعلم أي طالب.")}</p>}
+            <a className="mt-1 inline-block text-xs font-bold underline" href="/admin#groups" data-testid="perm-groups-link">{tr("Manage groups in Admin → Members → Groups", "إدارة المجموعات من الإدارة ← الأعضاء ← المجموعات")}</a>
           </div>
           <ModuleAccess perms={perms} setPerms={setPerms} teachers={others} />
           <div className="rounded-2xl border border-dashed border-black/15 p-3 dark:border-white/20">
@@ -180,6 +190,7 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
   const [permFor, setPermFor] = useState<LmsUser | null>(null);
   const [q, setQ] = useState("");
   const [fCls, setFCls] = useState("");
+  const [fPhase, setFPhase] = useState("");
   const [fSec, setFSec] = useState("");
   const [fSub, setFSub] = useState("");
   const [pins, setPins] = useState<Pins>([]);
@@ -193,7 +204,7 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
   const [edit, setEdit] = useState<string | null>(null);
   const [prog, setProg] = useState<string | null>(null);
   const [fStatus, setFStatus] = useState<"" | "active" | "blocked">("");
-  const [showCols, setShowCols] = useState<string[]>(() => { try { return JSON.parse(localStorage.getItem("sm-lms-cols-" + role) || "null") || (asAdmin ? [] : ["pemail"]); } catch { return []; } });
+  const [showCols, setShowCols] = useState<string[]>(() => { try { return JSON.parse(localStorage.getItem("sm-lms-cols-" + role) || "null") || (asAdmin ? ["subj", "phase"] : ["pemail"]); } catch { return []; } });
   const [colMenu, setColMenu] = useState(false);
   const toggleCol = (k: string) => setShowCols((c) => { const n = c.includes(k) ? c.filter((x) => x !== k) : [...c, k]; try { localStorage.setItem("sm-lms-cols-" + role, JSON.stringify(n)); } catch { /* ignore */ } return n; });
   const [sort, setSort] = useState<{ key: string; dir: 1 | -1 }>({ key: "name", dir: 1 });
@@ -259,6 +270,7 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
   const people = (users || []).filter((u) => u.role === role && (role !== "teacher" || (u.perms || []).includes("staff") === staff));
   const list = people.filter((u) => {
     if (q && !`${u.name} ${u.username}`.toLowerCase().includes(q.toLowerCase())) return false;
+    if (fPhase && !(u.phase || "").split(",").includes(fPhase)) return false;
     if (role === "student") return (!fCls || u.cls === fCls) && (!fSec || u.section === fSec);
     return (!fSub || u.subjects.includes(fSub)) && true;
   });
@@ -270,7 +282,7 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
     ["first", "First name", "الاسم الأول", (u) => u.firstName || ""], ["last", "Last name", "اسم العائلة", (u) => u.lastName || ""],
     ["gender", "Gender", "الجنس", (u) => (u.gender === "b" ? "Boy" : u.gender === "g" ? "Girl" : "")], ["dob", "DOB", "الميلاد", (u) => u.dob || ""],
     ["phone", "Contact no", "التواصل", (u) => u.phone || ""], ["semail", "Student email", "بريد الطالب", (u) => u.semail || ""], ["pname", "Parent name", "اسم ولي الأمر", (u) => u.parentName || ""], ["pemail", "Parent email", "بريد ولي الأمر", (u) => u.email || ""],
-    ["nat", "Nationality", "الجنسية", (u) => u.nationality || ""], ["lang", "Language", "اللغة", (u) => u.prefLang || ""],
+    ["subj", "Subject", "المادة", (u) => u.subject || ""], ["phase", "Phase", "المرحلة", (u) => u.phase || ""], ["nat", "Nationality", "الجنسية", (u) => u.nationality || ""], ["lang", "Language", "اللغة", (u) => u.prefLang || ""],
     ["sen", "SEN", "SEN", (u) => (u.sen ? "✓" : "")], ["eal", "EAL", "EAL", (u) => (u.eal ? "✓" : "")], ["gt", "G&T", "موهوب", (u) => (u.gt ? "✓" : "")],
   ] : [["pname", "Parent name", "اسم ولي الأمر", (u) => u.parentName || ""], ["pemail", "Parent email on file", "بريد ولي الأمر", (u) => (u.parentEmail ? "Yes" : "No")]];
   const extraOn = EXTRA.filter((e) => showCols.includes(e[0]));
@@ -280,12 +292,12 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
     ...(showPin ? [{ key: "pin", label: "PIN", sort: false }] : []),
     ...(role === "student"
       ? [{ key: "cls", label: tr("Class", "الصف"), sort: true }, { key: "section", label: tr("Section", "الشعبة"), sort: true }]
-      : [{ key: "subjects", label: tr("Subjects", "المواد"), sort: true }, { key: "groups", label: tr("Groups", "المجموعات"), sort: true }]),
+      : [{ key: "subjects", label: tr("Subjects", "المواد"), sort: true }, { key: "phase", label: tr("Phase", "المرحلة"), sort: true }, { key: "groups", label: tr("Groups", "المجموعات"), sort: true }]),
     ...extraOn.map((e) => ({ key: "x_" + e[0], label: tr(e[1], e[2]), sort: true })),
     { key: "status", label: tr("Status", "الحالة"), sort: true },
     { key: "actions", label: tr("Actions", "إجراءات"), sort: false },
   ];
-  const sortVal = (u: LmsUser): string => ({ name: u.name, username: u.username, cls: u.cls, section: u.section, subjects: u.subjects.join(","), groups: (u.groups || []).map((g) => g.name).join(","), sections: teacherSections(u).join(","), status: u.disabled ? "1" : "0", ...Object.fromEntries(EXTRA.map((e) => ["x_" + e[0], e[3](u)])) })[sort.key] ?? "";
+  const sortVal = (u: LmsUser): string => ({ phase: u.phase || "", name: u.name, username: u.username, cls: u.cls, section: u.section, subjects: u.subjects.join(","), groups: (u.groups || []).map((g) => g.name).join(","), sections: teacherSections(u).join(","), status: u.disabled ? "1" : "0", ...Object.fromEntries(EXTRA.map((e) => ["x_" + e[0], e[3](u)])) })[sort.key] ?? "";
   const filtered = list.filter((u) => !fStatus || (fStatus === "blocked") === u.disabled);
   const sorted = [...filtered].sort((x, y) => sortVal(x).localeCompare(sortVal(y), undefined, { numeric: true, sensitivity: "base" }) * sort.dir);
   const PAGE = 25;
@@ -386,6 +398,7 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
         <section className={card + " space-y-3 p-3 sm:p-4"}>
           <div className="flex flex-wrap gap-2">
             <input className={inputCls + " mt-0 min-w-[12rem] flex-1 sm:max-w-sm"} placeholder={tr("Search name or username…", "ابحث بالاسم أو المستخدم…")} value={q} onChange={(e) => setQ(e.target.value)} data-testid="lms-search" aria-label={tr("Search", "بحث")} />
+            {asAdmin && <select className={inputCls + " mt-0 w-auto! min-w-[9rem]"} value={fPhase} onChange={(e) => setFPhase(e.target.value)} data-testid="lms-filter-phase" aria-label={tr("Phase", "المرحلة")}><option value="">{tr("All phases", "كل المراحل")}</option>{PHASES.map((x) => <option key={x} value={x}>{x}</option>)}</select>}
             {role === "teacher" && (
               <select className={inputCls + " mt-0 w-auto! min-w-[9rem]"} value={fSub} onChange={(e) => setFSub(e.target.value)} data-testid="lms-filter-subject" aria-label={tr("Subject", "المادة")}>
                 <option value="">{tr("All subjects", "كل المواد")}</option>
@@ -465,6 +478,7 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
                         ) : (
                           <>
                             <td className={td} data-testid="col-subjects">{u.subjects.join(", ") || "—"}</td>
+                            <td className={td} data-testid="col-phase">{(u.phase || "").split(",").filter(Boolean).join(", ") || "—"}</td>
                             <td className={td} data-testid="col-groups" title={(u.groups || []).map((g) => g.name).join(", ")}>{shortList((u.groups || []).map((g) => g.name)) || <span className="text-rose-700 dark:text-rose-300">{tr("None", "لا شيء")}</span>}</td>
                           </>
                         )}

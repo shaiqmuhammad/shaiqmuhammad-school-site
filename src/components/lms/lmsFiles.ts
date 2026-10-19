@@ -7,7 +7,7 @@ import { clsNum, secLetter, resolveClass, resolveSection } from "@/lib/classFmt"
 import { makeZip } from "@/lib/zip";
 
 /** Student columns (admin only): header, key, width. Gender, DOB, contact, emails, nationality, language, SEN/EAL/G&T are private to admin. */
-const STUDENT_COLS: [string, string, number][] = [["username", "username", 18], ["first name", "first", 16], ["last name", "last", 16], ["class", "cls", 14], ["section", "section", 12], ["pin", "pin", 10], ["gender", "gender", 10], ["dob (yyyy-mm-dd)", "dob", 16], ["contact no", "phone", 16], ["student email", "semail", 26], ["parent name", "pname", 22], ["parent email", "email", 26], ["nationality", "nat", 16], ["preferred language", "lang", 18], ["sen", "sen", 7], ["eal", "eal", 7], ["gifted & talented", "gt", 10]];
+const STUDENT_COLS: [string, string, number][] = [["username", "username", 18], ["first name", "first", 16], ["last name", "last", 16], ["class", "cls", 14], ["section", "section", 12], ["pin", "pin", 10], ["gender", "gender", 10], ["dob (yyyy-mm-dd)", "dob", 16], ["contact no", "phone", 16], ["student email", "semail", 26], ["parent name", "pname", 22], ["parent email", "email", 26], ["nationality", "nat", 16], ["preferred language", "lang", 18], ["sen", "sen", 7], ["eal", "eal", 7], ["gifted & talented", "gt", 10], ["subject", "subject", 18], ["phase", "phase", 12]];
 const yes = (v: string) => /^(y|yes|true|1|✓)$/i.test(v.trim());
 
 /** Admin-only: every student field to Excel (no PINs). */
@@ -16,7 +16,7 @@ export async function exportStudentsXlsx(users: LmsUser[]) {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("Students");
   ws.columns = STUDENT_COLS.filter((c) => c[1] !== "pin").map(([header, key, width]) => ({ header, key, width }));
-  for (const u of users.filter((x) => x.role === "student")) ws.addRow({ username: u.username, first: u.firstName || "", last: u.lastName || "", cls: clsNum(u.cls), section: secLetter(u.section), gender: u.gender === "b" ? "Boy" : u.gender === "g" ? "Girl" : "", dob: u.dob || "", phone: u.phone || "", semail: u.semail || "", pname: u.parentName || "", email: u.email || "", nat: u.nationality || "", lang: u.prefLang || "", sen: u.sen ? "Yes" : "", eal: u.eal ? "Yes" : "", gt: u.gt ? "Yes" : "" });
+  for (const u of users.filter((x) => x.role === "student")) ws.addRow({ username: u.username, first: u.firstName || "", last: u.lastName || "", cls: clsNum(u.cls), section: secLetter(u.section), gender: u.gender === "b" ? "Boy" : u.gender === "g" ? "Girl" : "", dob: u.dob || "", phone: u.phone || "", semail: u.semail || "", pname: u.parentName || "", email: u.email || "", nat: u.nationality || "", lang: u.prefLang || "", sen: u.sen ? "Yes" : "", eal: u.eal ? "Yes" : "", gt: u.gt ? "Yes" : "", subject: u.subject || "", phase: u.phase || "" });
   ws.getRow(1).font = { bold: true };
   ws.views = [{ state: "frozen", ySplit: 1 }];
   ws.autoFilter = { from: "A1", to: { row: 1, column: ws.columnCount } };
@@ -59,6 +59,7 @@ export async function downloadUsersTemplate(role: Role = "student", catalog?: Ca
       ws.getCell(`G${r}`).dataValidation = { type: "list", allowBlank: true, formulae: ["Lists!$F$2:$F$3"], showErrorMessage: true, error: "Boy or Girl" };
       ws.getCell(`H${r}`).numFmt = "@";
       for (const col of ["N", "O", "P"]) ws.getCell(`${col}${r}`).dataValidation = { type: "list", allowBlank: true, formulae: ["Lists!$E$2:$E$3"], showErrorMessage: true, error: "Yes or No" };
+      ws.getCell(`S${r}`).dataValidation = { type: "list", allowBlank: true, formulae: ['"EYFS,Primary,Secondary"'], showErrorMessage: true, error: "EYFS, Primary or Secondary" };
       for (const col of ["J", "K"]) ws.getCell(`${col}${r}`).dataValidation = { type: "custom", allowBlank: true, formulae: [`ISNUMBER(FIND("@",${col}${r}))`], showErrorMessage: true, error: "Enter a valid email" };
     }
   } else {
@@ -66,18 +67,17 @@ export async function downloadUsersTemplate(role: Role = "student", catalog?: Ca
       { header: "username", key: "username", width: 18 },
       { header: "name", key: "name", width: 26 },
       { header: "subjects", key: "subjects", width: 26 },
-      { header: "classes", key: "classes", width: 22 },
-      { header: "sections", key: "sections", width: 22 },
+      { header: "phase", key: "phase", width: 22 },
       { header: "pin", key: "pin", width: 10 },
       { header: "permissions", key: "perms", width: 30 },
     ];
-    ws.addRow({ username: "ms.huda", name: "Ms Huda", subjects: subjects.slice(0, 2).join(", ") || "Quran", classes: clsNum(c1), sections: secLetter(s1), pin: "", perms: "assign, review" });
+    ws.addRow({ username: "ms.huda", name: "Ms Huda", subjects: subjects.slice(0, 2).join(", ") || "Quran", phase: "Primary", pin: "", perms: "assign, review" });
   }
   ws.getRow(1).font = { bold: true };
   const help = wb.addWorksheet("Help");
   [
     "username: 3–40 characters, letters/numbers/dot/dash, unique (stored in lower case).",
-    role === "student" ? "class and section: pick from the dropdowns (they come from Admin → Classes & Subjects)." : "subjects, classes, sections: comma separated, from the Lists sheet. classes = class numbers taught (e.g. 2, 3); sections = section letters (e.g. A, B) within those classes; leave sections empty for whole classes, both empty for no restriction.",
+    role === "student" ? "class and section: pick from the dropdowns (they come from Admin → Classes & Subjects)." : "subjects: comma separated, from the Lists sheet. phase: EYFS, Primary and/or Secondary (comma separated). Students are assigned to teachers through Groups in Admin → Members → Groups, not in this sheet.",
     "pin: 4–8 digits. Leave empty to generate a random 6-digit PIN.",
     role === "teacher" ? "permissions (comma separated): assign, review, manageUsers, viewAll; optional student switches: stu:view, stu:add, stu:edit, stu:block, stu:delete (none = all four when manageUsers)." : "",
     "Existing usernames are updated (upsert). A PIN is only changed when you fill it in; empty cells leave stored values unchanged.",
@@ -93,18 +93,6 @@ export async function parseUsersXlsx(file: File, role: Role = "student", catalog
   // A section name maps to "Class|Section" through Classes & Subjects ("Class/Section" also accepted).
   const secScope = (v: string) => (v.includes("/") ? cellToScope(v)[0] : (catalog?.sections.filter((x) => x.name === v).map((x) => `${x.cls}|${x.name}`)[0] ?? v));
   // Teachers: classes = class numbers ("3, 4"); sections = letters ("A, B") that apply to those classes. Empty sections = whole classes.
-  const teacherScope = (classesCell: string, sectionsCell: string): string[] => {
-    const cls = list(classesCell).map((c) => resolveClass(c, catalog));
-    const secs = list(sectionsCell);
-    if (!secs.length) return cls;
-    const pool = cls.length ? cls : (catalog?.classes.map((c) => c.name) || []);
-    const out: string[] = [];
-    for (const sc of secs) {
-      if (/[|/]/.test(sc) || !catalog) { out.push(secScope(sc)); continue; }
-      for (const c of pool) { const n = resolveSection(sc, c, catalog); if (catalog.sections.some((x) => x.cls === c && x.name === n)) out.push(`${c}|${n}`); }
-    }
-    return [...new Set(out)];
-  };
   const ExcelJS = await excel();
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.load(await file.arrayBuffer());
@@ -120,12 +108,12 @@ export async function parseUsersXlsx(file: File, role: Role = "student", catalog
     if (!r.username && !r.name) return;
     rows.push(
       role === "teacher"
-        ? { username: r.username, name: r.name, role, cls: "", subjects: (r.subjects || "").split(",").map((x) => x.trim()).filter(Boolean), scope: r["classes/sections"] ? cellToScope(r["classes/sections"]) : teacherScope(r.classes || "", r.sections || ""), pin: r.pin || undefined, perms: (r.permissions || r.perms || "assign, review").split(/[,\s]+/).filter(Boolean) }
-        : { username: r.username, name: (`${r["first name"] || ""} ${r["last name"] || ""}`.trim() || r.name), firstName: r["first name"] || (r.name || "").split(/\s+/)[0], lastName: r["last name"] ?? (r.name || "").split(/\s+/).slice(1).join(" "), role, cls: resolveClass(r.class || r.cls || "", catalog), section: resolveSection(r.section || "", resolveClass(r.class || r.cls || "", catalog), catalog), pin: r.pin || undefined, perms: [], parentName: r["parent name"] || "", email: r["parent email"] || r.email || "", gender: /^(b|boy)$/i.test(r.gender || r["boy/girl"] || "") ? "b" : /^(g|girl)$/i.test(r.gender || r["boy/girl"] || "") ? "g" : "", dob: (r["dob (yyyy-mm-dd)"] || r.dob || "").slice(0, 10), phone: r["contact no"] || "", semail: r["student email"] || "", nationality: r.nationality || "", prefLang: r["preferred language"] || "", sen: yes(r.sen || ""), eal: yes(r.eal || ""), gt: yes(r["gifted & talented"] || "") },
+        ? { username: r.username, name: r.name, role, cls: "", subjects: (r.subjects || "").split(",").map((x) => x.trim()).filter(Boolean), scope: [], phase: r.phase || "", pin: r.pin || undefined, perms: (r.permissions || r.perms || "assign, review").split(/[,\s]+/).filter(Boolean) }
+        : { username: r.username, name: (`${r["first name"] || ""} ${r["last name"] || ""}`.trim() || r.name), firstName: r["first name"] || (r.name || "").split(/\s+/)[0], lastName: r["last name"] ?? (r.name || "").split(/\s+/).slice(1).join(" "), role, cls: resolveClass(r.class || r.cls || "", catalog), section: resolveSection(r.section || "", resolveClass(r.class || r.cls || "", catalog), catalog), pin: r.pin || undefined, perms: [], parentName: r["parent name"] || "", email: r["parent email"] || r.email || "", gender: /^(b|boy)$/i.test(r.gender || r["boy/girl"] || "") ? "b" : /^(g|girl)$/i.test(r.gender || r["boy/girl"] || "") ? "g" : "", dob: (r["dob (yyyy-mm-dd)"] || r.dob || "").slice(0, 10), phone: r["contact no"] || "", semail: r["student email"] || "", nationality: r.nationality || "", prefLang: r["preferred language"] || "", sen: yes(r.sen || ""), eal: yes(r.eal || ""), gt: yes(r["gifted & talented"] || ""), subject: r.subject || "", phase: r.phase || "" },
     );
   });
   // Blank cells must not wipe stored private fields on upsert.
-  for (const r of rows as Record<string, unknown>[]) for (const k of ["gender", "dob", "phone", "semail", "nationality", "prefLang", "email", "parentName"]) if (r[k] === "") delete r[k];
+  for (const r of rows as Record<string, unknown>[]) for (const k of ["gender", "dob", "phone", "semail", "nationality", "prefLang", "email", "parentName", "subject", "phase"]) if (r[k] === "") delete r[k];
   for (const r of rows as Record<string, unknown>[]) for (const k of ["sen", "eal", "gt"]) if (r[k] === false) delete r[k];
   return rows;
 }
@@ -142,12 +130,12 @@ export async function downloadSignInSheet(users: LmsUser[], pins: Record<string,
     { header: "PIN", key: "pin", width: 18 },
     ...(role === "student"
       ? [{ header: "Class", key: "cls", width: 14 }, { header: "Section", key: "section", width: 12 }]
-      : [{ header: "Subjects", key: "subjects", width: 26 }, { header: "Classes", key: "classes", width: 22 }, { header: "Sections", key: "sections", width: 22 }]),
+      : [{ header: "Subjects", key: "subjects", width: 26 }, { header: "Phase", key: "phase", width: 18 }, { header: "Groups", key: "groups", width: 30 }]),
     { header: "Status", key: "status", width: 10 },
     { header: "Sign in at", key: "url", width: 40 },
   ];
   ws.getRow(1).font = { bold: true };
-  for (const u of users) ws.addRow({ name: u.name, username: u.username, pin: pins[u.id] ?? "(reset PIN to view)", cls: clsNum(u.cls), section: secLetter(u.section), subjects: u.subjects.join(", "), classes: [...new Set(u.scope.map((x) => clsNum(x.split("|")[0])))].join(", "), sections: [...new Set(u.scope.filter((x) => x.includes("|")).map((x) => secLetter(x.split("|")[1])))].join(", "), status: u.disabled ? "Blocked" : "Active", url });
+  for (const u of users) ws.addRow({ name: u.name, username: u.username, pin: pins[u.id] ?? "(reset PIN to view)", cls: clsNum(u.cls), section: secLetter(u.section), subjects: u.subjects.join(", "), phase: (u.phase || "").split(",").filter(Boolean).join(", "), groups: (u.groups || []).map((g) => g.name).join(", "), status: u.disabled ? "Blocked" : "Active", url });
   downloadBlob(new Blob([await wb.xlsx.writeBuffer()], { type: XLSX_TYPE }), `${role === "teacher" ? "teachers" : "students"}-sign-in-${new Date().toISOString().slice(0, 10)}.xlsx`);
 }
 

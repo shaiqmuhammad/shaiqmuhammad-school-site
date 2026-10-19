@@ -5,7 +5,7 @@ import { ASSESSMENT_API_BASE } from "@/lib/groupSession";
 
 /** LMS phase 1 client (see workers/assessment-session/src/lms.ts). */
 export type Role = "student" | "teacher" | "parent";
-export type LmsUser = { id: string; username: string; name: string; role: Role; cls: string; section: string; subjects: string[]; scope: string[]; perms: string[]; groups?: { id: string; name: string; subject: string }[]; disabled: boolean; hasPin: boolean; firstName?: string; lastName?: string; parentEmail?: boolean; parentName?: string; gender?: string; avatar?: string; email?: string; dob?: string; phone?: string; semail?: string; nationality?: string; prefLang?: string; sen?: boolean; eal?: boolean; gt?: boolean; created: number; lastLogin: number | null; lastSeen?: number };
+export type LmsUser = { id: string; username: string; name: string; role: Role; cls: string; section: string; subjects: string[]; scope: string[]; perms: string[]; groups?: { id: string; name: string; subject: string }[]; subject?: string; phase?: string; disabled: boolean; hasPin: boolean; firstName?: string; lastName?: string; parentEmail?: boolean; parentName?: string; gender?: string; avatar?: string; email?: string; dob?: string; phone?: string; semail?: string; nationality?: string; prefLang?: string; sen?: boolean; eal?: boolean; gt?: boolean; created: number; lastLogin: number | null; lastSeen?: number };
 export type Catalog = { subjects: { id: string; name: string }[]; classes: { id: string; name: string }[]; sections: { id: string; name: string; classId: string; cls: string }[] };
 export type DashStudent = { id: string; name: string; cls: string; section: string };
 /** Teacher scope entry: "Year 2" (whole class) or "Year 2|2A" (one section). */
@@ -189,6 +189,7 @@ export const lmsApi = {
   ptsList: (q: { students?: string[]; cls?: string; section?: string; from?: number; to?: number }, asAdmin = false) => call<{ items: PointRow[] }>("pts-list", q, { asAdmin }),
   grpList: (asAdmin = false) => call<{ items: StudentGroup[] }>("grp-list", undefined, { asAdmin }),
   grpSave: (g: { id?: string; name: string; students: string[] }) => call<{ ok: true }>("grp-save", g),
+  grpAssign: (teacher: string, add: string[], remove: string[]) => call<{ ok: true }>("grp-admin-assign", { teacher, add, remove }, { asAdmin: true }),
   grpDelete: (id: string, asAdmin = false) => call<{ ok: true }>("grp-delete", { id }, { asAdmin }),
   userAvatar: (id: string) => call<{ avatar: string }>("user-avatar", { id }),
   reportEmail: (id: string, kind: "points" | "quran", preview: boolean) => call<{ ok?: true; to: string; subject: string; heading: string; paragraphs: string[]; url: string }>("report-email", { id, kind, preview }),
