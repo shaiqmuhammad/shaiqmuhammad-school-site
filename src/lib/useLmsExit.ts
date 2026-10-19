@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { lmsSession } from "@/lib/lms";
 import { actingAs, ownHome } from "@/lib/origin";
 
 /**
@@ -11,7 +12,11 @@ export function useLmsExit(fallback: string): string {
   const [href, setHref] = useState(fallback);
   useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect -- storage is only readable after hydration */
-    setHref(actingAs() === "lms" ? ownHome() : fallback);
+    if (actingAs() !== "lms") { setHref(fallback); return; }
+    const p = window.location.pathname;
+    const teacher = lmsSession()?.user.role === "teacher";
+    // Teachers closing a classroom activity return to Classroom activities; a hosted assessment returns to Assessments.
+    setHref(teacher && p.startsWith("/activities") ? "/lms/activities" : teacher && p.startsWith("/assessments") ? "/lms/assessments" : ownHome());
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [fallback]);
   return href;
