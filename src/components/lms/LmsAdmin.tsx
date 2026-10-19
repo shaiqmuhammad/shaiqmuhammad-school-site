@@ -105,7 +105,7 @@ function StudentAccess({ perms, setPerms }: { perms: string[]; setPerms: (p: str
   const flip = (op: (typeof ops)[number]) => { const cur = ops.filter((o) => stuUi(perms, o)); const next = cur.includes(op) ? cur.filter((o) => o !== op) : [...cur, op]; setPerms([...perms.filter((q) => !q.startsWith("stu:")), ...(next.length === 5 ? [] : next.length === 0 ? ["stu:none"] : next.map((o) => `stu:${o}`))]); };
   return (
     <div className="rounded-2xl border border-dashed border-black/15 p-3 dark:border-white/20" data-testid="stu-switches">
-      <p className="mb-2 text-sm font-bold">🎓 {tr("Student accounts (own classes only)", "حسابات الطلاب (صفوفه فقط)")}</p>
+      <p className="mb-2 text-sm font-bold">🎓 {tr("Student accounts (assigned groups only)", "حسابات الطلاب (مجموعاته فقط)")}</p>
       <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">{ops.map((op) => <label key={op} className="flex items-center gap-1.5"><input type="checkbox" checked={stuUi(perms, op)} onChange={() => flip(op)} data-testid={`stu-${op}`} /> {L[op]}</label>)}</div>
     </div>
   );
@@ -617,7 +617,7 @@ function ModuleAccess({ perms, setPerms, teachers }: { perms: string[]; setPerms
   const qOps: ["view" | "add" | "edit" | "delete", string, string][] = [["view", "View", "عرض"], ["add", "Add", "إضافة"], ["edit", "Edit", "تعديل"], ["delete", "Delete", "حذف"]];
   return (
     <div className="space-y-3 rounded-2xl border border-dashed border-black/15 p-3 dark:border-white/20" data-testid="lms-module-access">
-      <p className="text-sm font-bold">🧩 {tr("Modules — Show / Hide (own classes only)", "الوحدات — إظهار / إخفاء (صفوفه فقط)")}</p>
+      <p className="text-sm font-bold">🧩 {tr("Modules — Show / Hide (assigned groups only)", "الوحدات — إظهار / إخفاء (مجموعاته فقط)")}</p>
       <div className="flex flex-wrap items-center gap-2 text-sm" data-testid="perm-presets">
         <span className="text-xs font-bold uppercase opacity-70">{tr("Quick presets", "إعدادات سريعة")}</span>
         <button type="button" className={smallBtn} onClick={() => preset("full")} data-testid="preset-full">{tr("Full access", "وصول كامل")}</button>
