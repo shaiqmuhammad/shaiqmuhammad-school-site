@@ -65,7 +65,7 @@ function Composer({ wkey, groups, onDone }: { wkey: string; groups: WallClass[];
       const mr = new MediaRecorder(st, { audioBitsPerSecond: 24000 });
       chunks.current = [];
       mr.ondataavailable = (e) => chunks.current.push(e.data);
-      mr.onstop = async () => { st.getTracks().forEach((t) => t.stop()); const d = await toDataUrl(new Blob(chunks.current, { type: mr.mimeType })); setAudio(d.length > 880_000 ? "" : d); if (d.length > 880_000) setErr(tr("Recording too long (max about 90 seconds).", "التسجيل طويل (الحد الأقصى نحو 90 ثانية).")); };
+      mr.onstop = async () => { st.getTracks().forEach((t) => t.stop()); const d = await toDataUrl(new Blob(chunks.current, { type: (mr.mimeType || "audio/mp4").replace(/\s+/g, "") })); setAudio(d.length > 880_000 ? "" : d); if (d.length > 880_000) setErr(tr("Recording too long (max about 90 seconds).", "التسجيل طويل (الحد الأقصى نحو 90 ثانية).")); };
       mr.start(); setRec(mr); setTimeout(() => mr.state === "recording" && mr.stop(), 90_000);
     } catch { setErr(tr("Microphone not available.", "الميكروفون غير متاح.")); }
   };
