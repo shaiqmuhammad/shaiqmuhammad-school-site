@@ -44,19 +44,19 @@ export function QrLoginPage() {
   );
 }
 
-/** My account: students and teachers change their own PIN (current PIN required). */
+/** My account: students and teachers change their own PIN (no current PIN needed). */
 export function AccountPage() {
   const { tr } = useTr();
   const { actor, ready } = useLmsActor();
-  const [cur, setCur] = useState(""); const [n1, setN1] = useState(""); const [n2, setN2] = useState("");
+  const [n1, setN1] = useState(""); const [n2, setN2] = useState("");
   const [msg, setMsg] = useState(""); const [bad, setBad] = useState(false); const [busy, setBusy] = useState(false);
-  const can = actor?.role === "student" || actor?.role === "teacher";
+  const can = actor?.role === "student" || actor?.role === "teacher" || actor?.role === "parent";
   const submit = async (e: React.FormEvent) => {
     e.preventDefault(); setMsg("");
     if (!/^\d{6,8}$/.test(n1)) { setBad(true); setMsg(tr("New PIN must be 6 to 8 digits.", "يجب أن يتكون الرقم الجديد من 6 إلى 8 أرقام.")); return; }
     if (n1 !== n2) { setBad(true); setMsg(tr("The new PINs don't match.", "الرقمان الجديدان غير متطابقين.")); return; }
     setBusy(true);
-    try { await lmsApi.changePin(cur, n1); setBad(false); setMsg(tr("PIN changed. Use it next time you sign in.", "تم تغيير الرقم. استخدمه في المرة القادمة.")); setCur(""); setN1(""); setN2(""); }
+    try { await lmsApi.changePin(n1); setBad(false); setMsg(tr("PIN changed. Use it next time you sign in.", "تم تغيير الرقم. استخدمه في المرة القادمة.")); setN1(""); setN2(""); }
     catch (er) { setBad(true); const c = (er as Error).message; setMsg(c === "wrong_current_pin" ? tr("Current PIN is wrong.", "الرقم الحالي غير صحيح.") : c === "pin_same" ? tr("Choose a different PIN.", "اختر رقمًا مختلفًا.") : c === "too_many_attempts" ? tr("Too many attempts. Try again later.", "محاولات كثيرة. حاول لاحقًا.") : lmsErrorText(er, tr)); }
     setBusy(false);
   };
@@ -67,11 +67,10 @@ export function AccountPage() {
           <form onSubmit={submit} className="space-y-3 rounded-3xl bg-white/80 p-5 shadow-sm dark:bg-white/5" data-testid="pin-form">
             <h2 className="text-xl font-extrabold">🔑 {tr("Change my PIN", "تغيير الرقم السري")}</h2>
             <p className="text-sm opacity-70">{actor?.name}</p>
-            <input className={inp} type="password" inputMode="numeric" autoComplete="current-password" placeholder={tr("Current PIN", "الرقم الحالي")} value={cur} onChange={(e) => setCur(e.target.value.replace(/\D/g, "").slice(0, 8))} data-testid="pin-current" />
             <input className={inp} type="password" inputMode="numeric" autoComplete="new-password" placeholder={tr("New PIN (6–8 digits)", "الرقم الجديد (6–8 أرقام)")} value={n1} onChange={(e) => setN1(e.target.value.replace(/\D/g, "").slice(0, 8))} data-testid="pin-new" />
             <input className={inp} type="password" inputMode="numeric" autoComplete="new-password" placeholder={tr("Repeat new PIN", "أعد الرقم الجديد")} value={n2} onChange={(e) => setN2(e.target.value.replace(/\D/g, "").slice(0, 8))} data-testid="pin-new2" />
             {msg && <p className={`rounded-xl px-3 py-2 text-sm ${bad ? "bg-rose-100 text-rose-800" : "bg-emerald-100 text-emerald-800"}`} role="status" data-testid="pin-msg">{msg}</p>}
-            <button type="submit" className="w-full rounded-full bg-sun px-5 py-2.5 font-bold text-[#0b1b2b] disabled:opacity-50" disabled={busy || !cur || !n1 || !n2} data-testid="pin-save">{tr("Save new PIN", "حفظ الرقم الجديد")}</button>
+            <button type="submit" className="w-full rounded-full bg-sun px-5 py-2.5 font-bold text-[#0b1b2b] disabled:opacity-50" disabled={busy || !n1 || !n2} data-testid="pin-save">{tr("Save new PIN", "حفظ الرقم الجديد")}</button>
           </form>
         )}
       </div>

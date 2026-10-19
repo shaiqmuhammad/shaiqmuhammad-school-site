@@ -172,7 +172,7 @@ export const lmsApi = {
   pinsView: (ids?: string[], asAdmin = true) => call<{ pins: Record<string, string | null> }>("pins-view", { ids }, { asAdmin }),
   loginsList: (asAdmin = false) => call<{ items: LoginCard[] }>("logins-list", undefined, { asAdmin }),
   loginTokenReset: (id: string, asAdmin = false) => call<{ token: string }>("login-token-reset", { id }, { asAdmin }),
-  changePin: (current: string, next: string) => call<{ ok: true }>("pin-change", { current, next }),
+  changePin: (next: string) => call<{ ok: true }>("pin-change", { next }),
   async qrLogin(t: string) {
     const r = await call<{ token: string; exp: number; user: LmsUser }>("qr-login", { t });
     return storeSession(r);

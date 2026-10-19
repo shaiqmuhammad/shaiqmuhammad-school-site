@@ -76,7 +76,7 @@ export function LmsTabs() {
     ...(staff ? [{ id: "pts", href: "/lms/points", en: "Points", ar: "النقاط", icon: "", lvl: 3 } as Tab] : []),
   ];
   const loginsTab: Tab[] = staff && stuUi(actor.perms || [], "view") ? [{ id: "logins", href: "/lms/logins", en: "Student Logins", ar: "دخول الطلاب", icon: "", lvl: 3 }] : [];
-  const acctTab: Tab[] = !isParent ? [{ id: "acct", href: "/lms/account", en: "My account", ar: "حسابي", icon: "", lvl: 3 }] : [];
+  const acctTab: Tab[] = [{ id: "acct", href: "/lms/account", en: "My account", ar: "حسابي", icon: "", lvl: 3 }];
   const qTab: Tab[] = staff && qp.show ? [{ id: "qhw", href: "/lms/quran", en: "Quran Homework", ar: "واجب القرآن", icon: I.quran, lvl: 2 }] : [];
   const PARENT: Tab[] = [
     { id: "dash", href: "/lms/family", en: "Dashboard", ar: "اللوحة", icon: I.dash, lvl: 0 },
@@ -91,7 +91,7 @@ export function LmsTabs() {
   ];
   const HID: Record<string, string> = { hw: "homework", assess: "assessments", msg: "messaging", wall: "wall", act: "activities", res: "results" };
   const shownT = (t: Tab) => !(HID[t.id] && actor.perms?.includes(`hide:${HID[t.id]}`));
-  const tabs = isParent ? PARENT : staff ? [...TEACHER.slice(0, 3), ...qTab, ...TEACHER.slice(3), ...extra, ...loginsTab, ...acctTab].filter(shownT) : [...STUDENT, ...extra, ...acctTab];
+  const tabs = isParent ? [...PARENT, ...acctTab] : staff ? [...TEACHER.slice(0, 3), ...qTab, ...TEACHER.slice(3), ...extra, ...loginsTab, ...acctTab].filter(shownT) : [...STUDENT, ...extra, ...acctTab];
   const isActive = (t: Tab) => {
     if (t.hash) return path === t.href && hash === t.hash;
     if (t.id === "dash") return path === t.href && !tabs.some((x) => x.href === t.href && x.hash && x.hash === hash);
