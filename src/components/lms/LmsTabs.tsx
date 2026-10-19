@@ -26,7 +26,7 @@ const I = {
 // lvl = smallest width class at which the tab sits in the strip (0 = always, 1 = sm, 2 = md, 3 = lg); the rest live in "More".
 const STUDENT: Tab[] = [
   { id: "dash", href: "/lms", en: "Dashboard", ar: "اللوحة", icon: I.dash, lvl: 0 },
-  { id: "hw", href: "/lms", hash: "#homework", en: "Homework", ar: "الواجبات", icon: I.hw, lvl: 0 },
+  { id: "hw", href: "/lms/homework", en: "Homework", ar: "الواجبات", icon: I.hw, lvl: 0 },
   { id: "assess", href: "/lms/assessments", en: "Assessments", ar: "التقييمات", icon: I.assess, lvl: 1 },
   { id: "msg", href: "/lms/messages", en: "Messages", ar: "الرسائل", icon: I.msg, lvl: 1 },
   { id: "wall", href: "/lms/wall", en: "Class Wall", ar: "جدار الصف", icon: I.wall, lvl: 2 },
@@ -35,7 +35,7 @@ const STUDENT: Tab[] = [
 const TEACHER: Tab[] = [
   { id: "dash", href: "/lms", en: "Dashboard", ar: "اللوحة", icon: I.dash, lvl: 0 },
   { id: "cls", href: "/lms/classes", en: "My classes", ar: "صفوفي", icon: I.cls, lvl: 0 },
-  { id: "hw", href: "/lms", hash: "#homework", en: "Homework", ar: "الواجبات", icon: I.hw, lvl: 1 },
+  { id: "hw", href: "/lms/homework", en: "Homework", ar: "الواجبات", icon: I.hw, lvl: 1 },
   { id: "assess", href: "/lms/assessments", en: "Assessments", ar: "التقييمات", icon: I.assess, lvl: 2 },
   { id: "msg", href: "/lms/messages", en: "Messages", ar: "الرسائل", icon: I.msg, lvl: 2 },
   { id: "act", href: "/lms/activities", en: "Activities", ar: "الأنشطة", icon: I.act, lvl: 3 },

@@ -144,7 +144,7 @@ export function Header() {
   if (isImmersivePath(pathname)) return null;
 
   return (
-    <header className="sticky top-0 z-50 bg-header text-white shadow-[0_6px_20px_-10px_rgba(10,25,40,0.6)]">
+    <header className="sticky top-0 z-50 border-b border-[#0f2438] bg-header pt-[env(safe-area-inset-top)] text-white">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-3 py-3 sm:gap-4 sm:px-6 lg:gap-2 lg:px-4 xl:gap-4 xl:px-6">
         <Link href="/" className="group flex min-w-0 items-center gap-2 sm:shrink-0 sm:gap-2.5">
           {/* eslint-disable-next-line @next/next/no-img-element */}
