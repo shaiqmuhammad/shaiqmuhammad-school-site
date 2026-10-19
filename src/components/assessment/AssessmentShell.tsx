@@ -36,14 +36,17 @@ export function AssessmentShell({ title, exitHref = "/assessments", onExit, seco
   const showTimer = typeof secondsLeft === "number";
   const low = showTimer && (secondsLeft as number) <= 30;
   const warn = showTimer && !low && (secondsLeft as number) <= 120;
+  const rail = Boolean(toolbar) && !showTimer; // LMS pages: the icon rail is the only navigation
 
   return (
-    <div className="relative flex min-h-dvh flex-col overflow-x-clip bg-gradient-to-br from-cream via-white to-white text-[#1b2f44] dark:from-[#0d1b2a] dark:via-[#0d1b2a] dark:to-[#10263b] dark:text-[#e6eef6]">
+    <div className={`relative flex min-h-dvh flex-col ${rail ? "md:flex-row" : ""} overflow-x-clip bg-gradient-to-br from-cream via-white to-white text-[#1b2f44] dark:from-[#0d1b2a] dark:via-[#0d1b2a] dark:to-[#10263b] dark:text-[#e6eef6]`}>
       <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute -top-24 -start-24 h-72 w-72 rounded-full bg-teal-brand/15 blur-3xl dark:bg-teal-brand/15" />
         <div className="absolute -bottom-24 -end-16 h-80 w-80 rounded-full bg-sun/30 blur-3xl dark:bg-sun/10" />
       </div>
 
+      {rail && <LmsTabs />}
+      <div className="relative z-10 flex min-w-0 flex-1 flex-col">
       <header className="relative z-20 bg-header text-white shadow-[0_6px_20px_-10px_rgba(10,25,40,0.6)]">
         <div className={`mx-auto flex ${wide ? "max-w-[1800px]" : "max-w-5xl"} items-center gap-3 px-3 py-2.5 sm:px-6`}>
           <Link
@@ -53,7 +56,7 @@ export function AssessmentShell({ title, exitHref = "/assessments", onExit, seco
             }}
             aria-label={a("exit")}
             title={a("exit")}
-            className="pill-on-navy h-9 w-9 shrink-0 justify-center"
+            className={`pill-on-navy h-9 w-9 shrink-0 justify-center ${rail ? "hidden" : ""}`}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4" aria-hidden>
               <path d="M6 6l12 12M18 6L6 18" />
@@ -92,7 +95,6 @@ export function AssessmentShell({ title, exitHref = "/assessments", onExit, seco
             </>
           )}
         </div>
-        {toolbar && !showTimer && <LmsTabs />}
         {progress && progress.total > 0 && (
           <div className="mx-auto flex max-w-5xl gap-1 px-3 pb-2.5 sm:px-6" aria-label={a("questionOf", { i: progress.current + 1, n: progress.total })}>
             {Array.from({ length: progress.total }, (_, i) => {
@@ -121,6 +123,7 @@ export function AssessmentShell({ title, exitHref = "/assessments", onExit, seco
       </header>
 
       <main className="relative z-10 flex min-w-0 flex-1 flex-col [&>*]:min-w-0">{children}</main>
+      </div>
     </div>
   );
 }

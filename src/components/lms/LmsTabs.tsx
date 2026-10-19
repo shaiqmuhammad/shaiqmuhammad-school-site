@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { useEffect, useState } from "react";
 import { useTr, useLmsActor } from "@/components/lms/useLms";
 import { qhwPerm } from "@/lib/lmsMods";
+import { useUnreadMsgs } from "@/components/lms/DashWidgets";
 import { stuUi } from "@/lib/lms";
 
 type Tab = { id: string; href: string; hash?: string; en: string; ar: string; icon: string; lvl: 0 | 1 | 2 | 3 };
@@ -41,94 +41,77 @@ const TEACHER: Tab[] = [
   { id: "wall", href: "/lms/wall", en: "Wall", ar: "الجدار", icon: I.wall, lvl: 3 },
   { id: "res", href: "/lms/results", en: "Results", ar: "النتائج", icon: I.res, lvl: 3 },
 ];
-const SHOW = ["", "max-sm:hidden", "max-md:hidden", "max-lg:hidden"]; // tab hidden below its level
-const MORE_ITEM = ["hidden", "hidden max-sm:flex", "hidden max-md:flex", "hidden max-lg:flex"]; // More entry shown only while the tab is hidden
-const MORE_BTN = ["", "sm:hidden", "md:hidden", "lg:hidden"]; // More button disappears once every tab fits
+// Child-friendly look: one emoji per area, each on its own theme-coloured disc.
+const EMOJI: Record<string, string> = { dash: "🏠", hw: "📝", assess: "✅", msg: "💬", wall: "🧱", quran: "📖", qhw: "📖", cls: "🏫", act: "🎲", res: "📊", att: "🗓️", beh: "🌟", cur: "📚", logins: "🔑", acct: "🙂", stu: "👥", map: "🗺️", pts: "🏆", fcur: "📚", fassess: "✅" };
+const DISC = ["bg-sun text-[#0b1b2b]", "bg-[#2e9c8f] text-white", "bg-coral text-[#3b1710]", "bg-[#bfdff3] text-header", "bg-[#cdebe4] text-[#0f4a42]", "bg-[#fde0d9] text-[#6b2b1d]"];
 
-/** Main areas as tabs under the LMS header (both student and teacher areas): active highlight, overflow into "More", Dashboard always first. */
+/**
+ * The ONE navigation of the LMS (student, teacher and parent): a big colourful icon rail on desktop that becomes a
+ * scrolling icon strip at the top on mobile. Hidden modules never appear (server-enforced separately).
+ */
 export function LmsTabs() {
   const { tr, lang } = useTr();
   const { actor, ready } = useLmsActor();
+  const unread = useUnreadMsgs();
   const [path, setPath] = useState("");
   const [hash, setHash] = useState("");
-  const [open, setOpen] = useState(false);
-  const box = useRef<HTMLDivElement>(null);
-  const panel = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState<{ top: number; left: number; w: number; rtl: boolean }>({ top: 0, left: 0, w: 224, rtl: false });
   useEffect(() => {
     const upd = () => { setPath(window.location.pathname.replace(/\/$/, "") || "/"); setHash(window.location.hash); };
     upd();
     window.addEventListener("hashchange", upd); window.addEventListener("popstate", upd);
     return () => { window.removeEventListener("hashchange", upd); window.removeEventListener("popstate", upd); };
   }, []);
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent | KeyboardEvent) => { if (e instanceof KeyboardEvent ? e.key === "Escape" : !(box.current?.contains(e.target as Node) || panel.current?.contains(e.target as Node))) setOpen(false); };
-    const place = () => {
-      const r = box.current?.getBoundingClientRect(); if (!r) return;
-      const vw = window.innerWidth; const rtl = document.documentElement.dir === "rtl";
-      if (vw < 640) setPos({ top: r.bottom + 4, left: 8, w: vw - 16, rtl });
-      else setPos({ top: r.bottom + 4, left: rtl ? Math.max(8, r.right - 224) : Math.min(r.left, vw - 232), w: 224, rtl });
-    };
-    place(); window.addEventListener("resize", place); window.addEventListener("scroll", place, true);
-    document.addEventListener("mousedown", close); document.addEventListener("keydown", close);
-    return () => { document.removeEventListener("mousedown", close); document.removeEventListener("keydown", close); window.removeEventListener("resize", place); window.removeEventListener("scroll", place, true); };
-  }, [open]);
   if (!ready || !actor || actor.viewAs) return null;
   const isParent = actor.role === "parent";
   const staff = actor.role === "teacher";
   const pm = (m: string) => actor.perms?.includes(`${m}:view`) || actor.perms?.includes(`${m}:edit`) || actor.perms?.includes(`${m}:delete`);
+  const qp = qhwPerm(actor.perms);
   const extra: Tab[] = [
+    ...(staff && (actor.perms?.includes("manageUsers") || actor.perms?.some((p) => p.startsWith("stu:"))) ? [{ id: "stu", href: "/lms/students", en: "My students", ar: "طلابي", icon: "", lvl: 3 } as Tab] : []),
     ...(pm("att") ? [{ id: "att", href: "/lms/attendance", en: "Attendance", ar: "الحضور", icon: I.att, lvl: 3 } as Tab] : []),
     ...(pm("beh") ? [{ id: "beh", href: "/lms/behaviour", en: "Behaviour", ar: "السلوك", icon: I.beh, lvl: 3 } as Tab] : []),
     ...(!staff && !isParent ? [{ id: "cur", href: "/lms/curriculum", en: "Curriculum", ar: "المنهج", icon: I.cur, lvl: 3 } as Tab] : []),
     ...(staff && pm("cur") ? [{ id: "cur", href: "/lms/curriculum", en: "Curriculum", ar: "المنهج", icon: I.cur, lvl: 3 } as Tab] : []),
+    ...(staff && qp.show ? [{ id: "map", href: "/lms/map", en: "Quran map", ar: "خريطة القرآن", icon: "", lvl: 3 } as Tab] : []),
+    ...(staff ? [{ id: "pts", href: "/lms/points", en: "Points", ar: "النقاط", icon: "", lvl: 3 } as Tab] : []),
   ];
-  const loginsTab: Tab[] = staff && stuUi(actor.perms || [], "view") ? [{ id: "logins", href: "/lms/logins", en: "Student Logins", ar: "دخول الطلاب", icon: "M15 7a4 4 0 1 1-3.9 4.9L4 19v-3h3v-2h2l1.2-1.2A4 4 0 0 1 15 7z", lvl: 3 }] : [];
-  const acctTab: Tab[] = !isParent ? [{ id: "acct", href: "/lms/account", en: "My account", ar: "حسابي", icon: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 8a7 7 0 0 1 14 0", lvl: 3 }] : [];
-  const qOn = staff && qhwPerm(actor.perms).show;
-  const qTab: Tab[] = qOn ? [{ id: "qhw", href: "/lms/quran", en: "Quran Homework", ar: "واجب القرآن", icon: I.quran, lvl: 2 }] : [];
+  const loginsTab: Tab[] = staff && stuUi(actor.perms || [], "view") ? [{ id: "logins", href: "/lms/logins", en: "Student Logins", ar: "دخول الطلاب", icon: "", lvl: 3 }] : [];
+  const acctTab: Tab[] = !isParent ? [{ id: "acct", href: "/lms/account", en: "My account", ar: "حسابي", icon: "", lvl: 3 }] : [];
+  const qTab: Tab[] = staff && qp.show ? [{ id: "qhw", href: "/lms/quran", en: "Quran Homework", ar: "واجب القرآن", icon: I.quran, lvl: 2 }] : [];
   const PARENT: Tab[] = [
     { id: "dash", href: "/lms/family", en: "Dashboard", ar: "اللوحة", icon: I.dash, lvl: 0 },
+    { id: "hw", href: "/lms/family", hash: "#homework", en: "Homework", ar: "الواجبات", icon: I.hw, lvl: 0 },
+    { id: "assess", href: "/lms/family", hash: "#assess", en: "Assessments", ar: "التقييمات", icon: I.assess, lvl: 0 },
+    { id: "fcur", href: "/lms/family", hash: "#cur", en: "Curriculum", ar: "المنهج", icon: I.cur, lvl: 0 },
+    { id: "att", href: "/lms/family", hash: "#att", en: "Attendance", ar: "الحضور", icon: I.att, lvl: 0 },
+    { id: "beh", href: "/lms/family", hash: "#beh", en: "Behaviour", ar: "السلوك", icon: I.beh, lvl: 0 },
+    { id: "quran", href: "/lms/family", hash: "#quran", en: "Quran", ar: "القرآن", icon: I.quran, lvl: 0 },
+    { id: "wall", href: "/lms/family", hash: "#wall", en: "Class Wall", ar: "جدار الصف", icon: I.wall, lvl: 0 },
     { id: "msg", href: "/lms/messages", en: "Messages", ar: "الرسائل", icon: I.msg, lvl: 0 },
   ];
   const HID: Record<string, string> = { hw: "homework", assess: "assessments", msg: "messaging", wall: "wall", act: "activities", res: "results" };
   const shownT = (t: Tab) => !(HID[t.id] && actor.perms?.includes(`hide:${HID[t.id]}`));
   const tabs = isParent ? PARENT : staff ? [...TEACHER.slice(0, 3), ...qTab, ...TEACHER.slice(3), ...extra, ...loginsTab, ...acctTab].filter(shownT) : [...STUDENT, ...extra, ...acctTab];
-  const dashName = isParent ? tr("Parent Dashboard", "لوحة ولي الأمر") : staff ? tr("Teacher Dashboard", "لوحة المعلم") : tr("Student Dashboard", "لوحة الطالب");
-  const isActive = (t: Tab) => (t.href === "/lms" ? path === "/lms" && (t.hash ? hash === t.hash : !tabs.some((x) => x.hash && x.hash === hash)) : path === t.href);
-  const cur = tabs.find(isActive);
-  const hasMore = tabs.some((t) => t.lvl > 0);
-  const moreTo = Math.max(...tabs.map((t) => t.lvl));
+  const isActive = (t: Tab) => {
+    if (t.hash) return path === t.href && hash === t.hash;
+    if (t.id === "dash") return path === t.href && !tabs.some((x) => x.href === t.href && x.hash && x.hash === hash);
+    return path === t.href;
+  };
   const label = (t: Tab) => (lang === "ar" ? t.ar : t.en);
-  const moreActive = tabs.some((t) => t.lvl > 0 && isActive(t));
-  const base = "relative inline-flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap px-3 text-[13px] font-bold transition hover:text-sun";
   return (
-    <nav className="relative border-t border-white/10" aria-label={tr("Main sections", "الأقسام الرئيسية")} data-testid="lms-tabs">
-      <div className="mx-auto flex max-w-[1800px] items-center gap-1 px-2 sm:px-5">
-        <div className="flex min-w-0 items-center">
-          {tabs.map((t) => (
-            <a key={t.id} href={t.href + (t.hash || "")} onClick={() => { if (t.hash) setTimeout(() => { setPath(window.location.pathname.replace(/\/$/, "") || "/"); setHash(window.location.hash); }, 0); }} aria-current={isActive(t) ? "page" : undefined} data-testid={`lms-tab-${t.id}`} className={`${base} ${SHOW[t.lvl]} ${isActive(t) ? "text-sun after:absolute after:inset-x-2 after:bottom-0 after:h-[3px] after:rounded-t after:bg-sun" : "text-white/85"}`}>
-              <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d={t.icon} /></svg>{t.id === "dash" ? <><span className="sm:hidden">{label(t)}</span><span className="max-sm:hidden">{dashName}</span></> : label(t)}
+    <nav className="z-40 shrink-0 bg-header text-white max-md:sticky max-md:top-0 max-md:border-b max-md:border-white/10 md:sticky md:top-0 md:h-dvh md:w-[108px] md:overflow-y-auto" aria-label={tr("Main sections", "الأقسام الرئيسية")} data-testid="lms-tabs">
+      <div className="flex gap-1.5 overflow-x-auto px-2 py-2 [scrollbar-width:none] md:flex-col md:items-center md:overflow-x-visible md:px-2 md:py-3">
+        <Link href="/" className="hidden shrink-0 md:block" aria-label={tr("Home", "الرئيسية")} data-testid="lms-rail-logo"><img src="/logo.svg" alt="" width={52} height={52} className="h-[52px] w-[52px] rounded-full" /></Link>
+        {tabs.map((t, i) => {
+          const on = isActive(t);
+          return (
+            <a key={t.id} href={t.href + (t.hash || "")} onClick={() => { if (t.hash) setTimeout(() => { setPath(window.location.pathname.replace(/\/$/, "") || "/"); setHash(window.location.hash); }, 0); }} aria-current={on ? "page" : undefined} data-testid={`lms-tab-${t.id}`} className={`relative flex w-[76px] shrink-0 flex-col items-center gap-1 rounded-2xl px-1 py-2 text-center text-[11.5px] font-extrabold leading-tight transition md:w-[92px] ${on ? "bg-sun text-[#0b1b2b] shadow-lg" : "text-white/90 hover:bg-white/10"}`}>
+              <span className={`grid h-11 w-11 place-items-center rounded-full text-[26px] leading-none max-md:h-10 max-md:w-10 max-md:text-[22px] ${on ? "bg-white" : DISC[i % DISC.length]}`} aria-hidden>{EMOJI[t.id] || "⭐"}</span>
+              <span className="line-clamp-2 break-words">{label(t)}</span>
+              {t.id === "msg" && unread > 0 && <span className="absolute end-1.5 top-1 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-extrabold text-white" data-testid="msg-badge">{unread > 99 ? "99+" : unread}</span>}
             </a>
-          ))}
-          {hasMore && (
-            <div className={`sm:relative ${MORE_BTN[moreTo]}`} ref={box}>
-              <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} data-testid="lms-tab-more" className={`${base} ${moreActive ? "text-sun" : "text-white/85"}`}>
-                {tr("More", "المزيد")} <svg viewBox="0 0 24 24" className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="m6 9 6 6 6-6" /></svg>
-              </button>
-              {open && createPortal(
-                <div ref={panel} style={{ position: "fixed", top: pos.top, left: pos.left, width: pos.w, zIndex: 2147483000 }} className="rounded-2xl bg-header p-2 text-white shadow-2xl ring-1 ring-white/10" data-testid="lms-tab-more-panel">
-                  {tabs.filter((t) => t.lvl > 0).map((t) => (
-                    <a key={t.id} href={t.href + (t.hash || "")} onClick={() => setOpen(false)} aria-current={isActive(t) ? "page" : undefined} className={`${MORE_ITEM[t.lvl]} items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-semibold hover:bg-white/10 hover:text-sun ${isActive(t) ? "bg-white/15 text-sun" : ""}`} data-testid={`lms-more-${t.id}`}>
-                      <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] shrink-0 text-sun" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d={t.icon} /></svg>{label(t)}
-                    </a>
-                  ))}
-                </div>, document.body)}
-            </div>
-          )}
-        </div>
-        <p className="ms-auto hidden min-w-0 truncate text-xs text-white/60 lg:block" data-testid="lms-crumb"><Link href="/" className="hover:text-sun">{tr("Home", "الرئيسية")}</Link> › <a href="/lms" className="hover:text-sun">{dashName}</a>{cur && cur.id !== "dash" ? <> › <span className="text-white/90">{label(cur)}</span></> : null}</p>
+          );
+        })}
       </div>
     </nav>
   );
