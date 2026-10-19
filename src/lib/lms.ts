@@ -180,7 +180,7 @@ export const lmsApi = {
   notes: (asAdmin = false) => call<{ items: Note[]; unread: number }>("notes", undefined, { asAdmin }),
   notesRead: (ids?: string[], asAdmin = false) => call<{ ok: true }>("notes-read", { ids }, { asAdmin }),
   adminPrefs: (p?: { quick: { tab: string; label: string; icon?: string }[]; dashIcon?: string }) => call<{ quick: { tab: string; label: string; icon?: string }[] | null; dashIcon: string }>("admin-prefs", p, { asAdmin: true }),
-  classRoster: () => call<{ students: RosterStudent[]; canManage: boolean; now?: number }>("class-roster"),
+  classRoster: (asAdmin = false) => call<{ students: RosterStudent[]; canManage: boolean; now?: number }>("class-roster", undefined, { asAdmin }),
   pcatList: () => call<{ items: PointCat[] }>("pcat-list"),
   pcatSave: (c: Partial<PointCat>) => call<{ ok: true }>("pcat-save", c),
   pcatDelete: (id: string) => call<{ ok: true }>("pcat-delete", { id }),

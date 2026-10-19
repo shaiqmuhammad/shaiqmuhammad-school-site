@@ -62,6 +62,7 @@ export function LmsClassesPage() {
   useEffect(() => { load(); }, [load]);
 
   const classes = useMemo(() => [...new Set((roster || []).map((s) => (s.section ? `${s.cls}|${s.section}` : s.cls)))], [roster]);
+  const classTabs = useMemo(() => { const out: string[] = []; for (const t of classes) { const c = t.split("|")[0]; if (!out.includes(c)) out.push(c); if (t.includes("|")) out.push(t); } return out; }, [classes]);
   const shown = useMemo(() => {
     const all = roster || [];
     if (view.startsWith("g:")) { const g = groups.find((x) => x.id === view.slice(2)); return all.filter((s) => g?.students.includes(s.id)); }
@@ -98,10 +99,16 @@ export function LmsClassesPage() {
           {canManage && <a className={pill} href="/lms/students">👥 {tr("Manage students", "إدارة الطلاب")}</a>}
           <button type="button" disabled={!shown.length} className="rounded-full bg-sun px-4 py-2 text-sm font-bold text-[#0b1b2b] disabled:opacity-50" onClick={() => { setWhole(true); setAward(shown); }} data-testid="cls-whole">⭐ {tr("Whole class", "كل الصف")}</button>
         </div>
-        <div className="flex flex-wrap gap-2" data-testid="cls-tabs">
-          <button type="button" aria-pressed={!view} onClick={() => setView("")} className={`${pill} ${!view ? "!bg-header !text-sun" : ""}`}>{tr("All", "الكل")} ({roster?.length ?? 0})</button>
-          {(lmsSession()?.user.role === "teacher" && groups.length ? [] : classes).map((c) => <button key={c} type="button" aria-pressed={view === c} onClick={() => setView(c)} className={`${pill} ${view === c ? "!bg-header !text-sun" : ""}`} data-testid="cls-tab">{label(c)}</button>)}
-          {groups.map((g) => <button key={g.id} type="button" aria-pressed={view === "g:" + g.id} onClick={() => setView("g:" + g.id)} className={`${pill} ${view === "g:" + g.id ? "!bg-header !text-sun" : ""}`} data-testid="cls-group-tab" title={g.assigned ? tr("Assigned by admin", "مُسندة من الإدارة") : undefined}>{g.assigned ? "📌" : "👥"} {grpLabel(g)}</button>)}
+        <div className="space-y-2" data-testid="cls-tabs">
+          <div className="flex flex-wrap items-center gap-2" data-testid="cls-tabs-groups">
+            <span className="text-xs font-bold uppercase opacity-70">👥 {tr("Student groups", "مجموعات الطلاب")}</span>
+            <button type="button" aria-pressed={!view} onClick={() => setView("")} className={`${pill} ${!view ? "!bg-header !text-sun" : ""}`}>{tr("All", "الكل")} ({roster?.length ?? 0})</button>
+            {groups.map((g) => <button key={g.id} type="button" aria-pressed={view === "g:" + g.id} onClick={() => setView("g:" + g.id)} className={`${pill} ${view === "g:" + g.id ? "!bg-header !text-sun" : ""}`} data-testid="cls-group-tab" title={g.assigned ? tr("Assigned by admin", "مُسندة من الإدارة") : undefined}>{g.assigned ? "📌" : "👥"} {grpLabel(g)}</button>)}
+          </div>
+          {lmsSession()?.user.role !== "teacher" && <div className="flex flex-wrap items-center gap-2" data-testid="cls-tabs-classes">
+            <span className="text-xs font-bold uppercase opacity-70">🏫 {tr("Classes & sections", "الصفوف والشعب")}</span>
+            {classTabs.map((c) => <button key={c} type="button" aria-pressed={view === c} onClick={() => setView(c)} className={`${pill} ${view === c ? "!bg-header !text-sun" : ""}`} data-testid="cls-tab">{c.includes("|") ? c.split("|")[1] : `${label(c)} · ${tr("all", "الكل")}`}</button>)}
+          </div>}
         </div>
         {err && <p className="rounded-2xl bg-rose-100 px-4 py-2 text-sm text-rose-800">{err}</p>}
         {roster === null ? <p className="opacity-70">{tr("Loading…", "جارٍ التحميل…")}</p> : !shown.length ? <p className="glass rounded-3xl p-8 text-center opacity-80">{tr("No students here yet.", "لا يوجد طلاب هنا بعد.")}</p> : (
@@ -272,7 +279,7 @@ export function LmsPointsPage() {
           <button type="button" className={pill} onClick={() => window.print()} data-testid="pts-print">🖨 {tr("Print / PDF", "طباعة / PDF")}</button>
         </div>
         <div className="glass flex flex-wrap items-center gap-2 rounded-3xl p-3 print:hidden">
-          <select className={inp + " !w-auto"} value={view} onChange={(e) => { setView(e.target.value); setStu(""); }} data-testid="pts-view"><option value="">{tr("All my students", "كل طلابي")}</option>{classes.map((c) => <option key={c} value={c}>{c.replace("|", " · ")}</option>)}{groups.map((g) => <option key={g.id} value={"g:" + g.id}>👥 {grpLabel(g)}</option>)}</select>
+          <select className={inp + " !w-auto"} value={view} onChange={(e) => { setView(e.target.value); setStu(""); }} data-testid="pts-view"><option value="">{tr("All my students", "كل طلابي")}</option>{groups.map((g) => <option key={g.id} value={"g:" + g.id}>👥 {grpLabel(g)}</option>)}{lmsSession()?.user.role !== "teacher" && [...new Set(classes.flatMap((t) => [t.split("|")[0], t]))].map((c) => <option key={c} value={c}>{c.replace("|", " · ")}</option>)}</select>
           <select className={inp + " !w-auto"} value={stu} onChange={(e) => setStu(e.target.value)} data-testid="pts-student"><option value="">{tr("Any student", "أي طالب")}</option>{roster.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
           <div className="flex flex-wrap gap-1.5" data-testid="pts-range">{RANGES.map((r) => <button key={r[0]} type="button" aria-pressed={range === r[0]} onClick={() => setRange(r[0])} className={`${pill} !py-1 ${range === r[0] ? "!bg-header !text-sun" : ""}`}>{tr(r[1], r[2])}</button>)}</div>
           {range === "custom" && <><input type="date" className={inp + " !w-auto"} value={from} onChange={(e) => setFrom(e.target.value)} /><input type="date" className={inp + " !w-auto"} value={to} onChange={(e) => setTo(e.target.value)} /></>}
