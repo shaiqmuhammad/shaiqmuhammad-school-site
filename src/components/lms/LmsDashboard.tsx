@@ -38,7 +38,9 @@ export function NeedLogin({ adminElsewhere }: { adminElsewhere: boolean }) {
   );
 }
 
-export function LmsDashboard() {
+/** `only="homework"`: the separate Homework page (/lms/homework/) — just the homework list (and, for teachers, New homework). */
+export function LmsDashboard({ only }: { only?: "homework" } = {}) {
+  const hwOnly = only === "homework";
   const { tr, lang } = useTr();
   const router = useRouter();
   const { actor, asAdmin, ready, adminElsewhere } = useLmsActor();
@@ -89,33 +91,33 @@ export function LmsDashboard() {
 
   return (
     <AssessmentShell
-      title={staff ? tr("Teacher Dashboard", "لوحة المعلم") : tr("Student Dashboard", "لوحة الطالب")}
-      exitHref="/"
+      title={hwOnly ? tr("Homework", "الواجبات") : staff ? tr("Teacher Dashboard", "لوحة المعلم") : tr("Student Dashboard", "لوحة الطالب")}
+      exitHref={hwOnly ? "/lms" : "/"}
       wide
       toolbar={actor ? <LmsStaffToolbar /> : undefined}
     >
       <div className="mx-auto w-full max-w-6xl flex-1 space-y-5 px-3 py-5 sm:px-6" data-testid="lms-dashboard">
-        {actor && (
+        {actor && !hwOnly && (
           <div className="relative overflow-hidden rounded-3xl bg-header px-6 py-6 text-white shadow-[0_18px_40px_-24px_rgba(10,25,40,0.8)]">
             <div aria-hidden className="absolute -end-10 -top-10 h-40 w-40 rounded-full bg-sun/30 blur-2xl" />
             <p className="relative text-2xl font-extrabold !text-white sm:text-3xl" data-testid="lms-hello">{tr("Assalamu alaikum", "السلام عليكم")}, <span dir="auto">{actor.name}</span> 👋</p>
             <p className="relative mt-1 text-sm text-white/75">{staff ? tr("Here is your class at a glance.", "هذه نظرة سريعة على صفك.") : tr("Keep going — every verse counts.", "استمر — كل آية لها أجر.")}</p>
           </div>
         )}
-        {!staff && actor && <LiveActivityBanner />}
-        {dash && <AnnFeed />}
-        {dash && <DashCarousel items={((staff ? [
-          { icon: "📝", title: tr("To review", "للمراجعة"), value: dash.homework.reduce((n, h) => n + (Number((h.counts as Record<string, number> | undefined)?.submitted) || 0), 0), sub: tr("submissions waiting", "تسليمات بانتظارك"), href: "/lms#homework", tone: "coral" },
-          { icon: "📚", title: tr("Homework", "الواجبات"), value: dash.homework.length, sub: tr("active", "نشطة"), href: "/lms#homework", tone: "sun" },
+        {!staff && actor && !hwOnly && <LiveActivityBanner />}
+        {dash && !hwOnly && <AnnFeed />}
+        {dash && !hwOnly && <DashCarousel items={((staff ? [
+          { icon: "📝", title: tr("To review", "للمراجعة"), value: dash.homework.reduce((n, h) => n + (Number((h.counts as Record<string, number> | undefined)?.submitted) || 0), 0), sub: tr("submissions waiting", "تسليمات بانتظارك"), href: "/lms/homework", tone: "coral" },
+          { icon: "📚", title: tr("Homework", "الواجبات"), value: dash.homework.length, sub: tr("active", "نشطة"), href: "/lms/homework", tone: "sun" },
           { icon: "🏫", title: tr("My classes", "صفوفي"), value: (dash.classes || []).length, sub: tr("classes & groups", "صفوف ومجموعات"), href: "/lms/classes", tone: "teal" },
           { icon: "🎒", title: tr("Students", "الطلاب"), value: (dash.students || []).length, sub: tr("in my groups", "في مجموعاتي"), href: "/lms/classes", tone: "navy" },
           { icon: "💬", title: tr("Messages", "الرسائل"), value: unread, sub: tr("unread", "غير مقروءة"), href: "/lms/messages", tone: "sky", badge: unread },
           { icon: "🧱", title: tr("Class Wall", "جدار الصف"), sub: tr("share with your class", "شارك مع صفك"), href: "/lms/wall", tone: "mint" },
         ] : [
-          { icon: "✏️", title: tr("Today's homework", "واجب اليوم"), value: dash.homework.filter((h) => !h.locked && (!h.sub || h.sub.status === "draft" || h.sub.status === "returned")).length, sub: dash.homework.find((h) => !h.sub || h.sub.status === "draft")?.title || tr("All done! 🎉", "أنجزت كل شيء! 🎉"), href: "/lms#homework", tone: "sun" },
-          { icon: "🏆", title: tr("My points", "نقاطي"), value: dash.progress ? `${dash.progress.stars} ⭐` : "—", sub: dash.progress ? tr(`${dash.progress.streak}-day streak 🔥`, `${dash.progress.streak} أيام متتالية 🔥`) : "", href: "/lms#homework", tone: "coral" },
+          { icon: "✏️", title: tr("Today's homework", "واجب اليوم"), value: dash.homework.filter((h) => !h.locked && (!h.sub || h.sub.status === "draft" || h.sub.status === "returned")).length, sub: dash.homework.find((h) => !h.sub || h.sub.status === "draft")?.title || tr("All done! 🎉", "أنجزت كل شيء! 🎉"), href: "/lms/homework", tone: "sun" },
+          { icon: "🏆", title: tr("My points", "نقاطي"), value: dash.progress ? `${dash.progress.stars} ⭐` : "—", sub: dash.progress ? tr(`${dash.progress.streak}-day streak 🔥`, `${dash.progress.streak} أيام متتالية 🔥`) : "", href: "/lms/homework", tone: "coral" },
           { icon: "📖", title: tr("Quran progress", "تقدم القرآن"), value: (dash.tracker || []).length, sub: tr("surahs tracked", "سور في المتابعة"), href: "/lms#tracker", tone: "navy" },
-          { icon: "✅", title: tr("Passed", "مُجتاز"), value: dash.homework.filter((h) => h.sub?.status === "approved").length, sub: tr("homework approved", "واجبات معتمدة"), href: "/lms#homework", tone: "teal" },
+          { icon: "✅", title: tr("Passed", "مُجتاز"), value: dash.homework.filter((h) => h.sub?.status === "approved").length, sub: tr("homework approved", "واجبات معتمدة"), href: "/lms/homework", tone: "teal" },
           { icon: "💬", title: tr("Messages", "الرسائل"), value: unread, sub: tr("unread", "غير مقروءة"), href: "/lms/messages", tone: "sky", badge: unread },
           { icon: "🧱", title: tr("Class Wall", "جدار الصف"), sub: tr("see what's new", "شاهد الجديد"), href: "/lms/wall", tone: "mint" },
         ]) as Widget[]).filter((w) => !(staff && ((w.href === "/lms/wall" && actor?.perms?.includes("hide:wall")) || (w.href === "/lms/messages" && actor?.perms?.includes("hide:messaging")) || (w.href === "/lms#homework" && actor?.perms?.includes("hide:homework"))))) } />}
@@ -124,8 +126,8 @@ export function LmsDashboard() {
           <p className="p-10 text-center opacity-70">{tr("Loading…", "جارٍ التحميل…")}</p>
         ) : !staff ? (
           <>
-            {dash.progress && <ProgressCard p={dash.progress} />}
-            <RevisionList tracker={dash.tracker || []} onChange={(t) => setDash({ ...dash, tracker: t })} />
+            {dash.progress && !hwOnly && <ProgressCard p={dash.progress} />}
+            {!hwOnly && <RevisionList tracker={dash.tracker || []} onChange={(t) => setDash({ ...dash, tracker: t })} />}
             <section id="homework" className="scroll-mt-28">
               <h2 className="mb-3 text-xl font-bold">{tr("Homework", "الواجبات")}</h2>
               {dash.homework.length === 0 && <p className={card + " opacity-80"}>{tr("No homework yet — enjoy your day!", "لا توجد واجبات بعد — استمتع بيومك!")}</p>}
@@ -152,7 +154,7 @@ export function LmsDashboard() {
                 })}
               </ul>
             </section>
-            <section id="tracker" className={card + " scroll-mt-28"}>
+            {!hwOnly && <><section id="tracker" className={card + " scroll-mt-28"}>
               <h2 className="text-xl font-bold">📈 {tr("My Quran tracker", "متابعة حفظي")}</h2>
               {(dash.tracker || []).length === 0 ? (
                 <p className="mt-2 opacity-70">{tr("Approved Quran homework will appear here.", "سيظهر هنا واجب القرآن المقبول.")}</p>
@@ -161,7 +163,7 @@ export function LmsDashboard() {
               )}
             </section>
             <Certificates tracker={dash.tracker || []} student={actor?.name || ""} />
-            {dash.leaderboard && <Leaderboard />}
+            {dash.leaderboard && <Leaderboard />}</>}
           </>
         ) : (
           <>
@@ -182,7 +184,7 @@ export function LmsDashboard() {
               </button></DlGate>
               <span className="text-sm opacity-70">{(dash.classes || []).map((c) => `${c.cls || "—"}: ${c.students}`).join(" · ")}</span>
             </div>
-            <div className={card + " py-3"}><LeaderboardSetting /></div>
+            {!hwOnly && <div className={card + " py-3"}><LeaderboardSetting /></div>}
             {creating && (
               <HomeworkEditor classes={dash.classes || []} students={dash.students || []} catalog={dash.catalog} scope={dash.scope} asAdmin={asAdmin} kinds={(dash as { quran?: { add: boolean } }).quran && !(dash as { quran?: { add: boolean } }).quran!.add ? ["general"] : ["quran", "general"]} onCancel={() => setCreating(false)} onSaved={(id) => router.push(`/lms/homework?id=${id}`)} />
             )}

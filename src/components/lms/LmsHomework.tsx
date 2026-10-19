@@ -7,7 +7,7 @@ import { Amiri_Quran } from "next/font/google";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
-import { NeedLogin } from "@/components/lms/LmsDashboard";
+import { LmsDashboard, NeedLogin } from "@/components/lms/LmsDashboard";
 import { AudioClip, AudioRecorder } from "@/components/lms/Audio";
 import { AssessmentShell, primaryBtn } from "@/components/assessment/AssessmentShell";
 import { HomeworkEditor } from "@/components/lms/HomeworkEditor";
@@ -376,7 +376,7 @@ export function LmsHomework() {
   }, [id, asAdmin, tr]);
   useEffect(() => {
     if (!ready) return;
-    if (!actor) return;
+    if (!actor || !id) return;
     load();
     quranChapters().then(setChapters);
   }, [ready, actor, id, load, router]);
@@ -388,9 +388,11 @@ export function LmsHomework() {
   const subtitle = hw?.kind === "quran" && q ? `${ch?.name_simple || `Surah ${q.surah}`} ${ch?.name_arabic || ""} · ${q.from}–${q.to}` : hw?.cls || "";
 
   if (ready && !actor) return <NeedLogin adminElsewhere={adminElsewhere} />;
+  // /lms/homework/ without an id: the separate Homework list page.
+  if (!id) return <LmsDashboard only="homework" />;
 
   return (
-    <AssessmentShell title={hw?.title || tr("Homework", "واجب")} exitHref="/lms" wide={staff} toolbar={actor ? <LmsStaffToolbar /> : undefined}>
+    <AssessmentShell title={hw?.title || tr("Homework", "واجب")} exitHref={actor?.role === "parent" ? "/lms/family" : "/lms/homework"} wide={staff} toolbar={actor ? <LmsStaffToolbar /> : undefined}>
       <div className="mx-auto w-full max-w-5xl flex-1 space-y-4 px-3 py-5 sm:px-6" data-testid="lms-homework">
         {err && <p className="rounded-xl bg-rose-100 px-4 py-2 text-rose-800" role="alert">{err}</p>}
         {!hw ? (

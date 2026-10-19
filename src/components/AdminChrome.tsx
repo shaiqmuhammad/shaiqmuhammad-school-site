@@ -357,7 +357,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
       </aside>
 
       {/* Top bar (phones / tablets) with a slide-in drawer */}
-      <header className="sticky top-0 z-30 border-b border-black/10 bg-white text-heading dark:border-white/10 dark:bg-[#0f1f30] lg:hidden">
+      <header className="sticky top-0 z-30 pt-[env(safe-area-inset-top)] border-b border-black/10 bg-white text-heading dark:border-white/10 dark:bg-[#0f1f30] lg:hidden">
         <div className="flex items-center gap-2 px-3 py-3 sm:gap-3 sm:px-4">
           <button
             type="button"
