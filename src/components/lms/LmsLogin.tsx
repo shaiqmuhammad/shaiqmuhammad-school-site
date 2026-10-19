@@ -51,8 +51,8 @@ export function LmsLogin() {
             <input className={fieldCls + " text-xl"} value={username} onChange={(e) => setUsername(e.target.value)} autoCapitalize="none" autoCorrect="off" autoComplete="username" dir="ltr" data-testid="lms-username" />
           </label>
           <label className="mt-4 block font-semibold">
-            {tr("PIN", "الرقم السري")}
-            <input className={fieldCls + " text-xl tracking-[0.4em]"} value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 8))} inputMode="numeric" type="password" autoComplete="current-password" dir="ltr" data-testid="lms-pin" />
+            {tr("Password / PIN", "كلمة المرور / الرقم السري")}
+            <input className={fieldCls + " text-xl tracking-[0.15em]"} value={pin} onChange={(e) => setPin(e.target.value.slice(0, 64))} type="password" autoCapitalize="none" autoCorrect="off" spellCheck={false} maxLength={64} autoComplete="current-password" dir="ltr" data-testid="lms-pin" />
           </label>
           {err && <p className="mt-3 rounded-xl bg-rose-100 px-4 py-2 text-rose-800 dark:bg-rose-900/40 dark:text-rose-100" role="alert" data-testid="lms-login-error">{err}</p>}
           <button type="submit" className={`${primaryBtn} mt-6 w-full`} disabled={busy || !username.trim() || pin.length < 4} data-testid="lms-login-submit">

@@ -82,7 +82,7 @@ function PersonForm({ role, catalog, initial, onSave, submitLabel, testPrefix, s
       ) : (
         <span className="hidden sm:col-span-2 sm:block" />
       )}
-      {!initial && <input className={inputCls} placeholder={tr("PIN (auto)", "الرقم السري (تلقائي)")} value={f.pin} onChange={(e) => setF({ ...f, pin: e.target.value.replace(/\D/g, "").slice(0, 8) })} inputMode="numeric" dir="ltr" data-testid={`${testPrefix}-pin`} aria-label="PIN" />}
+      {!initial && <input className={inputCls} placeholder={tr("PIN (auto)", "الرقم السري (تلقائي)")} value={f.pin} onChange={(e) => setF({ ...f, pin: e.target.value.slice(0, 64) })} dir="ltr" data-testid={`${testPrefix}-pin`} aria-label="PIN" />}
       {role === "teacher" && (
         <div className="space-y-2 sm:col-span-6">
           {!initial && <><p className="text-sm font-semibold">{tr("Subjects", "المواد")}</p>
@@ -274,7 +274,7 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
     if (role === "student") return (!fCls || u.cls === fCls) && (!fSec || u.section === fSec);
     return (!fSub || u.subjects.includes(fSub)) && true;
   });
-  const errText = (e: string) => ({ username: tr("username must be 3+ letters/numbers", "اسم المستخدم 3 أحرف على الأقل"), username_taken: tr("username already used", "اسم المستخدم مستخدم"), name: tr("name missing", "الاسم مفقود"), pin_digits: tr("PIN must be 4–8 digits", "الرقم السري من 4 إلى 8 أرقام"), admin_only: tr("only the admin can edit teachers", "فقط المدير يعدّل المعلمين"), full: tr("user limit reached", "تم بلوغ الحد"), unknown_class: tr("class not in Classes & Subjects", "الصف غير موجود في القائمة"), unknown_section: tr("section not in that class", "الشعبة ليست في هذا الصف"), unknown_subject: tr("subject not in the list", "المادة غير موجودة"), unknown_scope: tr("class/section not in the list", "الصف/الشعبة غير موجود") })[e] || e;
+  const errText = (e: string) => ({ username: tr("username must be 3+ letters/numbers", "اسم المستخدم 3 أحرف على الأقل"), username_taken: tr("username already used", "اسم المستخدم مستخدم"), name: tr("name missing", "الاسم مفقود"), pin_digits: tr("Password/PIN must be 4–64 characters", "كلمة المرور من 4 إلى 64 حرفًا"), admin_only: tr("only the admin can edit teachers", "فقط المدير يعدّل المعلمين"), full: tr("user limit reached", "تم بلوغ الحد"), unknown_class: tr("class not in Classes & Subjects", "الصف غير موجود في القائمة"), unknown_section: tr("section not in that class", "الشعبة ليست في هذا الصف"), unknown_subject: tr("subject not in the list", "المادة غير موجودة"), unknown_scope: tr("class/section not in the list", "الصف/الشعبة غير موجود") })[e] || e;
   const secOpts = catalog.sections.filter((s) => s.cls === fCls);
   const teacherSections = (u: LmsUser) => u.scope.filter((x) => x.includes("|")).map((x) => x.split("|")[1]);
   // Optional student columns (admin sees every field; teachers only "parent email on file").
