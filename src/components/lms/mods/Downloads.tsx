@@ -38,22 +38,18 @@ export function AdminDownloads() {
       <Toast msg={msg} bad={bad} />
       <section className={cardCls + " space-y-3"}>
         <h3 className="font-extrabold">🎒 {tr("All students", "كل الطلاب")}</h3>
-        {row("audio", "Allow downloading audio recordings", "السماح بتنزيل التسجيلات الصوتية")}
+        <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900 dark:bg-amber-900/20 dark:text-amber-100" data-testid="dl-audio-fixed">🔒 {tr("Audio downloads are always OFF for students, parents and QR pages (fixed rule — playback still works).", "تنزيل الصوت متوقف دائمًا للطلاب وأولياء الأمور وصفحات QR (قاعدة ثابتة — التشغيل يعمل).")}</p>
         {row("export", "Allow Excel / PDF downloads (results, certificates, reports)", "السماح بتنزيل إكسل / PDF (النتائج، الشهادات، التقارير)")}
-      </section>
-      <section className={cardCls + " space-y-1"}>
-        <label className="flex items-center gap-3 text-sm font-semibold"><input type="checkbox" className="h-5 w-5" checked={cfg.qr !== false} onChange={(e) => save({ ...cfg, qr: e.target.checked })} data-testid="dl-qr" /> {tr("Allow download on QR / parent pages (no account)", "السماح بالتنزيل في صفحات QR / ولي الأمر (بدون حساب)")}</label>
-        <p className="text-xs opacity-70">{tr("Playback always works. This only controls the Download button and direct download requests.", "التشغيل يعمل دائمًا. هذا يتحكم بزر التنزيل وطلبات التنزيل المباشرة فقط.")}</p>
       </section>
       <section className={cardCls}>
         <h3 className="mb-1 font-extrabold">🏫 {tr("Per-class override", "استثناء لكل صف")}</h3>
         <p className="mb-3 text-xs opacity-70">{tr("“Default” follows the all-students switch above.", "«افتراضي» يتبع مفتاح كل الطلاب أعلاه.")}</p>
         {!classes.length ? <p className="text-sm opacity-60">{tr("No classes yet.", "لا توجد صفوف بعد.")}</p> : (
-          <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="text-start"><th className="py-1 text-start">{tr("Class", "الصف")}</th><th className="text-start">{tr("Audio download", "تنزيل الصوت")}</th><th className="text-start">{tr("Excel / PDF", "إكسل / PDF")}</th></tr></thead>
+          <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="text-start"><th className="py-1 text-start">{tr("Class", "الصف")}</th><th className="text-start">{tr("Excel / PDF", "إكسل / PDF")}</th></tr></thead>
             <tbody>{classes.map((c) => (
               <tr key={c} className="border-t border-black/10 dark:border-white/10" data-testid="dl-class-row">
                 <td className="py-1.5 font-semibold" dir="auto">{c}</td>
-                {(["audio", "export"] as const).map((k) => (
+                {(["export"] as const).map((k) => (
                   <td key={k}><select className={field + " !w-auto !py-1"} value={ov(c, k)} onChange={(e) => setOv(c, k, e.target.value)} data-testid={`dl-class-${k}`} aria-label={`${c} ${k}`}>
                     <option value="">{tr("Default", "افتراضي")}</option><option value="1">{tr("Allow", "سماح")}</option><option value="0">{tr("Block", "منع")}</option>
                   </select></td>

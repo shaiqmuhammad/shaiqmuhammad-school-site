@@ -108,7 +108,7 @@ export function AudioRecorder({ label, onSave, testId = "rec", saveLabel }: { la
       )}
       {(state === "done" || state === "saving") && blob && (
         <div className="space-y-2">
-          <audio controls src={url} className="w-full" data-testid={`${testId}-preview`} />
+          <audio controls src={url} controlsList="nodownload" onContextMenu={(e) => e.preventDefault()} className="w-full" data-testid={`${testId}-preview`} />
           <div className="flex flex-wrap gap-2">
             <button type="button" className={smallBtn} disabled={state === "saving"} onClick={async () => { setState("saving"); setErr(""); try { await onSave(blob); setBlob(null); setState("idle"); } catch (e) { setErr(lmsErrorText(e, tr)); setState("done"); } }} data-testid={`${testId}-save`}>
               {state === "saving" ? tr("Saving…", "جارٍ الحفظ…") : "⬆ " + (saveLabel || tr("Save recording", "حفظ التسجيل"))}
@@ -138,7 +138,7 @@ export function AudioClip({ id, asAdmin = false, label, onDelete, testId = "clip
         <button type="button" className={smallBtn} onClick={() => lmsApi.audioUrl(id, asAdmin).then(setSrc).catch((e) => setErr(lmsErrorText(e, tr)))} data-testid={`${testId}-load`}>▶ {tr("Play recording", "تشغيل التسجيل")}</button>
       ) : (
         <>
-          <audio controls autoPlay src={src.url} className="h-10 max-w-full" data-testid={`${testId}-audio`} />
+          <audio controls autoPlay src={src.url} controlsList={dl.audio ? undefined : "nodownload"} onContextMenu={dl.audio ? undefined : (e) => e.preventDefault()} className="h-10 max-w-full" data-testid={`${testId}-audio`} />
           {dl.audio && <button type="button" className={smallBtn} onClick={() => lmsApi.audioUrl(id, asAdmin, true).then((r) => { const a = document.createElement("a"); a.href = r.url; a.download = `recording-${id}.${ext}`; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(r.url), 4000); }).catch((e) => { setErr(lmsErrorText(e, tr)); refreshDl(); })} data-testid={`${testId}-download`}>⬇ {tr("Download", "تنزيل")}</button>}
         </>
       )}

@@ -334,12 +334,14 @@ export class LmsStore extends DurableObject<LmsEnv> {
 
   private dlCfg(): DlCfg { try { return JSON.parse(this.setting("dl:cfg", "{}")) as DlCfg; } catch { return {}; } }
   /** Account-less pages (QR homework card, public links): may audio be downloaded? Default yes. */
-  async qrDlAllowed(): Promise<boolean> { return this.dlCfg().qr !== false; }
+  async qrDlAllowed(): Promise<boolean> { return false; } // fixed rule: account-less (QR / parent link) pages never download audio
   /** May this person download (kind)? Admin always. */
   dlOf(a: Actor, kind: DlKind): boolean {
     if (a.role === "admin") return true;
     if (a.role === "teacher") return !a.perms.includes(`nodl:${kind}`);
     if (a.role !== "student") return false;
+    // Fixed rule: students can never download audio, whatever the admin switches say.
+    if (kind === "audio") return false;
     const c = this.dlCfg();
     const o = c.classes?.[a.cls]?.[kind];
     if (typeof o === "boolean") return o;

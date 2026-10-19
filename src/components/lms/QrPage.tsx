@@ -24,8 +24,7 @@ export function QrPage() {
   const audio = (id: string, label: string, testId: string) => (
     <div className="space-y-1" data-testid={testId}>
       <p className="text-sm font-semibold">{label}</p>
-      <audio controls preload="none" className="w-full" src={lmsApi.qrAudioUrl(t, id)} controlsList={d?.dl === false ? "nodownload noplaybackrate" : undefined} onContextMenu={d?.dl === false ? (e) => e.preventDefault() : undefined} />
-      {d?.dl !== false && <button type="button" className="rounded-full border border-black/15 bg-white/80 px-3 py-1 text-xs font-bold dark:bg-white/10" data-testid={`${testId}-download`} onClick={async () => { const r = await fetch(lmsApi.qrAudioUrl(t, id, true)).catch(() => null); if (!r?.ok) { setBad(r?.status === 403 ? false : bad); alert(tr("Downloads are switched off.", "التنزيل غير مفعّل.")); return; } const u = URL.createObjectURL(await r.blob()); const a = document.createElement("a"); a.href = u; a.download = `recording-${id}.webm`; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 4000); }}>⬇ {tr("Download", "تنزيل")}</button>}
+      <audio controls preload="none" className="w-full" src={lmsApi.qrAudioUrl(t, id)} controlsList="nodownload noplaybackrate" onContextMenu={(e) => e.preventDefault()} />
     </div>
   );
   const q = d?.homework.data as QuranData | undefined;
