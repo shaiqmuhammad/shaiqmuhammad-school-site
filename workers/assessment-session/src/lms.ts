@@ -600,7 +600,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     if (!a.viewAs) this.presence(a);
     // Per-module Show/Hide for teachers ("hide:<module>" in perms). Hidden modules answer 403 on the server, not just in the menu.
     if (a.role === "teacher") {
-      const mod = /^msg-/.test(action) ? "messaging" : /^wall-/.test(action) ? "wall" : /^act-/.test(action) ? "activities" : /^(hw-save|hw-delete|hw-unlock|sub-review)$/.test(action) ? "homework" : /^(assess-|tquiz-)/.test(action) ? "assessments" : "";
+      const mod = action === "assess-results" ? "results" : /^msg-/.test(action) ? "messaging" : /^wall-/.test(action) ? "wall" : /^act-/.test(action) ? "activities" : /^(hw-save|hw-delete|hw-unlock|sub-review)$/.test(action) ? "homework" : /^(assess-|tquiz-)/.test(action) ? "assessments" : "";
       if (mod && a.perms.includes(`hide:${mod}`)) return { status: 403, body: { error: "module_hidden" } };
     }
     if (a.role === "parent" && !(input as Record<symbol, unknown>)[PASS]) return this.parentHandle(a, action, input);
@@ -642,7 +642,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
           const role: Role = raw.role === "teacher" ? "teacher" : "student";
           // Only the admin can create or edit teachers.
           if (role === "teacher" && a.role !== "admin") { errors.push({ row: i + 1, username, error: "admin_only" }); continue; }
-          const perms = role === "teacher" ? (Array.isArray(raw.perms) ? (raw.perms as unknown[]).map(String).filter((p) => (PERMS as readonly string[]).includes(p) || STU_PERM.test(p) || /^(act|host):[\w*-]{1,80}$/.test(p) || /^(att|beh):(view|edit)$|^cur:(view|edit|delete)$|^qhw:(set|show|view|add|edit|delete)$|^nodl:(audio|export)$|^hide:(messaging|wall|activities|homework|assessments)$/.test(p)).slice(0, 80) : ["assign", "review"]) : [];
+          const perms = role === "teacher" ? (Array.isArray(raw.perms) ? (raw.perms as unknown[]).map(String).filter((p) => (PERMS as readonly string[]).includes(p) || STU_PERM.test(p) || /^(act|host):[\w*-]{1,80}$/.test(p) || /^(att|beh):(view|edit)$|^cur:(view|edit|delete)$|^qhw:(set|show|view|add|edit|delete)$|^nodl:(audio|export)$|^hide:(messaging|wall|activities|homework|assessments|results)$/.test(p)).slice(0, 80) : ["assign", "review"]) : [];
           const cls = str(raw.cls, 40);
           const section = role === "student" ? str(raw.section, 40) : "";
           const subjects = role === "teacher" ? strList(raw.subjects) : [];

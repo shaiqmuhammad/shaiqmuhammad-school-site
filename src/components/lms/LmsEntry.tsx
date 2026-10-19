@@ -156,7 +156,7 @@ function TeacherMenu({ ar }: { ar: boolean }) {
   ];
   const qp = qhwPerm(perms);
   const groups: [string, string, Item[]][] = groups0.map(([id, g, its]) => {
-    let out = its.filter(([h]) => h !== "/lms/map" || qp.show);
+    let out = its.filter(([h]) => (h !== "/lms/map" || qp.show) && (h !== "/lms/results" || !perms.includes("hide:results")));
     if (id === "assess" && qp.show) out = [...out, ["/lms/quran", t("Quran Homework", "واجب القرآن"), "M4 5h6a2 2 0 0 1 2 2v13a2 2 0 0 0-2-2H4zM20 5h-6a2 2 0 0 0-2 2v13a2 2 0 0 1 2-2h6z"]];
     return [id, g, out];
   });

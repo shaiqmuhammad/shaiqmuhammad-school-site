@@ -614,7 +614,7 @@ function ModuleAccess({ perms, setPerms, teachers }: { perms: string[]; setPerms
     const t: string[] = [];
     if (kind === "full") t.push("att:view", "att:edit", "beh:view", "beh:edit", "cur:view", "cur:edit", "cur:delete", "qhw:set", "qhw:show", "qhw:view", "qhw:add", "qhw:edit", "qhw:delete");
     if (kind === "view") t.push("att:view", "beh:view", "cur:view", "qhw:set", "qhw:show", "qhw:view", "nodl:audio", "nodl:export");
-    if (kind === "min") t.push("hide:messaging", "hide:wall", "hide:activities", "qhw:set", "nodl:audio", "nodl:export");
+    if (kind === "min") t.push("hide:messaging", "hide:wall", "hide:activities", "hide:results", "qhw:set", "nodl:audio", "nodl:export");
     setPerms([...rest, ...t]);
     setNote(kind === "full" ? tr("Preset applied: Full access — remember to Save.", "تم تطبيق: وصول كامل — لا تنس الحفظ.") : kind === "view" ? tr("Preset applied: View only — remember to Save.", "تم تطبيق: عرض فقط — لا تنس الحفظ.") : tr("Preset applied: Minimal — remember to Save.", "تم تطبيق: الحد الأدنى — لا تنس الحفظ."));
   };
@@ -626,7 +626,7 @@ function ModuleAccess({ perms, setPerms, teachers }: { perms: string[]; setPerms
   );
   const sub = (on: boolean, kids: React.ReactNode) => on ? <div className="ms-4 flex flex-wrap gap-x-4 gap-y-1 border-s-2 border-black/10 ps-3 text-sm dark:border-white/15">{kids}</div> : null;
   const cb = (checked: boolean, onChange: (v: boolean) => void, label: string, id: string) => <label className="flex items-center gap-1.5"><input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} data-testid={id} /> {label}</label>;
-  const simple: [string, string, string][] = [["messaging", "💬 Messaging", "💬 الرسائل"], ["wall", "🧱 Class Wall", "🧱 جدار الصف"], ["activities", "🎲 Activities", "🎲 الأنشطة"], ["homework", "📝 Homework", "📝 الواجبات"], ["assessments", "✅ Assessments", "✅ التقييمات"]];
+  const simple: [string, string, string][] = [["messaging", "💬 Messaging", "💬 الرسائل"], ["wall", "🧱 Class Wall", "🧱 جدار الصف"], ["activities", "🎲 Activities", "🎲 الأنشطة"], ["homework", "📝 Homework", "📝 الواجبات"], ["assessments", "✅ Assessments", "✅ التقييمات"], ["results", "📊 Assessment Results", "📊 نتائج التقييمات"]];
   const fine: [string, string, string, boolean][] = [["att", "🗓️ Attendance Register", "🗓️ سجل الحضور", false], ["beh", "🌟 Behaviour", "🌟 السلوك", false], ["cur", "📚 Curriculum", "📚 المنهج", true]];
   const qOps: ["view" | "add" | "edit" | "delete", string, string][] = [["view", "View", "عرض"], ["add", "Add", "إضافة"], ["edit", "Edit", "تعديل"], ["delete", "Delete", "حذف"]];
   return (
