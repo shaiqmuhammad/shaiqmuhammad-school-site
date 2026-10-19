@@ -7,7 +7,7 @@ import { AnnFeed } from "@/components/lms/Messages";
 import { CriteriaChart, TrackerEntries } from "@/components/lms/QuranScores";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { DashCarousel, useUnreadMsgs } from "@/components/lms/DashWidgets";
+import { DashCarousel, useUnreadMsgs, type Widget } from "@/components/lms/DashWidgets";
 import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
 import { AssessmentShell, primaryBtn } from "@/components/assessment/AssessmentShell";
 import { HomeworkEditor } from "@/components/lms/HomeworkEditor";
@@ -104,7 +104,7 @@ export function LmsDashboard() {
         )}
         {!staff && actor && <LiveActivityBanner />}
         {dash && <AnnFeed />}
-        {dash && <DashCarousel items={staff ? [
+        {dash && <DashCarousel items={((staff ? [
           { icon: "📝", title: tr("To review", "للمراجعة"), value: dash.homework.reduce((n, h) => n + (Number((h.counts as Record<string, number> | undefined)?.submitted) || 0), 0), sub: tr("submissions waiting", "تسليمات بانتظارك"), href: "/lms#homework", tone: "coral" },
           { icon: "📚", title: tr("Homework", "الواجبات"), value: dash.homework.length, sub: tr("active", "نشطة"), href: "/lms#homework", tone: "sun" },
           { icon: "🏫", title: tr("My classes", "صفوفي"), value: (dash.classes || []).length, sub: tr("classes & groups", "صفوف ومجموعات"), href: "/lms/classes", tone: "teal" },
@@ -118,7 +118,7 @@ export function LmsDashboard() {
           { icon: "✅", title: tr("Passed", "مُجتاز"), value: dash.homework.filter((h) => h.sub?.status === "approved").length, sub: tr("homework approved", "واجبات معتمدة"), href: "/lms#homework", tone: "teal" },
           { icon: "💬", title: tr("Messages", "الرسائل"), value: unread, sub: tr("unread", "غير مقروءة"), href: "/lms/messages", tone: "sky", badge: unread },
           { icon: "🧱", title: tr("Class Wall", "جدار الصف"), sub: tr("see what's new", "شاهد الجديد"), href: "/lms/wall", tone: "mint" },
-        ]} />}
+        ]) as Widget[]).filter((w) => !(staff && ((w.href === "/lms/wall" && actor?.perms?.includes("hide:wall")) || (w.href === "/lms/messages" && actor?.perms?.includes("hide:messaging")) || (w.href === "/lms#homework" && actor?.perms?.includes("hide:homework"))))) } />}
         {err && <p className="rounded-xl bg-rose-100 px-4 py-2 text-rose-800" role="alert">{err}</p>}
         {!dash ? (
           <p className="p-10 text-center opacity-70">{tr("Loading…", "جارٍ التحميل…")}</p>
