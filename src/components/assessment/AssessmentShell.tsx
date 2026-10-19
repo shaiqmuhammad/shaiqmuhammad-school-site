@@ -3,6 +3,7 @@
 import { LmsTabs } from "@/components/lms/LmsTabs";
 import { useLmsExit } from "@/lib/useLmsExit";
 import Link from "next/link";
+import { GregPill, HijriPill } from "@/components/DatePills";
 import { lmsRenew } from "@/lib/lms";
 import { useEffect, type ReactNode } from "react";
 import { LanguageToggle } from "@/components/LanguageToggle";
@@ -49,7 +50,7 @@ export function AssessmentShell({ title, exitHref = "/assessments", onExit, seco
 
       {rail && <LmsTabs />}
       <div className="relative z-10 flex min-w-0 flex-1 flex-col">
-      <header className="relative z-20 bg-header text-white shadow-[0_6px_20px_-10px_rgba(10,25,40,0.6)]">
+      <header className="relative z-20 border-b border-[#0f2438] bg-header text-white" data-testid="lms-header">
         <div className={`mx-auto flex ${wide ? "max-w-[1800px]" : "max-w-5xl"} items-center gap-3 px-3 py-2.5 sm:px-6`}>
           <Link
             href={exitTo}
@@ -64,6 +65,7 @@ export function AssessmentShell({ title, exitHref = "/assessments", onExit, seco
               <path d="M6 6l12 12M18 6L6 18" />
             </svg>
           </Link>
+          {rail && <span className="hidden md:inline-flex"><HijriPill /></span>}
           {title ? (
             <p className="min-w-0 flex-1 truncate text-sm font-extrabold text-white sm:text-base">{title}</p>
           ) : (
@@ -89,6 +91,7 @@ export function AssessmentShell({ title, exitHref = "/assessments", onExit, seco
               <span dir="ltr">{formatClock(secondsLeft as number)}</span>
             </div>
           )}
+          {rail && <span className="hidden md:inline-flex"><GregPill /></span>}
           {actions}
           {toolbar ?? (
             <>
@@ -97,6 +100,7 @@ export function AssessmentShell({ title, exitHref = "/assessments", onExit, seco
             </>
           )}
         </div>
+        {rail && <div className="flex items-center justify-between gap-2 border-t border-white/10 px-3 py-1.5 md:hidden" data-testid="lms-date-row"><HijriPill compact /><GregPill compact /></div>}
         {progress && progress.total > 0 && (
           <div className="mx-auto flex max-w-5xl gap-1 px-3 pb-2.5 sm:px-6" aria-label={a("questionOf", { i: progress.current + 1, n: progress.total })}>
             {Array.from({ length: progress.total }, (_, i) => {
@@ -124,7 +128,7 @@ export function AssessmentShell({ title, exitHref = "/assessments", onExit, seco
         )}
       </header>
 
-      <main className="relative z-10 flex min-w-0 flex-1 flex-col [&>*]:min-w-0">{children}</main>
+      <main className={`relative z-10 flex min-w-0 flex-1 flex-col [&>*]:min-w-0 ${rail ? "pt-3 sm:pt-4" : ""}`}>{children}</main>
       </div>
     </div>
   );

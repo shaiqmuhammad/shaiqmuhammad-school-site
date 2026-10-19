@@ -1,6 +1,7 @@
 "use client";
 
 import { useLogoUrl } from "@/components/SiteBrand";
+import { GregPill, HijriPill } from "@/components/DatePills";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AdminToolbar } from "@/components/AdminToolbar";
 import { MsgIcon } from "@/components/lms/Messages";
@@ -356,7 +357,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
       </aside>
 
       {/* Top bar (phones / tablets) with a slide-in drawer */}
-      <header className="sticky top-0 z-30 border-b border-black/5 bg-white/95 text-heading shadow-[0_4px_16px_-12px_rgba(10,25,40,0.35)] backdrop-blur dark:border-white/10 dark:bg-[#0f1f30]/95 lg:hidden">
+      <header className="sticky top-0 z-30 border-b border-black/10 bg-white text-heading dark:border-white/10 dark:bg-[#0f1f30] lg:hidden">
         <div className="flex items-center gap-2 px-3 py-3 sm:gap-3 sm:px-4">
           <button
             type="button"
@@ -375,6 +376,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
           <MailIcon unread={mailUnread} onClick={() => onTab("mail")} label={tr("Mailbox", "البريد")} />
           <AdminToolbar variant="glass" onLogout={onLogout} bell={<LmsBell asAdmin testId="admin-bell" variant={"glass"} extra={onBell ? { count: pendingCount, label: tr(`${pendingCount} forum post${pendingCount === 1 ? "" : "s"} waiting for approval`, `${pendingCount} مشاركة في المنتدى بانتظار الموافقة`), onClick: onBell } : undefined} />} />
         </div>
+        <div className="flex items-center justify-between gap-2 border-t border-black/5 px-3 py-1.5 dark:border-white/10" data-testid="admin-date-row"><HijriPill tone="light" compact /><GregPill tone="light" compact /></div>
         {<div className="border-t border-black/5 px-3 pb-2 pt-1.5 dark:border-white/10">{quickStrip(true)}</div>}
       </header>
       {drawer && (
@@ -407,8 +409,10 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
       )}
 
       <main className="min-w-0 flex-1">
-        <div className="sticky top-0 z-30 hidden items-center gap-3 border-b border-black/5 bg-white/90 px-6 py-2.5 shadow-[0_4px_18px_-14px_rgba(10,25,40,0.35)] backdrop-blur dark:border-white/10 dark:bg-[#0f1f30]/90 lg:flex" data-testid="admin-toolbar-wrap">
+        <div className="sticky top-0 z-30 hidden items-center gap-3 border-b border-black/10 bg-white px-6 py-2.5 dark:border-white/10 dark:bg-[#0f1f30] lg:flex" data-testid="admin-toolbar-wrap">
+          <HijriPill tone="light" />
           <div className="min-w-0 flex-1">{quickStrip()}</div>
+          <GregPill tone="light" />
           <MsgIcon variant="glass" asAdmin onClick={() => onTab("messages")} />
           <MailIcon unread={mailUnread} onClick={() => onTab("mail")} label={tr(`Mailbox${mailUnread ? ` (${mailUnread} unread)` : ""}`, `البريد${mailUnread ? ` (${mailUnread} غير مقروءة)` : ""}`)} />
             <AdminToolbar variant="glass" onLogout={onLogout} bell={<LmsBell asAdmin testId="admin-bell" variant={"glass"} extra={onBell ? { count: pendingCount, label: tr(`${pendingCount} forum post${pendingCount === 1 ? "" : "s"} waiting for approval`, `${pendingCount} مشاركة في المنتدى بانتظار الموافقة`), onClick: onBell } : undefined} />} />
