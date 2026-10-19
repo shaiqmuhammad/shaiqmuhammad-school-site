@@ -27,6 +27,7 @@ export type Announcement = { id: string; title: string; body: string; aud: "all"
 export type WallPost = { id: string; name: string; text: string; hasImage: boolean; hasAudio: boolean; pinned: boolean; at: number; likes: number; liked: boolean; comments: { id: string; name: string; role: string; text: string; at: number }[] };
 export type LiveActivity = { code: string; type: string; title: string; teacher: string; at: number };
 export type MsgContact = { id: string; name: string; role: string; cls: string; seen?: number };
+export type CorrectedItem = { id: string; hw: string; title: string; data: QuranData; student: string; name: string; cls: string; section: string; grade: Grade; status: string; scores: Scores | null; gradedAt: number; by: string };
 export type MsgThread = { thread: string; with: string; withName: string; people: string[]; mine: boolean; last: number; preview: string; unread: number };
 export type ParentContact = { student: string; studentName: string; cls: string; parentName: string; canMail: boolean };
 export type ParentThread = { thread: string; student: string; studentName: string; cls: string; parentName: string; teacherName: string; last: number; count: number; unread: number; preview: string; lastDir: string };
@@ -206,6 +207,7 @@ export const lmsApi = {
   deleteHomework: (id: string, asAdmin = false) => call<{ ok: true }>("hw-delete", { id }, { asAdmin }),
   homework: (id: string, asAdmin = false) =>
     call<{ homework: Homework; sub?: Submission | null; subs?: (Submission & { student: string; name: string; cls: string })[]; notStarted?: { id: string; name: string }[] }>("hw", undefined, { asAdmin, query: { id } }),
+  corrected: (asAdmin = false) => call<{ items: CorrectedItem[] }>("corrected", {}, { asAdmin }),
   saveSub: (hw: string, text: string, practised: boolean, submit: boolean) => call<{ ok: true; sub: Submission }>("sub-save", { hw, text, practised, submit }),
   review: (id: string, patch: { comment?: string; like?: boolean; status?: "approved" | "returned"; grade?: Grade; scores?: { m: Level; t: Level; r: Level; notes?: { m?: string; t?: string; r?: string } } }, asAdmin = false) => call<{ ok: true }>("sub-review", { id, ...patch }, { asAdmin }),
   catalog: (asAdmin = false) => call<Catalog>("catalog", undefined, { asAdmin }),

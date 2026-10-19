@@ -191,6 +191,7 @@ function StudentWork({ hw, sub, reload, chapters = [] }: { hw: Data["homework"];
   const [practised, setPractised] = useState(sub?.practised || false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
+  const [draftOk, setDraftOk] = useState(false);
   // The card remounts after a reload; keep the "submitted" success message across that remount.
   const [justSent] = useState(() => { try { const v = sessionStorage.getItem("sm_hw_sent") === hw.id; if (v) sessionStorage.removeItem("sm_hw_sent"); return v; } catch { return false; } });
   const locked = sub?.status === "approved" || sub?.status === "submitted" || !!hw.locked;
@@ -230,20 +231,20 @@ function StudentWork({ hw, sub, reload, chapters = [] }: { hw: Data["homework"];
             <AudioClip id={sub.audio} label={"🎙️ " + tr("My recitation", "تلاوتي")} testId="my-rec" onDelete={locked ? undefined : async () => { if (confirm(tr("Delete this recording?", "حذف هذا التسجيل؟"))) { await lmsApi.audioDelete(sub.audio!).catch(() => undefined); reload(); } }} />
           ) : null}
 {sub?.status === "submitted" && <p className="rounded-2xl bg-emerald-50 px-3 py-2 font-semibold text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200" data-testid="rec-sent">✅ {tr("Submitted — waiting for your teacher.", "تم التسليم — بانتظار معلمك.")}</p>}
-          {!locked && sub?.status !== "approved" && <AudioRecorder label={sub?.audio ? tr("Record again (replaces the old one)", "سجّل مجددًا (يستبدل القديم)") : tr("Record your recitation (up to 3 minutes)", "سجّل تلاوتك (حتى 3 دقائق)")} testId="rec-student" saveLabel={tr("Save recording", "حفظ التسجيل")} onSave={async (b) => { await lmsApi.audioUpload({ hw: hw.id }, b); setMsg(tr("Recording saved ✓ — press “Submit Your Homework” when you are ready.", "تم حفظ التسجيل ✓ — اضغط «سلّم واجبك» عندما تكون جاهزًا.")); reload(); }} />}
+          {!locked && sub?.status !== "approved" && <AudioRecorder label={sub?.audio ? tr("Record again (replaces the old one)", "سجّل مجددًا (يستبدل القديم)") : tr("Record your recitation (up to 3 minutes)", "سجّل تلاوتك (حتى 3 دقائق)")} testId="rec-student" big autoSave onSave={async (b) => { await lmsApi.audioUpload({ hw: hw.id }, b); setDraftOk(true); }} />}
         </>
       ) : (
         <>
           {(hw.data as GeneralData).question && <p className="text-lg font-semibold" dir="auto">{(hw.data as GeneralData).question}</p>}
           {sub?.audio && <AudioClip id={sub.audio} label={"🎙️ " + tr("My audio answer", "إجابتي الصوتية")} testId="my-rec" onDelete={locked ? undefined : async () => { if (confirm(tr("Delete this recording?", "حذف هذا التسجيل؟"))) { await lmsApi.audioDelete(sub.audio!).catch(() => undefined); reload(); } }} />}
 {sub?.status === "submitted" && <p className="rounded-2xl bg-emerald-50 px-3 py-2 font-semibold text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200" data-testid="rec-sent">✅ {tr("Submitted — waiting for your teacher.", "تم التسليم — بانتظار معلمك.")}</p>}
-          {!locked && sub?.status !== "approved" && <AudioRecorder label={tr("Audio answer (optional, up to 3 minutes)", "إجابة صوتية (اختياري، حتى 3 دقائق)")} testId="rec-student" saveLabel={tr("Save recording", "حفظ التسجيل")} onSave={async (b) => { await lmsApi.audioUpload({ hw: hw.id }, b); setMsg(tr("Recording saved ✓ — press “Submit Your Homework” when you are ready.", "تم حفظ التسجيل ✓ — اضغط «سلّم واجبك» عندما تكون جاهزًا.")); reload(); }} />}
+          {!locked && sub?.status !== "approved" && <AudioRecorder label={tr("Audio answer (optional, up to 3 minutes)", "إجابة صوتية (اختياري، حتى 3 دقائق)")} testId="rec-student" big autoSave onSave={async (b) => { await lmsApi.audioUpload({ hw: hw.id }, b); setDraftOk(true); }} />}
         </>
       )}
       <textarea className={inputCls + " min-h-28"} value={text} onChange={(e) => setText(e.target.value)} disabled={locked} maxLength={4000} dir="auto" placeholder={hw.kind === "quran" ? tr("A note for your teacher (optional)", "ملاحظة لمعلمك (اختياري)") : tr("Your answer", "إجابتك")} data-testid="hw-text" />
       {!locked && (
         <div className="flex flex-wrap gap-2">
-          <button type="button" className={primaryBtn} disabled={busy || (hw.kind === "general" ? !text.trim() && !sub?.audio : !practised || !sub?.audio)} onClick={() => { if (confirm(tr("Submit your homework now? You can only submit once.", "تسليم واجبك الآن؟ يمكنك التسليم مرة واحدة فقط."))) save(true); }} data-testid="hw-submit">📤 {tr("Submit Your Homework", "سلّم واجبك")}</button>
+          <button type="button" className={primaryBtn} disabled={busy || (hw.kind === "general" ? !text.trim() && !(sub?.audio || draftOk) : !practised || !(sub?.audio || draftOk))} onClick={() => { if (confirm(tr("Submit your homework now? You can only submit once.", "تسليم واجبك الآن؟ يمكنك التسليم مرة واحدة فقط."))) save(true); }} data-testid="hw-submit">📤 {tr("Submit Your Homework", "سلّم واجبك")}</button>
           <button type="button" className={smallBtn} disabled={busy} onClick={() => save(false)} data-testid="hw-draft">{tr("Save for later", "حفظ لاحقًا")}</button>
         </div>
       )}
@@ -283,7 +284,8 @@ const PRESETS: [string, string][] = [
   ["Great effort! Listen to the reciter again before recording.", "جهد رائع! استمع للقارئ مرة أخرى قبل التسجيل."],
 ];
 
-function Review({ s, asAdmin, reload, quran, qdata }: { s: NonNullable<Data["subs"]>[number]; asAdmin: boolean; reload: () => void; quran: boolean; qdata?: QuranData }) {
+function Review({ s, asAdmin, reload, quran, qdata, regrade = false, onGraded }: { s: NonNullable<Data["subs"]>[number]; asAdmin: boolean; reload: () => void; quran: boolean; qdata?: QuranData; regrade?: boolean; onGraded?: () => void }) {
+  const [editGrade, setEditGrade] = useState(false);
   const { tr } = useTr();
   const [marking, setMarking] = useState(false);
   const [mistakes, setMistakes] = useState<Mistake[]>(s.mistakes || []);
@@ -316,9 +318,14 @@ function Review({ s, asAdmin, reload, quran, qdata }: { s: NonNullable<Data["sub
         <button type="button" className={smallBtn} onClick={() => act({ like: !s.liked })} aria-pressed={s.liked} data-testid="hw-like">{s.liked ? "❤️" : "🤍"} {tr("Like", "إعجاب")}</button>
         {s.grade && <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${GRADE_STYLE[s.grade]}`} data-testid="hw-sub-grade">{gradeLabel(s.grade, tr)}</span>}
         {quran ? (
-          s.status === "submitted" && (
-            <ScoreGrader onSubmit={(sc) => act({ scores: sc })} />
-          )
+          s.status === "submitted" || editGrade ? (
+            <ScoreGrader onSubmit={async (sc) => { await act({ scores: sc }); setEditGrade(false); onGraded?.(); }} />
+          ) : regrade ? (
+            <span className="flex flex-wrap gap-2">
+              <button type="button" className={smallBtn} onClick={() => setEditGrade(true)} data-testid="hw-edit-grade">✎ {tr("Edit grade", "تعديل التقييم")}</button>
+              {s.status === "approved" && <button type="button" className={smallBtn} onClick={() => { if (confirm(tr("Reopen this homework? The student will be asked to practise and submit again.", "إعادة فتح هذا الواجب؟ سيُطلب من الطالب التدرّب والتسليم مجددًا."))) act({ status: "returned" }); }} data-testid="hw-reopen">↺ {tr("Reopen for student", "إعادة فتح للطالب")}</button>}
+            </span>
+          ) : null
         ) : s.status !== "approved" && <button type="button" className="rounded-full bg-emerald-600 px-3 py-1.5 text-sm font-bold text-white" onClick={() => act({ status: "approved" })} data-testid="hw-approve">✓ {tr("Approve", "قبول")}</button>}
         {!quran && s.status !== "returned" && <button type="button" className={smallBtn} onClick={() => act({ status: "returned" })} data-testid="hw-return">↺ {tr("Ask to try again", "اطلب المحاولة مجددًا")}</button>}
       </div>
@@ -350,6 +357,10 @@ function Review({ s, asAdmin, reload, quran, qdata }: { s: NonNullable<Data["sub
 
 /** One homework: student does it; teacher sees every submission and reviews. */
 export function LmsHomework() {
+  const [subTab, setSubTab] = useState<"cur" | "corr">("cur");
+  const [gradeMsg, setGradeMsg] = useState("");
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- deep link from the Corrected homework page
+  useEffect(() => { if (window.location.hash === "#corrected") setSubTab("corr"); }, []);
   const { tr, lang } = useTr();
   const router = useRouter();
   const id = useSearchParams().get("id") || "";
@@ -431,12 +442,32 @@ export function LmsHomework() {
             {!staff && <StudentWork key={d?.sub?.updated || 0} hw={hw} sub={d?.sub || null} reload={load} chapters={chapters} />}
             {staff && (
               <section className="space-y-3">
-                <h2 className="text-xl font-bold">{tr("Submissions", "التسليمات")} ({d?.subs?.length || 0})</h2>
-                <ul className="space-y-3">
-                  {(d?.subs || []).map((s) => (
-                    <Review quran={d.homework.kind === "quran"} qdata={d.homework.kind === "quran" ? (d.homework.data as QuranData) : undefined} key={s.id + s.updated} s={s} asAdmin={asAdmin} reload={load} />
-                  ))}
-                </ul>
+                {(() => {
+                  const quran = d.homework.kind === "quran";
+                  // Quran: a graded submission (Save grade) moves to "Corrected"; likes/comments never move it. Stable order (by submit time).
+                  const isCorr = (s: NonNullable<Data["subs"]>[number]) => quran && !!s.grade && (s.status === "approved" || s.status === "returned");
+                  const all = [...(d?.subs || [])].sort((x, y) => (y.submittedAt || 0) - (x.submittedAt || 0) || x.name.localeCompare(y.name));
+                  const list = all.filter((s) => (subTab === "corr") === isCorr(s));
+                  const nCorr = all.filter(isCorr).length;
+                  return (
+                    <>
+                      <h2 className="text-xl font-bold">{tr("Submissions", "التسليمات")} ({all.length})</h2>
+                      {quran && (
+                        <div className="flex flex-wrap gap-2" role="tablist">
+                          <button type="button" role="tab" aria-selected={subTab === "cur"} onClick={() => setSubTab("cur")} className={`rounded-full px-4 py-1.5 text-sm font-extrabold ${subTab === "cur" ? "bg-header text-white" : "bg-black/5 dark:bg-white/10"}`} data-testid="subs-tab-current">📥 {tr("To review", "للمراجعة")} ({all.length - nCorr})</button>
+                          <button type="button" role="tab" aria-selected={subTab === "corr"} onClick={() => setSubTab("corr")} className={`rounded-full px-4 py-1.5 text-sm font-extrabold ${subTab === "corr" ? "bg-header text-white" : "bg-black/5 dark:bg-white/10"}`} data-testid="subs-tab-corrected">✅ {tr("Corrected", "المصحَّح")} ({nCorr})</button>
+                        </div>
+                      )}
+                      {gradeMsg && <p className="rounded-2xl bg-emerald-100 px-4 py-2 font-bold text-emerald-900" role="status" data-testid="grade-saved-msg">{gradeMsg}</p>}
+                      {list.length === 0 && <p className="text-sm opacity-70" data-testid="subs-empty">{subTab === "corr" ? tr("Nothing corrected yet.", "لا يوجد واجب مصحّح بعد.") : tr("Nothing waiting for review.", "لا شيء بانتظار المراجعة.")}</p>}
+                      <ul className="space-y-3">
+                        {list.map((s) => (
+                          <Review quran={quran} qdata={quran ? (d.homework.data as QuranData) : undefined} key={s.id + s.updated} s={s} asAdmin={asAdmin} reload={load} regrade={subTab === "corr"} onGraded={() => { setGradeMsg(tr("✅ Grade saved — moved to Corrected", "✅ تم حفظ التقييم — نُقل إلى المصحَّح")); setTimeout(() => setGradeMsg(""), 6000); }} />
+                        ))}
+                      </ul>
+                    </>
+                  );
+                })()}
                 {(d?.notStarted || []).length > 0 && (
                   <p className="text-sm opacity-75" data-testid="hw-not-started">{tr("Not started:", "لم يبدؤوا:")} {d!.notStarted!.map((n) => n.name).join(", ")}</p>
                 )}

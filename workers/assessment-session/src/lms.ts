@@ -116,7 +116,8 @@ function newPin(): string {
   const b = crypto.getRandomValues(new Uint32Array(1))[0] % 900000;
   return String(100000 + b);
 }
-const validPin = (p: string) => /^\d{4,8}$/.test(p);
+// Any letters, numbers and symbols (4–64 characters); older numeric PINs keep working unchanged.
+const validPin = (p: string) => [...p].length >= 4 && [...p].length <= 64;
 
 async function pinKey(env: LmsEnv) {
   if (!env.LMS_PIN_KEY) return null;
@@ -678,7 +679,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
           if (!name) { errors.push({ row: i + 1, username, error: "name" }); continue; }
           const clash = this.userRow("username=?", username);
           if (clash && (!existing || clash.id !== existing.id)) { errors.push({ row: i + 1, username, error: "username_taken" }); continue; }
-          let pin = str(raw.pin, 8);
+          let pin = str(raw.pin, 64);
           if (pin && !validPin(pin)) { errors.push({ row: i + 1, username, error: "pin_digits" }); continue; }
           if (existing) {
             if (existing.role === "parent") { errors.push({ row: i + 1, username, error: "use_parents_page" }); continue; }
@@ -753,7 +754,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         const r = this.userRow("id=?", str(input.id, 40));
         if (!r) return { status: 404, body: { error: "not_found" } };
         if ((r.role === "teacher" || r.role === "parent") && a.role !== "admin") return { status: 403, body: { error: "admin_only" } };
-        const pin = str(input.pin, 8) || newPin();
+        const pin = str(input.pin, 64) || newPin();
         if (!validPin(pin)) return { status: 400, body: { error: "pin_digits" } };
         await this.setPin(String(r.id), pin);
         return { status: 200, body: { pin } };
@@ -1390,8 +1391,8 @@ export class LmsStore extends DurableObject<LmsEnv> {
         if (a.viewAs || (a.role !== "student" && a.role !== "teacher" && a.role !== "parent")) return { status: 403, body: { error: "forbidden" } };
         const key = `pc:${a.id}`;
         if (this.failCount(key) >= 5) return { status: 429, body: { error: "too_many_attempts" } };
-        const next = str(input.next, 8);
-        if (!/^\d{6,8}$/.test(next)) return { status: 400, body: { error: "pin_min_6" } };
+        const next = str(input.next, 64);
+        if ([...next].length < 6 || [...next].length > 64) return { status: 400, body: { error: "pin_min_6" } };
         this.sql.exec(`INSERT INTO fails (k, t) VALUES (?, ?)`, key, Date.now());
         await this.setPin(a.id, next);
         return { status: 200, body: { ok: true } };
@@ -1487,6 +1488,21 @@ export class LmsStore extends DurableObject<LmsEnv> {
         const students = scoped ? allStudents.filter((x) => okFor(x.cls, x.section) || (a.stu || []).includes(x.id)) : allStudents;
         const classesOut = scoped ? classes.map((c) => ({ ...c, students: students.filter((x) => x.cls === c.cls).length })).filter((c) => c.students > 0) : classes;
         return { status: 200, body: { homework: all.map((h) => ({ ...h, counts: counts.get(h.id) || {}, assigned: this.assignees(h).length })), classes: classesOut, students, catalog: this.catalog(), scope: a.scope || [], quran: { show: qd.show, view: qd.view, add: qd.add, edit: qd.edit, del: qd.del } } };
+      }
+
+      case "corrected": {
+        // Graded Quran homework (Excellent/Good passed, or Needs practice sent back) for the teacher's own homework (admin/viewAll: all).
+        if (a.role === "student" || a.role === "parent") return { status: 403, body: { error: "forbidden" } };
+        const qd = qhwOf(a);
+        if (a.role === "teacher" && !(qd.show && qd.view)) return { status: 403, body: { error: "quran_not_allowed" } };
+        const hws = new Map(this.allHomework().filter((h) => h.kind === "quran" && (a.role === "admin" || a.perms.includes("viewAll") || h.createdBy === a.id)).map((h) => [h.id, h]));
+        const names = new Map(this.sql.exec(`SELECT id, name, cls, section FROM users`).toArray().map((r) => [String(r.id), { name: String(r.name), cls: String(r.cls || ""), section: String(r.section || "") }]));
+        const items = this.sql.exec(`SELECT * FROM subs WHERE grade != '' AND status IN ('approved','returned') ORDER BY updated DESC LIMIT 1000`).toArray().filter((r) => hws.has(String(r.hw))).map((r) => {
+          const h = hws.get(String(r.hw))!; const at = JSON.parse(String(r.attempts || "[]")) as { at: number; by: string }[]; const last = at[at.length - 1];
+          const u = names.get(String(r.student));
+          return { id: String(r.id), hw: h.id, title: h.title, data: h.data, student: String(r.student), name: u?.name ?? "?", cls: u?.cls ?? "", section: u?.section ?? "", grade: String(r.grade), status: String(r.status), scores: r.scores ? JSON.parse(String(r.scores)) : null, gradedAt: last?.at || Number(r.updated), by: last?.by || "" };
+        });
+        return { status: 200, body: { items } };
       }
 
       case "hw": {
@@ -2091,7 +2107,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         const emailIn = String(input.email || "").trim();
         const email = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailIn) ? emailIn.slice(0, 120) : "";
         if (!name) return { status: 400, body: { error: "name" } };
-        let pin = str(input.pin, 8);
+        let pin = str(input.pin, 64);
         if (pin && !validPin(pin)) return { status: 400, body: { error: "pin_digits" } };
         const existing = input.id ? this.userRow("id=? AND role='parent'", str(input.id, 40)) : undefined;
         if (input.id && !existing) return { status: 404, body: { error: "not_found" } };
@@ -2339,7 +2355,7 @@ export async function handleLms(request: Request, env: LmsEnv, action: string): 
   if (action === "login") {
     if (request.method !== "POST") return reply(origin, { error: "method" }, 405);
     if (!env.SESSION_SIGNING_KEY) return reply(origin, { error: "not_configured" }, 503);
-    const pin = str(body.pin, 8);
+    const pin = str(body.pin, 64);
     if (!normUser(body.username) || !validPin(pin)) return reply(origin, { error: "bad_login" }, 401);
     const r = (await store.login(String(body.username), pin, request.headers.get("CF-Connecting-IP") || "?")) as unknown as Reply;
     if (r.status !== 200) return reply(origin, r.body, r.status);

@@ -33,7 +33,7 @@ async function encodeMp3(chunks: Float32Array[], rate: number): Promise<Blob> {
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 
 /** Record (max 3 min, ~24 kbps mono), listen back, then save. `onSave` uploads the blob. */
-export function AudioRecorder({ label, onSave, testId = "rec", saveLabel }: { label: string; onSave: (b: Blob) => Promise<void>; testId?: string; saveLabel?: string }) {
+export function AudioRecorder({ label, onSave, testId = "rec", saveLabel, big = false, autoSave = false }: { label: string; onSave: (b: Blob) => Promise<void>; testId?: string; saveLabel?: string; big?: boolean; autoSave?: boolean }) {
   const { tr } = useTr();
   const [state, setState] = useState<"idle" | "rec" | "done" | "saving">("idle");
   const [secs, setSecs] = useState(0);
@@ -61,6 +61,12 @@ export function AudioRecorder({ label, onSave, testId = "rec", saveLabel }: { la
     const b = await encodeMp3(c.chunks, rate);
     setBlob(b);
     setUrl(URL.createObjectURL(b));
+    if (autoSave) {
+      // Child-friendly: the recording is saved as the draft straight away (a new one replaces it).
+      setState("saving");
+      try { await onSave(b); setState("done"); } catch (e) { setErr(lmsErrorText(e, tr)); setState("done"); }
+      return;
+    }
     setState("done");
   };
   const start = async () => {
@@ -96,6 +102,37 @@ export function AudioRecorder({ label, onSave, testId = "rec", saveLabel }: { la
     }
   };
 
+  if (big) {
+    const rec = state === "rec";
+    return (
+      <div className="flex flex-col items-center gap-3 rounded-3xl bg-gradient-to-br from-[#fff4d6] to-[#e3f4ef] p-5 text-center shadow-inner dark:from-white/5 dark:to-white/10" data-testid={testId}>
+        <p className="text-base font-extrabold">🎙️ {label}</p>
+        <div className="relative grid h-36 w-36 place-items-center">
+          {rec && <span className="absolute inset-0 animate-ping rounded-full bg-rose-400/50" aria-hidden />}
+          {rec && <span className="absolute -inset-2 animate-pulse rounded-full bg-rose-300/40" aria-hidden />}
+          <button type="button" onClick={rec ? stop : start} disabled={state === "saving"} aria-label={rec ? tr("Stop recording", "إيقاف التسجيل") : tr("Start recording", "ابدأ التسجيل")} className={`relative grid h-32 w-32 place-items-center rounded-full text-white shadow-2xl ring-8 transition active:scale-95 disabled:opacity-60 ${rec ? "bg-rose-600 ring-rose-200" : "bg-[#24857a] ring-[#cdebe4] hover:scale-105"}`} data-testid={rec ? `${testId}-stop` : `${testId}-start`}>
+            {rec ? <span className="h-11 w-11 rounded-xl bg-white" aria-hidden /> : (
+              <svg viewBox="0 0 24 24" className="h-16 w-16" fill="currentColor" aria-hidden><path d="M12 15a3.5 3.5 0 0 0 3.5-3.5v-6a3.5 3.5 0 1 0-7 0v6A3.5 3.5 0 0 0 12 15zm6-3.5a1 1 0 1 0-2 0 4 4 0 0 1-8 0 1 1 0 1 0-2 0 6 6 0 0 0 5 5.9V20H8.5a1 1 0 1 0 0 2h7a1 1 0 1 0 0-2H13v-2.6a6 6 0 0 0 5-5.9z" /></svg>
+            )}
+          </button>
+        </div>
+        {rec ? (
+          <>
+            <p className="font-mono text-2xl font-black text-rose-600" aria-live="polite" data-testid={`${testId}-timer`}>⏺ {mmss(secs)} <span className="text-sm opacity-60">/ {mmss(MAX_SECONDS)}</span></p>
+            <button type="button" onClick={stop} className="rounded-full bg-rose-600 px-8 py-3 text-lg font-extrabold text-white shadow-lg" data-testid={`${testId}-stop-btn`}>■ {tr("Stop", "إيقاف")}</button>
+          </>
+        ) : state === "saving" ? (
+          <p className="text-lg font-extrabold" aria-live="polite">⏳ {tr("Saving your recording…", "جارٍ حفظ تسجيلك…")}</p>
+        ) : state === "done" && !err ? (
+          <p className="rounded-full bg-emerald-100 px-4 py-2 font-extrabold text-emerald-900" role="status" data-testid={`${testId}-saved`}>✅ {tr("Saved as your draft! Tap the mic to record again.", "حُفظ كمسودة! اضغط الميكروفون لتسجيل جديد.")}</p>
+        ) : (
+          <p className="text-sm font-bold opacity-75">{tr("Tap the big button to start", "اضغط الزر الكبير للبدء")}</p>
+        )}
+        {url && state !== "rec" && <audio controls src={url} controlsList="nodownload" onContextMenu={(e) => e.preventDefault()} className="w-full max-w-sm" data-testid={`${testId}-preview`} />}
+        {err && <p className="text-sm font-bold text-rose-700 dark:text-rose-300" role="alert">{err}</p>}
+      </div>
+    );
+  }
   return (
     <div className="space-y-2 rounded-2xl border border-dashed border-black/20 p-3 dark:border-white/25" data-testid={testId}>
       <p className="text-sm font-semibold">🎙️ {label}</p>
