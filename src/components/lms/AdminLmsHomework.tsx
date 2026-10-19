@@ -6,6 +6,7 @@ import { AudioClip } from "@/components/lms/Audio";
 import { LeaderboardSetting, QuranMap } from "@/components/lms/Progress";
 import { adminRelogin, card, GRADE_STYLE, gradeLabel, smallBtn, STATUS_STYLE, statusLabel, useTr } from "@/components/lms/useLms";
 import { lmsApi, lmsErrorText } from "@/lib/lms";
+import { CorrectedList } from "@/components/lms/mods/CorrectedHomework";
 
 type Dash = Awaited<ReturnType<typeof lmsApi.dashboard>>;
 type Detail = Awaited<ReturnType<typeof lmsApi.homework>>;
@@ -25,6 +26,7 @@ export function AdminLmsHomework() {
 
   return (
     <div className="space-y-5" data-testid="admin-lms-homework">
+      <details className={card} data-testid="admin-corrected"><summary className="cursor-pointer text-lg font-extrabold">✅ {tr("Corrected homework (graded Quran)", "الواجبات المصحَّحة (القرآن)")}</summary><div className="mt-3"><CorrectedList asAdmin /></div></details>
       <QuranMap asAdmin classes={mapCat.classes} sections={mapCat.sections} />
       <div className={card + " py-3"}><LeaderboardSetting asAdmin /></div>
       <div className="flex flex-wrap items-center gap-2">

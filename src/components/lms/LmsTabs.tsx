@@ -43,7 +43,7 @@ const TEACHER: Tab[] = [
   { id: "res", href: "/lms/results", en: "Results", ar: "النتائج", icon: I.res, lvl: 3 },
 ];
 // Child-friendly look: one emoji per area, each on its own theme-coloured disc.
-const EMOJI: Record<string, string> = { dash: "🏠", hw: "📝", assess: "✅", msg: "💬", wall: "🧱", quran: "📖", qhw: "📖", cls: "🏫", act: "🎲", res: "📊", att: "🗓️", beh: "🌟", cur: "📚", logins: "🔑", acct: "🙂", stu: "👥", map: "🗺️", pts: "🏆", fcur: "📚", fassess: "✅" };
+const EMOJI: Record<string, string> = { dash: "🏠", hw: "📝", assess: "✅", msg: "💬", wall: "🧱", quran: "📖", qhw: "📖", cls: "🏫", act: "🎲", res: "📊", att: "🗓️", beh: "🌟", cur: "📚", logins: "🔑", acct: "🙂", stu: "👥", map: "🗺️", pts: "🏆", fcur: "📚", fassess: "✅", corr: "💯" };
 const DISC = ["bg-sun text-[#0b1b2b]", "bg-[#2e9c8f] text-white", "bg-coral text-[#3b1710]", "bg-[#bfdff3] text-header", "bg-[#cdebe4] text-[#0f4a42]", "bg-[#fde0d9] text-[#6b2b1d]"];
 
 /**
@@ -89,7 +89,7 @@ export function LmsTabs() {
   ];
   const loginsTab: Tab[] = staff && stuUi(actor.perms || [], "view") ? [{ id: "logins", href: "/lms/logins", en: "Student Logins", ar: "دخول الطلاب", icon: "", lvl: 3 }] : [];
   const acctTab: Tab[] = [{ id: "acct", href: "/lms/account", en: "My account", ar: "حسابي", icon: "", lvl: 3 }];
-  const qTab: Tab[] = staff && qp.show ? [{ id: "qhw", href: "/lms/quran", en: "Quran Homework", ar: "واجب القرآن", icon: I.quran, lvl: 2 }] : [];
+  const qTab: Tab[] = staff && qp.show ? [{ id: "qhw", href: "/lms/quran", en: "Quran Homework", ar: "واجب القرآن", icon: I.quran, lvl: 2 }, ...(qp.view ? [{ id: "corr", href: "/lms/corrected", en: "Corrected", ar: "المصحَّح", icon: "", lvl: 2 } as Tab] : [])] : [];
   const PARENT: Tab[] = [
     { id: "dash", href: "/lms/family", en: "Dashboard", ar: "اللوحة", icon: I.dash, lvl: 0 },
     { id: "hw", href: "/lms/family", hash: "#homework", en: "Homework", ar: "الواجبات", icon: I.hw, lvl: 0 },
