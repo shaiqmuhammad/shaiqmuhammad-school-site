@@ -51,7 +51,7 @@ export function QrPage() {
     if (!t) { setBad(true); return; }
     lmsApi.qrView(t).then((v) => { setD(v); if (v.homework.kind === "quran") quranChapters().then((c) => setCh(c.find((x) => x.id === v.homework.data.surah))).catch(() => undefined); }).catch(() => setBad(true));
   }, [t]);
-  const audio = (id: string, label: string, testId: string, at?: number) => <AudioCard key={id} src={lmsApi.qrAudioUrl(t, id)} title={label} name={d?.student || ""} at={at ?? d?.attempts.find((x) => x.audio === id)?.at} testId={testId} />;
+  const audio = (id: string, label: string, testId: string, at?: number) => <AudioCard key={id} src={lmsApi.qrAudioUrl(t, id)} title={label} name={d?.student || ""} at={at ?? (d?.recAt?.[id] || d?.attempts.find((x) => x.audio === id)?.at)} testId={testId} />;
   const q = d?.homework.data as QuranData | undefined;
   const verses = (x?: QuranData) => { const n = x?.from && x?.to ? x.to - x.from + 1 : ch?.verses_count || 0; return lang === "ar" ? `${n} ${n === 1 ? "آية" : "آيات"}` : `${n} ${n === 1 ? "verse" : "verses"}`; };
   return (
