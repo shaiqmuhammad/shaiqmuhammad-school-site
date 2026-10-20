@@ -1,3 +1,4 @@
+import { studentLoginToken } from "@/lib/lmsToken";
 import type { Quiz, QuizQuestion } from "@/lib/quiz";
 
 /**
@@ -119,7 +120,7 @@ export const groupApi = {
   join: (code: string, name: string, deviceId?: string) =>
     call<SessionInfo & { participantId: string; token: string; name: string }>(`${encodeURIComponent(code)}/join`, {
       method: "POST",
-      body: { name, deviceId },
+      body: { name, deviceId, ...(studentLoginToken() ? { lmsToken: studentLoginToken() } : {}) },
     }),
   /** Teacher: remove a student (their device can't rejoin) or let them back in. */
   remove: (code: string, hostKey: string, pid: string) =>

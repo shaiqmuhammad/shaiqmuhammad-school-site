@@ -16,10 +16,11 @@ export const REP_KEYS = [...REP_SECTIONS, "pdf", "xlsx"] as const;
 export type RepKey = (typeof REP_KEYS)[number];
 export type Access = Record<RepKey, boolean>;
 export type AccessCfg = { global: Partial<Access>; roles: Record<"teacher" | "inspector", Partial<Access>> };
+export type UnmatchedItem = { id: string; name: string; quizTitle: string; kind: string; percentage: number; finishedAt: number; why: "unmatched" | "ambiguous" | "ignored"; candidates: string[] };
 export type DeptReport = {
   generated: number; options: { subjects: string[]; phases: string[]; years: string[]; sections: string[]; groups: { id: string; name: string }[] };
   notSet: { subject: number; phase: number; gender: number; sen: number }; settings: ReportSettings; access: Access;
-  kpis?: { students: number; withScores: number; atOrAbove: number | null; expectedOrBetter: number | null; onTime: number | null; completion: number | null; quranGreen: number | null; coverage: number | null; results: { total: number; unmatched: number; ambiguous: number } };
+  kpis?: { students: number; withScores: number; atOrAbove: number | null; expectedOrBetter: number | null; onTime: number | null; completion: number | null; quranGreen: number | null; coverage: number | null; results: { total: number; unmatched: number; ambiguous: number; byId?: number; ignored?: number } };
   attainment?: { year: string; students: number; above: number; at: number; below: number; noData: number }[];
   progress?: { byYear: { year: string; students: number; better: number; expected: number; below: number; noData: number }[]; distribution: { lo: number; hi: number; n: number }[]; trend: { month: string; byYear: Record<string, number> }[] };
   quran?: { year: string; students: number; withData: number; green: number; yellow: number; red: number }[];
@@ -49,6 +50,8 @@ export const reportsApi = {
   student: (id: string) => call<StudentDetail>("report-student", { id }),
   settings: (save?: ReportSettings) => call<{ settings: ReportSettings; defaults: ReportSettings; access?: AccessCfg; mine: Access }>("report-settings", save ? { save } : {}),
   saveAccess: (access: AccessCfg) => call<{ access: AccessCfg }>("report-settings", { access }),
+  unmatched: (ignored = false) => call<{ items: UnmatchedItem[]; students: { id: string; name: string; cls: string; section: string }[] }>("report-unmatched", { ignored }),
+  link: (id: string, op: "link" | "ignore" | "reset", studentId?: string) => call<{ ok: true }>("report-link", { id, op, studentId }),
   /** Server-checked export: 403 export_not_allowed when PDF/Excel is switched off for this reader. */
   exportData: (kind: "pdf" | "xlsx", filters: ReportFilters) => call<DeptReport>("report-export", { kind, filters }),
 };

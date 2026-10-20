@@ -1,5 +1,6 @@
 "use client";
 
+import { studentLoginToken } from "@/lib/lmsToken";
 import { getServerSession } from "@/lib/adminServer";
 import { ASSESSMENT_API_BASE } from "@/lib/groupSession";
 import { describeAnswer, describeCorrect, isAnswered, scoreQuestion, type Quiz } from "@/lib/quiz";
@@ -74,9 +75,11 @@ export async function recordAttempt(payload: {
   const details = attemptDetails(payload.quiz, payload.answers);
   const correct = details.filter((d) => d.isCorrect).length;
   try {
+    // Logged-in student: send the LMS token so the server links the result to the account (public quizzes: no token, unchanged).
+    const st = studentLoginToken();
     const res = await fetch(`${API}/attempt`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(st ? { Authorization: `Bearer ${st}` } : {}) },
       keepalive: true,
       body: JSON.stringify({
         quizId: payload.quiz.id,
