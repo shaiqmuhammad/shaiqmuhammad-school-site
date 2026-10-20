@@ -281,6 +281,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     this.sql.exec(`CREATE TABLE IF NOT EXISTS tquiz (id TEXT PRIMARY KEY, owner TEXT, owner_name TEXT, title TEXT, data TEXT, updated INTEGER)`);
     if (!cols("tracker").has("rev_count")) this.sql.exec(`ALTER TABLE tracker ADD COLUMN rev_count INTEGER DEFAULT 0`);
     if (!cols("tracker").has("rev_at")) this.sql.exec(`ALTER TABLE tracker ADD COLUMN rev_at INTEGER DEFAULT 0`);
+    if (!cols("wall").has("batch")) this.sql.exec(`ALTER TABLE wall ADD COLUMN batch TEXT DEFAULT ''`);
     if (!cols("homework").has("section")) this.sql.exec(`ALTER TABLE homework ADD COLUMN section TEXT DEFAULT ''`);
     // One-time migration: free-text class values become catalog classes (idempotent).
     for (const r of this.sql.exec(`SELECT DISTINCT cls FROM users WHERE cls != '' UNION SELECT DISTINCT cls FROM homework WHERE cls != ''`).toArray()) {
@@ -843,10 +844,16 @@ export class LmsStore extends DurableObject<LmsEnv> {
         return { status: 200, body: { items, canPost: staff && !a.viewAs && grps.length > 0 } };
       }
       case "wall-list": {
-        const key = str(input.key, 80);
-        if (!this.wallKeyOk(a, key)) return { status: 403, body: { error: "forbidden" } };
-        const posts = this.sql.exec(`SELECT id, by, name, text, image IS NOT NULL AND image<>'' AS hasImg, audio IS NOT NULL AND audio<>'' AS hasAud, pinned, at FROM wall WHERE wkey=? ORDER BY pinned DESC, at DESC LIMIT 60`, key).toArray();
+        // One wall ("key") or several selected group walls ("keys"): posts merged, newest first; a post sent to several
+        // selected groups at once (same batch) is shown once, with every group it went to.
+        const keys = [...new Set((Array.isArray(input.keys) ? (input.keys as unknown[]) : [input.key]).map((k) => str(k, 80)).filter(Boolean))].slice(0, 30);
+        if (!keys.length || keys.some((k) => !this.wallKeyOk(a, k))) return { status: 403, body: { error: "forbidden" } };
+        const rows = this.sql.exec(`SELECT id, wkey, batch, by, name, text, image IS NOT NULL AND image<>'' AS hasImg, audio IS NOT NULL AND audio<>'' AS hasAud, pinned, at FROM wall WHERE wkey IN (${keys.map(() => "?").join(",")}) ORDER BY pinned DESC, at DESC LIMIT ${keys.length > 1 ? 150 : 60}`, ...keys).toArray();
+        const seen = new Map<string, Record<string, unknown> & { keys: string[] }>();
+        const posts: (Record<string, unknown> & { keys: string[] })[] = [];
+        for (const r of rows) { const b = String(r.batch || ""); const ex = b ? seen.get(b) : undefined; if (ex) { if (!ex.keys.includes(String(r.wkey))) ex.keys.push(String(r.wkey)); continue; } const o = { ...r, keys: [String(r.wkey)] }; if (b) seen.set(b, o); posts.push(o); }
         const out = posts.map((p) => ({
+          keys: p.keys,
           id: String(p.id), name: String(p.name), text: String(p.text), hasImage: !!p.hasImg, hasAudio: !!p.hasAud, pinned: !!p.pinned, at: Number(p.at),
           likes: Number(this.sql.exec(`SELECT COUNT(*) AS n FROM wlike WHERE post=?`, String(p.id)).one().n), liked: this.sql.exec(`SELECT 1 FROM wlike WHERE post=? AND by=?`, String(p.id), a.id).toArray().length > 0,
           comments: this.sql.exec(`SELECT id, name, role, text, at FROM wcom WHERE post=? ORDER BY at`, String(p.id)).toArray().map((m) => ({ id: String(m.id), name: String(m.name), role: String(m.role), text: String(m.text), at: Number(m.at) })),
@@ -861,14 +868,16 @@ export class LmsStore extends DurableObject<LmsEnv> {
         return { status: 200, body: { image: String(r.image || ""), audio: String(r.audio || "") } };
       }
       case "wall-post": {
-        const key = str(input.key, 80);
-        if (!isStaff(a) || a.viewAs || !key.startsWith("g:") || !this.wallKeyOk(a, key)) return { status: 403, body: { error: "forbidden" } };
+        // One group ("key") or several ("keys"): one copy per group wall, linked by a shared batch id.
+        const keys = [...new Set((Array.isArray(input.keys) ? (input.keys as unknown[]) : [input.key]).map((k) => str(k, 80)).filter(Boolean))].slice(0, 30);
+        if (!isStaff(a) || a.viewAs || !keys.length || keys.some((k) => !k.startsWith("g:") || !this.wallKeyOk(a, k))) return { status: 403, body: { error: "forbidden" } };
         const text = wallText(input.text, 1500);
         const image = String(input.image || ""), audio = String(input.audio || "");
         if ((image && (!/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(image) || image.length > 1_000_000)) || (audio && (!/^data:audio\/[a-z0-9.+-]+(;codecs=[a-z0-9.,-]+)?;base64,[A-Za-z0-9+/=]+$/i.test(audio) || audio.length > 900_000))) return { status: 400, body: { error: "bad_media" } };
         if (!text && !image && !audio) return { status: 400, body: { error: "empty" } };
-        this.sql.exec(`INSERT INTO wall (id, wkey, by, name, text, image, audio, pinned, at) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)`, rid("wp"), key, a.id, a.name, text, image, audio, Date.now());
-        return { status: 200, body: { ok: true } };
+        const batch = keys.length > 1 ? rid("wb") : "", at = Date.now();
+        for (const k of keys) this.sql.exec(`INSERT INTO wall (id, wkey, by, name, text, image, audio, pinned, at, batch) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`, rid("wp"), k, a.id, a.name, text, image, audio, at, batch);
+        return { status: 200, body: { ok: true, count: keys.length } };
       }
       case "wall-comment": {
         const p = this.sql.exec(`SELECT wkey FROM wall WHERE id=?`, str(input.post, 40)).toArray()[0];
@@ -904,10 +913,15 @@ export class LmsStore extends DurableObject<LmsEnv> {
         const p = this.sql.exec(`SELECT wkey FROM wall WHERE id=?`, str(input.id, 40)).toArray()[0];
         if (!p) return { status: 404, body: { error: "not_found" } };
         if (!this.wallKeyOk(a, String(p.wkey))) return { status: 403, body: { error: "forbidden" } };
-        const id = str(input.id, 40);
-        if (op === "delete") { this.sql.exec(`DELETE FROM wcom WHERE post=?`, id); this.sql.exec(`DELETE FROM wlike WHERE post=?`, id); this.sql.exec(`DELETE FROM wall WHERE id=?`, id); }
-        else if (op === "pin" || op === "unpin") this.sql.exec(`UPDATE wall SET pinned=? WHERE id=?`, op === "pin" ? 1 : 0, id);
-        else return { status: 400, body: { error: "bad" } };
+        const id0 = str(input.id, 40);
+        // A post sent to several groups at once: delete/pin acts on every copy this person may moderate.
+        const b = String(this.sql.exec(`SELECT batch FROM wall WHERE id=?`, id0).toArray()[0]?.batch || "");
+        const ids = b ? this.sql.exec(`SELECT id, wkey FROM wall WHERE batch=?`, b).toArray().filter((r) => this.wallKeyOk(a, String(r.wkey))).map((r) => String(r.id)) : [id0];
+        if (op !== "delete" && op !== "pin" && op !== "unpin") return { status: 400, body: { error: "bad" } };
+        for (const id of ids) {
+          if (op === "delete") { this.sql.exec(`DELETE FROM wcom WHERE post=?`, id); this.sql.exec(`DELETE FROM wlike WHERE post=?`, id); this.sql.exec(`DELETE FROM wall WHERE id=?`, id); }
+          else this.sql.exec(`UPDATE wall SET pinned=? WHERE id=?`, op === "pin" ? 1 : 0, id);
+        }
         return { status: 200, body: { ok: true } };
       }
       case "pcat-list": {

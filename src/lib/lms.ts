@@ -24,7 +24,7 @@ export type StudentGroup = { id: string; name: string; subject?: string; student
 export type ReportView = { kind: "points" | "quran"; id: string; name: string; cls: string; section: string; avatar: string; points?: { label: string; pts: number; icon: string; by: string; at: number }[]; tracker?: TrackerRow[]; progress?: unknown };
 export type Assignment = { id: string; quiz: string; title: string; mode: "individual" | "group"; cls: string; section: string; students: string[]; due: number | null; by: string; created: number };
 export type Announcement = { id: string; title: string; body: string; aud: "all" | "students" | "teachers" | "class"; cls: string; section: string; by: string; created: number };
-export type WallPost = { id: string; name: string; text: string; hasImage: boolean; hasAudio: boolean; pinned: boolean; at: number; likes: number; liked: boolean; comments: { id: string; name: string; role: string; text: string; at: number }[] };
+export type WallPost = { keys?: string[]; id: string; name: string; text: string; hasImage: boolean; hasAudio: boolean; pinned: boolean; at: number; likes: number; liked: boolean; comments: { id: string; name: string; role: string; text: string; at: number }[] };
 export type LiveActivity = { code: string; type: string; title: string; teacher: string; at: number };
 export type MsgContact = { id: string; name: string; role: string; cls: string; seen?: number };
 export type CorrectedItem = { id: string; hw: string; title: string; data: QuranData; student: string; name: string; cls: string; section: string; grade: Grade; status: string; scores: Scores | null; gradedAt: number; by: string };
@@ -167,6 +167,10 @@ async function call<T>(action: string, body?: unknown, opts: { asAdmin?: boolean
   return data;
 }
 
+/** The Class Wall also opens inside the admin area (admin token) — set by the admin Wall tab. */
+let wallAdmin = false;
+export const setWallAdmin = (v: boolean) => { wallAdmin = v; };
+
 export const lmsApi = {
   hwLocks: (hw: string, opts: { student?: string; unlock?: boolean } = {}, asAdmin = false) => (opts.student ? call<{ locks: { student: string; name: string; section: string; lockedBy: Homework["lockedBy"]; unlocked: boolean }[] }>("hw-unlock", { hw, ...opts }, { asAdmin }) : call<{ locks: { student: string; name: string; section: string; lockedBy: Homework["lockedBy"]; unlocked: boolean }[] }>("hw-unlock", undefined, { asAdmin, query: { hw } })),
   qrLinks: (hw: string, opts: { student?: string; reset?: boolean; revoke?: boolean } = {}, asAdmin = false) => (opts.student ? call<{ links: QrLink[]; teacher: string }>("qr-links", { hw, ...opts }, { asAdmin }) : call<{ links: QrLink[]; teacher: string }>("qr-links", undefined, { asAdmin, query: { hw } })),
@@ -241,13 +245,14 @@ export const lmsApi = {
   reportLog: () => call<{ items: { id: string; student: string; kind: string; to: string; by: string; at: number; ok: boolean }[] }>("report-log"),
   reportView: (t: string) => call<ReportView>("report", undefined, { query: { t } }),
   assessResults: () => call<{ items: { id: string; kind: string; quizTitle: string; name: string; score: number; maxScore: number; percentage: number; correct: number; wrong: number; finishedAt: number; rank: number | null; sessionCode: string | null }[] }>("assess-results"),
-  wallClasses: () => call<{ items: WallClass[]; canPost: boolean }>("wall-classes"),
-  wallList: (key: string) => call<{ posts: WallPost[]; canModerate: boolean }>("wall-list", { key }),
-  wallMedia: (id: string, dl = false) => call<{ image: string; audio: string }>("wall-media", dl ? { id, dl: true } : { id }),
-  wallPost: (key: string, text: string, image?: string, audio?: string) => call<{ ok: true }>("wall-post", { key, text, image, audio }),
-  wallComment: (post: string, text: string) => call<{ ok: true }>("wall-comment", { post, text }),
-  wallLike: (post: string) => call<{ ok: true }>("wall-like", { post }),
-  wallMod: (op: "delete" | "pin" | "unpin" | "delcom", id: string) => call<{ ok: true }>("wall-mod", { op, id }),
+  wallClasses: () => call<{ items: WallClass[]; canPost: boolean }>("wall-classes", undefined, { asAdmin: wallAdmin }),
+  /** One wall or several selected group walls merged (a post sent to several of them shows once, with all its groups). */
+  wallList: (keys: string | string[]) => call<{ posts: WallPost[]; canModerate: boolean }>("wall-list", Array.isArray(keys) ? { keys } : { key: keys }, { asAdmin: wallAdmin }),
+  wallMedia: (id: string, dl = false) => call<{ image: string; audio: string }>("wall-media", dl ? { id, dl: true } : { id }, { asAdmin: wallAdmin }),
+  wallPost: (keys: string | string[], text: string, image?: string, audio?: string) => call<{ ok: true; count?: number }>("wall-post", { ...(Array.isArray(keys) ? { keys } : { key: keys }), text, image, audio }, { asAdmin: wallAdmin }),
+  wallComment: (post: string, text: string) => call<{ ok: true }>("wall-comment", { post, text }, { asAdmin: wallAdmin }),
+  wallLike: (post: string) => call<{ ok: true }>("wall-like", { post }, { asAdmin: wallAdmin }),
+  wallMod: (op: "delete" | "pin" | "unpin" | "delcom", id: string) => call<{ ok: true }>("wall-mod", { op, id }, { asAdmin: wallAdmin }),
   actPublish: (code: string, type: string, title: string, students: string[]) => call<{ ok: true; count: number }>("act-publish", { code, type, title, students }),
   actLive: () => call<{ items: LiveActivity[] }>("act-live"),
   assessList: (asAdmin = false) => call<{ items: Assignment[] }>("assess-list", undefined, { asAdmin }),
