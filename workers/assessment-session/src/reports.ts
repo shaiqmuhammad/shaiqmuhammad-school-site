@@ -229,7 +229,7 @@ export async function reportHandle(c: ReportCtx, a: Actor, action: string, input
     onTime: tot.exp ? Math.round((100 * tot.onTime) / tot.exp) : null, completion: tot.exp ? Math.round((100 * tot.done) / tot.exp) : null,
     quranGreen: (() => { const t = quran.reduce((s, q) => s + q.green + q.yellow + q.red, 0); return t ? Math.round((100 * quran.reduce((s, q) => s + q.green, 0)) / t) : null; })(),
     coverage: (() => { const t = coverage.reduce((s, x) => s + x.total, 0); return t ? Math.round((100 * coverage.reduce((s, x) => s + x.taught, 0)) / t) : null; })(),
-    results: { total: sc.total, unmatched: sc.unmatched, ambiguous: sc.ambiguous },
+    results: a.role === "admin" ? { total: sc.total, unmatched: sc.unmatched, ambiguous: sc.ambiguous } : { total: 0, unmatched: 0, ambiguous: 0 }, // school-wide counts: admin only
   };
   const studentsOut = per.map((x) => {
     const q = qs.get(x.s.id); const h = hwStu.get(x.s.id);
