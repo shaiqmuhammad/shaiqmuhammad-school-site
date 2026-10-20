@@ -3,12 +3,12 @@
  *  - Only same-origin GET requests are ever touched. The Worker API (workers.dev / /api), auth and any request with an
  *    Authorization header are NEVER cached (the SW does not even intercept them).
  *  - /admin and site data (/content/*.json) are network-only.
- *  - Pages are network-first and are not stored; when offline, /offline.html is shown.
+ *  - Pages are network-first and are not stored; when offline, /offline (public/offline.html; Pages serves it without .html) is shown.
  *  - Hashed build assets (/_next/static) are cache-first; icons/fonts stale-while-revalidate.
  *  - Every deploy produces a new VERSION → new cache name; old caches are deleted on activate, so new pushes show up. */
 const VERSION = "__SW_VERSION__";
 const STATIC = `sm-static-${VERSION}`;
-const PRECACHE = ["/offline.html", "/icon-192.png", "/icon-512.png", "/favicon.ico"];
+const PRECACHE = ["/offline", "/icon-192.png", "/icon-512.png", "/favicon.ico"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(STATIC).then((c) => c.addAll(PRECACHE)).then(() => self.skipWaiting()));
@@ -40,7 +40,7 @@ self.addEventListener("fetch", (event) => {
 
   if (req.mode === "navigate") {
     // Network-first for every page (admin included); nothing is stored. Offline → friendly page.
-    event.respondWith(fetch(req).catch(() => caches.match("/offline.html")));
+    event.respondWith(fetch(req).catch(() => caches.match("/offline")));
     return;
   }
   if (neverCache(url, req)) return; // network-only, untouched
