@@ -3,7 +3,12 @@
  *
  *   POST /api/lms/report-dept      {filters?} -> {filters, options, settings, kpis, attainment, progress, quran, homework, coverage, students}
  *   POST /api/lms/report-student   {id}       -> {student, scores[], homework[], quran[]}
- *   POST /api/lms/report-settings  {save?: {...}} -> {settings}   (reading: any report role; saving: admin only)
+ *   POST /api/lms/report-settings  {save?: {...}, access?: {...}} -> {settings, access, mine}   (reading: any report role; saving: admin only)
+ *   POST /api/lms/report-export    {kind: "pdf"|"xlsx", filters?} -> same body as report-dept, or 403 export_not_allowed
+ *
+ * Access switches (admin-controlled): Show/Hide per section and Allow/Not allow for PDF and Excel. Layered
+ * global -> per role (teacher, future inspector) -> per user (teacher perms "rep:<key>:on|off"). Teachers also need
+ * "rep:view". Hidden sections are left out of every response (and report-student answers 403 when drill-down is hidden).
  *
  * Who may read reports is decided by REPORT_ROLES only, so a read-only "inspector"/leadership role can be added later
  * by adding it there — none of these actions ever write LMS data (only report-settings save, which is admin-only).
@@ -19,9 +24,32 @@ export type ReportCtx = {
   results: () => Promise<Row[]>;
   homework: () => { id: string; kind: string; title: string; cls: string; section: string; students: string[]; due: number | null; created: number }[];
   assignees: (h: { cls: string; section: string; students: string[] }) => string[];
+  inScope: (a: Actor, cls: string, section: string, sid?: string) => boolean;
 };
-/** Roles allowed to READ reports. Future: add "inspector" (read-only leadership) here. */
-export const REPORT_ROLES = new Set<string>(["admin"]);
+/** Roles allowed to READ reports. Future: add "inspector" (read-only leadership) here. Teachers also need perm "rep:view". */
+export const REPORT_ROLES = new Set<string>(["admin", "teacher"]);
+export const REP_SECTIONS = ["kpi", "attainment", "progress", "quran", "homework", "coverage", "drill"] as const;
+export const REP_KEYS = [...REP_SECTIONS, "pdf", "xlsx"] as const;
+type RepKey = (typeof REP_KEYS)[number];
+type Access = Record<RepKey, boolean>;
+type AccessCfg = { global: Partial<Access>; roles: Record<string, Partial<Access>> };
+const ALL_ON = Object.fromEntries(REP_KEYS.map((k) => [k, true])) as Access;
+const pickAccess = (o: unknown): Partial<Access> => { const r: Partial<Access> = {}; const x = (o && typeof o === "object" ? o : {}) as Row; for (const k of REP_KEYS) if (typeof x[k] === "boolean") r[k] = x[k] as boolean; return r; };
+function accessCfg(sql: Sql): AccessCfg {
+  let v: Row = {};
+  try { v = JSON.parse(String(sql.exec(`SELECT v FROM settings WHERE k='report_access'`).toArray()[0]?.v || "{}")); } catch { /* defaults */ }
+  const roles: Record<string, Partial<Access>> = {};
+  for (const r of ["teacher", "inspector"]) roles[r] = pickAccess((v.roles as Row | undefined)?.[r]);
+  return { global: pickAccess(v.global), roles };
+}
+/** Effective switches for one reader: admin always everything; others global -> role -> user perms. */
+export function accessOf(sql: Sql, a: Actor): Access {
+  if (a.role === "admin") return { ...ALL_ON };
+  const c = accessCfg(sql);
+  const out = { ...ALL_ON, ...c.global, ...(c.roles[a.role] || {}) };
+  for (const p of a.perms || []) { const m = /^rep:([a-z]+):(on|off)$/.exec(p); if (m && (REP_KEYS as readonly string[]).includes(m[1])) out[m[1] as RepKey] = m[2] === "on"; }
+  return out;
+}
 const DEF = { above: 80, at: 60, progBetter: 10, progExpected: 0 };
 type Settings = typeof DEF;
 
@@ -73,7 +101,14 @@ async function scoresByStudent(c: ReportCtx, all: Stu[]) {
 
 export async function reportHandle(c: ReportCtx, a: Actor, action: string, input: Row) {
   if (!REPORT_ROLES.has(a.role) || a.viewAs) return { status: 403, body: { error: "forbidden" } };
+  if (a.role === "teacher" && !a.perms.includes("rep:view")) return { status: 403, body: { error: "module_hidden" } };
   const S = settingsOf(c.sql);
+  const acc = accessOf(c.sql, a);
+  if (action === "report-export") {
+    const kind = input.kind === "pdf" ? "pdf" : input.kind === "xlsx" ? "xlsx" : "";
+    if (!kind || !acc[kind]) return { status: 403, body: { error: "export_not_allowed" } };
+    action = "report-dept";
+  }
   if (action === "report-settings") {
     const sv = input.save as Row | undefined;
     if (sv) {
@@ -82,14 +117,21 @@ export async function reportHandle(c: ReportCtx, a: Actor, action: string, input
       if (n.at >= n.above) return { status: 400, body: { error: "at_must_be_below_above" } };
       if (n.progExpected > n.progBetter) return { status: 400, body: { error: "expected_must_not_exceed_better" } };
       c.sql.exec(`INSERT OR REPLACE INTO settings (k, v) VALUES ('report_cfg', ?)`, JSON.stringify(n));
-      return { status: 200, body: { settings: n, defaults: DEF } };
+      return { status: 200, body: { settings: n, defaults: DEF, access: accessCfg(c.sql), mine: accessOf(c.sql, a) } };
     }
-    return { status: 200, body: { settings: S, defaults: DEF } };
+    const av = input.access as Row | undefined;
+    if (av) {
+      if (a.role !== "admin") return { status: 403, body: { error: "read_only" } };
+      const cfg: AccessCfg = { global: pickAccess(av.global), roles: { teacher: pickAccess((av.roles as Row | undefined)?.teacher), inspector: pickAccess((av.roles as Row | undefined)?.inspector) } };
+      c.sql.exec(`INSERT OR REPLACE INTO settings (k, v) VALUES ('report_access', ?)`, JSON.stringify(cfg));
+    }
+    return { status: 200, body: { settings: S, defaults: DEF, ...(a.role === "admin" ? { access: accessCfg(c.sql) } : {}), mine: accessOf(c.sql, a) } };
   }
-  const all = students(c.sql);
-  const groups = c.sql.exec(`SELECT id, name, students FROM grp ORDER BY name`).toArray().map((r) => ({ id: String(r.id), name: String(r.name), students: JSON.parse(String(r.students || "[]")) as string[] }));
+  const all = students(c.sql).filter((s) => a.role === "admin" || a.perms.includes("viewAll") || c.inScope(a, s.cls, s.section, s.id));
+  const groups = c.sql.exec(`SELECT id, name, students FROM grp ${a.role === "admin" ? "" : "WHERE owner=? OR owner='admin'"} ORDER BY name`, ...(a.role === "admin" ? [] : [a.id])).toArray().map((r) => ({ id: String(r.id), name: String(r.name), students: JSON.parse(String(r.students || "[]")) as string[] }));
 
   if (action === "report-student") {
+    if (!acc.drill) return { status: 403, body: { error: "section_hidden" } };
     const s = all.find((x) => x.id === String(input.id || ""));
     if (!s) return { status: 404, body: { error: "not_found" } };
     const sc = (await scoresByStudent(c, all)).out.get(s.id) || [];
@@ -193,5 +235,9 @@ export async function reportHandle(c: ReportCtx, a: Actor, action: string, input
     const q = qs.get(x.s.id); const h = hwStu.get(x.s.id);
     return { ...x.s, n: x.n, att: x.att, attBand: x.attBand, first: x.first, latest: x.latest, delta: x.delta, progBand: x.progBand, quran: q || null, hw: h || null };
   });
-  return { status: 200, body: { generated: Date.now(), filters: f, options, notSet, settings: S, kpis, attainment, progress, quran, homework, coverage, students: studentsOut } };
+  // Hidden sections are excluded from the response (not just hidden in the page).
+  const strip = (x: (typeof studentsOut)[number]) => ({ ...x, ...(acc.attainment ? {} : { att: null, attBand: null }), ...(acc.progress ? {} : { first: null, latest: null, delta: null, progBand: null }), ...(acc.quran ? {} : { quran: null }), ...(acc.homework ? {} : { hw: null }) });
+  return { status: 200, body: { generated: Date.now(), filters: f, options, notSet, settings: S, access: acc,
+    ...(acc.kpi ? { kpis } : {}), ...(acc.attainment ? { attainment } : {}), ...(acc.progress ? { progress } : {}), ...(acc.quran ? { quran } : {}), ...(acc.homework ? { homework } : {}), ...(acc.coverage ? { coverage } : {}),
+    ...(acc.drill ? { students: studentsOut.map(strip) } : {}) } };
 }

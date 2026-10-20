@@ -625,10 +625,10 @@ export class LmsStore extends DurableObject<LmsEnv> {
     if (a.role === "parent" && !(input as Record<symbol, unknown>)[PASS]) return this.parentHandle(a, action, input);
     if (action === "att-parent-alert") return this.attParentAlert(a, input);
     if (/^par-(list|save|delete|import)$/.test(action)) return this.parAdmin(a, action, input);
-    if (/^report-(dept|student|settings)$/.test(action)) {
+    if (/^report-(dept|student|settings|export)$/.test(action)) {
       const RES = (this.env as unknown as { RESULTS?: DurableObjectNamespace }).RESULTS;
       let cache: Record<string, unknown>[] | null = null;
-      return reportHandle({ sql: this.sql, homework: () => this.allHomework(), assignees: (h) => this.assignees(h),
+      return reportHandle({ sql: this.sql, homework: () => this.allHomework(), assignees: (h) => this.assignees(h), inScope: (x, c2, s2, i) => this.inScope(x, c2, s2, i),
         results: async () => (cache ??= RES ? await (RES.get(RES.idFromName("main")) as unknown as { list(f: object): Promise<Record<string, unknown>[]> }).list({ details: false }) : []) }, a, action, input);
     }
     if (/^(att|beh|cur)-/.test(action)) return modHandle({ sql: this.sql, hwList: () => this.allHomework().map((h) => ({ id: h.id, title: h.title, kind: h.kind, cls: h.cls, section: h.section, students: h.students, createdBy: h.createdBy })), inScope: (x, c, s, i) => this.inScope(x, c, s, i), userRow: (w, g) => this.userRow(w, g) }, action, a, input);
@@ -667,7 +667,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
           const role: Role = raw.role === "teacher" ? "teacher" : "student";
           // Only the admin can create or edit teachers.
           if (role === "teacher" && a.role !== "admin") { errors.push({ row: i + 1, username, error: "admin_only" }); continue; }
-          const perms = role === "teacher" ? (Array.isArray(raw.perms) ? (raw.perms as unknown[]).map(String).filter((p) => (PERMS as readonly string[]).includes(p) || STU_PERM.test(p) || /^(act|host):[\w*-]{1,80}$/.test(p) || /^(att|beh):(view|edit)$|^cur:(view|edit|delete)$|^qhw:(set|show|view|add|edit|delete)$|^nodl:(audio|export)$|^hide:(messaging|wall|activities|homework|assessments|results)$/.test(p)).slice(0, 80) : ["assign", "review"]) : [];
+          const perms = role === "teacher" ? (Array.isArray(raw.perms) ? (raw.perms as unknown[]).map(String).filter((p) => (PERMS as readonly string[]).includes(p) || STU_PERM.test(p) || /^(act|host):[\w*-]{1,80}$/.test(p) || /^(att|beh):(view|edit)$|^cur:(view|edit|delete)$|^qhw:(set|show|view|add|edit|delete)$|^nodl:(audio|export)$|^hide:(messaging|wall|activities|homework|assessments|results)$|^rep:view$|^rep:(kpi|attainment|progress|quran|homework|coverage|drill|pdf|xlsx):(on|off)$/.test(p)).slice(0, 80) : ["assign", "review"]) : [];
           const cls = str(raw.cls, 40);
           const section = role === "student" ? str(raw.section, 40) : "";
           const subjects = role === "teacher" ? strList(raw.subjects) : [];

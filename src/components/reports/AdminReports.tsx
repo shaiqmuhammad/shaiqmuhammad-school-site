@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useI18n } from "@/lib/i18n";
 import { downloadBlob } from "@/lib/exportUtils";
-import { reportsApi, type DeptReport, type ReportFilters, type ReportSettings, type RStudent, type StudentDetail } from "@/lib/reports";
+import { REP_KEYS, reportsApi, setReportsAuth, type Access, type AccessCfg, type DeptReport, type RepKey, type ReportFilters, type ReportSettings, type RStudent, type StudentDetail } from "@/lib/reports";
 import { Bars, C, Donut, LineChart, ProgressBar, StackedBars, type Seg } from "./Charts";
 
 type TabId = "overview" | "attainment" | "progress" | "quran" | "homework" | "coverage" | "students" | "settings";
@@ -14,7 +14,8 @@ const dubai = (t: number) => new Date(t).toLocaleString("en-GB", { timeZone: "As
 const dday = (t: number) => new Date(t).toLocaleDateString("en-GB", { timeZone: "Asia/Dubai", day: "numeric", month: "short", year: "numeric" });
 
 /** Department Report (KHDA terms). Read-only: every number comes from the Worker's server-side aggregation. */
-export function AdminReports() {
+export function AdminReports({ admin = true }: { admin?: boolean }) {
+  setReportsAuth(admin);
   const { lang } = useI18n();
   const tr = (en: string, ar: string) => (lang === "ar" ? ar : en);
   const [filters, setFilters] = useState<ReportFilters>({});
@@ -33,8 +34,9 @@ export function AdminReports() {
   useEffect(() => { void load(filters); }, [filters, load]);
 
   const setF = (k: keyof ReportFilters, v: string) => { setDrill(null); setFilters((f) => { const n = { ...f, [k]: v || undefined }; if (k === "year") delete n.section; return n; }); };
-  const openStudent = async (id: string) => { try { setDetail(await reportsApi.student(id)); } catch (e) { alert((e as Error).message); } };
-  const pick = (kind: "att" | "prog" | "quran" | "hw") => (year: string, band?: string) => { setDrill({ kind, year, band }); setTimeout(() => document.getElementById("rep-drill")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50); };
+  const openStudent = async (id: string) => {
+    if (!data?.access.drill) return; try { setDetail(await reportsApi.student(id)); } catch (e) { alert((e as Error).message); } };
+  const pick = (kind: "att" | "prog" | "quran" | "hw") => (year: string, band?: string) => { if (!data?.students) return; setDrill({ kind, year, band }); setTimeout(() => document.getElementById("rep-drill")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50); };
 
   const segsAtt = (r: { above: number; at: number; below: number; noData: number }): Seg[] => [
     { k: "above", label: tr("Above expected", "فوق المتوقع"), v: r.above, color: C.above }, { k: "at", label: tr("At expected", "ضمن المتوقع"), v: r.at, color: C.at },
@@ -45,27 +47,32 @@ export function AdminReports() {
   const segsQ = (r: { green: number; yellow: number; red: number }): Seg[] => [
     { k: "green", label: tr("Green (secure)", "أخضر (متقن)"), v: r.green, color: C.green }, { k: "yellow", label: tr("Yellow (developing)", "أصفر (يتطور)"), v: r.yellow, color: C.yellow }, { k: "red", label: tr("Red (needs work)", "أحمر (يحتاج عملاً)"), v: r.red, color: C.red }];
 
-  const tabs: [TabId, string][] = [["overview", tr("Overview", "نظرة عامة")], ["attainment", tr("Attainment", "التحصيل")], ["progress", tr("Progress", "التقدّم")], ["quran", tr("Quran", "القرآن")], ["homework", tr("Homework", "الواجبات")], ["coverage", tr("Curriculum", "المنهج")], ["students", tr("Students", "الطلاب")], ["settings", tr("Settings", "الإعدادات")]];
+  const tabs = ([["overview", tr("Overview", "نظرة عامة")], ["attainment", tr("Attainment", "التحصيل")], ["progress", tr("Progress", "التقدّم")], ["quran", tr("Quran", "القرآن")], ["homework", tr("Homework", "الواجبات")], ["coverage", tr("Curriculum", "المنهج")], ["students", tr("Students", "الطلاب")], ["settings", tr("Settings", "الإعدادات")]] as [TabId, string][])
+    .filter(([id]) => !data || (id === "settings" ? admin : id === "overview" ? true : id === "students" ? !!data.students : !!data[id]));
   const S = data?.settings;
   const K = data?.kpis;
 
   const exportXlsx = async () => {
-    if (!data) return;
+    let data: DeptReport;
+    try { data = await reportsApi.exportData("xlsx", filters); } catch (e) { alert((e as Error).message === "export_not_allowed" ? tr("Excel export is not allowed for your account.", "تصدير إكسل غير مسموح لحسابك.") : (e as Error).message); return; }
+    const K = data.kpis, S = data.settings;
     const ExcelJS = (await import("exceljs")).default;
     const wb = new ExcelJS.Workbook();
     const sheet = (name: string, head: string[], rows: (string | number | null)[][]) => { const ws = wb.addWorksheet(name); ws.addRow(head).font = { bold: true }; rows.forEach((r) => ws.addRow(r.map((v) => v ?? ""))); ws.columns.forEach((c) => { c.width = 16; }); };
-    sheet("Summary", ["Measure", "Value"], [["Generated (Asia/Dubai)", dubai(data.generated)], ["Filters", JSON.stringify(filters)], ["Students", K!.students], ["Students with scores", K!.withScores], ["At or above expected %", K!.atOrAbove], ["Expected progress or better %", K!.expectedOrBetter], ["Homework on time %", K!.onTime], ["Homework completion %", K!.completion], ["Quran verses green %", K!.quranGreen], ["Curriculum units taught %", K!.coverage], ["Thresholds", `above ≥${S!.above}, at ${S!.at}–${S!.above - 1}, below <${S!.at}; progress better ≥+${S!.progBetter}, expected ≥${S!.progExpected}`], ["Assessment results not matched to a student", K!.results.unmatched + K!.results.ambiguous]]);
-    sheet("Attainment", ["Year", "Students", "Above", "At", "Below", "No scores"], data.attainment.map((r) => [r.year, r.students, r.above, r.at, r.below, r.noData]));
-    sheet("Progress", ["Year", "Students", "Better", "Expected", "Below", "Needs 2+ scores"], data.progress.byYear.map((r) => [r.year, r.students, r.better, r.expected, r.below, r.noData]));
-    sheet("Quran", ["Year", "Students", "With data", "Green verses", "Yellow verses", "Red verses"], data.quran.map((r) => [r.year, r.students, r.withData, r.green, r.yellow, r.red]));
-    sheet("Homework", ["Year", "Expected", "Submitted", "On time"], data.homework.byYear.map((r) => [r.year, r.exp, r.done, r.onTime]));
-    sheet("Curriculum", ["Year", "Units", "Taught", "In progress", "Assessed"], data.coverage.map((r) => [r.year, r.total, r.taught, r.inProgress, r.assessed]));
-    sheet("Students", ["Name", "Year", "Section", "Subject", "Phase", "Gender", "SEN", "Scores", "Attainment %", "Band", "First %", "Latest %", "Change", "Progress", "HW expected", "HW submitted", "HW on time", "Quran green", "Quran yellow", "Quran red"],
+    if (K) sheet("Summary", ["Measure", "Value"], [["Generated (Asia/Dubai)", dubai(data.generated)], ["Filters", JSON.stringify(filters)], ["Students", K.students], ["Students with scores", K.withScores], ["At or above expected %", K.atOrAbove], ["Expected progress or better %", K.expectedOrBetter], ["Homework on time %", K.onTime], ["Homework completion %", K.completion], ["Quran verses green %", K.quranGreen], ["Curriculum units taught %", K.coverage], ["Thresholds", `above ≥${S.above}, at ${S.at}–${S.above - 1}, below <${S.at}; progress better ≥+${S.progBetter}, expected ≥${S.progExpected}`], ["Assessment results not matched to a student", K.results.unmatched + K.results.ambiguous]]);
+    if (data.attainment) sheet("Attainment", ["Year", "Students", "Above", "At", "Below", "No scores"], data.attainment.map((r) => [r.year, r.students, r.above, r.at, r.below, r.noData]));
+    if (data.progress) sheet("Progress", ["Year", "Students", "Better", "Expected", "Below", "Needs 2+ scores"], data.progress.byYear.map((r) => [r.year, r.students, r.better, r.expected, r.below, r.noData]));
+    if (data.quran) sheet("Quran", ["Year", "Students", "With data", "Green verses", "Yellow verses", "Red verses"], data.quran.map((r) => [r.year, r.students, r.withData, r.green, r.yellow, r.red]));
+    if (data.homework) sheet("Homework", ["Year", "Expected", "Submitted", "On time"], data.homework!.byYear.map((r) => [r.year, r.exp, r.done, r.onTime]));
+    if (data.coverage) sheet("Curriculum", ["Year", "Units", "Taught", "In progress", "Assessed"], data.coverage.map((r) => [r.year, r.total, r.taught, r.inProgress, r.assessed]));
+    if (data.students) sheet("Students", ["Name", "Year", "Section", "Subject", "Phase", "Gender", "SEN", "Scores", "Attainment %", "Band", "First %", "Latest %", "Change", "Progress", "HW expected", "HW submitted", "HW on time", "Quran green", "Quran yellow", "Quran red"],
       data.students.map((s) => [s.name, s.cls, s.section, s.subject || "not set", s.phase || "not set", s.gender === "b" ? "Boy" : s.gender === "g" ? "Girl" : "not set", s.sen || "not set", s.n, s.att, s.attBand, s.first, s.latest, s.delta, s.progBand, s.hw?.exp ?? 0, s.hw?.done ?? 0, s.hw?.onTime ?? 0, s.quran?.green ?? 0, s.quran?.yellow ?? 0, s.quran?.red ?? 0]));
     const buf = await wb.xlsx.writeBuffer();
     downloadBlob(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), `department-report-${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
-  const printPdf = () => { const prev = tab; setTab("overview"); document.body.classList.add("sm-print-report"); setTimeout(() => { window.print(); document.body.classList.remove("sm-print-report"); setTab(prev); }, 300); };
+  const printPdf = async () => {
+    try { await reportsApi.exportData("pdf", filters); } catch (e) { alert((e as Error).message === "export_not_allowed" ? tr("PDF export is not allowed for your account.", "تصدير PDF غير مسموح لحسابك.") : (e as Error).message); return; }
+    const prev = tab; setTab("overview"); document.body.classList.add("sm-print-report"); setTimeout(() => { window.print(); document.body.classList.remove("sm-print-report"); setTab(prev); }, 300); };
 
   const fsel = (k: keyof ReportFilters, label: string, opts: [string, string][], withNone = false, nn = 0) => (
     <label className="text-xs font-semibold">{label}
@@ -79,11 +86,11 @@ export function AdminReports() {
   const empty = (msg?: string) => <p className="rounded-xl border border-dashed border-card-border p-4 text-sm opacity-80" data-testid="rep-empty">{msg || tr("No data yet.", "لا توجد بيانات بعد.")}</p>;
 
   const drillStudents = useMemo(() => {
-    if (!data || !drill) return [] as RStudent[];
+    if (!data?.students || !drill) return [] as RStudent[];
     return data.students.filter((s) => (!drill.year || s.cls === drill.year) && (!drill.section || s.section === drill.section) && (!drill.band || (drill.kind === "att" ? (drill.band === "none" ? s.att == null : s.attBand === drill.band) : drill.kind === "prog" ? (drill.band === "none" ? s.delta == null : s.progBand === drill.band) : drill.kind === "quran" ? !!s.quran && s.quran[drill.band as "green"] > 0 : true)));
   }, [data, drill]);
   const sectionsOfDrill = useMemo(() => {
-    if (!data || !drill?.year) return [];
+    if (!data?.students || !drill?.year) return [];
     const m = new Map<string, RStudent[]>();
     for (const s of data.students.filter((x) => x.cls === drill.year)) m.set(s.section || "—", [...(m.get(s.section || "—") || []), s]);
     return [...m].sort(([a], [b]) => a.localeCompare(b));
@@ -113,8 +120,8 @@ export function AdminReports() {
         </div>
         <div className="flex flex-wrap gap-2 print:hidden">
           <button type="button" className="btn-glass px-3 py-1.5 text-sm" onClick={() => load(filters)} disabled={loading}>{loading ? "…" : tr("Refresh", "تحديث")}</button>
-          <button type="button" className="btn-glass px-3 py-1.5 text-sm" onClick={printPdf} disabled={!data} data-testid="rep-pdf">🖨️ PDF</button>
-          <button type="button" className="btn-glass px-3 py-1.5 text-sm" onClick={exportXlsx} disabled={!data} data-testid="rep-xlsx">📊 Excel</button>
+          {data?.access.pdf && <button type="button" className="btn-glass px-3 py-1.5 text-sm" onClick={printPdf} data-testid="rep-pdf">🖨️ PDF</button>}
+          {data?.access.xlsx && <button type="button" className="btn-glass px-3 py-1.5 text-sm" onClick={exportXlsx} data-testid="rep-xlsx">📊 Excel</button>}
         </div>
       </div>
 
@@ -134,9 +141,9 @@ export function AdminReports() {
       {err && <p className="rounded-xl bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950 dark:text-red-200">{tr("Could not load the report", "تعذّر تحميل التقرير")}: {err}</p>}
       {!data && !err && <p className="text-sm opacity-75">{tr("Loading…", "جارٍ التحميل…")}</p>}
 
-      {data && K && S && (<>
+      {data && S && (<>
         {/* Overview flow: cohort → assessed → attainment → progress, plus homework / Quran / curriculum */}
-        <div className={card} data-testid="rep-flow">
+        {K && <div className={card} data-testid="rep-flow">
           <div className="flex flex-wrap items-stretch gap-2 text-center">
             {[[tr("Students", "الطلاب"), String(K.students), ""], [tr("With assessment scores", "لديهم درجات"), String(K.withScores), K.students ? `${Math.round((100 * K.withScores) / K.students)}%` : ""], [tr("At / above expected", "ضمن/فوق المتوقع"), pc(K.atOrAbove), tr("of those assessed", "من المقيَّمين")], [tr("Expected progress or better", "تقدّم متوقع أو أفضل"), pc(K.expectedOrBetter), tr("2+ scores", "درجتان+")]].map(([l, v, sub], i, arr) => (
               <div key={l} className="flex min-w-[8rem] flex-1 items-center gap-2">
@@ -151,55 +158,55 @@ export function AdminReports() {
             ))}
           </div>
           {K.results.total > 0 && (K.results.unmatched + K.results.ambiguous) > 0 && <p className="mt-2 text-[11px] opacity-75">{tr(`${K.results.unmatched + K.results.ambiguous} of ${K.results.total} assessment results could not be matched to one student (the name typed at the quiz differs from the student's name, or two students share it) and are left out.`, `${K.results.unmatched + K.results.ambiguous} من ${K.results.total} نتيجة لم تُطابق طالباً واحداً واستُبعدت.`)}</p>}
-        </div>
+        </div>}
 
         <div className="flex flex-wrap gap-1.5 print:hidden" role="tablist" data-testid="rep-tabs">
           {tabs.map(([id, l]) => <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)} className={`rounded-full px-3 py-1.5 text-sm font-bold ${tab === id ? "bg-[#1b3a57] text-white" : "border border-card-border bg-card-solid"}`} data-testid={`rep-tab-${id}`}>{l}</button>)}
         </div>
 
-        {(tab === "overview" || tab === "attainment") && (
+        {data.attainment && (tab === "overview" || tab === "attainment") && (
           <section className={card} data-testid="rep-attainment">
             <h3 className="font-extrabold">{tr("Attainment by year group", "التحصيل حسب المرحلة")}</h3>
             <p className="mb-3 text-xs opacity-75">{tr(`Average of each student's latest 3 assessment scores. Above ≥ ${S.above}%, at ${S.at}–${S.above - 1}%, below < ${S.at}%. Tap a bar to drill down.`, `متوسط آخر ٣ درجات. فوق ≥ ${S.above}٪، ضمن ${S.at}–${S.above - 1}٪، دون < ${S.at}٪. اضغط على شريط للتفصيل.`)}</p>
-            {K.withScores === 0 ? empty(tr("No assessment scores yet for this selection.", "لا توجد درجات تقييم بعد لهذا الاختيار.")) : <StackedBars testid="rep-att-chart" rows={data.attainment.map((r) => ({ label: r.year, segs: segsAtt(r) }))} onPick={pick("att")} />}
+            {!data.attainment.some((r) => r.above + r.at + r.below > 0) ? empty(tr("No assessment scores yet for this selection.", "لا توجد درجات تقييم بعد لهذا الاختيار.")) : <StackedBars testid="rep-att-chart" rows={data.attainment.map((r) => ({ label: r.year, segs: segsAtt(r) }))} onPick={data.students ? pick("att") : undefined} />}
           </section>
         )}
-        {(tab === "overview" || tab === "progress") && (
+        {data.progress && (tab === "overview" || tab === "progress") && (
           <section className={card} data-testid="rep-progress">
             <h3 className="font-extrabold">{tr("Progress (first vs latest score)", "التقدّم (أول درجة مقابل آخر درجة)")}</h3>
             <p className="mb-3 text-xs opacity-75">{tr(`Better than expected: +${S.progBetter} points or more; expected: ${S.progExpected >= 0 ? "+" : ""}${S.progExpected} or more; below: less.`, `أفضل من المتوقع: +${S.progBetter} أو أكثر؛ متوقع: ${S.progExpected} أو أكثر؛ دون ذلك: أقل.`)}</p>
             {data.progress.byYear.every((r) => r.noData === r.students) ? empty(tr("No data yet — progress needs at least two scores per student.", "لا توجد بيانات بعد — يحتاج التقدّم درجتين على الأقل لكل طالب.")) : (
               <div className="grid gap-4 lg:grid-cols-2">
-                <StackedBars testid="rep-prog-chart" rows={data.progress.byYear.map((r) => ({ label: r.year, segs: segsProg(r) }))} onPick={pick("prog")} />
+                <StackedBars testid="rep-prog-chart" rows={data.progress.byYear.map((r) => ({ label: r.year, segs: segsProg(r) }))} onPick={data.students ? pick("prog") : undefined} />
                 <div><p className="mb-1 text-xs font-semibold">{tr("Distribution of improvement (points)", "توزيع التحسّن (نقاط)")}</p><Bars testid="rep-dist" data={data.progress.distribution.map((d) => ({ label: d.lo <= -100 ? "< -20" : d.hi > 100 ? "≥ 20" : `${d.lo}…${d.hi}`, v: d.n }))} /></div>
               </div>)}
             {tab === "progress" && <div className="mt-4"><p className="mb-1 text-xs font-semibold">{tr("Average score over time by year group (month, Dubai)", "متوسط الدرجات عبر الزمن حسب المرحلة")}</p>
-              {data.progress.trend.length === 0 ? empty() : <LineChart testid="rep-trend" xs={data.progress.trend.map((t) => t.month)} series={[...new Set(data.progress.trend.flatMap((t) => Object.keys(t.byYear)))].map((y) => ({ name: y, pts: data.progress.trend.map((t) => t.byYear[y] ?? null) }))} />}</div>}
+              {data.progress!.trend.length === 0 ? empty() : <LineChart testid="rep-trend" xs={data.progress!.trend.map((t) => t.month)} series={[...new Set(data.progress!.trend.flatMap((t) => Object.keys(t.byYear)))].map((y) => ({ name: y, pts: data.progress!.trend.map((t) => t.byYear[y] ?? null) }))} />}</div>}
           </section>
         )}
-        {(tab === "overview" || tab === "quran") && (
+        {data.quran && (tab === "overview" || tab === "quran") && (
           <section className={card} data-testid="rep-quran">
             <h3 className="font-extrabold">{tr("Quran verse mastery", "إتقان الآيات")}</h3>
             <p className="mb-3 text-xs opacity-75">{tr("Verses in approved Quran tracker entries, by the grade the teacher gave.", "الآيات في سجلات المتابعة المعتمدة حسب تقدير المعلم.")}</p>
             {data.quran.every((q) => !q.withData) ? empty(tr("No Quran tracker data yet for this selection.", "لا توجد بيانات متابعة قرآن بعد.")) : (
               <div className="grid gap-4 lg:grid-cols-[auto_1fr]">
-                <Donut testid="rep-quran-donut" segs={segsQ(data.quran.reduce((t, q) => ({ green: t.green + q.green, yellow: t.yellow + q.yellow, red: t.red + q.red }), { green: 0, yellow: 0, red: 0 }))} center={pc(K.quranGreen)} onPick={(k) => pick("quran")("", k)} />
-                <StackedBars testid="rep-quran-chart" rows={data.quran.map((q) => ({ label: q.year, segs: segsQ(q), note: `${q.withData}/${q.students} ${tr("students with entries", "طلاب لديهم سجلات")}` }))} onPick={pick("quran")} />
+                <Donut testid="rep-quran-donut" segs={segsQ(data.quran!.reduce((t, q) => ({ green: t.green + q.green, yellow: t.yellow + q.yellow, red: t.red + q.red }), { green: 0, yellow: 0, red: 0 }))} center={(() => { const q = data.quran!; const t = q.reduce((a, x) => a + x.green + x.yellow + x.red, 0); return t ? `${Math.round((100 * q.reduce((a, x) => a + x.green, 0)) / t)}%` : "—"; })()} onPick={data.students ? (k) => pick("quran")("", k) : undefined} />
+                <StackedBars testid="rep-quran-chart" rows={data.quran.map((q) => ({ label: q.year, segs: segsQ(q), note: `${q.withData}/${q.students} ${tr("students with entries", "طلاب لديهم سجلات")}` }))} onPick={data.students ? pick("quran") : undefined} />
               </div>)}
           </section>
         )}
-        {(tab === "overview" || tab === "homework") && (
+        {data.homework && (tab === "overview" || tab === "homework") && (
           <section className={card} data-testid="rep-homework">
             <h3 className="font-extrabold">{tr("Homework", "الواجبات")}</h3>
-            <p className="mb-3 text-xs opacity-75">{tr(`${data.homework.assignments} assignments for this selection. On time = handed in before the due time (no due date = on time when handed in).`, `${data.homework.assignments} واجباً. في الموعد = سُلّم قبل الموعد.`)}</p>
-            {data.homework.exp === 0 ? empty(tr("No homework set yet for this selection.", "لا توجد واجبات بعد.")) : (
+            <p className="mb-3 text-xs opacity-75">{tr(`${data.homework!.assignments} assignments for this selection. On time = handed in before the due time (no due date = on time when handed in).`, `${data.homework!.assignments} واجباً. في الموعد = سُلّم قبل الموعد.`)}</p>
+            {data.homework!.exp === 0 ? empty(tr("No homework set yet for this selection.", "لا توجد واجبات بعد.")) : (
               <div className="grid gap-4 lg:grid-cols-2">
-                <StackedBars testid="rep-hw-chart" rows={data.homework.byYear.filter((r) => r.exp).map((r) => ({ label: r.year, segs: [{ k: "ontime", label: tr("On time", "في الموعد"), v: r.onTime, color: C.above }, { k: "late", label: tr("Late", "متأخر"), v: r.done - r.onTime, color: C.at }, { k: "missing", label: tr("Not handed in", "لم يُسلّم"), v: r.exp - r.done, color: C.below }] }))} onPick={pick("hw")} />
-                {tab === "homework" && <div><p className="mb-1 text-xs font-semibold">{tr("Completion trend by week (% handed in)", "اتجاه الإنجاز أسبوعياً")}</p><LineChart testid="rep-hw-trend" xs={data.homework.trend.map((t) => t.week.slice(5))} series={[{ name: tr("Completion %", "الإنجاز ٪"), pts: data.homework.trend.map((t) => (t.exp ? Math.round((100 * t.done) / t.exp) : null)) }, { name: tr("On time %", "في الموعد ٪"), pts: data.homework.trend.map((t) => (t.exp ? Math.round((100 * t.onTime) / t.exp) : null)) }]} /></div>}
+                <StackedBars testid="rep-hw-chart" rows={data.homework!.byYear.filter((r) => r.exp).map((r) => ({ label: r.year, segs: [{ k: "ontime", label: tr("On time", "في الموعد"), v: r.onTime, color: C.above }, { k: "late", label: tr("Late", "متأخر"), v: r.done - r.onTime, color: C.at }, { k: "missing", label: tr("Not handed in", "لم يُسلّم"), v: r.exp - r.done, color: C.below }] }))} onPick={data.students ? pick("hw") : undefined} />
+                {tab === "homework" && <div><p className="mb-1 text-xs font-semibold">{tr("Completion trend by week (% handed in)", "اتجاه الإنجاز أسبوعياً")}</p><LineChart testid="rep-hw-trend" xs={data.homework!.trend.map((t) => t.week.slice(5))} series={[{ name: tr("Completion %", "الإنجاز ٪"), pts: data.homework!.trend.map((t) => (t.exp ? Math.round((100 * t.done) / t.exp) : null)) }, { name: tr("On time %", "في الموعد ٪"), pts: data.homework!.trend.map((t) => (t.exp ? Math.round((100 * t.onTime) / t.exp) : null)) }]} /></div>}
               </div>)}
           </section>
         )}
-        {(tab === "overview" || tab === "coverage") && (
+        {data.coverage && (tab === "overview" || tab === "coverage") && (
           <section className={card} data-testid="rep-coverage">
             <h3 className="font-extrabold">{tr("Curriculum coverage", "تغطية المنهج")}</h3>
             <p className="mb-3 text-xs opacity-75">{tr("Units marked taught, and units whose linked homework/assessment has at least one submission or result (assessed).", "الوحدات المنجزة، والوحدات التي لواجبها/تقييمها المرتبط تسليم أو نتيجة واحدة على الأقل.")}</p>
@@ -207,7 +214,7 @@ export function AdminReports() {
           </section>
         )}
 
-        {drill && tab !== "settings" && (
+        {drill && data.students && tab !== "settings" && (
           <section id="rep-drill" className={card} data-testid="rep-drill">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h3 className="font-extrabold">🔎 {[drill.year || tr("All years", "كل المراحل"), drill.section, drill.band].filter(Boolean).join(" › ")}</h3>
@@ -222,8 +229,8 @@ export function AdminReports() {
           </section>
         )}
 
-        {tab === "students" && <section className={card} data-testid="rep-students"><h3 className="mb-2 font-extrabold">{tr("All students in this selection", "كل الطلاب في هذا الاختيار")} ({data.students.length})</h3>{studentTable(data.students)}</section>}
-        {tab === "settings" && <SettingsPanel initial={S} onSaved={() => load(filters)} tr={tr} />}
+        {tab === "students" && data.students && <section className={card} data-testid="rep-students"><h3 className="mb-2 font-extrabold">{tr("All students in this selection", "كل الطلاب في هذا الاختيار")} ({data.students.length})</h3>{studentTable(data.students)}</section>}
+        {tab === "settings" && admin && <><SettingsPanel initial={S} onSaved={() => load(filters)} tr={tr} /><AccessPanel tr={tr} onSaved={() => load(filters)} /></>}
       </>)}
 
       {detail && <StudentPanel d={detail} onClose={() => setDetail(null)} tr={tr} />}
@@ -269,3 +276,50 @@ function StudentPanel({ d, onClose, tr }: { d: StudentDetail; onClose: () => voi
     </div>
   );
 }
+
+const KEY_LABEL: Record<RepKey, [string, string]> = {
+  kpi: ["KPI overview", "مؤشرات عامة"], attainment: ["Attainment", "التحصيل"], progress: ["Progress", "التقدّم"], quran: ["Quran", "القرآن"], homework: ["Homework", "الواجبات"],
+  coverage: ["Curriculum coverage", "تغطية المنهج"], drill: ["Drill-down / student detail", "التفصيل / ملف الطالب"], pdf: ["PDF export", "تصدير PDF"], xlsx: ["Excel export", "تصدير إكسل"],
+};
+export const repKeyLabel = (k: RepKey, tr: (e: string, a: string) => string) => tr(...KEY_LABEL[k]);
+
+/** Admin: who sees what. Global switches, then per-role overrides (teachers; future Inspector/Leadership). Per-teacher overrides live in the teacher's Permissions. */
+function AccessPanel({ tr, onSaved }: { tr: (e: string, a: string) => string; onSaved: () => void }) {
+  const [cfg, setCfg] = useState<AccessCfg | null>(null);
+  const [msg, setMsg] = useState("");
+  useEffect(() => { reportsApi.settings().then((r) => setCfg(r.access || { global: {}, roles: { teacher: {}, inspector: {} } })).catch((e) => setMsg((e as Error).message)); }, []);
+  if (!cfg) return <section className={card}>{msg || "…"}</section>;
+  const g = (k: RepKey) => cfg.global[k] !== false;
+  const sw = (on: boolean, set: (v: boolean) => void, id: string, isExport: boolean) => (
+    <label className={`flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-extrabold ${on ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-100" : "bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-100"}`}>
+      <input type="checkbox" checked={on} onChange={(e) => set(e.target.checked)} data-testid={id} /> {isExport ? (on ? tr("Allowed", "مسموح") : tr("Not allowed", "غير مسموح")) : on ? tr("Shown", "ظاهر") : tr("Hidden", "مخفي")}
+    </label>
+  );
+  const roleSel = (r: "teacher" | "inspector", k: RepKey) => {
+    const v = cfg.roles[r][k];
+    return (
+      <select className="rounded-lg border border-card-border bg-card-solid px-1.5 py-0.5 text-xs" value={v === undefined ? "" : v ? "on" : "off"} data-testid={`rep-acc-${r}-${k}`}
+        onChange={(e) => { const roles = { ...cfg.roles, [r]: { ...cfg.roles[r] } }; if (e.target.value === "") delete roles[r][k]; else roles[r][k] = e.target.value === "on"; setCfg({ ...cfg, roles }); }}>
+        <option value="">{tr("As global", "كالعام")}</option><option value="on">{k === "pdf" || k === "xlsx" ? tr("Allow", "سماح") : tr("Show", "إظهار")}</option><option value="off">{k === "pdf" || k === "xlsx" ? tr("Not allow", "منع") : tr("Hide", "إخفاء")}</option>
+      </select>
+    );
+  };
+  return (
+    <section className={card} data-testid="rep-access">
+      <h3 className="font-extrabold">🔐 {tr("Report access — Show / Hide and exports", "صلاحيات التقرير — إظهار / إخفاء والتصدير")}</h3>
+      <p className="mb-3 text-xs opacity-75">{tr("Applies to everyone who can open the report except you (admin always sees everything). Order: global → role → each teacher's own Permissions (Teachers → edit → Department Report). Enforced on the server: hidden sections are left out of the data and blocked exports are refused.", "ينطبق على كل من يفتح التقرير عداك. الترتيب: عام ← الدور ← صلاحيات كل معلم. يُطبَّق على الخادم.")}</p>
+      <div className="overflow-x-auto"><table className="w-full min-w-[520px] text-sm">
+        <thead><tr className="text-xs opacity-75"><th className="py-1 text-start">{tr("Section / export", "القسم / التصدير")}</th><th className="text-start">{tr("Global", "عام")}</th><th className="text-start">{tr("Teachers", "المعلمون")}</th><th className="text-start">{tr("Inspector / Leadership (coming)", "المفتش / القيادة (قريباً)")}</th></tr></thead>
+        <tbody>{REP_KEYS.map((k) => (
+          <tr key={k} className="border-t border-card-border"><td className="py-1.5 font-semibold">{repKeyLabel(k, tr)}</td>
+            <td>{sw(g(k), (v) => setCfg({ ...cfg, global: { ...cfg.global, [k]: v } }), `rep-acc-global-${k}`, k === "pdf" || k === "xlsx")}</td>
+            <td>{roleSel("teacher", k)}</td><td>{roleSel("inspector", k)}</td></tr>))}</tbody>
+      </table></div>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <button type="button" className="rounded-full bg-[#1b3a57] px-4 py-1.5 text-sm font-bold text-white" data-testid="rep-acc-save" onClick={async () => { setMsg(""); try { await reportsApi.saveAccess(cfg); setMsg(tr("Saved.", "تم الحفظ.")); onSaved(); } catch (e) { setMsg((e as Error).message); } }}>{tr("Save access", "حفظ الصلاحيات")}</button>
+        {msg && <span className="text-sm" data-testid="rep-acc-msg">{msg}</span>}
+      </div>
+    </section>
+  );
+}
+export type { Access };
