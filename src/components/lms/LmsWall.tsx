@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AssessmentShell } from "@/components/assessment/AssessmentShell";
 import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
 import { useTr } from "@/components/lms/useLms";
-import { lmsApi, lmsErrorText, lmsSession, setWallAdmin, type WallClass, type WallPost } from "@/lib/lms";
+import { lmsApi, lmsErrorText, lmsSession, setWallAdmin, type WallClass, type WallGroupInter, type WallPost } from "@/lib/lms";
 import { getServerSession } from "@/lib/adminServer";
 
 const pill = "inline-flex items-center gap-1.5 rounded-full border border-black/10 bg-white/80 px-3 py-1.5 text-sm font-bold transition hover:bg-white disabled:opacity-50 dark:border-white/15 dark:bg-white/10";
@@ -94,11 +94,37 @@ function Composer({ targets, onDone }: { targets: WallClass[]; onDone: () => voi
   );
 }
 
-function PostCard({ p, mod, reload, labels }: { p: WallPost; mod: boolean; reload: () => void; labels?: string[] }) {
-  const { tr, lang } = useTr();
+/** One group's likes and comments on a post (a like/comment made in Group A's wall never shows on Group B's). */
+function Interactions({ g, label, mod, run }: { g: WallGroupInter; label?: string; mod: boolean; run: (f: () => Promise<unknown>) => Promise<void> }) {
+  const { tr } = useTr();
   const [c, setC] = useState("");
+  const badge = label ? <span className="rounded-full bg-sun/50 px-2 py-0.5 text-[11px] font-bold" dir="auto" data-testid="wall-inter-group">{label}</span> : null;
+  return (
+    <section className={label ? "mt-3 rounded-2xl border border-black/5 p-2.5 dark:border-white/10" : ""} data-testid="wall-inter" data-key={g.key}>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        {badge}
+        <button type="button" className={pill + (g.liked ? " !bg-rose-100 !text-rose-700" : "")} onClick={() => run(() => lmsApi.wallLike(g.post, g.key))} aria-pressed={g.liked} data-testid="wall-like">{g.liked ? "❤️" : "🤍"} <span data-testid="wall-like-count">{g.likes}</span></button>
+        {label && <span className="text-xs opacity-60">{tr(`${g.comments.length} comment(s) in this group`, `${g.comments.length} تعليق في هذه المجموعة`)}</span>}
+      </div>
+      {g.comments.length > 0 && <ul className="mt-3 space-y-1.5 border-t border-black/5 pt-3 dark:border-white/10">
+        {g.comments.map((m) => <li key={m.id} className="flex items-start gap-2 rounded-2xl bg-black/[0.04] px-3 py-1.5 text-sm dark:bg-white/5" data-testid="wall-comment"><span className="min-w-0 flex-1">{badge && <span className="me-1">{badge}</span>}<b dir="auto">{m.name}</b>{m.role !== "student" && <span className="ms-1 rounded bg-sun/70 px-1 text-[10px] font-bold">{m.role === "admin" ? tr("Admin", "الإدارة") : tr("Teacher", "معلم")}</span>} <span dir="auto">{m.text}</span></span>
+          {mod && <button type="button" className="text-xs text-rose-700" aria-label={tr("Delete comment", "حذف التعليق")} onClick={() => run(() => lmsApi.wallMod("delcom", m.id))} data-testid="wall-del-comment">✕</button>}</li>)}
+      </ul>}
+      <form className="mt-2 flex gap-2" onSubmit={(e) => { e.preventDefault(); if (c.trim()) run(async () => { await lmsApi.wallComment(g.post, c, g.key); setC(""); }); }}>
+        <input className="min-w-0 flex-1 rounded-full border border-black/10 bg-white px-3 py-1.5 text-sm dark:border-white/15 dark:bg-white/5" placeholder={label ? tr(`Comment in ${label}…`, `تعليق في ${label}…`) : tr("Write a comment…", "اكتب تعليقًا…")} value={c} onChange={(e) => setC(e.target.value)} maxLength={400} dir="auto" data-testid="wall-comment-input" />
+        <button type="submit" className={pill} disabled={!c.trim()} data-testid="wall-comment-send">{tr("Send", "إرسال")}</button>
+      </form>
+    </section>
+  );
+}
+
+function PostCard({ p, mod, reload, labels, sel, labelOf }: { p: WallPost; mod: boolean; reload: () => void; labels?: string[]; sel: string[]; labelOf?: (k: string) => string }) {
+  const { tr, lang } = useTr();
+  // Only the selected groups' interactions; a single wall shows its own as before.
+  const all = p.groups?.length ? p.groups : [{ key: p.keys?.[0] || "", post: p.id, likes: p.likes, liked: p.liked, comments: p.comments }];
+  const groups = all.filter((g) => !g.key || sel.includes(g.key));
   const [err, setErr] = useState("");
-  const run = async (f: () => Promise<unknown>) => { setErr(""); try { await f(); reload(); } catch (e) { setErr(lmsErrorText(e, tr)); } };
+  const run = async (f: () => Promise<unknown>): Promise<void> => { setErr(""); try { await f(); reload(); } catch (e) { setErr(lmsErrorText(e, tr)); } };
   return (
     <article className={`glass rounded-3xl p-4 ${p.pinned ? "ring-2 ring-sun" : ""}`} data-testid="wall-post">
       <header className="flex items-center gap-2 text-sm">
@@ -109,21 +135,11 @@ function PostCard({ p, mod, reload, labels }: { p: WallPost; mod: boolean; reloa
       </header>
       {p.text && <p className="mt-2 whitespace-pre-wrap" dir="auto">{p.text}</p>}
       <Media id={p.id} image={p.hasImage} audio={p.hasAudio} />
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        <button type="button" className={pill + (p.liked ? " !bg-rose-100 !text-rose-700" : "")} onClick={() => run(() => lmsApi.wallLike(p.id))} aria-pressed={p.liked} data-testid="wall-like">{p.liked ? "❤️" : "🤍"} {p.likes}</button>
-        {mod && <>
-          <button type="button" className={pill} onClick={() => run(() => lmsApi.wallMod(p.pinned ? "unpin" : "pin", p.id))} data-testid="wall-pin">📌 {p.pinned ? tr("Unpin", "إلغاء التثبيت") : tr("Pin", "تثبيت")}</button>
-          <button type="button" className={pill + " !text-rose-700"} onClick={() => { if (confirm(tr("Delete this post and its comments?", "حذف المنشور وتعليقاته؟"))) run(() => lmsApi.wallMod("delete", p.id)); }} data-testid="wall-delete">🗑 {tr("Delete", "حذف")}</button>
-        </>}
-      </div>
-      {p.comments.length > 0 && <ul className="mt-3 space-y-1.5 border-t border-black/5 pt-3 dark:border-white/10">
-        {p.comments.map((m) => <li key={m.id} className="flex items-start gap-2 rounded-2xl bg-black/[0.04] px-3 py-1.5 text-sm dark:bg-white/5" data-testid="wall-comment"><span className="min-w-0 flex-1"><b dir="auto">{m.name}</b>{m.role !== "student" && <span className="ms-1 rounded bg-sun/70 px-1 text-[10px] font-bold">{m.role === "admin" ? tr("Admin", "الإدارة") : tr("Teacher", "معلم")}</span>} <span dir="auto">{m.text}</span></span>
-          {mod && <button type="button" className="text-xs text-rose-700" aria-label={tr("Delete comment", "حذف التعليق")} onClick={() => run(() => lmsApi.wallMod("delcom", m.id))} data-testid="wall-del-comment">✕</button>}</li>)}
-      </ul>}
-      <form className="mt-2 flex gap-2" onSubmit={(e) => { e.preventDefault(); if (c.trim()) run(async () => { await lmsApi.wallComment(p.id, c); setC(""); }); }}>
-        <input className="min-w-0 flex-1 rounded-full border border-black/10 bg-white px-3 py-1.5 text-sm dark:border-white/15 dark:bg-white/5" placeholder={tr("Write a comment…", "اكتب تعليقًا…")} value={c} onChange={(e) => setC(e.target.value)} maxLength={400} dir="auto" data-testid="wall-comment-input" />
-        <button type="submit" className={pill} disabled={!c.trim()} data-testid="wall-comment-send">{tr("Send", "إرسال")}</button>
-      </form>
+      {mod && <div className="mt-3 flex flex-wrap items-center gap-2">
+        <button type="button" className={pill} onClick={() => run(() => lmsApi.wallMod(p.pinned ? "unpin" : "pin", p.id))} data-testid="wall-pin">📌 {p.pinned ? tr("Unpin", "إلغاء التثبيت") : tr("Pin", "تثبيت")}</button>
+        <button type="button" className={pill + " !text-rose-700"} onClick={() => { if (confirm(tr("Delete this post and its comments?", "حذف المنشور وتعليقاته؟"))) run(() => lmsApi.wallMod("delete", p.id)); }} data-testid="wall-delete">🗑 {tr("Delete", "حذف")}</button>
+      </div>}
+      {groups.map((g) => <Interactions key={g.key} g={g} label={groups.length > 1 ? labelOf?.(g.key) || g.key : undefined} mod={mod} run={run} />)}
       {err && <p className="mt-1 text-sm text-rose-700" role="alert">{err}</p>}
     </article>
   );
@@ -205,7 +221,7 @@ export function WallBoard({ asAdmin = false }: { asAdmin?: boolean }) {
             {posts === null ? <p className="p-8 text-center opacity-70">{tr("Loading…", "جارٍ التحميل…")}</p>
               : !classes.length ? <p className="glass rounded-3xl p-8 text-center opacity-80">{tr("No class wall available for you yet.", "لا يوجد جدار صف متاح لك بعد.")}</p>
               : !posts.length ? <p className="glass rounded-3xl p-8 text-center opacity-80">{tr("No posts yet.", "لا توجد منشورات بعد.")}</p>
-              : posts.map((p) => <PostCard key={p.id} p={p} mod={mod} reload={load} labels={sel.length > 1 || (p.keys?.length || 0) > 1 ? (p.keys || []).map(labelOf) : undefined} />)}
+              : posts.map((p) => <PostCard key={p.id} p={p} mod={mod} reload={load} sel={sel} labelOf={labelOf} labels={sel.length > 1 || (p.keys?.length || 0) > 1 ? (p.keys || []).map(labelOf) : undefined} />)}
           </>
         )}
       </div>

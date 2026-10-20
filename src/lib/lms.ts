@@ -24,7 +24,10 @@ export type StudentGroup = { id: string; name: string; subject?: string; student
 export type ReportView = { kind: "points" | "quran"; id: string; name: string; cls: string; section: string; avatar: string; points?: { label: string; pts: number; icon: string; by: string; at: number }[]; tracker?: TrackerRow[]; progress?: unknown };
 export type Assignment = { id: string; quiz: string; title: string; mode: "individual" | "group"; cls: string; section: string; students: string[]; due: number | null; by: string; created: number };
 export type Announcement = { id: string; title: string; body: string; aud: "all" | "students" | "teachers" | "class"; cls: string; section: string; by: string; created: number };
-export type WallPost = { keys?: string[]; id: string; name: string; text: string; hasImage: boolean; hasAudio: boolean; pinned: boolean; at: number; likes: number; liked: boolean; comments: { id: string; name: string; role: string; text: string; at: number }[] };
+export type WallComment = { id: string; name: string; role: string; text: string; at: number };
+/** Likes/comments of one group's copy of a post (each group wall keeps its own). */
+export type WallGroupInter = { key: string; post: string; likes: number; liked: boolean; comments: WallComment[] };
+export type WallPost = { keys?: string[]; groups?: WallGroupInter[]; id: string; name: string; text: string; hasImage: boolean; hasAudio: boolean; pinned: boolean; at: number; likes: number; liked: boolean; comments: { id: string; name: string; role: string; text: string; at: number }[] };
 export type LiveActivity = { code: string; type: string; title: string; teacher: string; at: number };
 export type MsgContact = { id: string; name: string; role: string; cls: string; seen?: number };
 export type CorrectedItem = { id: string; hw: string; title: string; data: QuranData; student: string; name: string; cls: string; section: string; grade: Grade; status: string; scores: Scores | null; gradedAt: number; by: string };
@@ -250,8 +253,8 @@ export const lmsApi = {
   wallList: (keys: string | string[]) => call<{ posts: WallPost[]; canModerate: boolean }>("wall-list", Array.isArray(keys) ? { keys } : { key: keys }, { asAdmin: wallAdmin }),
   wallMedia: (id: string, dl = false) => call<{ image: string; audio: string }>("wall-media", dl ? { id, dl: true } : { id }, { asAdmin: wallAdmin }),
   wallPost: (keys: string | string[], text: string, image?: string, audio?: string) => call<{ ok: true; count?: number }>("wall-post", { ...(Array.isArray(keys) ? { keys } : { key: keys }), text, image, audio }, { asAdmin: wallAdmin }),
-  wallComment: (post: string, text: string) => call<{ ok: true }>("wall-comment", { post, text }, { asAdmin: wallAdmin }),
-  wallLike: (post: string) => call<{ ok: true }>("wall-like", { post }, { asAdmin: wallAdmin }),
+  wallComment: (post: string, text: string, key?: string) => call<{ ok: true }>("wall-comment", key ? { post, text, key } : { post, text }, { asAdmin: wallAdmin }),
+  wallLike: (post: string, key?: string) => call<{ ok: true }>("wall-like", key ? { post, key } : { post }, { asAdmin: wallAdmin }),
   wallMod: (op: "delete" | "pin" | "unpin" | "delcom", id: string) => call<{ ok: true }>("wall-mod", { op, id }, { asAdmin: wallAdmin }),
   actPublish: (code: string, type: string, title: string, students: string[]) => call<{ ok: true; count: number }>("act-publish", { code, type, title, students }),
   actLive: () => call<{ items: LiveActivity[] }>("act-live"),

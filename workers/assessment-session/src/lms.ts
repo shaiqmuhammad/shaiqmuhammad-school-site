@@ -282,6 +282,9 @@ export class LmsStore extends DurableObject<LmsEnv> {
     if (!cols("tracker").has("rev_count")) this.sql.exec(`ALTER TABLE tracker ADD COLUMN rev_count INTEGER DEFAULT 0`);
     if (!cols("tracker").has("rev_at")) this.sql.exec(`ALTER TABLE tracker ADD COLUMN rev_at INTEGER DEFAULT 0`);
     if (!cols("wall").has("batch")) this.sql.exec(`ALTER TABLE wall ADD COLUMN batch TEXT DEFAULT ''`);
+    // Likes/comments carry the group wall they were made in. Existing ones keep the wall of the post copy they were on (no data loss).
+    if (!cols("wcom").has("wkey")) { this.sql.exec(`ALTER TABLE wcom ADD COLUMN wkey TEXT DEFAULT ''`); this.sql.exec(`UPDATE wcom SET wkey=COALESCE((SELECT wkey FROM wall WHERE wall.id=wcom.post),'')`); }
+    if (!cols("wlike").has("wkey")) { this.sql.exec(`ALTER TABLE wlike ADD COLUMN wkey TEXT DEFAULT ''`); this.sql.exec(`UPDATE wlike SET wkey=COALESCE((SELECT wkey FROM wall WHERE wall.id=wlike.post),'')`); }
     if (!cols("homework").has("section")) this.sql.exec(`ALTER TABLE homework ADD COLUMN section TEXT DEFAULT ''`);
     // One-time migration: free-text class values become catalog classes (idempotent).
     for (const r of this.sql.exec(`SELECT DISTINCT cls FROM users WHERE cls != '' UNION SELECT DISTINCT cls FROM homework WHERE cls != ''`).toArray()) {
@@ -852,12 +855,17 @@ export class LmsStore extends DurableObject<LmsEnv> {
         const seen = new Map<string, Record<string, unknown> & { keys: string[] }>();
         const posts: (Record<string, unknown> & { keys: string[] })[] = [];
         for (const r of rows) { const b = String(r.batch || ""); const ex = b ? seen.get(b) : undefined; if (ex) { if (!ex.keys.includes(String(r.wkey))) ex.keys.push(String(r.wkey)); continue; } const o = { ...r, keys: [String(r.wkey)] }; if (b) seen.set(b, o); posts.push(o); }
-        const out = posts.map((p) => ({
-          keys: p.keys,
-          id: String(p.id), name: String(p.name), text: String(p.text), hasImage: !!p.hasImg, hasAudio: !!p.hasAud, pinned: !!p.pinned, at: Number(p.at),
-          likes: Number(this.sql.exec(`SELECT COUNT(*) AS n FROM wlike WHERE post=?`, String(p.id)).one().n), liked: this.sql.exec(`SELECT 1 FROM wlike WHERE post=? AND by=?`, String(p.id), a.id).toArray().length > 0,
-          comments: this.sql.exec(`SELECT id, name, role, text, at FROM wcom WHERE post=? ORDER BY at`, String(p.id)).toArray().map((m) => ({ id: String(m.id), name: String(m.name), role: String(m.role), text: String(m.text), at: Number(m.at) })),
-        }));
+        // Per group: each post copy (one per group wall) holds only the likes/comments made in that group's wall.
+        const inter = (id: string, key: string) => ({
+          key, post: id,
+          likes: Number(this.sql.exec(`SELECT COUNT(*) AS n FROM wlike WHERE post=? AND wkey=?`, id, key).one().n), liked: this.sql.exec(`SELECT 1 FROM wlike WHERE post=? AND wkey=? AND by=?`, id, key, a.id).toArray().length > 0,
+          comments: this.sql.exec(`SELECT id, name, role, text, at FROM wcom WHERE post=? AND wkey=? ORDER BY at`, id, key).toArray().map((m) => ({ id: String(m.id), name: String(m.name), role: String(m.role), text: String(m.text), at: Number(m.at) })),
+        });
+        const copyOf = new Map<string, string>(); for (const r of rows) copyOf.set(`${r.batch || r.id}|${r.wkey}`, String(r.id));
+        const out = posts.map((p) => {
+          const groups = p.keys.map((k) => inter(copyOf.get(`${p.batch || p.id}|${k}`) || String(p.id), k));
+          return { keys: p.keys, id: String(p.id), name: String(p.name), text: String(p.text), hasImage: !!p.hasImg, hasAudio: !!p.hasAud, pinned: !!p.pinned, at: Number(p.at), likes: groups[0].likes, liked: groups[0].liked, comments: groups[0].comments, groups };
+        });
         return { status: 200, body: { posts: out, canModerate: isStaff(a) && !a.viewAs } };
       }
       case "wall-media": {
@@ -882,21 +890,21 @@ export class LmsStore extends DurableObject<LmsEnv> {
       case "wall-comment": {
         const p = this.sql.exec(`SELECT wkey FROM wall WHERE id=?`, str(input.post, 40)).toArray()[0];
         if (!p || a.viewAs) return { status: 404, body: { error: "not_found" } };
-        if (!this.wallKeyOk(a, String(p.wkey))) return { status: 403, body: { error: "forbidden" } };
+        if (!this.wallKeyOk(a, String(p.wkey)) || (input.key !== undefined && str(input.key, 80) !== String(p.wkey))) return { status: 403, body: { error: "forbidden" } };
         const text = wallText(input.text, 400);
         if (!text) return { status: 400, body: { error: "empty" } };
         const recent = Number(this.sql.exec(`SELECT COUNT(*) AS n FROM wcom WHERE by=? AND at>?`, a.id, Date.now() - 60_000).one().n);
         if (recent >= 8) return { status: 429, body: { error: "slow_down" } };
-        this.sql.exec(`INSERT INTO wcom (id, post, by, name, role, text, at) VALUES (?, ?, ?, ?, ?, ?, ?)`, rid("wc"), str(input.post, 40), a.id, a.name, a.role, text, Date.now());
+        this.sql.exec(`INSERT INTO wcom (id, post, by, name, role, text, at, wkey) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, rid("wc"), str(input.post, 40), a.id, a.name, a.role, text, Date.now(), String(p.wkey));
         return { status: 200, body: { ok: true } };
       }
       case "wall-like": {
         const p = this.sql.exec(`SELECT wkey FROM wall WHERE id=?`, str(input.post, 40)).toArray()[0];
         if (!p || a.viewAs) return { status: 404, body: { error: "not_found" } };
-        if (!this.wallKeyOk(a, String(p.wkey))) return { status: 403, body: { error: "forbidden" } };
+        if (!this.wallKeyOk(a, String(p.wkey)) || (input.key !== undefined && str(input.key, 80) !== String(p.wkey))) return { status: 403, body: { error: "forbidden" } };
         const id = str(input.post, 40);
         if (this.sql.exec(`SELECT 1 FROM wlike WHERE post=? AND by=?`, id, a.id).toArray().length) this.sql.exec(`DELETE FROM wlike WHERE post=? AND by=?`, id, a.id);
-        else this.sql.exec(`INSERT INTO wlike (post, by) VALUES (?, ?)`, id, a.id);
+        else this.sql.exec(`INSERT INTO wlike (post, by, wkey) VALUES (?, ?, ?)`, id, a.id, String(p.wkey));
         return { status: 200, body: { ok: true } };
       }
       case "wall-mod": {
