@@ -38,6 +38,7 @@ import { DurableObject } from "cloudflare:workers";
 import { corsHeaders, reply, verifyToken, type AdminEnv } from "./admin";
 import { fetchParentReplies, sendAuto, sendParentMail, type MailEnv } from "./mail/mailbox";
 import { initMods, modHandle, today as modToday } from "./lmsmods";
+import { reportHandle } from "./reports";
 import { renderEmail, renderText } from "./mail/template";
 import { blobStore, sqliteChunkStore, type BlobStore, type StorageEnv } from "./storage";
 
@@ -624,6 +625,12 @@ export class LmsStore extends DurableObject<LmsEnv> {
     if (a.role === "parent" && !(input as Record<symbol, unknown>)[PASS]) return this.parentHandle(a, action, input);
     if (action === "att-parent-alert") return this.attParentAlert(a, input);
     if (/^par-(list|save|delete|import)$/.test(action)) return this.parAdmin(a, action, input);
+    if (/^report-(dept|student|settings)$/.test(action)) {
+      const RES = (this.env as unknown as { RESULTS?: DurableObjectNamespace }).RESULTS;
+      let cache: Record<string, unknown>[] | null = null;
+      return reportHandle({ sql: this.sql, homework: () => this.allHomework(), assignees: (h) => this.assignees(h),
+        results: async () => (cache ??= RES ? await (RES.get(RES.idFromName("main")) as unknown as { list(f: object): Promise<Record<string, unknown>[]> }).list({ details: false }) : []) }, a, action, input);
+    }
     if (/^(att|beh|cur)-/.test(action)) return modHandle({ sql: this.sql, hwList: () => this.allHomework().map((h) => ({ id: h.id, title: h.title, kind: h.kind, cls: h.cls, section: h.section, students: h.students, createdBy: h.createdBy })), inScope: (x, c, s, i) => this.inScope(x, c, s, i), userRow: (w, g) => this.userRow(w, g) }, action, a, input);
     switch (action) {
       case "dl-policy": return { status: 200, body: { audio: this.dlOf(a, "audio"), export: this.dlOf(a, "export") } };
