@@ -35,7 +35,7 @@ import { handleAdmin, type AdminEnv } from "./admin";
 import { handleForum } from "./forum";
 import { handleResults, resultsStore, type ResultRecord, type ResultsEnv } from "./results";
 import { handleActivity, type ActivityEnv } from "./activity";
-import { handleLms, type LmsEnv } from "./lms";
+import { handleLms, studentIdOf, type LmsEnv } from "./lms";
 import { handleYt, SiteKV, type YtEnv } from "./youtube";
 import { handleCert } from "./cert";
 import { handleContact, handleMail } from "./mail/routes";
@@ -83,6 +83,8 @@ type Participant = {
   deviceId?: string;
   /** Set when the teacher removed the student. */
   removedAt?: number;
+  /** LMS student id when the student joined while logged in (verified by the Worker). */
+  lmsStudent?: string;
 };
 
 type Reply = { status: number; body: unknown };
@@ -354,6 +356,7 @@ export class AssessmentSession extends DurableObject<Env> {
       finishedAt: r.finishedAt ?? endAt,
       rank: r.rank,
       groupSize: res.rows.length,
+      studentId: this.participants.get(r.id)?.lmsStudent || "",
       details: (r.details ?? []).map((d, i) => {
         const question = byId.get(d.questionId);
         return {
@@ -420,6 +423,7 @@ export class AssessmentSession extends DurableObject<Env> {
           answers: {},
           joinedAt: now,
           ...(deviceId ? { deviceId } : {}),
+          ...(typeof body.lmsStudent === "string" && body.lmsStudent ? { lmsStudent: body.lmsStudent } : {}),
         };
         await this.saveParticipant(p);
         return { status: 200, body: { participantId: p.id, token: p.token, name: p.name, ...this.info(now, { selfId: p.id }) } };
@@ -559,7 +563,7 @@ export default {
     // Admin publishing (own CORS: site origins only). See ./admin.ts.
     if (parts[0] === "api" && parts[1] === "admin") return handleAdmin(request, env, parts[2] || "");
     if (parts[0] === "api" && parts[1] === "forum") return handleForum(request, env, parts[2] || "");
-    if (parts[0] === "api" && parts[1] === "results") return handleResults(request, env, parts[2] || "");
+    if (parts[0] === "api" && parts[1] === "results") return handleResults(request, env, parts[2] || "", (h) => studentIdOf(env as unknown as LmsEnv, h));
     if (parts[0] === "api" && parts[1] === "activity") return handleActivity(request, env, parts);
     if (parts[0] === "api" && parts[1] === "cert") return handleCert(request, env as unknown as YtEnv, parts.slice(2));
     if (parts[0] === "api" && parts[1] === "yt") return handleYt(request, env as unknown as YtEnv, parts.slice(2));
@@ -597,6 +601,11 @@ export default {
     if (!/^[A-Z0-9]{4,8}$/.test(code)) return json({ error: "bad_code" }, 400);
     const action = parts[3] || "info";
     const input: Record<string, unknown> = { ...Object.fromEntries(url.searchParams), ...body };
+    // Only the server sets lmsStudent: from a verified student login sent with join (body "lmsToken"); never trusted from the client.
+    delete input.lmsStudent;
+    const lmsToken = typeof input.lmsToken === "string" ? input.lmsToken : "";
+    delete input.lmsToken;
+    if (action === "join" && lmsToken) input.lmsStudent = (await studentIdOf(env as unknown as LmsEnv, lmsToken).catch(() => null)) || "";
     const stub = env.SESSIONS.get(env.SESSIONS.idFromName(code));
     const reply = (await stub.handle(action, request.method, input)) as unknown as Reply;
     return json(reply.body, reply.status);

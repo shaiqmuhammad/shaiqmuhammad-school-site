@@ -46,6 +46,10 @@ export type ResultRecord = {
   finishedAt: number;
   rank: number | null;
   groupSize: number | null;
+  /** LMS student id, set by the server from the student's own login (never from the typed name). "" = not linked. */
+  studentId?: string;
+  /** "" (auto), "manual" (admin linked it) or "ignored" (admin chose to leave it out of reports). */
+  linkState?: string;
   details?: ResultDetail[];
 };
 
@@ -97,14 +101,17 @@ export class ResultsStore extends DurableObject {
     sql.exec("CREATE INDEX IF NOT EXISTS rec_time ON records(finished_at)");
     sql.exec("CREATE INDEX IF NOT EXISTS rec_session ON records(session_code)");
     sql.exec("CREATE TABLE IF NOT EXISTS rl (ip TEXT, t INTEGER)");
+    const cols = new Set([...sql.exec("PRAGMA table_info(records)")].map((r) => String(r.name)));
+    if (!cols.has("student_id")) sql.exec("ALTER TABLE records ADD COLUMN student_id TEXT DEFAULT ''");
+    if (!cols.has("link_state")) sql.exec("ALTER TABLE records ADD COLUMN link_state TEXT DEFAULT ''");
     this.ready = true;
   }
 
   private insert(r: ResultRecord) {
     this.ctx.storage.sql.exec(
-      `INSERT OR REPLACE INTO records VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      `INSERT OR REPLACE INTO records (id, kind, quiz_id, quiz_slug, quiz_title, year, name, session_code, score, max_score, percentage, correct, wrong, unanswered, time_sec, finished_at, rank, group_size, details, student_id, link_state) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       r.id, r.kind, r.quizId, r.quizSlug, r.quizTitle, r.year, r.name, r.sessionCode, r.score, r.maxScore, r.percentage,
-      r.correct, r.wrong, r.unanswered, r.timeSec, r.finishedAt, r.rank, r.groupSize, JSON.stringify(r.details ?? []),
+      r.correct, r.wrong, r.unanswered, r.timeSec, r.finishedAt, r.rank, r.groupSize, JSON.stringify(r.details ?? []), r.studentId || "", r.linkState || "",
     );
   }
 
@@ -155,6 +162,17 @@ export class ResultsStore extends DurableObject {
     return [...cursor].map((row) => toRecord(row, Boolean(f.details)));
   }
 
+  /** Admin: link a result to a student (manual), mark it ignored, or reset to automatic. Scores are never touched. */
+  async setLink(id: string, op: "link" | "ignore" | "reset", studentId = ""): Promise<boolean> {
+    this.init();
+    const sql = this.ctx.storage.sql;
+    if (![...sql.exec("SELECT id FROM records WHERE id = ?", id)].length) return false;
+    if (op === "link") sql.exec("UPDATE records SET student_id = ?, link_state = 'manual' WHERE id = ?", studentId, id);
+    else if (op === "ignore") sql.exec("UPDATE records SET link_state = 'ignored' WHERE id = ?", id);
+    else sql.exec("UPDATE records SET link_state = '' , student_id = CASE WHEN link_state = 'manual' THEN '' ELSE student_id END WHERE id = ?", id);
+    return true;
+  }
+
   async get(id: string): Promise<ResultRecord | null> {
     this.init();
     const rows = [...this.ctx.storage.sql.exec("SELECT * FROM records WHERE id = ?", id)];
@@ -189,6 +207,8 @@ function toRecord(row: Record<string, SqlStorageValue>, withDetails: boolean): R
     finishedAt: Number(row.finished_at ?? 0),
     rank: row.rank == null ? null : Number(row.rank),
     groupSize: row.group_size == null ? null : Number(row.group_size),
+    studentId: String(row.student_id ?? ""),
+    linkState: String(row.link_state ?? ""),
   };
   if (withDetails) {
     try {
@@ -204,7 +224,7 @@ export function resultsStore(env: ResultsEnv) {
   return env.RESULTS.get(env.RESULTS.idFromName("main"));
 }
 
-export async function handleResults(request: Request, env: ResultsEnv, action: string): Promise<Response> {
+export async function handleResults(request: Request, env: ResultsEnv, action: string, studentOf?: (header: string | null) => Promise<string | null>): Promise<Response> {
   const origin = request.headers.get("Origin");
   if (origin && !originAllowed(origin)) return reply(null, { error: "origin_not_allowed" }, 403);
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders(origin) });
@@ -230,6 +250,8 @@ export async function handleResults(request: Request, env: ResultsEnv, action: s
     const maxScore = num(b.maxScore, 0, 10000);
     const score = Math.min(num(b.score, 0, 10000), maxScore);
     const year = Number(b.year);
+    // Logged-in student (LMS token in Authorization): the id comes from the verified session, not the typed name.
+    const studentId = (studentOf ? await studentOf(request.headers.get("Authorization")).catch(() => null) : null) || "";
     const rec: ResultRecord = {
       id: `r_${Date.now().toString(36)}_${crypto.randomUUID().slice(0, 8)}`,
       kind: "individual",
@@ -249,10 +271,11 @@ export async function handleResults(request: Request, env: ResultsEnv, action: s
       finishedAt: Date.now(),
       rank: null,
       groupSize: null,
+      studentId,
       details: cleanDetails(b.details),
     };
     const r = await store.add(rec);
-    return r === "ok" ? reply(origin, { ok: true, id: rec.id }) : reply(origin, { error: "full" }, 507);
+    return r === "ok" ? reply(origin, { ok: true, id: rec.id, linked: Boolean(studentId) }) : reply(origin, { error: "full" }, 507);
   }
 
   const session = await verifyToken(env, request.headers.get("Authorization"));

@@ -625,10 +625,11 @@ export class LmsStore extends DurableObject<LmsEnv> {
     if (a.role === "parent" && !(input as Record<symbol, unknown>)[PASS]) return this.parentHandle(a, action, input);
     if (action === "att-parent-alert") return this.attParentAlert(a, input);
     if (/^par-(list|save|delete|import)$/.test(action)) return this.parAdmin(a, action, input);
-    if (/^report-(dept|student|settings|export)$/.test(action)) {
+    if (/^report-(dept|student|settings|export|unmatched|link)$/.test(action)) {
       const RES = (this.env as unknown as { RESULTS?: DurableObjectNamespace }).RESULTS;
       let cache: Record<string, unknown>[] | null = null;
       return reportHandle({ sql: this.sql, homework: () => this.allHomework(), assignees: (h) => this.assignees(h), inScope: (x, c2, s2, i) => this.inScope(x, c2, s2, i),
+        setLink: RES ? (id, op, sid) => (RES.get(RES.idFromName("main")) as unknown as { setLink(i: string, o: string, s: string): Promise<boolean> }).setLink(id, op, sid) : undefined,
         results: async () => (cache ??= RES ? await (RES.get(RES.idFromName("main")) as unknown as { list(f: object): Promise<Record<string, unknown>[]> }).list({ details: false }) : []) }, a, action, input);
     }
     if (/^(att|beh|cur)-/.test(action)) return modHandle({ sql: this.sql, hwList: () => this.allHomework().map((h) => ({ id: h.id, title: h.title, kind: h.kind, cls: h.cls, section: h.section, students: h.students, createdBy: h.createdBy })), inScope: (x, c, s, i) => this.inScope(x, c, s, i), userRow: (w, g) => this.userRow(w, g) }, action, a, input);
@@ -2093,7 +2094,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         const nm = String(srow.name).trim().toLowerCase();
         const slugs = new Set(assigned.items.map((x) => x.quiz));
         const all = await (RES.get(RES.idFromName("main")) as unknown as { list(f: object): Promise<Record<string, unknown>[]> }).list({ details: false });
-        const items = all.filter((r) => r.kind === "individual" && String(r.name).trim().toLowerCase() === nm && (slugs.has(String(r.quizSlug)) || slugs.has(String(r.quizId)))).slice(0, 60)
+        const items = all.filter((r) => r.linkState !== "ignored" && (String(r.studentId || "") === String(srow.id) || (!r.studentId && r.kind === "individual" && String(r.name).trim().toLowerCase() === nm && (slugs.has(String(r.quizSlug)) || slugs.has(String(r.quizId)))))).slice(0, 60)
           .map((r) => ({ quizTitle: String(r.quizTitle), score: Number(r.score), maxScore: Number(r.maxScore), percentage: Number(r.percentage), finishedAt: Number(r.finishedAt) }));
         return { status: 200, body: { items, assigned: assigned.items } };
       }
@@ -2414,6 +2415,14 @@ export async function handleLms(request: Request, env: LmsEnv, action: string): 
 }
 
 /** The verified LMS user id behind a request (no role check). */
+/** Signed-in, active STUDENT id from an LMS token (header "Bearer …" or the raw token), else null. Used to link quiz results to the account. */
+export async function studentIdOf(env: LmsEnv, tokenOrHeader: string | null | undefined): Promise<string | null> {
+  if (!tokenOrHeader || !env.LMS) return null;
+  const tk = await verifyUserTokenPv(env, tokenOrHeader.startsWith("Bearer ") ? tokenOrHeader : `Bearer ${tokenOrHeader}`);
+  if (!tk) return null;
+  const u = (await env.LMS.get(env.LMS.idFromName("main")).actor(tk.uid, tk.pv)) as unknown as Actor | null;
+  return u && u.role === "student" ? u.id : null;
+}
 export async function teacherIdOf(request: Request, env: LmsEnv): Promise<string | null> {
   return (await verifyUserTokenPv(env, request.headers.get("Authorization")))?.uid ?? null;
 }

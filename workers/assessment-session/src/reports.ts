@@ -4,6 +4,8 @@
  *   POST /api/lms/report-dept      {filters?} -> {filters, options, settings, kpis, attainment, progress, quran, homework, coverage, students}
  *   POST /api/lms/report-student   {id}       -> {student, scores[], homework[], quran[]}
  *   POST /api/lms/report-settings  {save?: {...}, access?: {...}} -> {settings, access, mine}   (reading: any report role; saving: admin only)
+ *   POST /api/lms/report-unmatched {ignored?} -> {items, students}   (admin) results not linked to any student
+ *   POST /api/lms/report-link      {id, op: link|ignore|reset, studentId?} (admin) — only the link changes, never the score
  *   POST /api/lms/report-export    {kind: "pdf"|"xlsx", filters?} -> same body as report-dept, or 403 export_not_allowed
  *
  * Access switches (admin-controlled): Show/Hide per section and Allow/Not allow for PDF and Excel. Layered
@@ -25,6 +27,7 @@ export type ReportCtx = {
   homework: () => { id: string; kind: string; title: string; cls: string; section: string; students: string[]; due: number | null; created: number }[];
   assignees: (h: { cls: string; section: string; students: string[] }) => string[];
   inScope: (a: Actor, cls: string, section: string, sid?: string) => boolean;
+  setLink?: (id: string, op: "link" | "ignore" | "reset", studentId: string) => Promise<boolean>;
 };
 /** Roles allowed to READ reports. Future: add "inspector" (read-only leadership) here. Teachers also need perm "rep:view". */
 export const REPORT_ROLES = new Set<string>(["admin", "teacher"]);
@@ -82,21 +85,35 @@ function students(sql: Sql): Stu[] {
   }));
 }
 type Score = { t: number; p: number; title: string; kind: string };
-async function scoresByStudent(c: ReportCtx, all: Stu[]) {
+/** Results -> students: the linked student id first (login / admin link), else an exact name match that is unique among ALL students. */
+function matchResult(r: Row, ids: Set<string>, byName: Map<string, string[]>): { sid: string | null; why: "id" | "name" | "ignored" | "unmatched" | "ambiguous" } {
+  if (r.linkState === "ignored") return { sid: null, why: "ignored" };
+  const sid = String(r.studentId || "");
+  if (sid && ids.has(sid)) return { sid, why: "id" };
+  const cand = byName.get(String(r.name || "").trim().toLowerCase()) || [];
+  if (cand.length === 1) return { sid: cand[0], why: "name" };
+  return { sid: null, why: cand.length > 1 ? "ambiguous" : "unmatched" };
+}
+function nameIndex(everyone: Stu[]) {
   const byName = new Map<string, string[]>();
-  for (const s of all) { const k = s.name.trim().toLowerCase(); byName.set(k, [...(byName.get(k) || []), s.id]); }
+  for (const s of everyone) { const k = s.name.trim().toLowerCase(); byName.set(k, [...(byName.get(k) || []), s.id]); }
+  return byName;
+}
+async function scoresByStudent(c: ReportCtx, everyone: Stu[]) {
+  const byName = nameIndex(everyone), ids = new Set(everyone.map((s) => s.id));
   const out = new Map<string, Score[]>();
-  let unmatched = 0, ambiguous = 0, total = 0;
+  let unmatched = 0, ambiguous = 0, total = 0, byId = 0, ignored = 0;
   for (const r of await c.results()) {
     total++;
-    const ids = byName.get(String(r.name || "").trim().toLowerCase()) || [];
-    if (ids.length !== 1) { if (ids.length > 1) ambiguous++; else unmatched++; continue; }
+    const m = matchResult(r, ids, byName);
+    if (!m.sid) { if (m.why === "ambiguous") ambiguous++; else if (m.why === "ignored") ignored++; else unmatched++; continue; }
+    if (m.why === "id") byId++;
     const p = Number(r.percentage);
     if (!Number.isFinite(p)) continue;
-    out.set(ids[0], [...(out.get(ids[0]) || []), { t: Number(r.finishedAt), p: Math.round(p), title: String(r.quizTitle || ""), kind: String(r.kind || "") }]);
+    out.set(m.sid, [...(out.get(m.sid) || []), { t: Number(r.finishedAt), p: Math.round(p), title: String(r.quizTitle || ""), kind: String(r.kind || "") }]);
   }
   for (const v of out.values()) v.sort((a, b) => a.t - b.t);
-  return { out, unmatched, ambiguous, total };
+  return { out, unmatched, ambiguous, total, byId, ignored };
 }
 
 export async function reportHandle(c: ReportCtx, a: Actor, action: string, input: Row) {
@@ -127,14 +144,30 @@ export async function reportHandle(c: ReportCtx, a: Actor, action: string, input
     }
     return { status: 200, body: { settings: S, defaults: DEF, ...(a.role === "admin" ? { access: accessCfg(c.sql) } : {}), mine: accessOf(c.sql, a) } };
   }
-  const all = students(c.sql).filter((s) => a.role === "admin" || a.perms.includes("viewAll") || c.inScope(a, s.cls, s.section, s.id));
+  const everyone = students(c.sql);
+  const all = everyone.filter((s) => a.role === "admin" || a.perms.includes("viewAll") || c.inScope(a, s.cls, s.section, s.id));
   const groups = c.sql.exec(`SELECT id, name, students FROM grp ${a.role === "admin" ? "" : "WHERE owner=? OR owner='admin'"} ORDER BY name`, ...(a.role === "admin" ? [] : [a.id])).toArray().map((r) => ({ id: String(r.id), name: String(r.name), students: JSON.parse(String(r.students || "[]")) as string[] }));
 
+  if (action === "report-unmatched" || action === "report-link") {
+    if (a.role !== "admin") return { status: 403, body: { error: "admin_only" } };
+    if (action === "report-link") {
+      const id = String(input.id || ""), op = input.op === "ignore" ? "ignore" : input.op === "reset" ? "reset" : "link", sid = String(input.studentId || "");
+      if (op === "link" && !everyone.some((x) => x.id === sid)) return { status: 400, body: { error: "unknown_student" } };
+      if (!c.setLink) return { status: 501, body: { error: "results_unavailable" } };
+      return (await c.setLink(id, op, sid)) ? { status: 200, body: { ok: true } } : { status: 404, body: { error: "not_found" } };
+    }
+    const byName = nameIndex(everyone), ids = new Set(everyone.map((s) => s.id));
+    const showIgnored = input.ignored === true;
+    const items = (await c.results()).map((r) => ({ r, m: matchResult(r, ids, byName) })).filter(({ m }) => m.why === "unmatched" || m.why === "ambiguous" || (showIgnored && m.why === "ignored")).slice(0, 500)
+      .map(({ r, m }) => ({ id: String(r.id), name: String(r.name), quizTitle: String(r.quizTitle || ""), kind: String(r.kind || ""), percentage: Number(r.percentage), finishedAt: Number(r.finishedAt), why: m.why,
+        candidates: m.why === "ambiguous" ? (byName.get(String(r.name).trim().toLowerCase()) || []) : [] }));
+    return { status: 200, body: { items, students: everyone.map((s) => ({ id: s.id, name: s.name, cls: s.cls, section: s.section })) } };
+  }
   if (action === "report-student") {
     if (!acc.drill) return { status: 403, body: { error: "section_hidden" } };
     const s = all.find((x) => x.id === String(input.id || ""));
     if (!s) return { status: 404, body: { error: "not_found" } };
-    const sc = (await scoresByStudent(c, all)).out.get(s.id) || [];
+    const sc = (await scoresByStudent(c, everyone)).out.get(s.id) || [];
     const subs = new Map(c.sql.exec(`SELECT hw, status, submitted_at, updated FROM subs WHERE student=?`, s.id).toArray().map((r) => [String(r.hw), r]));
     const hw = c.homework().filter((h) => c.assignees(h).includes(s.id)).map((h) => {
       const r = subs.get(h.id); const st = String(r?.status || "none"); const at = Number(r?.submitted_at || 0) || (st === "approved" ? Number(r?.updated || 0) : 0);
@@ -167,7 +200,7 @@ export async function reportHandle(c: ReportCtx, a: Actor, action: string, input
   const years = uniq(sel.map((s) => s.cls)).sort(yearSort);
 
   // Attainment + progress
-  const sc = await scoresByStudent(c, all);
+  const sc = await scoresByStudent(c, everyone);
   const per = sel.map((s) => {
     const v = sc.out.get(s.id) || [];
     const recent = v.slice(-3); const att = recent.length ? Math.round(recent.reduce((t, x) => t + x.p, 0) / recent.length) : null;
@@ -229,7 +262,7 @@ export async function reportHandle(c: ReportCtx, a: Actor, action: string, input
     onTime: tot.exp ? Math.round((100 * tot.onTime) / tot.exp) : null, completion: tot.exp ? Math.round((100 * tot.done) / tot.exp) : null,
     quranGreen: (() => { const t = quran.reduce((s, q) => s + q.green + q.yellow + q.red, 0); return t ? Math.round((100 * quran.reduce((s, q) => s + q.green, 0)) / t) : null; })(),
     coverage: (() => { const t = coverage.reduce((s, x) => s + x.total, 0); return t ? Math.round((100 * coverage.reduce((s, x) => s + x.taught, 0)) / t) : null; })(),
-    results: a.role === "admin" ? { total: sc.total, unmatched: sc.unmatched, ambiguous: sc.ambiguous } : { total: 0, unmatched: 0, ambiguous: 0 }, // school-wide counts: admin only
+    results: a.role === "admin" ? { total: sc.total, unmatched: sc.unmatched, ambiguous: sc.ambiguous, byId: sc.byId, ignored: sc.ignored } : { total: 0, unmatched: 0, ambiguous: 0 }, // school-wide counts: admin only
   };
   const studentsOut = per.map((x) => {
     const q = qs.get(x.s.id); const h = hwStu.get(x.s.id);
