@@ -658,6 +658,15 @@ function ModuleAccess({ perms, setPerms, teachers }: { perms: string[]; setPerms
           <div className="flex items-center justify-between gap-2"><span className="text-sm font-semibold">📖 {tr("Quran Homework", "واجب القرآن")}</span>{show(q("show"), (v) => setQ("show", v), "perm-qhw-show")}</div>
           {sub(q("show"), qOps.map(([op, en, ar]) => <Fragment key={op}>{cb(q(op), (v) => setQ(op, v), tr(en, ar), `perm-qhw-${op}`)}</Fragment>))}
         </div>
+        <div className="space-y-1.5 rounded-xl bg-black/[0.03] px-3 py-2 md:col-span-2 dark:bg-white/5" data-testid="perm-rep">
+          <div className="flex items-center justify-between gap-2"><span className="text-sm font-semibold">📈 {tr("Department Report", "تقرير القسم")}</span>{show(perms.includes("rep:view"), (v) => setPerms([...perms.filter((p) => !p.startsWith("rep:")), ...(v ? ["rep:view"] : [])]), "perm-rep-view")}</div>
+          {sub(perms.includes("rep:view"), <>{REP_PERM_KEYS.map(([k, en, ar]) => { const cur = perms.includes(`rep:${k}:on`) ? "on" : perms.includes(`rep:${k}:off`) ? "off" : ""; const ex = k === "pdf" || k === "xlsx"; return (
+            <label key={k} className="flex items-center gap-1.5 text-xs">{tr(en, ar)}
+              <select className="rounded-lg border border-black/15 bg-white px-1 py-0.5 text-xs dark:border-white/20 dark:bg-slate-900" value={cur} data-testid={`perm-rep-${k}`} onChange={(e) => setPerms([...perms.filter((p) => p !== `rep:${k}:on` && p !== `rep:${k}:off`), ...(e.target.value ? [`rep:${k}:${e.target.value}`] : [])])}>
+                <option value="">{tr("As report settings", "كإعدادات التقرير")}</option><option value="on">{ex ? tr("Allow", "سماح") : tr("Show", "إظهار")}</option><option value="off">{ex ? tr("Not allow", "منع") : tr("Hide", "إخفاء")}</option>
+              </select></label>); })}</>)}
+          <p className="text-[11px] opacity-70">{tr("Read-only, limited to this teacher's classes. Defaults come from Assessment → Department Report → Settings.", "للقراءة فقط وضمن صفوف المعلم. الافتراضي من إعدادات التقرير.")}</p>
+        </div>
         <div className="space-y-1.5 rounded-xl bg-black/[0.03] px-3 py-2 dark:bg-white/5" data-testid="perm-dl">
           <div className="text-sm font-semibold">⬇️ {tr("Downloads", "التنزيلات")}</div>
           <div className="ms-4 flex flex-wrap gap-x-4 gap-y-1 border-s-2 border-black/10 ps-3 text-sm dark:border-white/15">
@@ -669,6 +678,8 @@ function ModuleAccess({ perms, setPerms, teachers }: { perms: string[]; setPerms
     </div>
   );
 }
+
+const REP_PERM_KEYS: [string, string, string][] = [["kpi", "KPI overview", "المؤشرات"], ["attainment", "Attainment", "التحصيل"], ["progress", "Progress", "التقدّم"], ["quran", "Quran", "القرآن"], ["homework", "Homework", "الواجبات"], ["coverage", "Curriculum", "المنهج"], ["drill", "Drill-down", "التفصيل"], ["pdf", "PDF", "PDF"], ["xlsx", "Excel", "إكسل"]];
 
 /** Admin → teacher form: which Classroom Activities and assessments this teacher may host from their own login. */
 function ClassroomAccess({ perms, toggle, chip }: { perms: string[]; toggle: (v: string) => void; chip: (on: boolean) => string }) {
