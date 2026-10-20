@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useI18n } from "@/lib/i18n";
 import { downloadBlob } from "@/lib/exportUtils";
-import { REP_KEYS, reportsApi, setReportsAuth, type Access, type AccessCfg, type DeptReport, type RepKey, type ReportFilters, type ReportSettings, type RStudent, type StudentDetail } from "@/lib/reports";
+import { REP_KEYS, reportsApi, type UnmatchedItem, setReportsAuth, type Access, type AccessCfg, type DeptReport, type RepKey, type ReportFilters, type ReportSettings, type RStudent, type StudentDetail } from "@/lib/reports";
 import { Bars, C, Donut, LineChart, ProgressBar, StackedBars, type Seg } from "./Charts";
 
-type TabId = "overview" | "attainment" | "progress" | "quran" | "homework" | "coverage" | "students" | "settings";
+type TabId = "unmatched" | "overview" | "attainment" | "progress" | "quran" | "homework" | "coverage" | "students" | "settings";
 const sel = "mt-1 w-full rounded-xl border border-card-border bg-card-solid px-2 py-1.5 text-sm";
 const card = "rounded-2xl border border-card-border bg-card-solid p-4 shadow-sm print:break-inside-avoid print:shadow-none";
 const pc = (v: number | null) => (v == null ? "—" : `${v}%`);
@@ -47,8 +47,8 @@ export function AdminReports({ admin = true }: { admin?: boolean }) {
   const segsQ = (r: { green: number; yellow: number; red: number }): Seg[] => [
     { k: "green", label: tr("Green (secure)", "أخضر (متقن)"), v: r.green, color: C.green }, { k: "yellow", label: tr("Yellow (developing)", "أصفر (يتطور)"), v: r.yellow, color: C.yellow }, { k: "red", label: tr("Red (needs work)", "أحمر (يحتاج عملاً)"), v: r.red, color: C.red }];
 
-  const tabs = ([["overview", tr("Overview", "نظرة عامة")], ["attainment", tr("Attainment", "التحصيل")], ["progress", tr("Progress", "التقدّم")], ["quran", tr("Quran", "القرآن")], ["homework", tr("Homework", "الواجبات")], ["coverage", tr("Curriculum", "المنهج")], ["students", tr("Students", "الطلاب")], ["settings", tr("Settings", "الإعدادات")]] as [TabId, string][])
-    .filter(([id]) => !data || (id === "settings" ? admin : id === "overview" ? true : id === "students" ? !!data.students : !!data[id]));
+  const tabs = ([["overview", tr("Overview", "نظرة عامة")], ["attainment", tr("Attainment", "التحصيل")], ["progress", tr("Progress", "التقدّم")], ["quran", tr("Quran", "القرآن")], ["homework", tr("Homework", "الواجبات")], ["coverage", tr("Curriculum", "المنهج")], ["students", tr("Students", "الطلاب")], ["unmatched", tr("Unmatched results", "نتائج غير مرتبطة")], ["settings", tr("Settings", "الإعدادات")]] as [TabId, string][])
+    .filter(([id]) => !data || (id === "settings" || id === "unmatched" ? admin : id === "overview" ? true : id === "students" ? !!data.students : !!data[id]));
   const S = data?.settings;
   const K = data?.kpis;
 
@@ -157,7 +157,7 @@ export function AdminReports({ admin = true }: { admin?: boolean }) {
               <div key={l} className="rounded-xl border border-card-border p-3 text-center" data-testid="rep-kpi"><div className="text-xl font-extrabold">{v}</div><div className="text-xs">{l}</div></div>
             ))}
           </div>
-          {K.results.total > 0 && (K.results.unmatched + K.results.ambiguous) > 0 && <p className="mt-2 text-[11px] opacity-75">{tr(`${K.results.unmatched + K.results.ambiguous} of ${K.results.total} assessment results could not be matched to one student (the name typed at the quiz differs from the student's name, or two students share it) and are left out.`, `${K.results.unmatched + K.results.ambiguous} من ${K.results.total} نتيجة لم تُطابق طالباً واحداً واستُبعدت.`)}</p>}
+          {K.results.total > 0 && (K.results.unmatched + K.results.ambiguous) > 0 && <p className="mt-2 text-[11px] opacity-75" data-testid="rep-unmatched-note">{tr(`${K.results.unmatched + K.results.ambiguous} of ${K.results.total} assessment results could not be matched to one student (the name typed at the quiz differs from the student's name, or two students share it) and are left out.`, `${K.results.unmatched + K.results.ambiguous} من ${K.results.total} نتيجة لم تُطابق طالباً واحداً واستُبعدت.`)}</p>}
         </div>}
 
         <div className="flex flex-wrap gap-1.5 print:hidden" role="tablist" data-testid="rep-tabs">
@@ -230,6 +230,7 @@ export function AdminReports({ admin = true }: { admin?: boolean }) {
         )}
 
         {tab === "students" && data.students && <section className={card} data-testid="rep-students"><h3 className="mb-2 font-extrabold">{tr("All students in this selection", "كل الطلاب في هذا الاختيار")} ({data.students.length})</h3>{studentTable(data.students)}</section>}
+        {tab === "unmatched" && admin && <UnmatchedPanel tr={tr} onChanged={() => load(filters)} />}
         {tab === "settings" && admin && <><SettingsPanel initial={S} onSaved={() => load(filters)} tr={tr} /><AccessPanel tr={tr} onSaved={() => load(filters)} /></>}
       </>)}
 
@@ -323,3 +324,47 @@ function AccessPanel({ tr, onSaved }: { tr: (e: string, a: string) => string; on
   );
 }
 export type { Access };
+
+/** Admin: assessment results not linked to any student (older results matched by typed name). Link one to a student, or ignore it. Scores never change. */
+function UnmatchedPanel({ tr, onChanged }: { tr: (e: string, a: string) => string; onChanged: () => void }) {
+  const [items, setItems] = useState<UnmatchedItem[] | null>(null);
+  const [students, setStudents] = useState<{ id: string; name: string; cls: string; section: string }[]>([]);
+  const [showIgnored, setShowIgnored] = useState(false);
+  const [pickFor, setPickFor] = useState<Record<string, string>>({});
+  const [q, setQ] = useState("");
+  const [msg, setMsg] = useState("");
+  const load = useCallback(async () => { try { const r = await reportsApi.unmatched(showIgnored); setItems(r.items); setStudents(r.students); } catch (e) { setMsg((e as Error).message); setItems([]); } }, [showIgnored]);
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch on toggle
+  useEffect(() => { void load(); }, [load]);
+  const act = async (id: string, op: "link" | "ignore" | "reset") => {
+    setMsg("");
+    try { await reportsApi.link(id, op, pickFor[id]); setMsg(op === "link" ? tr("Linked — the report now counts it for that student.", "تم الربط.") : op === "ignore" ? tr("Ignored — left out of reports.", "تم التجاهل.") : tr("Reset.", "تمت الإعادة.")); await load(); onChanged(); } catch (e) { setMsg((e as Error).message); }
+  };
+  const ql = q.trim().toLowerCase();
+  const opts = students.filter((s) => !ql || `${s.name} ${s.cls} ${s.section}`.toLowerCase().includes(ql)).slice(0, 300);
+  return (
+    <section className={card} data-testid="rep-unmatched">
+      <h3 className="font-extrabold">🔗 {tr("Unmatched results", "نتائج غير مرتبطة")}</h3>
+      <p className="mb-2 text-xs opacity-75">{tr("New results from logged-in students are linked to their account automatically. Older results were saved under the typed name; those that don't match exactly one student are listed here. Linking or ignoring never changes the score.", "النتائج الجديدة من الطلاب المسجلين تُربط تلقائياً. النتائج القديمة التي لا تطابق طالباً واحداً تظهر هنا. لا تتغير الدرجة.")}</p>
+      <div className="mb-2 flex flex-wrap items-center gap-3 text-sm">
+        <input className={sel + " !mt-0 !w-56"} placeholder={tr("Filter student list…", "تصفية قائمة الطلاب…")} value={q} onChange={(e) => setQ(e.target.value)} data-testid="rep-um-search" />
+        <label className="flex items-center gap-1.5"><input type="checkbox" checked={showIgnored} onChange={(e) => setShowIgnored(e.target.checked)} data-testid="rep-um-show-ignored" /> {tr("Show ignored", "إظهار المتجاهَلة")}</label>
+        {msg && <span className="font-semibold" role="status" data-testid="rep-um-msg">{msg}</span>}
+      </div>
+      {!items ? <p className="text-sm opacity-75">…</p> : items.length === 0 ? <p className="rounded-xl border border-dashed border-card-border p-4 text-sm opacity-80" data-testid="rep-um-empty">{tr("Nothing to link — every result is matched to a student.", "لا شيء للربط — كل النتائج مرتبطة.")}</p> : (
+        <ul className="space-y-2" data-testid="rep-um-list">{items.map((it) => (
+          <li key={it.id} className="rounded-xl border border-card-border p-2.5 text-sm" data-testid="rep-um-item">
+            <div className="flex flex-wrap items-baseline justify-between gap-2"><b>“{it.name}”</b><span className="text-xs opacity-75">{it.quizTitle} · {Math.round(it.percentage)}% · {dday(it.finishedAt)} · {it.kind}{it.why === "ambiguous" ? ` · ${tr("same name as", "نفس اسم")} ${it.candidates.length} ${tr("students", "طلاب")}` : it.why === "ignored" ? ` · ${tr("ignored", "متجاهَل")}` : ""}</span></div>
+            <div className="mt-1.5 flex flex-wrap items-center gap-2">
+              {it.why === "ignored" ? <button type="button" className="btn-glass px-2.5 py-1 text-xs" onClick={() => act(it.id, "reset")} data-testid="rep-um-reset">{tr("Un-ignore", "إلغاء التجاهل")}</button> : <>
+                <select className={sel + " !mt-0 !w-auto max-w-full"} value={pickFor[it.id] || ""} onChange={(e) => setPickFor({ ...pickFor, [it.id]: e.target.value })} data-testid="rep-um-pick">
+                  <option value="">{tr("Pick a student…", "اختر طالباً…")}</option>
+                  {(it.candidates.length ? students.filter((s) => it.candidates.includes(s.id)) : opts).map((s) => <option key={s.id} value={s.id}>{s.name} — {s.cls} {s.section}</option>)}
+                </select>
+                <button type="button" disabled={!pickFor[it.id]} className="rounded-full bg-[#1b3a57] px-3 py-1 text-xs font-bold text-white disabled:opacity-50" onClick={() => act(it.id, "link")} data-testid="rep-um-link">{tr("Link", "ربط")}</button>
+                <button type="button" className="btn-glass px-2.5 py-1 text-xs" onClick={() => act(it.id, "ignore")} data-testid="rep-um-ignore">{tr("Ignore", "تجاهل")}</button></>}
+            </div>
+          </li>))}</ul>)}
+    </section>
+  );
+}

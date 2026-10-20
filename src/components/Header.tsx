@@ -8,6 +8,7 @@ import { navLinks, resourceLinks, siteConfig, type ResourceLink } from "@/conten
 import { HadithScrollIcon, QuranBookIcon } from "@/components/EncyclopediaIcons";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { InstallAppButton } from "@/components/PwaInstall";
 import { useI18n } from "@/lib/i18n";
 import { useDynNav } from "@/lib/dynNav";
 import { useLogoUrl } from "@/components/SiteBrand";
@@ -188,6 +189,7 @@ export function Header() {
         <div className="flex shrink-0 items-center gap-1 sm:gap-2">
           <LanguageToggle variant="navy" compact />
           <ThemeToggle variant="navy" labelClassName="hidden" className="w-9 rounded-full !px-0" />
+          <span className="hidden sm:inline-flex"><InstallAppButton className="pill-on-navy h-9 w-9 justify-center !px-0" /></span>
           <LmsHeaderButton />
           <JoinButton lang={lang} />
           <button
@@ -213,6 +215,7 @@ export function Header() {
             </span>
             <LanguageToggle />
             <ThemeToggle showLabel />
+            <InstallAppButton variant="row" className="glass inline-flex h-9 items-center rounded-full px-3 text-sm font-bold" />
           </div>
           <div className="mb-3">
             <LmsHeaderButton mobile onPick={() => setOpen(false)} />
