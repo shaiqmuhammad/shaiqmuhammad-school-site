@@ -5,6 +5,7 @@ import { Footer } from "@/components/Footer";
 import { Header } from "@/components/Header";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { ChatWidget } from "@/components/ChatWidget";
+import { PwaInstall } from "@/components/PwaInstall";
 import { siteConfig } from "@/content/site";
 import { langInitScript } from "@/lib/langStorage";
 import { SiteBrandProvider } from "@/components/SiteBrand";
@@ -50,6 +51,11 @@ export const metadata: Metadata = {
     template: `%s | ${siteConfig.name}`,
   },
   description: siteConfig.description,
+  applicationName: "Shaiq Muhammad",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: { capable: true, title: "Shaiq Muhammad", statusBarStyle: "default" },
+  formatDetection: { telephone: false },
+  other: { "mobile-web-app-capable": "yes" },
   metadataBase: new URL(`https://${siteConfig.domain}`),
   icons: {
     icon: [
@@ -82,6 +88,7 @@ export default function RootLayout({
             <main className="flex-1">{children}</main>
             <Footer />
             <ChatWidget />
+            <PwaInstall />
           </SiteBrandProvider>
         </ThemeProvider>
       </body>
