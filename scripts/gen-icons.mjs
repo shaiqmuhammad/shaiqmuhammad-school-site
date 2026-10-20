@@ -46,6 +46,38 @@ function resize(src, sw, sh, dw, dh) {
   return out;
 }
 
+/** Bilinear resize (used to upscale the small built-in artwork to 512 px). */
+function bilinear(src, sw, sh, dw, dh) {
+  const out = Buffer.alloc(dw * dh * 4);
+  for (let y = 0; y < dh; y++) {
+    const fy = Math.max(0, Math.min(sh - 1, ((y + 0.5) * sh) / dh - 0.5)), y0 = Math.floor(fy), y1 = Math.min(sh - 1, y0 + 1), ty = fy - y0;
+    for (let x = 0; x < dw; x++) {
+      const fx = Math.max(0, Math.min(sw - 1, ((x + 0.5) * sw) / dw - 0.5)), x0 = Math.floor(fx), x1 = Math.min(sw - 1, x0 + 1), tx = fx - x0;
+      for (let c = 0; c < 4; c++) {
+        const a = src[(y0 * sw + x0) * 4 + c], b = src[(y0 * sw + x1) * 4 + c], d = src[(y1 * sw + x0) * 4 + c], e = src[(y1 * sw + x1) * 4 + c];
+        out[(y * dw + x) * 4 + c] = Math.round((a * (1 - tx) + b * tx) * (1 - ty) + (d * (1 - tx) + e * tx) * ty);
+      }
+    }
+  }
+  return out;
+}
+const scaleTo = (data, s, n) => (s === n ? Buffer.from(data) : s > n ? resize(data, s, s, n, n) : bilinear(data, s, s, n, n));
+
+/** Maskable icon: artwork inside the 80% safe zone, centred on the navy brand colour (Android crops to any shape). */
+function maskable(data, s, n) {
+  const out = Buffer.alloc(n * n * 4);
+  for (let i = 0; i < n * n; i++) { out[i * 4] = 0x1b; out[i * 4 + 1] = 0x3a; out[i * 4 + 2] = 0x57; out[i * 4 + 3] = 255; }
+  const inner = Math.round(n * 0.72), off = Math.round((n - inner) / 2);
+  const art = onWhite(scaleTo(data, s, inner));
+  const r = inner / 2;
+  for (let y = 0; y < inner; y++) for (let x = 0; x < inner; x++) {
+    const dx = x + 0.5 - r, dy = y + 0.5 - r;
+    if (dx * dx + dy * dy > r * r) continue; // round photo/logo disc
+    art.copy(out, ((y + off) * n + x + off) * 4, (y * inner + x) * 4, (y * inner + x) * 4 + 4);
+  }
+  return out;
+}
+
 function encodePng(data, w, h) {
   const png = new PNG({ width: w, height: h });
   data.copy(png.data);
@@ -152,6 +184,16 @@ if (brand) {
   const photoData = Buffer.from(photo.data);
   png180 = encodePng(resize(photoData, photo.width, photo.height, 180, 180), 180, 180);
   png192 = encodePng(photoData, photo.width, photo.height);
+}
+
+// PWA icons (manifest): 512 "any" + maskable 192/512, from the best available square source.
+{
+  let src;
+  if (brand) src = { data: brand.data, size: brand.size };
+  else { const photo = jpeg.decode(embedded("logo.svg", "jpeg"), { useTArray: true, formatAsRGBA: true }); src = square({ data: Buffer.from(photo.data), width: photo.width, height: photo.height }); }
+  writeFileSync(join(pub, "icon-512.png"), encodePng(onWhite(scaleTo(src.data, src.size, 512)), 512, 512));
+  writeFileSync(join(pub, "icon-maskable-512.png"), encodePng(maskable(src.data, src.size, 512), 512, 512));
+  writeFileSync(join(pub, "icon-maskable-192.png"), encodePng(maskable(src.data, src.size, 192), 192, 192));
 }
 
 writeFileSync(join(pub, "favicon.ico"), ico([{ png: png32, size: 32 }, { png: png64, size: 64 }]));
