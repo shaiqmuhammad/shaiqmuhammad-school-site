@@ -95,6 +95,8 @@ const str = (v: unknown, max: number) => String(v ?? "").replace(/[\u0000-\u001f
 const b64url = (b: Uint8Array) => btoa(String.fromCharCode(...b)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 const fromB64url = (s: string) => Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/")), (c) => c.charCodeAt(0));
 const hex = (b: ArrayBuffer | Uint8Array) => Array.from(new Uint8Array(b), (x) => x.toString(16).padStart(2, "0")).join("");
+/** Target from a scaled score (only for students without a Target): 67–80→2, 81–93→3, 94–109→4, 110–120→5, 121+→6. */
+export const targetFromScaled = (v: string): string => { const n = Number(v); if (!v || !Number.isFinite(n) || n < 67) return ""; return n <= 80 ? "2" : n <= 93 ? "3" : n <= 109 ? "4" : n <= 120 ? "5" : "6"; };
 const wallText = (v: unknown, max: number) => String(v ?? "").replace(/[\u0000-\u0008\u000b-\u001f]/g, "").trim().slice(0, max);
 const rid = (p: string) => `${p}_${Date.now().toString(36)}${hex(crypto.getRandomValues(new Uint8Array(5)))}`;
 export const normUser = (s: unknown) => str(s, 40).toLowerCase().replace(/[^a-z0-9._-]/g, "");
@@ -256,7 +258,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     this.sql.exec(`CREATE TABLE IF NOT EXISTS msgs (id TEXT PRIMARY KEY, thread TEXT, sender TEXT, recipient TEXT, body TEXT, created INTEGER, read INTEGER DEFAULT 0)`);
     this.sql.exec(`CREATE INDEX IF NOT EXISTS msgs_thread ON msgs (thread, created)`);
     if (!cols("users").has("gender")) this.sql.exec(`ALTER TABLE users ADD COLUMN gender TEXT DEFAULT ''`);
-    for (const c of ["subject", "phase", "first_name", "last_name", "dob", "phone", "semail", "nationality", "pref_lang", "sen", "eal", "gt"]) if (!cols("users").has(c)) this.sql.exec(`ALTER TABLE users ADD COLUMN ${c} TEXT DEFAULT ''`);
+    for (const c of ["subject", "phase", "first_name", "last_name", "dob", "phone", "semail", "nationality", "pref_lang", "sen", "eal", "gt", "target", "scaled"]) if (!cols("users").has(c)) this.sql.exec(`ALTER TABLE users ADD COLUMN ${c} TEXT DEFAULT ''`);
     // Split existing display names into first / last once.
     for (const r of this.sql.exec(`SELECT id, name FROM users WHERE role='student' AND (first_name IS NULL OR first_name='')`).toArray()) {
       const parts = String(r.name || "").trim().split(/\s+/);
@@ -326,7 +328,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
   /** Admin-only view: every stored field (teachers never receive these). */
   private adminUser(r: Record<string, unknown>) {
     const groups = r.role === "teacher" ? this.sql.exec(`SELECT id, name, subject, teachers FROM grp WHERE admin=1 ORDER BY name`).toArray().filter((g) => (JSON.parse(String(g.teachers || "[]")) as string[]).includes(String(r.id))).map((g) => ({ id: String(g.id), name: String(g.name), subject: String(g.subject || "") })) : undefined;
-    return { ...this.publicUser(r), groups, subject: String(r.subject || ""), phase: String(r.phase || ""), email: String(r.email || ""), gender: String(r.gender || ""), dob: String(r.dob || ""), phone: String(r.phone || ""), semail: String(r.semail || ""), nationality: String(r.nationality || ""), prefLang: String(r.pref_lang || ""), sen: r.sen === "1", eal: r.eal === "1", gt: r.gt === "1" };
+    return { ...this.publicUser(r), groups, subject: String(r.subject || ""), phase: String(r.phase || ""), email: String(r.email || ""), gender: String(r.gender || ""), dob: String(r.dob || ""), phone: String(r.phone || ""), semail: String(r.semail || ""), nationality: String(r.nationality || ""), prefLang: String(r.pref_lang || ""), sen: r.sen === "1", eal: r.eal === "1", gt: r.gt === "1", target: String(r.target || ""), scaled: String(r.scaled || ""), targetEff: String(r.target || "") || targetFromScaled(String(r.scaled || "")) };
   }
   private failCount(k: string) {
     this.sql.exec(`DELETE FROM fails WHERE t < ?`, Date.now() - FAIL_WINDOW);
@@ -657,6 +659,20 @@ export class LmsStore extends DurableObject<LmsEnv> {
       case "me":
         return { status: 200, body: { user: a } };
 
+      case "targets-set": {
+        // Admin only: set tracker Target / scaled score for students without touching other fields. items: [{id, target?, scaled?}]
+        if (a.role !== "admin" || a.viewAs) return { status: 403, body: { error: "forbidden" } };
+        let saved = 0;
+        for (const raw of (Array.isArray(input.items) ? (input.items as Json[]) : []).slice(0, 1000)) {
+          const u = this.userRow("id=?", str(raw.id, 40));
+          if (!u || u.role !== "student") continue;
+          const t = Math.round(Number(raw.target)), sc = Math.round(Number(raw.scaled));
+          if (raw.target !== undefined) this.sql.exec(`UPDATE users SET target=? WHERE id=?`, raw.target === "" || raw.target === null || !(t >= 1 && t <= 9) ? "" : String(t), String(u.id));
+          if (raw.scaled !== undefined) this.sql.exec(`UPDATE users SET scaled=? WHERE id=?`, raw.scaled === "" || raw.scaled === null || !(sc >= 1 && sc <= 200) ? "" : String(sc), String(u.id));
+          saved++;
+        }
+        return { status: 200, body: { ok: true, saved } };
+      }
       case "users": {
         if (!stuCan(a, "view") && !(input.__method === "POST" && (stuCan(a, "edit") || stuCan(a, "add")))) return { status: 403, body: { error: "forbidden" } };
         if (input.__method !== "POST") {
@@ -2036,6 +2052,9 @@ export class LmsStore extends DurableObject<LmsEnv> {
     const semail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(seIn) ? seIn : "";
     const fl = (k: string, col: string) => (has(k) ? (raw[k] ? "1" : "") : String(cur[col] || ""));
     if (has("parentName")) this.sql.exec(`UPDATE users SET parent_name=? WHERE id=?`, str(raw.parentName, 80), id);
+    // Tracker Target (1–7, kept exactly as entered) and optional scaled score (used only when there is no Target).
+    if (has("target")) { const t = Math.round(Number(raw.target)); this.sql.exec(`UPDATE users SET target=? WHERE id=?`, raw.target === "" || raw.target === null || !(t >= 1 && t <= 9) ? "" : String(t), id); }
+    if (has("scaled")) { const t = Math.round(Number(raw.scaled)); this.sql.exec(`UPDATE users SET scaled=? WHERE id=?`, raw.scaled === "" || raw.scaled === null || !(t >= 1 && t <= 200) ? "" : String(t), id); }
     this.sql.exec(`UPDATE users SET gender=?, dob=?, phone=?, semail=?, nationality=?, pref_lang=?, sen=?, eal=?, gt=? WHERE id=?`, has("gender") ? gender : String(cur.gender || ""), dob, v("phone", "phone", 30), semail, v("nationality", "nationality", 40), v("prefLang", "pref_lang", 30), fl("sen", "sen"), fl("eal", "eal"), fl("gt", "gt"), id);
     if (has("firstName") || has("lastName")) {
       const f = str(raw.firstName, 40), l = str(raw.lastName, 40);
