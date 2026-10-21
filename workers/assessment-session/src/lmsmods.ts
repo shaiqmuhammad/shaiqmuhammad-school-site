@@ -39,7 +39,7 @@ export function initMods(sql: SqlStorage) {
   sql.exec(`CREATE TABLE IF NOT EXISTS beh (id TEXT PRIMARY KEY, student TEXT, cls TEXT, section TEXT, day TEXT, kind TEXT, category TEXT, severity INTEGER DEFAULT 1, note TEXT DEFAULT '', action TEXT DEFAULT '', follow TEXT DEFAULT 'none', follow_note TEXT DEFAULT '', sensitive INTEGER DEFAULT 0, by TEXT, by_name TEXT, at INTEGER, updated INTEGER)`);
   sql.exec(`CREATE INDEX IF NOT EXISTS beh_student ON beh (student, day)`);
   sql.exec(`CREATE TABLE IF NOT EXISTS cur (id TEXT PRIMARY KEY, subject TEXT, yr TEXT, term TEXT, title TEXT, objectives TEXT DEFAULT '', lessons TEXT DEFAULT '[]', resources TEXT DEFAULT '[]', wk_from INTEGER DEFAULT 0, wk_to INTEGER DEFAULT 0, status TEXT DEFAULT 'planned', quiz TEXT DEFAULT '', page TEXT DEFAULT '', ord INTEGER DEFAULT 0, by_name TEXT, updated INTEGER)`);
-  for (const col of ["links TEXT DEFAULT '[]'", "notes TEXT DEFAULT ''"]) { try { sql.exec(`ALTER TABLE cur ADD COLUMN ${col}`); } catch { /* already there */ } }
+  for (const col of ["links TEXT DEFAULT '[]'", "notes TEXT DEFAULT ''", "sc TEXT DEFAULT '[]'"]) { try { sql.exec(`ALTER TABLE cur ADD COLUMN ${col}`); } catch { /* already there */ } }
 }
 
 type Link = { t: "hw" | "quiz"; id: string };
@@ -294,6 +294,18 @@ export async function modHandle(c: ModCtx, action: string, a: Actor, input: Json
       const res = curUpsert(c, a, subs, input);
       return res.error ? { status: res.error === "not_allowed" ? 403 : 400, body: { error: res.error } } : { status: 200, body: { ok: true, id: res.id } };
     }
+    case "cur-sc": {
+      // Success Criteria only (used by the SC editor and bulk SOW import); other unit fields are untouched.
+      if (a.viewAs || !modCan(a, "cur", "edit")) return forbid();
+      const me = a.role === "teacher" ? c.userRow("id=?", a.id) : undefined;
+      const subs: string[] = me ? JSON.parse(String(me.subjects || "[]")) : [];
+      const r = sql.exec(`SELECT * FROM cur WHERE id=?`, str(input.id, 40)).toArray()[0];
+      if (!r) return { status: 404, body: { error: "not_found" } };
+      if (!curVisible(c, a, subs, String(r.yr), String(r.subject))) return forbid("not_allowed");
+      const sc = cleanSc(input.sc);
+      sql.exec(`UPDATE cur SET sc=?, updated=?, by_name=? WHERE id=?`, JSON.stringify(sc), Date.now(), a.name, String(r.id));
+      return { status: 200, body: { ok: true, sc } };
+    }
     case "cur-status": {
       if (a.viewAs || !modCan(a, "cur", "edit")) return forbid();
       const me = a.role === "teacher" ? c.userRow("id=?", a.id) : undefined;
@@ -342,8 +354,14 @@ function curVisible(c: ModCtx, a: Actor, subs: string[], yr: string, subject: st
   if (subs.length && !subs.includes(subject)) return false;
   return true;
 }
+/** Success Criteria per unit: a plain list (one statement each, max 30 × 300 chars). */
+function parseSc(v: unknown): string[] { try { const a = JSON.parse(String(v || "[]")); return Array.isArray(a) ? a.map(String) : []; } catch { return []; } }
+function cleanSc(v: unknown): string[] {
+  const arr = Array.isArray(v) ? v : String(v ?? "").split("\n");
+  return arr.map((x) => String(x ?? "").replace(/[\u0000-\u001f]/g, " ").replace(/^\s*(?:[-•*·▪]|\d+[.)])\s*/, "").trim().slice(0, 300)).filter(Boolean).slice(0, 30);
+}
 function curRow(r: Record<string, unknown>) {
-  return { id: String(r.id), subject: String(r.subject), yr: String(r.yr), term: String(r.term), title: String(r.title), objectives: String(r.objectives || ""), lessons: JSON.parse(String(r.lessons || "[]")), resources: JSON.parse(String(r.resources || "[]")), wkFrom: Number(r.wk_from), wkTo: Number(r.wk_to), notes: String(r.notes || ""), status: String(r.status), quiz: String(r.quiz || ""), page: String(r.page || ""), ord: Number(r.ord), by: String(r.by_name || ""), updated: Number(r.updated) };
+  return { id: String(r.id), subject: String(r.subject), yr: String(r.yr), term: String(r.term), title: String(r.title), objectives: String(r.objectives || ""), sc: parseSc(r.sc), lessons: JSON.parse(String(r.lessons || "[]")), resources: JSON.parse(String(r.resources || "[]")), wkFrom: Number(r.wk_from), wkTo: Number(r.wk_to), notes: String(r.notes || ""), status: String(r.status), quiz: String(r.quiz || ""), page: String(r.page || ""), ord: Number(r.ord), by: String(r.by_name || ""), updated: Number(r.updated) };
 }
 function curUpsert(c: ModCtx, a: Actor, subs: string[], input: Json): { id?: string; error?: string } {
   const subject = str(input.subject, 60), yr = str(input.yr, 60), term = str(input.term, 20) || "Term 1", title = str(input.title, 160);
@@ -374,12 +392,13 @@ function curUpsert(c: ModCtx, a: Actor, subs: string[], input: Json): { id?: str
     }
   } else if (quiz && !links.some((x) => x.t === "quiz" && x.id === quiz)) links.push({ t: "quiz", id: quiz });
   const quiz2 = links.find((x) => x.t === "quiz")?.id || "";
+  const sc = JSON.stringify(input.sc === undefined ? parseSc(prev?.sc) : cleanSc(input.sc));
   const notes = input.notes === undefined ? String(prev?.notes || "") : String(input.notes ?? "").replace(/\r/g, "").slice(0, 3000);
   if (prev) {
-    c.sql.exec(`UPDATE cur SET subject=?, yr=?, term=?, title=?, objectives=?, lessons=?, resources=?, wk_from=?, wk_to=?, status=?, quiz=?, page=?, links=?, notes=?, by_name=?, updated=? WHERE id=?`, subject, yr, term, title, objectives, JSON.stringify(lessons), JSON.stringify(resources), wf, wt, status, quiz2, page, JSON.stringify(links), notes, a.name, now, id);
+    c.sql.exec(`UPDATE cur SET subject=?, yr=?, term=?, title=?, objectives=?, lessons=?, resources=?, wk_from=?, wk_to=?, status=?, quiz=?, page=?, links=?, notes=?, sc=?, by_name=?, updated=? WHERE id=?`, subject, yr, term, title, objectives, JSON.stringify(lessons), JSON.stringify(resources), wf, wt, status, quiz2, page, JSON.stringify(links), notes, sc, a.name, now, id);
     return { id };
   }
   const nid = rid("cu");
-  c.sql.exec(`INSERT INTO cur (id, subject, yr, term, title, objectives, lessons, resources, wk_from, wk_to, status, quiz, page, links, notes, ord, by_name, updated) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, nid, subject, yr, term, title, objectives, JSON.stringify(lessons), JSON.stringify(resources), wf, wt, status, quiz2, page, JSON.stringify(links), notes, Number(input.ord) || 0, a.name, now);
+  c.sql.exec(`INSERT INTO cur (id, subject, yr, term, title, objectives, lessons, resources, wk_from, wk_to, status, quiz, page, links, notes, sc, ord, by_name, updated) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, nid, subject, yr, term, title, objectives, JSON.stringify(lessons), JSON.stringify(resources), wf, wt, status, quiz2, page, JSON.stringify(links), notes, sc, Number(input.ord) || 0, a.name, now);
   return { id: nid };
 }
