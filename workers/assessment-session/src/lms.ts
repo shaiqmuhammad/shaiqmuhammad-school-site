@@ -258,7 +258,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     this.sql.exec(`CREATE TABLE IF NOT EXISTS msgs (id TEXT PRIMARY KEY, thread TEXT, sender TEXT, recipient TEXT, body TEXT, created INTEGER, read INTEGER DEFAULT 0)`);
     this.sql.exec(`CREATE INDEX IF NOT EXISTS msgs_thread ON msgs (thread, created)`);
     if (!cols("users").has("gender")) this.sql.exec(`ALTER TABLE users ADD COLUMN gender TEXT DEFAULT ''`);
-    for (const c of ["subject", "phase", "first_name", "last_name", "dob", "phone", "semail", "nationality", "pref_lang", "sen", "eal", "gt", "target", "scaled"]) if (!cols("users").has(c)) this.sql.exec(`ALTER TABLE users ADD COLUMN ${c} TEXT DEFAULT ''`);
+    for (const c of ["subject", "phase", "first_name", "last_name", "dob", "phone", "semail", "nationality", "pref_lang", "sen", "eal", "gt", "target", "scaled", "isams_id", "isams_surname"]) if (!cols("users").has(c)) this.sql.exec(`ALTER TABLE users ADD COLUMN ${c} TEXT DEFAULT ''`);
     // Split existing display names into first / last once.
     for (const r of this.sql.exec(`SELECT id, name FROM users WHERE role='student' AND (first_name IS NULL OR first_name='')`).toArray()) {
       const parts = String(r.name || "").trim().split(/\s+/);
@@ -328,7 +328,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
   /** Admin-only view: every stored field (teachers never receive these). */
   private adminUser(r: Record<string, unknown>) {
     const groups = r.role === "teacher" ? this.sql.exec(`SELECT id, name, subject, teachers FROM grp WHERE admin=1 ORDER BY name`).toArray().filter((g) => (JSON.parse(String(g.teachers || "[]")) as string[]).includes(String(r.id))).map((g) => ({ id: String(g.id), name: String(g.name), subject: String(g.subject || "") })) : undefined;
-    return { ...this.publicUser(r), groups, subject: String(r.subject || ""), phase: String(r.phase || ""), email: String(r.email || ""), gender: String(r.gender || ""), dob: String(r.dob || ""), phone: String(r.phone || ""), semail: String(r.semail || ""), nationality: String(r.nationality || ""), prefLang: String(r.pref_lang || ""), sen: r.sen === "1", eal: r.eal === "1", gt: r.gt === "1", target: String(r.target || ""), scaled: String(r.scaled || ""), targetEff: String(r.target || "") || targetFromScaled(String(r.scaled || "")) };
+    return { ...this.publicUser(r), groups, subject: String(r.subject || ""), phase: String(r.phase || ""), email: String(r.email || ""), gender: String(r.gender || ""), dob: String(r.dob || ""), phone: String(r.phone || ""), semail: String(r.semail || ""), nationality: String(r.nationality || ""), prefLang: String(r.pref_lang || ""), sen: r.sen === "1", eal: r.eal === "1", gt: r.gt === "1", target: String(r.target || ""), scaled: String(r.scaled || ""), targetEff: String(r.target || "") || targetFromScaled(String(r.scaled || "")), isamsId: String(r.isams_id || ""), isamsSurname: String(r.isams_surname || "") };
   }
   private failCount(k: string) {
     this.sql.exec(`DELETE FROM fails WHERE t < ?`, Date.now() - FAIL_WINDOW);
@@ -669,6 +669,8 @@ export class LmsStore extends DurableObject<LmsEnv> {
           const t = Math.round(Number(raw.target)), sc = Math.round(Number(raw.scaled));
           if (raw.target !== undefined) this.sql.exec(`UPDATE users SET target=? WHERE id=?`, raw.target === "" || raw.target === null || !(t >= 1 && t <= 9) ? "" : String(t), String(u.id));
           if (raw.scaled !== undefined) this.sql.exec(`UPDATE users SET scaled=? WHERE id=?`, raw.scaled === "" || raw.scaled === null || !(sc >= 1 && sc <= 200) ? "" : String(sc), String(u.id));
+          if (raw.isamsId !== undefined) this.sql.exec(`UPDATE users SET isams_id=? WHERE id=?`, str(raw.isamsId, 20).replace(/[^0-9A-Za-z-]/g, ""), String(u.id));
+          if (raw.isamsSurname !== undefined) this.sql.exec(`UPDATE users SET isams_surname=? WHERE id=?`, str(raw.isamsSurname, 80), String(u.id));
           saved++;
         }
         return { status: 200, body: { ok: true, saved } };
@@ -2054,6 +2056,8 @@ export class LmsStore extends DurableObject<LmsEnv> {
     if (has("parentName")) this.sql.exec(`UPDATE users SET parent_name=? WHERE id=?`, str(raw.parentName, 80), id);
     // Tracker Target (1–7, kept exactly as entered) and optional scaled score (used only when there is no Target).
     if (has("target")) { const t = Math.round(Number(raw.target)); this.sql.exec(`UPDATE users SET target=? WHERE id=?`, raw.target === "" || raw.target === null || !(t >= 1 && t <= 9) ? "" : String(t), id); }
+    if (has("isamsId")) this.sql.exec(`UPDATE users SET isams_id=? WHERE id=?`, str(raw.isamsId, 20).replace(/[^0-9A-Za-z-]/g, ""), id);
+    if (has("isamsSurname")) this.sql.exec(`UPDATE users SET isams_surname=? WHERE id=?`, str(raw.isamsSurname, 80), id);
     if (has("scaled")) { const t = Math.round(Number(raw.scaled)); this.sql.exec(`UPDATE users SET scaled=? WHERE id=?`, raw.scaled === "" || raw.scaled === null || !(t >= 1 && t <= 200) ? "" : String(t), id); }
     this.sql.exec(`UPDATE users SET gender=?, dob=?, phone=?, semail=?, nationality=?, pref_lang=?, sen=?, eal=?, gt=? WHERE id=?`, has("gender") ? gender : String(cur.gender || ""), dob, v("phone", "phone", 30), semail, v("nationality", "nationality", 40), v("prefLang", "pref_lang", 30), fl("sen", "sen"), fl("eal", "eal"), fl("gt", "gt"), id);
     if (has("firstName") || has("lastName")) {
