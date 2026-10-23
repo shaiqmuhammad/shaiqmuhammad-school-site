@@ -4004,6 +4004,935 @@
       "titleAr": "السنة ٦ – صلاة المسبوق",
       "descriptionAr": "كيف ينضم المسبوق إلى صلاة الجماعة ويتم ما فاته من الركعات (صحيح البخاري ٦٣٦ و٩٠٨؛ صحيح مسلم ٦٠٢)، وحساب الركعات الفائتة في حالات مختلفة. مبني على درس السنة السادسة.",
       "year": 6
+    },
+    {
+      "id": "sow-year-2-the-birth-of-prophet-muhammad-week-7",
+      "slug": "year-2-the-birth-of-prophet-muhammad-week-7",
+      "title": "Year 2 – The Birth of Prophet Muhammad ﷺ (Week 7)",
+      "description": "Week 7 check: where and when the Prophet ﷺ was born, his family, why we love him, and simple Seerah facts.",
+      "cardImage": "/covers/y2-birth-of-the-prophet.svg",
+      "timeLimitMinutes": 5,
+      "showAnswers": true,
+      "certificateIndividual": false,
+      "certificateGroup": false,
+      "visible": false,
+      "active": false,
+      "published": false,
+      "updatedAt": "2026-10-23T13:00:00.000Z",
+      "titleAr": "السنة ٢ – مولد النبي محمد ﷺ (الأسبوع ٧)",
+      "year": 2,
+      "questions": [
+        {
+          "type": "multiple_choice",
+          "prompt": "In which city was Prophet Muhammad ﷺ born?",
+          "options": [
+            "Madinah",
+            "Makkah",
+            "Ta’if",
+            "Jerusalem"
+          ],
+          "correct": [
+            1
+          ],
+          "explanation": "The Prophet ﷺ was born in Makkah.",
+          "sc": "cu_mvdiwond4dd5c12c#0",
+          "points": 1,
+          "id": "q1"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "The Prophet ﷺ was born in the Year of the …",
+          "options": [
+            "Elephant",
+            "Camel",
+            "Lion",
+            "Rain"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "He was born in the Year of the Elephant, the year Abrahah came with an elephant to attack the Ka‘bah.",
+          "sc": "cu_mvdiwond4dd5c12c#0",
+          "points": 1,
+          "id": "q2"
+        },
+        {
+          "type": "true_false",
+          "prompt": "The Prophet ﷺ was born on a Monday.",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "The Prophet ﷺ said Monday was the day he was born (Sahih Muslim 1162).",
+          "sc": "cu_mvdiwond4dd5c12c#0",
+          "points": 1,
+          "id": "q3"
+        },
+        {
+          "type": "matching",
+          "prompt": "Match each person to who they were for the Prophet ﷺ.",
+          "options": [],
+          "correct": [],
+          "pairs": [
+            {
+              "left": "Aminah",
+              "right": "His mother"
+            },
+            {
+              "left": "Abdullah",
+              "right": "His father"
+            },
+            {
+              "left": "Abdul-Muttalib",
+              "right": "His grandfather"
+            },
+            {
+              "left": "Halimah As-Sa‘diyah",
+              "right": "His nursing mother"
+            }
+          ],
+          "explanation": "Aminah was his mother, Abdullah his father, Abdul-Muttalib his grandfather, and Halimah looked after and nursed him in the desert.",
+          "sc": "cu_mvdiwond4dd5c12c#1",
+          "points": 2,
+          "id": "q4"
+        },
+        {
+          "type": "true_false",
+          "prompt": "The Prophet’s father, Abdullah, died before the Prophet ﷺ was born.",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Abdullah died before his son was born, so the Prophet ﷺ was born an orphan.",
+          "sc": "cu_mvdiwond4dd5c12c#1",
+          "points": 1,
+          "id": "q5"
+        },
+        {
+          "type": "fill_blank",
+          "prompt": "The name of the Prophet’s mother was ___.",
+          "options": [
+            "Khadijah",
+            "Fatimah"
+          ],
+          "correct": [],
+          "blanks": [
+            [
+              "Aminah",
+              "Amina",
+              "Aaminah"
+            ]
+          ],
+          "explanation": "His mother was Aminah bint Wahb.",
+          "sc": "cu_mvdiwond4dd5c12c#1",
+          "points": 1,
+          "id": "q6"
+        },
+        {
+          "type": "multi_select",
+          "prompt": "Why do we love Prophet Muhammad ﷺ? Choose all that are correct.",
+          "options": [
+            "He is the Messenger of Allah",
+            "He taught us how to pray",
+            "He was kind and merciful",
+            "He was the richest king"
+          ],
+          "correct": [
+            0,
+            1,
+            2
+          ],
+          "explanation": "We love him because he is Allah’s Messenger, he taught us Islam, and he was kind and merciful. He was not a rich king.",
+          "sc": "cu_mvdiwond4dd5c12c#2",
+          "points": 2,
+          "id": "q7"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "Which is a good way to show love for the Prophet ﷺ?",
+          "options": [
+            "Saying “ṣallallāhu ‘alayhi wa sallam” when we hear his name",
+            "Forgetting his name",
+            "Being rude to others",
+            "Laughing at others"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "We send salawat on him and follow his good manners.",
+          "sc": "cu_mvdiwond4dd5c12c#2",
+          "points": 1,
+          "id": "q8"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "“Seerah” means …",
+          "options": [
+            "the life story of the Prophet ﷺ",
+            "a type of food",
+            "a chapter of the Qur’an",
+            "a prayer time"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "The Seerah is the story of the life of the Prophet ﷺ.",
+          "sc": "cu_mvdiwond4dd5c12c#3",
+          "points": 1,
+          "id": "q9"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "Which tribe was the Prophet ﷺ from?",
+          "options": [
+            "Quraysh",
+            "Thaqif",
+            "Aws",
+            "Khazraj"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "The Prophet ﷺ was from the tribe of Quraysh in Makkah.",
+          "sc": "cu_mvdiwond4dd5c12c#3",
+          "points": 1,
+          "id": "q10"
+        }
+      ]
+    },
+    {
+      "id": "sow-year-3-purification-and-nullifiers-of-wudu",
+      "slug": "year-3-purification-and-nullifiers-of-wudu",
+      "title": "Year 3 – Purification and Nullifiers of Wudu (Week 7)",
+      "description": "Week 7 check: what Taharah means, the things that break Wudu, and the steps of Wudu.",
+      "cardImage": "/covers/y3-making-wudu-well.svg",
+      "timeLimitMinutes": 5,
+      "showAnswers": true,
+      "certificateIndividual": false,
+      "certificateGroup": false,
+      "visible": false,
+      "active": false,
+      "published": false,
+      "updatedAt": "2026-10-23T13:00:00.000Z",
+      "titleAr": "السنة ٣ – الطهارة ونواقض الوضوء (الأسبوع ٧)",
+      "year": 3,
+      "questions": [
+        {
+          "type": "multiple_choice",
+          "prompt": "What does “Taharah” mean?",
+          "options": [
+            "Purification (being clean)",
+            "Fasting",
+            "Charity",
+            "Travelling"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Taharah means purification – being clean for worship.",
+          "sc": "cu_mvdiwondc7126982#0",
+          "points": 1,
+          "id": "q1"
+        },
+        {
+          "type": "true_false",
+          "prompt": "A “nullifier” of Wudu is something that breaks Wudu.",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Nullifiers (nawaqid) are things that break Wudu, so we must make Wudu again before Salah.",
+          "sc": "cu_mvdiwondc7126982#0",
+          "points": 1,
+          "id": "q2"
+        },
+        {
+          "type": "fill_blank",
+          "prompt": "We must have ___ before we pray Salah.",
+          "options": [
+            "Sawm",
+            "Zakat"
+          ],
+          "correct": [],
+          "blanks": [
+            [
+              "Wudu",
+              "wudu",
+              "wudhu",
+              "wuduu",
+              "ablution"
+            ]
+          ],
+          "explanation": "Allah does not accept the prayer of someone who has broken Wudu until they make Wudu again (Sahih al-Bukhari 6954).",
+          "sc": "cu_mvdiwondc7126982#0",
+          "points": 1,
+          "id": "q3"
+        },
+        {
+          "type": "multi_select",
+          "prompt": "Which of these break Wudu? Choose all that are correct.",
+          "options": [
+            "Deep sleep",
+            "Using the toilet",
+            "Passing wind",
+            "Drinking water"
+          ],
+          "correct": [
+            0,
+            1,
+            2
+          ],
+          "explanation": "Deep sleep, using the toilet and passing wind break Wudu. Drinking water does not.",
+          "sc": "cu_mvdiwondc7126982#1",
+          "points": 2,
+          "id": "q4"
+        },
+        {
+          "type": "true_false",
+          "prompt": "Eating a biscuit breaks Wudu.",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correct": [
+            1
+          ],
+          "explanation": "Eating normal food does not break Wudu.",
+          "sc": "cu_mvdiwondc7126982#1",
+          "points": 1,
+          "id": "q5"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "Aisha fell asleep deeply on the sofa after Wudu. What should she do before Salah?",
+          "options": [
+            "Make Wudu again",
+            "Pray straight away",
+            "Only wash her hands",
+            "Nothing"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Deep sleep breaks Wudu, so she makes Wudu again.",
+          "sc": "cu_mvdiwondc7126982#1",
+          "points": 1,
+          "id": "q6"
+        },
+        {
+          "type": "ordering",
+          "prompt": "Put these steps of Wudu in the correct order.",
+          "options": [
+            "Wash the hands",
+            "Rinse the mouth and nose",
+            "Wash the face",
+            "Wash the arms to the elbows",
+            "Wipe the head and ears",
+            "Wash the feet to the ankles"
+          ],
+          "correct": [],
+          "explanation": "Wudu: hands, mouth and nose, face, arms to the elbows, wipe the head and ears, then the feet to the ankles (Qur’an 5:6).",
+          "sc": "cu_mvdiwondc7126982#2",
+          "points": 2,
+          "id": "q7"
+        },
+        {
+          "type": "matching",
+          "prompt": "Match each part of Wudu to what we do.",
+          "options": [],
+          "correct": [],
+          "pairs": [
+            {
+              "left": "Arms",
+              "right": "Wash up to the elbows"
+            },
+            {
+              "left": "Head",
+              "right": "Wipe with wet hands"
+            },
+            {
+              "left": "Feet",
+              "right": "Wash up to the ankles"
+            },
+            {
+              "left": "Face",
+              "right": "Wash from forehead to chin"
+            }
+          ],
+          "explanation": "These are the parts of Wudu Allah mentions in Surah Al-Ma’idah 5:6.",
+          "sc": "cu_mvdiwondc7126982#2",
+          "points": 2,
+          "id": "q8"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "Omar used the toilet after making Wudu. Now it is time for Dhuhr. What should he do?",
+          "options": [
+            "Renew his Wudu",
+            "Pray without Wudu",
+            "Wait until tomorrow",
+            "Only wash his feet"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Using the toilet breaks Wudu, so he renews it before praying.",
+          "sc": "cu_mvdiwondc7126982#2",
+          "points": 1,
+          "id": "q9"
+        }
+      ]
+    },
+    {
+      "id": "sow-year-4-the-conditions-and-nullifiers-of-prayer",
+      "slug": "year-4-the-conditions-and-nullifiers-of-prayer",
+      "title": "Year 4 – The Conditions and Nullifiers of Prayer (Week 7)",
+      "description": "Week 7 check: the conditions of Salah (Wudu, covering the awrah, facing the Qiblah) and the things that break Salah.",
+      "cardImage": "https://images.unsplash.com/photo-1790596859096-365ef0b97fff?auto=format&fit=crop&w=1200&h=750&q=70",
+      "timeLimitMinutes": 5,
+      "showAnswers": true,
+      "certificateIndividual": false,
+      "certificateGroup": false,
+      "visible": false,
+      "active": false,
+      "published": false,
+      "updatedAt": "2026-10-23T13:00:00.000Z",
+      "titleAr": "السنة ٤ – شروط الصلاة ومبطلاتها (الأسبوع ٧)",
+      "year": 4,
+      "questions": [
+        {
+          "type": "multi_select",
+          "prompt": "Which of these are conditions of Salah? Choose all that are correct.",
+          "options": [
+            "Having Wudu",
+            "Covering the awrah",
+            "Facing the Qiblah",
+            "Wearing new shoes"
+          ],
+          "correct": [
+            0,
+            1,
+            2
+          ],
+          "explanation": "Wudu, covering the awrah and facing the Qiblah are conditions of Salah. New shoes are not.",
+          "sc": "cu_mvdiwond20ad3d41#0",
+          "points": 2,
+          "id": "q1"
+        },
+        {
+          "type": "multi_select",
+          "prompt": "Which of these break (nullify) Salah? Choose all that are correct.",
+          "options": [
+            "Talking on purpose",
+            "Eating or drinking",
+            "Laughing out loud",
+            "Saying “Allahu Akbar”"
+          ],
+          "correct": [
+            0,
+            1,
+            2
+          ],
+          "explanation": "Talking, eating or drinking and laughing out loud break Salah. Saying “Allahu Akbar” is part of Salah.",
+          "sc": "cu_mvdiwond20ad3d41#0",
+          "points": 2,
+          "id": "q2"
+        },
+        {
+          "type": "true_false",
+          "prompt": "The time for the prayer must have started before we pray it.",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Each prayer has its time; praying before its time begins is not valid.",
+          "sc": "cu_mvdiwond20ad3d41#0",
+          "points": 1,
+          "id": "q3"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "Why must we face the Qiblah when we pray?",
+          "options": [
+            "Allah commanded Muslims to face the Ka‘bah in Makkah",
+            "So we can see the door",
+            "Because it is nearest the window",
+            "It does not matter"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Allah commanded: “So turn your face toward Al-Masjid Al-Haram” (Qur’an 2:144).",
+          "sc": "cu_mvdiwond20ad3d41#1",
+          "points": 1,
+          "id": "q4"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "Why do we need Wudu before Salah?",
+          "options": [
+            "Salah is not accepted without purification",
+            "To feel cold",
+            "Only to wash off dust",
+            "It is optional"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "The Prophet ﷺ taught that Allah does not accept prayer without Wudu (Sahih al-Bukhari 6954).",
+          "sc": "cu_mvdiwond20ad3d41#1",
+          "points": 1,
+          "id": "q5"
+        },
+        {
+          "type": "fill_blank",
+          "prompt": "Covering the ___ (the parts of the body that must be covered) is a condition of Salah.",
+          "options": [
+            "Qiblah",
+            "Wudu"
+          ],
+          "correct": [],
+          "blanks": [
+            [
+              "awrah",
+              "awra",
+              "aurah",
+              "awrah."
+            ]
+          ],
+          "explanation": "We cover the awrah when we pray.",
+          "sc": "cu_mvdiwond20ad3d41#1",
+          "points": 1,
+          "id": "q6"
+        },
+        {
+          "type": "matching",
+          "prompt": "Match each word to its meaning.",
+          "options": [],
+          "correct": [],
+          "pairs": [
+            {
+              "left": "Wudu",
+              "right": "Washing for purity before Salah"
+            },
+            {
+              "left": "Qiblah",
+              "right": "The direction of the Ka‘bah in Makkah"
+            },
+            {
+              "left": "Awrah",
+              "right": "The parts of the body we must cover"
+            },
+            {
+              "left": "Nullifier",
+              "right": "Something that breaks Salah"
+            }
+          ],
+          "explanation": "Conditions (Wudu, Qiblah, covering the awrah) are needed before Salah; nullifiers break it.",
+          "sc": "cu_mvdiwond20ad3d41#1",
+          "points": 2,
+          "id": "q7"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "While Yusuf is praying, his brother makes a funny face. What should Yusuf do?",
+          "options": [
+            "Keep calm and keep praying with focus (khushu‘)",
+            "Laugh out loud",
+            "Tell his brother to stop",
+            "Leave the prayer to play"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Laughing out loud or talking would break his Salah, so he stays focused.",
+          "sc": "cu_mvdiwond20ad3d41#2",
+          "points": 1,
+          "id": "q8"
+        },
+        {
+          "type": "true_false",
+          "prompt": "If you eat a sweet during Salah, your Salah is still correct.",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correct": [
+            1
+          ],
+          "explanation": "Eating or drinking breaks Salah, so it must be prayed again.",
+          "sc": "cu_mvdiwond20ad3d41#2",
+          "points": 1,
+          "id": "q9"
+        }
+      ]
+    },
+    {
+      "id": "sow-year-5-belief-in-divine-books",
+      "slug": "year-5-belief-in-divine-books",
+      "title": "Year 5 – Belief in the Divine Books (Week 7)",
+      "description": "Week 7 check: the Divine Books and the Prophets they were revealed to, comparing them with the Qur’an, and why the Qur’an is protected.",
+      "cardImage": "/covers/y4-the-first-revelation.svg",
+      "timeLimitMinutes": 5,
+      "showAnswers": true,
+      "certificateIndividual": false,
+      "certificateGroup": false,
+      "visible": false,
+      "active": false,
+      "published": false,
+      "updatedAt": "2026-10-23T13:00:00.000Z",
+      "titleAr": "السنة ٥ – الإيمان بالكتب السماوية (الأسبوع ٧)",
+      "year": 5,
+      "questions": [
+        {
+          "type": "matching",
+          "prompt": "Match each Divine Book to the Prophet it was revealed to.",
+          "options": [],
+          "correct": [],
+          "pairs": [
+            {
+              "left": "Tawrat",
+              "right": "Prophet Musa (AS)"
+            },
+            {
+              "left": "Zabur",
+              "right": "Prophet Dawud (AS)"
+            },
+            {
+              "left": "Injil",
+              "right": "Prophet Isa (AS)"
+            },
+            {
+              "left": "Qur’an",
+              "right": "Prophet Muhammad ﷺ"
+            }
+          ],
+          "explanation": "Tawrat – Musa, Zabur – Dawud, Injil – Isa, Qur’an – Muhammad ﷺ.",
+          "sc": "cu_mvdiwond4a79f402#1",
+          "points": 2,
+          "id": "q1"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "The Zabur was revealed to …",
+          "options": [
+            "Prophet Dawud (AS)",
+            "Prophet Musa (AS)",
+            "Prophet Nuh (AS)",
+            "Prophet Isa (AS)"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Allah says: “And to Dawud We gave the Zabur” (Qur’an 4:163).",
+          "sc": "cu_mvdiwond4a79f402#1",
+          "points": 1,
+          "id": "q2"
+        },
+        {
+          "type": "true_false",
+          "prompt": "Believing in the Divine Books is one of the pillars of Iman.",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Belief in Allah’s Books is one of the six pillars of Iman (Sahih Muslim 8, the Hadith of Jibril).",
+          "sc": "cu_mvdiwond4a79f402#1",
+          "points": 1,
+          "id": "q3"
+        },
+        {
+          "type": "fill_blank",
+          "prompt": "The last Divine Book is the ___.",
+          "options": [
+            "Injil",
+            "Tawrat"
+          ],
+          "correct": [],
+          "blanks": [
+            [
+              "Quran",
+              "Qur’an",
+              "Qur'an",
+              "Koran",
+              "Al-Quran"
+            ]
+          ],
+          "explanation": "The Qur’an is the final Book, revealed to the final Prophet ﷺ.",
+          "sc": "cu_mvdiwond4a79f402#2",
+          "points": 1,
+          "id": "q4"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "“إِنَّا نَحْنُ نَزَّلْنَا الذِّكْرَ وَإِنَّا لَهُ لَحَافِظُونَ” (Qur’an 15:9) means …",
+          "options": [
+            "Indeed, We sent down the Reminder (the Qur’an), and indeed We will guard it.",
+            "Indeed, We created the heavens and the earth.",
+            "Read in the name of your Lord.",
+            "Allah is One."
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Surah Al-Hijr 15:9: Allah Himself promised to protect the Qur’an.",
+          "sc": "cu_mvdiwond4a79f402#2",
+          "points": 1,
+          "id": "q5"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "Why has the Qur’an never been changed?",
+          "options": [
+            "Allah promised to protect it",
+            "People forgot about it",
+            "It was never written down",
+            "It is only a story book"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Allah promised to guard the Qur’an (15:9), and millions of Muslims memorise it.",
+          "sc": "cu_mvdiwond4a79f402#2",
+          "points": 1,
+          "id": "q6"
+        },
+        {
+          "type": "true_false",
+          "prompt": "The earlier books (Tawrat, Zabur, Injil) are still exactly as they were first revealed.",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correct": [
+            1
+          ],
+          "explanation": "Muslims believe the original earlier books came from Allah, but people later changed them; only the Qur’an is protected.",
+          "sc": "cu_mvdiwond4a79f402#0",
+          "points": 1,
+          "id": "q7"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "What is the same about all the Divine Books in their original form?",
+          "options": [
+            "They all came from Allah and called people to worship Allah alone",
+            "They were all in Arabic",
+            "They were all revealed to Prophet Muhammad ﷺ",
+            "They were all revealed on the same day"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "All the original Books came from Allah with the message of Tawhid.",
+          "sc": "cu_mvdiwond4a79f402#0",
+          "points": 1,
+          "id": "q8"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "What is different about the Qur’an compared with the earlier books?",
+          "options": [
+            "It is for all people until the Last Day and is protected by Allah",
+            "It was revealed only to one tribe",
+            "It can be changed by people",
+            "It came before the Tawrat"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "The Qur’an is the final message for all of humanity and Allah protects it.",
+          "sc": "cu_mvdiwond4a79f402#0",
+          "points": 1,
+          "id": "q9"
+        }
+      ]
+    },
+    {
+      "id": "sow-year-6-calling-the-people-of-taif",
+      "slug": "year-6-calling-the-people-of-taif",
+      "title": "Year 6 – Calling the People of Ta’if (Week 7)",
+      "description": "Week 7 check: the story of the Prophet’s journey to Ta’if, his mercy when he refused the angel’s offer, and choosing patience over revenge.",
+      "cardImage": "https://images.unsplash.com/photo-1696679369635-430ad1b5783a?auto=format&fit=crop&w=1200&h=750&q=70",
+      "timeLimitMinutes": 5,
+      "showAnswers": true,
+      "certificateIndividual": false,
+      "certificateGroup": false,
+      "visible": false,
+      "active": false,
+      "published": false,
+      "updatedAt": "2026-10-23T13:00:00.000Z",
+      "titleAr": "السنة ٦ – دعوة أهل الطائف (الأسبوع ٧)",
+      "year": 6,
+      "questions": [
+        {
+          "type": "multiple_choice",
+          "prompt": "Who travelled with the Prophet ﷺ to Ta’if?",
+          "options": [
+            "Zayd ibn Harithah",
+            "Abu Bakr",
+            "Umar ibn al-Khattab",
+            "Bilal"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Zayd ibn Harithah went with the Prophet ﷺ to Ta’if.",
+          "sc": "cu_mvdiwond54a3b1aa#0",
+          "points": 1,
+          "id": "q1"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "Why did the Prophet ﷺ go to Ta’if?",
+          "options": [
+            "To invite its people to Islam",
+            "To trade camels",
+            "To go on holiday",
+            "To fight them"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "After Quraysh rejected his message in Makkah, he went to invite the people of Ta’if to worship Allah alone.",
+          "sc": "cu_mvdiwond54a3b1aa#0",
+          "points": 1,
+          "id": "q2"
+        },
+        {
+          "type": "true_false",
+          "prompt": "The leaders of Ta’if welcomed the Prophet ﷺ and accepted Islam.",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correct": [
+            1
+          ],
+          "explanation": "They rejected him and sent people to insult him and throw stones until his feet bled.",
+          "sc": "cu_mvdiwond54a3b1aa#0",
+          "points": 1,
+          "id": "q3"
+        },
+        {
+          "type": "ordering",
+          "prompt": "Put the story of Ta’if in the correct order.",
+          "options": [
+            "The Prophet ﷺ walks to Ta’if with Zayd",
+            "He invites the leaders of Ta’if to Islam",
+            "They reject him and people throw stones at him",
+            "The angel of the mountains offers to crush the people",
+            "The Prophet ﷺ refuses and hopes their children will worship Allah"
+          ],
+          "correct": [],
+          "explanation": "This order follows the story in Sahih al-Bukhari 3231 and the Seerah.",
+          "sc": "cu_mvdiwond54a3b1aa#0",
+          "points": 2,
+          "id": "q4"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "What did the angel of the mountains offer the Prophet ﷺ?",
+          "options": [
+            "To bring the two mountains together on the people of Ta’if",
+            "To give him gold",
+            "To carry him to Madinah",
+            "To build him a palace"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "The angel offered to crush them between the two mountains (Sahih al-Bukhari 3231).",
+          "sc": "cu_mvdiwond54a3b1aa#1",
+          "points": 1,
+          "id": "q5"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "What did the Prophet ﷺ reply?",
+          "options": [
+            "“I hope that Allah will bring from their children people who worship Allah alone.”",
+            "“Yes, punish them now.”",
+            "“Make them leave Arabia.”",
+            "He said nothing."
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "He refused and hoped their descendants would worship Allah alone (Sahih al-Bukhari 3231, Sahih Muslim 1795).",
+          "sc": "cu_mvdiwond54a3b1aa#1",
+          "points": 1,
+          "id": "q6"
+        },
+        {
+          "type": "fill_blank",
+          "prompt": "Instead of asking for revenge, the Prophet ﷺ showed ___ and made dua for the people of Ta’if.",
+          "options": [
+            "anger",
+            "pride"
+          ],
+          "correct": [],
+          "blanks": [
+            [
+              "mercy",
+              "Mercy",
+              "rahmah",
+              "Rahmah"
+            ]
+          ],
+          "explanation": "His reply was full of mercy (rahmah).",
+          "sc": "cu_mvdiwond54a3b1aa#1",
+          "points": 1,
+          "id": "q7"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "Someone in your class laughs at you and breaks your pencil. What would follow the Prophet’s example?",
+          "options": [
+            "Stay calm, be patient and forgive, and tell a teacher if needed",
+            "Break their pencil too",
+            "Shout at them",
+            "Tell everyone they are bad"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Like the Prophet ﷺ at Ta’if, we choose patience and mercy over revenge.",
+          "sc": "cu_mvdiwond54a3b1aa#2",
+          "points": 1,
+          "id": "q8"
+        },
+        {
+          "type": "true_false",
+          "prompt": "Tawakkul means trusting and relying on Allah when things are hard.",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "The Prophet ﷺ relied on Allah in hardship at Ta’if.",
+          "sc": "cu_mvdiwond54a3b1aa#2",
+          "points": 1,
+          "id": "q9"
+        }
+      ]
     }
   ]
 }
