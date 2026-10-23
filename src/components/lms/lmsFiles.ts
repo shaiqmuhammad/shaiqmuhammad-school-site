@@ -277,7 +277,7 @@ export async function exportAllHomeworkZip(asAdmin: boolean) {
 }
 
 /** Per-student QR cards (A5, one page each). The QR opens the read-only token page /q?t=… — no username/PIN. */
-export async function studentQrCardsPdf(hw: Homework, opts: { surahEn?: string; surahAr?: string; verses?: string; teacher: string; links: { name: string; nameAr?: string; cls: string; section: string; token: string }[]; lang?: string; mode?: "auto" | "ar" | "en" | "both" }) {
+export async function studentQrCardsPdf(hw: Homework, opts: { surahEn?: string; surahAr?: string; verses?: string; teacher: string; links: { name: string; nameAr?: string; arabic?: boolean; cls: string; section: string; token: string }[]; versesAr?: string; lang?: string; mode?: "auto" | "ar" | "en" | "both" }) {
   const W = 1240, H = 1748;
   const { pickName } = await import("@/lib/studentName");
   const { jsPDF } = await import("jspdf");
@@ -294,9 +294,13 @@ export async function studentQrCardsPdf(hw: Homework, opts: { surahEn?: string; 
     g.fillStyle = "#16324f"; g.fillRect(62, 62, W - 124, 170);
     g.textAlign = "center";
     g.fillStyle = "#f2c14e"; g.font = "bold 54px system-ui, sans-serif";
-    g.fillText(hw.kind === "quran" ? "Quran homework · واجب القرآن" : "Homework · واجب", W / 2, 168);
+    // t289: Islamic A students get a fully Arabic card (Arabic labels, RTL, Arabic name; English only if there is none).
+    const AR = !!l.arabic; const AF = "'Noto Naskh Arabic', Amiri, 'Segoe UI', system-ui, sans-serif";
+    if (AR) { g.direction = "rtl"; g.font = `bold 58px ${AF}`; }
+    g.fillText(AR ? (hw.kind === "quran" ? "واجب القرآن الكريم" : "الواجب") : hw.kind === "quran" ? "Quran homework · واجب القرآن" : "Homework · واجب", W / 2, 168);
+    g.direction = "ltr";
     // Student name: Arabic, English or both per the admin setting (Arabic shaped by the canvas, RTL).
-    const shown = pickName(l.name, l.nameAr, opts.lang || "en", opts.mode || "auto");
+    const shown = AR ? (l.nameAr?.trim() || l.name) : pickName(l.name, l.nameAr, opts.lang || "en", opts.mode || "auto");
     const isAr = /[\u0600-\u06FF]/.test(shown);
     g.fillStyle = "#16324f"; g.font = isAr ? "bold 70px 'Noto Naskh Arabic', Amiri, 'Segoe UI', system-ui, sans-serif" : "bold 76px system-ui, sans-serif";
     g.direction = isAr ? "rtl" : "ltr";
@@ -304,13 +308,15 @@ export async function studentQrCardsPdf(hw: Homework, opts: { surahEn?: string; 
     while (nm.length > 4 && g.measureText(nm).width > W - 180) nm = nm.slice(0, -1);
     g.fillText(nm, W / 2, 340);
     g.direction = "ltr";
-    g.font = "40px system-ui, sans-serif"; g.fillStyle = "#3b5770";
-    g.fillText([l.cls, l.section].filter(Boolean).join(" · "), W / 2, 400);
+    g.font = AR ? `40px ${AF}` : "40px system-ui, sans-serif"; g.fillStyle = "#3b5770";
+    if (AR) g.direction = "rtl";
+    g.fillText(AR ? [l.cls.replace(/^Year\s*(\d+)$/i, "السنة $1").replace(/^FS2$/i, "التأسيسي ٢"), l.section].filter(Boolean).join(" · ") : [l.cls, l.section].filter(Boolean).join(" · "), W / 2, 400);
+    g.direction = "ltr";
     if (hw.kind === "quran" && opts.surahAr) {
       g.fillStyle = "#16324f"; g.font = "bold 84px 'Amiri Quran', Amiri, serif";
       g.fillText(`سورة ${opts.surahAr}`, W / 2, 520);
-      g.font = "bold 44px system-ui, sans-serif";
-      g.fillText(`Surah ${opts.surahEn} · ${opts.verses}`, W / 2, 590);
+      if (AR) { g.direction = "rtl"; g.font = `bold 46px ${AF}`; g.fillText(opts.versesAr || "", W / 2, 590); g.direction = "ltr"; }
+      else { g.font = "bold 44px system-ui, sans-serif"; g.fillText(`Surah ${opts.surahEn} · ${opts.verses}`, W / 2, 590); }
     } else {
       g.fillStyle = "#16324f"; g.font = "bold 56px system-ui, sans-serif";
       g.fillText(hw.title.slice(0, 36), W / 2, 540);
@@ -318,11 +324,20 @@ export async function studentQrCardsPdf(hw: Homework, opts: { surahEn?: string; 
     const qr = await loadImage(qrImageUrl(`${origin}/q?t=${l.token}`, 700));
     g.fillStyle = "#ffffff"; g.fillRect((W - 700) / 2 - 20, 650, 740, 740);
     g.drawImage(qr, (W - 700) / 2, 670, 700, 700);
-    g.fillStyle = "#16324f"; g.font = "bold 36px system-ui, sans-serif";
-    g.fillText("Scan to see your verses, recitation & feedback", W / 2, 1470);
-    g.fillText("امسح لرؤية الآيات والتلاوة وملاحظات المعلم", W / 2, 1525);
-    g.font = "32px system-ui, sans-serif"; g.fillStyle = "#3b5770";
-    g.fillText(`Teacher: ${opts.teacher} · Shaiq Muhammad`, W / 2, 1610);
+    g.fillStyle = "#16324f";
+    if (AR) {
+      g.direction = "rtl"; g.font = `bold 40px ${AF}`;
+      g.fillText("امسح الرمز لرؤية الآيات والتلاوة وملاحظات المعلم", W / 2, 1490);
+      g.font = `34px ${AF}`; g.fillStyle = "#3b5770";
+      g.fillText(`المعلم: ${opts.teacher} · منصة شائق محمد`, W / 2, 1600);
+      g.direction = "ltr";
+    } else {
+      g.font = "bold 36px system-ui, sans-serif";
+      g.fillText("Scan to see your verses, recitation & feedback", W / 2, 1470);
+      g.fillText("امسح لرؤية الآيات والتلاوة وملاحظات المعلم", W / 2, 1525);
+      g.font = "32px system-ui, sans-serif"; g.fillStyle = "#3b5770";
+      g.fillText(`Teacher: ${opts.teacher} · Shaiq Muhammad`, W / 2, 1610);
+    }
     if (!first) pdf.addPage("a5");
     first = false;
     pdf.addImage(c.toDataURL("image/jpeg", 0.9), "JPEG", 0, 0, 148, 210);

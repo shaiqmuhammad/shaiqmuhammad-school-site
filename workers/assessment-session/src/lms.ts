@@ -1755,7 +1755,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
             row = { token: tok };
           }
           const t = String(row.token);
-          return { student: sid, name: String(u?.name || "?"), nameAr: String(u?.name_ar || ""), cls: String(u?.cls || ""), section: String(u?.section || ""), token: t.startsWith("revoked:") ? "" : t };
+          return { student: sid, name: String(u?.name || "?"), nameAr: String(u?.name_ar || ""), arabic: subjList(u?.subject).includes("Islamic A"), cls: String(u?.cls || ""), section: String(u?.section || ""), token: t.startsWith("revoked:") ? "" : t };
         });
         return { status: 200, body: { links: out, teacher: a.name } };
       }
@@ -1783,7 +1783,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         if (!u || u.role !== "student") return { status: 404, body: { error: "not_found" } };
         const sa = this.actorOf(u);
         const hw = this.assignedTo(sa).map((h) => { const sb = this.sub(h.id, sid); return { id: h.id, title: h.title, kind: h.kind, data: h.data, due: h.due, status: sb?.status || "none", grade: sb?.grade || "", attempts: sb?.attempts?.length || 0, late: !!(h.due && ((sb?.submittedAt || 0) > h.due || (!(sb?.submittedAt) && h.due < Date.now()))) }; });
-        return { status: 200, body: { student: a.role === "admin" && !a.viewAs ? this.adminUser(u) : this.publicUser(u), homework: hw, tracker: this.trackerOf(sid), progress: this.progressOf(sid), parentLink: String(u.parent_token || "") } };
+        return { status: 200, body: { student: { ...(a.role === "admin" && !a.viewAs ? this.adminUser(u) : this.publicUser(u)), arabic: subjList(u.subject).includes("Islamic A") }, homework: hw, tracker: this.trackerOf(sid), progress: this.progressOf(sid), parentLink: String(u.parent_token || "") } };
       }
 
       case "quran-map": {
@@ -2399,7 +2399,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     const d = h.data as { surah?: number; from?: number; to?: number; reciter?: string; translit?: boolean; translation?: boolean };
     const tracker = h.kind === "quran" ? this.trackerOf(String(u.id)).filter((t) => t.surah === d.surah) : [];
     return { status: 200, body: {
-      student: String(u.name), cls: String(u.cls || ""), section: String(u.section || ""),
+      student: String(u.name), studentAr: String(u.name_ar || ""), arabic: subjList(u.subject).includes("Islamic A"), cls: String(u.cls || ""), section: String(u.section || ""),
       homework: { title: h.title, kind: h.kind, data: h.kind === "quran" ? { surah: d.surah, from: d.from, to: d.to, reciter: d.reciter, translit: d.translit, translation: d.translation } : {} },
       status: sb?.status || "none", grade: sb?.grade || "", scores: sb?.scores || null,
       recordings: recs, recAt: Object.fromEntries(recs.map((id) => [id, Number(this.sql.exec(`SELECT created FROM blobs WHERE id=?`, id).toArray()[0]?.created || 0)])), attempts: (sb?.attempts || []).map((x) => ({ n: x.n, grade: x.grade, audio: x.audio, at: x.at, scores: x.scores })),

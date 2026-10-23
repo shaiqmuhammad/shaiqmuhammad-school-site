@@ -353,13 +353,16 @@ export async function renderCertificate(canvas: HTMLCanvasElement, d: CertDesign
   text(`${L("date")}: ${dateStr}`, y, 13, d.textColor, stackFor, 600);
 
   // signature
+  if (lang === "ar" && d.signatureTitle && !AR.test(d.signatureTitle)) d = { ...d, signatureTitle: CERT_AR[d.signatureTitle.trim()] || d.signatureTitle };
   if (d.showSignature && (d.signatureName || d.signatureTitle)) {
     const sx = PAGE_W - 150 - 20; const sy = PAGE_H - 118;
     g.fillStyle = d.textColor; g.fillRect(sx - 90, sy, 180, 1.2);
     text(d.signatureName, sy - 8, 17, d.textColor, d.signatureName && AR.test(d.signatureName) ? arTitleStack : `"${LATIN_FONTS.vibes.family}",${titleStack}`, 700, sx, "center", 180);
-    text(d.signatureTitle, sy + 17, 11, d.textColor, bodyStack, 600, sx, "center", 180);
+    text(d.signatureTitle, sy + 17, 11, d.textColor, AR.test(d.signatureTitle) ? arBodyStack : bodyStack, 600, sx, "center", 180);
   }
-  // footer
+  // footer (t288: an Arabic certificate translates the English school name / motto / signature title)
+  const arTx = (x: string) => (lang === "ar" && x && !AR.test(x) ? CERT_AR[x.trim()] || x : x);
+  d = { ...d, schoolName: arTx(d.schoolName), footerText: arTx(d.footerText), signatureTitle: arTx(d.signatureTitle) };
   text(d.schoolName, PAGE_H - 78, 15, d.borderColor, AR.test(d.schoolName) ? arBodyStack : bodyStack, 800, cx, "center", PAGE_W - bandW - 360);
   if (d.footerText) text(d.footerText, PAGE_H - 58, 11, "#6b7280", AR.test(d.footerText) ? arBodyStack : bodyStack, 600, cx, "center", PAGE_W - bandW - 360);
 }
@@ -367,3 +370,12 @@ export async function renderCertificate(canvas: HTMLCanvasElement, d: CertDesign
 export const SAMPLE_DATA: CertData = { name: "Aisha Khan", quizTitle: "Year 6 – Prayer of the Latecomer", score: 14, maxScore: 15, percentage: 93.3, finishedAt: new Date().toISOString(), positionLabel: "1 of 24" };
 
 export function newDesignId(): string { return `d_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`; }
+
+/** Arabic for the usual English template strings (t288 Arabic certificates). */
+const CERT_AR: Record<string, string> = {
+  "Shaiq Muhammad Learning Platform": "منصة شائق محمد التعليمية",
+  "May knowledge be a light upon your path.": "جعل الله العلم نورًا يضيء دربك.",
+  "Teacher": "المعلم",
+  "Class Teacher": "معلم الصف",
+  "Islamic Education Teacher": "معلم التربية الإسلامية",
+};
