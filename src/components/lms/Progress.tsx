@@ -1,4 +1,5 @@
 "use client";
+// t289: Arabic Surah certificate for Islamic A students.
 
 import { DlGate } from "@/components/lms/DlGate";
 import { dlGrant } from "@/lib/dl";
