@@ -67,6 +67,8 @@ export type QuizQuestion = {
   optionsAr?: string[];
   /** Optional Arabic explanation for the review screen */
   explanationAr?: string;
+  /** Assessment Tracker: Success Criterion this question assesses, "<curriculum unit id>#<SC index>" */
+  sc?: string;
 };
 
 export type Quiz = {
@@ -230,6 +232,8 @@ export function normalizeQuestion(raw: Partial<QuizQuestion>): QuizQuestion {
   if (optionsAr.some((o) => o.trim())) q.optionsAr = optionsAr;
   const explanationAr = String(raw.explanationAr ?? "").trim();
   if (explanationAr) q.explanationAr = explanationAr;
+  const sc = String(raw.sc ?? "").trim();
+  if (/^[\w-]{1,40}#\d{1,2}$/.test(sc)) q.sc = sc;
   return q;
 }
 

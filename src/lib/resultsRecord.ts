@@ -16,6 +16,8 @@ export type ResultDetail = {
   earned: number;
   points: number;
   seconds?: number | null;
+  /** Assessment Tracker Success Criterion tag "<unitId>#<index>" (from the question) */
+  sc?: string;
 };
 
 export type ResultRecord = {
@@ -59,6 +61,7 @@ export function attemptDetails(quiz: Quiz, answers: Record<string, unknown>): Re
       answered: isAnswered(q, answers[q.id]),
       earned,
       points,
+      ...(q.sc ? { sc: q.sc } : {}),
     };
   });
 }
