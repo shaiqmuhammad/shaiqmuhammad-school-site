@@ -37,6 +37,8 @@ const FOLLOW = ["none", "open", "in_progress", "done"];
 export function initMods(sql: SqlStorage) {
   sql.exec(`CREATE TABLE IF NOT EXISTS att (id TEXT PRIMARY KEY, student TEXT, cls TEXT, section TEXT, day TEXT, period TEXT, status TEXT, note TEXT DEFAULT '', by TEXT, by_name TEXT, at INTEGER, alerted INTEGER DEFAULT 0, UNIQUE (student, day, period))`);
   sql.exec(`CREATE INDEX IF NOT EXISTS att_day ON att (day, cls)`);
+  // t302: timetable rows (weekday 0=Sun..6=Sat, period id P1..P8) per phase / department / teacher / subject / class.
+  sql.exec(`CREATE TABLE IF NOT EXISTS tt (id TEXT PRIMARY KEY, dow INTEGER, period TEXT, cls TEXT, section TEXT, teacher TEXT, teacher_name TEXT, subject TEXT, phase TEXT, dept TEXT, at INTEGER)`);
   sql.exec(`CREATE TABLE IF NOT EXISTS beh (id TEXT PRIMARY KEY, student TEXT, cls TEXT, section TEXT, day TEXT, kind TEXT, category TEXT, severity INTEGER DEFAULT 1, note TEXT DEFAULT '', action TEXT DEFAULT '', follow TEXT DEFAULT 'none', follow_note TEXT DEFAULT '', sensitive INTEGER DEFAULT 0, by TEXT, by_name TEXT, at INTEGER, updated INTEGER)`);
   sql.exec(`CREATE INDEX IF NOT EXISTS beh_student ON beh (student, day)`);
   sql.exec(`CREATE TABLE IF NOT EXISTS cur (id TEXT PRIMARY KEY, subject TEXT, yr TEXT, term TEXT, title TEXT, objectives TEXT DEFAULT '', lessons TEXT DEFAULT '[]', resources TEXT DEFAULT '[]', wk_from INTEGER DEFAULT 0, wk_to INTEGER DEFAULT 0, status TEXT DEFAULT 'planned', quiz TEXT DEFAULT '', page TEXT DEFAULT '', ord INTEGER DEFAULT 0, by_name TEXT, updated INTEGER)`);
@@ -239,6 +241,43 @@ export async function modHandle(c: ModCtx, action: string, a: Actor, input: Json
         if (r.status === "A") absent.push({ student: String(u.id), name: String(u.name), cls: String(u.cls), section: String(u.section), status: "A", note: String(r.note || "") });
       }
       return { status: 200, body: { day, groups: [...groups.values()].map((g) => ({ ...g, periods: [...g.periods], by: [...g.by] })), absent } };
+    }
+    case "att-times": {
+      // t302: saved period timings + timetable (teachers see their own rows) + the current Dubai weekday/time and period.
+      const raw = sql.exec(`SELECT v FROM settings WHERE k='att:times'`).toArray()[0];
+      let times: Record<string, { s: string; e: string }> = {};
+      try { times = raw ? JSON.parse(String(raw.v)) : {}; } catch { times = {}; }
+      const d = new Date(Date.now() + 4 * 3600e3), dow = d.getUTCDay(), hm = d.toISOString().slice(11, 16);
+      const now = Object.entries(times).find(([, t]) => t.s && t.e && t.s <= hm && hm < t.e)?.[0] || "";
+      const rows = sql.exec(`SELECT * FROM tt ORDER BY dow, period, cls, section`).toArray().filter((r) => a.role === "admin" || String(r.teacher) === a.id);
+      const tt = rows.map((r) => ({ id: String(r.id), dow: Number(r.dow), period: String(r.period), cls: String(r.cls), section: String(r.section), teacher: String(r.teacher), teacherName: String(r.teacher_name || ""), subject: String(r.subject || ""), phase: String(r.phase || ""), dept: String(r.dept || "") }));
+      const mine = tt.find((r) => r.dow === dow && r.period === now && (a.role === "admin" ? false : true));
+      const teachers = a.role === "admin" ? sql.exec(`SELECT id, name, subject, phase FROM users WHERE role='teacher' AND disabled=0 ORDER BY name`).toArray().map((r) => ({ id: String(r.id), name: String(r.name), subject: String(r.subject || ""), phase: String(r.phase || "") })) : [];
+      return { status: 200, body: { times, timetable: tt, now: { dow, hm, period: now }, current: mine || null, teachers } };
+    }
+    case "att-times-save": {
+      if (a.role !== "admin" || a.viewAs) return forbid();
+      const inT = (input.times && typeof input.times === "object" ? input.times : {}) as Record<string, Json>;
+      const HM = /^([01]\d|2[0-3]):[0-5]\d$/;
+      const out: Record<string, { s: string; e: string }> = {};
+      for (const k of ["P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8"]) { const t = inT[k]; if (t && HM.test(String(t.s)) && HM.test(String(t.e)) && String(t.s) < String(t.e)) out[k] = { s: String(t.s), e: String(t.e) }; }
+      sql.exec(`INSERT INTO settings (k, v) VALUES ('att:times', ?) ON CONFLICT(k) DO UPDATE SET v=excluded.v`, JSON.stringify(out));
+      return { status: 200, body: { ok: true, times: out } };
+    }
+    case "tt-save": {
+      if (a.role !== "admin" || a.viewAs) return forbid();
+      const dow = Math.floor(Number(input.dow)), period = str(input.period, 4);
+      if (!(dow >= 0 && dow <= 6) || !/^P[1-8]$/.test(period)) return { status: 400, body: { error: "bad_input" } };
+      const tid = str(input.teacher, 40); const tu = tid ? c.userRow("id=? AND role='teacher'", tid) : null;
+      const id = str(input.id, 40) || crypto.randomUUID();
+      sql.exec(`INSERT INTO tt (id, dow, period, cls, section, teacher, teacher_name, subject, phase, dept, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET dow=excluded.dow, period=excluded.period, cls=excluded.cls, section=excluded.section, teacher=excluded.teacher, teacher_name=excluded.teacher_name, subject=excluded.subject, phase=excluded.phase, dept=excluded.dept, at=excluded.at`,
+        id, dow, period, str(input.cls, 80), str(input.section, 80), tu ? tid : "", tu ? String(tu.name) : "", str(input.subject, 80), str(input.phase, 40), str(input.dept, 80), Date.now());
+      return { status: 200, body: { ok: true, id } };
+    }
+    case "tt-del": {
+      if (a.role !== "admin" || a.viewAs) return forbid();
+      sql.exec(`DELETE FROM tt WHERE id=?`, str(input.id, 40));
+      return { status: 200, body: { ok: true } };
     }
     case "att-settings": {
       if (a.role !== "admin" || a.viewAs) return forbid();

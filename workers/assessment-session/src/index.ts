@@ -404,11 +404,12 @@ export class AssessmentSession extends DurableObject<Env> {
         if (this.status(now) === "ended") return { status: 409, body: { error: "ended" } };
         if (this.participants.size >= MAX_PARTICIPANTS) return { status: 409, body: { error: "full" } };
         const deviceId = String(body.deviceId ?? "").replace(/[^a-zA-Z0-9-]/g, "").slice(0, 64);
-        if (deviceId && [...this.participants.values()].some((x) => x.removedAt && x.deviceId === deviceId)) {
-          return { status: 403, body: { error: "removed" } };
-        }
         let name = cleanName(body.name);
         if (!name) return { status: 400, body: { error: "name_required" } };
+        // t302: a removed student may rejoin, but only under a new name (the removed name stays blocked on that device).
+        if (deviceId && [...this.participants.values()].some((x) => x.removedAt && x.deviceId === deviceId && x.name.replace(/ \(\d+\)$/, "").toLowerCase() === name.toLowerCase())) {
+          return { status: 403, body: { error: "removed" } };
+        }
         const taken = new Set(this.active().map((p) => p.name.toLowerCase()));
         if (taken.has(name.toLowerCase())) {
           let n = 2;

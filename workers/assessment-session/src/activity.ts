@@ -222,7 +222,8 @@ export class ClassActivity extends DurableObject<ActivityEnv> {
         if (!name) return { status: 400, body: { error: "name" } };
         const device = str(input.deviceId, 64);
         if (device) {
-          const blocked = this.sql.exec(`SELECT id FROM parts WHERE device=? AND removed IS NOT NULL`, device).toArray()[0];
+          // t302: a removed student may rejoin under a new name only.
+          const blocked = this.sql.exec(`SELECT id FROM parts WHERE device=? AND removed IS NOT NULL AND lower(name)=lower(?)`, device, name).toArray()[0];
           if (blocked) return { status: 403, body: { error: "removed" } };
           if (this.limited(`d:${device}`, "join")) return { status: 429, body: { error: "slow_down" } };
         }

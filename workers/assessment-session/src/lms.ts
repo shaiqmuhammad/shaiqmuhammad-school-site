@@ -33,6 +33,7 @@
  * PINs: the PBKDF2 hash is what login checks. A copy is also kept AES-GCM encrypted with the LMS_PIN_KEY secret
  * (32 random bytes, base64) so the admin can look a PIN up. Users created before that show "reset to view".
  */
+import { makeVapid, sendPush, type Vapid } from "./push";
 import { textReplaceAll } from "./textfix";
 import { trackerHandle, trkInit } from "./tracker";
 import { MP_PERM, mpAll, mpCfg, mpSave } from "./modperm";
@@ -87,6 +88,12 @@ function avatarOf(r: Record<string, unknown>): string {
   let h = 7; for (const c of String(r.id)) h = (h * 31 + c.charCodeAt(0)) >>> 0;
   return `${g}${h % 12}`;
 }
+/** t302: push text per notification kind ({field} filled from the notification data). New kinds appear in the switches automatically. */
+const PUSH_TEXT: Record<string, [string, string]> = {
+  hw_new: ["New homework", "{title}"], sub_new: ["Homework submitted", "{student}: {title}"], graded: ["Homework graded", "{title}"], approved: ["Homework approved", "{title}"],
+  returned: ["Please try again", "{title}"], feedback: ["Teacher feedback", "{title}"], feedback_audio: ["Voice feedback", "{title}"], mistakes: ["Mistakes marked", "{title}"],
+  message: ["New message", "{by}: {title}"], announcement: ["Announcement", "{title}"], reminder: ["Homework reminder", "{title}"], revise: ["Time to revise", "{title}"], test: ["Test notification", "Push notifications are working ✅"],
+};
 const DEFAULT_CATS: [string, number, string][] = [["Helping", 1, "🤝"], ["Teamwork", 1, "👥"], ["Recitation", 1, "📖"], ["Respect", 1, "🌟"], ["Hard work", 1, "💪"], ["Off-task", -1, "💤"], ["Disrespect", -1, "⚠️"]];
 /** Spaced revision after a pass: 1, 3, 7, 14, 30, then every 60 days. */
 const REVISION_DAYS = [1, 3, 7, 14, 30, 60];
@@ -208,6 +215,9 @@ export class LmsStore extends DurableObject<LmsEnv> {
     this.files = env.FILES ? blobStore(env) : sqliteChunkStore(this.sql);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, username TEXT UNIQUE, name TEXT, role TEXT, cls TEXT, salt TEXT, hash TEXT, perms TEXT, disabled INTEGER DEFAULT 0, created INTEGER, last_login INTEGER)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS homework (id TEXT PRIMARY KEY, kind TEXT, title TEXT, cls TEXT, students TEXT, data TEXT, due INTEGER, created_by TEXT, created INTEGER)`);
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS push_sub (endpoint TEXT PRIMARY KEY, uid TEXT, p256dh TEXT, auth TEXT, ua TEXT, at INTEGER)`);
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS push_pref (uid TEXT, kind TEXT, off INTEGER, PRIMARY KEY (uid, kind))`);
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS push_kind (kind TEXT PRIMARY KEY, first INTEGER, admin_off INTEGER DEFAULT 0)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS subs (id TEXT PRIMARY KEY, hw TEXT, student TEXT, status TEXT, text TEXT, practised INTEGER DEFAULT 0, liked INTEGER DEFAULT 0, comments TEXT DEFAULT '[]', updated INTEGER, UNIQUE (hw, student))`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS tracker (id TEXT PRIMARY KEY, student TEXT, surah INTEGER, from_ayah INTEGER, to_ayah INTEGER, hw TEXT UNIQUE, approved INTEGER)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS fails (k TEXT, t INTEGER)`);
@@ -555,6 +565,9 @@ export class LmsStore extends DurableObject<LmsEnv> {
       this.sql.exec(`DELETE FROM notes WHERE uid=? AND id NOT IN (SELECT id FROM notes WHERE uid=? ORDER BY created DESC LIMIT 100)`, uid, uid);
     }
     this.sql.exec(`DELETE FROM notes WHERE created < ?`, now - 60 * 864e5);
+    // t302: Web Push copy. Every notifying feature registers its kind automatically (admin + per-user switches).
+    this.sql.exec(`INSERT OR IGNORE INTO push_kind (kind, first, admin_off) VALUES (?, ?, 0)`, kind, now);
+    this.ctx.waitUntil(this.pushOut([...new Set(uids)].filter(Boolean), kind, data).catch(() => undefined));
     // Email copy (info@ no-reply, Reply-To contact@) for users with an email address.
     const tpl = EMAIL_KINDS[kind];
     if (tpl) {
@@ -566,6 +579,27 @@ export class LmsStore extends DurableObject<LmsEnv> {
         const link = data.hw ? `https://www.shaiqmuhammad.com/lms/homework?id=${encodeURIComponent(String(data.hw))}` : "https://www.shaiqmuhammad.com/lms";
         this.ctx.waitUntil(sendAuto(this.env as LmsEnv, to, `${tpl[0]} — ${String(u?.name || "")}`.slice(0, 150), { heading: tpl[0], paragraphs: [`Assalamu alaikum,`, `${fill(tpl[1])}${u?.role === "student" ? ` (${String(u?.name)})` : ""}`], button: { label: "Open", url: link }, note: "This is an automatic message — please don't reply. Questions: contact@shaiqmuhammad.com" }).catch(() => false));
       }
+    }
+  }
+  private async vapid(): Promise<Vapid> {
+    const r = this.sql.exec(`SELECT v FROM settings WHERE k='push:vapid'`).toArray()[0];
+    if (r) return JSON.parse(String(r.v)) as Vapid;
+    const v = await makeVapid();
+    this.sql.exec(`INSERT OR IGNORE INTO settings (k, v) VALUES ('push:vapid', ?)`, JSON.stringify(v));
+    return JSON.parse(String(this.sql.exec(`SELECT v FROM settings WHERE k='push:vapid'`).one().v)) as Vapid;
+  }
+  private async pushOut(uids: string[], kind: string, data: Json) {
+    const k = this.sql.exec(`SELECT admin_off FROM push_kind WHERE kind=?`, kind).toArray()[0];
+    if (k && Number(k.admin_off)) return;
+    const subs = uids.flatMap((uid) => this.sql.exec(`SELECT * FROM push_sub WHERE uid=? AND NOT EXISTS (SELECT 1 FROM push_pref WHERE uid=? AND kind=? AND off=1)`, uid, uid, kind).toArray());
+    if (!subs.length) return;
+    const v = await this.vapid();
+    const [title, body] = PUSH_TEXT[kind] || ["Shaiq Muhammad", "You have a new notification"];
+    const fill = (t: string) => t.replace(/\{(\w+)\}/g, (_, x) => String(data[x] ?? ""));
+    const url = data.hw ? `/lms/homework?id=${encodeURIComponent(String(data.hw))}` : data.thread ? "/lms/messages" : "/lms";
+    for (const sb of subs) {
+      const st = await sendPush({ endpoint: String(sb.endpoint), p256dh: String(sb.p256dh), auth: String(sb.auth) }, { title: fill(title), body: fill(body), url, kind }, v).catch(() => 0);
+      if (st === 404 || st === 410) this.sql.exec(`DELETE FROM push_sub WHERE endpoint=?`, String(sb.endpoint));
     }
   }
   private studentName(id: string) {
@@ -884,6 +918,54 @@ export class LmsStore extends DurableObject<LmsEnv> {
         return { status: 200, body: { ok: true } };
       }
 
+      case "push-key": {
+        return { status: 200, body: { key: (await this.vapid()).pub } };
+      }
+      case "push-sub": {
+        if (a.viewAs) return { status: 403, body: { error: "forbidden" } };
+        const ep = str(input.endpoint, 1000), p = str(input.p256dh, 200), au = str(input.auth, 100);
+        if (!/^https:\/\//.test(ep) || !p || !au) return { status: 400, body: { error: "bad_input" } };
+        if (input.off) { this.sql.exec(`DELETE FROM push_sub WHERE endpoint=? AND uid=?`, ep, a.id); return { status: 200, body: { ok: true } }; }
+        this.sql.exec(`INSERT INTO push_sub (endpoint, uid, p256dh, auth, ua, at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(endpoint) DO UPDATE SET uid=excluded.uid, p256dh=excluded.p256dh, auth=excluded.auth, ua=excluded.ua, at=excluded.at`, ep, a.id, p, au, str(input.ua, 200), Date.now());
+        return { status: 200, body: { ok: true } };
+      }
+      case "push-prefs": {
+        // Per-user switches per feature type (and, for the admin, the global switch per type).
+        if (a.viewAs) return { status: 403, body: { error: "forbidden" } };
+        for (const kk of Object.keys(PUSH_TEXT)) this.sql.exec(`INSERT OR IGNORE INTO push_kind (kind, first, admin_off) VALUES (?, ?, 0)`, kk, Date.now());
+        if (input.kind) {
+          const kd = str(input.kind, 40);
+          if (input.admin !== undefined) { if (a.role !== "admin") return { status: 403, body: { error: "forbidden" } }; this.sql.exec(`UPDATE push_kind SET admin_off=? WHERE kind=?`, input.admin ? 0 : 1, kd); }
+          if (input.on !== undefined) this.sql.exec(`INSERT INTO push_pref (uid, kind, off) VALUES (?, ?, ?) ON CONFLICT(uid, kind) DO UPDATE SET off=excluded.off`, a.id, kd, input.on ? 0 : 1);
+        }
+        const offs = new Set(this.sql.exec(`SELECT kind FROM push_pref WHERE uid=? AND off=1`, a.id).toArray().map((r) => String(r.kind)));
+        const kinds = this.sql.exec(`SELECT kind, admin_off FROM push_kind ORDER BY first, kind`).toArray().map((r) => ({ kind: String(r.kind), label: (PUSH_TEXT[String(r.kind)] || [String(r.kind)])[0], adminOn: !Number(r.admin_off), on: !offs.has(String(r.kind)) }));
+        const devices = Number(this.sql.exec(`SELECT COUNT(*) AS n FROM push_sub WHERE uid=?`, a.id).one().n);
+        return { status: 200, body: { kinds, devices } };
+      }
+      case "push-test": {
+        // Sends a test push to the caller's own devices only.
+        if (a.viewAs) return { status: 403, body: { error: "forbidden" } };
+        this.notify([a.id], "test", { by: a.name });
+        return { status: 200, body: { ok: true } };
+      }
+      case "my-avatar": {
+        // t302/t303: a student (or teacher) picks their own character from the 12 cartoon avatars of their kind.
+        if (a.viewAs || a.role === "parent") return { status: 403, body: { error: "forbidden" } };
+        const u0 = this.userRow("id=?", a.id);
+        if (!u0) return { status: 404, body: { error: "not_found" } };
+        const g = u0.gender === "b" || u0.gender === "g" ? String(u0.gender) : "n";
+        const n = Math.floor(Number(input.n));
+        if (!(n >= 0 && n < 12)) return { status: 400, body: { error: "bad_input" } };
+        this.sql.exec(`UPDATE users SET avatar=? WHERE id=?`, `${g}${n}`, a.id);
+        return { status: 200, body: { avatar: `${g}${n}`, kind: g } };
+      }
+      case "my-avatar-kind": {
+        if (a.viewAs || a.role === "parent") return { status: 403, body: { error: "forbidden" } };
+        const u0 = this.userRow("id=?", a.id);
+        if (!u0) return { status: 404, body: { error: "not_found" } };
+        return { status: 200, body: { avatar: avatarOf(u0), kind: u0.gender === "b" || u0.gender === "g" ? String(u0.gender) : "n" } };
+      }
       case "user-avatar": {
         // Teacher/admin: reroll the cartoon avatar (gender stays server-side; set by the admin only).
         const sid = str(input.id, 40);
@@ -1614,6 +1696,14 @@ export class LmsStore extends DurableObject<LmsEnv> {
         for (const s of this.sql.exec(`SELECT hw, status, COUNT(*) AS n FROM subs GROUP BY hw, status`).toArray()) {
           const c = counts.get(String(s.hw)) || {};
           c[String(s.status)] = Number(s.n);
+          counts.set(String(s.hw), c);
+        }
+        // t302: a submitted piece the teacher has commented on (after the last submit) waits for the student; it leaves the review list until the student responds.
+        for (const s of this.sql.exec(`SELECT hw, comments, submitted_at FROM subs WHERE status='submitted'`).toArray()) {
+          const cm = JSON.parse(String(s.comments || "[]")) as { at?: number }[];
+          if (!cm.some((x) => Number(x.at || 0) > Number(s.submitted_at || 0))) continue;
+          const c = counts.get(String(s.hw)) || {};
+          c.waiting = (c.waiting || 0) + 1;
           counts.set(String(s.hw), c);
         }
         const classes = this.sql.exec(`SELECT cls, COUNT(*) AS n FROM users WHERE role='student' AND disabled=0 GROUP BY cls ORDER BY cls`).toArray().map((r) => ({ cls: String(r.cls || ""), students: Number(r.n) }));
