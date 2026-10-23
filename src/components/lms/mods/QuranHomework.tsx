@@ -28,7 +28,7 @@ export function QuranHomeworkPage() {
   );
 }
 
-function QuranHomework() {
+export function QuranHomework() {
   const { tr, lang } = useTr();
   const [d, setD] = useState<Dash | null>(null);
   const [chapters, setChapters] = useState<Chapter[]>([]);
@@ -38,7 +38,7 @@ function QuranHomework() {
   const load = useCallback(() => { modCall<Dash>("dashboard", undefined, false).then((r) => { setD(r); setExtra({ classes: r.classes || [], students: (r.students || []) as never[], catalog: r.catalog, scope: r.scope }); }).catch((e) => { setD({ homework: [] }); setMsg(modErr(e, tr)); setBad(true); }); }, [tr]);
   useEffect(() => { load(); quranChapters().then(setChapters); }, [load]);
   const q = d?.quran || { show: true, view: true, add: false, edit: false, del: false };
-  const items = (d?.homework || []).filter((h) => h.kind === "quran");
+  const items = (d?.homework || []).filter((h) => h.kind === "quran" && !(((h.counts || {}).waiting || 0) > 0 && ((h.counts || {}).submitted || 0) - ((h.counts || {}).waiting || 0) <= 0));
   const sn = (n: number) => chapters.find((c) => c.id === n)?.name_simple || `Surah ${n}`;
   const del = async (h: Homework) => { if (!confirm(tr("Delete this Quran homework and all submissions?", "حذف واجب القرآن وكل التسليمات؟"))) return; try { await lmsApi.deleteHomework(h.id, false); setMsg(tr("Deleted.", "تم الحذف.")); setBad(false); load(); } catch (e) { setMsg(modErr(e, tr)); setBad(true); } };
   return (

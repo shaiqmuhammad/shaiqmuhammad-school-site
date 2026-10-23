@@ -46,6 +46,12 @@ export function HomeworkEditor({ initial, classes, students, catalog, scope = []
     quranChapters().then(setChapters);
   }, []);
   const ch = chapters.find((c) => c.id === surah);
+  const allCh = chapters.length ? chapters : Array.from({ length: 114 }, (_, i) => ({ id: i + 1, name_simple: `Surah ${i + 1}`, name_arabic: "", verses_count: 286 }));
+  // t302: the Quran homework title is made from the Surah picker + start/end verse; teachers keep an editable short list of Surahs.
+  const [myList, setMyList] = useState<number[]>([]);
+  useEffect(() => { try { setMyList((JSON.parse(localStorage.getItem("sm-surah-list") || "[]") as number[]).filter((n) => n >= 1 && n <= 114)); } catch { /* ignore */ } }, []);
+  const saveList = (l: number[]) => { setMyList(l); try { localStorage.setItem("sm-surah-list", JSON.stringify(l)); } catch { /* ignore */ } };
+  const autoTitle = `${ch?.name_simple || `Surah ${surah}`} ${from}–${Math.max(from, to)}`;
   const max = ch?.verses_count || 286;
 
   const picker = (
@@ -85,7 +91,7 @@ export function HomeworkEditor({ initial, classes, students, catalog, scope = []
         setErr("");
         try {
           const data = kind === "quran" ? { surah, from, to: Math.max(from, to), reciter, notes, translit, translation } : { slides: slides.filter((s) => s.title || s.text || s.image), question };
-          const r = await lmsApi.saveHomework({ id: initial?.id, kind, title: title.trim() || (kind === "quran" && ch ? `${ch.name_simple} ${from}–${to}` : ""), cls: who === "students" || (!asAdmin && pick.length) ? "" : cls, section: who === "students" || (!asAdmin && pick.length) ? "" : section || (cls && !wholeClassOk(cls) ? sectionsOf(cls)[0] || "" : ""), students: pick, due: due ? new Date(due + "T23:59:00").getTime() : null, data: data as QuranData | GeneralData }, asAdmin);
+          const r = await lmsApi.saveHomework({ id: initial?.id, kind, title: kind === "quran" ? autoTitle : title.trim(), cls: who === "students" || (!asAdmin && pick.length) ? "" : cls, section: who === "students" || (!asAdmin && pick.length) ? "" : section || (cls && !wholeClassOk(cls) ? sectionsOf(cls)[0] || "" : ""), students: pick, due: due ? new Date(due + "T23:59:00").getTime() : null, data: data as QuranData | GeneralData }, asAdmin);
           onSaved(r.id);
         } catch (x) {
           setErr(lmsErrorText(x, tr));
@@ -101,20 +107,26 @@ export function HomeworkEditor({ initial, classes, students, catalog, scope = []
           </button>
         ))}
       </div>
+      {kind === "quran" ? (
+        <p className="rounded-xl bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-900 dark:bg-emerald-900/30 dark:text-emerald-100" data-testid="hw-title-auto">{tr("Title", "العنوان")}: <b dir="auto">{autoTitle}</b> <span className="font-normal opacity-70">({tr("made from the Surah and verses", "من السورة والآيات")})</span></p>
+      ) : (
       <label className="block text-sm font-semibold">
-        {tr("Title", "العنوان")} {kind === "quran" && <span className="font-normal opacity-60">({tr("optional", "اختياري")})</span>}
+        {tr("Title", "العنوان")}
         <input className={inputCls} value={title} onChange={(e) => setTitle(e.target.value)} maxLength={160} dir="auto" data-testid="hw-title" />
       </label>
+      )}
 
       {kind === "quran" ? (
         <div className="grid gap-3 sm:grid-cols-4">
           <label className="block text-sm font-semibold sm:col-span-2">
             {tr("Surah", "السورة")}
             <select className={inputCls} value={surah} onChange={(e) => { const s = Number(e.target.value); setSurah(s); setFrom(1); setTo(Math.min(chapters.find((c) => c.id === s)?.verses_count || 7, 10)); }} data-testid="hw-surah">
-              {(chapters.length ? chapters : Array.from({ length: 114 }, (_, i) => ({ id: i + 1, name_simple: `Surah ${i + 1}`, name_arabic: "", verses_count: 286 }))).map((c) => (
+              {myList.length > 0 && <optgroup label={tr("★ My Surah list", "★ قائمتي")}>{allCh.filter((c) => myList.includes(c.id)).map((c) => <option key={"m" + c.id} value={c.id}>★ {c.id}. {c.name_simple} {c.name_arabic}</option>)}</optgroup>}
+              <optgroup label={tr("All Surahs", "كل السور")}>{allCh.map((c) => (
                 <option key={c.id} value={c.id}>{c.id}. {c.name_simple} {c.name_arabic}</option>
-              ))}
+              ))}</optgroup>
             </select>
+            <button type="button" className={smallBtn + " mt-1"} onClick={() => saveList(myList.includes(surah) ? myList.filter((x) => x !== surah) : [...myList, surah])} data-testid="hw-surah-star">{myList.includes(surah) ? tr("☆ Remove from my list", "☆ إزالة من قائمتي") : tr("★ Add to my list", "★ أضف إلى قائمتي")}</button>
           </label>
           <label className="block text-sm font-semibold">
             {tr("From verse", "من الآية")}

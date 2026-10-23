@@ -7,6 +7,7 @@ import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
 import { PresenceDot } from "@/components/lms/Presence";
 import { Avatar } from "@/components/lms/Avatar";
 import { useTr } from "@/components/lms/useLms";
+import { modCall, modErr } from "@/lib/lmsMods";
 import { grpLabel, lmsApi, lmsErrorText, lmsSession, type PointCat, type PointRow, type RosterStudent, type StudentGroup } from "@/lib/lms";
 
 const pill = "inline-flex items-center gap-1.5 rounded-full border border-black/10 bg-white/80 px-3 py-1.5 text-sm font-bold transition hover:bg-white dark:border-white/15 dark:bg-white/10";
@@ -52,6 +53,13 @@ export function LmsClassesPage() {
   const [flash, setFlash] = useState<Record<string, number>>({});
   const [lastBatch, setLastBatch] = useState("");
   const [err, setErr] = useState("");
+  // t302: attendance on the Classes page — tap a name to mark Present / Late / Absent (reason for Late/Absent).
+  const [attMode, setAttMode] = useState(false);
+  const [attFor, setAttFor] = useState<RosterStudent | null>(null);
+  const [attPeriod, setAttPeriod] = useState("Day");
+  const [att, setAtt] = useState<Record<string, { status: string; note: string }>>({});
+  const [reason, setReason] = useState("");
+  const attDay = new Date(Date.now() + 4 * 3600e3).toISOString().slice(0, 10);
 
   const load = useCallback(() => {
     lmsApi.classRoster().then((r) => { setRoster(r.students); setCanManage(r.canManage); }).catch((e) => setErr(lmsErrorText(e, tr)));
@@ -86,6 +94,21 @@ export function LmsClassesPage() {
   const undo = async () => { try { const r = await lmsApi.ptsUndo(); setToast(tr(`Undid last award (${r.removed})`, `تم التراجع (${r.removed})`)); setLastBatch(""); load(); } catch (e) { setErr(lmsErrorText(e, tr)); } };
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(""), 5000); return () => clearTimeout(t); }, [toast]);
 
+  useEffect(() => { if (!attMode) return; modCall<{ now: { period: string } }>("att-times", {}, false).then((t) => { if (t.now.period) setAttPeriod(t.now.period); }).catch(() => undefined); }, [attMode]);
+  useEffect(() => {
+    if (!attMode || !shown.length) return;
+    const pairs = [...new Set(shown.map((s) => `${s.cls}|${s.section || ""}`))];
+    Promise.all(pairs.map((p) => { const [cls, section] = p.split("|"); return modCall<{ students: { id: string; status: string; note: string }[] }>("att-roster", { cls, section, day: attDay, period: attPeriod }, false); }))
+      .then((rs) => setAtt(Object.fromEntries(rs.flatMap((r) => r.students).map((x) => [x.id, { status: x.status, note: x.note }])))).catch((e) => setErr(modErr(e, tr)));
+  }, [attMode, shown, attPeriod, attDay, tr]);
+  const mark = async (s: RosterStudent, status: "P" | "L" | "A") => {
+    try {
+      await modCall("att-save", { day: attDay, period: attPeriod, marks: [{ student: s.id, status, note: status === "P" ? "" : reason.trim() }] }, false);
+      setAtt((m) => ({ ...m, [s.id]: { status, note: status === "P" ? "" : reason.trim() } }));
+      setToast(`${status === "P" ? "✅" : status === "L" ? "⏰" : "❌"} ${s.name}`);
+      setAttFor(null); setReason("");
+    } catch (e) { setErr(modErr(e, tr)); }
+  };
   const label = (v: string) => (v.includes("|") ? v.replace("|", " · ") : v);
   const maxPts = Math.max(1, ...shown.map((s) => s.points));
   return (
@@ -115,9 +138,10 @@ export function LmsClassesPage() {
           <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6" data-testid="cls-grid">
             {shown.map((s) => (
               <li key={s.id} className="group relative" data-testid="cls-card">
-                <button type="button" onClick={() => { setWhole(false); setAward([s]); }} className="glass relative flex w-full flex-col items-center gap-2 rounded-3xl p-4 pt-5 text-center transition hover:-translate-y-1 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sun" aria-label={tr(`Award points to ${s.name}`, `منح نقاط لـ ${s.name}`)}>
+                <button type="button" onClick={() => { if (attMode) { setAttFor(s); setReason(att[s.id]?.note || ""); return; } setWhole(false); setAward([s]); }} className="glass relative flex w-full flex-col items-center gap-2 rounded-3xl p-4 pt-5 text-center transition hover:-translate-y-1 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sun" aria-label={tr(`Award points to ${s.name}`, `منح نقاط لـ ${s.name}`)}>
                   <span className="relative"><Avatar code={s.avatar} size={72} className="ring-4 ring-white shadow dark:ring-white/10" /><PresenceDot seen={s.seen} className="absolute bottom-1 end-0" /></span>
                   <span className="line-clamp-2 min-h-[2.5rem] text-sm font-bold leading-tight" dir="auto" data-testid="cls-name">{s.name}</span>
+                  {attMode && <span className={`rounded-full px-2.5 py-0.5 text-xs font-extrabold ${att[s.id]?.status === "P" ? "bg-emerald-100 text-emerald-900" : att[s.id]?.status === "L" ? "bg-amber-100 text-amber-900" : att[s.id]?.status === "A" ? "bg-rose-100 text-rose-900" : "bg-black/10"}`} data-testid="cls-att">{att[s.id]?.status === "P" ? tr("Present", "حاضر") : att[s.id]?.status === "L" ? tr("Late", "متأخر") : att[s.id]?.status === "A" ? tr("Absent", "غائب") : att[s.id]?.status === "E" ? tr("Excused", "بعذر") : tr("Not marked", "غير مسجّل")}</span>}
                   <span className={`rounded-full px-3 py-0.5 text-sm font-extrabold ${s.points < 0 ? "bg-rose-100 text-rose-800" : "bg-sun/80 text-[#0b1b2b]"}`} data-testid="cls-points">{s.points}</span>
                   <span className="h-1.5 w-full overflow-hidden rounded-full bg-black/10"><span className="block h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${Math.max(0, Math.round((s.points / maxPts) * 100))}%` }} /></span>
                   {flash[s.id] !== undefined && <span className={`pointer-events-none absolute -top-2 end-3 rounded-full px-2 py-0.5 text-sm font-extrabold text-white shadow ${flash[s.id] > 0 ? "bg-emerald-500" : "bg-rose-500"}`}>{flash[s.id] > 0 ? "+" : ""}{flash[s.id]}</span>}
@@ -145,8 +169,29 @@ export function LmsClassesPage() {
       )}
       {editCats && <CatEditor cats={cats} onClose={() => { setEditCats(false); lmsApi.pcatList().then((r) => setCats(r.items)); }} />}
       {emailFor && <EmailReport student={emailFor} onClose={() => setEmailFor(null)} lang={lang} />}
+      {attFor && (
+        <Modal onClose={() => setAttFor(null)} label={tr("Attendance", "الحضور")}>
+          <div className="mb-3 flex items-center gap-3"><Avatar code={attFor.avatar} size={52} /><div><p className="text-lg font-extrabold" dir="auto">{attFor.name}</p><p className="text-xs opacity-70">{attDay} · {attPeriod === "Day" ? tr("Whole day", "اليوم كله") : tr(`Period ${attPeriod.slice(1)}`, `الحصة ${attPeriod.slice(1)}`)}</p></div></div>
+          <div className="grid grid-cols-3 gap-2" data-testid="att-mark">
+            <button type="button" className="rounded-2xl bg-emerald-500 px-3 py-4 text-base font-extrabold text-white" onClick={() => mark(attFor, "P")} data-testid="att-mark-P">✅ {tr("Present", "حاضر")}</button>
+            <button type="button" className="rounded-2xl bg-amber-400 px-3 py-4 text-base font-extrabold text-[#0b1b2b]" onClick={() => mark(attFor, "L")} data-testid="att-mark-L">⏰ {tr("Late", "متأخر")}</button>
+            <button type="button" className="rounded-2xl bg-rose-500 px-3 py-4 text-base font-extrabold text-white" onClick={() => mark(attFor, "A")} data-testid="att-mark-A">❌ {tr("Absent", "غائب")}</button>
+          </div>
+          <label className="mt-3 block text-sm font-bold">{tr("Reason (for Late / Absent)", "السبب (للتأخر / الغياب)")}<input className="mt-1 w-full rounded-xl border border-black/10 bg-white px-3 py-2 dark:border-white/15 dark:bg-white/5" value={reason} onChange={(e) => setReason(e.target.value)} maxLength={200} dir="auto" placeholder={tr("e.g. Doctor appointment", "مثال: موعد طبي")} data-testid="att-reason" /></label>
+        </Modal>
+      )}
+      <nav className="fixed inset-x-0 bottom-0 z-[2000] border-t border-black/10 bg-white/95 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-6px_24px_rgba(0,0,0,0.08)] backdrop-blur dark:border-white/10 dark:bg-[#0f1f30]/95" aria-label={tr("Classroom tools", "أدوات الصف")} data-testid="cls-tray">
+        <div className="mx-auto flex max-w-5xl items-stretch gap-1 overflow-x-auto">
+          <button type="button" aria-pressed={attMode} onClick={() => setAttMode(!attMode)} className={`flex min-w-[4.5rem] flex-1 flex-col items-center gap-0.5 rounded-2xl px-2 py-1.5 text-[11px] font-bold ${attMode ? "bg-header text-white" : "hover:bg-sun/40"}`} data-testid="tray-att"><span className="text-3xl" aria-hidden>📋</span>{tr("Attendance", "الحضور")}</button>
+          {([["wheel", "🎡", "Spin", "العجلة"], ["randomiser", "🎲", "Randomiser", "اختيار عشوائي"], ["wall", "🧱", "Wall", "الجدار"], ["wordcloud", "☁️", "Word cloud", "سحابة كلمات"], ["poll", "📊", "Poll", "استطلاع"], ["survey", "📝", "Survey", "استبيان"], ["tps", "💭", "Think-Pair-Share", "فكّر-زاوج-شارك"], ["vote", "🗳️", "Vote", "تصويت"]] as const).map(([t, ic, en, ar]) => (
+            <a key={t} href={`/lms/activities#t=${t}`} className="flex min-w-[4.5rem] flex-1 flex-col items-center gap-0.5 rounded-2xl px-2 py-1.5 text-center text-[11px] font-bold hover:bg-sun/40" data-testid={`tray-${t}`}><span className="text-3xl" aria-hidden>{ic}</span>{tr(en, ar)}</a>
+          ))}
+          <a href="/lms/assessments" className="flex min-w-[4.5rem] flex-1 flex-col items-center gap-0.5 rounded-2xl px-2 py-1.5 text-[11px] font-bold hover:bg-sun/40" data-testid="tray-assess"><span className="text-3xl" aria-hidden>🧩</span>{tr("Assessments", "التقييمات")}</a>
+        </div>
+      </nav>
+      <div className="h-24" aria-hidden />
       {toast && (
-        <div className="fixed inset-x-0 bottom-5 z-[2100] mx-auto flex w-fit max-w-[92vw] items-center gap-3 rounded-full bg-header px-5 py-2.5 text-sm font-semibold text-white shadow-2xl" role="status" data-testid="cls-toast">
+        <div className="fixed inset-x-0 bottom-28 z-[2100] mx-auto flex w-fit max-w-[92vw] items-center gap-3 rounded-full bg-header px-5 py-2.5 text-sm font-semibold text-white shadow-2xl" role="status" data-testid="cls-toast">
           <span className="truncate">{toast}</span>{lastBatch && <button type="button" className="font-extrabold text-sun underline" onClick={undo}>{tr("Undo", "تراجع")}</button>}
         </div>
       )}
