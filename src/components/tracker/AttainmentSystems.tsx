@@ -158,7 +158,22 @@ function RepView({ note }: { note: (m: string, b?: boolean) => void }) {
   return (
     <section className={cardCls + " space-y-2"} data-testid="asys-repview">
       <h3 className="font-extrabold">📈 {tr("Department Report — default view", "تقرير القسم — العرض الافتراضي")}</h3>
+      <LinkDefault note={note} />
       <div className="flex flex-wrap gap-4 text-sm">{([["tracker", tr("Tracker attainment grades & progress", "درجات التحصيل والتقدم من المتتبع")], ["percent", tr("Old % view (quizzes & homework)", "عرض النسب القديم")]] as const).map(([k, l]) => <label key={k} className="flex items-center gap-1.5"><input type="radio" name="repview" checked={v === k} onChange={() => save(k)} data-testid={`asys-repview-${k}`} /> {l}</label>)}</div>
     </section>
+  );
+}
+
+function LinkDefault({ note }: { note: (m: string, b?: boolean) => void }) {
+  const { tr } = useTr();
+  const [v, setV] = useState("");
+  useEffect(() => { trk<{ default: string }>("trk-link-get", { ids: [] }).then((r) => setV(r.default)).catch(() => undefined); }, []);
+  const save = async (x: string) => { setV(x); try { await trk("trk-link-set", { default: x }); note(tr("Saved.", "تم الحفظ.")); } catch (e) { note(modErr(e, tr), true); } };
+  return (
+    <div className="rounded-xl bg-black/[0.03] p-2 text-sm dark:bg-white/5" data-testid="trk-link-default">
+      <b>{tr("New assessments & Quran homework — 'Link to Assessment Tracker' default", "الافتراضي للتقييمات الجديدة: الربط بالمتتبع")}</b>
+      <div className="mt-1 flex gap-4">{([["off", tr("Practice (OFF)", "تدريب (إيقاف)")], ["on", tr("Linked (ON)", "مرتبط (تشغيل)")]] as const).map(([k, l]) => <label key={k} className="flex items-center gap-1.5"><input type="radio" name="trklinkdef" checked={v === k} onChange={() => save(k)} data-testid={`trk-link-default-${k}`} /> {l}</label>)}</div>
+      <p className="text-[11px] opacity-70">{tr("Existing end-of-topic assessments linked to curriculum units stay ON. Teachers with tracker Add/Edit can switch each one.", "التقييمات الحالية المرتبطة بالوحدات تبقى مفعّلة.")}</p>
+    </div>
   );
 }

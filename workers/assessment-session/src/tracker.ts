@@ -20,7 +20,7 @@ export type TrkCtx = {
   sql: Sql;
   inScope: (a: Actor, cls: string, section: string, sid?: string) => boolean;
   homework: () => Hw[];
-  tagged: (ids: string[], quizIds: string[]) => Promise<{ studentId: string; quizId: string; at: number; details: { sc?: string; earned: number; points: number }[] }[]>;
+  tagged: (ids: string[], quizIds: string[]) => Promise<{ studentId: string; quizId: string; slug?: string; at: number; details: { sc?: string; earned: number; points: number }[] }[]>;
 };
 type Reply = { status: number; body: unknown };
 
@@ -70,6 +70,26 @@ export function trkInit(sql: Sql) {
   sql.exec(`CREATE TABLE IF NOT EXISTS trk_audit (id TEXT PRIMARY KEY, at INTEGER, by_id TEXT, by_name TEXT, student TEXT, what TEXT, prev TEXT, next TEXT)`);
   sql.exec(`CREATE TABLE IF NOT EXISTS isams_tpl (cycle TEXT PRIMARY KEY, name TEXT, term TEXT, data TEXT, at INTEGER)`);
   try { sql.exec(`ALTER TABLE users ADD COLUMN isams_id TEXT DEFAULT ''`); } catch { /* exists */ }
+  // 'Link to Assessment Tracker' switch per assessment (quiz id/slug) or Quran homework id. on=0 = practice.
+  // keep_before: when switched off with "keep", submissions before this time still count.
+  sql.exec(`CREATE TABLE IF NOT EXISTS trk_link (id TEXT PRIMARY KEY, kind TEXT, on_ INTEGER, keep_before INTEGER DEFAULT 0, by_name TEXT, at INTEGER)`);
+  // One-time: assessments / Quran homework already linked to a curriculum unit keep ON.
+  if (!sql.exec(`SELECT v FROM settings WHERE k='trk_link_seeded'`).toArray().length) {
+    try {
+      for (const r of sql.exec(`SELECT quiz, links FROM cur`).toArray()) {
+        let links: { t: string; id: string }[] = []; try { links = JSON.parse(String(r.links || "[]")); } catch { /* */ }
+        const items = [...(r.quiz ? [{ t: "quiz", id: String(r.quiz) }] : []), ...links];
+        for (const l of items) if (l.id) sql.exec(`INSERT OR IGNORE INTO trk_link (id, kind, on_, keep_before, by_name, at) VALUES (?, ?, 1, 0, 'System (existing end-of-topic)', ?)`, l.id, l.t === "hw" ? "hw" : "quiz", Date.now());
+      }
+      sql.exec(`INSERT OR REPLACE INTO settings (k, v) VALUES ('trk_link_seeded', '1')`);
+    } catch { /* cur not created yet: seed on a later start */ }
+  }
+}
+/** Whether a submission at time `at` on assessment/homework `id` may feed the tracker. */
+export function linkRule(sql: Sql) {
+  const rows = new Map(sql.exec(`SELECT id, on_, keep_before FROM trk_link`).toArray().map((r) => [String(r.id), { on: Number(r.on_) === 1, keep: Number(r.keep_before) || 0 }] as const));
+  const def = String(sql.exec(`SELECT v FROM settings WHERE k='trk_link_default'`).toArray()[0]?.v || "off") === "on";
+  return (id: string, at: number) => { const r = rows.get(id); if (!r) return def; return r.on || (r.keep > 0 && at < r.keep); };
 }
 
 const num = (v: unknown, d: number, lo: number, hi: number) => { const n = Number(v); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d; };
@@ -151,11 +171,13 @@ async function grid(c: TrkCtx, a: Actor, cls: string, term: string, want = "") {
   const pct = new Map<string, { at: number; e: number; p: number }>();
   const whole = new Map<string, { at: number; e: number; p: number }>(); // `${student}|${unit}` from untagged linked assessments
   const byQuiz = new Map<string, string[]>(); for (const u of units) for (const q of u.quizzes) byQuiz.set(q, [...(byQuiz.get(q) || []), u.id]);
+  const linked = linkRule(c.sql);
   if (ids.length) for (const r of await c.tagged(ids, [...byQuiz.keys()])) {
+    if (!linked(r.quizId, r.at) && !(r.slug && r.slug !== r.quizId && linked(r.slug, r.at))) continue; // practice assessment: saved as usual, never in the tracker
     const per = new Map<string, { e: number; p: number }>(); let te = 0, tp = 0;
     for (const d of r.details) { te += Number(d.earned) || 0; tp += Number(d.points) || 0; if (d.sc) { const x = per.get(d.sc) || { e: 0, p: 0 }; x.e += Number(d.earned) || 0; x.p += Number(d.points) || 0; per.set(d.sc, x); } }
     for (const [tag, x] of per) { const k = `${r.studentId}|${tag}`; const v = { at: r.at, ...x }; if (x.p > 0 && pick(pct.get(k), v)) pct.set(k, v); }
-    if (!per.size && sys.untagged && tp > 0) for (const uid of byQuiz.get(r.quizId) || []) { const k = `${r.studentId}|${uid}`; const v = { at: r.at, e: te, p: tp }; if (pick(whole.get(k), v)) whole.set(k, v); }
+    if (!per.size && sys.untagged && tp > 0) for (const uid of new Set([...(byQuiz.get(r.quizId) || []), ...(r.slug ? byQuiz.get(r.slug) || [] : [])])) { const k = `${r.studentId}|${uid}`; const v = { at: r.at, e: te, p: tp }; if (pick(whole.get(k), v)) whole.set(k, v); }
   }
   // Quran: latest grade on Quran homework linked to the unit.
   const qhw = new Set(c.homework().filter((h) => h.kind === "quran").map((h) => h.id));
@@ -163,7 +185,7 @@ async function grid(c: TrkCtx, a: Actor, cls: string, term: string, want = "") {
   for (const u of units) {
     const hws = u.links.filter((l) => l.t === "hw" && qhw.has(l.id)).map((l) => l.id);
     const qg = new Map<string, string>();
-    if (hws.length && ids.length) for (const r of c.sql.exec(`SELECT student, grade, updated FROM subs WHERE hw IN (${hws.map(() => "?").join(",")}) AND grade != '' ORDER BY updated`, ...hws).toArray()) qg.set(String(r.student), String(r.grade));
+    if (hws.length && ids.length) for (const r of c.sql.exec(`SELECT hw, student, grade, updated FROM subs WHERE hw IN (${hws.map(() => "?").join(",")}) AND grade != '' ORDER BY updated`, ...hws).toArray()) if (linked(String(r.hw), Number(r.updated))) qg.set(String(r.student), String(r.grade));
     for (const s of students) u.sc.forEach((t, i) => {
       const tagP = pct.get(`${s.id}|${u.id}#${i}`), allP = tagP ? undefined : whole.get(`${s.id}|${u.id}`); const quizP = tagP || allP;
       const g = qg.get(s.id); const qv = g && re.test(t) ? (sys.quran as Record<string, string>)[g] : "";
@@ -196,7 +218,7 @@ const yearSystems = (sql: Sql) => { const seen = new Set<string>(); const out: {
 
 export async function trackerHandle(c: TrkCtx, a: Actor, action: string, input: Json): Promise<Reply> {
   const sql = c.sql;
-  if (a.role !== "admin" && a.role !== "teacher") return forbid();
+  if (a.role !== "admin" && a.role !== "teacher" && action !== "trk-link-get") return forbid();
   const audit = (student: string, what: string, prev: string, next: string) => sql.exec(`INSERT INTO trk_audit (id, at, by_id, by_name, student, what, prev, next) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, rid("ta"), Date.now(), a.id, a.name || (a.role === "admin" ? "Admin" : ""), student, what, prev, next);
   const cls = str(input.cls, 60), term = TERMS.includes(String(input.term)) ? String(input.term) : "";
   switch (action) {
@@ -204,6 +226,25 @@ export async function trackerHandle(c: TrkCtx, a: Actor, action: string, input: 
       const sys = systems(sql);
       const repView = String(sql.exec(`SELECT v FROM settings WHERE k='rep_view'`).toArray()[0]?.v || "tracker");
       return { status: 200, body: { repView, systems: a.role === "admin" ? sys : sys.map((s) => ({ id: s.id, name: s.name, version: s.version, active: s.active, isDefault: s.isDefault, scope: s.scope })), platform: "Shaiq Muhammad System", years: [...new Set(sys.filter((s) => s.active).flatMap((s) => s.scope.years))], access: trkAccess(sys.find((s) => s.active), a) } };
+    }
+    case "trk-link-get": {
+      const ids = (Array.isArray(input.ids) ? input.ids : []).slice(0, 500).map((x) => str(x, 80));
+      const def = String(sql.exec(`SELECT v FROM settings WHERE k='trk_link_default'`).toArray()[0]?.v || "off");
+      const rows = new Map(sql.exec(`SELECT * FROM trk_link`).toArray().map((r) => [String(r.id), r] as const));
+      const sys = systems(sql).find((x) => x.active && x.isDefault) || systems(sql)[0];
+      return { status: 200, body: { default: def, canSet: a.role === "admin" || (a.role === "teacher" && !a.viewAs && trkAccess(sys, a).edit), items: Object.fromEntries(ids.map((id) => { const r = rows.get(id); return [id, r ? { on: Number(r.on_) === 1, keepBefore: Number(r.keep_before) || 0, by: String(r.by_name || ""), at: Number(r.at) } : { on: def === "on", keepBefore: 0, by: "", at: 0, isDefault: true }]; })) } };
+    }
+    case "trk-link-set": {
+      // Teachers with tracker Add/Edit and admin. keep=false when switching off removes the scores it already added.
+      const sys = systems(sql).find((x) => x.active && x.isDefault) || systems(sql)[0];
+      if (a.viewAs || (a.role !== "admin" && !trkAccess(sys, a).edit)) return forbid("edit_not_allowed");
+      if (input.default !== undefined) { if (a.role !== "admin") return forbid(); sql.exec(`INSERT OR REPLACE INTO settings (k, v) VALUES ('trk_link_default', ?)`, input.default === "on" ? "on" : "off"); return { status: 200, body: { ok: true } }; }
+      const id = str(input.id, 80); if (!id) return { status: 400, body: { error: "missing_id" } };
+      const on = !!input.on; const prev = sql.exec(`SELECT * FROM trk_link WHERE id=?`, id).toArray()[0];
+      const keep = on ? 0 : input.keep === true ? Date.now() : 0;
+      sql.exec(`INSERT OR REPLACE INTO trk_link (id, kind, on_, keep_before, by_name, at) VALUES (?, ?, ?, ?, ?, ?)`, id, input.kind === "hw" ? "hw" : "quiz", on ? 1 : 0, keep, a.name || "Admin", Date.now());
+      audit("", `Tracker link · ${input.kind === "hw" ? "Quran homework" : "Assessment"} ${id}`, prev ? (Number(prev.on_) ? "on" : "off") : "default", on ? "on" : keep ? "off (keep earlier scores)" : "off (remove scores)");
+      return { status: 200, body: { ok: true } };
     }
     case "asys-save": {
       if (a.role !== "admin" || a.viewAs) return forbid();
