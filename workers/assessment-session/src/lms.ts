@@ -33,6 +33,7 @@
  * PINs: the PBKDF2 hash is what login checks. A copy is also kept AES-GCM encrypted with the LMS_PIN_KEY secret
  * (32 random bytes, base64) so the admin can look a PIN up. Users created before that show "reset to view".
  */
+import { textReplaceAll } from "./textfix";
 import { buildFeedback, fromGrade, overallOf, parseScores, type Scores } from "./quranScore";
 import { DurableObject } from "cloudflare:workers";
 import { corsHeaders, reply, verifyToken, type AdminEnv } from "./admin";
@@ -659,6 +660,11 @@ export class LmsStore extends DurableObject<LmsEnv> {
       case "me":
         return { status: 200, body: { user: a } };
 
+      case "text-fix": {
+        // Admin only: find (dry, default) or replace a text everywhere in the LMS store (e.g. a corrected surname). Logins untouched.
+        if (a.role !== "admin" || a.viewAs) return { status: 403, body: { error: "forbidden" } };
+        return { status: 200, body: { ok: true, hits: textReplaceAll(this.sql as never, str(input.from, 120), str(input.to, 120), input.dry !== false) } };
+      }
       case "names-set": {
         // Admin only: correct a student's forename/surname spelling (username, PIN and login stay unchanged). items: [{id, firstName, lastName}]
         if (a.role !== "admin" || a.viewAs) return { status: 403, body: { error: "forbidden" } };

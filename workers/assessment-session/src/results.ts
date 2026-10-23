@@ -13,6 +13,7 @@
  * student could post a fake score; records show "individual" so the teacher can tell them apart.
  */
 import { DurableObject } from "cloudflare:workers";
+import { textReplaceAll } from "./textfix";
 import { corsHeaders, originAllowed, reply, verifyToken, type AdminEnv } from "./admin";
 
 export type ResultDetail = {
@@ -162,6 +163,9 @@ export class ResultsStore extends DurableObject {
     return [...cursor].map((row) => toRecord(row, Boolean(f.details)));
   }
 
+  /** Admin: find (dry) or replace text in every stored result (e.g. a corrected student name). */
+  async textFix(from: string, to: string, dry: boolean) { this.init(); return textReplaceAll(this.ctx.storage.sql as never, from, to, dry); }
+
   /** Admin: link a result to a student (manual), mark it ignored, or reset to automatic. Scores are never touched. */
   async setLink(id: string, op: "link" | "ignore" | "reset", studentId = ""): Promise<boolean> {
     this.init();
@@ -297,6 +301,11 @@ export async function handleResults(request: Request, env: ResultsEnv, action: s
   if (action === "get") {
     const item = await store.get(String(url.searchParams.get("id") || ""));
     return item ? reply(origin, { ok: true, item }) : reply(origin, { error: "not_found" }, 404);
+  }
+  if (action === "textfix") {
+    if (request.method !== "POST") return reply(origin, { error: "method" }, 405);
+    const b = (await request.json().catch(() => ({}))) as { from?: unknown; to?: unknown; dry?: unknown };
+    return reply(origin, { ok: true, hits: await store.textFix(String(b.from || ""), String(b.to || ""), b.dry !== false) });
   }
   if (action === "delete") {
     if (request.method !== "POST") return reply(origin, { error: "method" }, 405);
