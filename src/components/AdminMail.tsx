@@ -1,5 +1,6 @@
 "use client";
 
+import { BodyPortal } from "@/components/BodyPortal";
 import { useCallback, useEffect, useState } from "react";
 import { mailApi, type MailSignature, type ContactMsg, type Folder, type MailItem, type MailMessage, type OutAttachment } from "@/lib/mail";
 import { card, inputCls, smallBtn, useTr } from "@/components/lms/useLms";
@@ -236,7 +237,8 @@ function SignatureEditor({ onClose }: { onClose: () => void }) {
     <label className="block text-sm font-semibold">{label}<input className={inputCls} value={String(sg[k] ?? "")} dir={ltr ? "ltr" : "auto"} onChange={(e) => setSg({ ...sg, [k]: e.target.value })} data-testid={`sig-${k}`} /></label>
   );
   return (
-    <div className="fixed inset-0 z-[85] flex justify-end bg-black/40" onClick={onClose}>
+    <BodyPortal>
+    <div className="fixed inset-0 z-[2147483000] flex justify-end bg-black/40" onClick={onClose}>
       <aside role="dialog" aria-modal="true" aria-label={tr("Email signature", "توقيع البريد")} className="flex h-full w-full max-w-md flex-col gap-3 overflow-y-auto bg-white p-5 shadow-2xl dark:bg-[#0f1a26] sm:rounded-s-3xl" onClick={(e) => e.stopPropagation()} data-testid="mail-sig">
         <div className="flex items-center gap-2"><h3 className="flex-1 text-lg font-extrabold">✍️ {tr("Email signature", "توقيع البريد")}</h3><button type="button" className="h-8 w-8 rounded-full hover:bg-black/10" onClick={onClose} aria-label={tr("Close", "إغلاق")}>✕</button></div>
         {!sg ? <p className="opacity-70">{msg || tr("Loading…", "جارٍ التحميل…")}</p> : (
@@ -258,6 +260,7 @@ function SignatureEditor({ onClose }: { onClose: () => void }) {
         )}
       </aside>
     </div>
+    </BodyPortal>
   );
 }
 

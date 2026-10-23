@@ -302,7 +302,9 @@ export async function trackerHandle(c: TrkCtx, a: Actor, action: string, input: 
       if (action === "trk-export") { const k = String(input.kind) as TrkKey; if (!["xlsx", "pdf", "isams"].includes(k) || !acc[k]) return forbid("export_not_allowed"); }
       const g = await grid(c, a, cls, term, want, str(input.subject, 60));
       if (!g || (a.role !== "admin" && !g.students.length)) return forbid("not_your_class");
-      return { status: 200, body: { ...g, access: acc, sys: g.sys } };
+      // t294: the grid disables controls per Add / Edit / Delete (the server still refuses them on save).
+      const ops = { add: acc.edit && mpt.add, edit: acc.edit && mpt.edit, delete: acc.edit && mpt.delete };
+      return { status: 200, body: { ...g, access: acc, ops, sys: g.sys } };
     }
     case "trk-target": {
       // Teacher-judgment years (e.g. Year 1): teacher with tracker Add/Edit, or admin, picks 1–7 ("" clears).

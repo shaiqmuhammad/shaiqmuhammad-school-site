@@ -1,5 +1,6 @@
 "use client";
 
+import { BodyPortal } from "@/components/BodyPortal";
 import { ModulePermsTeacher } from "@/components/lms/ModulePerms";
 import { PresenceDot } from "@/components/lms/Presence";
 import { mailApi } from "@/lib/mail";
@@ -145,9 +146,10 @@ function PermissionsModal({ u, onClose, onSaved, asAdmin, catalog }: { catalog: 
     try { const r = await lmsApi.saveUsers([{ ...u, perms, subjects, scope }], asAdmin); if (r.errors.length) throw new Error(r.errors[0].error); if (allGroups) { const before = (u.groups || []).map((g) => g.id); const add = picked.filter((x) => !before.includes(x)), remove = before.filter((x) => !picked.includes(x)); if (add.length || remove.length) await lmsApi.grpAssign(u.id, add, remove); } onSaved(); } catch (e) { setErr(e instanceof Error ? e.message : lmsErrorText(e, tr)); setBusy(false); }
   };
   return (
+    <BodyPortal>
     <div className="fixed inset-0 z-[2147483000] flex justify-end bg-black/40 backdrop-blur-[2px]" onMouseDown={(e) => e.target === e.currentTarget && onClose()} role="dialog" aria-modal="true" aria-label={tr("Permissions", "الصلاحيات")} data-testid="perm-modal">
       <div className="h-full w-full overflow-y-auto bg-white p-4 text-[#1b2f44] shadow-2xl dark:bg-[#12273b] dark:text-white sm:max-w-2xl sm:p-6" data-testid="perm-panel">
-        <div className="mb-3 flex items-center gap-3"><h3 className="min-w-0 flex-1 text-lg font-extrabold">🔐 {tr("Permissions", "الصلاحيات")} — <span dir="auto">{u.name}</span></h3><button type="button" className={smallBtn} onClick={onClose} aria-label={tr("Close", "إغلاق")}>✕</button></div>
+        <div className="sticky -top-4 z-10 -mx-4 -mt-4 mb-3 flex items-center gap-3 border-b border-black/10 bg-white px-4 py-3 dark:border-white/10 dark:bg-[#12273b] sm:-top-6 sm:-mx-6 sm:-mt-6 sm:px-6" data-testid="perm-panel-head"><h3 className="min-w-0 flex-1 text-lg font-extrabold">🔐 {tr("Permissions", "الصلاحيات")} — <span dir="auto">{u.name}</span></h3><button type="button" className={smallBtn} onClick={onClose} aria-label={tr("Close", "إغلاق")} data-testid="perm-panel-close">✕</button></div>
         <div className="space-y-3">
           <div className="rounded-2xl border border-dashed border-black/15 p-3 dark:border-white/20" data-testid="perm-subjects">
             <p className="mb-2 text-sm font-bold">📚 {tr("Subjects taught", "المواد")}</p>
@@ -171,6 +173,7 @@ function PermissionsModal({ u, onClose, onSaved, asAdmin, catalog }: { catalog: 
         <div className="mt-4 flex justify-end gap-2"><button type="button" className={smallBtn} onClick={onClose}>{tr("Cancel", "إلغاء")}</button><button type="button" className={primaryBtn} disabled={busy} onClick={save} data-testid="perm-modal-save">{busy ? "…" : tr("Save permissions", "حفظ الصلاحيات")}</button></div>
       </div>
     </div>
+    </BodyPortal>
   );
 }
 
@@ -394,8 +397,8 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
           ))}
         </div>
 
-        {drawer && (
-          <div className="fixed inset-0 z-[70] flex justify-end bg-black/40 backdrop-blur-[2px]" onClick={() => setDrawer(null)} data-testid="lms-drawer-backdrop">
+        {drawer && (<BodyPortal>
+          <div className="fixed inset-0 z-[2147483000] flex justify-end bg-black/40 backdrop-blur-[2px]" onClick={() => setDrawer(null)} data-testid="lms-drawer-backdrop">
             <aside role="dialog" aria-modal="true" aria-label={drawer === "add" ? tr("Add", "إضافة") : tr("Bulk add", "إضافة جماعية")} className="flex h-full w-full max-w-md flex-col overflow-y-auto bg-white p-5 shadow-2xl dark:bg-[#0f1a26] sm:rounded-s-3xl" onClick={(e) => e.stopPropagation()} data-testid="lms-drawer">
               <div className="mb-4 flex items-center gap-2">
                 <h3 className="flex-1 text-lg font-extrabold">{drawer === "add" ? (role === "teacher" ? tr("Add a teacher", "إضافة معلم") : tr("Add a student", "إضافة طالب")) : tr("Bulk add (Excel)", "إضافة جماعية (إكسل)")}</h3>
@@ -433,7 +436,7 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
               )}
             </aside>
           </div>
-        )}
+        </BodyPortal>)}
 
         <section className={card + " space-y-3 p-3 sm:p-4"}>
           <div className="flex flex-wrap gap-2">
