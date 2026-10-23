@@ -43,6 +43,8 @@ export type ASys = {
   capExempt: string[]; // classes whose tracker has no Target−1 cap (the department Year 1 / FS2 files use the plain IF formula)
   scaled: [number, number, number][]; // [from, to, target]
   effort: string[]; targetList: string[]; attainList: string[];
+  /** Attainment grade → Effort Grade (template dropdown strings). A teacher/admin choice overrides it. */
+  effortMap?: Record<string, string>;
   thresholds: number[];
   access: Record<TrkKey, boolean>;
   /** Target rule per year/phase: profile (+ scaled score if none), fixed value for everyone, or teacher-chosen 1–7 (no scaled fallback). */
@@ -59,7 +61,7 @@ export const RIS_PRIMARY: ASys = {
   cut: [40, 60, 85], quran: { red: "1", yellow: "2", green: "3" }, quranPattern: "^Recit",
   bands: [0.9, 1.4, 1.9, 2.2, 2.5, 2.8, 3], capTarget: true, capExempt: ["FS2", "Year 1"],
   scaled: [[67, 80, 2], [81, 93, 3], [94, 109, 4], [110, 120, 5], [121, 999, 6]],
-  effort: ["Very Good", " Good ", "Average", " Weak", " Very weak", " "], targetList: ["7", "6", "5", "4", "3", "2", "1", "NA"], attainList: ["7", "6", "5", "4", "3", "2", "1", "NA", " "],
+  effort: ["Very Good", " Good ", "Average", " Weak", " Very weak", " "], effortMap: { "7": "Very Good", "6": "Very Good", "5": "Very Good", "4": " Good ", "3": "Average", "2": " Weak", "1": " Very weak" }, targetList: ["7", "6", "5", "4", "3", "2", "1", "NA"], attainList: ["7", "6", "5", "4", "3", "2", "1", "NA", " "],
   thresholds: [4, 5],
   access: { view: true, edit: true, effort: true, xlsx: true, pdf: true, isams: true },
   isDefault: true, resub: "latest", untagged: true,
@@ -111,6 +113,7 @@ function cleanSys(raw: Json, prev: ASys): ASys {
     quranPattern: str(raw.quranPattern ?? prev.quranPattern, 80),
     bands: bands.map((b, i) => (i ? Math.max(b, bands[i - 1]) : b)), capTarget: raw.capTarget === undefined ? prev.capTarget : !!raw.capTarget, capExempt: raw.capExempt === undefined ? prev.capExempt || [] : strs(raw.capExempt, [], 20),
     scaled: Array.isArray(raw.scaled) ? (raw.scaled as unknown[][]).slice(0, 10).map((r) => [num(r?.[0], 0, 0, 999), num(r?.[1], 0, 0, 999), num(r?.[2], 0, 0, 9)] as [number, number, number]) : prev.scaled,
+    effortMap: raw.effortMap === undefined ? prev.effortMap || RIS_PRIMARY.effortMap : Object.fromEntries(Object.entries((raw.effortMap || {}) as Record<string, unknown>).filter(([k]) => /^[1-9]$/.test(k)).map(([k, v]) => [k, String(v ?? "").slice(0, 30)])),
     effort: raw.effort === undefined ? prev.effort : strs(raw.effort, prev.effort), targetList: raw.targetList === undefined ? prev.targetList : strs(raw.targetList, prev.targetList), attainList: raw.attainList === undefined ? prev.attainList : strs(raw.attainList, prev.attainList),
     thresholds: Array.isArray(raw.thresholds) ? [...new Set((raw.thresholds as unknown[]).map((x) => Math.round(num(x, 4, 1, 9))))].sort((a, b) => a - b).slice(0, 6) : prev.thresholds,
     access: Object.fromEntries(TRK_KEYS.map((k) => [k, acc[k] === undefined ? prev.access[k] : !!acc[k]])) as Record<TrkKey, boolean>,
@@ -221,7 +224,11 @@ async function grid(c: TrkCtx, a: Actor, cls: string, term: string, want = "") {
     const vals: number[] = []; for (const u of units) u.sc.forEach((_, i) => { const v = cells[key(s.id, u.id, i)]?.v; if (v != null && Number.isFinite(v)) vals.push(v); });
     const avg = vals.length ? vals.reduce((x, y) => x + y, 0) / vals.length : null;
     const calc = gradeOf(avg, s.target, sys, cls); const o = gov.get(s.id);
-    return { id: s.id, avg, calc, grade: o ? (o.val === "" ? null : Number(o.val)) : calc, override: o ? { by: String(o.by_name || ""), at: Number(o.at) } : null, effort: String(eff.get(s.id)?.val ?? ""), n: vals.length };
+    const grade = o ? (o.val === "" ? null : Number(o.val)) : calc;
+    const manual = String(eff.get(s.id)?.val ?? "");
+    const map = sys.effortMap || RIS_PRIMARY.effortMap || {};
+    const auto = grade != null ? String(map[String(Math.min(9, Math.round(grade)))] ?? "") : "";
+    return { id: s.id, avg, calc, grade, override: o ? { by: String(o.by_name || ""), at: Number(o.at) } : null, effort: manual || auto, effortManual: !!manual, effortAuto: auto, n: vals.length };
   });
   return { sys, cls, term, students, units: units.map(({ links: _l, ...u }) => u), cells, results };
 }

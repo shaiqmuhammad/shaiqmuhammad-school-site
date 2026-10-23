@@ -10,13 +10,13 @@ export type TrkAccess = Record<TrkKey, boolean>;
 export type ASys = {
   id: string; name: string; version: string; active: boolean; scope: { phase: string; years: string[]; subject: string };
   scale: { v: number; label: string }[]; key: string; cut: [number, number, number]; quran: { red: string; yellow: string; green: string }; quranPattern: string;
-  bands: number[]; capTarget: boolean; capExempt: string[]; scaled: [number, number, number][]; effort: string[]; targetList: string[]; attainList: string[]; thresholds: number[];
+  bands: number[]; capTarget: boolean; capExempt: string[]; scaled: [number, number, number][]; effort: string[]; effortMap?: Record<string, string>; targetList: string[]; attainList: string[]; thresholds: number[];
   access: TrkAccess; targetRules: Record<string, { mode: "profile" | "fixed" | "teacher"; value?: string }>; isDefault: boolean; resub: "latest" | "best" | "first"; untagged: boolean; updated?: number; by?: string;
 };
 export type TCell = { v: number | null; src: "quiz" | "quiz-all" | "quran" | "override" | ""; auto: number | null; autoSrc: string; by?: string; at?: number; note?: string };
 export type TStudent = { id: string; name: string; first: string; last: string; target: string; targetSrc: string; targetMode?: "profile" | "fixed" | "teacher"; isamsId: string };
 export type TUnit = { id: string; title: string; term: string; wk: number; sc: string[]; quizzes?: string[]; std?: { codes: string[]; skill: number } };
-export type TResult = { id: string; avg: number | null; calc: number | null; grade: number | null; override: { by: string; at: number } | null; effort: string; n: number };
+export type TResult = { id: string; avg: number | null; calc: number | null; grade: number | null; override: { by: string; at: number } | null; effort: string; effortManual?: boolean; effortAuto?: string; n: number };
 export type TGrid = { sys: ASys; cls: string; term: string; students: TStudent[]; units: TUnit[]; cells: Record<string, TCell>; results: TResult[]; access: TrkAccess };
 export const TERMS = ["Term 1", "Term 2", "Term 3"];
 

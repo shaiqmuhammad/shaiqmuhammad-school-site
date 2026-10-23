@@ -152,10 +152,11 @@ function IsamsPanel({ g, access, setEffort, asAdmin, note }: { g: TGrid; access:
   const [tpls, setTpls] = useState<{ cycle: string; name: string; term: string; at: number }[] | null>(null);
   const [cycle, setCycle] = useState("");
   const [rep, setRep] = useState<{ sheet: string; matched: number; unmatched: string[] }[] | null>(null);
+  const [term, setTerm] = useState(g.term || "Term 1");
   useEffect(() => { if (access.isams) trk<{ items: { cycle: string; name: string; term: string; at: number }[] }>("isams-tpl-list", {}).then((r) => { setTpls(r.items); setCycle((c) => c || r.items.find((x) => x.term === g.term)?.cycle || r.items[0]?.cycle || ""); }).catch(() => setTpls([])); }, [access.isams, g.term]);
   const run = async () => {
     try {
-      const d = await trk<{ data: string; name: string; term: string; classes: never[] }>("trk-isams", { cycle, term: g.term });
+      const d = await trk<{ data: string; name: string; term: string; classes: never[] }>("trk-isams", { cycle, term });
       const r = await fillIsams(d.data, d.classes, (d.name || `iSAMS ${cycle}.xlsx`).replace(/\.xlsx$/i, "") + ` - filled.xlsx`);
       setRep(r);
       const learned = r.flatMap((x) => x.learnedIds);
@@ -170,11 +171,12 @@ function IsamsPanel({ g, access, setEffort, asAdmin, note }: { g: TGrid; access:
         <table className="w-full text-sm" style={{ fontFamily: FONT }}><thead><tr className="text-left text-xs uppercase opacity-70"><th className="p-1">Surname</th><th className="p-1">Forename</th><th className="p-1">Target Grade</th><th className="p-1">Effort Grade</th><th className="p-1">Attainment Grade</th></tr></thead>
           <tbody>{S.map((s) => { const r = g.results.find((x) => x.id === s.id)!; return (
             <tr key={s.id} className="border-t border-black/5" data-testid="trk-isams-row"><td className="p-1">{s.last}</td><td className="p-1">{s.first || s.name}</td><td className="p-1">{s.target}</td>
-              <td className="p-1">{access.effort ? <select className="rounded-lg border border-black/15 bg-white px-1 py-0.5 dark:bg-slate-900" value={g.sys.effort.includes(r.effort) ? r.effort : ""} onChange={(e) => setEffort(s.id, e.target.value || "__clear")} data-testid="trk-effort"><option value="">—</option>{g.sys.effort.map((v) => <option key={JSON.stringify(v)} value={v}>{v.trim() ? v : tr("(blank)", "(فارغ)")}</option>)}</select> : (r.effort || "")}</td>
+              <td className="p-1">{access.effort ? <select className="rounded-lg border border-black/15 bg-white px-1 py-0.5 dark:bg-slate-900" value={g.sys.effort.includes(r.effort) ? r.effort : ""} onChange={(e) => setEffort(s.id, e.target.value || "__clear")} data-testid="trk-effort"><option value="">—</option>{g.sys.effort.map((v) => <option key={JSON.stringify(v)} value={v}>{v.trim() ? v : tr("(blank)", "(فارغ)")}</option>)}</select> : (r.effort || "")}{r.effort && <span className={`ms-1 rounded-full px-1.5 text-[10px] font-bold ${r.effortManual ? "bg-amber-100 text-amber-900" : "bg-emerald-100 text-emerald-900"}`} data-testid="trk-effort-src" title={r.effortManual && r.effortAuto ? tr(`Auto would be: ${r.effortAuto.trim()}`, `التلقائي: ${r.effortAuto.trim()}`) : ""}>{r.effortManual ? tr("manual", "يدوي") : tr("auto", "تلقائي")}</span>}</td>
               <td className="p-1 font-bold">{r.grade ?? ""}</td></tr>); })}</tbody></table>
       </div>
       {access.isams && <div className={cardCls + " flex flex-wrap items-end gap-2"}>
         <label className="text-xs font-bold">{tr("Report cycle (uploaded iSAMS template)", "دورة التقرير (قالب iSAMS)")}<select className={field + " mt-1 !w-72"} value={cycle} onChange={(e) => setCycle(e.target.value)} data-testid="trk-isams-cycle">{(tpls || []).map((t) => <option key={t.cycle} value={t.cycle}>{t.cycle}{t.term ? ` · ${t.term}` : ""}</option>)}</select></label>
+        <label className="text-xs font-bold">{tr("Attainment term", "فصل التحصيل")}<select className={field + " mt-1 !w-32"} value={term} onChange={(e) => setTerm(e.target.value)} data-testid="trk-isams-term">{["Term 1", "Term 2", "Term 3"].map((t) => <option key={t} value={t}>{tr(t, t.replace("Term", "الفصل"))}</option>)}</select></label>
         <button type="button" className={btn} disabled={!cycle} onClick={run} data-testid="trk-isams-dl">📤 {tr("Send to iSAMS report (all Primary classes)", "إرسال إلى تقرير iSAMS (كل صفوف الابتدائي)")}</button>
         {tpls && !tpls.length && <p className="text-xs opacity-70">{tr("No template yet — the admin uploads the blank iSAMS file per report cycle in Attainment & Progress Systems.", "لا يوجد قالب بعد.")}</p>}
         {rep && <ul className="w-full text-xs" data-testid="trk-isams-report">{rep.map((r) => <li key={r.sheet}><b>{r.sheet}</b>: {r.matched} {tr("filled", "مُعبأ")}{r.unmatched.length ? ` · ${tr("not matched", "غير مطابق")}: ${r.unmatched.join(", ")}` : ""}</li>)}</ul>}
