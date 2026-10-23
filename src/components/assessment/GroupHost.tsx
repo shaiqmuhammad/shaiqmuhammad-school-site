@@ -8,7 +8,7 @@ import { PaperDownloads } from "@/components/assessment/PaperDownloads";
 import { ResultsBoard, resultsCsv } from "@/components/assessment/ResultsBoard";
 import { Podium, ResultsCharts, ResultsDownloads } from "@/components/assessment/ResultsVisuals";
 import { isAdminAuthenticated } from "@/lib/adminAuth";
-import { formatClock, localizedTitle, useAssessmentText } from "@/lib/assessmentI18n";
+import { localizedTitle, useAssessmentText } from "@/lib/assessmentI18n";
 import {
   anonymousName,
   clockOffset,
@@ -392,11 +392,15 @@ export function GroupHost() {
         {status === "running" && data && (
           <>
             <div className="flex flex-wrap items-center justify-between gap-4">
-              <div>
-                <p className="text-sm font-bold uppercase tracking-widest text-teal-brand dark:text-teal-300">{a("liveProgress")}</p>
-                <p className="text-6xl font-black tabular-nums text-navy dark:text-teal-200" dir="ltr">
-                  {formatClock(secondsLeft ?? 0)}
-                </p>
+              {/* t302: the join QR stays on screen while the assessment runs; the only timer is the small one in the header. */}
+              <div className="flex items-center gap-4" data-testid="host-running-qr">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={qrImageUrl(url, 240)} alt={url} width={120} height={120} className="h-28 w-28 rounded-2xl bg-white p-1.5 sm:h-32 sm:w-32" />
+                <div>
+                  <p className="text-sm font-bold uppercase tracking-widest text-teal-brand dark:text-teal-300">{a("liveProgress")}</p>
+                  <p className="font-mono text-4xl font-black tracking-[0.2em] text-navy dark:text-teal-200" dir="ltr">{host.code}</p>
+                  <p className="text-xs font-semibold opacity-70" dir="ltr">{url.replace(/^https?:\/\//, "").replace(/\?.*$/, "")}</p>
+                </div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 {toolbar}

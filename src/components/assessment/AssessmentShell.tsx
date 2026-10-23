@@ -5,7 +5,7 @@ import { useLmsExit } from "@/lib/useLmsExit";
 import Link from "next/link";
 import { GregPill, HijriPill } from "@/components/DatePills";
 import { lmsRenew } from "@/lib/lms";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { formatClock, useAssessmentText } from "@/lib/assessmentI18n";
@@ -32,6 +32,20 @@ type Props = {
  * Full-screen, distraction-free frame for assessments: navy bar, warm yellow and cream (light + dark),
  * minimal chrome (exit, progress, timer, language/theme), content centred with big type.
  */
+let actx: AudioContext | null = null;
+/** Short alarm tone (Web Audio; silently does nothing if the browser blocks sound). */
+export function alarmBeep(dur = 0.18, freq = 880) {
+  try {
+    const W = window as unknown as { AudioContext?: typeof AudioContext; webkitAudioContext?: typeof AudioContext };
+    const C = W.AudioContext || W.webkitAudioContext; if (!C) return;
+    actx ??= new C(); if (actx.state === "suspended") void actx.resume();
+    const o = actx.createOscillator(), g = actx.createGain(); o.type = "square"; o.frequency.value = freq;
+    g.gain.setValueAtTime(0.0001, actx.currentTime); g.gain.exponentialRampToValueAtTime(0.25, actx.currentTime + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime + dur);
+    o.connect(g).connect(actx.destination); o.start(); o.stop(actx.currentTime + dur + 0.02);
+    (window as unknown as { __beeps?: number }).__beeps = ((window as unknown as { __beeps?: number }).__beeps || 0) + 1;
+  } catch { /* ignore */ }
+}
+
 export function AssessmentShell({ title, exitHref = "/assessments", onExit, secondsLeft, progress, actions, toolbar, wide = false, children }: Props) {
   const { a } = useAssessmentText();
   const exitTo = useLmsExit(exitHref);
@@ -40,6 +54,16 @@ export function AssessmentShell({ title, exitHref = "/assessments", onExit, seco
   const low = showTimer && (secondsLeft as number) <= 30;
   const warn = showTimer && !low && (secondsLeft as number) <= 120;
   const rail = Boolean(toolbar) && !showTimer; // LMS pages: the icon rail is the only navigation
+  // t302: alarm beeps for the last ten seconds (assessments and activities; one beep per second, a longer one at 0).
+  const beeped = useRef(-1);
+  const sec = showTimer ? Math.ceil(secondsLeft as number) : -1;
+  useEffect(() => {
+    if (sec < 0 || sec > 10 || beeped.current === sec) return;
+    if (beeped.current === -1 && sec === 0) return; // page opened after the end
+    beeped.current = sec;
+    try { if (localStorage.getItem("sm-timer-sound") === "off") return; } catch { /* ignore */ }
+    alarmBeep(sec === 0 ? 0.9 : 0.18, sec === 0 ? 660 : 880);
+  }, [sec]);
 
   return (
     <div className={`relative flex min-h-dvh ${rail ? "flex-row" : "flex-col"} overflow-x-clip bg-gradient-to-br from-cream via-white to-white text-[#1b2f44] dark:from-[#0d1b2a] dark:via-[#0d1b2a] dark:to-[#10263b] dark:text-[#e6eef6]`}>
@@ -76,7 +100,8 @@ export function AssessmentShell({ title, exitHref = "/assessments", onExit, seco
               role="timer"
               aria-live="polite"
               aria-label={a("timeLeft")}
-              className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 font-mono text-base font-bold tabular-nums shadow-sm sm:text-lg ${
+              data-testid="header-timer"
+              className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-0.5 font-mono text-sm font-bold tabular-nums shadow-sm ${
                 low
                   ? "animate-pulse bg-rose-600 text-white"
                   : warn
@@ -84,7 +109,7 @@ export function AssessmentShell({ title, exitHref = "/assessments", onExit, seco
                     : "border border-sun-border bg-sun text-navy"
               }`}
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4" aria-hidden>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5" aria-hidden>
                 <circle cx="12" cy="13" r="8" />
                 <path d="M12 9v4l2.5 2.5M9 2h6" />
               </svg>

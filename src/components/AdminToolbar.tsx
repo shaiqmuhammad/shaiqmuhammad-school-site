@@ -5,7 +5,6 @@ import { useTheme } from "next-themes";
 import { useEffect, useState, type ReactNode } from "react";
 import { useI18n } from "@/lib/i18n";
 
-const SITE = "https://www.shaiqmuhammad.com";
 
 const Svg = ({ children }: { children: ReactNode }) => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4" aria-hidden>
@@ -14,10 +13,10 @@ const Svg = ({ children }: { children: ReactNode }) => (
 );
 
 /**
- * Compact round icon toolbar: [bell] · light/dark · EN/ع · View website · Log out (confirm).
+ * Compact round icon toolbar: [bell] · [messages] · install · light/dark · EN/ع · Log out (confirm). (t302: website link removed)
  * "glass" for the light admin main area, "navy" for the dark top bars.
  */
-export function AdminToolbar({ onLogout, variant = "glass", className = "", pending = 0, onBell, bell }: { onLogout: () => void; variant?: "glass" | "navy"; className?: string; pending?: number; onBell?: () => void; bell?: ReactNode }) {
+export function AdminToolbar({ onLogout, variant = "glass", className = "", pending = 0, onBell, bell, msg }: { onLogout: () => void; variant?: "glass" | "navy"; className?: string; pending?: number; onBell?: () => void; bell?: ReactNode; msg?: ReactNode }) {
   const { lang, toggleLang } = useI18n();
   const { theme, resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
@@ -29,7 +28,6 @@ export function AdminToolbar({ onLogout, variant = "glass", className = "", pend
   const btn = `inline-flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full text-xs font-bold transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/30 ${
     variant === "navy" ? "pill-on-navy !p-0" : "glass text-heading hover:ring-2 hover:ring-[var(--yellow-border)]"
   }`;
-  const site = tr("View website", "عرض الموقع");
   const themeL = dark ? tr("Light mode", "الوضع الفاتح") : tr("Dark mode", "الوضع الداكن");
   const langL = ar ? "English" : "العربية";
   const out = tr("Log out", "تسجيل الخروج");
@@ -47,6 +45,8 @@ export function AdminToolbar({ onLogout, variant = "glass", className = "", pend
           )}
         </button>
       )}
+      {/* t302: Messages sits right after the notification bell. */}
+      {msg}
       <InstallAppButton className={btn} appName="Shaiq Admin" />
       <button type="button" className={btn} title={themeL} aria-label={themeL} data-testid="tb-theme" onClick={() => setTheme(dark ? "light" : "dark")}>
         {dark ? (
@@ -58,9 +58,6 @@ export function AdminToolbar({ onLogout, variant = "glass", className = "", pend
       <button type="button" className={btn} title={langL} aria-label={langL} data-testid="tb-lang" onClick={toggleLang}>
         {ar ? <span lang="en">EN</span> : <span lang="ar" className="text-sm">ع</span>}
       </button>
-      <a href={SITE} target="_blank" rel="noopener noreferrer" className={btn} title={site} aria-label={site} data-testid="tb-site">
-        <Svg><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c2.5 2.7 3.8 5.7 3.8 9s-1.3 6.3-3.8 9c-2.5-2.7-3.8-5.7-3.8-9S9.5 5.7 12 3z" /></Svg>
-      </a>
       <button type="button" className={btn} title={out} aria-label={out} data-testid="tb-logout" onClick={() => { if (window.confirm(tr("Log out now?", "تسجيل الخروج الآن؟"))) onLogout(); }}>
         <span className="rtl:-scale-x-100 inline-flex">
           <Svg><path d="M13 4H6a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h7" /><path d="M13 4v16" /><path d="M16 12h6M19 9l3 3-3 3" /><circle cx="10.5" cy="12" r=".6" fill="currentColor" /></Svg>

@@ -86,7 +86,8 @@ export function ActivityJoin({ code }: { code: string }) {
           <div className={panelCls + " text-center"} data-testid="activity-removed">
             <p className="text-5xl" aria-hidden>👋</p>
             <h1 className="mt-3 text-2xl font-bold">{tr("You have been removed from this activity", "تمت إزالتك من هذا النشاط")}</h1>
-            <p className="mt-2 text-lg opacity-80">{tr("Ask your teacher if you think this is a mistake.", "اسأل معلمك إن كنت تظن أن هذا خطأ.")}</p>
+            <p className="mt-2 text-lg opacity-80">{tr("You can join again with a new name.", "يمكنك الانضمام مجددًا باسم جديد.")}</p>
+            <button type="button" className={`${primaryBtn} mt-5`} data-testid="activity-rejoin" onClick={() => { clearSeat(code); window.location.reload(); }}>{tr("Rejoin with a new name", "الانضمام باسم جديد")}</button>
           </div>
         </div>
       </AssessmentShell>
