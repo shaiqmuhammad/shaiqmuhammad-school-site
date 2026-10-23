@@ -10,6 +10,8 @@ import { useI18n } from "@/lib/i18n";
 import { ImageSizeHint } from "@/components/ImageSizeHint";
 import { downloadJson, getStoredGithubToken, publishJsonToGithub } from "@/lib/githubPublish";
 import { AdminQuestionEditor } from "@/components/AdminQuestionEditor";
+import { TopicContext, TopicPicker } from "@/components/tracker/TopicPicker";
+import { syncQuizTopics } from "@/lib/quizTopics";
 import {
   emptyQuestion, emptyQuiz, GITHUB_QUIZ_RESULTS_PATH, GITHUB_QUIZZES_PATH, loadLocalResults,
   isSowSeed, normalizeQuiz, normalizeResults, quizzesForPublish, QUESTION_TYPE_LABELS, QUESTION_TYPES, questionProblem,
@@ -43,6 +45,9 @@ export default function AdminQuizzes({ setStatus, onNeedToken, data, setData, re
     if (!editing) return;
     const slug = editing.slug.trim() || slugify(editing.title);
     if (!editing.title.trim() || !slug) { setStatus("Assessment title and slug required."); return; }
+    if (!editing.topic && editing.slug !== "welcome-quiz") { setStatus(tr("Choose the curriculum topic (Year › Term › Week › Topic) — every assessment must be linked to one.", "اختر موضوع المنهج (السنة › الفصل › الأسبوع › الموضوع) — يجب ربط كل تقييم بموضوع.")); return; }
+    const dup = editing.topic ? data.quizzes.find((q) => q.id !== editing.id && q.topic === editing.topic) : undefined;
+    if (dup) { setStatus(tr(`This topic already has an assessment: “${dup.title}”. Only one assessment per topic — edit that one instead.`, `هذا الموضوع له تقييم بالفعل: «${dup.titleAr || dup.title}». لكل موضوع تقييم واحد فقط — عدّل ذلك التقييم.`)); return; }
     if (!editing.questions.length) { setStatus("Add at least one question."); return; }
     for (let i = 0; i < editing.questions.length; i++) {
       const problem = questionProblem(editing.questions[i]);
@@ -63,6 +68,10 @@ export default function AdminQuizzes({ setStatus, onNeedToken, data, setData, re
     const token = getStoredGithubToken();
     if (!token) { setStatus("No GitHub token. Open Settings."); onNeedToken(); return; }
     setBusy(true); setStatus(`Publishing ${label}…`);
+    if (path === GITHUB_QUIZZES_PATH) {
+      const err = await syncQuizTopics(payload as QuizzesData, lang);
+      if (err) { setBusy(false); setStatus(err); return; }
+    }
     const r = await publishJsonToGithub(path, payload, token, `chore(quiz): update ${label} via admin`);
     setBusy(false);
     setStatus(r.ok ? `Published ${path}. Site rebuilds in ~1–2 min. ${r.htmlUrl || ""}` : r.error);
@@ -141,6 +150,7 @@ export default function AdminQuizzes({ setStatus, onNeedToken, data, setData, re
             <Field label="Title"><input className={input} value={editing.title} onChange={(e) => { const title = e.target.value; setEditing({ ...editing, title, slug: editing.slug || slugify(title) }); }} required /></Field>
             <Field label="Slug (URL)"><input className={input} value={editing.slug} onChange={(e) => setEditing({ ...editing, slug: slugify(e.target.value) })} required /></Field>
           </div>
+          <TopicPicker lang={lang} value={editing.topic} taken={(id) => data.quizzes.find((q) => q.id !== editing.id && q.topic === id)?.title} onChange={(topic, info) => setEditing({ ...editing, topic: topic || undefined, topicInfo: info, ...(info && /^Year\s*\d+$/i.test(info.yr) ? { year: Number(info.yr.replace(/\D/g, "")) } : {}) })} />
           <Field label="Description"><textarea className={input + " min-h-16"} value={editing.description} onChange={(e) => setEditing({ ...editing, description: e.target.value })} /></Field>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Arabic title (optional)"><input dir="rtl" className={input} value={editing.titleAr || ""} onChange={(e) => setEditing({ ...editing, titleAr: e.target.value })} placeholder="العنوان بالعربية" /></Field>
@@ -191,7 +201,7 @@ export default function AdminQuizzes({ setStatus, onNeedToken, data, setData, re
           </div>
 
           <div className="space-y-4">
-            {editing.questions.map((q, idx) => (
+            <TopicContext.Provider value={editing.topic}>{editing.questions.map((q, idx) => (
               <AdminQuestionEditor
                 key={q.id}
                 q={q}
@@ -201,7 +211,7 @@ export default function AdminQuizzes({ setStatus, onNeedToken, data, setData, re
                 onRemove={() => setEditing({ ...editing, questions: editing.questions.filter((_, i) => i !== idx) })}
                 onMoveUp={idx === 0 ? undefined : () => { const qs = [...editing.questions]; [qs[idx - 1], qs[idx]] = [qs[idx], qs[idx - 1]]; setEditing({ ...editing, questions: qs }); }}
               />
-            ))}
+            ))}</TopicContext.Provider>
             <div className="flex flex-wrap gap-2">
               {QUESTION_TYPES.map((t) => (
                 <button key={t} type="button" className={btnGhost} onClick={() => setEditing({ ...editing, questions: [...editing.questions, emptyQuestion(t)] })}>+ {QUESTION_TYPE_LABELS[t]}</button>

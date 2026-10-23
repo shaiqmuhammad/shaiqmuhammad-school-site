@@ -38,6 +38,7 @@ import { AdminLmsHomework } from "@/components/lms/AdminLmsHomework";
 import { AdminMail } from "@/components/AdminMail";
 import { AdminClasses } from "@/components/lms/AdminClasses";
 import AdminQuizzes from "@/components/AdminQuizzes";
+import { syncQuizTopics } from "@/lib/quizTopics";
 import AdminCertificate from "@/components/AdminCertificate";
 import AdminBanners from "@/components/AdminBanners";
 import AdminHomepage from "@/components/AdminHomepage";
@@ -267,7 +268,7 @@ export default function AdminCms() {
     const jobs: { label: string; run: () => Promise<{ ok: boolean; error?: string; htmlUrl?: string }> }[] = [
       { label: "data.json", run: () => publishContentToGithub(data, token) },
       { label: "forum.json", run: () => publishForumToGithub(normalizeForum(forum), token) },
-      { label: "quizzes.json", run: () => publishJsonToGithub(GITHUB_QUIZZES_PATH, quizzesForPublish(quizzesData), token, "chore(quiz): publish quizzes.json") },
+      { label: "quizzes.json", run: async () => { const err = await syncQuizTopics(quizzesForPublish(quizzesData), lang); return err ? { ok: false, error: err } : publishJsonToGithub(GITHUB_QUIZZES_PATH, quizzesForPublish(quizzesData), token, "chore(quiz): publish quizzes.json"); } },
       { label: "quiz-results.json", run: () => publishJsonToGithub(GITHUB_QUIZ_RESULTS_PATH, normalizeResults(quizResults), token, "chore(quiz): publish quiz-results.json") },
       { label: "certificate.json", run: () => publishJsonToGithub(GITHUB_CERTIFICATE_PATH, normalizeCertificate(certificate), token, "chore(quiz): publish certificate.json") },
       { label: "banners.json", run: () => publishJsonToGithub(GITHUB_BANNERS_PATH, normalizeBanners(bannersData), token, "chore(banners): publish banners.json") },
