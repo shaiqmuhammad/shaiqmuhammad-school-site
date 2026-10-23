@@ -4,6 +4,7 @@ import { ThemeProvider as NextThemesProvider } from "next-themes";
 import type { ReactNode } from "react";
 import { LanguageProvider } from "@/lib/i18n";
 import { ThemeColor } from "@/components/ThemeColor";
+import { DomTranslator } from "@/components/DomTranslator";
 
 /**
  * Light by default; visitors can switch to dark with the header toggle.
@@ -13,7 +14,7 @@ import { ThemeColor } from "@/components/ThemeColor";
 export function ThemeProvider({ children }: { children: ReactNode }) {
   return (
     <NextThemesProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
-      <LanguageProvider><ThemeColor />{children}</LanguageProvider>
+      <LanguageProvider><ThemeColor /><DomTranslator />{children}</LanguageProvider>
     </NextThemesProvider>
   );
 }
