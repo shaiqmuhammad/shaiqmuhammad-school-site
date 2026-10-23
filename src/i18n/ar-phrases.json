@@ -401,5 +401,14 @@
 "🧑‍🏫 Home page teacher card": "🧑‍🏫 بطاقة المعلم في الصفحة الرئيسية",
 "Head of Arabic": "رئيس قسم العربية",
 "EN": "EN",
-"English language": "اللغة الإنجليزية"
+"English language": "اللغة الإنجليزية",
+"Drafts": "المسودات",
+"Junk": "البريد غير المرغوب",
+"Sent Items": "العناصر المرسلة",
+"Sent Messages": "الرسائل المرسلة",
+"Deleted Items": "العناصر المحذوفة",
+"Deleted Messages": "الرسائل المحذوفة",
+"Archive": "الأرشيف",
+"Notes": "الملاحظات",
+"You don't have permission for that.": "ليست لديك صلاحية لذلك."
 }

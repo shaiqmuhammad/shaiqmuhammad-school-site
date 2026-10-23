@@ -21,6 +21,7 @@ function rules(s: string): string | null {
     .replace(/\bTerm (\d+)\b/g, (_, n) => `الفصل ${n}`)
     .replace(/\b(?:Week|Wk) (\d+)\b/g, (_, n) => `الأسبوع ${n}`)
     .replace(/\b(January|February|March|April|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sept|Sep|Oct|Nov|Dec)\b/g, (m) => MONTHS[m])
+    .replace(/\bAED ([\d,]+)\b/g, (_, n) => `${n} درهم`)
     .replace(/\b(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b/g, (m) => DAYS[m]);
   return out === s ? null : out;
 }
