@@ -70,7 +70,7 @@ export function QrPage() {
           <>
             <header className="rounded-3xl bg-header px-5 py-5 text-center text-white shadow-lg">
               <p className="text-sm font-semibold tracking-wide text-sun">{d.homework.kind === "quran" ? tr("Quran homework", "واجب القرآن") : tr("Homework", "واجب")}</p>
-              <h1 className="mt-1 text-3xl font-extrabold text-white" dir="auto" data-testid="qr-student">{d.student}</h1>
+              <h1 className="mt-1 text-3xl font-extrabold text-white" dir="auto" data-testid="qr-student">{(lang === "ar" && d.studentAr?.trim()) || d.student}</h1>
               <p className="opacity-80">{[d.cls, d.section].filter(Boolean).join(" · ")}</p>
               <p className="mt-2 text-lg font-bold" dir="auto">
                 {d.homework.kind === "quran" && ch ? `${lang === "ar" ? `سورة ${ch.name_arabic}` : `Surah ${ch.name_simple}`} · ${verses(q)}` : d.homework.title}
