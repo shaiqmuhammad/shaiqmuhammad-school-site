@@ -236,6 +236,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   const setLang = useCallback((next: Lang) => {
     try {
       localStorage.setItem(LANG_STORAGE_KEY, next);
+      localStorage.setItem("sm-lang-chosen", "1"); // the person picked a language: never auto-switch it again
     } catch {
       // storage unavailable — still update this tab
     }
