@@ -623,7 +623,8 @@ export class LmsStore extends DurableObject<LmsEnv> {
       if (this.lockedFor(h, a.id)) return { status: 409, body: { error: "locked" } };
       let cur = this.sql.exec(`SELECT * FROM subs WHERE hw=? AND student=?`, h.id, a.id).toArray()[0];
       if (cur?.status === "approved") return { status: 409, body: { error: "already_approved" } };
-      if (cur?.status === "submitted") return { status: 409, body: { error: "already_submitted" } };
+      // t302: a submitted piece the teacher commented on (after the submit) can be answered by submitting again.
+      if (cur?.status === "submitted" && !(JSON.parse(String(cur.comments || "[]")) as { at?: number }[]).some((x) => Number(x.at || 0) > Number(cur.submitted_at || 0))) return { status: 409, body: { error: "already_submitted" } };
       if (!cur) {
         this.sql.exec(`INSERT INTO subs (id, hw, student, status, text, practised, updated) VALUES (?, ?, ?, 'draft', '', 0, ?)`, rid("s"), h.id, a.id, Date.now());
         cur = this.sql.exec(`SELECT * FROM subs WHERE hw=? AND student=?`, h.id, a.id).toArray()[0];
@@ -1753,7 +1754,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         if (this.lockedFor(h, a.id)) return { status: 409, body: { error: "locked" } };
         const cur = this.sql.exec(`SELECT * FROM subs WHERE hw=? AND student=?`, h.id, a.id).toArray()[0];
         if (cur?.status === "approved") return { status: 409, body: { error: "already_approved" } };
-      if (cur?.status === "submitted") return { status: 409, body: { error: "already_submitted" } };
+      if (cur?.status === "submitted" && !(JSON.parse(String(cur.comments || "[]")) as { at?: number }[]).some((x) => Number(x.at || 0) > Number(cur.submitted_at || 0))) return { status: 409, body: { error: "already_submitted" } };
         const status = input.submit === true ? "submitted" : cur?.status === "returned" ? "returned" : "draft";
         const text = str(input.text, 4000);
         const practised = input.practised === true ? 1 : 0;
@@ -1761,7 +1762,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         else this.sql.exec(`INSERT INTO subs (id, hw, student, status, text, practised, updated) VALUES (?, ?, ?, ?, ?, ?, ?)`, rid("s"), h.id, a.id, status, text, practised, Date.now());
         this.touch(a.id);
         if (status === "submitted") this.sql.exec(`UPDATE subs SET submitted_at=? WHERE hw=? AND student=?`, Date.now(), h.id, a.id);
-        if (status === "submitted" && cur?.status !== "submitted") this.notify([h.createdBy, "admin"], "sub_new", { hw: h.id, title: h.title, student: a.name });
+        if (status === "submitted") this.notify([h.createdBy, "admin"], "sub_new", { hw: h.id, title: h.title, student: a.name });
         return { status: 200, body: { ok: true, sub: this.sub(h.id, a.id) } };
       }
 

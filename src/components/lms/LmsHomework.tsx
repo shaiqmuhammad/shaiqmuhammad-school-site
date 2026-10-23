@@ -195,7 +195,9 @@ function StudentWork({ hw, sub, reload, chapters = [] }: { hw: Data["homework"];
   const [draftOk, setDraftOk] = useState(false);
   // The card remounts after a reload; keep the "submitted" success message across that remount.
   const [justSent] = useState(() => { try { const v = sessionStorage.getItem("sm_hw_sent") === hw.id; if (v) sessionStorage.removeItem("sm_hw_sent"); return v; } catch { return false; } });
-  const locked = sub?.status === "approved" || sub?.status === "submitted" || !!hw.locked;
+  // t302: after a teacher comment on a submitted piece the student can respond (edit and submit again).
+  const awaitingReply = sub?.status === "submitted" && (sub.comments || []).some((m) => (m.at || 0) > (sub.submittedAt || 0));
+  const locked = sub?.status === "approved" || (sub?.status === "submitted" && !awaitingReply) || !!hw.locked;
   const again = hw.kind === "quran" && sub?.grade === "red" && sub.status === "returned";
   const save = async (submit: boolean) => {
     setBusy(true);
