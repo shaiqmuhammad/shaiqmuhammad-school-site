@@ -123,6 +123,7 @@ export function Curriculum({ asAdmin, student = false }: { asAdmin: boolean; stu
         <select className={field} value={f.status} onChange={(e) => setF({ ...f, status: e.target.value })} aria-label={tr("Status", "الحالة")}><option value="">{tr("Any status", "أي حالة")}</option>{Object.keys(ST).map((k) => <option key={k} value={k}>{tr(...ST[k])}</option>)}</select>
         <input className={field + (student ? "" : " sm:col-span-2")} placeholder={tr("Search units & objectives…", "ابحث في الوحدات والأهداف…")} value={f.q} onChange={(e) => setF({ ...f, q: e.target.value })} dir="auto" data-testid="cur-search" />
       </div>
+      {items && <div className="mb-3 flex flex-wrap gap-1.5" role="tablist" aria-label={tr("Terms", "الفصول")} data-testid="cur-terms">{(["", ...TERMS] as string[]).map((t) => { const inT = (items || []).filter((i) => (!f.subject || i.subject === f.subject) && (!f.yr || i.yr === f.yr) && (!t || i.term === t)); const on = f.term === t; return <button key={t || "all"} type="button" role="tab" aria-selected={on} aria-pressed={on} data-testid="cur-term-tab" onClick={() => setF({ ...f, term: t })} className={`rounded-full border px-3 py-1.5 text-sm font-bold ${on ? "border-transparent bg-header text-sun" : "border-black/10 bg-white/80 dark:border-white/15 dark:bg-white/10"}`}>{t ? tr(t, t.replace("Term", "الفصل")) : tr("All terms", "كل الفصول")} <span className="text-xs opacity-70">({inT.length} · {inT.reduce((n, i) => n + (i.sc?.length || 0), 0)} SC)</span></button>; })}</div>}
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <Tabs testId="cur-view" value={view} onChange={setView} items={[["units", tr("Units", "الوحدات")], ["pacing", tr("Pacing by week", "التوزيع الأسبوعي")]]} />
         <span className="flex-1" />
@@ -139,7 +140,7 @@ export function Curriculum({ asAdmin, student = false }: { asAdmin: boolean; stu
               <h4 className="mb-2 text-base font-bold opacity-80">{yr}</h4>
               {TERMS.filter((t) => ts.has(t)).concat([...ts.keys()].filter((t) => !TERMS.includes(t))).map((t) => (
                 <div key={t} className="mb-3">
-                  <p className="mb-1 text-xs font-bold uppercase tracking-wide opacity-60">{t}</p>
+                  <p className="mb-1 text-xs font-bold uppercase tracking-wide opacity-60" data-testid="cur-term-head">{t} <span className="normal-case opacity-80">· {ts.get(t)!.length} {tr("units", "وحدات")} · {ts.get(t)!.reduce((n, u) => n + (u.sc?.length || 0), 0)} {tr("success criteria", "معايير نجاح")}</span></p>
                   {view === "pacing" ? (
                     <div className={cardCls + " overflow-x-auto !p-3"} data-testid="cur-pacing">
                       <div className="min-w-[640px]"><div className="grid gap-px text-center text-[10px] opacity-60" style={{ gridTemplateColumns: `10rem repeat(${WEEKS}, 1fr)` }}><span />{Array.from({ length: WEEKS }, (_, i) => <span key={i}>{i + 1}</span>)}</div>

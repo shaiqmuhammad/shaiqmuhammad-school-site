@@ -659,6 +659,19 @@ export class LmsStore extends DurableObject<LmsEnv> {
       case "me":
         return { status: 200, body: { user: a } };
 
+      case "names-set": {
+        // Admin only: correct a student's forename/surname spelling (username, PIN and login stay unchanged). items: [{id, firstName, lastName}]
+        if (a.role !== "admin" || a.viewAs) return { status: 403, body: { error: "forbidden" } };
+        const done: { id: string; from: string; to: string }[] = [];
+        for (const raw of (Array.isArray(input.items) ? (input.items as Json[]) : []).slice(0, 1000)) {
+          const u = this.userRow("id=?", str(raw.id, 40)); const fn = str(raw.firstName, 40), ln = str(raw.lastName, 40);
+          if (!u || u.role !== "student" || !fn) continue;
+          const to = `${fn} ${ln}`.trim();
+          this.sql.exec(`UPDATE users SET first_name=?, last_name=?, name=? WHERE id=?`, fn, ln, to, String(u.id));
+          done.push({ id: String(u.id), from: String(u.name), to });
+        }
+        return { status: 200, body: { ok: true, done } };
+      }
       case "targets-set": {
         // Admin only: set tracker Target / scaled score for students without touching other fields. items: [{id, target?, scaled?}]
         if (a.role !== "admin" || a.viewAs) return { status: 403, body: { error: "forbidden" } };
