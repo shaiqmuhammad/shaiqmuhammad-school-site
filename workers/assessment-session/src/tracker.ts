@@ -20,7 +20,7 @@ export type TrkCtx = {
   sql: Sql;
   inScope: (a: Actor, cls: string, section: string, sid?: string) => boolean;
   homework: () => Hw[];
-  tagged: (ids: string[]) => Promise<{ studentId: string; quizId: string; at: number; details: { sc?: string; earned: number; points: number }[] }[]>;
+  tagged: (ids: string[], quizIds: string[]) => Promise<{ studentId: string; quizId: string; at: number; details: { sc?: string; earned: number; points: number }[] }[]>;
 };
 type Reply = { status: number; body: unknown };
 
@@ -40,10 +40,14 @@ export type ASys = {
   quran: { red: string; yellow: string; green: string }; quranPattern: string;
   bands: number[]; // upper bound of the average for grade 1..7
   capTarget: boolean;
+  capExempt: string[]; // classes whose tracker has no Target−1 cap (the department Year 1 / FS2 files use the plain IF formula)
   scaled: [number, number, number][]; // [from, to, target]
   effort: string[]; targetList: string[]; attainList: string[];
   thresholds: number[];
   access: Record<TrkKey, boolean>;
+  isDefault: boolean; // the default system for its phase (one at a time per phase)
+  resub: "latest" | "best" | "first"; // which attempt counts when a weekly assessment is re-submitted
+  untagged: boolean; // a linked assessment with no SC tags gives its overall % to every SC of the unit (flagged)
   updated?: number; by?: string;
 };
 export const RIS_PRIMARY: ASys = {
@@ -51,11 +55,12 @@ export const RIS_PRIMARY: ASys = {
   scope: { phase: "Primary", years: ["Year 1", "Year 2", "Year 3", "Year 4", "Year 5", "Year 6"], subject: "Islamic B" },
   scale: [{ v: 0, label: "Working Below" }, { v: 1, label: "Working Towards" }, { v: 2, label: "Working At" }, { v: 3, label: "Greater Depth" }], key: KEY_TEXT,
   cut: [40, 60, 85], quran: { red: "1", yellow: "2", green: "3" }, quranPattern: "^Recit",
-  bands: [0.9, 1.4, 1.9, 2.2, 2.5, 2.8, 3], capTarget: true,
+  bands: [0.9, 1.4, 1.9, 2.2, 2.5, 2.8, 3], capTarget: true, capExempt: ["FS2", "Year 1"],
   scaled: [[67, 80, 2], [81, 93, 3], [94, 109, 4], [110, 120, 5], [121, 999, 6]],
   effort: ["Very Good", " Good ", "Average", " Weak", " Very weak", " "], targetList: ["7", "6", "5", "4", "3", "2", "1", "NA"], attainList: ["7", "6", "5", "4", "3", "2", "1", "NA", " "],
   thresholds: [4, 5],
   access: { view: true, edit: true, effort: true, xlsx: true, pdf: true, isams: true },
+  isDefault: true, resub: "latest", untagged: true,
 };
 
 export function trkInit(sql: Sql) {
@@ -81,11 +86,14 @@ function cleanSys(raw: Json, prev: ASys): ASys {
     cut: [cut[0], Math.max(cut[0], cut[1]), Math.max(cut[1], cut[2])] as [number, number, number],
     quran: { red: str(q.red ?? prev.quran.red, 2), yellow: str(q.yellow ?? prev.quran.yellow, 2), green: str(q.green ?? prev.quran.green, 2) },
     quranPattern: str(raw.quranPattern ?? prev.quranPattern, 80),
-    bands: bands.map((b, i) => (i ? Math.max(b, bands[i - 1]) : b)), capTarget: raw.capTarget === undefined ? prev.capTarget : !!raw.capTarget,
+    bands: bands.map((b, i) => (i ? Math.max(b, bands[i - 1]) : b)), capTarget: raw.capTarget === undefined ? prev.capTarget : !!raw.capTarget, capExempt: raw.capExempt === undefined ? prev.capExempt || [] : strs(raw.capExempt, [], 20),
     scaled: Array.isArray(raw.scaled) ? (raw.scaled as unknown[][]).slice(0, 10).map((r) => [num(r?.[0], 0, 0, 999), num(r?.[1], 0, 0, 999), num(r?.[2], 0, 0, 9)] as [number, number, number]) : prev.scaled,
     effort: raw.effort === undefined ? prev.effort : strs(raw.effort, prev.effort), targetList: raw.targetList === undefined ? prev.targetList : strs(raw.targetList, prev.targetList), attainList: raw.attainList === undefined ? prev.attainList : strs(raw.attainList, prev.attainList),
     thresholds: Array.isArray(raw.thresholds) ? [...new Set((raw.thresholds as unknown[]).map((x) => Math.round(num(x, 4, 1, 9))))].sort((a, b) => a - b).slice(0, 6) : prev.thresholds,
     access: Object.fromEntries(TRK_KEYS.map((k) => [k, acc[k] === undefined ? prev.access[k] : !!acc[k]])) as Record<TrkKey, boolean>,
+    isDefault: raw.isDefault === undefined ? prev.isDefault : !!raw.isDefault,
+    resub: ["latest", "best", "first"].includes(String(raw.resub)) ? (String(raw.resub) as ASys["resub"]) : prev.resub,
+    untagged: raw.untagged === undefined ? prev.untagged : !!raw.untagged,
   };
 }
 export function systems(sql: Sql): ASys[] {
@@ -94,7 +102,11 @@ export function systems(sql: Sql): ASys[] {
   if (!list.some((s) => s.id === RIS_PRIMARY.id)) list.unshift(RIS_PRIMARY);
   return list.map((s) => ({ ...RIS_PRIMARY, ...s, scope: { ...RIS_PRIMARY.scope, ...(s.scope || {}) }, access: { ...RIS_PRIMARY.access, ...(s.access || {}) } }));
 }
-const sysFor = (sql: Sql, cls: string) => systems(sql).find((s) => s.active && s.scope.years.includes(cls));
+/** The system for a class: an explicitly chosen one, else the default for that class's phase, else any active system covering the class. */
+const sysFor = (sql: Sql, cls: string, want = "") => {
+  const all = systems(sql).filter((s) => s.active && s.scope.years.includes(cls));
+  return (want && all.find((s) => s.id === want)) || all.find((s) => s.isDefault) || all[0];
+};
 export function trkAccess(sys: ASys | undefined, a: Actor): Record<TrkKey, boolean> {
   if (a.role === "admin") return Object.fromEntries(TRK_KEYS.map((k) => [k, true])) as Record<TrkKey, boolean>;
   const out = { ...(sys?.access || RIS_PRIMARY.access) };
@@ -103,40 +115,47 @@ export function trkAccess(sys: ASys | undefined, a: Actor): Record<TrkKey, boole
   return out;
 }
 export const scoreFromPct = (p: number, cut: number[]) => (p >= cut[2] ? 3 : p >= cut[1] ? 2 : p >= cut[0] ? 1 : 0);
-export function gradeOf(avg: number | null, target: string, sys: ASys): number | null {
+export const capsFor = (sys: ASys, cls: string) => sys.capTarget && !(sys.capExempt || []).includes(cls);
+export function gradeOf(avg: number | null, target: string, sys: ASys, cls = ""): number | null {
   if (avg == null) return null;
   let g = sys.bands.findIndex((b) => avg <= b + 1e-9) + 1;
   if (g <= 0) g = 7;
   const t = Number(target);
-  if (sys.capTarget && target && Number.isFinite(t)) g = Math.min(g, t - 1);
+  if (capsFor(sys, cls) && target && Number.isFinite(t)) g = Math.min(g, t - 1);
   return g;
 }
 export const targetFromScaledSys = (v: number, sys: ASys) => { const r = sys.scaled.find(([a, b]) => v >= a && v <= b); return r ? String(r[2]) : ""; };
 
 const TERMS = ["Term 1", "Term 2", "Term 3"];
-type Cell = { v: number | null; src: "quiz" | "quran" | "override" | ""; auto: number | null; autoSrc: string; by?: string; at?: number; note?: string };
+type Cell = { v: number | null; src: "quiz" | "quiz-all" | "quran" | "override" | ""; auto: number | null; autoSrc: string; by?: string; at?: number; note?: string };
 
 /** The grid for one class (and term, "" = whole year), limited to the students this actor may see. */
-async function grid(c: TrkCtx, a: Actor, cls: string, term: string) {
-  const sys = sysFor(c.sql, cls);
+async function grid(c: TrkCtx, a: Actor, cls: string, term: string, want = "") {
+  const sys = sysFor(c.sql, cls, want);
   if (!sys) return null;
   const students = c.sql.exec(`SELECT id, name, first_name, last_name, section, target, scaled, isams_id FROM users WHERE role='student' AND cls=? AND COALESCE(disabled,0)=0 ORDER BY name`, cls).toArray()
     .filter((s) => a.role === "admin" || c.inScope(a, cls, String(s.section || ""), String(s.id)))
     .map((s) => { const t = String(s.target || "") || (s.scaled ? targetFromScaledSys(Number(s.scaled), sys) : ""); return { id: String(s.id), name: String(s.name), first: String(s.first_name || ""), last: String(s.last_name || ""), target: t, targetSrc: s.target ? "profile" : t ? "scaled" : "", isamsId: String(s.isams_id || "") }; });
-  const units = c.sql.exec(`SELECT id, title, term, wk_from, sc, links, subject FROM cur WHERE yr=? ${sys.scope.subject ? "AND subject=?" : ""} ORDER BY term, wk_from, ord, title`, ...(sys.scope.subject ? [cls, sys.scope.subject] : [cls])).toArray()
+  const units = c.sql.exec(`SELECT id, title, term, wk_from, sc, links, subject, quiz, std FROM cur WHERE yr=? ${sys.scope.subject ? "AND subject=?" : ""} ORDER BY term, wk_from, ord, title`, ...(sys.scope.subject ? [cls, sys.scope.subject] : [cls])).toArray()
     .filter((u) => !term || String(u.term) === term)
-    .map((u) => { let sc: string[] = []; let links: { t: string; id: string }[] = []; try { sc = JSON.parse(String(u.sc || "[]")); } catch { /* */ } try { links = JSON.parse(String(u.links || "[]")); } catch { /* */ } return { id: String(u.id), title: String(u.title), term: String(u.term), wk: Number(u.wk_from) || 0, sc, links }; })
+    .map((u) => { let sc: string[] = []; let links: { t: string; id: string }[] = []; let std: { codes: string[]; skill: number } = { codes: [], skill: 0 }; try { sc = JSON.parse(String(u.sc || "[]")); } catch { /* */ } try { links = JSON.parse(String(u.links || "[]")); } catch { /* */ } try { std = { codes: [], skill: 0, ...JSON.parse(String(u.std || "{}")) }; } catch { /* */ } const quizzes = [...new Set([String(u.quiz || ""), ...links.filter((l) => l.t === "quiz").map((l) => l.id)].filter(Boolean))]; return { id: String(u.id), title: String(u.title), term: String(u.term), wk: Number(u.wk_from) || 0, sc, links, quizzes, std }; })
     .filter((u) => u.sc.length)
     .sort((x, y) => TERMS.indexOf(x.term) - TERMS.indexOf(y.term) || x.wk - y.wk);
   const ids = students.map((s) => s.id);
   const cells: Record<string, Cell> = {};
   const key = (s: string, u: string, i: number) => `${s}|${u}|${i}`;
-  // Quiz: latest attempt per quiz for each tagged SC (sum of earned/points on that SC's questions).
+  // Quiz: per tagged SC, the attempt chosen by the re-submission rule (sum of earned/points on that SC's questions).
+  // Untagged attempts on the unit's linked (weekly) assessment give their overall % to every SC of that unit, flagged.
+  const pick = (prev: { at: number; e: number; p: number } | undefined, x: { at: number; e: number; p: number }) =>
+    !prev || (sys.resub === "first" ? x.at < prev.at : sys.resub === "best" ? x.e / x.p > prev.e / prev.p || (x.e / x.p === prev.e / prev.p && x.at > prev.at) : x.at > prev.at);
   const pct = new Map<string, { at: number; e: number; p: number }>();
-  if (ids.length) for (const r of await c.tagged(ids)) {
-    const per = new Map<string, { e: number; p: number }>();
-    for (const d of r.details) if (d.sc) { const x = per.get(d.sc) || { e: 0, p: 0 }; x.e += Number(d.earned) || 0; x.p += Number(d.points) || 0; per.set(d.sc, x); }
-    for (const [tag, x] of per) { const k = `${r.studentId}|${tag}`; const prev = pct.get(k); if (x.p > 0 && (!prev || r.at > prev.at)) pct.set(k, { at: r.at, ...x }); }
+  const whole = new Map<string, { at: number; e: number; p: number }>(); // `${student}|${unit}` from untagged linked assessments
+  const byQuiz = new Map<string, string[]>(); for (const u of units) for (const q of u.quizzes) byQuiz.set(q, [...(byQuiz.get(q) || []), u.id]);
+  if (ids.length) for (const r of await c.tagged(ids, [...byQuiz.keys()])) {
+    const per = new Map<string, { e: number; p: number }>(); let te = 0, tp = 0;
+    for (const d of r.details) { te += Number(d.earned) || 0; tp += Number(d.points) || 0; if (d.sc) { const x = per.get(d.sc) || { e: 0, p: 0 }; x.e += Number(d.earned) || 0; x.p += Number(d.points) || 0; per.set(d.sc, x); } }
+    for (const [tag, x] of per) { const k = `${r.studentId}|${tag}`; const v = { at: r.at, ...x }; if (x.p > 0 && pick(pct.get(k), v)) pct.set(k, v); }
+    if (!per.size && sys.untagged && tp > 0) for (const uid of byQuiz.get(r.quizId) || []) { const k = `${r.studentId}|${uid}`; const v = { at: r.at, e: te, p: tp }; if (pick(whole.get(k), v)) whole.set(k, v); }
   }
   // Quran: latest grade on Quran homework linked to the unit.
   const qhw = new Set(c.homework().filter((h) => h.kind === "quran").map((h) => h.id));
@@ -146,14 +165,14 @@ async function grid(c: TrkCtx, a: Actor, cls: string, term: string) {
     const qg = new Map<string, string>();
     if (hws.length && ids.length) for (const r of c.sql.exec(`SELECT student, grade, updated FROM subs WHERE hw IN (${hws.map(() => "?").join(",")}) AND grade != '' ORDER BY updated`, ...hws).toArray()) qg.set(String(r.student), String(r.grade));
     for (const s of students) u.sc.forEach((t, i) => {
-      const quizP = pct.get(`${s.id}|${u.id}#${i}`);
+      const tagP = pct.get(`${s.id}|${u.id}#${i}`), allP = tagP ? undefined : whole.get(`${s.id}|${u.id}`); const quizP = tagP || allP;
       const g = qg.get(s.id); const qv = g && re.test(t) ? (sys.quran as Record<string, string>)[g] : "";
       let auto: number | null = null, autoSrc = "";
       const qn = qv !== "" && qv !== undefined && Number.isFinite(Number(qv)) ? Number(qv) : null;
       if (qn != null && re.test(t)) { auto = qn; autoSrc = "quran"; }
-      else if (quizP) { auto = scoreFromPct((quizP.e / quizP.p) * 100, sys.cut); autoSrc = "quiz"; }
+      else if (quizP) { auto = scoreFromPct((quizP.e / quizP.p) * 100, sys.cut); autoSrc = tagP ? "quiz" : "quiz-all"; }
       else if (qn != null) { auto = qn; autoSrc = "quran"; }
-      cells[key(s.id, u.id, i)] = { v: auto, src: autoSrc as Cell["src"], auto, autoSrc, note: autoSrc === "quiz" && quizP ? `${Math.round((quizP.e / quizP.p) * 100)}%` : autoSrc === "quran" ? String(g) : undefined };
+      cells[key(s.id, u.id, i)] = { v: auto, src: autoSrc as Cell["src"], auto, autoSrc, note: autoSrc.startsWith("quiz") && quizP ? `${Math.round((quizP.e / quizP.p) * 100)}%` : autoSrc === "quran" ? String(g) : undefined };
     });
   }
   if (ids.length) for (const o of c.sql.exec(`SELECT * FROM trk_ov WHERE student IN (${ids.map(() => "?").join(",")})`, ...ids).toArray()) {
@@ -166,11 +185,14 @@ async function grid(c: TrkCtx, a: Actor, cls: string, term: string) {
   const results = students.map((s) => {
     const vals: number[] = []; for (const u of units) u.sc.forEach((_, i) => { const v = cells[key(s.id, u.id, i)]?.v; if (v != null && Number.isFinite(v)) vals.push(v); });
     const avg = vals.length ? vals.reduce((x, y) => x + y, 0) / vals.length : null;
-    const calc = gradeOf(avg, s.target, sys); const o = gov.get(s.id);
+    const calc = gradeOf(avg, s.target, sys, cls); const o = gov.get(s.id);
     return { id: s.id, avg, calc, grade: o ? (o.val === "" ? null : Number(o.val)) : calc, override: o ? { by: String(o.by_name || ""), at: Number(o.at) } : null, effort: String(eff.get(s.id)?.val ?? ""), n: vals.length };
   });
   return { sys, cls, term, students, units: units.map(({ links: _l, ...u }) => u), cells, results };
 }
+
+/** Each class once, with the system that applies to it (default for its phase). */
+const yearSystems = (sql: Sql) => { const seen = new Set<string>(); const out: { cl: string; s: ASys }[] = []; for (const s of systems(sql).filter((x) => x.active)) for (const cl of s.scope.years) { if (seen.has(cl)) continue; const d = sysFor(sql, cl); if (d) { seen.add(cl); out.push({ cl, s: d }); } } return out; };
 
 export async function trackerHandle(c: TrkCtx, a: Actor, action: string, input: Json): Promise<Reply> {
   const sql = c.sql;
@@ -180,7 +202,8 @@ export async function trackerHandle(c: TrkCtx, a: Actor, action: string, input: 
   switch (action) {
     case "asys-list": {
       const sys = systems(sql);
-      return { status: 200, body: { systems: a.role === "admin" ? sys : sys.map((s) => ({ id: s.id, name: s.name, version: s.version, active: s.active, scope: s.scope })), platform: "Shaiq Muhammad System", years: [...new Set(sys.filter((s) => s.active).flatMap((s) => s.scope.years))], access: trkAccess(sys.find((s) => s.active), a) } };
+      const repView = String(sql.exec(`SELECT v FROM settings WHERE k='rep_view'`).toArray()[0]?.v || "tracker");
+      return { status: 200, body: { repView, systems: a.role === "admin" ? sys : sys.map((s) => ({ id: s.id, name: s.name, version: s.version, active: s.active, isDefault: s.isDefault, scope: s.scope })), platform: "Shaiq Muhammad System", years: [...new Set(sys.filter((s) => s.active).flatMap((s) => s.scope.years))], access: trkAccess(sys.find((s) => s.active), a) } };
     }
     case "asys-save": {
       if (a.role !== "admin" || a.viewAs) return forbid();
@@ -188,16 +211,20 @@ export async function trackerHandle(c: TrkCtx, a: Actor, action: string, input: 
       const raw = (input.system || {}) as Json;
       if (input.remove) { if (id === RIS_PRIMARY.id) return { status: 400, body: { error: "cannot_remove_default" } }; sql.exec(`INSERT OR REPLACE INTO settings (k, v) VALUES ('asys', ?)`, JSON.stringify(list.filter((s) => s.id !== id))); return { status: 200, body: { ok: true } }; }
       const prev = list.find((s) => s.id === id) || { ...RIS_PRIMARY, id: id || rid("sys"), name: str(raw.name, 120) || "New system", active: false, scope: { phase: "", years: [], subject: "" } };
+      if (input.repView !== undefined) { sql.exec(`INSERT OR REPLACE INTO settings (k, v) VALUES ('rep_view', ?)`, input.repView === "percent" ? "percent" : "tracker"); if (!input.system) return { status: 200, body: { ok: true } }; }
       const next = { ...cleanSys(raw, prev), updated: Date.now(), by: a.name || "Admin" };
-      sql.exec(`INSERT OR REPLACE INTO settings (k, v) VALUES ('asys', ?)`, JSON.stringify(list.some((s) => s.id === next.id) ? list.map((s) => (s.id === next.id ? next : s)) : [...list, next]));
+      // One default at a time per phase: making this one default clears the others in the same phase.
+      let out = list.some((s) => s.id === next.id) ? list.map((s) => (s.id === next.id ? next : s)) : [...list, next];
+      if (next.isDefault) out = out.map((s) => (s.id !== next.id && (s.scope?.phase || "") === next.scope.phase ? { ...s, isDefault: false } : s));
+      sql.exec(`INSERT OR REPLACE INTO settings (k, v) VALUES ('asys', ?)`, JSON.stringify(out));
       return { status: 200, body: { ok: true, system: next } };
     }
     case "trk-get": case "trk-export": {
-      const sys = sysFor(sql, cls); const acc = trkAccess(sys, a);
+      const want = str(input.sys, 60); const sys = sysFor(sql, cls, want); const acc = trkAccess(sys, a);
       if (!sys) return { status: 404, body: { error: "no_system_for_class" } };
       if (!acc.view) return forbid("module_hidden");
       if (action === "trk-export") { const k = String(input.kind) as TrkKey; if (!["xlsx", "pdf", "isams"].includes(k) || !acc[k]) return forbid("export_not_allowed"); }
-      const g = await grid(c, a, cls, term);
+      const g = await grid(c, a, cls, term, want);
       if (!g || (a.role !== "admin" && !g.students.length)) return forbid("not_your_class");
       return { status: 200, body: { ...g, access: acc, sys: g.sys } };
     }
@@ -289,7 +316,7 @@ export async function trackerHandle(c: TrkCtx, a: Actor, action: string, input: 
       if (!t) return { status: 404, body: { error: "no_template" } };
       const tm = TERMS.includes(String(input.term)) ? String(input.term) : String(t.term || "");
       const classes: { cls: string; students: { id: string; first: string; last: string; name: string; isamsId: string; target: string; effort: string; grade: number | null }[] }[] = [];
-      for (const s of systems(sql).filter((x) => x.active)) for (const cl of s.scope.years) {
+      for (const { cl } of yearSystems(sql)) {
         const g = await grid(c, a, cl, tm); if (!g || !g.students.length) continue;
         classes.push({ cls: cl, students: g.students.map((st) => { const r = g.results.find((x) => x.id === st.id)!; return { id: st.id, first: st.first, last: st.last, name: st.name, isamsId: st.isamsId, target: st.target, effort: r.effort, grade: r.grade }; }) });
       }
@@ -302,11 +329,11 @@ export async function trackerHandle(c: TrkCtx, a: Actor, action: string, input: 
     }
     case "trk-summary": {
       // Department Report: tracker attainment grades & progress (vs Target, term to term) per Primary year group.
-      const out: { system: string; years: { year: string; term: string; students: number; graded: number; thresholds: Record<string, number>; onTarget: number; close: number; below: number; up: number; same: number; down: number; avg: number | null }[] } = { system: "", years: [] };
-      const sysA = systems(sql).filter((s) => s.active);
-      out.system = sysA.map((s) => `${s.name} v${s.version}`).join(", ");
+      const out: { system: string; years: { year: string; term: string; students: number; graded: number; thresholds: Record<string, number>; onTarget: number; close: number; below: number; up: number; same: number; down: number; avg: number | null; skills: Record<string, { avg: number; n: number }> }[] } = { system: "", years: [] };
+      const ys = yearSystems(sql);
+      out.system = [...new Set(ys.map(({ s }) => `${s.name} v${s.version}`))].join(", ");
       const want = str(input.year, 40);
-      for (const s of sysA) for (const cl of s.scope.years) {
+      for (const { cl, s } of ys) {
         if (want && cl !== want) continue;
         let prev: Map<string, number | null> | null = null;
         for (const tm of TERMS) {
@@ -317,10 +344,14 @@ export async function trackerHandle(c: TrkCtx, a: Actor, action: string, input: 
           let onT = 0, close = 0, below = 0, up = 0, same = 0, down = 0;
           for (const r of graded) {
             const st = g.students.find((x) => x.id === r.id)!; const tg = Number(st.target);
-            if (st.target && Number.isFinite(tg)) { const d = (r.grade as number) - (s.capTarget ? tg - 1 : tg); if (d >= 0) onT++; else if (d === -1) close++; else below++; }
+            if (st.target && Number.isFinite(tg)) { const d = (r.grade as number) - (capsFor(s, cl) ? tg - 1 : tg); if (d >= 0) onT++; else if (d === -1) close++; else below++; }
             const p = prev?.get(r.id); if (p != null) { if ((r.grade as number) > p) up++; else if ((r.grade as number) === p) same++; else down++; }
           }
-          if (graded.length || g.units.length) out.years.push({ year: cl, term: tm, students: g.students.length, graded: graded.length, thresholds: th, onTarget: onT, close, below, up, same, down, avg: graded.length ? graded.reduce((x, r) => x + (r.grade as number), 0) / graded.length : null });
+          // Breakdown by the six UAE main skills (domains): mean SC score 0–3 over all scored cells of units linked to that skill.
+          const sk: Record<string, { sum: number; n: number }> = {};
+          for (const u of g.units) { const k = String(u.std?.skill || 0); if (k === "0") continue; for (const st of g.students) u.sc.forEach((_, i) => { const v = g.cells[`${st.id}|${u.id}|${i}`]?.v; if (v != null) { const x = sk[k] || { sum: 0, n: 0 }; x.sum += v; x.n++; sk[k] = x; } }); }
+          const skills = Object.fromEntries(Object.entries(sk).map(([k, x]) => [k, { avg: x.sum / x.n, n: x.n }]));
+          if (graded.length || g.units.length) out.years.push({ year: cl, term: tm, students: g.students.length, graded: graded.length, thresholds: th, onTarget: onT, close, below, up, same, down, avg: graded.length ? graded.reduce((x, r) => x + (r.grade as number), 0) / graded.length : null, skills });
           prev = gr;
         }
       }

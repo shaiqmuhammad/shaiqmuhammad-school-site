@@ -645,7 +645,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
       const RES = (this.env as unknown as { RESULTS?: DurableObjectNamespace }).RESULTS;
       const memo = new Map<string, Promise<unknown>>();
       return trackerHandle({ sql: this.sql as never, inScope: (x, c2, s2, i) => this.inScope(x, c2, s2, i), homework: () => this.allHomework().map((h) => ({ id: h.id, kind: h.kind })),
-        tagged: (ids) => { const k = ids.join(","); if (!memo.has(k)) memo.set(k, RES ? (RES.get(RES.idFromName("main")) as unknown as { scTagged(i: string[]): Promise<unknown> }).scTagged(ids) : Promise.resolve([])); return memo.get(k) as never; } }, a, action, input);
+        tagged: (ids, qids) => { const k = ids.join(",") + "/" + qids.join(","); if (!memo.has(k)) memo.set(k, RES ? (RES.get(RES.idFromName("main")) as unknown as { scTagged(i: string[], q: string[]): Promise<unknown> }).scTagged(ids, qids) : Promise.resolve([])); return memo.get(k) as never; } }, a, action, input);
     }
     if (/^(att|beh|cur)-/.test(action)) return modHandle({ sql: this.sql, hwList: () => this.allHomework().map((h) => ({ id: h.id, title: h.title, kind: h.kind, cls: h.cls, section: h.section, students: h.students, createdBy: h.createdBy })), inScope: (x, c, s, i) => this.inScope(x, c, s, i), userRow: (w, g) => this.userRow(w, g) }, action, a, input);
     switch (action) {
