@@ -1,5 +1,6 @@
 "use client";
 
+import { TrkLink } from "@/components/tracker/TrkLink";
 import { useRouter } from "next/navigation";
 import { PaperDownloads } from "@/components/assessment/PaperDownloads";
 import { useMemo, useState, type FormEvent, type ReactNode } from "react";
@@ -218,6 +219,7 @@ export default function AdminQuizzes({ setStatus, onNeedToken, data, setData, re
             <div className="min-w-0">
               <p className="font-medium">{quiz.title}{quiz.titleAr ? <span className="ms-2 text-sm text-muted" dir="rtl">{quiz.titleAr}</span> : null}</p>
               <p className="text-xs text-muted">{quiz.year ? `Year ${quiz.year} · ` : ""}{isSowSeed(quiz.id) ? "SOW · " : ""}/assessments/{quiz.slug} · {quiz.questions.length} Qs · {quiz.timeLimitMinutes || "no"} min</p>
+              <div className="mt-1"><TrkLink id={quiz.slug} asAdmin /></div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <FlagSwitch

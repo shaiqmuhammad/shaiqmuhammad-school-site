@@ -1,5 +1,6 @@
 "use client";
 
+import { TrkLink } from "@/components/tracker/TrkLink";
 import { useCallback, useEffect, useState } from "react";
 import { exportAllHomeworkZip } from "@/components/lms/lmsFiles";
 import { AudioClip } from "@/components/lms/Audio";
@@ -47,6 +48,7 @@ export function AdminLmsHomework() {
               <div className="flex flex-wrap items-center gap-2">
                 <span aria-hidden>{h.kind === "quran" ? "📖" : "📝"}</span>
                 <b className="min-w-0 flex-1" dir="auto">{h.title}</b>
+                {h.kind === "quran" && <TrkLink id={h.id} kind="hw" asAdmin />}
                 <span className="text-sm opacity-70">{h.students.length ? tr(`${h.students.length} students`, `${h.students.length} طلاب`) : [h.cls, h.section].filter(Boolean).join(" · ") || tr("All students", "كل الطلاب")}</span>
                 <span className="text-sm opacity-70">{Object.entries(h.counts || {}).map(([k, n]) => `${statusLabel(k as never, tr)}: ${n}`).join(" · ") || tr("no work yet", "لا يوجد عمل بعد")}</span>
                 <button type="button" className={smallBtn} aria-expanded={open === h.id} onClick={() => { if (open === h.id) { setOpen(null); return; } setOpen(h.id); setDetail(null); lmsApi.homework(h.id, true).then(setDetail).catch(fail); }} data-testid="admin-hw-open">

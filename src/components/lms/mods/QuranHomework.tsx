@@ -1,5 +1,6 @@
 "use client";
 
+import { TrkLink } from "@/components/tracker/TrkLink";
 import { useCallback, useEffect, useState } from "react";
 import { AssessmentShell } from "@/components/assessment/AssessmentShell";
 import { HomeworkEditor } from "@/components/lms/HomeworkEditor";
@@ -54,6 +55,7 @@ function QuranHomework() {
           {items.map((h) => { const qd = h.data as QuranData; const c = h.counts || {}; return (
             <article key={h.id} className={cardCls} data-testid="qhw-item">
               <p className="text-lg font-extrabold" dir="auto">📖 {h.title}</p>
+              <TrkLink id={h.id} kind="hw" />
               <p className="text-sm opacity-80">{sn(qd.surah)} · {qd.from}–{qd.to}</p>
               <p className="mt-1 text-xs opacity-70">{[h.cls, h.section].filter(Boolean).join(" · ") || tr("Selected students", "طلاب محددون")}{h.due ? ` · ⏰ ${new Date(h.due).toLocaleDateString(lang === "ar" ? "ar" : "en-GB")}` : ""}</p>
               <p className="mt-2 flex flex-wrap gap-1.5 text-xs font-bold"><span className="rounded-full bg-slate-200 px-2 py-0.5 text-slate-800 dark:bg-white/10 dark:text-white">{tr("Assigned", "مُسند")} {h.assigned ?? 0}</span><span className="rounded-full bg-amber-100 px-2 py-0.5 text-amber-900">{tr("Submitted", "مُسلَّم")} {c.submitted || 0}</span><span className="rounded-full bg-emerald-100 px-2 py-0.5 text-emerald-900">{tr("Approved", "مقبول")} {c.approved || 0}</span></p>

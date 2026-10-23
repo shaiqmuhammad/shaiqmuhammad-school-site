@@ -1,5 +1,6 @@
 "use client";
 
+import { TrkLink } from "@/components/tracker/TrkLink";
 import { CurChip } from "@/components/lms/mods/CurChip";
 import { useEffect, useState } from "react";
 import { AssessmentShell } from "@/components/assessment/AssessmentShell";
@@ -68,7 +69,7 @@ function StudentAssigned({ quizzes, tr, lang }: { quizzes: Quiz[]; tr: Tr; lang:
           {items.map((a) => (
             <li key={a.id} className="glass flex flex-col gap-3 rounded-3xl p-5" data-testid="lms-assess-card" data-mode={a.mode}>
               <div className="min-w-0"><p className="truncate text-lg font-bold" dir="auto">{name(a)}</p>
-                <p className="text-xs opacity-70">{a.by}{a.due ? ` · ⏰ ${new Date(a.due).toLocaleDateString(lang === "ar" ? "ar" : "en-GB")}` : ""}</p><div className="mt-1"><CurChip type="quiz" id={a.quiz} /></div></div>
+                <p className="text-xs opacity-70">{a.by}{a.due ? ` · ⏰ ${new Date(a.due).toLocaleDateString(lang === "ar" ? "ar" : "en-GB")}` : ""}</p><div className="mt-1 flex flex-wrap items-center gap-1.5"><CurChip type="quiz" id={a.quiz} /><TrkLink id={a.quiz} student /></div></div>
               <div className="mt-auto">
                 {a.mode === "group"
                   ? <p className="rounded-2xl bg-sky-50 px-3 py-2 text-sm font-semibold text-sky-900 dark:bg-sky-900/30 dark:text-sky-100" data-testid="lms-assess-group">👩‍🏫 {tr("Led by your teacher — join when your teacher starts (use the code above).", "يقوده معلمك — انضم عندما يبدأ معلمك (استخدم الرمز أعلاه).")}</p>
@@ -96,7 +97,7 @@ function TeacherAssess({ quizzes, tr }: { quizzes: Quiz[]; tr: Tr }) {
   const card = (id: string, title: string, own: boolean) => (
     <li key={id} className="glass flex flex-col gap-3 rounded-3xl p-5" data-testid={own ? "tquiz-card" : "lms-assess-card"}>
       <p className="truncate text-lg font-bold" dir="auto">{own ? "✏️ " : ""}{title || tr("Untitled", "بدون عنوان")}</p>
-      <CurChip type="quiz" id={id} />
+      <div className="flex flex-wrap items-center gap-1.5"><CurChip type="quiz" id={id} /><TrkLink id={id} /></div>
       <div className="mt-auto flex flex-wrap gap-2">
         <button type="button" className="rounded-full bg-header px-3 py-1.5 text-xs font-bold text-white" onClick={() => setAssignFor(assignFor === id ? null : id)} data-testid="lms-assess-assign">📌 {tr("Assign", "إسناد")}</button>
         <button type="button" className="rounded-full bg-sun px-3 py-1.5 text-xs font-bold text-[#0b1b2b]" onClick={() => host(id)} data-testid="lms-assess-host">▶ {tr("Start group session", "بدء جلسة جماعية")}</button>
