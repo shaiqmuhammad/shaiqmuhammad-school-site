@@ -1,4 +1,5 @@
 "use client";
+import { AdminScopeBar, useAdminScope } from "@/components/AdminScope";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getServerSession } from "@/lib/adminServer";
@@ -66,7 +67,8 @@ export function AdminResults({ quizzes }: { quizzes: Quiz[] }) {
   }, [load]);
 
   const years = useMemo(() => [...new Set(quizzes.map((x) => x.year).filter((y): y is number => typeof y === "number"))].sort((a, b) => a - b), [quizzes]);
-  const list = rows ?? [];
+  const scope = useAdminScope();
+  const list = (rows ?? []).filter((r) => r.kind === "group" ? !scope.active : scope.nameOk(r.name));
   const avg = list.length ? list.reduce((a, r) => a + r.percentage, 0) / list.length : 0;
 
   async function openRow(r: ResultRecord) {
@@ -169,6 +171,7 @@ export function AdminResults({ quizzes }: { quizzes: Quiz[] }) {
 
   return (
     <section className="space-y-5" data-testid="admin-results">
+      <AdminScopeBar count={`${list.length}`} />
       <div>
         <h2 className="text-xl font-extrabold">{tr("Results", "النتائج")}</h2>
         <p className="mt-1 text-sm text-muted">

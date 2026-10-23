@@ -1,4 +1,5 @@
 "use client";
+import { useAdminScope } from "@/components/AdminScope";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Avatar } from "@/components/lms/Avatar";
@@ -32,16 +33,18 @@ export function StudentLogins({ asAdmin, perms = [] }: { asAdmin: boolean; perms
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load(); }, [load]);
   const classes = useMemo(() => [...new Set((items || []).map((s) => [s.cls, s.section].join("|")))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })), [items]);
+  const scope = useAdminScope();
+  const sids = asAdmin ? scope.studentIds : null;
   const sections = useMemo(() => {
     const ok = (s: LoginCard) => !q || `${s.name} ${s.username}`.toLowerCase().includes(q.toLowerCase());
-    const all = items || [];
+    const all = (items || []).filter((s) => !sids || sids.has(s.id));
     const out = groups.filter((g) => !gsel || g.id === gsel).map((g) => ({ id: g.id, title: grpLabel(g), students: all.filter((s) => g.students.includes(s.id) && ok(s)) }));
     const inAny = new Set(groups.flatMap((g) => g.students));
     const rest = all.filter((s) => !inAny.has(s.id) && ok(s));
     if (!gsel && rest.length) out.push({ id: "_other", title: tr("Other students", "طلاب آخرون"), students: rest });
     return out;
-  }, [items, groups, gsel, q, tr]);
-  const list = useMemo(() => byGroup ? [...new Map(sections.flatMap((x) => x.students).map((s) => [s.id, s])).values()] : (items || []).filter((s) => (!cls || `${s.cls}|${s.section}` === cls || s.cls === cls) && (!q || `${s.name} ${s.username}`.toLowerCase().includes(q.toLowerCase()))), [items, cls, q, byGroup, sections]);
+  }, [items, groups, gsel, q, tr, sids]);
+  const list = useMemo(() => byGroup ? [...new Map(sections.flatMap((x) => x.students).map((s) => [s.id, s])).values()] : (items || []).filter((s) => (!sids || sids.has(s.id)) && (!cls || `${s.cls}|${s.section}` === cls || s.cls === cls) && (!q || `${s.name} ${s.username}`.toLowerCase().includes(q.toLowerCase()))), [items, cls, q, byGroup, sections, sids]);
   const classOnly = useMemo(() => [...new Set((items || []).map((s) => s.cls))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })), [items]);
   const regen = async (s: LoginCard) => {
     if (!confirm(tr(`Make a new QR code for ${s.name}? The old printed QR will stop working.`, `إنشاء رمز QR جديد لـ ${s.name}؟ سيتوقف الرمز المطبوع القديم.`))) return;
