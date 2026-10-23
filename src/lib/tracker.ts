@@ -250,11 +250,13 @@ export async function fillIsams(b64: string, classes: { cls: string; students: I
       xml = rebuildRows(xml, hr, roster, head);
     }
     for (let r = hr + 1; r < hr + 400; r++) {
-      const sid = val(`A${r}`).trim(); if (!sid) break;
+      const sid = val(`A${r}`).trim();
       const sur = val(`${head.Surname || "D"}${r}`), fore = val(`${head.Forename || "E"}${r}`);
+      // t295: a pupil without an iSAMS SchoolID (e.g. new FS2 pupils) is still a row; stop only at a fully empty row.
+      if (!sid && !sur.trim() && !fore.trim()) break;
       const st = cl?.students.find((s) => s.isamsId && s.isamsId === sid) || cl?.students.find((s) => norm(`${s.first} ${s.last}`) === norm(`${fore} ${sur}`) || norm(s.name) === norm(`${fore} ${sur}`));
       if (!st) { rep.unmatched.push(`${fore} ${sur}`); continue; }
-      rep.matched++; if (st.isamsId !== sid) rep.learnedIds.push({ id: st.id, schoolId: sid });
+      rep.matched++; if (sid && st.isamsId !== sid) rep.learnedIds.push({ id: st.id, schoolId: sid });
       // Every matched pupil gets the tracker's values; a value the tracker doesn't have is left blank (never the template's old value).
       if (yr === "FS2" && !st.target) st.target = "7"; // t295: FS2 Target is 7
       if (cT) xml = st.target ? setCell(xml, `${cT}${r}`, st.target) : clearCell(xml, `${cT}${r}`);
