@@ -277,8 +277,9 @@ export async function exportAllHomeworkZip(asAdmin: boolean) {
 }
 
 /** Per-student QR cards (A5, one page each). The QR opens the read-only token page /q?t=… — no username/PIN. */
-export async function studentQrCardsPdf(hw: Homework, opts: { surahEn?: string; surahAr?: string; verses?: string; teacher: string; links: { name: string; cls: string; section: string; token: string }[] }) {
+export async function studentQrCardsPdf(hw: Homework, opts: { surahEn?: string; surahAr?: string; verses?: string; teacher: string; links: { name: string; nameAr?: string; cls: string; section: string; token: string }[]; lang?: string; mode?: "auto" | "ar" | "en" | "both" }) {
   const W = 1240, H = 1748;
+  const { pickName } = await import("@/lib/studentName");
   const { jsPDF } = await import("jspdf");
   const pdf = new jsPDF({ unit: "mm", format: "a5" });
   const origin = window.location.origin;
@@ -294,8 +295,15 @@ export async function studentQrCardsPdf(hw: Homework, opts: { surahEn?: string; 
     g.textAlign = "center";
     g.fillStyle = "#f2c14e"; g.font = "bold 54px system-ui, sans-serif";
     g.fillText(hw.kind === "quran" ? "Quran homework · واجب القرآن" : "Homework · واجب", W / 2, 168);
-    g.fillStyle = "#16324f"; g.font = "bold 76px system-ui, sans-serif";
-    g.fillText(l.name.slice(0, 32), W / 2, 340);
+    // Student name: Arabic, English or both per the admin setting (Arabic shaped by the canvas, RTL).
+    const shown = pickName(l.name, l.nameAr, opts.lang || "en", opts.mode || "auto");
+    const isAr = /[\u0600-\u06FF]/.test(shown);
+    g.fillStyle = "#16324f"; g.font = isAr ? "bold 70px 'Noto Naskh Arabic', Amiri, 'Segoe UI', system-ui, sans-serif" : "bold 76px system-ui, sans-serif";
+    g.direction = isAr ? "rtl" : "ltr";
+    let nm = shown.slice(0, 60);
+    while (nm.length > 4 && g.measureText(nm).width > W - 180) nm = nm.slice(0, -1);
+    g.fillText(nm, W / 2, 340);
+    g.direction = "ltr";
     g.font = "40px system-ui, sans-serif"; g.fillStyle = "#3b5770";
     g.fillText([l.cls, l.section].filter(Boolean).join(" · "), W / 2, 400);
     if (hw.kind === "quran" && opts.surahAr) {
