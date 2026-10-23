@@ -6,7 +6,7 @@ import { useState, type ReactNode } from "react";
 import { Card } from "@/components/Card";
 import { CardCarousel } from "@/components/CardCarousel";
 import { localizedDescription, localizedTitle, useAssessmentText } from "@/lib/assessmentI18n";
-import { quizMaxScore, type Quiz } from "@/lib/quiz";
+import { quizMaxScore, topicLabel, type Quiz } from "@/lib/quiz";
 
 /** Assessment cards (localized) — used on /assessments and the home page. */
 export function AssessmentCards({ quizzes, showJoin = false, yearFilter = false, carousel = false, heading, moreHref }: { quizzes: Quiz[]; showJoin?: boolean; yearFilter?: boolean; carousel?: boolean; heading?: ReactNode; moreHref?: string }) {
@@ -55,6 +55,7 @@ export function AssessmentCards({ quizzes, showJoin = false, yearFilter = false,
           <div className="flex flex-1 flex-col p-5">
             {quiz.year ? <p className="mb-1 eyebrow">{yearLabel(quiz.year)}</p> : null}
             <h3 className="text-lg font-extrabold">{localizedTitle(quiz, lang)}</h3>
+            {quiz.topicInfo && <p className="mt-2 text-xs font-semibold text-primary" dir="auto" data-testid="card-topic">🔗 {topicLabel(quiz.topicInfo, lang)}</p>}
             {localizedDescription(quiz, lang) && (
               <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-muted">{localizedDescription(quiz, lang)}</p>
             )}

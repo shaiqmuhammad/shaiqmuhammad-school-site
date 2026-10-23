@@ -24,6 +24,7 @@ import {
   type Quiz,
   type QuizQuestion,
   type QuizResult,
+  topicLabel,
 } from "@/lib/quiz";
 
 type Props = {
@@ -183,6 +184,7 @@ export function QuizPlayer({ quiz, initialTemplate, initialResults }: Props) {
             ) : null}
             <p className="text-sm font-bold uppercase tracking-widest text-teal-700 dark:text-teal-300">{a("assessment")}</p>
             <h1 className="mt-2 text-3xl font-bold tracking-tight text-teal-950 dark:text-white sm:text-5xl">{title}</h1>
+            {quiz.topicInfo && <p className="mt-3 text-sm font-semibold text-emerald-800 dark:text-emerald-200" dir="auto" data-testid="player-topic">🔗 {topicLabel(quiz.topicInfo, lang)}</p>}
             {localizedDescription(quiz, lang) && (
               <p className="mt-4 text-lg leading-relaxed text-slate-600 dark:text-emerald-100/80">{localizedDescription(quiz, lang)}</p>
             )}

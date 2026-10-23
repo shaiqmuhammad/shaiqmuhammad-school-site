@@ -9,6 +9,8 @@ import { WhoPicker, useWho } from "@/components/lms/WhoPicker";
 import { lmsApi, lmsErrorText, type Assignment } from "@/lib/lms";
 import { defaultCertificate, emptyQuestion, loadQuizzesData, normalizeQuiz, type Quiz } from "@/lib/quiz";
 import { useTr } from "@/components/lms/useLms";
+import { TopicContext, TopicPicker } from "@/components/tracker/TopicPicker";
+import { useI18n } from "@/lib/i18n";
 
 const qp = (k: string) => (typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get(k) || "");
 const inputCls = "w-full rounded-2xl border border-black/10 bg-white/90 px-3 py-2 text-sm dark:border-white/15 dark:bg-white/5";
@@ -37,6 +39,7 @@ export function LmsQuizPage() {
 /** Teacher (or admin) assessment editor: same question editor as admin, no-typing types, 5-minute default, picture. */
 export function LmsQuizEditPage() {
   const { tr } = useTr();
+  const { lang } = useI18n();
   const asAdmin = qp("admin") === "1";
   const [q, setQ] = useState<Quiz | null>(null);
   const [status, setStatus] = useState("");
@@ -48,6 +51,7 @@ export function LmsQuizEditPage() {
   }, [asAdmin, tr]);
   const save = async () => {
     if (!q?.title.trim()) { setStatus(tr("Add a title first.", "أضف عنوانًا أولًا.")); return; }
+    if (!q.topic) { setStatus(tr("Choose the curriculum topic first (Year › Term › Week › Topic).", "اختر موضوع المنهج أولًا (السنة › الفصل › الأسبوع › الموضوع).")); return; }
     try { const r = await lmsApi.tquizSave({ ...q, updatedAt: new Date().toISOString() }, asAdmin); setQ({ ...q, id: r.id, slug: r.id }); setStatus(tr("Saved ✓", "تم الحفظ ✓")); history.replaceState(null, "", `?id=${r.id}${asAdmin ? "&admin=1" : ""}`); } catch (e) { setStatus(lmsErrorText(e, tr)); }
   };
   const pic = (f: File) => { const r = new FileReader(); r.onload = () => q && setQ({ ...q, cardImage: String(r.result) }); r.readAsDataURL(f); };
@@ -65,11 +69,12 @@ export function LmsQuizEditPage() {
               <div className="mt-1 flex items-center gap-3">{q.cardImage && <img src={q.cardImage} alt="" className="h-12 w-16 rounded-lg object-cover" />}<label className="cursor-pointer rounded-full border border-black/10 px-3 py-1.5 text-xs dark:border-white/15">⬆ {tr("Upload", "رفع")}<input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && pic(e.target.files[0])} /></label></div>
             </div>
           </div>
-          {q.questions.map((qq, i) => (
+          <TopicPicker lang={lang} value={q.topic} onChange={(topic, info) => setQ({ ...q, topic: topic || undefined, topicInfo: info })} />
+          <TopicContext.Provider value={q.topic}>{q.questions.map((qq, i) => (
             <div key={qq.id || i} className="glass rounded-3xl p-4">
               <AdminQuestionEditor q={qq} idx={i} setStatus={setStatus} onChange={(n) => setQ({ ...q, questions: q.questions.map((x, j) => (j === i ? n : x)) })} onRemove={() => setQ({ ...q, questions: q.questions.filter((_, j) => j !== i) })} onMoveUp={i ? () => { const n = [...q.questions]; [n[i - 1], n[i]] = [n[i], n[i - 1]]; setQ({ ...q, questions: n }); } : undefined} />
             </div>
-          ))}
+          ))}</TopicContext.Provider>
           <div className="flex flex-wrap items-center gap-2">
             <button type="button" className="rounded-full border border-black/10 px-4 py-2 text-sm font-bold dark:border-white/15" onClick={() => setQ({ ...q, questions: [...q.questions, emptyQuestion("multiple_choice")] })} data-testid="tquiz-add-q">＋ {tr("Add question", "إضافة سؤال")}</button>
             <span className="flex-1" />

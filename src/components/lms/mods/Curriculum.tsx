@@ -1,5 +1,6 @@
 "use client";
 
+import { useI18n } from "@/lib/i18n";
 import { DlGate } from "@/components/lms/DlGate";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AssessmentShell } from "@/components/assessment/AssessmentShell";
@@ -33,20 +34,24 @@ export function CurriculumPage() {
 
 /** Linked homework / assessment buttons, per role. Students only ever receive what is assigned to them. */
 function LinkRow({ u, student, tr, qTitle }: { u: CurUnit; student: boolean; tr: (en: string, ar: string) => string; qTitle: (s: string) => string }) {
+  const { lang } = useI18n();
   const ls = u.links || [];
+  // Site assessments open on their own page; teacher-made ones (tq_…) open inside the LMS.
+  const qHref = (id: string) => (id.startsWith("tq_") ? `/lms/quiz?id=${encodeURIComponent(id)}` : `/assessments/${encodeURIComponent(id)}`);
   if (!ls.length) return null;
   return (
     <div className="mt-2 space-y-1" data-testid="cur-links">
       {ls.map((l) => (
         <div key={`${l.t}:${l.id}`} className="flex flex-wrap items-center gap-2 rounded-xl bg-black/[0.03] px-2.5 py-1.5 text-xs dark:bg-white/5" data-testid="cur-link">
           <span aria-hidden>{l.t === "hw" ? "📝" : "🧪"}</span>
-          <span className="min-w-0 flex-1 truncate font-semibold" dir="auto">{l.title || (l.t === "quiz" ? qTitle(l.id) : "") || l.id}</span>
+          <span className="min-w-0 flex-1 truncate font-semibold" dir="auto">{(lang === "ar" && l.titleAr) || l.title || (l.t === "quiz" ? qTitle(l.id) : "") || l.id}</span>
+          {!student && l.t === "quiz" && l.pub === false && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-900" data-testid="cur-link-hidden">{tr("Hidden from students", "مخفي عن الطلاب")}</span>}
           <span className="rounded-full bg-black/5 px-2 py-0.5 text-[10px] font-bold uppercase dark:bg-white/10">{l.t === "hw" ? tr("Homework", "واجب") : tr("Assessment", "تقييم")}</span>
           {l.t === "hw"
             ? <a className="rounded-full bg-[var(--cta)] px-3 py-1 font-extrabold text-[var(--cta-foreground)]" href={`/lms/homework?id=${encodeURIComponent(l.id)}`} data-testid="cur-link-open">{student ? tr("Open", "افتح") : tr("Open", "افتح")}</a>
             : student && l.mode === "group"
               ? <span className="rounded-full bg-sky-100 px-2.5 py-1 font-bold text-sky-900">{tr("Led by your teacher", "بقيادة معلمك")}</span>
-              : <a className="rounded-full bg-[var(--cta)] px-3 py-1 font-extrabold text-[var(--cta-foreground)]" href={`/lms/quiz?id=${encodeURIComponent(l.id)}`} data-testid="cur-link-open">{student ? tr("Start", "ابدأ") : tr("Open", "افتح")}</a>}
+              : <a className="rounded-full bg-[var(--cta)] px-3 py-1 font-extrabold text-[var(--cta-foreground)]" href={qHref(l.id)} data-testid="cur-link-open">{student ? tr("Start", "ابدأ") : tr("Open", "افتح")}</a>}
         </div>
       ))}
     </div>
@@ -56,6 +61,7 @@ function LinkRow({ u, student, tr, qTitle }: { u: CurUnit; student: boolean; tr:
 /** Curriculum Management: subjects › year groups › terms › units, pacing by week, status, links, Excel import/export. */
 export function Curriculum({ asAdmin, student = false }: { asAdmin: boolean; student?: boolean }) {
   const { tr } = useTr();
+  const { lang } = useI18n();
   const { actor } = useLmsActor();
   const perm = modPerm(actor?.perms, asAdmin, "cur");
   const [items, setItems] = useState<CurUnit[] | null>(null);
@@ -146,19 +152,19 @@ export function Curriculum({ asAdmin, student = false }: { asAdmin: boolean; stu
                   {view === "pacing" ? (
                     <div className={cardCls + " overflow-x-auto !p-3"} data-testid="cur-pacing">
                       <div className="min-w-[640px]"><div className="grid gap-px text-center text-[10px] opacity-60" style={{ gridTemplateColumns: `10rem repeat(${WEEKS}, 1fr)` }}><span />{Array.from({ length: WEEKS }, (_, i) => <span key={i}>{i + 1}</span>)}</div>
-                        {ts.get(t)!.map((u) => <div key={u.id} className="mt-1 grid items-center gap-px" style={{ gridTemplateColumns: `10rem repeat(${WEEKS}, 1fr)` }}><span className="truncate pe-2 text-xs font-semibold" dir="auto">{u.title}</span>{Array.from({ length: WEEKS }, (_, i) => { const w = i + 1; const on = u.wkFrom && w >= u.wkFrom && w <= u.wkTo; return <span key={i} className={`h-5 ${on ? (u.status === "taught" ? "bg-emerald-600" : u.status === "in_progress" ? "bg-amber-500" : "bg-slate-400 dark:bg-slate-500") : "bg-black/5 dark:bg-white/5"} ${on && w === u.wkFrom ? "rounded-s" : ""} ${on && w === u.wkTo ? "rounded-e" : ""}`} />; })}</div>)}</div>
+                        {ts.get(t)!.map((u) => <div key={u.id} className="mt-1 grid items-center gap-px" style={{ gridTemplateColumns: `10rem repeat(${WEEKS}, 1fr)` }}><span className="truncate pe-2 text-xs font-semibold" dir="auto">{(lang === "ar" && u.titleAr) || u.title}</span>{Array.from({ length: WEEKS }, (_, i) => { const w = i + 1; const on = u.wkFrom && w >= u.wkFrom && w <= u.wkTo; return <span key={i} className={`h-5 ${on ? (u.status === "taught" ? "bg-emerald-600" : u.status === "in_progress" ? "bg-amber-500" : "bg-slate-400 dark:bg-slate-500") : "bg-black/5 dark:bg-white/5"} ${on && w === u.wkFrom ? "rounded-s" : ""} ${on && w === u.wkTo ? "rounded-e" : ""}`} />; })}</div>)}</div>
                     </div>
                   ) : (
                     <div className="grid gap-3 md:grid-cols-2">
                       {ts.get(t)!.map((u) => (
                         <article key={u.id} id={`u-${u.id}`} className={cardCls + (focus === u.id ? " ring-2 ring-[var(--cta)]" : "")} data-testid="cur-unit">
                           <div className="flex flex-wrap items-center gap-2">
-                            <h5 className="min-w-0 flex-1 text-base font-extrabold" dir="auto">{u.title}</h5>
+                            <h5 className="min-w-0 flex-1 text-base font-extrabold" dir="auto">{(lang === "ar" && u.titleAr) || u.title}</h5>
                             {u.wkFrom > 0 && <span className="rounded-full bg-black/5 px-2 py-0.5 text-xs font-bold dark:bg-white/10">{tr("Wk", "أسبوع")} {u.wkFrom}{u.wkTo > u.wkFrom ? `–${u.wkTo}` : ""}</span>}
                             {canEdit && !student ? <select className={`rounded-full border-0 px-2.5 py-1 text-xs font-bold ${STCLS[u.status]}`} value={u.status} onChange={(e) => setStatus(u.id, e.target.value)} aria-label={tr("Status", "الحالة")} data-testid="cur-status">{Object.keys(ST).map((k) => <option key={k} value={k}>{tr(...ST[k])}</option>)}</select> : <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${STCLS[u.status]}`}>{tr(...ST[u.status])}</span>}
                           </div>
                           {u.objectives && <ul className="mt-2 list-disc space-y-0.5 ps-5 text-sm" dir="auto">{u.objectives.split("\n").filter(Boolean).map((o, i) => <li key={i}>{o}</li>)}</ul>}
-                          {!!u.sc?.length && <details className="mt-2 rounded-xl bg-emerald-50 px-3 py-2 text-sm dark:bg-emerald-900/20" data-testid="cur-sc" open={student || undefined}><summary className="cursor-pointer text-xs font-extrabold text-emerald-900 dark:text-emerald-200">✅ {tr(`Success criteria (${u.sc.length})`, `معايير النجاح (${u.sc.length})`)}</summary><ol className="mt-1 list-decimal space-y-0.5 ps-5" dir="auto">{u.sc.map((x, i) => <li key={i} data-testid="cur-sc-item">{x}</li>)}</ol></details>}
+                          {!!u.sc?.length && <details className="mt-2 rounded-xl bg-emerald-50 px-3 py-2 text-sm dark:bg-emerald-900/20" data-testid="cur-sc" open={student || undefined}><summary className="cursor-pointer text-xs font-extrabold text-emerald-900 dark:text-emerald-200">✅ {tr(`Success criteria (${u.sc.length})`, `معايير النجاح (${u.sc.length})`)}</summary><ol className="mt-1 list-decimal space-y-0.5 ps-5" dir="auto">{u.sc.map((x, i) => <li key={i} data-testid="cur-sc-item">{(lang === "ar" && u.scAr?.[i]?.trim()) || x}</li>)}</ol></details>}
                           <StdView std={u.std} />
                           {!!u.lessons.length && <p className="mt-2 text-xs opacity-80"><b>{tr("Lessons", "الدروس")} ({u.lessons.length}):</b> {u.lessons.map((l) => l.title).join(" · ")}</p>}
                           {u.notes && <details className="mt-2 text-xs"><summary className="cursor-pointer font-bold opacity-70">{tr("Vocabulary & assessment ideas", "المفردات وأفكار التقييم")}</summary><p className="mt-1 whitespace-pre-line opacity-80" dir="auto">{u.notes}</p></details>}
@@ -192,7 +198,7 @@ function UnitEditor({ init, subjects, years, links, asAdmin, onClose, onSaved }:
   const lk: CurLink[] = u.links || [];
   const quizOpts = useMemo(() => { const m = new Map<string, string>(); for (const q of links.quizzes) m.set(q.slug, q.title); for (const q of opts.quizzes) if (q.title || !m.has(q.id)) m.set(q.id, q.title || m.get(q.id) || q.id); return [...m].map(([id, title]) => ({ id, title })); }, [links.quizzes, opts.quizzes]);
   const titleOf = (l: CurLink) => (l.t === "hw" ? opts.hw.find((x) => x.id === l.id)?.title : quizOpts.find((x) => x.id === l.id)?.title) || l.id;
-  const save = async () => { setBusy(true); setErr(""); try { await modCall("cur-save", { ...u, sc: (u.sc || []).map((x) => x.trim()).filter(Boolean), links: lk.map((l) => ({ t: l.t, id: l.id })) }, asAdmin); onSaved(); } catch (e) { setErr(modErr(e, tr)); } setBusy(false); };
+  const save = async () => { setBusy(true); setErr(""); try { await modCall("cur-save", { ...u, sc: (u.sc || []).map((x) => x.trim()).filter(Boolean), scAr: (u.scAr || []).map((x) => x.trim()), links: lk.map((l) => ({ t: l.t, id: l.id })) }, asAdmin); onSaved(); } catch (e) { setErr(modErr(e, tr)); } setBusy(false); };
   const lab = "block text-sm font-bold";
   const lessons = u.lessons || [], res = u.resources || [];
   return (
@@ -202,11 +208,13 @@ function UnitEditor({ init, subjects, years, links, asAdmin, onClose, onSaved }:
         <label className={lab}>{tr("Year group", "السنة")}<select className={field + " mt-1"} value={u.yr || ""} onChange={(e) => setU({ ...u, yr: e.target.value })} data-testid="cur-e-year">{years.map((s) => <option key={s}>{s}</option>)}</select></label>
         <label className={lab}>{tr("Term", "الفصل")}<select className={field + " mt-1"} value={u.term || "Term 1"} onChange={(e) => setU({ ...u, term: e.target.value })}>{TERMS.map((s) => <option key={s}>{s}</option>)}</select></label>
         <label className={lab + " sm:col-span-3"}>{tr("Unit / topic title", "عنوان الوحدة / الموضوع")}<input className={field + " mt-1"} value={u.title || ""} maxLength={160} onChange={(e) => setU({ ...u, title: e.target.value })} dir="auto" data-testid="cur-e-title" /></label>
+        <label className={lab + " sm:col-span-3"}>{tr("Arabic title", "العنوان بالعربية")}<input className={field + " mt-1"} value={u.titleAr || ""} maxLength={200} onChange={(e) => setU({ ...u, titleAr: e.target.value })} dir="rtl" data-testid="cur-e-title-ar" /></label>
         <label className={lab}>{tr("Week from", "من أسبوع")}<input type="number" min={0} max={60} className={field + " mt-1"} value={u.wkFrom || ""} onChange={(e) => setU({ ...u, wkFrom: Number(e.target.value), wkTo: Math.max(Number(e.target.value), u.wkTo || 0) })} data-testid="cur-e-wkfrom" /></label>
         <label className={lab}>{tr("Week to", "إلى أسبوع")}<input type="number" min={0} max={60} className={field + " mt-1"} value={u.wkTo || ""} onChange={(e) => setU({ ...u, wkTo: Number(e.target.value) })} data-testid="cur-e-wkto" /></label>
         <label className={lab}>{tr("Status", "الحالة")}<select className={field + " mt-1"} value={u.status || "planned"} onChange={(e) => setU({ ...u, status: e.target.value as CurUnit["status"] })}>{Object.keys(ST).map((k) => <option key={k} value={k}>{tr(...ST[k])}</option>)}</select></label>
         <label className={lab + " sm:col-span-3"}>{tr("Learning objectives (one per line)", "أهداف التعلم (هدف في كل سطر)")}<textarea className={field + " mt-1 min-h-24"} value={u.objectives || ""} onChange={(e) => setU({ ...u, objectives: e.target.value })} dir="auto" data-testid="cur-e-obj" /></label>
         <label className={lab + " sm:col-span-3"}>{tr("Success criteria (one per line — used by the assessment tracker)", "معايير النجاح (معيار في كل سطر — تُستخدم في متتبع التقييم)")}<textarea className={field + " mt-1 min-h-24"} value={(u.sc || []).join("\n")} onChange={(e) => setU({ ...u, sc: e.target.value.split("\n") })} dir="auto" placeholder={tr("e.g. Recite Surah Al-Fatiha correctly.", "مثال: يتلو سورة الفاتحة تلاوة صحيحة.")} data-testid="cur-e-sc" /></label>
+        <label className={lab + " sm:col-span-3"}>{tr("Success criteria in Arabic (same order, one per line — English is shown when a line is empty)", "معايير النجاح بالعربية (بنفس الترتيب، معيار في كل سطر — تظهر الإنجليزية إذا كان السطر فارغًا)")}<textarea className={field + " mt-1 min-h-24"} value={(u.scAr || []).join("\n")} onChange={(e) => setU({ ...u, scAr: e.target.value.split("\n") })} dir="rtl" data-testid="cur-e-sc-ar" /></label>
         <StdEditor yr={u.yr || ""} value={u.std} onChange={(std) => setU({ ...u, std })} />
         <div className="sm:col-span-3"><p className={lab}>{tr("Lessons", "الدروس")}</p>
           {lessons.map((l, i) => <div key={i} className="mt-1 flex gap-2"><input className={field} value={l.title} placeholder={tr("Lesson title", "عنوان الدرس")} onChange={(e) => setU({ ...u, lessons: lessons.map((x, j) => (j === i ? { ...x, title: e.target.value } : x)) })} dir="auto" data-testid="cur-e-lesson" /><button type="button" className={btn} onClick={() => setU({ ...u, lessons: lessons.filter((_, j) => j !== i) })} aria-label="Remove">✕</button></div>)}
@@ -218,7 +226,7 @@ function UnitEditor({ init, subjects, years, links, asAdmin, onClose, onSaved }:
           {lk.map((l) => <div key={`${l.t}:${l.id}`} className="mt-1 flex items-center gap-2 rounded-xl bg-black/[0.04] px-3 py-1.5 text-sm dark:bg-white/10" data-testid="cur-e-link"><span aria-hidden>{l.t === "hw" ? "📝" : "🧪"}</span><span className="min-w-0 flex-1 truncate" dir="auto">{l.title || titleOf(l)}</span><button type="button" className={btn + " !py-0.5"} onClick={() => setU({ ...u, links: lk.filter((x) => !(x.t === l.t && x.id === l.id)) })} aria-label="Remove">✕</button></div>)}
           <div className="mt-2 grid gap-2 sm:grid-cols-2">
             <select className={field} value="" onChange={(e) => { const o = opts.hw.find((x) => x.id === e.target.value); if (o) setU({ ...u, links: [...lk.filter((x) => !(x.t === "hw" && x.id === o.id)), { t: "hw", id: o.id, title: o.title }] }); }} data-testid="cur-e-addhw"><option value="">+ {tr("Add homework…", "إضافة واجب…")}</option>{opts.hw.filter((o) => !lk.some((x) => x.t === "hw" && x.id === o.id)).map((o) => <option key={o.id} value={o.id}>{o.title}{o.cls ? ` · ${o.cls}${o.section ? " " + o.section : ""}` : ""}</option>)}</select>
-            <select className={field} value="" onChange={(e) => { const o = quizOpts.find((x) => x.id === e.target.value); if (o) setU({ ...u, links: [...lk.filter((x) => !(x.t === "quiz" && x.id === o.id)), { t: "quiz", id: o.id, title: o.title }] }); }} data-testid="cur-e-addquiz"><option value="">+ {tr("Add assessment…", "إضافة تقييم…")}</option>{quizOpts.filter((o) => !lk.some((x) => x.t === "quiz" && x.id === o.id)).map((o) => <option key={o.id} value={o.id}>{o.title}</option>)}</select>
+            {!lk.some((x) => x.t === "quiz") && <select className={field} value="" onChange={(e) => { const o = quizOpts.find((x) => x.id === e.target.value); if (o) setU({ ...u, links: [...lk.filter((x) => !(x.t === "quiz" && x.id === o.id)), { t: "quiz", id: o.id, title: o.title }] }); }} data-testid="cur-e-addquiz"><option value="">+ {tr("Add assessment…", "إضافة تقييم…")}</option>{quizOpts.filter((o) => !lk.some((x) => x.t === "quiz" && x.id === o.id)).map((o) => <option key={o.id} value={o.id}>{o.title}</option>)}</select>}
           </div></div>
         <label className={lab + " sm:col-span-3"}>{tr("Notes (vocabulary, assessment ideas)", "ملاحظات (مفردات، أفكار للتقييم)")}<textarea className={field + " mt-1 min-h-16"} value={u.notes || ""} onChange={(e) => setU({ ...u, notes: e.target.value })} dir="auto" data-testid="cur-e-notes" /></label>
         <label className={lab + " sm:col-span-3"}>{tr("Linked lesson page", "صفحة الدرس المرتبطة")}<select className={field + " mt-1"} value={u.page || ""} onChange={(e) => setU({ ...u, page: e.target.value })} data-testid="cur-e-page"><option value="">—</option>{links.pages.map((q) => <option key={q.slug} value={q.slug}>{q.title}</option>)}</select></label>
