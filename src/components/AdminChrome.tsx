@@ -379,10 +379,12 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
             <Icon className="h-5 w-5"><path d="M4 7h16M4 12h16M4 17h16" /></Icon>
           </button>
           {logo("h-9 w-9")}
-          <span className="flex-1" />
+          {/* t294: icons scroll instead of widening the page at 390 (that pushed fixed side panels off-screen). */}
+          <div className="-my-2 ms-auto flex min-w-0 items-center gap-2 overflow-x-auto px-1 py-2 [scrollbar-width:none]" data-testid="admin-top-icons">
           <MsgIcon variant="glass" asAdmin onClick={() => onTab("messages")} />
           <MailIcon unread={mailUnread} onClick={() => onTab("mail")} label={tr("Mailbox", "البريد")} />
           <AdminToolbar variant="glass" onLogout={onLogout} bell={<LmsBell asAdmin testId="admin-bell" variant={"glass"} extra={onBell ? { count: pendingCount, label: tr(`${pendingCount} forum post${pendingCount === 1 ? "" : "s"} waiting for approval`, `${pendingCount} مشاركة في المنتدى بانتظار الموافقة`), onClick: onBell } : undefined} />} />
+          </div>
         </div>
         <div className="flex items-center justify-between gap-2 border-t border-black/5 px-3 py-1.5 dark:border-white/10" data-testid="admin-date-row"><GregPill tone="light" compact /><HijriPill tone="light" compact /></div>
         {<div className="border-t border-black/5 px-3 pb-2 pt-1.5 dark:border-white/10">{quickStrip(true)}</div>}
