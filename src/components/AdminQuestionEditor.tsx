@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { ScPicker } from "@/components/tracker/ScPicker";
 import {
   countBlanks,
   emptyQuestion,
@@ -43,7 +44,7 @@ export function AdminQuestionEditor({ q, idx, onChange, onRemove, onMoveUp, setS
 
   function changeType(type: QuestionType) {
     const fresh = emptyQuestion(type);
-    onChange({ ...fresh, id: q.id, prompt: q.prompt, media: q.media, explanation: q.explanation, points: q.points, promptAr: q.promptAr, explanationAr: q.explanationAr });
+    onChange({ ...fresh, id: q.id, prompt: q.prompt, media: q.media, explanation: q.explanation, points: q.points, promptAr: q.promptAr, explanationAr: q.explanationAr, sc: q.sc });
   }
 
   function setOption(oi: number, value: string) {
@@ -291,6 +292,8 @@ export function AdminQuestionEditor({ q, idx, onChange, onRemove, onMoveUp, setS
           )}
         </div>
       )}
+
+      <ScPicker value={q.sc} onChange={(sc) => set({ sc })} />
 
       <details className="rounded-lg border border-card-border bg-background/60 p-3" open={Boolean(q.media)}>
         <summary className="cursor-pointer text-sm font-medium">Media (optional)</summary>
