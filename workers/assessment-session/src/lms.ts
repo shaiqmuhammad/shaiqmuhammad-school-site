@@ -35,6 +35,7 @@
  */
 import { textReplaceAll } from "./textfix";
 import { trackerHandle, trkInit } from "./tracker";
+import { MP_PERM, mpAll, mpCfg, mpSave } from "./modperm";
 import { buildFeedback, fromGrade, overallOf, parseScores, type Scores } from "./quranScore";
 import { DurableObject } from "cloudflare:workers";
 import { corsHeaders, reply, verifyToken, type AdminEnv } from "./admin";
@@ -664,6 +665,10 @@ export class LmsStore extends DurableObject<LmsEnv> {
         setLink: RES ? (id, op, sid) => (RES.get(RES.idFromName("main")) as unknown as { setLink(i: string, o: string, s: string): Promise<boolean> }).setLink(id, op, sid) : undefined,
         results: async () => (cache ??= RES ? await (RES.get(RES.idFromName("main")) as unknown as { list(f: object): Promise<Record<string, unknown>[]> }).list({ details: false }) : []) }, a, action, input);
     }
+    if (action === "modperm-get" || action === "modperm-save") {
+      if (a.role !== "admin" || (action === "modperm-save" && a.viewAs)) return { status: 403, body: { error: "admin_only" } };
+      return { status: 200, body: { cfg: action === "modperm-save" ? mpSave(this.sql as never, input.cfg) : mpCfg(this.sql as never) } };
+    }
     if (/^(asys|trk|isams)-/.test(action)) {
       const RES = (this.env as unknown as { RESULTS?: DurableObjectNamespace }).RESULTS;
       const memo = new Map<string, Promise<unknown>>();
@@ -691,7 +696,8 @@ export class LmsStore extends DurableObject<LmsEnv> {
       case "me": {
         // t288: students carry their enrolled subjects and whether their assessments/area open in Arabic (Islamic A; both subjects = Arabic).
         if (a.role === "student") { const r = this.userRow("id=?", a.id); const subject = subjList(r?.subject); return { status: 200, body: { user: { ...a, subject: subject.join(", "), arabic: subject.includes("Islamic A") } } }; }
-        return { status: 200, body: { user: a } };
+        // t292: staff get their effective module permissions so menus and buttons match the server.
+        return { status: 200, body: { user: a.role === "admin" || a.role === "teacher" ? { ...a, mods: mpAll(this.sql as never, a) } : a } };
       }
 
       case "name-mode": {
@@ -754,7 +760,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
           const role: Role = raw.role === "teacher" ? "teacher" : "student";
           // Only the admin can create or edit teachers.
           if (role === "teacher" && a.role !== "admin") { errors.push({ row: i + 1, username, error: "admin_only" }); continue; }
-          const perms = role === "teacher" ? (Array.isArray(raw.perms) ? (raw.perms as unknown[]).map(String).filter((p) => (PERMS as readonly string[]).includes(p) || STU_PERM.test(p) || /^(act|host):[\w*-]{1,80}$/.test(p) || /^(att|beh):(view|edit)$|^cur:(view|edit|delete)$|^qhw:(set|show|view|add|edit|delete)$|^nodl:(audio|export)$|^hide:(messaging|wall|activities|homework|assessments|results)$|^rep:view$|^trk:(view|edit|effort|xlsx|pdf|isams):(on|off)$|^rep:(kpi|attainment|progress|quran|homework|coverage|drill|pdf|xlsx):(on|off)$/.test(p)).slice(0, 80) : ["assign", "review"]) : [];
+          const perms = role === "teacher" ? (Array.isArray(raw.perms) ? (raw.perms as unknown[]).map(String).filter((p) => (PERMS as readonly string[]).includes(p) || STU_PERM.test(p) || /^(act|host):[\w*-]{1,80}$/.test(p) || /^(att|beh):(view|edit)$|^cur:(view|edit|delete)$|^qhw:(set|show|view|add|edit|delete)$|^nodl:(audio|export)$|^hide:(messaging|wall|activities|homework|assessments|results)$|^rep:view$|^trk:(view|edit|effort|xlsx|pdf|isams):(on|off)$|^rep:(kpi|attainment|progress|quran|homework|coverage|drill|pdf|xlsx):(on|off)$/.test(p) || MP_PERM.test(p)).slice(0, 80) : ["assign", "review"]) : [];
           const cls = str(raw.cls, 40);
           const section = role === "student" ? str(raw.section, 40) : "";
           const subjects = role === "teacher" ? strList(raw.subjects) : [];

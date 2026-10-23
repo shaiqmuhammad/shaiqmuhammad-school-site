@@ -10,6 +10,7 @@
  *          trk-effort {student, term, val} · trk-export {cls, term, kind} · trk-audit (admin) · trk-summary (report)
  *          trk-targets-import {rows} (admin) · isams-tpl-list / isams-tpl-save / isams-tpl-get / isams-tpl-delete · trk-isams {cycle}
  */
+import { mpOf, type MpAcc } from "./modperm";
 import type { Actor } from "./lms";
 
 type Json = Record<string, unknown>;
@@ -144,6 +145,9 @@ export function trkAccess(sys: ASys | undefined, a: Actor): Record<TrkKey, boole
   if (a.role === "admin") return Object.fromEntries(TRK_KEYS.map((k) => [k, true])) as Record<TrkKey, boolean>;
   const out = { ...(sys?.access || RIS_PRIMARY.access) };
   for (const p of a.perms || []) { const m = /^trk:([a-z]+):(on|off)$/.exec(p); if (m && (TRK_KEYS as readonly string[]).includes(m[1])) out[m[1] as TrkKey] = m[2] === "on"; }
+  // t292: module permissions (global / role / subject / teacher) narrow the system switches.
+  const mp = (a as Actor & { __mpt?: MpAcc }).__mpt;
+  if (mp) { out.view &&= mp.view; const w = mp.add || mp.edit || mp.delete; out.edit &&= w; out.effort &&= w; out.xlsx &&= mp.xlsx; out.pdf &&= mp.pdf; out.isams &&= mp.isams; }
   if (!out.view) for (const k of TRK_KEYS) out[k] = false;
   return out;
 }
@@ -247,6 +251,9 @@ const yearSystems = (sql: Sql) => { const seen = new Set<string>(); const out: {
 export async function trackerHandle(c: TrkCtx, a: Actor, action: string, input: Json): Promise<Reply> {
   const sql = c.sql;
   if (a.role !== "admin" && a.role !== "teacher" && action !== "trk-link-get") return forbid();
+  // t292: module permissions. Tracker switches ride on the actor; the attainment & progress summary has its own module.
+  const mpt = mpOf(sql as never, a, "trk"); (a as Actor & { __mpt?: MpAcc }).__mpt = mpt;
+  const wr = (had: boolean, clear: boolean): Reply | null => a.role === "admin" ? null : clear ? (mpt.delete ? null : forbid("delete_not_allowed")) : had ? (mpt.edit ? null : forbid("edit_not_allowed")) : (mpt.add ? null : forbid("add_not_allowed"));
   const audit = (student: string, what: string, prev: string, next: string) => sql.exec(`INSERT INTO trk_audit (id, at, by_id, by_name, student, what, prev, next) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, rid("ta"), Date.now(), a.id, a.name || (a.role === "admin" ? "Admin" : ""), student, what, prev, next);
   const cls = str(input.cls, 60), term = TERMS.includes(String(input.term)) ? String(input.term) : "";
   switch (action) {
@@ -306,6 +313,7 @@ export async function trackerHandle(c: TrkCtx, a: Actor, action: string, input: 
       if (a.role !== "admin" && (!c.inScope(a, String(u.cls), String(u.section || ""), sid) || !trkAccess(sys, a).edit)) return forbid("edit_not_allowed");
       if (ruleFor(sys, String(u.cls)).mode !== "teacher") return { status: 400, body: { error: "target_not_teacher_set" } };
       const v = String(input.val ?? ""); if (v !== "" && !/^[1-7]$/.test(v)) return { status: 400, body: { error: "bad_value" } };
+      { const no = wr(!!String(u.target || ""), v === ""); if (no) return no; }
       sql.exec(`UPDATE users SET target=? WHERE id=?`, v, sid);
       audit(sid, "Target", String(u.target || "") || "not set", v || "not set"); return { status: 200, body: { ok: true } };
     }
@@ -320,6 +328,7 @@ export async function trackerHandle(c: TrkCtx, a: Actor, action: string, input: 
         if (!acc.effort) return forbid("effort_not_allowed");
         const v = String(raw ?? ""); if (!clear && !sys.effort.includes(v)) return { status: 400, body: { error: "bad_value" } };
         const tk = term || "Year"; const prev = String(sql.exec(`SELECT val FROM trk_eff WHERE student=? AND term=?`, sid, tk).toArray()[0]?.val ?? "");
+        { const no = wr(prev !== "", clear || raw === "__clear"); if (no) return no; }
         if (clear) sql.exec(`DELETE FROM trk_eff WHERE student=? AND term=?`, sid, tk); else sql.exec(`INSERT OR REPLACE INTO trk_eff (student, term, val, by_name, at) VALUES (?, ?, ?, ?, ?)`, sid, tk, v, a.name || "Admin", Date.now());
         audit(sid, `Effort · ${tk}`, prev, clear ? "" : v); return { status: 200, body: { ok: true } };
       }
@@ -332,6 +341,7 @@ export async function trackerHandle(c: TrkCtx, a: Actor, action: string, input: 
         if (!cu || !(i >= 0 && i < n)) return { status: 400, body: { error: "bad_sc" } };
         if (!clear && v !== "" && !(Number(v) >= 0 && Number(v) <= 3)) return { status: 400, body: { error: "bad_value" } };
         const prev = sql.exec(`SELECT val FROM trk_ov WHERE student=? AND unit=? AND i=?`, sid, unit, i).toArray()[0];
+        { const no = wr(!!prev, clear); if (no) return no; }
         if (clear) sql.exec(`DELETE FROM trk_ov WHERE student=? AND unit=? AND i=?`, sid, unit, i);
         else sql.exec(`INSERT OR REPLACE INTO trk_ov (student, unit, i, val, by_name, at) VALUES (?, ?, ?, ?, ?, ?)`, sid, unit, i, String(v), a.name || "Admin", Date.now());
         audit(sid, `SC · ${cu.title} #${i + 1}`, prev ? String(prev.val) : "auto", clear ? "auto" : String(v)); return { status: 200, body: { ok: true } };
@@ -339,6 +349,7 @@ export async function trackerHandle(c: TrkCtx, a: Actor, action: string, input: 
       const gcls = String(u.cls), tk = term || "Year";
       if (!clear && v !== "" && !(Number(v) >= 1 && Number(v) <= 9)) return { status: 400, body: { error: "bad_value" } };
       const prev = sql.exec(`SELECT val FROM trk_gov WHERE student=? AND cls=? AND term=?`, sid, gcls, tk).toArray()[0];
+      { const no = wr(!!prev, clear); if (no) return no; }
       if (clear) sql.exec(`DELETE FROM trk_gov WHERE student=? AND cls=? AND term=?`, sid, gcls, tk);
       else sql.exec(`INSERT OR REPLACE INTO trk_gov (student, cls, term, val, by_name, at) VALUES (?, ?, ?, ?, ?, ?)`, sid, gcls, tk, String(v), a.name || "Admin", Date.now());
       audit(sid, `Attainment Grade · ${tk}`, prev ? String(prev.val) : "auto", clear ? "auto" : String(v)); return { status: 200, body: { ok: true } };
@@ -417,6 +428,7 @@ export async function trackerHandle(c: TrkCtx, a: Actor, action: string, input: 
       return { status: 200, body: { ok: true, saved: n } };
     }
     case "trk-summary": {
+      if (!mpOf(sql as never, a, "aps").view) return forbid("module_hidden");
       // Department Report: tracker attainment grades & progress (vs Target, term to term) per Primary year group.
       const out: { system: string; years: { year: string; term: string; students: number; graded: number; thresholds: Record<string, number>; onTarget: number; close: number; below: number; up: number; same: number; down: number; avg: number | null; skills: Record<string, { avg: number; n: number }> }[] } = { system: "", years: [] };
       const ys = yearSystems(sql);

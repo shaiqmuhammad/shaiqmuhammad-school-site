@@ -17,6 +17,7 @@
  * Assessment results are recorded under the name typed at the quiz, so scores are matched to a student by name
  * (only when that name is unique among students); unmatched results are counted, never guessed.
  */
+import { mpOf } from "./modperm";
 import type { Actor } from "./lms";
 
 type Row = Record<string, unknown>;
@@ -121,6 +122,10 @@ export async function reportHandle(c: ReportCtx, a: Actor, action: string, input
   if (a.role === "teacher" && !a.perms.includes("rep:view")) return { status: 403, body: { error: "module_hidden" } };
   const S = settingsOf(c.sql);
   const acc = accessOf(c.sql, a);
+  // t292: module permissions (global / role / subject / teacher).
+  const mpr = mpOf(c.sql as never, a, "rep");
+  if (!mpr.view) return { status: 403, body: { error: "module_hidden" } };
+  acc.pdf &&= mpr.pdf; acc.xlsx &&= mpr.xlsx;
   if (action === "report-export") {
     const kind = input.kind === "pdf" ? "pdf" : input.kind === "xlsx" ? "xlsx" : "";
     if (!kind || !acc[kind]) return { status: 403, body: { error: "export_not_allowed" } };
