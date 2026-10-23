@@ -517,7 +517,15 @@
       ],
       "titleAr": "السنة ٣ – الطهارة ونواقض الوضوء (الأسبوع ٧)",
       "year": 3,
-      "descriptionAr": "تقييم الأسبوع ٧: معنى الطهارة، ونواقض الوضوء، وخطوات الوضوء."
+      "descriptionAr": "تقييم الأسبوع ٧: معنى الطهارة، ونواقض الوضوء، وخطوات الوضوء.",
+      "topic": "cu_mvdiwondc7126982",
+      "topicInfo": {
+        "yr": "Year 3",
+        "term": "Term 1",
+        "wk": 7,
+        "title": "Purification and Nullifiers of Wudu",
+        "titleAr": "الطهارة ونواقض الوضوء"
+      }
     },
     {
       "id": "sow-year-4-the-conditions-and-nullifiers-of-prayer",
@@ -789,7 +797,15 @@
       ],
       "titleAr": "السنة ٤ – شروط الصلاة ومبطلاتها (الأسبوع ٧)",
       "year": 4,
-      "descriptionAr": "تقييم الأسبوع ٧: شروط الصلاة (الوضوء وستر العورة واستقبال القبلة) ومبطلات الصلاة."
+      "descriptionAr": "تقييم الأسبوع ٧: شروط الصلاة (الوضوء وستر العورة واستقبال القبلة) ومبطلات الصلاة.",
+      "topic": "cu_mvdiwond20ad3d41",
+      "topicInfo": {
+        "yr": "Year 4",
+        "term": "Term 1",
+        "wk": 7,
+        "title": "The Conditions and Nullifiers of Prayer",
+        "titleAr": "شروط الصلاة ومبطلاتها"
+      }
     },
     {
       "id": "sow-year-5-belief-in-divine-books",
@@ -1058,7 +1074,15 @@
       ],
       "titleAr": "السنة ٥ – الإيمان بالكتب السماوية (الأسبوع ٧)",
       "year": 5,
-      "descriptionAr": "تقييم الأسبوع ٧: الكتب السماوية والأنبياء الذين أُنزلت عليهم، والمقارنة بينها وبين القرآن، ولماذا حفظ الله القرآن."
+      "descriptionAr": "تقييم الأسبوع ٧: الكتب السماوية والأنبياء الذين أُنزلت عليهم، والمقارنة بينها وبين القرآن، ولماذا حفظ الله القرآن.",
+      "topic": "cu_mvdiwond4a79f402",
+      "topicInfo": {
+        "yr": "Year 5",
+        "term": "Term 1",
+        "wk": 7,
+        "title": "Belief in Divine Books",
+        "titleAr": "الإيمان بالكتب السماوية"
+      }
     },
     {
       "id": "sow-year-6-calling-the-people-of-taif",
@@ -1303,7 +1327,15 @@
       ],
       "titleAr": "السنة ٦ – دعوة أهل الطائف (الأسبوع ٧)",
       "year": 6,
-      "descriptionAr": "تقييم الأسبوع ٧: قصة رحلة النبي ﷺ إلى الطائف، ورحمته حين رفض عرض ملك الجبال، واختيار الصبر بدل الانتقام."
+      "descriptionAr": "تقييم الأسبوع ٧: قصة رحلة النبي ﷺ إلى الطائف، ورحمته حين رفض عرض ملك الجبال، واختيار الصبر بدل الانتقام.",
+      "topic": "cu_mvdiwond54a3b1aa",
+      "topicInfo": {
+        "yr": "Year 6",
+        "term": "Term 1",
+        "wk": 7,
+        "title": "Calling the people of Taif",
+        "titleAr": "دعوة أهل الطائف"
+      }
     },
     {
       "id": "sow-y2-surah-al-fil",
@@ -1625,7 +1657,15 @@
       ],
       "titleAr": "السنة ٢ – سورة الفيل",
       "descriptionAr": "سورة الفيل (١٠٥: ١–٥): قصة جيش الفيل، وكيف حمى الله الكعبة، والتوكل على الله.",
-      "year": 2
+      "year": 2,
+      "topic": "cu_mvdiwond67694c05",
+      "topicInfo": {
+        "yr": "Year 2",
+        "term": "Term 1",
+        "wk": 5,
+        "title": "Surah Al-Fil",
+        "titleAr": "سورة الفيل"
+      }
     },
     {
       "id": "sow-y2-bedtime-supplication",
@@ -1927,7 +1967,15 @@
       ],
       "titleAr": "السنة ٢ – دعاء النوم",
       "descriptionAr": "دعاء النوم «بِاسْمِكَ اللَّهُمَّ أَمُوتُ وَأَحْيَا» (صحيح البخاري ٦٣٢٤): متى نقوله، وما معناه، وآداب النوم التي علّمنا إياها النبي ﷺ.",
-      "year": 2
+      "year": 2,
+      "topic": "cu_mvdiwond560bb995",
+      "topicInfo": {
+        "yr": "Year 2",
+        "term": "Term 1",
+        "wk": 8,
+        "title": "Bedtime Supplication",
+        "titleAr": "دعاء النوم"
+      }
     },
     {
       "id": "sow-y2-birth-of-prophet",
@@ -2265,7 +2313,15 @@
       ],
       "titleAr": "السنة ٢ – مولد النبي محمد ﷺ",
       "descriptionAr": "أين ومتى وُلد النبي محمد ﷺ، وأسرته (عبد الله وآمنة وعبد المطلب)، ولماذا نحبه (صحيح مسلم ١١٦٢ه؛ الأنبياء ١٠٧). مبني على درس السنة الثانية.",
-      "year": 2
+      "year": 2,
+      "topic": "cu_mvdiwond4dd5c12c",
+      "topicInfo": {
+        "yr": "Year 2",
+        "term": "Term 1",
+        "wk": 7,
+        "title": "The Birth of Prophet Muhammad PBUH",
+        "titleAr": "مولد النبي محمد ﷺ"
+      }
     },
     {
       "id": "sow-y3-prophet-nuh",
@@ -2600,7 +2656,15 @@
       ],
       "titleAr": "السنة ٣ – الإيمان بالرسل: نوح عليه السلام",
       "descriptionAr": "الإيمان بالرسل من خلال قصة نوح عليه السلام: دعوة قومه إلى عبادة الله وحده، والصبر، والسفينة، والتوكل على الله.",
-      "year": 3
+      "year": 3,
+      "topic": "cu_mvdiwond24ea3805",
+      "topicInfo": {
+        "yr": "Year 3",
+        "term": "Term 1",
+        "wk": 5,
+        "title": "Belief in the Messengers (Prophet Nuh A.S)",
+        "titleAr": "الإيمان بالرسل (نوح عليه السلام)"
+      }
     },
     {
       "id": "sow-y3-making-wudu-well",
@@ -2932,7 +2996,15 @@
       ],
       "titleAr": "السنة ٣ – إحسان الوضوء",
       "descriptionAr": "حديث إحسان الوضوء (صحيح مسلم ٢٤٥)، ولماذا نغسل بعناية حتى الأعقاب وما تحت الأظفار (صحيح مسلم ٢٤١أ)، وخطوات الوضوء بالترتيب (صحيح البخاري ١٥٩). مبني على درس السنة الثالثة.",
-      "year": 3
+      "year": 3,
+      "topic": "cu_mvdiwondaaf6251b",
+      "topicInfo": {
+        "yr": "Year 3",
+        "term": "Term 1",
+        "wk": 9,
+        "title": "Making Wudu Well (Hadith)",
+        "titleAr": "إحسان الوضوء (حديث شريف)"
+      }
     },
     {
       "id": "sow-y4-belief-in-angels",
@@ -3262,7 +3334,15 @@
       ],
       "titleAr": "السنة ٤ – الإيمان بالملائكة",
       "descriptionAr": "الإيمان بالملائكة: مما خُلقوا، ووظائف جبريل وميكائيل وإسرافيل والكرام الكاتبين، ولماذا هو ركن من أركان الإيمان، واختيار الكلام والأفعال الطيبة.",
-      "year": 4
+      "year": 4,
+      "topic": "cu_mvdiwond87e612eb",
+      "topicInfo": {
+        "yr": "Year 4",
+        "term": "Term 1",
+        "wk": 5,
+        "title": "Belief in Angels",
+        "titleAr": "الإيمان بالملائكة"
+      }
     },
     {
       "id": "sow-y4-first-revelation",
@@ -3589,7 +3669,15 @@
       ],
       "titleAr": "السنة ٤ – بدء الوحي",
       "descriptionAr": "بدء الوحي في غار حراء (جبريل، «اقرأ»، سورة العلق ١–٥، صحيح البخاري ٣)، ونزول القرآن في نحو ٢٣ سنة (المكي والمدني) وحفظ الله له (الحجر ٩)، واحترام القرآن. مبني على درس السنة الرابعة.",
-      "year": 4
+      "year": 4,
+      "topic": "cu_mvdiwondffeed625",
+      "topicInfo": {
+        "yr": "Year 4",
+        "term": "Term 1",
+        "wk": 8,
+        "title": "The Revelation of the Quran",
+        "titleAr": "نزول القرآن الكريم"
+      }
     },
     {
       "id": "sow-y5-strong-believer",
@@ -3873,7 +3961,15 @@
       ],
       "titleAr": "السنة ٥ – المؤمن القوي",
       "descriptionAr": "حديث المؤمن القوي: من هو أحبّ إلى الله، وأخذ الأسباب، والاستعانة بالله، وترك قول «لو أنّي…».",
-      "year": 5
+      "year": 5,
+      "topic": "cu_mvdiwond06d42b72",
+      "topicInfo": {
+        "yr": "Year 5",
+        "term": "Term 1",
+        "wk": 4,
+        "title": "The Strong Believer",
+        "titleAr": "المؤمن القوي"
+      }
     },
     {
       "id": "sow-y5-call-to-islam",
@@ -4350,7 +4446,15 @@
       ],
       "titleAr": "السنة ٥ – بداية الدعوة إلى الإسلام",
       "descriptionAr": "المرحلة السرية والمرحلة الجهرية للدعوة، وأوائل المسلمين، والدعوة من جبل الصفا (صحيح البخاري ٤٧٧٠)، والصبر، والدعوة بالحكمة.",
-      "year": 5
+      "year": 5,
+      "topic": "cu_mvdiwond77c64376",
+      "topicInfo": {
+        "yr": "Year 5",
+        "term": "Term 1",
+        "wk": 8,
+        "title": "The Beginning of the Call to Islam",
+        "titleAr": "بداية الدعوة إلى الإسلام"
+      }
     },
     {
       "id": "sow-y6-congregational-prayer",
@@ -4848,7 +4952,15 @@
       ],
       "titleAr": "السنة ٦ – صلاة الجماعة",
       "descriptionAr": "فضل صلاة الجماعة (صحيح البخاري ٦٤٥)، وتسوية الصفوف، ومتابعة الإمام، والمشي إلى الصلاة بسكينة، وإتمام ما فات.",
-      "year": 6
+      "year": 6,
+      "topic": "cu_mvdiwondfd67131f",
+      "topicInfo": {
+        "yr": "Year 6",
+        "term": "Term 1",
+        "wk": 8,
+        "title": "Congregational Prayer",
+        "titleAr": "صلاة الجماعة"
+      }
     },
     {
       "id": "sow-y6-truly-bankrupt",
@@ -5175,7 +5287,15 @@
       ],
       "titleAr": "السنة ٦ – المفلس الحقيقي",
       "descriptionAr": "حديث المفلس (صحيح مسلم ٢٥٨١): النجاح والخسارة الحقيقيان في الآخرة، وكيف يُذهب ظلمُ الناس الحسنات، والأعمال التي ترضي الله.",
-      "year": 6
+      "year": 6,
+      "topic": "cu_mvdiwond7fb60174",
+      "topicInfo": {
+        "yr": "Year 6",
+        "term": "Term 1",
+        "wk": 4,
+        "title": "The Real Bankrupt",
+        "titleAr": "المفلس الحقيقي"
+      }
     }
   ]
 }

@@ -39,7 +39,7 @@ import { buildFeedback, fromGrade, overallOf, parseScores, type Scores } from ".
 import { DurableObject } from "cloudflare:workers";
 import { corsHeaders, reply, verifyToken, type AdminEnv } from "./admin";
 import { fetchParentReplies, sendAuto, sendParentMail, type MailEnv } from "./mail/mailbox";
-import { initMods, modHandle, today as modToday } from "./lmsmods";
+import { initMods, modHandle, pubQuizzes, tquizTopics, today as modToday } from "./lmsmods";
 import { reportHandle } from "./reports";
 import { renderEmail, renderText } from "./mail/template";
 import { blobStore, sqliteChunkStore, type BlobStore, type StorageEnv } from "./storage";
@@ -647,7 +647,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
       return trackerHandle({ sql: this.sql as never, inScope: (x, c2, s2, i) => this.inScope(x, c2, s2, i), homework: () => this.allHomework().map((h) => ({ id: h.id, kind: h.kind })),
         tagged: (ids, qids) => { const k = ids.join(",") + "/" + qids.join(","); if (!memo.has(k)) memo.set(k, RES ? (RES.get(RES.idFromName("main")) as unknown as { scTagged(i: string[], q: string[]): Promise<unknown> }).scTagged(ids, qids) : Promise.resolve([])); return memo.get(k) as never; } }, a, action, input);
     }
-    if (/^(att|beh|cur)-/.test(action)) return modHandle({ sql: this.sql, hwList: () => this.allHomework().map((h) => ({ id: h.id, title: h.title, kind: h.kind, cls: h.cls, section: h.section, students: h.students, createdBy: h.createdBy })), inScope: (x, c, s, i) => this.inScope(x, c, s, i), userRow: (w, g) => this.userRow(w, g) }, action, a, input);
+    if (/^(att|beh|cur)-/.test(action) || action === "quiz-topics-sync") return modHandle({ sql: this.sql, hwList: () => this.allHomework().map((h) => ({ id: h.id, title: h.title, kind: h.kind, cls: h.cls, section: h.section, students: h.students, createdBy: h.createdBy })), inScope: (x, c, s, i) => this.inScope(x, c, s, i), userRow: (w, g) => this.userRow(w, g) }, action, a, input);
     switch (action) {
       case "dl-policy": return { status: 200, body: { audio: this.dlOf(a, "audio"), export: this.dlOf(a, "export") } };
       case "dl-grant": {
@@ -1198,7 +1198,24 @@ export class LmsStore extends DurableObject<LmsEnv> {
         const existing = id ? this.sql.exec(`SELECT owner FROM tquiz WHERE id=?`, id).toArray()[0] : undefined;
         if (existing && a.role !== "admin" && existing.owner !== a.id) return { status: 403, body: { error: "forbidden" } };
         if (!existing) id = rid("tq");
-        const data = JSON.stringify({ ...q, id, slug: id });
+        // Every assessment belongs to exactly one curriculum topic; a topic has only one assessment.
+        const topic = str(q.topic, 40);
+        const unit = topic ? this.sql.exec(`SELECT id, yr, term, wk_from, title, links, quiz FROM cur WHERE id=?`, topic).toArray()[0] : undefined;
+        if (!topic) return { status: 400, body: { error: "topic_required" } };
+        if (!unit) return { status: 400, body: { error: "topic_unknown" } };
+        const otherT = tquizTopics(this.sql).find((t) => t.topic === topic && t.id !== id);
+        const otherP = (await pubQuizzes()).find((p) => p.topic === topic);
+        if (otherT || otherP) return { status: 409, body: { error: "topic_taken", existing: otherT ? { slug: otherT.id, title: otherT.title } : { slug: otherP!.slug, title: otherP!.title } } };
+        const data = JSON.stringify({ ...q, id, slug: id, topic });
+        // Keep the curriculum link in step: drop this quiz from any other unit, add it to its topic.
+        for (const r of this.sql.exec(`SELECT id, links, quiz FROM cur`).toArray()) {
+          let l: { t: string; id: string }[] = []; try { l = JSON.parse(String(r.links || "[]")); } catch { l = []; }
+          const had = l.some((x) => x.t === "quiz" && x.id === id) || String(r.quiz || "") === id;
+          const want = String(r.id) === topic;
+          if (had === want) continue;
+          const next = want ? [{ t: "quiz", id }, ...l.filter((x) => !(x.t === "quiz" && x.id === id))] : l.filter((x) => !(x.t === "quiz" && x.id === id));
+          this.sql.exec(`UPDATE cur SET links=?, quiz=? WHERE id=?`, JSON.stringify(next), next.find((x) => x.t === "quiz")?.id || "", String(r.id));
+        }
         if (existing) this.sql.exec(`UPDATE tquiz SET title=?, data=?, updated=? WHERE id=?`, str(q.title, 140), data, Date.now(), id);
         else this.sql.exec(`INSERT INTO tquiz (id, owner, owner_name, title, data, updated) VALUES (?, ?, ?, ?, ?, ?)`, id, a.id, a.name, str(q.title, 140), data, Date.now());
         return { status: 200, body: { ok: true, id } };
@@ -1209,6 +1226,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         if (!r || (a.role !== "admin" && r.owner !== a.id)) return { status: 403, body: { error: "forbidden" } };
         this.sql.exec(`DELETE FROM tquiz WHERE id=?`, id);
         this.sql.exec(`DELETE FROM qassign WHERE quiz=?`, id);
+        for (const c of this.sql.exec(`SELECT id, links, quiz FROM cur`).toArray()) { let l: { t: string; id: string }[] = []; try { l = JSON.parse(String(c.links || "[]")); } catch { l = []; } if (l.some((x) => x.id === id) || c.quiz === id) { const n = l.filter((x) => x.id !== id); this.sql.exec(`UPDATE cur SET links=?, quiz=? WHERE id=?`, JSON.stringify(n), n.find((x) => x.t === "quiz")?.id || "", String(c.id)); } }
         return { status: 200, body: { ok: true } };
       }
 
