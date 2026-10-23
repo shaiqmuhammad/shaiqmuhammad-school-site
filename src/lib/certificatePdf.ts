@@ -14,12 +14,15 @@ export type CertificatePayload = {
   kind?: "individual" | "group";
   /** Use this design instead of the one chosen for the assessment (admin preview). */
   design?: CertDesign;
+  /** t288: Islamic A attempt — every template label in Arabic, RTL. */
+  arabic?: boolean;
 };
 
 /** Draws the chosen design on a canvas and places it on an A4 landscape PDF page. */
 export async function buildCertificatePdf(payload: CertificatePayload): Promise<{ doc: jsPDF; fileName: string }> {
   const { result, quizTitle, positionLabel } = payload;
-  const design = payload.design || designFor(await loadCertCollection(), result.quizId, payload.kind || "individual");
+  const base = payload.design || designFor(await loadCertCollection(), result.quizId, payload.kind || "individual");
+  const design = payload.arabic ? { ...base, labelLang: "ar" as const } : base;
   const canvas = document.createElement("canvas");
   await renderCertificate(canvas, design, { name: result.name || "Student", quizTitle, score: result.score, maxScore: result.maxScore, percentage: result.percentage, finishedAt: result.finishedAt, positionLabel }, 2.4);
   const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });

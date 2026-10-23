@@ -72,10 +72,15 @@ export function QuizPlayer({ quiz, initialTemplate, initialResults }: Props) {
   // Signed-in student: pre-fill the English name; the certificate prints the Arabic name per the admin's name setting.
   const [me, setMe] = useState<{ en: string; ar: string } | null>(null);
   const [nameMode, setNameMode] = useState<NameMode>("auto");
+  const [arabic, setArabic] = useState(false);
   useEffect(() => {
     const s = lmsSession();
     if (!s || s.user.role !== "student") return;
-    lmsApi.me().then((r) => { const en = r.user.name || ""; setMe({ en, ar: r.user.nameAr || "" }); setName((n) => n || en); }).catch(() => undefined);
+    lmsApi.me().then((r) => {
+      const en = r.user.name || ""; setMe({ en, ar: r.user.nameAr || "" }); setName((n) => n || en);
+      // t288: Islamic A students: the assessment always opens in Arabic (RTL), whatever the site language.
+      if (r.user.arabic) { setArabic(true); try { if (localStorage.getItem("sm-lang") !== "ar") { localStorage.setItem("sm-lang", "ar"); window.dispatchEvent(new Event("sm-lang-change")); } } catch { /* ignore */ } }
+    }).catch(() => undefined);
     loadNameMode().then(setNameMode).catch(() => undefined);
   }, []);
   const [answers, setAnswers] = useState<Record<string, unknown>>({});
@@ -261,7 +266,7 @@ export function QuizPlayer({ quiz, initialTemplate, initialResults }: Props) {
               {quiz.certificateIndividual && (
                 <button
                   type="button"
-                  onClick={() => downloadCertificatePdf({ template, result: me && result.name.trim() === me.en.trim() ? { ...result, name: pickName(me.en, me.ar, lang, nameMode) } : result, quizTitle: title, positionLabel: positionLabel() })}
+                  onClick={() => downloadCertificatePdf({ template, arabic, result: me && result.name.trim() === me.en.trim() ? { ...result, name: arabic ? me.ar.trim() || me.en : pickName(me.en, me.ar, lang, nameMode) } : result, quizTitle: arabic ? quiz.titleAr?.trim() || title : title, positionLabel: positionLabel() })}
                   className={primaryBtn}
                   data-testid="download-certificate"
                 >

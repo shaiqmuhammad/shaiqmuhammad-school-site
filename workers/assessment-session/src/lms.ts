@@ -688,8 +688,11 @@ export class LmsStore extends DurableObject<LmsEnv> {
         this.sql.exec(`INSERT OR REPLACE INTO settings (k, v) VALUES ('dl:cfg', ?)`, JSON.stringify(cfg));
         return { status: 200, body: cfg };
       }
-      case "me":
+      case "me": {
+        // t288: students carry their enrolled subjects and whether their assessments/area open in Arabic (Islamic A; both subjects = Arabic).
+        if (a.role === "student") { const r = this.userRow("id=?", a.id); const subject = subjList(r?.subject); return { status: 200, body: { user: { ...a, subject: subject.join(", "), arabic: subject.includes("Islamic A") } } }; }
         return { status: 200, body: { user: a } };
+      }
 
       case "name-mode": {
         // How student names print on certificates and QR cards: auto (follows the language), ar, en or both. Admin sets it.
