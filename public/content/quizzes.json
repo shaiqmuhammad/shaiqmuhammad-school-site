@@ -167,207 +167,6 @@
       ]
     },
     {
-      "id": "sow-year-2-the-birth-of-prophet-muhammad-week-7",
-      "slug": "year-2-the-birth-of-prophet-muhammad-week-7",
-      "title": "Year 2 – The Birth of Prophet Muhammad ﷺ (Week 7)",
-      "description": "Week 7 check: where and when the Prophet ﷺ was born, his family, why we love him, and simple Seerah facts.",
-      "cardImage": "/covers/y2-birth-of-the-prophet.svg",
-      "timeLimitMinutes": 5,
-      "showAnswers": true,
-      "certificateIndividual": false,
-      "certificateGroup": false,
-      "visible": false,
-      "active": false,
-      "published": false,
-      "updatedAt": "2026-10-23T13:00:00.000Z",
-      "questions": [
-        {
-          "id": "q1",
-          "type": "multiple_choice",
-          "prompt": "In which city was Prophet Muhammad ﷺ born?",
-          "options": [
-            "Madinah",
-            "Makkah",
-            "Ta’if",
-            "Jerusalem"
-          ],
-          "correct": [
-            1
-          ],
-          "points": 1,
-          "explanation": "The Prophet ﷺ was born in Makkah.",
-          "sc": "cu_mvdiwond4dd5c12c#0"
-        },
-        {
-          "id": "q2",
-          "type": "multiple_choice",
-          "prompt": "The Prophet ﷺ was born in the Year of the …",
-          "options": [
-            "Elephant",
-            "Camel",
-            "Lion",
-            "Rain"
-          ],
-          "correct": [
-            0
-          ],
-          "points": 1,
-          "explanation": "He was born in the Year of the Elephant, the year Abrahah came with an elephant to attack the Ka‘bah.",
-          "sc": "cu_mvdiwond4dd5c12c#0"
-        },
-        {
-          "id": "q3",
-          "type": "true_false",
-          "prompt": "The Prophet ﷺ was born on a Monday.",
-          "options": [
-            "True",
-            "False"
-          ],
-          "correct": [
-            0
-          ],
-          "points": 1,
-          "explanation": "The Prophet ﷺ said Monday was the day he was born (Sahih Muslim 1162).",
-          "sc": "cu_mvdiwond4dd5c12c#0"
-        },
-        {
-          "id": "q4",
-          "type": "matching",
-          "prompt": "Match each person to who they were for the Prophet ﷺ.",
-          "options": [],
-          "correct": [],
-          "points": 2,
-          "pairs": [
-            {
-              "left": "Aminah",
-              "right": "His mother"
-            },
-            {
-              "left": "Abdullah",
-              "right": "His father"
-            },
-            {
-              "left": "Abdul-Muttalib",
-              "right": "His grandfather"
-            },
-            {
-              "left": "Halimah As-Sa‘diyah",
-              "right": "His nursing mother"
-            }
-          ],
-          "explanation": "Aminah was his mother, Abdullah his father, Abdul-Muttalib his grandfather, and Halimah looked after and nursed him in the desert.",
-          "sc": "cu_mvdiwond4dd5c12c#1"
-        },
-        {
-          "id": "q5",
-          "type": "true_false",
-          "prompt": "The Prophet’s father, Abdullah, died before the Prophet ﷺ was born.",
-          "options": [
-            "True",
-            "False"
-          ],
-          "correct": [
-            0
-          ],
-          "points": 1,
-          "explanation": "Abdullah died before his son was born, so the Prophet ﷺ was born an orphan.",
-          "sc": "cu_mvdiwond4dd5c12c#1"
-        },
-        {
-          "id": "q6",
-          "type": "fill_blank",
-          "prompt": "The name of the Prophet’s mother was ___.",
-          "options": [
-            "Khadijah",
-            "Fatimah"
-          ],
-          "correct": [],
-          "points": 1,
-          "blanks": [
-            [
-              "Aminah",
-              "Amina",
-              "Aaminah"
-            ]
-          ],
-          "explanation": "His mother was Aminah bint Wahb.",
-          "sc": "cu_mvdiwond4dd5c12c#1"
-        },
-        {
-          "id": "q7",
-          "type": "multi_select",
-          "prompt": "Why do we love Prophet Muhammad ﷺ? Choose all that are correct.",
-          "options": [
-            "He is the Messenger of Allah",
-            "He taught us how to pray",
-            "He was kind and merciful",
-            "He was the richest king"
-          ],
-          "correct": [
-            0,
-            1,
-            2
-          ],
-          "points": 2,
-          "explanation": "We love him because he is Allah’s Messenger, he taught us Islam, and he was kind and merciful. He was not a rich king.",
-          "sc": "cu_mvdiwond4dd5c12c#2"
-        },
-        {
-          "id": "q8",
-          "type": "multiple_choice",
-          "prompt": "Which is a good way to show love for the Prophet ﷺ?",
-          "options": [
-            "Saying “ṣallallāhu ‘alayhi wa sallam” when we hear his name",
-            "Forgetting his name",
-            "Being rude to others",
-            "Laughing at others"
-          ],
-          "correct": [
-            0
-          ],
-          "points": 1,
-          "explanation": "We send salawat on him and follow his good manners.",
-          "sc": "cu_mvdiwond4dd5c12c#2"
-        },
-        {
-          "id": "q9",
-          "type": "multiple_choice",
-          "prompt": "“Seerah” means …",
-          "options": [
-            "the life story of the Prophet ﷺ",
-            "a type of food",
-            "a chapter of the Qur’an",
-            "a prayer time"
-          ],
-          "correct": [
-            0
-          ],
-          "points": 1,
-          "explanation": "The Seerah is the story of the life of the Prophet ﷺ.",
-          "sc": "cu_mvdiwond4dd5c12c#3"
-        },
-        {
-          "id": "q10",
-          "type": "multiple_choice",
-          "prompt": "Which tribe was the Prophet ﷺ from?",
-          "options": [
-            "Quraysh",
-            "Thaqif",
-            "Aws",
-            "Khazraj"
-          ],
-          "correct": [
-            0
-          ],
-          "points": 1,
-          "explanation": "The Prophet ﷺ was from the tribe of Quraysh in Makkah.",
-          "sc": "cu_mvdiwond4dd5c12c#3"
-        }
-      ],
-      "titleAr": "السنة ٢ – مولد النبي محمد ﷺ (الأسبوع ٧)",
-      "year": 2
-    },
-    {
       "id": "sow-year-3-purification-and-nullifiers-of-wudu",
       "slug": "year-3-purification-and-nullifiers-of-wudu",
       "title": "Year 3 – Purification and Nullifiers of Wudu (Week 7)",
@@ -1715,7 +1514,8 @@
             "المدينة المنورة",
             "مكة المكرمة"
           ],
-          "explanationAr": "وُلد النبي ﷺ في مكة المكرمة، مدينة الكعبة."
+          "explanationAr": "وُلد النبي ﷺ في مكة المكرمة، مدينة الكعبة.",
+          "sc": "cu_mvdiwond4dd5c12c#0"
         },
         {
           "id": "y2b-q2",
@@ -1739,7 +1539,8 @@
             "عام الهجرة",
             "عام الحزن"
           ],
-          "explanationAr": "وُلد في عام الفيل، العام الذي حفظ الله فيه الكعبة (سورة الفيل)."
+          "explanationAr": "وُلد في عام الفيل، العام الذي حفظ الله فيه الكعبة (سورة الفيل).",
+          "sc": "cu_mvdiwond4dd5c12c#0"
         },
         {
           "id": "y2b-q3",
@@ -1763,7 +1564,8 @@
             "الاثنين",
             "الجمعة"
           ],
-          "explanationAr": "قال النبي ﷺ عن يوم الاثنين: «فيه وُلدت وفيه أُنزل عليّ» (صحيح مسلم ١١٦٢ه)."
+          "explanationAr": "قال النبي ﷺ عن يوم الاثنين: «فيه وُلدت وفيه أُنزل عليّ» (صحيح مسلم ١١٦٢ه).",
+          "sc": "cu_mvdiwond4dd5c12c#0"
         },
         {
           "id": "y2b-q4",
@@ -1789,7 +1591,8 @@
             "أمه آمنة",
             "أبوه عبد الله"
           ],
-          "explanationAr": "أسرته: أبوه عبد الله وأمه آمنة وجدّه عبد المطلب. أما أبو بكر فهو صديقه المقرّب."
+          "explanationAr": "أسرته: أبوه عبد الله وأمه آمنة وجدّه عبد المطلب. أما أبو بكر فهو صديقه المقرّب.",
+          "sc": "cu_mvdiwond4dd5c12c#1"
         },
         {
           "id": "y2b-q5",
@@ -1811,7 +1614,8 @@
             "سمّى جدّه عبد المطلب الطفل محمدًا",
             "كبر الطفل وصار نبيَّنا ﷺ"
           ],
-          "explanationAr": "قصة الدرس: جيش الفيل ← مولد الطفل في العام نفسه ← تسمية عبد المطلب له محمدًا ← صار نبيَّنا ﷺ."
+          "explanationAr": "قصة الدرس: جيش الفيل ← مولد الطفل في العام نفسه ← تسمية عبد المطلب له محمدًا ← صار نبيَّنا ﷺ.",
+          "sc": "cu_mvdiwond4dd5c12c#3"
         },
         {
           "id": "y2b-q6",
@@ -1840,7 +1644,8 @@
           ],
           "explanation": "Key words from the lesson: Abdullah (father), Aminah (mother), Abdul Muttalib (grandfather). Muhammad means “the praised one”.",
           "promptAr": "طابق كل اسم أو كلمة بمعناها.",
-          "explanationAr": "كلمات الدرس: عبد الله (أبوه)، آمنة (أمه)، عبد المطلب (جدّه)، ومحمد معناه «الذي يُحمَد كثيرًا»."
+          "explanationAr": "كلمات الدرس: عبد الله (أبوه)، آمنة (أمه)، عبد المطلب (جدّه)، ومحمد معناه «الذي يُحمَد كثيرًا».",
+          "sc": "cu_mvdiwond4dd5c12c#1"
         },
         {
           "id": "y2b-q7",
@@ -1860,7 +1665,8 @@
             "صح",
             "خطأ"
           ],
-          "explanationAr": "خطأ. وُلد ﷺ في مكة المكرمة."
+          "explanationAr": "خطأ. وُلد ﷺ في مكة المكرمة.",
+          "sc": "cu_mvdiwond4dd5c12c#0"
         },
         {
           "id": "y2b-q8",
@@ -1880,7 +1686,8 @@
             "صح",
             "خطأ"
           ],
-          "explanationAr": "صح. حفظ الله بيته من جيش الفيل (سورة الفيل)."
+          "explanationAr": "صح. حفظ الله بيته من جيش الفيل (سورة الفيل).",
+          "sc": "cu_mvdiwond4dd5c12c#0"
         },
         {
           "id": "y2b-q9",
@@ -1900,7 +1707,8 @@
             "صح",
             "خطأ"
           ],
-          "explanationAr": "خطأ. توفي أبوه عبد الله قبل أن يولد ﷺ."
+          "explanationAr": "خطأ. توفي أبوه عبد الله قبل أن يولد ﷺ.",
+          "sc": "cu_mvdiwond4dd5c12c#1"
         },
         {
           "id": "y2b-q10",
@@ -1924,7 +1732,8 @@
             "ملكًا على مكة",
             "تاجرًا"
           ],
-          "explanationAr": "﴿وَمَآ أَرْسَلْنَـٰكَ إِلَّا رَحْمَةًۭ لِّلْعَـٰلَمِينَ﴾ (الأنبياء ١٠٧). الرحمة: اللطف والعناية بالجميع."
+          "explanationAr": "﴿وَمَآ أَرْسَلْنَـٰكَ إِلَّا رَحْمَةًۭ لِّلْعَـٰلَمِينَ﴾ (الأنبياء ١٠٧). الرحمة: اللطف والعناية بالجميع.",
+          "sc": "cu_mvdiwond4dd5c12c#2"
         },
         {
           "id": "y2b-q11",
@@ -1948,7 +1757,8 @@
             "بسم الله",
             "آمين"
           ],
-          "explanationAr": "نصلّي ونسلّم عليه فنقول «صلى الله عليه وسلم»، وهذا من محبته ﷺ."
+          "explanationAr": "نصلّي ونسلّم عليه فنقول «صلى الله عليه وسلم»، وهذا من محبته ﷺ.",
+          "sc": "cu_mvdiwond4dd5c12c#2"
         },
         {
           "id": "y2b-q12",
@@ -1967,7 +1777,8 @@
             ]
           ],
           "explanation": "Al-Amin means “the trustworthy one”. He was truthful and kind to everyone.",
-          "explanationAr": "الأمين: الصادق الذي يؤتمن. كان صادقًا ولطيفًا مع الجميع."
+          "explanationAr": "الأمين: الصادق الذي يؤتمن. كان صادقًا ولطيفًا مع الجميع.",
+          "sc": "cu_mvdiwond4dd5c12c#3"
         }
       ],
       "titleAr": "السنة ٢ – مولد النبي محمد ﷺ",
