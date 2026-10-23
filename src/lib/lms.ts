@@ -300,7 +300,11 @@ export const lmsApi = {
 
 export function lmsErrorText(e: unknown, tr: (en: string, ar: string) => string): string {
   const c = e instanceof LmsError ? e.code : "";
+  if (c === "topic_taken") { const ex = (e as LmsError).data?.existing as { title?: string; slug?: string } | undefined; const t = ex?.title || ex?.slug || ""; return tr(`This curriculum topic already has an assessment: “${t}”. Only one assessment per topic.`, `هذا الموضوع له تقييم بالفعل: «${t}». لكل موضوع تقييم واحد فقط.`); }
   const m: Record<string, [string, string]> = {
+    topic_required: ["Choose the curriculum topic first — every assessment must be linked to one.", "اختر موضوع المنهج أولًا — يجب ربط كل تقييم بموضوع."],
+    topic_unknown: ["That curriculum topic no longer exists. Choose another.", "موضوع المنهج هذا لم يعد موجودًا. اختر موضوعًا آخر."],
+    one_assessment_per_topic: ["A topic can have only one assessment.", "لكل موضوع تقييم واحد فقط."],
     download_not_allowed: ["Downloads are switched off for your account.", "التنزيل غير مفعّل لحسابك."],
     confirm_required: ["Please preview and confirm before sending.", "يرجى المعاينة والتأكيد قبل الإرسال."],
     mail_error: ["The email could not be sent. Try again later.", "تعذّر إرسال البريد. حاول لاحقًا."],

@@ -105,11 +105,26 @@ export type Quiz = {
   /** Optional Arabic title / description */
   titleAr?: string;
   descriptionAr?: string;
+  /** Curriculum topic (unit id) this assessment belongs to — required; one assessment per topic. */
+  topic?: string;
+  /** Copy of the topic's label for public pages (the curriculum itself is private). */
+  topicInfo?: TopicInfo;
   /** School year group (2–6) when this assessment belongs to a SOW topic; omit for general quizzes */
   year?: number;
   updatedAt: string;
   questions: QuizQuestion[];
 };
+
+export type TopicInfo = { yr: string; term: string; wk: number; title: string; titleAr?: string };
+
+/** "Year 3 · Term 1 · Week 7 · Topic" in either language. */
+export function topicLabel(t: TopicInfo | undefined, lang: "en" | "ar"): string {
+  if (!t) return "";
+  if (lang !== "ar") return [t.yr, t.term, t.wk ? `Week ${t.wk}` : "", t.title].filter(Boolean).join(" · ");
+  const yr = t.yr.replace(/^Year\s*(\d+)$/i, "السنة $1").replace(/^FS2$/i, "المرحلة التأسيسية ٢");
+  const term = t.term.replace(/^Term\s*(\d+)$/i, "الفصل $1");
+  return [yr, term, t.wk ? `الأسبوع ${t.wk}` : "", t.titleAr?.trim() || t.title].filter(Boolean).join(" · ");
+}
 
 export type QuizzesData = {
   quizzes: Quiz[];
@@ -302,6 +317,8 @@ export function normalizeQuiz(raw: Partial<Quiz>): Quiz {
     ...(titleAr ? { titleAr } : {}),
     ...(descriptionAr ? { descriptionAr } : {}),
     ...(typeof raw.year === "number" && raw.year >= 1 && raw.year <= 13 ? { year: Math.round(raw.year) } : {}),
+    ...(String(raw.topic ?? "").trim() ? { topic: String(raw.topic).trim() } : {}),
+    ...(raw.topicInfo && typeof raw.topicInfo === "object" ? { topicInfo: { yr: String(raw.topicInfo.yr || ""), term: String(raw.topicInfo.term || ""), wk: Number(raw.topicInfo.wk) || 0, title: String(raw.topicInfo.title || ""), ...(raw.topicInfo.titleAr ? { titleAr: String(raw.topicInfo.titleAr) } : {}) } } : {}),
   };
 }
 
