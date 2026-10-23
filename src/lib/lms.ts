@@ -5,12 +5,12 @@ import { ASSESSMENT_API_BASE } from "@/lib/groupSession";
 
 /** LMS phase 1 client (see workers/assessment-session/src/lms.ts). */
 export type Role = "student" | "teacher" | "parent";
-export type LmsUser = { id: string; username: string; name: string; role: Role; cls: string; section: string; subjects: string[]; scope: string[]; perms: string[]; groups?: { id: string; name: string; subject: string }[]; subject?: string; phase?: string; disabled: boolean; hasPin: boolean; firstName?: string; lastName?: string; parentEmail?: boolean; parentName?: string; gender?: string; avatar?: string; email?: string; dob?: string; phone?: string; semail?: string; nationality?: string; prefLang?: string; sen?: boolean; eal?: boolean; gt?: boolean; /** Tracker Target (as entered), scaled score, and the effective Target (Target, else from scaled score) */ target?: string; scaled?: string; targetEff?: string; /** iSAMS (admin only) */ isamsId?: string; isamsSurname?: string; created: number; lastLogin: number | null; lastSeen?: number };
+export type LmsUser = { id: string; username: string; name: string; nameAr?: string; role: Role; cls: string; section: string; subjects: string[]; scope: string[]; perms: string[]; groups?: { id: string; name: string; subject: string }[]; subject?: string; phase?: string; disabled: boolean; hasPin: boolean; firstName?: string; lastName?: string; parentEmail?: boolean; parentName?: string; gender?: string; avatar?: string; email?: string; dob?: string; phone?: string; semail?: string; nationality?: string; prefLang?: string; sen?: boolean; eal?: boolean; gt?: boolean; /** Tracker Target (as entered), scaled score, and the effective Target (Target, else from scaled score) */ target?: string; scaled?: string; targetEff?: string; /** iSAMS (admin only) */ isamsId?: string; isamsSurname?: string; created: number; lastLogin: number | null; lastSeen?: number };
 export type Catalog = { subjects: { id: string; name: string }[]; classes: { id: string; name: string }[]; sections: { id: string; name: string; classId: string; cls: string }[] };
 export type DashStudent = { id: string; name: string; cls: string; section: string };
 /** Teacher scope entry: "Year 2" (whole class) or "Year 2|2A" (one section). */
 export const scopeLabel = (s: string) => s.replace("|", " · ");
-export type Actor = { id: string; role: Role | "admin"; name: string; cls: string; perms: string[]; scope?: string[]; viewAs?: boolean };
+export type Actor = { id: string; role: Role | "admin"; name: string; nameAr?: string; cls: string; perms: string[]; scope?: string[]; viewAs?: boolean };
 export type Slide = { title: string; text: string; image: string };
 export type QuranData = { surah: number; from: number; to: number; reciter: string; notes: string; translit?: boolean; translation?: boolean };
 export type GeneralData = { slides: Slide[]; question: string };
@@ -93,7 +93,7 @@ function writeSessionCookie(s: Session | null) {
     if (v.length <= 3900) document.cookie = `sm_lms_s=${v}; Max-Age=${3650 * 86400}; Path=/; SameSite=Lax; Secure`;
   } catch { /* ignore */ }
 }
-export type LoginCard = { id: string; name: string; username: string; cls: string; section: string; avatar: string; disabled: boolean; pin: string | null; token: string };
+export type LoginCard = { id: string; name: string; nameAr?: string; username: string; cls: string; section: string; avatar: string; disabled: boolean; pin: string | null; token: string };
 let renewing = false;
 /** Sliding renewal: keep a signed-in LMS session alive (30 days from the last visit) without any prompt. */
 export async function lmsRenew(force = false) {
@@ -114,7 +114,7 @@ export function lmsSignOut() {
 }
 
 /** Admin read-only "view as" (this browser tab only; never touches the user's real LMS session). */
-export type QrLink = { student: string; name: string; cls: string; section: string; token: string };
+export type QrLink = { student: string; name: string; nameAr?: string; cls: string; section: string; token: string };
 export type QrView = { dl?: boolean; student: string; cls: string; section: string; homework: { title: string; kind: "quran" | "general"; data: Partial<QuranData> }; status: string; grade: Grade | ""; scores?: Scores | null; recordings: string[]; recAt?: Record<string, number>; attempts: { n: number; grade: Grade; audio: string; at: number; scores?: Scores }[]; feedback: { by: string; text: string; audio: string; at: number }[]; tracker: TrackerRow[] };
 export type ViewAs = { id: string; name: string; role: "student" | "teacher"; cls: string };
 export function viewAs(): ViewAs | null {
@@ -185,6 +185,8 @@ export const lmsApi = {
     return storeSession(r);
   },
   me: () => call<{ user: Actor }>("me"),
+  nameMode: (asAdmin = false) => call<{ mode: string }>("name-mode", undefined, { asAdmin }),
+  setNameMode: (mode: string) => call<{ mode: string }>("name-mode", { mode }, { asAdmin: true }),
   dashboard: (asAdmin = false) =>
     call<{ homework: (Homework & { sub?: Submission | null; counts?: Record<string, number>; assigned?: number })[]; tracker?: TrackerRow[]; progress?: Progress; leaderboard?: boolean; classes?: { cls: string; students: number }[]; students?: DashStudent[]; catalog?: Catalog; scope?: string[] }>("dashboard", undefined, { asAdmin }),
   users: (asAdmin = true) => call<{ users: LmsUser[]; now?: number; adminSeen?: number }>("users", undefined, { asAdmin }),

@@ -145,7 +145,7 @@ export async function reportHandle(c: ReportCtx, a: Actor, action: string, input
     return { status: 200, body: { settings: S, defaults: DEF, ...(a.role === "admin" ? { access: accessCfg(c.sql) } : {}), mine: accessOf(c.sql, a) } };
   }
   const everyone = students(c.sql);
-  const all = everyone.filter((s) => a.role === "admin" || a.perms.includes("viewAll") || c.inScope(a, s.cls, s.section, s.id));
+  const all = everyone.filter((s) => a.role === "admin" || (a.perms.includes("viewAll") && !a.subj?.length) || c.inScope(a, s.cls, s.section, s.id));
   const groups = c.sql.exec(`SELECT id, name, students FROM grp ${a.role === "admin" ? "" : "WHERE owner=? OR owner='admin'"} ORDER BY name`, ...(a.role === "admin" ? [] : [a.id])).toArray().map((r) => ({ id: String(r.id), name: String(r.name), students: JSON.parse(String(r.students || "[]")) as string[] }));
 
   if (action === "report-unmatched" || action === "report-link") {

@@ -66,7 +66,9 @@ const EMAIL_KINDS: Record<string, [string, string]> = {
 };
 type Reply = { status: number; body: unknown };
 export type Role = "student" | "teacher" | "parent";
-export type Actor = { id: string; role: Role | "admin"; name: string; cls: string; perms: string[]; scope?: string[]; stu?: string[]; viewAs?: boolean };
+export type Actor = { id: string; role: Role | "admin"; name: string; cls: string; perms: string[]; scope?: string[]; stu?: string[]; viewAs?: boolean; subj?: string[]; nameAr?: string };
+/** A student's subjects ("Islamic A, Islamic B" → ["Islamic A", "Islamic B"]). */
+export const subjList = (v: unknown) => String(v || "").split(/\s*,\s*/).map((x) => x.trim()).filter(Boolean);
 type CatKind = "subject" | "class" | "section";
 
 const TOKEN_DAYS = 3650; // effectively "until you log out" (sliding renewal on visits); logout, block or PIN reset end it
@@ -260,7 +262,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     this.sql.exec(`CREATE TABLE IF NOT EXISTS msgs (id TEXT PRIMARY KEY, thread TEXT, sender TEXT, recipient TEXT, body TEXT, created INTEGER, read INTEGER DEFAULT 0)`);
     this.sql.exec(`CREATE INDEX IF NOT EXISTS msgs_thread ON msgs (thread, created)`);
     if (!cols("users").has("gender")) this.sql.exec(`ALTER TABLE users ADD COLUMN gender TEXT DEFAULT ''`);
-    for (const c of ["subject", "phase", "first_name", "last_name", "dob", "phone", "semail", "nationality", "pref_lang", "sen", "eal", "gt", "target", "scaled", "isams_id", "isams_surname"]) if (!cols("users").has(c)) this.sql.exec(`ALTER TABLE users ADD COLUMN ${c} TEXT DEFAULT ''`);
+    for (const c of ["subject", "phase", "first_name", "last_name", "dob", "phone", "semail", "nationality", "pref_lang", "sen", "eal", "gt", "target", "scaled", "isams_id", "isams_surname", "name_ar"]) if (!cols("users").has(c)) this.sql.exec(`ALTER TABLE users ADD COLUMN ${c} TEXT DEFAULT ''`);
     // Split existing display names into first / last once.
     for (const r of this.sql.exec(`SELECT id, name FROM users WHERE role='student' AND (first_name IS NULL OR first_name='')`).toArray()) {
       const parts = String(r.name || "").trim().split(/\s+/);
@@ -326,7 +328,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     return this.sql.exec(`SELECT * FROM users WHERE ${where}`, arg).toArray()[0];
   }
   private publicUser(r: Record<string, unknown>) {
-    return { id: String(r.id), username: String(r.username), name: String(r.name), role: String(r.role) as Role, cls: String(r.cls || ""), section: String(r.section || ""), subjects: JSON.parse(String(r.subjects || "[]")) as string[], scope: JSON.parse(String(r.scope || "[]")) as string[], perms: JSON.parse(String(r.perms || "[]")) as string[], disabled: Boolean(r.disabled), hasPin: Boolean(r.pin_enc), firstName: String(r.first_name || ""), lastName: String(r.last_name || ""), avatar: avatarOf(r), parentEmail: Boolean(r.email), parentName: String(r.parent_name || ""), lastSeen: Number(r.last_seen || 0), created: Number(r.created), lastLogin: r.last_login ? Number(r.last_login) : null };
+    return { id: String(r.id), username: String(r.username), name: String(r.name), nameAr: String(r.name_ar || ""), role: String(r.role) as Role, cls: String(r.cls || ""), section: String(r.section || ""), subjects: JSON.parse(String(r.subjects || "[]")) as string[], scope: JSON.parse(String(r.scope || "[]")) as string[], perms: JSON.parse(String(r.perms || "[]")) as string[], disabled: Boolean(r.disabled), hasPin: Boolean(r.pin_enc), firstName: String(r.first_name || ""), lastName: String(r.last_name || ""), avatar: avatarOf(r), parentEmail: Boolean(r.email), parentName: String(r.parent_name || ""), lastSeen: Number(r.last_seen || 0), created: Number(r.created), lastLogin: r.last_login ? Number(r.last_login) : null };
   }
   /** Admin-only view: every stored field (teachers never receive these). */
   private adminUser(r: Record<string, unknown>) {
@@ -339,19 +341,24 @@ export class LmsStore extends DurableObject<LmsEnv> {
   }
 
   /** Teachers see students ONLY through admin groups assigned to them. Returns class/section tokens for fully-covered places plus individual ids. Never empty: a teacher with no groups gets a sentinel that matches nothing. */
-  private teacherScope(tid: string): { scope: string[]; stu: string[] } {
-    const gs = this.sql.exec(`SELECT students, classes, teachers FROM grp WHERE admin=1`).toArray().filter((r) => (JSON.parse(String(r.teachers || "[]")) as string[]).includes(tid));
-    if (!gs.length) return { scope: ["\u0000"], stu: [] };
-    const all = this.sql.exec(`SELECT id, cls, section FROM users WHERE role='student' AND disabled=0`).toArray();
+  private teacherScope(tid: string): { scope: string[]; stu: string[]; subj: string[] } {
+    const gs = this.sql.exec(`SELECT students, classes, teachers, subject FROM grp WHERE admin=1`).toArray().filter((r) => (JSON.parse(String(r.teachers || "[]")) as string[]).includes(tid));
+    // Subject groups (e.g. Islamic A / Islamic B): the teacher only ever sees students who take one of those subjects.
+    const subj = [...new Set(gs.map((g) => String(g.subject || "").trim()).filter(Boolean))];
+    if (!gs.length) return { scope: ["\u0000"], stu: [], subj };
+    const all = this.sql.exec(`SELECT id, cls, section, subject FROM users WHERE role='student' AND disabled=0`).toArray();
+    const takes = (u: Record<string, unknown>, sub: string) => !sub || subjList(u.subject).includes(sub);
     const ids = new Set<string>();
     for (const g of gs) {
+      const gsub = String(g.subject || "").trim();
       for (const sid of JSON.parse(String(g.students || "[]")) as string[]) ids.add(sid);
-      for (const t of JSON.parse(String(g.classes || "[]")) as string[]) { const [c, sc] = t.split("|"); for (const u of all) if (String(u.cls) === c && (!sc || String(u.section) === sc)) ids.add(String(u.id)); }
+      for (const t of JSON.parse(String(g.classes || "[]")) as string[]) { const [c, sc] = t.split("|"); for (const u of all) if (String(u.cls) === c && (!sc || String(u.section) === sc) && takes(u, gsub)) ids.add(String(u.id)); }
     }
+    const pool = subj.length ? all.filter((u) => subj.some((x) => subjList(u.subject).includes(x))) : all;
     const place = (u: Record<string, unknown>) => `${String(u.cls || "")}|${String(u.section || "")}`;
     const total = new Map<string, number>(), have = new Map<string, number>();
-    for (const u of all) total.set(place(u), (total.get(place(u)) || 0) + 1);
-    for (const u of all) if (ids.has(String(u.id))) have.set(place(u), (have.get(place(u)) || 0) + 1);
+    for (const u of pool) total.set(place(u), (total.get(place(u)) || 0) + 1);
+    for (const u of pool) if (ids.has(String(u.id))) have.set(place(u), (have.get(place(u)) || 0) + 1);
     const scope: string[] = [], covered = new Set<string>();
     for (const [k, n] of have) {
       if (n !== total.get(k)) continue;
@@ -360,10 +367,26 @@ export class LmsStore extends DurableObject<LmsEnv> {
       if (sc) { scope.push(`${c}|${sc}`); covered.add(k); } else if (!sectioned) { scope.push(c); covered.add(k); }
     }
     const stu = all.filter((u) => ids.has(String(u.id)) && !covered.has(place(u))).map((u) => String(u.id));
-    return { scope: scope.length ? scope : ["\u0000"], stu };
+    return { scope: scope.length ? scope : ["\u0000"], stu, subj };
+  }
+  /** "View all homework" for a teacher with subject groups only covers homework from admin or teachers of the same subject. */
+  private va(a: Actor, by: string): boolean {
+    if (!a.perms.includes("viewAll")) return false;
+    if (!a.subj?.length || !by) return true;
+    const u = this.userRow("id=?", by);
+    if (!u || u.role !== "teacher") return true;
+    const theirs = this.teacherScope(by).subj;
+    return !theirs.length || theirs.some((x) => a.subj!.includes(x));
+  }
+  /** Subject rule for teachers with subject groups: the student must take one of the teacher's subjects. */
+  private subjOk(a: Actor, sid?: string): boolean {
+    if (!a.subj?.length || !sid) return true;
+    const u = this.userRow("id=?", sid);
+    if (!u || u.role !== "student") return true;
+    return a.subj.some((x) => subjList(u.subject).includes(x));
   }
   private mkActor(u: { id: string; role: Role; name: string; cls: string; perms: string[]; scope: string[] }): Actor {
-    if (u.role !== "teacher") return { id: u.id, role: u.role, name: u.name, cls: u.cls, perms: u.perms, scope: u.scope };
+    if (u.role !== "teacher") return { id: u.id, role: u.role, name: u.name, cls: u.cls, perms: u.perms, scope: u.scope, nameAr: (u as { nameAr?: string }).nameAr || "" };
     return { id: u.id, role: u.role, name: u.name, cls: u.cls, perms: u.perms, ...this.teacherScope(u.id) };
   }
   /** EYFS / Primary / Secondary from a stored class value such as "FS2", "Year 2", "Demo Year 3". FS and Year 1-2 = EYFS, Year 3-6 = Primary, Year 7+ = Secondary. */
@@ -668,6 +691,17 @@ export class LmsStore extends DurableObject<LmsEnv> {
       case "me":
         return { status: 200, body: { user: a } };
 
+      case "name-mode": {
+        // How student names print on certificates and QR cards: auto (follows the language), ar, en or both. Admin sets it.
+        if (input.__method === "POST") {
+          if (a.role !== "admin" || a.viewAs) return { status: 403, body: { error: "admin_only" } };
+          const m = ["auto", "ar", "en", "both"].includes(String(input.mode)) ? String(input.mode) : "auto";
+          this.sql.exec(`INSERT INTO settings (k, v) VALUES ('name:mode', ?) ON CONFLICT(k) DO UPDATE SET v=excluded.v`, m);
+          return { status: 200, body: { mode: m } };
+        }
+        return { status: 200, body: { mode: this.setting("name:mode", "auto") } };
+      }
+
       case "text-fix": {
         // Admin only: find (dry, default) or replace a text everywhere in the LMS store (e.g. a corrected surname). Logins untouched.
         if (a.role !== "admin" || a.viewAs) return { status: 403, body: { error: "forbidden" } };
@@ -760,7 +794,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
           {
             const uid = String((existing || this.userRow("username=?", username))?.id || "");
             if (uid) {
-              if (isAdm && raw.subject !== undefined && role === "student") this.sql.exec(`UPDATE users SET subject=? WHERE id=?`, str(raw.subject, 60), uid);
+              if (isAdm && raw.subject !== undefined && role === "student") this.sql.exec(`UPDATE users SET subject=? WHERE id=?`, subjList(Array.isArray(raw.subject) ? (raw.subject as unknown[]).join(",") : str(raw.subject, 120)).join(", "), uid);
               if (role === "student") {
                 const given = isAdm && raw.phase !== undefined ? this.normPhase(raw.phase, false) : "";
                 const auto = !prevPhase || prevCls !== cls ? this.phaseOfClass(cls) : prevPhase;
@@ -1463,7 +1497,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         for (const r of rows) {
           let tok = String(r.qr_token || "");
           if (!tok) { tok = b64url(crypto.getRandomValues(new Uint8Array(32))); this.sql.exec(`UPDATE users SET qr_token=? WHERE id=?`, tok, String(r.id)); }
-          items.push({ id: String(r.id), name: String(r.name), username: String(r.username), cls: String(r.cls || ""), section: String(r.section || ""), avatar: avatarOf(r), disabled: Boolean(r.disabled), pin: await openPin(this.env, r.pin_enc), token: tok });
+          items.push({ id: String(r.id), name: String(r.name), nameAr: String(r.name_ar || ""), username: String(r.username), cls: String(r.cls || ""), section: String(r.section || ""), avatar: avatarOf(r), disabled: Boolean(r.disabled), pin: await openPin(this.env, r.pin_enc), token: tok });
         }
         return { status: 200, body: { items } };
       }
@@ -1533,7 +1567,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         if (input.id) {
           const r = this.sql.exec(`SELECT created_by FROM homework WHERE id=?`, str(input.id, 40)).toArray()[0];
           if (!r) return { status: 404, body: { error: "not_found" } };
-          if (a.role !== "admin" && r.created_by !== a.id && !a.perms.includes("viewAll")) return { status: 403, body: { error: "forbidden" } };
+          if (a.role !== "admin" && r.created_by !== a.id && !this.va(a, String(r.created_by || ""))) return { status: 403, body: { error: "forbidden" } };
           this.sql.exec(`UPDATE homework SET kind=?, title=?, cls=?, section=?, students=?, data=?, due=? WHERE id=?`, kind, title, cls, section, JSON.stringify(students), blob, due, str(input.id, 40));
           return { status: 200, body: { ok: true, id: str(input.id, 40) } };
         }
@@ -1551,7 +1585,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         const qd = qhwOf(a);
         if (a.role === "teacher" && r.kind === "quran" && qd.set && !qd.del) return { status: 403, body: { error: "quran_not_allowed" } };
         if (!can(a, "assign") && !(a.role === "teacher" && r.kind === "quran" && qd.set && qd.del)) return { status: 403, body: { error: "forbidden" } };
-        if (a.role !== "admin" && r.created_by !== a.id && !a.perms.includes("viewAll")) return { status: 403, body: { error: "forbidden" } };
+        if (a.role !== "admin" && r.created_by !== a.id && !this.va(a, String(r.created_by || ""))) return { status: 403, body: { error: "forbidden" } };
         this.sql.exec(`DELETE FROM homework WHERE id=?`, id);
         await this.dropBlobsOfSubs(this.sql.exec(`SELECT id FROM subs WHERE hw=?`, id).toArray().map((x) => String(x.id)));
         this.sql.exec(`DELETE FROM subs WHERE hw=?`, id);
@@ -1566,7 +1600,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
           return { status: 200, body: { homework: hw, tracker: this.trackerOf(a.id), progress: this.progressOf(a.id), leaderboard: this.setting("leaderboard", "off") !== "off" } };
         }
         const qd = qhwOf(a);
-        const all = this.allHomework().filter((h) => a.role === "admin" || a.perms.includes("viewAll") || h.createdBy === a.id).filter((h) => h.kind !== "quran" || (qd.show && qd.view));
+        const all = this.allHomework().filter((h) => a.role === "admin" || this.va(a, h.createdBy) || h.createdBy === a.id).filter((h) => h.kind !== "quran" || (qd.show && qd.view));
         const counts = new Map<string, Record<string, number>>();
         for (const s of this.sql.exec(`SELECT hw, status, COUNT(*) AS n FROM subs GROUP BY hw, status`).toArray()) {
           const c = counts.get(String(s.hw)) || {};
@@ -1589,7 +1623,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         const qd = qhwOf(a);
         if (a.role === "teacher" && !(qd.show && qd.view)) return { status: 403, body: { error: "quran_not_allowed" } };
         const hws = new Map(this.allHomework().filter((h) => h.kind === "quran").map((h) => [h.id, h]));
-        const mine = (h: { createdBy: string }, r: Record<string, unknown>) => a.role === "admin" || a.perms.includes("viewAll") || h.createdBy === a.id || (JSON.parse(String(r.attempts || "[]")) as { by: string }[]).some((x) => x.by === a.name);
+        const mine = (h: { createdBy: string }, r: Record<string, unknown>) => a.role === "admin" || this.va(a, h.createdBy) || h.createdBy === a.id || (JSON.parse(String(r.attempts || "[]")) as { by: string }[]).some((x) => x.by === a.name);
         const names = new Map(this.sql.exec(`SELECT id, name, cls, section FROM users`).toArray().map((r) => [String(r.id), { name: String(r.name), cls: String(r.cls || ""), section: String(r.section || "") }]));
         const items = this.sql.exec(`SELECT * FROM subs WHERE grade != '' AND status IN ('approved','returned') ORDER BY updated DESC LIMIT 1000`).toArray().filter((r) => hws.has(String(r.hw)) && mine(hws.get(String(r.hw))!, r)).map((r) => {
           const h = hws.get(String(r.hw))!; const at = JSON.parse(String(r.attempts || "[]")) as { at: number; by: string }[]; const last = at[at.length - 1];
@@ -1718,7 +1752,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
             row = { token: tok };
           }
           const t = String(row.token);
-          return { student: sid, name: String(u?.name || "?"), cls: String(u?.cls || ""), section: String(u?.section || ""), token: t.startsWith("revoked:") ? "" : t };
+          return { student: sid, name: String(u?.name || "?"), nameAr: String(u?.name_ar || ""), cls: String(u?.cls || ""), section: String(u?.section || ""), token: t.startsWith("revoked:") ? "" : t };
         });
         return { status: 200, body: { links: out, teacher: a.name } };
       }
@@ -1849,7 +1883,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
       case "export": {
         if (!isStaff(a)) return { status: 403, body: { error: "forbidden" } };
         if (!this.dlOf(a, "export")) return { status: 403, body: { error: "download_not_allowed" } };
-        const hw = this.allHomework().filter((h) => a.role === "admin" || a.perms.includes("viewAll") || h.createdBy === a.id);
+        const hw = this.allHomework().filter((h) => a.role === "admin" || this.va(a, h.createdBy) || h.createdBy === a.id);
         const ids = new Set(hw.map((h) => h.id));
         const users = this.sql.exec(`SELECT id, username, name, role, cls, section FROM users`).toArray().map((r) => ({ id: String(r.id), username: String(r.username), name: String(r.name), role: String(r.role), cls: String(r.cls || ""), section: String(r.section || "") }));
         const subs = this.sql.exec(`SELECT * FROM subs ORDER BY updated`).toArray().filter((r) => ids.has(String(r.hw))).map((r) => ({ ...this.subOut(r), hw: String(r.hw), student: String(r.student) }));
@@ -1896,15 +1930,19 @@ export class LmsStore extends DurableObject<LmsEnv> {
     return rows.map((r) => ({ id: String(r.id), kind: String(r.kind) as "quran" | "general", title: String(r.title), cls: String(r.cls || ""), section: String(r.section || ""), students: JSON.parse(String(r.students || "[]")) as string[], data: JSON.parse(String(r.data || "{}")) as Json, due: r.due ? Number(r.due) : null, createdBy: String(r.created_by), created: Number(r.created) }));
   }
   /** Students a homework is for: the listed students, else everyone in its class ("" = all students). */
-  private assignees(h: { cls: string; section: string; students: string[] }): string[] {
+  private assignees(h: { cls: string; section: string; students: string[]; createdBy?: string }): string[] {
     // Target = individual students ∪ class/section members (no class and no students = everyone).
+    // Homework set by a teacher with subject groups only reaches students taking that subject.
     if (!h.cls && h.students.length) return h.students;
     const rows = h.cls
       ? h.section
-        ? this.sql.exec(`SELECT id FROM users WHERE role='student' AND disabled=0 AND cls=? AND section=?`, h.cls, h.section).toArray()
-        : this.sql.exec(`SELECT id FROM users WHERE role='student' AND disabled=0 AND cls=?`, h.cls).toArray()
-      : this.sql.exec(`SELECT id FROM users WHERE role='student' AND disabled=0`).toArray();
-    return [...new Set([...h.students, ...rows.map((r) => String(r.id))])];
+        ? this.sql.exec(`SELECT id, subject FROM users WHERE role='student' AND disabled=0 AND cls=? AND section=?`, h.cls, h.section).toArray()
+        : this.sql.exec(`SELECT id, subject FROM users WHERE role='student' AND disabled=0 AND cls=?`, h.cls).toArray()
+      : this.sql.exec(`SELECT id, subject FROM users WHERE role='student' AND disabled=0`).toArray();
+    const by = h.createdBy ? this.userRow("id=?", h.createdBy) : undefined;
+    const subj = by && by.role === "teacher" ? this.teacherScope(String(by.id)).subj : [];
+    const ok = (r: Record<string, unknown>) => !subj.length || subj.some((x) => subjList(r.subject).includes(x));
+    return [...new Set([...h.students, ...rows.filter(ok).map((r) => String(r.id))])];
   }
   private assignedTo(a: Actor) {
     const sec = String(this.userRow("id=?", a.id)?.section || "");
@@ -2101,6 +2139,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     if (has("parentName")) this.sql.exec(`UPDATE users SET parent_name=? WHERE id=?`, str(raw.parentName, 80), id);
     // Tracker Target (1–7, kept exactly as entered) and optional scaled score (used only when there is no Target).
     if (has("target")) { const t = Math.round(Number(raw.target)); this.sql.exec(`UPDATE users SET target=? WHERE id=?`, raw.target === "" || raw.target === null || !(t >= 1 && t <= 9) ? "" : String(t), id); }
+    if (has("nameAr")) this.sql.exec(`UPDATE users SET name_ar=? WHERE id=?`, str(raw.nameAr, 120), id);
     if (has("isamsId")) this.sql.exec(`UPDATE users SET isams_id=? WHERE id=?`, str(raw.isamsId, 20).replace(/[^0-9A-Za-z-]/g, ""), id);
     if (has("isamsSurname")) this.sql.exec(`UPDATE users SET isams_surname=? WHERE id=?`, str(raw.isamsSurname, 80), id);
     if (has("scaled")) { const t = Math.round(Number(raw.scaled)); this.sql.exec(`UPDATE users SET scaled=? WHERE id=?`, raw.scaled === "" || raw.scaled === null || !(t >= 1 && t <= 200) ? "" : String(t), id); }
@@ -2291,7 +2330,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     if (a.role !== "teacher") return false;
     if (sid && a.stu?.includes(sid)) return true;
     if (!a.scope?.length) return false;
-    return a.scope.some((x) => { const [k, s2] = x.split("|"); return k === cls && (!s2 || !section || s2 === section); });
+    return a.scope.some((x) => { const [k, s2] = x.split("|"); return k === cls && (!s2 || !section || s2 === section); }) && this.subjOk(a, sid);
   }
   private placeOf(sid: string): [string, string] {
     const u = this.userRow("id=? AND role='student'", sid);
@@ -2315,7 +2354,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     if (a.stu?.includes(sid)) return true;
     if (!a.scope?.length) return false;
     const u = this.userRow("id=?", sid);
-    return !!u && a.scope.some((x) => { const [k, s2] = x.split("|"); return k === String(u.cls || "") && (!s2 || s2 === String(u.section || "")); });
+    return !!u && a.scope.some((x) => { const [k, s2] = x.split("|"); return k === String(u.cls || "") && (!s2 || s2 === String(u.section || "")); }) && this.subjOk(a, sid);
   }
 
   /** Public contact form: store (always), rate-limit per IP (5/hour, 20/day site-wide per IP). */
