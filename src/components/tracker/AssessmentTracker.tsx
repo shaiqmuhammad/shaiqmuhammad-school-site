@@ -31,7 +31,7 @@ export function AssessmentTracker({ asAdmin = false }: { asAdmin?: boolean }) {
   const [err, setErr] = useState("");
   const gridRef = useRef<HTMLDivElement>(null);
   const note = (m: string, b = false) => { setMsg(m); setBad(b); setTimeout(() => setMsg(""), 5000); };
-  useEffect(() => { trk<{ years: string[]; access: TrkAccess; systems: SysLite[] }>("asys-list", {}).then((r) => { setSel({ years: r.years, access: r.access, systems: r.systems }); setCls((c) => c || r.years[1] || r.years[0] || ""); }).catch((e) => setErr(modErr(e, tr))); }, [tr]);
+  useEffect(() => { trk<{ years: string[]; access: TrkAccess; systems: SysLite[] }>("asys-list", {}).then((r) => { setSel({ years: r.years, access: r.access, systems: r.systems }); setCls((c) => c || (r.years.length > 1 && asAdmin ? r.years[1] : r.years[0]) || ""); }).catch((e) => setErr(modErr(e, tr))); }, [tr]);
   const load = useCallback(() => { if (!cls) return; trk<TGrid>("trk-get", { cls, term, sys: sysId }).then((r) => { setErr(""); setG(r); }).catch((e) => { setG(null); setErr(modErr(e, tr)); }); }, [cls, term, sysId, tr]);
   const sysChoices = (sel?.systems || []).filter((x) => x.active && x.scope.years.includes(cls));
   useEffect(() => { load(); }, [load]);

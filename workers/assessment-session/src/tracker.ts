@@ -225,7 +225,7 @@ export async function trackerHandle(c: TrkCtx, a: Actor, action: string, input: 
     case "asys-list": {
       const sys = systems(sql);
       const repView = String(sql.exec(`SELECT v FROM settings WHERE k='rep_view'`).toArray()[0]?.v || "tracker");
-      return { status: 200, body: { repView, systems: a.role === "admin" ? sys : sys.map((s) => ({ id: s.id, name: s.name, version: s.version, active: s.active, isDefault: s.isDefault, scope: s.scope })), platform: "Shaiq Muhammad System", years: [...new Set(sys.filter((s) => s.active).flatMap((s) => s.scope.years))], access: trkAccess(sys.find((s) => s.active), a) } };
+      return { status: 200, body: { repView, systems: a.role === "admin" ? sys : sys.map((s) => ({ id: s.id, name: s.name, version: s.version, active: s.active, isDefault: s.isDefault, scope: s.scope })), platform: "Shaiq Muhammad System", years: [...new Set(sys.filter((s) => s.active).flatMap((s) => s.scope.years))].filter((y) => a.role === "admin" || sql.exec(`SELECT id, section FROM users WHERE role='student' AND cls=? AND COALESCE(disabled,0)=0`, y).toArray().some((u) => c.inScope(a, y, String(u.section || ""), String(u.id)))), access: trkAccess(sys.find((s) => s.active), a) } };
     }
     case "trk-link-get": {
       const ids = (Array.isArray(input.ids) ? input.ids : []).slice(0, 500).map((x) => str(x, 80));
