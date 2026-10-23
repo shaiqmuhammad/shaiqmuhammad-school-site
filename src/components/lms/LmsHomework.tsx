@@ -451,7 +451,10 @@ export function LmsHomework() {
                   // Quran: a graded submission (Save grade) moves to "Corrected"; likes/comments never move it. Stable order (by submit time).
                   const isCorr = (s: NonNullable<Data["subs"]>[number]) => quran && !!s.grade && (s.status === "approved" || s.status === "returned");
                   const all = [...(d?.subs || [])].sort((x, y) => (y.submittedAt || 0) - (x.submittedAt || 0) || x.name.localeCompare(y.name));
-                  const list = all.filter((s) => (subTab === "corr") === isCorr(s));
+                  // t302: commented after the last submit = waiting for the student; it leaves the review list until they respond.
+                  const waits = (s: NonNullable<Data["subs"]>[number]) => s.status === "submitted" && (s.comments || []).some((m) => (m.at || 0) > (s.submittedAt || 0));
+                  const list = all.filter((s) => (subTab === "corr") === isCorr(s) && (subTab === "corr" || !waits(s)));
+                  const waiting = all.filter(waits);
                   const nCorr = all.filter(isCorr).length;
                   return (
                     <>
@@ -463,6 +466,7 @@ export function LmsHomework() {
                         </div>
                       )}
                       {gradeMsg && <p className="rounded-2xl bg-emerald-100 px-4 py-2 font-bold text-emerald-900" role="status" data-testid="grade-saved-msg">{gradeMsg}</p>}
+                      {subTab !== "corr" && waiting.length > 0 && <p className="rounded-2xl bg-sky-50 px-3 py-2 text-sm font-semibold text-sky-900 dark:bg-sky-900/30 dark:text-sky-100" data-testid="subs-waiting">💬 {tr(`Waiting for the student to respond: ${waiting.map((w) => w.name).join(", ")}`, `بانتظار رد الطالب: ${waiting.map((w) => w.name).join("، ")}`)}</p>}
                       {list.length === 0 && <p className="text-sm opacity-70" data-testid="subs-empty">{subTab === "corr" ? tr("Nothing corrected yet.", "لا يوجد واجب مصحّح بعد.") : tr("Nothing waiting for review.", "لا شيء بانتظار المراجعة.")}</p>}
                       <ul className="space-y-3">
                         {list.map((s) => (

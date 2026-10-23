@@ -18,6 +18,8 @@ const urlOf = (t: string) => `${window.location.origin}/lms/qr/?t=${t}`;
 export function StudentLogins({ asAdmin, perms = [] }: { asAdmin: boolean; perms?: string[] }) {
   const { tr, lang } = useTr();
   const [nameMode, setNameMode] = useState<NameMode>("auto");
+  // t302: PINs stay hidden until the eye button is pressed (per card).
+  const [shown, setShown] = useState<Set<string>>(new Set());
   useEffect(() => { loadNameMode(asAdmin).then(setNameMode).catch(() => undefined); }, [asAdmin]);
   const [items, setItems] = useState<LoginCard[] | null>(null);
   const [err, setErr] = useState("");
@@ -87,7 +89,7 @@ export function StudentLogins({ asAdmin, perms = [] }: { asAdmin: boolean; perms
               <p className="text-sm opacity-70">{clsNum(s.cls)}{s.section ? secLetter(s.section) : ""}{s.disabled ? ` · ${tr("Blocked", "موقوف")}` : ""}</p>
               <dl className="mt-2 divide-y divide-black/10 rounded-xl bg-black/[0.04] text-start dark:divide-white/10 dark:bg-white/5">
                 <div className="flex items-center justify-between gap-2 px-3 py-1.5"><dt className="text-xs font-bold uppercase opacity-60">{tr("User ID", "المعرّف")}</dt><dd className="font-mono text-base font-bold" dir="ltr" data-testid="login-user">{s.username}</dd></div>
-                <div className="flex items-center justify-between gap-2 px-3 py-1.5"><dt className="text-xs font-bold uppercase opacity-60">PIN</dt><dd className="font-mono text-xl font-extrabold tracking-widest" dir="ltr" data-testid="login-pin">{s.pin || "—"}</dd></div>
+                <div className="flex items-center justify-between gap-2 px-3 py-1.5"><dt className="text-xs font-bold uppercase opacity-60">PIN</dt><dd className="flex items-center gap-2"><span className="font-mono text-xl font-extrabold tracking-widest" dir="ltr" data-testid="login-pin">{shown.has(s.id) ? s.pin || "—" : s.pin ? "••••••" : "—"}</span>{s.pin && <button type="button" className="rounded-full border border-black/15 px-2 py-0.5 text-sm dark:border-white/20" onClick={() => setShown((x) => { const n = new Set(x); if (n.has(s.id)) n.delete(s.id); else n.add(s.id); return n; })} aria-label={shown.has(s.id) ? tr("Hide PIN", "إخفاء الرمز") : tr("Show PIN", "إظهار الرمز")} title={shown.has(s.id) ? tr("Hide PIN", "إخفاء الرمز") : tr("Show PIN", "إظهار الرمز")} data-testid="login-pin-eye">{shown.has(s.id) ? "🙈" : "👁"}</button>}</dd></div>
               </dl>
               <div className="mx-auto mt-3 w-fit rounded-2xl bg-white p-2 shadow-inner" data-testid="login-qr" dangerouslySetInnerHTML={{ __html: qrSvg(urlOf(s.token), 200) }} />
               <p className="mt-1 text-xs opacity-60">{tr("Scan to sign in", "امسح للدخول")}</p>

@@ -31,11 +31,12 @@ const STUDENT: Tab[] = [
   { id: "msg", href: "/lms/messages", en: "Messages", ar: "الرسائل", icon: I.msg, lvl: 1 },
   { id: "wall", href: "/lms/wall", en: "Class Wall", ar: "جدار الصف", icon: I.wall, lvl: 2 },
   { id: "quran", href: "/lms", hash: "#tracker", en: "Quran Tracker", ar: "متابعة الحفظ", icon: I.quran, lvl: 2 },
+  { id: "lib", href: "/lms/library", en: "Learning Libraries", ar: "مكتبات التعلم", icon: I.cur, lvl: 1 },
 ];
 const TEACHER: Tab[] = [
   { id: "dash", href: "/lms", en: "Dashboard", ar: "اللوحة", icon: I.dash, lvl: 0 },
   { id: "cls", href: "/lms/classes", en: "My classes", ar: "صفوفي", icon: I.cls, lvl: 0 },
-  { id: "hw", href: "/lms/homework", en: "Homework", ar: "الواجبات", icon: I.hw, lvl: 1 },
+  { id: "hw", href: "/lms/homework", en: "Homeworks", ar: "الواجبات", icon: I.hw, lvl: 1 },
   { id: "assess", href: "/lms/assessments", en: "Assessments", ar: "التقييمات", icon: I.assess, lvl: 2 },
   { id: "msg", href: "/lms/messages", en: "Messages", ar: "الرسائل", icon: I.msg, lvl: 2 },
   { id: "act", href: "/lms/activities", en: "Activities", ar: "الأنشطة", icon: I.act, lvl: 3 },
@@ -91,7 +92,7 @@ export function LmsTabs() {
   ];
   const loginsTab: Tab[] = staff && stuUi(actor.perms || [], "view") ? [{ id: "logins", href: "/lms/logins", en: "Student Logins", ar: "دخول الطلاب", icon: "", lvl: 3 }] : [];
   const acctTab: Tab[] = [{ id: "acct", href: "/lms/account", en: "My account", ar: "حسابي", icon: "", lvl: 3 }];
-  const qTab: Tab[] = staff && qp.show ? [{ id: "qhw", href: "/lms/quran", en: "Quran Homework", ar: "واجب القرآن", icon: I.quran, lvl: 2 }, ...(qp.view ? [{ id: "corr", href: "/lms/corrected", en: "Corrected", ar: "المصحَّح", icon: "", lvl: 2 } as Tab] : [])] : [];
+  const qTab: Tab[] = false && staff && qp.show ? [{ id: "qhw", href: "/lms/quran", en: "Quran Homework", ar: "واجب القرآن", icon: I.quran, lvl: 2 }, ...(qp.view ? [{ id: "corr", href: "/lms/corrected", en: "Corrected", ar: "المصحَّح", icon: "", lvl: 2 } as Tab] : [])] : [];
   const PARENT: Tab[] = [
     { id: "dash", href: "/lms/family", en: "Dashboard", ar: "اللوحة", icon: I.dash, lvl: 0 },
     { id: "hw", href: "/lms/family", hash: "#homework", en: "Homework", ar: "الواجبات", icon: I.hw, lvl: 0 },
