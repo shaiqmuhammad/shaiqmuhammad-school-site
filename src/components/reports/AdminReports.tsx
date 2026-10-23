@@ -1,6 +1,7 @@
 "use client";
 
 import { TrackerSummary } from "@/components/tracker/TrackerSummary";
+import { setTrackerAdmin, trk } from "@/lib/tracker";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useI18n } from "@/lib/i18n";
@@ -27,6 +28,8 @@ export function AdminReports({ admin = true }: { admin?: boolean }) {
   const [tab, setTab] = useState<TabId>("overview");
   const [drill, setDrill] = useState<{ year?: string; section?: string; band?: string; kind?: "att" | "prog" | "quran" | "hw" } | null>(null);
   const [detail, setDetail] = useState<StudentDetail | null>(null);
+  const [repView, setRepView] = useState("");
+  useEffect(() => { setTrackerAdmin(admin); trk<{ repView: string }>("asys-list", {}).then((r) => setRepView(r.repView || "tracker")).catch(() => setRepView("tracker")); }, [admin]);
 
   const load = useCallback(async (f: ReportFilters) => {
     setLoading(true); setErr("");
@@ -126,8 +129,8 @@ export function AdminReports({ admin = true }: { admin?: boolean }) {
           {data?.access.xlsx && <button type="button" className="btn-glass px-3 py-1.5 text-sm" onClick={exportXlsx} data-testid="rep-xlsx">📊 Excel</button>}
         </div>
       </div>
-      <TrackerSummary admin={admin} />
-      <p className="text-xs font-bold uppercase tracking-wide opacity-60" data-testid="rep-secondary">{tr("Secondary view — % from quizzes and homework", "عرض ثانوي — النسب من الاختبارات والواجبات")}</p>
+      {repView === "tracker" && <TrackerSummary admin={admin} />}
+      {repView === "tracker" && <p className="text-xs font-bold uppercase tracking-wide opacity-60" data-testid="rep-secondary">{tr("Secondary view — % from quizzes and homework", "عرض ثانوي — النسب من الاختبارات والواجبات")}</p>}
 
       {data && (
         <div className={`${card} grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8`} data-testid="rep-filters">
@@ -239,6 +242,7 @@ export function AdminReports({ admin = true }: { admin?: boolean }) {
       </>)}
 
       {detail && <StudentPanel d={detail} onClose={() => setDetail(null)} tr={tr} />}
+      {repView === "percent" && <TrackerSummary admin={admin} secondary />}
     </div>
   );
 }
