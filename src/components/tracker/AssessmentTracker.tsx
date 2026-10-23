@@ -36,6 +36,7 @@ export function AssessmentTracker({ asAdmin = false }: { asAdmin?: boolean }) {
   const sysChoices = (sel?.systems || []).filter((x) => x.active && x.scope.years.includes(cls));
   useEffect(() => { load(); }, [load]);
   const acc = g?.access || sel?.access;
+  const setTarget = async (sid: string, v: string) => { try { await trk("trk-target", { student: sid, val: v }); note(tr("Target saved.", "تم حفظ الهدف.")); load(); } catch (e) { note(modErr(e, tr), true); } };
   const set = async (sid: string, unit: string, i: number, raw: string) => {
     if (!g) return;
     const val = raw === "auto" ? null : raw === "" ? "" : Number(raw);
@@ -80,7 +81,7 @@ export function AssessmentTracker({ asAdmin = false }: { asAdmin?: boolean }) {
         {acc?.pdf && <button type="button" className={btn} onClick={() => doExport("pdf")} disabled={!g} data-testid="trk-pdf">⬇ PDF</button>}
       </div>
       {err && <p className="rounded-xl bg-amber-100 px-4 py-3 text-sm font-semibold text-amber-900" role="alert" data-testid="trk-error">{err}</p>}
-      {view === "grid" && g && <Grid g={g} gridRef={gridRef} sum={sum} edit={!!acc?.edit} set={set} setGrade={setGrade} />}
+      {view === "grid" && g && <Grid g={g} gridRef={gridRef} sum={sum} edit={!!acc?.edit} set={set} setGrade={setGrade} setTarget={setTarget} />}
       {view === "isams" && g && <IsamsPanel g={g} access={acc!} setEffort={setEffort} asAdmin={asAdmin} note={note} />}
       {view === "audit" && asAdmin && <Audit />}
       {view === "grid" && g && <p className="text-xs opacity-70">{tr("Cell marks:", "علامات الخلايا:")} {Object.entries(SRC).map(([k, [m, c, t]]) => <span key={k} className="me-3"><b style={{ color: c }}>{m}</b> {t}</span>)}· {tr("Average and Attainment Grade recalculate on every change.", "يُعاد حساب المتوسط ودرجة التحصيل مع كل تغيير.")}</p>}
@@ -88,7 +89,7 @@ export function AssessmentTracker({ asAdmin = false }: { asAdmin?: boolean }) {
   );
 }
 
-function Grid({ g, gridRef, sum, edit, set, setGrade }: { g: TGrid; gridRef: React.RefObject<HTMLDivElement | null>; sum: ReturnType<typeof summary> | null; edit: boolean; set: (s: string, u: string, i: number, v: string) => void; setGrade: (s: string, v: string) => void }) {
+function Grid({ g, gridRef, sum, edit, set, setGrade, setTarget }: { g: TGrid; gridRef: React.RefObject<HTMLDivElement | null>; sum: ReturnType<typeof summary> | null; edit: boolean; set: (s: string, u: string, i: number, v: string) => void; setGrade: (s: string, v: string) => void; setTarget: (s: string, v: string) => void }) {
   const { tr } = useTr();
   const S = g.students;
   const cell = { border: bd, padding: "1px 4px", minWidth: 46, textAlign: "center" as const, fontSize: 14.6, fontFamily: FONT, position: "relative" as const, whiteSpace: "nowrap" as const };
@@ -99,7 +100,7 @@ function Grid({ g, gridRef, sum, edit, set, setGrade }: { g: TGrid; gridRef: Rea
       <div ref={gridRef} className="inline-block min-w-full bg-white p-2">
         <table style={{ borderCollapse: "collapse", fontFamily: FONT, fontSize: 14.6 }} data-testid="trk-grid">
           <tbody>
-            <tr data-testid="trk-row-target"><th style={{ ...a, background: YEL, textAlign: "center" }}>Student Target</th>{S.map((s) => <td key={s.id} style={{ ...cell, background: YEL, textAlign: "left" }} title={s.targetSrc === "scaled" ? tr("From scaled score", "من الدرجة المعيارية") : ""} data-testid="trk-target">{s.target}{s.targetSrc === "scaled" ? "*" : ""}</td>)}</tr>
+            <tr data-testid="trk-row-target"><th style={{ ...a, background: YEL, textAlign: "center" }}>Student Target</th>{S.map((s) => <td key={s.id} style={{ ...cell, background: YEL, textAlign: "left" }} title={s.targetSrc === "scaled" ? tr("From scaled score", "من الدرجة المعيارية") : ""} data-testid="trk-target">{s.targetMode === "teacher" && edit ? <select value={s.target} onChange={(e) => setTarget(s.id, e.target.value)} style={{ background: "transparent", font: "inherit", maxWidth: 64 }} data-testid="trk-target-sel" aria-label={tr("Target", "الهدف")}><option value="">{tr("Target not set", "الهدف غير محدد")}</option>{[1, 2, 3, 4, 5, 6, 7].map((n) => <option key={n} value={String(n)}>{n}</option>)}</select> : s.target || (s.targetMode === "teacher" ? <span style={{ fontSize: 10, fontStyle: "italic" }} data-testid="trk-target-unset">{tr("Target not set", "الهدف غير محدد")}</span> : "")}{s.targetSrc === "scaled" ? "*" : ""}</td>)}</tr>
             <tr><th style={{ ...a, textAlign: "center" }}>Objective</th>{S.map((s) => <td key={s.id} style={{ ...cell, border: "none", textAlign: "left" }} data-testid="trk-name" title={s.name}>{s.first || s.name.split(" ")[0]}</td>)}</tr>
             {!g.units.length && <tr><td style={a} colSpan={S.length + 1}>{tr("No curriculum Success Criteria for this class and term yet.", "لا توجد معايير نجاح لهذا الصف والفصل بعد.")}</td></tr>}
             {g.units.map((u) => (

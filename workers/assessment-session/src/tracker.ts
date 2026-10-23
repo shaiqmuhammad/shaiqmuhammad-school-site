@@ -45,6 +45,8 @@ export type ASys = {
   effort: string[]; targetList: string[]; attainList: string[];
   thresholds: number[];
   access: Record<TrkKey, boolean>;
+  /** Target rule per year/phase: profile (+ scaled score if none), fixed value for everyone, or teacher-chosen 1–7 (no scaled fallback). */
+  targetRules: Record<string, { mode: "profile" | "fixed" | "teacher"; value?: string }>;
   isDefault: boolean; // the default system for its phase (one at a time per phase)
   resub: "latest" | "best" | "first"; // which attempt counts when a weekly assessment is re-submitted
   untagged: boolean; // a linked assessment with no SC tags gives its overall % to every SC of the unit (flagged)
@@ -52,7 +54,7 @@ export type ASys = {
 };
 export const RIS_PRIMARY: ASys = {
   id: "ris-primary", name: "RIS Primary Attainment and Progress System", version: "1.0", active: true,
-  scope: { phase: "Primary", years: ["Year 1", "Year 2", "Year 3", "Year 4", "Year 5", "Year 6"], subject: "Islamic B" },
+  scope: { phase: "Primary", years: ["FS2", "Year 1", "Year 2", "Year 3", "Year 4", "Year 5", "Year 6"], subject: "Islamic B" },
   scale: [{ v: 0, label: "Working Below" }, { v: 1, label: "Working Towards" }, { v: 2, label: "Working At" }, { v: 3, label: "Greater Depth" }], key: KEY_TEXT,
   cut: [40, 60, 85], quran: { red: "1", yellow: "2", green: "3" }, quranPattern: "^Recit",
   bands: [0.9, 1.4, 1.9, 2.2, 2.5, 2.8, 3], capTarget: true, capExempt: ["FS2", "Year 1"],
@@ -61,6 +63,7 @@ export const RIS_PRIMARY: ASys = {
   thresholds: [4, 5],
   access: { view: true, edit: true, effort: true, xlsx: true, pdf: true, isams: true },
   isDefault: true, resub: "latest", untagged: true,
+  targetRules: { FS2: { mode: "fixed", value: "7" }, "Year 1": { mode: "teacher" } },
 };
 
 export function trkInit(sql: Sql) {
@@ -111,6 +114,7 @@ function cleanSys(raw: Json, prev: ASys): ASys {
     effort: raw.effort === undefined ? prev.effort : strs(raw.effort, prev.effort), targetList: raw.targetList === undefined ? prev.targetList : strs(raw.targetList, prev.targetList), attainList: raw.attainList === undefined ? prev.attainList : strs(raw.attainList, prev.attainList),
     thresholds: Array.isArray(raw.thresholds) ? [...new Set((raw.thresholds as unknown[]).map((x) => Math.round(num(x, 4, 1, 9))))].sort((a, b) => a - b).slice(0, 6) : prev.thresholds,
     access: Object.fromEntries(TRK_KEYS.map((k) => [k, acc[k] === undefined ? prev.access[k] : !!acc[k]])) as Record<TrkKey, boolean>,
+    targetRules: raw.targetRules === undefined ? prev.targetRules || {} : Object.fromEntries(Object.entries((raw.targetRules || {}) as Record<string, Json>).slice(0, 30).map(([k, v]) => [str(k, 40), { mode: (["profile", "fixed", "teacher"].includes(String(v?.mode)) ? String(v.mode) : "profile") as "profile", value: /^[1-9]$/.test(String(v?.value ?? "")) ? String(v.value) : undefined }]).filter(([k]) => k)),
     isDefault: raw.isDefault === undefined ? prev.isDefault : !!raw.isDefault,
     resub: ["latest", "best", "first"].includes(String(raw.resub)) ? (String(raw.resub) as ASys["resub"]) : prev.resub,
     untagged: raw.untagged === undefined ? prev.untagged : !!raw.untagged,
@@ -123,6 +127,8 @@ export function systems(sql: Sql): ASys[] {
   return list.map((s) => ({ ...RIS_PRIMARY, ...s, scope: { ...RIS_PRIMARY.scope, ...(s.scope || {}) }, access: { ...RIS_PRIMARY.access, ...(s.access || {}) } }));
 }
 /** The system for a class: an explicitly chosen one, else the default for that class's phase, else any active system covering the class. */
+/** Year rule first, then phase rule, else profile. */
+export const ruleFor = (sys: ASys, cls: string) => (sys.targetRules || {})[cls] || (sys.targetRules || {})[sys.scope.phase] || { mode: "profile" as const };
 const sysFor = (sql: Sql, cls: string, want = "") => {
   const all = systems(sql).filter((s) => s.active && s.scope.years.includes(cls));
   return (want && all.find((s) => s.id === want)) || all.find((s) => s.isDefault) || all[0];
@@ -155,7 +161,14 @@ async function grid(c: TrkCtx, a: Actor, cls: string, term: string, want = "") {
   if (!sys) return null;
   const students = c.sql.exec(`SELECT id, name, first_name, last_name, section, target, scaled, isams_id FROM users WHERE role='student' AND cls=? AND COALESCE(disabled,0)=0 ORDER BY name`, cls).toArray()
     .filter((s) => a.role === "admin" || c.inScope(a, cls, String(s.section || ""), String(s.id)))
-    .map((s) => { const t = String(s.target || "") || (s.scaled ? targetFromScaledSys(Number(s.scaled), sys) : ""); return { id: String(s.id), name: String(s.name), first: String(s.first_name || ""), last: String(s.last_name || ""), target: t, targetSrc: s.target ? "profile" : t ? "scaled" : "", isamsId: String(s.isams_id || "") }; });
+    .map((s) => {
+      const rule = ruleFor(sys, cls);
+      let t = "", src = "";
+      if (rule.mode === "fixed" && rule.value) { t = rule.value; src = "rule"; }
+      else if (rule.mode === "teacher") { t = String(s.target || ""); src = t ? "teacher" : ""; } // teacher judgment: never from the scaled score
+      else { t = String(s.target || "") || (s.scaled ? targetFromScaledSys(Number(s.scaled), sys) : ""); src = s.target ? "profile" : t ? "scaled" : ""; }
+      return { id: String(s.id), name: String(s.name), first: String(s.first_name || ""), last: String(s.last_name || ""), target: t, targetSrc: src, targetMode: rule.mode, isamsId: String(s.isams_id || "") };
+    });
   const units = c.sql.exec(`SELECT id, title, term, wk_from, sc, links, subject, quiz, std FROM cur WHERE yr=? ${sys.scope.subject ? "AND subject=?" : ""} ORDER BY term, wk_from, ord, title`, ...(sys.scope.subject ? [cls, sys.scope.subject] : [cls])).toArray()
     .filter((u) => !term || String(u.term) === term)
     .map((u) => { let sc: string[] = []; let links: { t: string; id: string }[] = []; let std: { codes: string[]; skill: number } = { codes: [], skill: 0 }; try { sc = JSON.parse(String(u.sc || "[]")); } catch { /* */ } try { links = JSON.parse(String(u.links || "[]")); } catch { /* */ } try { std = { codes: [], skill: 0, ...JSON.parse(String(u.std || "{}")) }; } catch { /* */ } const quizzes = [...new Set([String(u.quiz || ""), ...links.filter((l) => l.t === "quiz").map((l) => l.id)].filter(Boolean))]; return { id: String(u.id), title: String(u.title), term: String(u.term), wk: Number(u.wk_from) || 0, sc, links, quizzes, std }; })
@@ -269,6 +282,18 @@ export async function trackerHandle(c: TrkCtx, a: Actor, action: string, input: 
       if (!g || (a.role !== "admin" && !g.students.length)) return forbid("not_your_class");
       return { status: 200, body: { ...g, access: acc, sys: g.sys } };
     }
+    case "trk-target": {
+      // Teacher-judgment years (e.g. Year 1): teacher with tracker Add/Edit, or admin, picks 1–7 ("" clears).
+      const sid = str(input.student, 40);
+      const u = sql.exec(`SELECT id, cls, section, target FROM users WHERE id=? AND role='student'`, sid).toArray()[0];
+      if (!u || a.viewAs) return { status: 404, body: { error: "not_found" } };
+      const sys = sysFor(sql, String(u.cls)); if (!sys) return { status: 404, body: { error: "no_system_for_class" } };
+      if (a.role !== "admin" && (!c.inScope(a, String(u.cls), String(u.section || ""), sid) || !trkAccess(sys, a).edit)) return forbid("edit_not_allowed");
+      if (ruleFor(sys, String(u.cls)).mode !== "teacher") return { status: 400, body: { error: "target_not_teacher_set" } };
+      const v = String(input.val ?? ""); if (v !== "" && !/^[1-7]$/.test(v)) return { status: 400, body: { error: "bad_value" } };
+      sql.exec(`UPDATE users SET target=? WHERE id=?`, v, sid);
+      audit(sid, "Target", String(u.target || "") || "not set", v || "not set"); return { status: 200, body: { ok: true } };
+    }
     case "trk-set": case "trk-grade": case "trk-effort": {
       const sid = str(input.student, 40);
       const u = sql.exec(`SELECT id, cls, section, name FROM users WHERE id=? AND role='student'`, sid).toArray()[0];
@@ -322,7 +347,8 @@ export async function trackerHandle(c: TrkCtx, a: Actor, action: string, input: 
         const label = String(r.name || `${r.first ?? ""} ${r.last ?? ""}`).trim() || un || sid;
         if (m.length !== 1) { out.push({ row: i + 2, name: label, error: m.length ? "ambiguous" : "no_match" }); continue; }
         const t0 = str(r.target, 4), sc = Number(r.scaled);
-        const tgt = t0 && Number.isFinite(Number(t0)) ? String(Math.round(Number(t0))) : Number.isFinite(sc) && r.scaled !== "" && r.scaled != null ? targetFromScaledSys(sc, sys) : "";
+        const rl = ruleFor(sys, String(m[0].cls));
+        const tgt = rl.mode === "fixed" && rl.value ? rl.value : t0 && Number.isFinite(Number(t0)) ? String(Math.round(Number(t0))) : rl.mode === "profile" && Number.isFinite(sc) && r.scaled !== "" && r.scaled != null ? targetFromScaledSys(sc, sys) : "";
         const how = t0 ? "target" : tgt ? `scaled ${sc}` : "";
         if (!tgt && !sid) { out.push({ row: i + 2, name: label, student: String(m[0].name), error: "no_target" }); continue; }
         if (apply) {
