@@ -8,6 +8,10 @@ import { addDays, modCall, modErr, modPerm, pdfTable, STATUS_CLS, STATUS_LABEL, 
 
 const PERIODS = ["Day", "AM", "PM", "P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8"];
 const ST: Status[] = ["P", "A", "L", "E"];
+export type AttTimes = { times: Record<string, { s: string; e: string }>; timetable: TtRow[]; now: { dow: number; hm: string; period: string }; current: TtRow | null; teachers: { id: string; name: string; subject: string; phase: string }[] };
+export type TtRow = { id: string; dow: number; period: string; cls: string; section: string; teacher: string; teacherName: string; subject: string; phase: string; dept: string };
+const DOW: [string, string][] = [["Sun", "الأحد"], ["Mon", "الاثنين"], ["Tue", "الثلاثاء"], ["Wed", "الأربعاء"], ["Thu", "الخميس"], ["Fri", "الجمعة"], ["Sat", "السبت"]];
+const PIDS = ["P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8"];
 
 export function AttendancePage() { return <ModPage title="Attendance Register" perm="att">{(asAdmin) => <Attendance asAdmin={asAdmin} />}</ModPage>; }
 
@@ -16,15 +20,16 @@ export function Attendance({ asAdmin }: { asAdmin: boolean }) {
   const { tr } = useTr();
   const { actor } = useLmsActor();
   const perm = modPerm(actor?.perms, asAdmin, "att");
-  const [tab, setTab] = useState<"register" | "reports" | "overview" | "settings">("register");
+  const [tab, setTab] = useState<"register" | "reports" | "overview" | "timetable" | "settings">("register");
   return (
     <div data-testid="attendance" className="space-y-1">
       <Head hide={asAdmin} icon="🗓️" title={tr("Attendance Register", "سجل الحضور")} sub={tr("Take the register per class, date and period; see attendance % and who needs attention.", "سجّل الحضور لكل صف وتاريخ وحصة، وراقب النسب ومن يحتاج متابعة.")} />
-      <Tabs testId="att-tabs" value={tab} onChange={setTab} items={[["register", tr("Register", "التسجيل")], ["reports", tr("Reports", "التقارير")], ["overview", tr("Overview", "نظرة عامة")], ...(asAdmin ? [["settings", tr("Settings", "الإعدادات")] as ["settings", string]] : [])]} />
+      <Tabs testId="att-tabs" value={tab} onChange={setTab} items={[["register", tr("Register", "التسجيل")], ["reports", tr("Reports", "التقارير")], ["overview", tr("Overview", "نظرة عامة")], ["timetable", tr("Timetable", "الجدول")], ...(asAdmin ? [["settings", tr("Settings", "الإعدادات")] as ["settings", string]] : [])]} />
       {tab === "register" && <Register asAdmin={asAdmin} canEdit={perm.edit} />}
       {tab === "reports" && <Reports asAdmin={asAdmin} />}
       {tab === "overview" && <Overview asAdmin={asAdmin} />}
-      {tab === "settings" && asAdmin && <Settings />}
+      {tab === "timetable" && <Timetable asAdmin={asAdmin} />}
+      {tab === "settings" && asAdmin && <><Settings /><PeriodTimes /></>}
     </div>
   );
 }
@@ -49,6 +54,13 @@ function Register({ asAdmin, canEdit }: { asAdmin: boolean; canEdit: boolean }) 
     const ids = new Set(grp?.ids || []);
     Promise.all(pairs.split(",").map((p) => { const [cls, section] = p.split("|"); return modCall<AttRoster>("att-roster", { cls, section, day, period }, asAdmin); })).then((rs) => { const r: AttRoster = { ...rs[0], students: rs.flatMap((x) => x.students).filter((s) => ids.has(s.id)), editable: rs.every((x) => x.editable) }; return r; }).then((r) => { setData(r); setMarks(Object.fromEntries(r.students.map((s) => [s.id, { status: s.status, note: s.note }]))); setDirty(false); }).catch((e) => { setMsg(modErr(e, tr)); setBad(true); });
   }, [pairs, grp, day, period, asAdmin, tr]);
+  // t302: open the current period automatically (saved period timings), and the class the timetable says the teacher has now.
+  const [auto, setAuto] = useState("");
+  const [autoDone, setAutoDone] = useState(false);
+  useEffect(() => { if (autoDone || !students || !groups.length) return; setAutoDone(true); modCall<AttTimes>("att-times", {}, asAdmin).then((t) => {
+    if (t.now.period) { setPeriod(t.now.period); setAuto(t.now.period); }
+    const c = t.current; if (c) { const k = groups.find((x) => groupClasses(students, x.ids).includes(`${c.cls}|${c.section}`)); if (k) setG(k.key); }
+  }).catch(() => undefined); }, [asAdmin, groups, students, autoDone]);
   useEffect(() => { if (students) load(); }, [load, students]);
   const set = (id: string, patch: Partial<{ status: Status | ""; note: string }>) => { setMarks((m) => ({ ...m, [id]: { ...m[id], ...patch } })); setDirty(true); setMsg(""); };
   const counts = useMemo(() => { const c = { P: 0, A: 0, L: 0, E: 0, none: 0 }; for (const s of data?.students || []) { const m = marks[s.id]?.status; if (m) c[m]++; else c.none++; } return c; }, [data, marks]);
@@ -77,6 +89,7 @@ function Register({ asAdmin, canEdit }: { asAdmin: boolean; canEdit: boolean }) 
       <div className="flex flex-wrap items-center gap-2">
         <ClassSelect groups={groups} value={cur} onChange={(v) => { setG(v); }} testId="att-class" />
         <input type="date" className={field + " w-auto!"} value={day} max={todayStr()} onChange={(e) => e.target.value && setDay(e.target.value)} aria-label={tr("Date", "التاريخ")} data-testid="att-date" />
+{auto && period === auto && <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-900" data-testid="att-auto-period">⏱ {tr("Now", "الآن")}</span>}
         <select className={field + " w-auto!"} value={period} onChange={(e) => setPeriod(e.target.value)} aria-label={tr("Period", "الحصة")} data-testid="att-period">
           {PERIODS.map((p) => <option key={p} value={p}>{p === "Day" ? tr("Whole day", "اليوم كله") : p === "AM" ? tr("Morning", "صباحًا") : p === "PM" ? tr("Afternoon", "ظهرًا") : tr(`Period ${p.slice(1)}`, `الحصة ${p.slice(1)}`)}{data?.periods.includes(p) ? " ✓" : ""}</option>)}
         </select>
@@ -243,6 +256,72 @@ function Settings() {
       <p className="text-xs opacity-60">{tr("Admin can always edit any date.", "الإدارة تستطيع تعديل أي تاريخ.")}</p>
       <button type="button" className={btnCta} onClick={save} data-testid="att-set-save">{tr("Save settings", "حفظ الإعدادات")}</button>
       <Toast msg={msg} />
+    </div>
+  );
+}
+
+/** t302: admin saves the start/end time of each period; the register opens the period running now. */
+function PeriodTimes() {
+  const { tr } = useTr();
+  const [t, setT] = useState<Record<string, { s: string; e: string }>>({});
+  const [msg, setMsg] = useState("");
+  useEffect(() => { modCall<AttTimes>("att-times", {}, true).then((r) => setT(r.times)).catch(() => undefined); }, []);
+  const save = async () => { try { const r = await modCall<{ times: AttTimes["times"] }>("att-times-save", { times: t }, true); setT(r.times); setMsg(tr("Saved.", "تم الحفظ.")); } catch (e) { setMsg(modErr(e, tr)); } };
+  return (
+    <div className={cardCls + " mt-4 max-w-xl space-y-2"} data-testid="att-times">
+      <h3 className="font-extrabold">⏱ {tr("Period timings", "أوقات الحصص")}</h3>
+      {PIDS.map((p) => (
+        <div key={p} className="flex items-center gap-2 text-sm"><b className="w-20">{tr(`Period ${p.slice(1)}`, `الحصة ${p.slice(1)}`)}</b>
+          <input type="time" className={field + " w-auto!"} value={t[p]?.s || ""} onChange={(e) => setT({ ...t, [p]: { s: e.target.value, e: t[p]?.e || "" } })} aria-label={tr("Start", "البداية")} data-testid={`att-time-s-${p}`} />–
+          <input type="time" className={field + " w-auto!"} value={t[p]?.e || ""} onChange={(e) => setT({ ...t, [p]: { s: t[p]?.s || "", e: e.target.value } })} aria-label={tr("End", "النهاية")} data-testid={`att-time-e-${p}`} />
+        </div>
+      ))}
+      <button type="button" className={btnCta} onClick={save} data-testid="att-times-save">{tr("Save timings", "حفظ الأوقات")}</button>
+      <Toast msg={msg} />
+    </div>
+  );
+}
+
+/** t302: timetable area — admin adds lessons (weekday, period, class, teacher, subject, phase, department); teachers see their own. Filter by phase / department / teacher / subject. */
+function Timetable({ asAdmin }: { asAdmin: boolean }) {
+  const { tr } = useTr();
+  const [d, setD] = useState<AttTimes | null>(null);
+  const [f, setF] = useState({ phase: "", dept: "", teacher: "", subject: "" });
+  const [nw, setNw] = useState({ dow: 1, period: "P1", cls: "", section: "", teacher: "", subject: "", phase: "", dept: "" });
+  const [msg, setMsg] = useState("");
+  const load = useCallback(() => { modCall<AttTimes>("att-times", {}, asAdmin).then(setD).catch((e) => setMsg(modErr(e, tr))); }, [asAdmin, tr]);
+  useEffect(() => { load(); }, [load]);
+  const rows = (d?.timetable || []).filter((r) => (!f.phase || r.phase === f.phase) && (!f.dept || r.dept === f.dept) && (!f.teacher || r.teacher === f.teacher) && (!f.subject || r.subject === f.subject));
+  const uniq = (k: "phase" | "dept" | "subject") => [...new Set((d?.timetable || []).map((r) => r[k]).filter(Boolean))].sort();
+  const add = async () => { try { await modCall("tt-save", nw, true); setMsg(tr("Added.", "تمت الإضافة.")); load(); } catch (e) { setMsg(modErr(e, tr)); } };
+  const del = async (id: string) => { try { await modCall("tt-del", { id }, true); load(); } catch (e) { setMsg(modErr(e, tr)); } };
+  const tm = (p: string) => d?.times[p] ? `${d.times[p].s}–${d.times[p].e}` : "";
+  return (
+    <div className="space-y-3" data-testid="att-timetable">
+      {d?.now && <p className="text-sm font-semibold opacity-80" data-testid="tt-now">🕒 {tr(DOW[d.now.dow][0], DOW[d.now.dow][1])} {d.now.hm} {tr("(Dubai)", "(دبي)")} · {d.now.period ? tr(`Now: Period ${d.now.period.slice(1)}`, `الآن: الحصة ${d.now.period.slice(1)}`) : tr("No period running now", "لا توجد حصة الآن")}</p>}
+      <div className="flex flex-wrap gap-2">
+        <select className={field + " w-auto!"} value={f.phase} onChange={(e) => setF({ ...f, phase: e.target.value })} data-testid="tt-f-phase"><option value="">{tr("All phases", "كل المراحل")}</option>{uniq("phase").map((x) => <option key={x}>{x}</option>)}</select>
+        <select className={field + " w-auto!"} value={f.dept} onChange={(e) => setF({ ...f, dept: e.target.value })} data-testid="tt-f-dept"><option value="">{tr("All departments", "كل الأقسام")}</option>{uniq("dept").map((x) => <option key={x}>{x}</option>)}</select>
+        {asAdmin && <select className={field + " w-auto!"} value={f.teacher} onChange={(e) => setF({ ...f, teacher: e.target.value })} data-testid="tt-f-teacher"><option value="">{tr("All teachers", "كل المعلمين")}</option>{(d?.teachers || []).map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</select>}
+        <select className={field + " w-auto!"} value={f.subject} onChange={(e) => setF({ ...f, subject: e.target.value })} data-testid="tt-f-subject"><option value="">{tr("All subjects", "كل المواد")}</option>{uniq("subject").map((x) => <option key={x}>{x}</option>)}</select>
+      </div>
+      {asAdmin && (
+        <div className={cardCls + " grid gap-2 sm:grid-cols-4"} data-testid="tt-add">
+          <select className={field} value={nw.dow} onChange={(e) => setNw({ ...nw, dow: Number(e.target.value) })} aria-label={tr("Day", "اليوم")} data-testid="tt-dow">{DOW.map((x, i) => <option key={i} value={i}>{tr(x[0], x[1])}</option>)}</select>
+          <select className={field} value={nw.period} onChange={(e) => setNw({ ...nw, period: e.target.value })} aria-label={tr("Period", "الحصة")} data-testid="tt-period">{PIDS.map((p) => <option key={p} value={p}>{tr(`Period ${p.slice(1)}`, `الحصة ${p.slice(1)}`)}</option>)}</select>
+          <input className={field} placeholder={tr("Class, e.g. Year 3", "الصف")} value={nw.cls} onChange={(e) => setNw({ ...nw, cls: e.target.value })} data-testid="tt-cls" />
+          <input className={field} placeholder={tr("Section, e.g. A", "الشعبة")} value={nw.section} onChange={(e) => setNw({ ...nw, section: e.target.value })} data-testid="tt-section" />
+          <select className={field} value={nw.teacher} onChange={(e) => { const t = d?.teachers.find((x) => x.id === e.target.value); setNw({ ...nw, teacher: e.target.value, subject: nw.subject || t?.subject || "", phase: nw.phase || t?.phase || "" }); }} aria-label={tr("Teacher", "المعلم")} data-testid="tt-teacher"><option value="">{tr("Teacher…", "المعلم…")}</option>{(d?.teachers || []).map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</select>
+          <input className={field} placeholder={tr("Subject", "المادة")} value={nw.subject} onChange={(e) => setNw({ ...nw, subject: e.target.value })} data-testid="tt-subject" />
+          <input className={field} placeholder={tr("Phase", "المرحلة")} value={nw.phase} onChange={(e) => setNw({ ...nw, phase: e.target.value })} data-testid="tt-phase" />
+          <input className={field} placeholder={tr("Department", "القسم")} value={nw.dept} onChange={(e) => setNw({ ...nw, dept: e.target.value })} data-testid="tt-dept" />
+          <button type="button" className={btnCta + " sm:col-span-4"} onClick={add} data-testid="tt-add-btn">+ {tr("Add lesson", "إضافة حصة")}</button>
+        </div>
+      )}
+      <Toast msg={msg} />
+      <div className="overflow-x-auto"><table className="w-full text-sm" data-testid="tt-table"><thead><tr>{[tr("Day", "اليوم"), tr("Period", "الحصة"), tr("Class", "الصف"), tr("Teacher", "المعلم"), tr("Subject", "المادة"), tr("Phase", "المرحلة"), tr("Department", "القسم"), ""].map((h, i) => <th key={i} className={th}>{h}</th>)}</tr></thead>
+        <tbody>{rows.map((r) => <tr key={r.id} className={d?.now.dow === r.dow && d?.now.period === r.period ? "bg-emerald-50 dark:bg-emerald-900/20" : ""} data-testid="tt-row"><td className={td}>{tr(DOW[r.dow][0], DOW[r.dow][1])}</td><td className={td}>{r.period.slice(1)} <span className="opacity-60">{tm(r.period)}</span></td><td className={td}>{r.cls} {r.section}</td><td className={td}>{r.teacherName}</td><td className={td}>{r.subject}</td><td className={td}>{r.phase}</td><td className={td}>{r.dept}</td><td className={td}>{asAdmin && <button type="button" className={btn + " !py-0.5"} onClick={() => del(r.id)} data-testid="tt-del">🗑</button>}</td></tr>)}
+        {!rows.length && <tr><td className={td + " opacity-60"} colSpan={8}>{tr("No lessons yet.", "لا توجد حصص بعد.")}</td></tr>}</tbody></table></div>
     </div>
   );
 }
