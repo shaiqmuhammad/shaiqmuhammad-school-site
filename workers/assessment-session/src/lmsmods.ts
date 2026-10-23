@@ -264,7 +264,7 @@ export async function modHandle(c: ModCtx, action: string, a: Actor, input: Json
       sql.exec(`INSERT INTO settings (k, v) VALUES ('att:times', ?) ON CONFLICT(k) DO UPDATE SET v=excluded.v`, JSON.stringify(out));
       return { status: 200, body: { ok: true, times: out } };
     }
-    case "tt-save": {
+    case "att-tt-save": {
       if (a.role !== "admin" || a.viewAs) return forbid();
       const dow = Math.floor(Number(input.dow)), period = str(input.period, 4);
       if (!(dow >= 0 && dow <= 6) || !/^P[1-8]$/.test(period)) return { status: 400, body: { error: "bad_input" } };
@@ -274,7 +274,7 @@ export async function modHandle(c: ModCtx, action: string, a: Actor, input: Json
         id, dow, period, str(input.cls, 80), str(input.section, 80), tu ? tid : "", tu ? String(tu.name) : "", str(input.subject, 80), str(input.phase, 40), str(input.dept, 80), Date.now());
       return { status: 200, body: { ok: true, id } };
     }
-    case "tt-del": {
+    case "att-tt-del": {
       if (a.role !== "admin" || a.viewAs) return forbid();
       sql.exec(`DELETE FROM tt WHERE id=?`, str(input.id, 40));
       return { status: 200, body: { ok: true } };

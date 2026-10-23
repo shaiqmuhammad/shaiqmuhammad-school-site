@@ -293,8 +293,8 @@ function Timetable({ asAdmin }: { asAdmin: boolean }) {
   useEffect(() => { load(); }, [load]);
   const rows = (d?.timetable || []).filter((r) => (!f.phase || r.phase === f.phase) && (!f.dept || r.dept === f.dept) && (!f.teacher || r.teacher === f.teacher) && (!f.subject || r.subject === f.subject));
   const uniq = (k: "phase" | "dept" | "subject") => [...new Set((d?.timetable || []).map((r) => r[k]).filter(Boolean))].sort();
-  const add = async () => { try { await modCall("tt-save", nw, true); setMsg(tr("Added.", "تمت الإضافة.")); load(); } catch (e) { setMsg(modErr(e, tr)); } };
-  const del = async (id: string) => { try { await modCall("tt-del", { id }, true); load(); } catch (e) { setMsg(modErr(e, tr)); } };
+  const add = async () => { try { await modCall("att-tt-save", nw, true); setMsg(tr("Added.", "تمت الإضافة.")); load(); } catch (e) { setMsg(modErr(e, tr)); } };
+  const del = async (id: string) => { try { await modCall("att-tt-del", { id }, true); load(); } catch (e) { setMsg(modErr(e, tr)); } };
   const tm = (p: string) => d?.times[p] ? `${d.times[p].s}–${d.times[p].e}` : "";
   return (
     <div className="space-y-3" data-testid="att-timetable">
