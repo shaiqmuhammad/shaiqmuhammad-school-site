@@ -65,7 +65,7 @@ export const RIS_PRIMARY: ASys = {
   cut: [40, 60, 85], quran: { red: "1", yellow: "2", green: "3" }, quranPattern: "^Recit",
   bands: [0.9, 1.4, 1.9, 2.2, 2.5, 2.8, 3], capTarget: true, capExempt: ["FS2", "Year 1"],
   scaled: [[67, 80, 2], [81, 93, 3], [94, 109, 4], [110, 120, 5], [121, 999, 6]],
-  effort: ["Very Good", " Good ", "Average", " Weak", " Very weak", " "], effortMap: { "7": "Very Good", "6": "Very Good", "5": "Very Good", "4": " Good ", "3": "Average", "2": " Weak", "1": " Very weak" }, targetList: ["7", "6", "5", "4", "3", "2", "1", "NA"], attainList: ["7", "6", "5", "4", "3", "2", "1", "NA", " "],
+  effort: ["Very Good", " Good ", "Average", " Weak", " Very weak", " "], effortMap: { "7": "Very Good", "6": "Very Good", "5": "Very Good", "4": " Good ", "3": "Average", "2": "Average", "1": "Average" }, targetList: ["7", "6", "5", "4", "3", "2", "1", "NA"], attainList: ["7", "6", "5", "4", "3", "2", "1", "NA", " "],
   thresholds: [4, 5],
   access: { view: true, edit: true, effort: true, xlsx: true, pdf: true, isams: true },
   isDefault: true, resub: "latest", untagged: true,
