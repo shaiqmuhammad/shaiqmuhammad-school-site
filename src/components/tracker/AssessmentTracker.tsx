@@ -4,16 +4,18 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { useTr } from "@/components/lms/useLms";
 import { btn, cardCls, field, Tabs, Toast } from "@/components/lms/mods/ModUi";
 import { modErr } from "@/lib/lmsMods";
+import { StdView } from "./StdFields";
 import { cellKey, exportPdf, exportXlsx, fillIsams, recalc, setTrackerAdmin, summary, TERMS, trk, type ASys, type TCell, type TGrid, type TrkAccess } from "@/lib/tracker";
 
 /* Colours / fonts copied from the department tracker workbooks (Aptos Narrow 11, SC text Arial Narrow 12, thin black borders). */
 const YEL = "#FFC000", BLUE = "#00B0F0";
 const FONT = "'Aptos Narrow','Arial Narrow','Helvetica Neue',Arial,sans-serif";
 const bd = "1px solid #000";
-const SRC: Record<string, [string, string, string]> = { quiz: ["Q", "#7c3aed", "From the end-of-topic assessment"], quran: ["H", "#059669", "From Quran homework grade"], override: ["✎", "#dc2626", "Teacher override"] };
+const SRC: Record<string, [string, string, string]> = { quiz: ["Q", "#7c3aed", "From the weekly assessment (questions tagged to this criterion)"], "quiz-all": ["Q*", "#b45309", "From the weekly assessment's overall % (no questions tagged to this criterion) — please check"], quran: ["H", "#059669", "From Quran homework grade"], override: ["✎", "#dc2626", "Teacher override"] };
 const fmtAt = (t?: number) => (t ? new Date(t).toLocaleString("en-GB", { timeZone: "Asia/Dubai", dateStyle: "medium", timeStyle: "short" }) + " (Dubai)" : "");
 
-type Sel = { years: string[]; access: TrkAccess };
+type SysLite = { id: string; name: string; version: string; active: boolean; isDefault?: boolean; scope: { years: string[] } };
+type Sel = { years: string[]; access: TrkAccess; systems: SysLite[] };
 
 /** Assessment Tracker (Shaiq Muhammad System · RIS Primary Attainment and Progress System). Teachers: LMS token; admin: asAdmin. */
 export function AssessmentTracker({ asAdmin = false }: { asAdmin?: boolean }) {
@@ -21,6 +23,7 @@ export function AssessmentTracker({ asAdmin = false }: { asAdmin?: boolean }) {
   setTrackerAdmin(asAdmin);
   const [sel, setSel] = useState<Sel | null>(null);
   const [cls, setCls] = useState("");
+  const [sysId, setSysId] = useState(""); // "" = the default system for this class's phase
   const [term, setTerm] = useState("Term 1");
   const [g, setG] = useState<TGrid | null>(null);
   const [view, setView] = useState<"grid" | "isams" | "audit">("grid");
@@ -28,8 +31,9 @@ export function AssessmentTracker({ asAdmin = false }: { asAdmin?: boolean }) {
   const [err, setErr] = useState("");
   const gridRef = useRef<HTMLDivElement>(null);
   const note = (m: string, b = false) => { setMsg(m); setBad(b); setTimeout(() => setMsg(""), 5000); };
-  useEffect(() => { trk<{ years: string[]; access: TrkAccess }>("asys-list", {}).then((r) => { setSel({ years: r.years, access: r.access }); setCls((c) => c || r.years[1] || r.years[0] || ""); }).catch((e) => setErr(modErr(e, tr))); }, [tr]);
-  const load = useCallback(() => { if (!cls) return; trk<TGrid>("trk-get", { cls, term }).then((r) => { setErr(""); setG(r); }).catch((e) => { setG(null); setErr(modErr(e, tr)); }); }, [cls, term, tr]);
+  useEffect(() => { trk<{ years: string[]; access: TrkAccess; systems: SysLite[] }>("asys-list", {}).then((r) => { setSel({ years: r.years, access: r.access, systems: r.systems }); setCls((c) => c || r.years[1] || r.years[0] || ""); }).catch((e) => setErr(modErr(e, tr))); }, [tr]);
+  const load = useCallback(() => { if (!cls) return; trk<TGrid>("trk-get", { cls, term, sys: sysId }).then((r) => { setErr(""); setG(r); }).catch((e) => { setG(null); setErr(modErr(e, tr)); }); }, [cls, term, sysId, tr]);
+  const sysChoices = (sel?.systems || []).filter((x) => x.active && x.scope.years.includes(cls));
   useEffect(() => { load(); }, [load]);
   const acc = g?.access || sel?.access;
   const set = async (sid: string, unit: string, i: number, raw: string) => {
@@ -54,7 +58,7 @@ export function AssessmentTracker({ asAdmin = false }: { asAdmin?: boolean }) {
   const fname = (ext: string) => `Assessment Tracker - ${cls} - ${term || "Year"}.${ext}`;
   const doExport = async (kind: "xlsx" | "pdf") => {
     try {
-      const fresh = await trk<TGrid>("trk-export", { cls, term, kind });
+      const fresh = await trk<TGrid>("trk-export", { cls, term, kind, sys: sysId });
       if (kind === "xlsx") await exportXlsx(fresh, fname("xlsx"));
       else if (gridRef.current) await exportPdf(gridRef.current, `Assessment Tracker · ${cls} · ${term || "Year"} · ${fresh.sys.name}`, fname("pdf"));
     } catch (e) { note(modErr(e, tr), true); }
@@ -66,6 +70,7 @@ export function AssessmentTracker({ asAdmin = false }: { asAdmin?: boolean }) {
       <div className={cardCls + " flex flex-wrap items-end gap-2"}>
         <div className="me-auto min-w-0"><p className="text-xl font-extrabold">✅ {tr("Assessment Tracker", "متتبع التقييم")}</p><p className="text-xs opacity-70" data-testid="trk-system">{g ? `${g.sys.name} · v${g.sys.version}` : "RIS Primary Attainment and Progress System"} · Shaiq Muhammad System</p></div>
         <label className="text-xs font-bold">{tr("Class", "الصف")}<select className={field + " mt-1 !w-36"} value={cls} onChange={(e) => setCls(e.target.value)} data-testid="trk-class">{(sel?.years || []).map((y) => <option key={y}>{y}</option>)}</select></label>
+        {sysChoices.length > 1 && <label className="text-xs font-bold">{tr("System", "النظام")}<select className={field + " mt-1 !w-56"} value={sysId} onChange={(e) => setSysId(e.target.value)} data-testid="trk-sys">{[<option key="" value="">{tr("Default", "الافتراضي")} ({sysChoices.find((x) => x.isDefault)?.name || sysChoices[0].name})</option>, ...sysChoices.map((x) => <option key={x.id} value={x.id}>{x.name} v{x.version}</option>)]}</select></label>}
         <div className="flex flex-wrap gap-1.5" role="tablist" data-testid="trk-terms">{[...TERMS, ""].map((t) => <button key={t || "y"} type="button" role="tab" aria-selected={term === t} onClick={() => setTerm(t)} data-testid="trk-term" className={`rounded-full border px-3 py-1.5 text-sm font-bold ${term === t ? "border-transparent bg-header text-sun" : "border-black/10 bg-white/80 dark:border-white/15 dark:bg-white/10"}`}>{t || tr("Whole year", "السنة كاملة")}</button>)}</div>
       </div>
       <div className="flex flex-wrap items-center gap-2">
@@ -99,7 +104,7 @@ function Grid({ g, gridRef, sum, edit, set, setGrade }: { g: TGrid; gridRef: Rea
             {!g.units.length && <tr><td style={a} colSpan={S.length + 1}>{tr("No curriculum Success Criteria for this class and term yet.", "لا توجد معايير نجاح لهذا الصف والفصل بعد.")}</td></tr>}
             {g.units.map((u) => (
               <Fragment key={u.id}>
-                <tr data-testid="trk-topic"><th style={{ ...a, background: BLUE, textAlign: "left", fontWeight: 700, whiteSpace: "normal", borderBottom: "none" }}>{u.title} <span style={{ fontWeight: 400, fontSize: 11 }}>· {u.term} · Wk {u.wk}</span></th>{S.map((s) => <td key={s.id} style={{ ...cell, background: BLUE }} />)}</tr>
+                <tr data-testid="trk-topic"><th style={{ ...a, background: BLUE, textAlign: "left", fontWeight: 700, whiteSpace: "normal", borderBottom: "none" }}>{u.title} <span style={{ fontWeight: 400, fontSize: 11 }}>· {u.term} · Wk {u.wk}</span>{u.std && (u.std.skill > 0 || u.std.codes.length > 0) && <div style={{ fontWeight: 400, fontSize: 11 }} data-testid="trk-topic-std"><StdView std={u.std} compact /></div>}</th>{S.map((s) => <td key={s.id} style={{ ...cell, background: BLUE }} />)}</tr>
                 {u.sc.map((t, i) => (
                   <tr key={i} data-testid="trk-sc-row">
                     <td style={{ ...a, fontFamily: "'Arial Narrow',Arial,sans-serif", fontSize: 16 }}>{t}</td>
@@ -169,7 +174,7 @@ function IsamsPanel({ g, access, setEffort, asAdmin, note }: { g: TGrid; access:
       </div>
       {access.isams && <div className={cardCls + " flex flex-wrap items-end gap-2"}>
         <label className="text-xs font-bold">{tr("Report cycle (uploaded iSAMS template)", "دورة التقرير (قالب iSAMS)")}<select className={field + " mt-1 !w-72"} value={cycle} onChange={(e) => setCycle(e.target.value)} data-testid="trk-isams-cycle">{(tpls || []).map((t) => <option key={t.cycle} value={t.cycle}>{t.cycle}{t.term ? ` · ${t.term}` : ""}</option>)}</select></label>
-        <button type="button" className={btn} disabled={!cycle} onClick={run} data-testid="trk-isams-dl">⬇ {tr("Download iSAMS file (all Primary classes)", "تنزيل ملف iSAMS")}</button>
+        <button type="button" className={btn} disabled={!cycle} onClick={run} data-testid="trk-isams-dl">📤 {tr("Send to iSAMS report (all Primary classes)", "إرسال إلى تقرير iSAMS (كل صفوف الابتدائي)")}</button>
         {tpls && !tpls.length && <p className="text-xs opacity-70">{tr("No template yet — the admin uploads the blank iSAMS file per report cycle in Attainment & Progress Systems.", "لا يوجد قالب بعد.")}</p>}
         {rep && <ul className="w-full text-xs" data-testid="trk-isams-report">{rep.map((r) => <li key={r.sheet}><b>{r.sheet}</b>: {r.matched} {tr("filled", "مُعبأ")}{r.unmatched.length ? ` · ${tr("not matched", "غير مطابق")}: ${r.unmatched.join(", ")}` : ""}</li>)}</ul>}
       </div>}

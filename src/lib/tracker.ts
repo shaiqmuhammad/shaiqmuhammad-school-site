@@ -10,12 +10,12 @@ export type TrkAccess = Record<TrkKey, boolean>;
 export type ASys = {
   id: string; name: string; version: string; active: boolean; scope: { phase: string; years: string[]; subject: string };
   scale: { v: number; label: string }[]; key: string; cut: [number, number, number]; quran: { red: string; yellow: string; green: string }; quranPattern: string;
-  bands: number[]; capTarget: boolean; scaled: [number, number, number][]; effort: string[]; targetList: string[]; attainList: string[]; thresholds: number[];
-  access: TrkAccess; updated?: number; by?: string;
+  bands: number[]; capTarget: boolean; capExempt: string[]; scaled: [number, number, number][]; effort: string[]; targetList: string[]; attainList: string[]; thresholds: number[];
+  access: TrkAccess; isDefault: boolean; resub: "latest" | "best" | "first"; untagged: boolean; updated?: number; by?: string;
 };
-export type TCell = { v: number | null; src: "quiz" | "quran" | "override" | ""; auto: number | null; autoSrc: string; by?: string; at?: number; note?: string };
+export type TCell = { v: number | null; src: "quiz" | "quiz-all" | "quran" | "override" | ""; auto: number | null; autoSrc: string; by?: string; at?: number; note?: string };
 export type TStudent = { id: string; name: string; first: string; last: string; target: string; targetSrc: string; isamsId: string };
-export type TUnit = { id: string; title: string; term: string; wk: number; sc: string[] };
+export type TUnit = { id: string; title: string; term: string; wk: number; sc: string[]; quizzes?: string[]; std?: { codes: string[]; skill: number } };
 export type TResult = { id: string; avg: number | null; calc: number | null; grade: number | null; override: { by: string; at: number } | null; effort: string; n: number };
 export type TGrid = { sys: ASys; cls: string; term: string; students: TStudent[]; units: TUnit[]; cells: Record<string, TCell>; results: TResult[]; access: TrkAccess };
 export const TERMS = ["Term 1", "Term 2", "Term 3"];
@@ -26,12 +26,13 @@ export const trk = <T,>(action: string, body: unknown) => modCall<T>(action, bod
 
 export const cellKey = (s: string, u: string, i: number) => `${s}|${u}|${i}`;
 /** Same rule as the tracker workbook: AVERAGE of filled SC cells, banded, capped at Target−1 (if on). */
-export function gradeOf(avg: number | null, target: string, sys: ASys): number | null {
+export const capsFor = (sys: ASys, cls: string) => sys.capTarget && !(sys.capExempt || []).includes(cls);
+export function gradeOf(avg: number | null, target: string, sys: ASys, cls = ""): number | null {
   if (avg == null) return null;
   let g = sys.bands.findIndex((b) => avg <= b + 1e-9) + 1;
   if (g <= 0) g = 7;
   const t = Number(target);
-  if (sys.capTarget && target && Number.isFinite(t)) g = Math.min(g, t - 1);
+  if (capsFor(sys, cls) && target && Number.isFinite(t)) g = Math.min(g, t - 1);
   return g;
 }
 export function recalc(g: TGrid): TResult[] {
@@ -40,7 +41,7 @@ export function recalc(g: TGrid): TResult[] {
     for (const u of g.units) u.sc.forEach((_, i) => { const v = g.cells[cellKey(s.id, u.id, i)]?.v; if (v != null) vals.push(v); });
     const avg = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
     const prev = g.results.find((r) => r.id === s.id);
-    const calc = gradeOf(avg, s.target, g.sys);
+    const calc = gradeOf(avg, s.target, g.sys, g.cls);
     return { id: s.id, avg, calc, grade: prev?.override ? prev.grade : calc, override: prev?.override || null, effort: prev?.effort || "", n: vals.length };
   });
 }
@@ -57,12 +58,12 @@ const B4 = { left: THIN, right: THIN, top: THIN, bottom: THIN };
 const AN = (o: Record<string, unknown> = {}) => ({ name: "Aptos Narrow", size: 11, ...o });
 const FILL = (rgb: string) => ({ type: "pattern" as const, pattern: "solid" as const, fgColor: { argb: rgb } });
 /** The banded MIN(IF(AND…)) formula exactly as in the tracker, generated from the system bands. */
-export function gradeFormula(avgCell: string, targetCell: string, sys: ASys) {
+export function gradeFormula(avgCell: string, targetCell: string, sys: ASys, cls = "") {
   const b = sys.bands, lo = [0, ...b.slice(0, 6)], sp = (n: number) => " ".repeat(4 * n);
   const lines = b.map((hi, i) => `${sp(i)}IF(AND(${avgCell}${i ? `>${lo[i]}` : ">=0"}, ${avgCell}<=${hi}), ${i + 1},${i === 6 ? ' "Out of range")' : ""}`);
   const closes = [5, 4, 3, 2, 1, 0].map((n) => `${sp(n)})`);
   const core = [...lines, ...closes].join("\n");
-  return sys.capTarget ? `MIN(${core},${targetCell}-1)` : core;
+  return capsFor(sys, cls) ? `MIN(${core},${targetCell}-1)` : core;
 }
 export async function exportXlsx(g: TGrid, fileName: string) {
   const ExcelJS = (await import("exceljs")).default;
@@ -98,7 +99,7 @@ export async function exportXlsx(g: TGrid, fileName: string) {
     const ac = ar.getCell(j + 2); ac.value = { formula: `AVERAGE(${col}${first}:${col}${last})`, result: res?.avg ?? undefined } as never; ac.font = AN(); ac.border = B4;
     const gc = gr.getCell(j + 2); gc.font = AN(); gc.border = B4; gc.fill = FILL("FFFFC000");
     // A teacher override is written as a value (like the hand-typed grade in the department file); otherwise the live formula.
-    gc.value = res?.override ? res.grade : ({ formula: gradeFormula(`${col}${avgR}`, `${col}1`, g.sys), result: res?.grade ?? undefined } as never);
+    gc.value = res?.override ? res.grade : ({ formula: gradeFormula(`${col}${avgR}`, `${col}1`, g.sys, g.cls), result: res?.grade ?? undefined } as never);
   });
   // 0–3 whole-number validation on every SC cell.
   for (const sr of scRows) for (let j = 0; j < N; j++) ws.getCell(`${colName(j + 1)}${sr}`).dataValidation = { type: "whole", operator: "between", allowBlank: true, showInputMessage: true, showErrorMessage: true, formulae: [0, 3] };
