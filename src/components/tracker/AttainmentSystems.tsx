@@ -1,5 +1,6 @@
 "use client";
 
+import { ModulePermsGlobal } from "@/components/lms/ModulePerms";
 import { useEffect, useRef, useState } from "react";
 import { useTr } from "@/components/lms/useLms";
 import { btn, btnCta, cardCls, field, Toast } from "@/components/lms/mods/ModUi";
@@ -28,6 +29,7 @@ export function AttainmentSystems() {
   return (
     <div className="space-y-4" data-testid="asys">
       <Toast msg={msg} bad={bad} />
+      <ModulePermsGlobal />
       <p className="text-xs opacity-70">Shaiq Muhammad System · {tr("Attainment & Progress Systems decide how the Assessment Tracker scores Success Criteria and grades students. Each system is named and versioned.", "تحدد الأنظمة كيفية احتساب الدرجات في متتبع التقييم.")}</p>
       <div className="flex flex-wrap gap-2" data-testid="asys-list">{(list || []).map((s) => <button key={s.id} type="button" onClick={() => setCur(s)} className={`rounded-full border px-3 py-1.5 text-sm font-bold ${cur?.id === s.id ? "border-transparent bg-header text-sun" : "border-black/10 bg-white/80 dark:bg-white/10"}`} data-testid="asys-item">{s.name} <span className="text-xs opacity-70">v{s.version} · {s.active ? tr("active", "مفعّل") : tr("placeholder", "غير مفعّل")}{s.isDefault ? ` · ★ ${tr("default", "افتراضي")}` : ""}</span></button>)}<button type="button" className={btn} onClick={add} data-testid="asys-add">+ {tr("Add system", "إضافة نظام")}</button></div>
       {cur && <div className="grid gap-4 lg:grid-cols-2">
