@@ -1,4 +1,5 @@
 "use client";
+import { useAdminScope } from "@/components/AdminScope";
 
 import { refreshDl, useDl } from "@/lib/dl";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -180,7 +181,17 @@ export function WallBoard({ asAdmin = false }: { asAdmin?: boolean }) {
       setClasses(items); setCanPost(r.canPost); setSel((s) => (s.length ? s : items[0] ? [items[0].key] : [])); if (!items.length) setPosts([]);
     }).catch((e) => setErr(lmsErrorText(e, tr)));
   }, [on, tr]);
-  const selKey = sel.join(",");
+  // t283 shared admin filter: groups with a student in scope (or of that subject/teacher), classes with students in scope.
+  const scope = useAdminScope();
+  const grpById = new Map((scope.ctx?.groups || []).map((g) => [g.id, g]));
+  const wallOk = (c: WallClass) => {
+    if (!asAdmin || !scope.active) return true;
+    if (c.group) { const g = grpById.get(c.key.slice(2)); if (!g) return true; return (!scope.subject || g.subject === scope.subject) && (!scope.teacher || (g.teachers || []).includes(scope.teacher)) && (!scope.studentIds || g.students.some((id) => scope.studentIds!.has(id))); }
+    const [cl, se] = c.key.split("|"); return scope.classOk(cl || "", se || "");
+  };
+  const shownClasses = classes.filter(wallOk);
+  const effSel = asAdmin && scope.active ? (sel.filter((k) => shownClasses.some((c) => c.key === k)).length ? sel.filter((k) => shownClasses.some((c) => c.key === k)) : shownClasses[0] ? [shownClasses[0].key] : []) : sel;
+  const selKey = effSel.join(",");
   const load = useCallback(() => { const keys = selKey ? selKey.split(",") : []; if (keys.length) lmsApi.wallList(keys.length === 1 ? keys[0] : keys).then((r) => { setPosts(r.posts); setMod(r.canModerate); }).catch((e) => setErr(lmsErrorText(e, tr))); }, [selKey, tr]);
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -194,7 +205,7 @@ export function WallBoard({ asAdmin = false }: { asAdmin?: boolean }) {
     if (!c.group) { setSel([c.key]); return; }
     setSel((s) => { const g = s.filter((k) => classes.find((x) => x.key === k)?.group); return g.includes(c.key) ? (g.length > 1 ? g.filter((k) => k !== c.key) : g) : [...g, c.key]; });
   };
-  const selected = classes.filter((c) => sel.includes(c.key));
+  const selected = classes.filter((c) => effSel.includes(c.key));
   const groupsSel = selected.filter((c) => c.group);
   const members = (() => { const m = new Map<string, string>(); for (const g of groupsSel) for (const x of g.members || []) m.set(x.id, x.name); return [...m].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name)); })();
   const labelOf = (k: string) => classes.find((c) => c.key === k)?.label || k;
@@ -204,11 +215,11 @@ export function WallBoard({ asAdmin = false }: { asAdmin?: boolean }) {
           <>
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="me-auto text-2xl font-extrabold">🧱 {tr("Class Wall", "جدار الصف")}</h1>
-              {classes.length > 1 && <>
+              {shownClasses.length > 1 && <>
                 <p className="w-full text-xs opacity-70">{tr("Tap groups to combine them (select several).", "اضغط على المجموعات لدمجها (اختر أكثر من واحدة).")}</p>
-                <div className="flex w-full flex-wrap gap-1.5" data-testid="wall-class" role="group" aria-label={tr("Groups", "المجموعات")}>{classes.map((c) => { const onSel = sel.includes(c.key); return <button key={c.key} type="button" aria-pressed={onSel} data-testid="wall-class-tab" dir="auto" onClick={() => toggle(c)} className={`rounded-full border px-3 py-1.5 text-sm font-bold ${onSel ? "border-transparent bg-header text-sun" : "border-black/10 bg-white/80 dark:border-white/15 dark:bg-white/10"}`}>{onSel && c.group ? "✓ " : ""}{c.label}{c.group && typeof c.count === "number" ? <span className="ms-1 text-xs opacity-70">({c.count})</span> : null}</button>; })}</div>
+                <div className="flex w-full flex-wrap gap-1.5" data-testid="wall-class" role="group" aria-label={tr("Groups", "المجموعات")}>{shownClasses.map((c) => { const onSel = effSel.includes(c.key); return <button key={c.key} type="button" aria-pressed={onSel} data-testid="wall-class-tab" dir="auto" onClick={() => toggle(c)} className={`rounded-full border px-3 py-1.5 text-sm font-bold ${onSel ? "border-transparent bg-header text-sun" : "border-black/10 bg-white/80 dark:border-white/15 dark:bg-white/10"}`}>{onSel && c.group ? "✓ " : ""}{c.label}{c.group && typeof c.count === "number" ? <span className="ms-1 text-xs opacity-70">({c.count})</span> : null}</button>; })}</div>
               </>}
-              {classes.length === 1 && <span className="rounded-full bg-sun/70 px-3 py-1 text-sm font-bold" dir="auto">{classes[0].label}</span>}
+              {shownClasses.length === 1 && <span className="rounded-full bg-sun/70 px-3 py-1 text-sm font-bold" dir="auto">{shownClasses[0].label}</span>}
             </div>
             {err && <p className="rounded-xl bg-rose-100 px-4 py-2 text-rose-800" role="alert">{err}</p>}
             {groupsSel.length > 0 && groupsSel.every((g) => g.members) && (
@@ -219,9 +230,9 @@ export function WallBoard({ asAdmin = false }: { asAdmin?: boolean }) {
             )}
             {canPost && groupsSel.length > 0 && <Composer key={selKey} targets={groupsSel} onDone={load} />}
             {posts === null ? <p className="p-8 text-center opacity-70">{tr("Loading…", "جارٍ التحميل…")}</p>
-              : !classes.length ? <p className="glass rounded-3xl p-8 text-center opacity-80">{tr("No class wall available for you yet.", "لا يوجد جدار صف متاح لك بعد.")}</p>
+              : !shownClasses.length ? <p className="glass rounded-3xl p-8 text-center opacity-80">{tr("No class wall available for you yet.", "لا يوجد جدار صف متاح لك بعد.")}</p>
               : !posts.length ? <p className="glass rounded-3xl p-8 text-center opacity-80">{tr("No posts yet.", "لا توجد منشورات بعد.")}</p>
-              : posts.map((p) => <PostCard key={p.id} p={p} mod={mod} reload={load} sel={sel} labelOf={labelOf} labels={sel.length > 1 || (p.keys?.length || 0) > 1 ? (p.keys || []).map(labelOf) : undefined} />)}
+              : posts.map((p) => <PostCard key={p.id} p={p} mod={mod} reload={load} sel={effSel} labelOf={labelOf} labels={sel.length > 1 || (p.keys?.length || 0) > 1 ? (p.keys || []).map(labelOf) : undefined} />)}
           </>
         )}
       </div>
