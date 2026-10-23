@@ -53,6 +53,9 @@ export function DomTranslator() {
       if (rec && rec.ar === v) return;
       const tr = translatePhrase(v);
       if (tr == null || tr === v) return;
+      // <option> without a value attribute uses its text as the value: pin it so selects keep working.
+      const opt = n.parentElement;
+      if (opt && opt.tagName === "OPTION" && !opt.hasAttribute("value")) opt.setAttribute("value", (opt.textContent || "").trim());
       origText.set(n, { en: v, ar: tr });
       touched.add(n);
       n.nodeValue = tr;
