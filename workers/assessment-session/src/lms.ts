@@ -34,6 +34,7 @@
  * (32 random bytes, base64) so the admin can look a PIN up. Users created before that show "reset to view".
  */
 import { textReplaceAll } from "./textfix";
+import { trackerHandle, trkInit } from "./tracker";
 import { buildFeedback, fromGrade, overallOf, parseScores, type Scores } from "./quranScore";
 import { DurableObject } from "cloudflare:workers";
 import { corsHeaders, reply, verifyToken, type AdminEnv } from "./admin";
@@ -284,6 +285,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     this.sql.exec(`CREATE TABLE IF NOT EXISTS tquiz (id TEXT PRIMARY KEY, owner TEXT, owner_name TEXT, title TEXT, data TEXT, updated INTEGER)`);
     if (!cols("tracker").has("rev_count")) this.sql.exec(`ALTER TABLE tracker ADD COLUMN rev_count INTEGER DEFAULT 0`);
     if (!cols("tracker").has("rev_at")) this.sql.exec(`ALTER TABLE tracker ADD COLUMN rev_at INTEGER DEFAULT 0`);
+    trkInit(this.sql as never);
     if (!cols("wall").has("batch")) this.sql.exec(`ALTER TABLE wall ADD COLUMN batch TEXT DEFAULT ''`);
     // Likes/comments carry the group wall they were made in. Existing ones keep the wall of the post copy they were on (no data loss).
     if (!cols("wcom").has("wkey")) { this.sql.exec(`ALTER TABLE wcom ADD COLUMN wkey TEXT DEFAULT ''`); this.sql.exec(`UPDATE wcom SET wkey=COALESCE((SELECT wkey FROM wall WHERE wall.id=wcom.post),'')`); }
@@ -639,6 +641,12 @@ export class LmsStore extends DurableObject<LmsEnv> {
         setLink: RES ? (id, op, sid) => (RES.get(RES.idFromName("main")) as unknown as { setLink(i: string, o: string, s: string): Promise<boolean> }).setLink(id, op, sid) : undefined,
         results: async () => (cache ??= RES ? await (RES.get(RES.idFromName("main")) as unknown as { list(f: object): Promise<Record<string, unknown>[]> }).list({ details: false }) : []) }, a, action, input);
     }
+    if (/^(asys|trk|isams)-/.test(action)) {
+      const RES = (this.env as unknown as { RESULTS?: DurableObjectNamespace }).RESULTS;
+      const memo = new Map<string, Promise<unknown>>();
+      return trackerHandle({ sql: this.sql as never, inScope: (x, c2, s2, i) => this.inScope(x, c2, s2, i), homework: () => this.allHomework().map((h) => ({ id: h.id, kind: h.kind })),
+        tagged: (ids) => { const k = ids.join(","); if (!memo.has(k)) memo.set(k, RES ? (RES.get(RES.idFromName("main")) as unknown as { scTagged(i: string[]): Promise<unknown> }).scTagged(ids) : Promise.resolve([])); return memo.get(k) as never; } }, a, action, input);
+    }
     if (/^(att|beh|cur)-/.test(action)) return modHandle({ sql: this.sql, hwList: () => this.allHomework().map((h) => ({ id: h.id, title: h.title, kind: h.kind, cls: h.cls, section: h.section, students: h.students, createdBy: h.createdBy })), inScope: (x, c, s, i) => this.inScope(x, c, s, i), userRow: (w, g) => this.userRow(w, g) }, action, a, input);
     switch (action) {
       case "dl-policy": return { status: 200, body: { audio: this.dlOf(a, "audio"), export: this.dlOf(a, "export") } };
@@ -709,7 +717,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
           const role: Role = raw.role === "teacher" ? "teacher" : "student";
           // Only the admin can create or edit teachers.
           if (role === "teacher" && a.role !== "admin") { errors.push({ row: i + 1, username, error: "admin_only" }); continue; }
-          const perms = role === "teacher" ? (Array.isArray(raw.perms) ? (raw.perms as unknown[]).map(String).filter((p) => (PERMS as readonly string[]).includes(p) || STU_PERM.test(p) || /^(act|host):[\w*-]{1,80}$/.test(p) || /^(att|beh):(view|edit)$|^cur:(view|edit|delete)$|^qhw:(set|show|view|add|edit|delete)$|^nodl:(audio|export)$|^hide:(messaging|wall|activities|homework|assessments|results)$|^rep:view$|^rep:(kpi|attainment|progress|quran|homework|coverage|drill|pdf|xlsx):(on|off)$/.test(p)).slice(0, 80) : ["assign", "review"]) : [];
+          const perms = role === "teacher" ? (Array.isArray(raw.perms) ? (raw.perms as unknown[]).map(String).filter((p) => (PERMS as readonly string[]).includes(p) || STU_PERM.test(p) || /^(act|host):[\w*-]{1,80}$/.test(p) || /^(att|beh):(view|edit)$|^cur:(view|edit|delete)$|^qhw:(set|show|view|add|edit|delete)$|^nodl:(audio|export)$|^hide:(messaging|wall|activities|homework|assessments|results)$|^rep:view$|^trk:(view|edit|effort|xlsx|pdf|isams):(on|off)$|^rep:(kpi|attainment|progress|quran|homework|coverage|drill|pdf|xlsx):(on|off)$/.test(p)).slice(0, 80) : ["assign", "review"]) : [];
           const cls = str(raw.cls, 40);
           const section = role === "student" ? str(raw.section, 40) : "";
           const subjects = role === "teacher" ? strList(raw.subjects) : [];

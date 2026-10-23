@@ -26,6 +26,8 @@ export type ResultDetail = {
   earned: number;
   points: number;
   seconds?: number | null;
+  /** Assessment Tracker Success Criterion tag "<unitId>#<index>" */
+  sc?: string;
 };
 
 export type ResultRecord = {
@@ -84,6 +86,7 @@ export function cleanDetails(raw: unknown): ResultDetail[] {
       earned: num(o.earned, 0, 1000),
       points: num(o.points, 0, 1000),
       seconds: o.seconds == null ? null : num(o.seconds, 0, 86400),
+      ...(typeof o.sc === "string" && /^[\w-]{1,40}#\d{1,2}$/.test(o.sc) ? { sc: o.sc } : {}),
     };
   });
 }
@@ -161,6 +164,21 @@ export class ResultsStore extends DurableObject {
       ...args,
     );
     return [...cursor].map((row) => toRecord(row, Boolean(f.details)));
+  }
+
+  /** Assessment Tracker: linked attempts whose questions carry Success Criteria tags (compact). */
+  async scTagged(ids: string[]): Promise<{ studentId: string; quizId: string; at: number; details: { sc?: string; earned: number; points: number }[] }[]> {
+    this.init();
+    const out: { studentId: string; quizId: string; at: number; details: { sc?: string; earned: number; points: number }[] }[] = [];
+    for (let i = 0; i < ids.length; i += 90) {
+      const part = ids.slice(i, i + 90);
+      for (const r of this.ctx.storage.sql.exec(`SELECT student_id, quiz_id, quiz_slug, finished_at, details FROM records WHERE kind='individual' AND COALESCE(link_state,'') != 'ignored' AND student_id IN (${part.map(() => "?").join(",")}) AND instr(details, '"sc":"') > 0`, ...part)) {
+        let d: { sc?: string; earned: number; points: number }[] = [];
+        try { d = (JSON.parse(String(r.details || "[]")) as { sc?: string; earned: number; points: number }[]).filter((x) => x.sc).map((x) => ({ sc: x.sc, earned: Number(x.earned) || 0, points: Number(x.points) || 0 })); } catch { /* */ }
+        out.push({ studentId: String(r.student_id), quizId: String(r.quiz_id || r.quiz_slug || ""), at: Number(r.finished_at), details: d });
+      }
+    }
+    return out;
   }
 
   /** Admin: find (dry) or replace text in every stored result (e.g. a corrected student name). */
