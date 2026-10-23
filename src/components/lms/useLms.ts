@@ -36,8 +36,8 @@ export function useLmsActor(): { actor: Actor | null; asAdmin: false; ready: boo
         const u = r.user;
         // t284: teachers of an Arabic-delivered subject (Islamic A) default to Arabic unless they have chosen a language.
         try { if (u.subj?.length && u.subj.every((x) => ARABIC_SUBJECTS.includes(x)) && !localStorage.getItem("sm-lang-chosen") && localStorage.getItem(LANG_STORAGE_KEY) !== "ar") { localStorage.setItem(LANG_STORAGE_KEY, "ar"); window.dispatchEvent(new Event("sm-lang-change")); } } catch { /* ignore */ }
-        if (JSON.stringify([u.perms, u.scope]) === JSON.stringify([cur.user.perms, cur.user.scope])) return;
-        const fresh = lmsSession() || cur; const next = { ...fresh, user: { ...fresh.user, perms: u.perms, scope: u.scope } };
+        if (JSON.stringify([u.perms, u.scope, u.mods]) === JSON.stringify([cur.user.perms, cur.user.scope, (cur.user as Actor).mods])) return;
+        const fresh = lmsSession() || cur; const next = { ...fresh, user: { ...fresh.user, perms: u.perms, scope: u.scope, mods: u.mods } };
         try { localStorage.setItem("sm_lms_session_v1", JSON.stringify(next)); } catch { /* ignore */ }
         setSt((x) => ({ ...x, actor: next.user }));
       }).catch(() => undefined);
