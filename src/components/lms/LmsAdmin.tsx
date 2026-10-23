@@ -672,6 +672,15 @@ function ModuleAccess({ perms, setPerms, teachers }: { perms: string[]; setPerms
               </select></label>); })}</>)}
           <p className="text-[11px] opacity-70">{tr("Read-only, limited to this teacher's classes. Defaults come from Assessment → Department Report → Settings.", "للقراءة فقط وضمن صفوف المعلم. الافتراضي من إعدادات التقرير.")}</p>
         </div>
+        <div className="space-y-1.5 rounded-xl bg-black/[0.03] px-3 py-2 md:col-span-2 dark:bg-white/5" data-testid="perm-trk">
+          <div className="text-sm font-semibold">📊 {tr("Assessment Tracker", "متتبع التقييم")}</div>
+          <div className="ms-4 flex flex-wrap gap-x-4 gap-y-1 border-s-2 border-black/10 ps-3 dark:border-white/15">{TRK_PERM_KEYS.map(([k, en, ar]) => { const cur = perms.includes(`trk:${k}:on`) ? "on" : perms.includes(`trk:${k}:off`) ? "off" : ""; const v = k === "view"; return (
+            <label key={k} className="flex items-center gap-1.5 text-xs">{tr(en, ar)}
+              <select className="rounded-lg border border-black/15 bg-white px-1 py-0.5 text-xs dark:border-white/20 dark:bg-slate-900" value={cur} data-testid={`perm-trk-${k}`} onChange={(e) => setPerms([...perms.filter((p) => p !== `trk:${k}:on` && p !== `trk:${k}:off`), ...(e.target.value ? [`trk:${k}:${e.target.value}`] : [])])}>
+                <option value="">{tr("As system settings", "كإعدادات النظام")}</option><option value="on">{v ? tr("Show", "إظهار") : tr("Allow", "سماح")}</option><option value="off">{v ? tr("Hide", "إخفاء") : tr("Not allow", "منع")}</option>
+              </select></label>); })}</div>
+          <p className="text-[11px] opacity-70">{tr("Limited to this teacher's classes. Defaults come from Assessment → Attainment & Progress Systems.", "ضمن صفوف المعلم. الافتراضي من أنظمة التحصيل والتقدم.")}</p>
+        </div>
         <div className="space-y-1.5 rounded-xl bg-black/[0.03] px-3 py-2 dark:bg-white/5" data-testid="perm-dl">
           <div className="text-sm font-semibold">⬇️ {tr("Downloads", "التنزيلات")}</div>
           <div className="ms-4 flex flex-wrap gap-x-4 gap-y-1 border-s-2 border-black/10 ps-3 text-sm dark:border-white/15">
@@ -684,6 +693,7 @@ function ModuleAccess({ perms, setPerms, teachers }: { perms: string[]; setPerms
   );
 }
 
+const TRK_PERM_KEYS: [string, string, string][] = [["view", "Show / Hide", "إظهار / إخفاء"], ["edit", "Add / Edit", "إضافة / تعديل"], ["effort", "Edit Effort", "تعديل الجهد"], ["xlsx", "Download Excel", "تنزيل Excel"], ["pdf", "Download PDF", "تنزيل PDF"], ["isams", "Download iSAMS", "تنزيل iSAMS"]];
 const REP_PERM_KEYS: [string, string, string][] = [["kpi", "KPI overview", "المؤشرات"], ["attainment", "Attainment", "التحصيل"], ["progress", "Progress", "التقدّم"], ["quran", "Quran", "القرآن"], ["homework", "Homework", "الواجبات"], ["coverage", "Curriculum", "المنهج"], ["drill", "Drill-down", "التفصيل"], ["pdf", "PDF", "PDF"], ["xlsx", "Excel", "إكسل"]];
 
 /** Admin → teacher form: which Classroom Activities and assessments this teacher may host from their own login. */

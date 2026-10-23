@@ -1,5 +1,7 @@
 "use client";
 
+import { TrackerSummary } from "@/components/tracker/TrackerSummary";
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useI18n } from "@/lib/i18n";
 import { downloadBlob } from "@/lib/exportUtils";
@@ -124,6 +126,8 @@ export function AdminReports({ admin = true }: { admin?: boolean }) {
           {data?.access.xlsx && <button type="button" className="btn-glass px-3 py-1.5 text-sm" onClick={exportXlsx} data-testid="rep-xlsx">📊 Excel</button>}
         </div>
       </div>
+      <TrackerSummary admin={admin} />
+      <p className="text-xs font-bold uppercase tracking-wide opacity-60" data-testid="rep-secondary">{tr("Secondary view — % from quizzes and homework", "عرض ثانوي — النسب من الاختبارات والواجبات")}</p>
 
       {data && (
         <div className={`${card} grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8`} data-testid="rep-filters">
