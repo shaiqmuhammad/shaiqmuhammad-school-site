@@ -1,4 +1,5 @@
 "use client";
+import { useAdminScope } from "@/components/AdminScope";
 
 import { useEffect, useState } from "react";
 import { useTr } from "@/components/lms/useLms";
@@ -13,7 +14,8 @@ export function TrackerSummary({ admin, secondary = false }: { admin: boolean; s
   const { tr, lang } = useTr();
   const [d, setD] = useState<{ system: string; years: Y[] } | null>(null);
   const [err, setErr] = useState("");
-  useEffect(() => { setTrackerAdmin(admin); trk<{ system: string; years: Y[] }>("trk-summary", {}).then(setD).catch((e) => setErr(String((e as Error).message))); }, [admin]);
+  const scope = useAdminScope(); const subject = admin ? scope.subject : "";
+  useEffect(() => { setTrackerAdmin(admin); trk<{ system: string; years: Y[] }>("trk-summary", { subject }).then(setD).catch((e) => setErr(String((e as Error).message))); }, [admin, subject]);
   if (err) return null;
   const keys = Array.from(new Set((d?.years || []).flatMap((y) => Object.keys(y.thresholds))));
   return (

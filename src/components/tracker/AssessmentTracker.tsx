@@ -1,7 +1,9 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useTr } from "@/components/lms/useLms";
+import { ARABIC_SUBJECTS, useTr } from "@/components/lms/useLms";
+import { useI18n } from "@/lib/i18n";
+import { useAdminScope } from "@/components/AdminScope";
 import { btn, cardCls, field, Tabs, Toast } from "@/components/lms/mods/ModUi";
 import { modErr } from "@/lib/lmsMods";
 import { StdView } from "./StdFields";
@@ -25,6 +27,10 @@ export function AssessmentTracker({ asAdmin = false }: { asAdmin?: boolean }) {
   const [cls, setCls] = useState("");
   const [sysId, setSysId] = useState(""); // "" = the default system for this class's phase
   const [term, setTerm] = useState("Term 1");
+  const scope = useAdminScope();
+  const subject = asAdmin ? scope.subject : ""; // teachers: the server uses their own subject
+  const { lang } = useI18n();
+  const [enOver, setEnOver] = useState(false);
   const [g, setG] = useState<TGrid | null>(null);
   const [view, setView] = useState<"grid" | "isams" | "audit">("grid");
   const [msg, setMsg] = useState(""); const [bad, setBad] = useState(false);
@@ -32,7 +38,7 @@ export function AssessmentTracker({ asAdmin = false }: { asAdmin?: boolean }) {
   const gridRef = useRef<HTMLDivElement>(null);
   const note = (m: string, b = false) => { setMsg(m); setBad(b); setTimeout(() => setMsg(""), 5000); };
   useEffect(() => { trk<{ years: string[]; access: TrkAccess; systems: SysLite[] }>("asys-list", {}).then((r) => { setSel({ years: r.years, access: r.access, systems: r.systems }); setCls((c) => c || (r.years.length > 1 && asAdmin ? r.years[1] : r.years[0]) || ""); }).catch((e) => setErr(modErr(e, tr))); }, [tr]);
-  const load = useCallback(() => { if (!cls) return; trk<TGrid>("trk-get", { cls, term, sys: sysId }).then((r) => { setErr(""); setG(r); }).catch((e) => { setG(null); setErr(modErr(e, tr)); }); }, [cls, term, sysId, tr]);
+  const load = useCallback(() => { if (!cls) return; trk<TGrid>("trk-get", { cls, term, sys: sysId, subject }).then((r) => { setErr(""); setG(asAdmin && scope.studentIds ? { ...r, students: r.students.filter((s) => scope.studentIds!.has(s.id)), results: r.results.filter((s) => scope.studentIds!.has(s.id)) } : r); }).catch((e) => { setG(null); setErr(modErr(e, tr)); }); }, [cls, term, sysId, tr, subject, asAdmin, scope.studentIds]);
   const sysChoices = (sel?.systems || []).filter((x) => x.active && x.scope.years.includes(cls));
   useEffect(() => { load(); }, [load]);
   const acc = g?.access || sel?.access;
@@ -56,11 +62,15 @@ export function AssessmentTracker({ asAdmin = false }: { asAdmin?: boolean }) {
     setG({ ...g, results: g.results.map((r) => (r.id === sid ? { ...r, effort: v } : r)) });
     try { await trk("trk-effort", { student: sid, term: g.term, val: v === "__clear" ? null : v }); } catch (e) { note(modErr(e, tr), true); load(); }
   };
-  const fname = (ext: string) => `Assessment Tracker - ${cls} - ${term || "Year"}.${ext}`;
+  // t284: Islamic A (shares the Islamic B structure) shows topics/SCs in Arabic by default; English fills gaps; "Show in English" switches.
+  const arCtx = ARABIC_SUBJECTS.includes(g?.subject || subject);
+  const arT = lang === "ar" || (arCtx && !enOver);
+  const arOf = (x: TGrid): TGrid => (arT ? { ...x, units: x.units.map((u) => ({ ...u, title: u.titleAr?.trim() || u.title, sc: u.sc.map((t, i) => u.scAr?.[i]?.trim() || t) })) } : x);
+  const fname = (ext: string) => `Assessment Tracker - ${cls}${g?.subject ? ` - ${g.subject}` : ""} - ${term || "Year"}.${ext}`;
   const doExport = async (kind: "xlsx" | "pdf") => {
     try {
-      const fresh = await trk<TGrid>("trk-export", { cls, term, kind, sys: sysId });
-      if (kind === "xlsx") await exportXlsx(fresh, fname("xlsx"));
+      const fresh = await trk<TGrid>("trk-export", { cls, term, kind, sys: sysId, subject });
+      if (kind === "xlsx") await exportXlsx(arOf(fresh), fname("xlsx"));
       else if (gridRef.current) await exportPdf(gridRef.current, `Assessment Tracker · ${cls} · ${term || "Year"} · ${fresh.sys.name}`, fname("pdf"));
     } catch (e) { note(modErr(e, tr), true); }
   };
@@ -81,8 +91,9 @@ export function AssessmentTracker({ asAdmin = false }: { asAdmin?: boolean }) {
         {acc?.pdf && <button type="button" className={btn} onClick={() => doExport("pdf")} disabled={!g} data-testid="trk-pdf">⬇ PDF</button>}
       </div>
       {err && <p className="rounded-xl bg-amber-100 px-4 py-3 text-sm font-semibold text-amber-900" role="alert" data-testid="trk-error">{err}</p>}
-      {view === "grid" && g && <Grid g={g} gridRef={gridRef} sum={sum} edit={!!acc?.edit} set={set} setGrade={setGrade} setTarget={setTarget} />}
-      {view === "isams" && g && <IsamsPanel g={g} access={acc!} setEffort={setEffort} asAdmin={asAdmin} note={note} />}
+      {arCtx && lang !== "ar" && <button type="button" className={btn} onClick={() => setEnOver((x) => !x)} data-testid="trk-lang-switch">{enOver ? "عرض بالعربية" : "Show in English"}</button>}
+      {view === "grid" && g && <Grid g={arOf(g)} gridRef={gridRef} sum={sum} edit={!!acc?.edit} set={set} setGrade={setGrade} setTarget={setTarget} />}
+      {view === "isams" && g && <IsamsPanel subject={g.subject || subject} g={g} access={acc!} setEffort={setEffort} asAdmin={asAdmin} note={note} />}
       {view === "audit" && asAdmin && <Audit />}
       {view === "grid" && g && <p className="text-xs opacity-70">{tr("Cell marks:", "علامات الخلايا:")} {Object.entries(SRC).map(([k, [m, c, t]]) => <span key={k} className="me-3"><b style={{ color: c }}>{m}</b> {t}</span>)}· {tr("Average and Attainment Grade recalculate on every change.", "يُعاد حساب المتوسط ودرجة التحصيل مع كل تغيير.")}</p>}
     </div>
@@ -147,16 +158,18 @@ function Grid({ g, gridRef, sum, edit, set, setGrade, setTarget }: { g: TGrid; g
   );
 }
 
-function IsamsPanel({ g, access, setEffort, asAdmin, note }: { g: TGrid; access: TrkAccess; setEffort: (s: string, v: string) => void; asAdmin: boolean; note: (m: string, b?: boolean) => void }) {
+function IsamsPanel({ g, access, setEffort, asAdmin, note, subject }: { subject: string; g: TGrid; access: TrkAccess; setEffort: (s: string, v: string) => void; asAdmin: boolean; note: (m: string, b?: boolean) => void }) {
   const { tr } = useTr();
   const [tpls, setTpls] = useState<{ cycle: string; name: string; term: string; at: number }[] | null>(null);
   const [cycle, setCycle] = useState("");
   const [rep, setRep] = useState<{ sheet: string; matched: number; unmatched: string[] }[] | null>(null);
   const [term, setTerm] = useState(g.term || "Term 1");
+  const [flag, setFlag] = useState("");
   useEffect(() => { if (access.isams) trk<{ items: { cycle: string; name: string; term: string; at: number }[] }>("isams-tpl-list", {}).then((r) => { setTpls(r.items); setCycle((c) => c || r.items.find((x) => x.term === g.term)?.cycle || r.items[0]?.cycle || ""); }).catch(() => setTpls([])); }, [access.isams, g.term]);
   const run = async () => {
     try {
-      const d = await trk<{ data: string; name: string; term: string; classes: never[] }>("trk-isams", { cycle, term });
+      const d = await trk<{ data: string; name: string; term: string; classes: never[]; flag?: string }>("trk-isams", { cycle, term, subject });
+      setFlag(d.flag || "");
       const r = await fillIsams(d.data, d.classes, (d.name || `iSAMS ${cycle}.xlsx`).replace(/\.xlsx$/i, "") + ` - filled.xlsx`);
       setRep(r);
       const learned = r.flatMap((x) => x.learnedIds);
@@ -166,6 +179,7 @@ function IsamsPanel({ g, access, setEffort, asAdmin, note }: { g: TGrid; access:
   const S = g.students;
   return (
     <div className="space-y-3" data-testid="trk-isams">
+      {(flag || ARABIC_SUBJECTS.includes(subject)) && <p className="rounded-xl bg-amber-100 px-4 py-2 text-sm font-semibold text-amber-900" data-testid="trk-isams-flag">⚠ {flag || tr(`${subject}: no ${subject} iSAMS template supplied yet; it is exported with the same layout and labelled ${subject}.`, `${subject}: لم يُرفع قالب iSAMS خاص بها بعد؛ يُصدَّر بالتخطيط نفسه مع تسمية ${subject}.`)}</p>}
       <div className={cardCls + " overflow-x-auto"}>
         <p className="mb-2 text-sm font-bold">{tr(`iSAMS report — ${g.cls} · ${g.term || "Whole year"}`, `تقرير iSAMS — ${g.cls}`)}</p>
         <table className="w-full text-sm" style={{ fontFamily: FONT }}><thead><tr className="text-left text-xs uppercase opacity-70"><th className="p-1">Surname</th><th className="p-1">Forename</th><th className="p-1">Target Grade</th><th className="p-1">Effort Grade</th><th className="p-1">Attainment Grade</th></tr></thead>

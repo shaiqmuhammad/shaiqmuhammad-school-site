@@ -5,7 +5,10 @@ import { DlGate } from "@/components/lms/DlGate";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AssessmentShell } from "@/components/assessment/AssessmentShell";
 import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
-import { useLmsActor, useTr } from "@/components/lms/useLms";
+import { ARABIC_SUBJECTS, useLmsActor, useTr } from "@/components/lms/useLms";
+import { useAdminScope } from "@/components/AdminScope";
+/** Subjects that share (link to) another subject's curriculum. Mirrors the worker's CUR_LINK. */
+const CUR_LINK: Record<string, string> = { "Islamic A": "Islamic B" };
 import { btn, btnCta, cardCls, field, Head, Modal, ModPage, Tabs, Toast } from "@/components/lms/mods/ModUi";
 import { loadContentData } from "@/lib/content";
 import { downloadBlob } from "@/lib/exportUtils";
@@ -63,7 +66,9 @@ export function Curriculum({ asAdmin, student = false }: { asAdmin: boolean; stu
   const { tr } = useTr();
   const { lang } = useI18n();
   const { actor } = useLmsActor();
+  const scope = useAdminScope();
   const perm = modPerm(actor?.perms, asAdmin, "cur");
+  const [enOver, setEnOver] = useState(false);
   const [items, setItems] = useState<CurUnit[] | null>(null);
   const [canEdit, setCanEdit] = useState(false);
   const [canDelete, setCanDelete] = useState(false);
@@ -83,7 +88,11 @@ export function Curriculum({ asAdmin, student = false }: { asAdmin: boolean; stu
   useEffect(() => { if (focus && items) setTimeout(() => document.getElementById(`u-${focus}`)?.scrollIntoView({ block: "center" }), 150); }, [focus, items]);
   const subjects = useMemo(() => [...new Set([...(cat?.subjects.map((s) => s.name) || []), ...(items || []).map((i) => i.subject)])], [cat, items]);
   const years = useMemo(() => [...new Set([...(cat?.classes.map((s) => s.name) || []), ...(items || []).map((i) => i.yr)])], [cat, items]);
-  const shown = useMemo(() => (items || []).filter((i) => (!f.subject || i.subject === f.subject) && (!f.yr || i.yr === f.yr) && (!f.term || i.term === f.term) && (!f.status || i.status === f.status) && (!f.q || `${i.title} ${i.objectives}`.toLowerCase().includes(f.q.toLowerCase()))), [items, f]);
+  // t284: Islamic A links to (shares) the Islamic B curriculum and shows it in Arabic by default; English fills any gap.
+  const subjSel = f.subject || (asAdmin ? scope.subject : "");
+  const arCtx = ARABIC_SUBJECTS.includes(subjSel) || (!asAdmin && !!actor?.subj?.length && actor.subj.every((x) => ARABIC_SUBJECTS.includes(x)));
+  const arCur = lang === "ar" || (arCtx && !enOver);
+  const shown = useMemo(() => (items || []).filter((i) => (!subjSel || i.subject === (CUR_LINK[subjSel] || subjSel)) && (!f.yr || i.yr === f.yr) && (!f.term || i.term === f.term) && (!f.status || i.status === f.status) && (!f.q || `${i.title} ${i.objectives}`.toLowerCase().includes(f.q.toLowerCase()))), [items, f, subjSel]);
   const tree = useMemo(() => { const m = new Map<string, Map<string, Map<string, CurUnit[]>>>(); for (const i of shown) { const a = m.get(i.subject) || new Map(); const b = a.get(i.yr) || new Map(); const c = b.get(i.term) || []; c.push(i); b.set(i.term, c); a.set(i.yr, b); m.set(i.subject, a); } return m; }, [shown]);
   const setStatus = async (id: string, status: string) => { try { await modCall("cur-status", { id, status }, asAdmin); load(); } catch (e) { note(modErr(e, tr), true); } };
   const del = async (id: string) => { if (!confirm(tr("Delete this unit?", "حذف هذه الوحدة؟"))) return; try { await modCall("cur-delete", { id }, asAdmin); load(); } catch (e) { note(modErr(e, tr), true); } };
@@ -125,6 +134,7 @@ export function Curriculum({ asAdmin, student = false }: { asAdmin: boolean; stu
       {!student && !canEdit && items && <p className="mb-3 rounded-xl bg-sky-100 px-3 py-2 text-sm font-semibold text-sky-900" data-testid="cur-viewonly">{tr("View only — you can read the scheme of work but not change it.", "للعرض فقط — يمكنك قراءة المخطط دون تعديله.")}</p>}
       <Toast msg={msg} bad={bad} />
       <div className={cardCls + (student ? " mb-4 grid gap-2 sm:grid-cols-3" : " mb-4 grid gap-2 sm:grid-cols-3 lg:grid-cols-6")}>
+        {arCtx && lang !== "ar" && <button type="button" className={field + " !w-auto font-bold"} onClick={() => setEnOver((x) => !x)} data-testid="cur-lang-switch">{enOver ? "عرض بالعربية" : "Show in English"}</button>}
         <select className={field} hidden={false} value={f.subject} onChange={(e) => setF({ ...f, subject: e.target.value })} aria-label={tr("Subject", "المادة")} data-testid="cur-f-subject"><option value="">{tr("All subjects", "كل المواد")}</option>{subjects.map((s) => <option key={s}>{s}</option>)}</select>
         <select className={field} hidden={student} style={student ? { display: "none" } : undefined} value={f.yr} onChange={(e) => setF({ ...f, yr: e.target.value })} aria-label={tr("Year", "السنة")} data-testid="cur-f-year"><option value="">{tr("All years", "كل السنوات")}</option>{years.map((s) => <option key={s}>{s}</option>)}</select>
         <select className={field} value={f.term} onChange={(e) => setF({ ...f, term: e.target.value })} aria-label={tr("Term", "الفصل")}><option value="">{tr("All terms", "كل الفصول")}</option>{TERMS.map((s) => <option key={s}>{s}</option>)}</select>
@@ -152,19 +162,20 @@ export function Curriculum({ asAdmin, student = false }: { asAdmin: boolean; stu
                   {view === "pacing" ? (
                     <div className={cardCls + " overflow-x-auto !p-3"} data-testid="cur-pacing">
                       <div className="min-w-[640px]"><div className="grid gap-px text-center text-[10px] opacity-60" style={{ gridTemplateColumns: `10rem repeat(${WEEKS}, 1fr)` }}><span />{Array.from({ length: WEEKS }, (_, i) => <span key={i}>{i + 1}</span>)}</div>
-                        {ts.get(t)!.map((u) => <div key={u.id} className="mt-1 grid items-center gap-px" style={{ gridTemplateColumns: `10rem repeat(${WEEKS}, 1fr)` }}><span className="truncate pe-2 text-xs font-semibold" dir="auto">{(lang === "ar" && u.titleAr) || u.title}</span>{Array.from({ length: WEEKS }, (_, i) => { const w = i + 1; const on = u.wkFrom && w >= u.wkFrom && w <= u.wkTo; return <span key={i} className={`h-5 ${on ? (u.status === "taught" ? "bg-emerald-600" : u.status === "in_progress" ? "bg-amber-500" : "bg-slate-400 dark:bg-slate-500") : "bg-black/5 dark:bg-white/5"} ${on && w === u.wkFrom ? "rounded-s" : ""} ${on && w === u.wkTo ? "rounded-e" : ""}`} />; })}</div>)}</div>
+                        {ts.get(t)!.map((u) => <div key={u.id} className="mt-1 grid items-center gap-px" style={{ gridTemplateColumns: `10rem repeat(${WEEKS}, 1fr)` }}><span className="truncate pe-2 text-xs font-semibold" dir="auto">{(arCur && u.titleAr) || u.title}</span>{Array.from({ length: WEEKS }, (_, i) => { const w = i + 1; const on = u.wkFrom && w >= u.wkFrom && w <= u.wkTo; return <span key={i} className={`h-5 ${on ? (u.status === "taught" ? "bg-emerald-600" : u.status === "in_progress" ? "bg-amber-500" : "bg-slate-400 dark:bg-slate-500") : "bg-black/5 dark:bg-white/5"} ${on && w === u.wkFrom ? "rounded-s" : ""} ${on && w === u.wkTo ? "rounded-e" : ""}`} />; })}</div>)}</div>
                     </div>
                   ) : (
                     <div className="grid gap-3 md:grid-cols-2">
                       {ts.get(t)!.map((u) => (
                         <article key={u.id} id={`u-${u.id}`} className={cardCls + (focus === u.id ? " ring-2 ring-[var(--cta)]" : "")} data-testid="cur-unit">
                           <div className="flex flex-wrap items-center gap-2">
-                            <h5 className="min-w-0 flex-1 text-base font-extrabold" dir="auto">{(lang === "ar" && u.titleAr) || u.title}</h5>
+                            <h5 className="min-w-0 flex-1 text-base font-extrabold" dir="auto">{(arCur && u.titleAr) || u.title}</h5>
                             {u.wkFrom > 0 && <span className="rounded-full bg-black/5 px-2 py-0.5 text-xs font-bold dark:bg-white/10">{tr("Wk", "أسبوع")} {u.wkFrom}{u.wkTo > u.wkFrom ? `–${u.wkTo}` : ""}</span>}
                             {canEdit && !student ? <select className={`rounded-full border-0 px-2.5 py-1 text-xs font-bold ${STCLS[u.status]}`} value={u.status} onChange={(e) => setStatus(u.id, e.target.value)} aria-label={tr("Status", "الحالة")} data-testid="cur-status">{Object.keys(ST).map((k) => <option key={k} value={k}>{tr(...ST[k])}</option>)}</select> : <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${STCLS[u.status]}`}>{tr(...ST[u.status])}</span>}
                           </div>
-                          {u.objectives && <ul className="mt-2 list-disc space-y-0.5 ps-5 text-sm" dir="auto">{u.objectives.split("\n").filter(Boolean).map((o, i) => <li key={i}>{o}</li>)}</ul>}
-                          {!!u.sc?.length && <details className="mt-2 rounded-xl bg-emerald-50 px-3 py-2 text-sm dark:bg-emerald-900/20" data-testid="cur-sc" open={student || undefined}><summary className="cursor-pointer text-xs font-extrabold text-emerald-900 dark:text-emerald-200">✅ {tr(`Success criteria (${u.sc.length})`, `معايير النجاح (${u.sc.length})`)}</summary><ol className="mt-1 list-decimal space-y-0.5 ps-5" dir="auto">{u.sc.map((x, i) => <li key={i} data-testid="cur-sc-item">{(lang === "ar" && u.scAr?.[i]?.trim()) || x}</li>)}</ol></details>}
+                          {u.objectives && <ul className="mt-2 list-disc space-y-0.5 ps-5 text-sm" dir="auto">{((arCur && u.objectivesAr) || u.objectives).split("\n").filter(Boolean).map((o, i) => <li key={i}>{o}</li>)}</ul>}
+                          {arCur && u.arReview && <p className="mt-1 text-[11px] font-bold text-amber-700" data-testid="cur-ar-review">{tr("Arabic awaiting proofreading", "الترجمة العربية بانتظار المراجعة")}</p>}
+                          {!!u.sc?.length && <details className="mt-2 rounded-xl bg-emerald-50 px-3 py-2 text-sm dark:bg-emerald-900/20" data-testid="cur-sc" open={student || undefined}><summary className="cursor-pointer text-xs font-extrabold text-emerald-900 dark:text-emerald-200">✅ {tr(`Success criteria (${u.sc.length})`, `معايير النجاح (${u.sc.length})`)}</summary><ol className="mt-1 list-decimal space-y-0.5 ps-5" dir="auto">{u.sc.map((x, i) => <li key={i} data-testid="cur-sc-item">{(arCur && u.scAr?.[i]?.trim()) || x}</li>)}</ol></details>}
                           <StdView std={u.std} />
                           {!!u.lessons.length && <p className="mt-2 text-xs opacity-80"><b>{tr("Lessons", "الدروس")} ({u.lessons.length}):</b> {u.lessons.map((l) => l.title).join(" · ")}</p>}
                           {u.notes && <details className="mt-2 text-xs"><summary className="cursor-pointer font-bold opacity-70">{tr("Vocabulary & assessment ideas", "المفردات وأفكار التقييم")}</summary><p className="mt-1 whitespace-pre-line opacity-80" dir="auto">{u.notes}</p></details>}

@@ -60,7 +60,15 @@ export function useAdminScope() {
     const studentIds = active ? new Set(users.filter((u) => u.role === "student" && stuOk(u)).map((u) => u.id)) : null;
     const nameOk = (name: string) => !studentIds || users.some((u) => studentIds.has(u.id) && (u.name === name || `${u.firstName || ""} ${u.lastName || ""}`.trim() === name));
     const teacherIds = s.teacher ? new Set([s.teacher]) : s.subject ? new Set(teacherOpts.map((t) => t.id)) : null;
-    return { ...s, active, ready: !!ctx, ctx, teacherOpts, studentIds, stuOk, nameOk, teacherIds };
+    /** A class (optionally one section) has at least one student in the current scope. */
+    const classOk = (cls: string, section = "") => !studentIds || users.some((u) => studentIds.has(u.id) && u.cls === cls && (!section || u.section === section));
+    /** Homework/quiz-like items: assigned students in scope, else the class in scope (and the teacher, when one is chosen). */
+    const itemOk = (h: { students?: string[]; cls?: string; section?: string; createdBy?: string }) => !active ? true
+      : (s.teacher && h.createdBy && h.createdBy !== s.teacher && !(h.students || []).some((id) => studentIds?.has(id))) ? false
+      : (h.students || []).length ? h.students!.some((id) => studentIds?.has(id)) : h.cls ? classOk(h.cls, h.section || "") : !s.teacher || h.createdBy === s.teacher;
+    /** A year label such as "Year 2" (or number 2) is in scope. */
+    const yearOk = (y: string | number | null | undefined) => !s.yr || y == null || y === "" || String(y) === s.yr || `Year ${y}` === s.yr || (s.yr === "FS2" && String(y) === "0");
+    return { ...s, active, ready: !!ctx, ctx, teacherOpts, studentIds, stuOk, nameOk, teacherIds, classOk, itemOk, yearOk };
   }, [s, ctx]);
 }
 
@@ -100,6 +108,21 @@ export function AdminScopeBar({ years = true, teacher = true, count, testId = "s
           {count && <span className="text-sm font-semibold" data-testid="scope-count">{count}</span>}
         </div>
       </div>
+    </div>
+  );
+}
+
+/** t283: Subject + Teacher fields for admin create/edit forms (same lists as the filter). Empty values show the defaults. */
+export function SubjectTeacherFields({ subject, teacher, onChange, testId = "st-fields", className = "" }: { subject?: string; teacher?: string; onChange: (v: { subject: string; teacher: string }) => void; testId?: string; className?: string }) {
+  const { tr } = useTr();
+  const scope = useAdminScope();
+  const subs = [...new Set([...(scope.ctx?.catalog?.subjects || []).map((x) => x.name), ...(subject ? [subject] : [])])];
+  const teachers = (scope.ctx?.users || []).filter((u) => u.role === "teacher" && (!subject || u.subjects.includes(subject) || (u.groups || []).some((g) => g.subject === subject) || u.id === teacher));
+  const sel = "mt-1 w-full rounded-xl border border-black/15 bg-white px-3 py-2 text-sm dark:bg-slate-900";
+  return (
+    <div className={"grid gap-3 sm:grid-cols-2 " + className} data-testid={testId}>
+      <label className="text-sm font-semibold">{tr("Subject", "المادة")}<select className={sel} value={subject || ""} onChange={(e) => onChange({ subject: e.target.value, teacher: "" })} data-testid={`${testId}-subject`}><option value="">{tr("— choose —", "— اختر —")}</option>{subs.map((x) => <option key={x} value={x}>{x}</option>)}</select></label>
+      <label className="text-sm font-semibold">{tr("Teacher", "المعلم")}<select className={sel} value={teacher || ""} onChange={(e) => onChange({ subject: subject || "", teacher: e.target.value })} data-testid={`${testId}-teacher`}><option value="">{tr("— choose —", "— اختر —")}</option>{teachers.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</select></label>
     </div>
   );
 }
