@@ -268,6 +268,13 @@ export function localizeQuestion(q: QuizQuestion, lang: Lang): QuizQuestion {
     out.options = q.options.map((o, i) => q.optionsAr?.[i]?.trim() || o);
   }
   if (q.explanationAr?.trim()) out.explanation = q.explanationAr;
+  if (q.type === "matching" && q.pairs && q.pairsAr?.length) {
+    out.pairs = q.pairs.map((p, i) => ({ left: q.pairsAr?.[i]?.left?.trim() || p.left, right: q.pairsAr?.[i]?.right?.trim() || p.right }));
+  }
+  if (q.type === "fill_blank" && q.blanks && q.blanksAr?.length && out.prompt === q.promptAr) {
+    // Arabic answer first (it is the one shown in the word bank); English answers stay accepted.
+    out.blanks = q.blanks.map((b, i) => [...(q.blanksAr?.[i] || []), ...b]);
+  }
   return out;
 }
 

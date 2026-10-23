@@ -67,6 +67,10 @@ export type QuizQuestion = {
   optionsAr?: string[];
   /** Optional Arabic explanation for the review screen */
   explanationAr?: string;
+  /** Optional Arabic matching pairs, same order as `pairs` (blank sides fall back to English) */
+  pairsAr?: MatchPair[];
+  /** Optional Arabic accepted answers per blank (accepted in BOTH languages; first one goes in the Arabic word bank) */
+  blanksAr?: string[][];
   /** Assessment Tracker: Success Criterion this question assesses, "<curriculum unit id>#<SC index>" */
   sc?: string;
 };
@@ -232,6 +236,14 @@ export function normalizeQuestion(raw: Partial<QuizQuestion>): QuizQuestion {
   if (optionsAr.some((o) => o.trim())) q.optionsAr = optionsAr;
   const explanationAr = String(raw.explanationAr ?? "").trim();
   if (explanationAr) q.explanationAr = explanationAr;
+  if (type === "matching" && Array.isArray(raw.pairsAr)) {
+    const pa = raw.pairsAr.map((p) => ({ left: String(p?.left ?? ""), right: String(p?.right ?? "") }));
+    if (pa.some((p) => p.left.trim() || p.right.trim())) q.pairsAr = pa;
+  }
+  if (type === "fill_blank" && Array.isArray(raw.blanksAr)) {
+    const ba = raw.blanksAr.map((b) => (Array.isArray(b) ? b.map(String) : [String(b ?? "")]).filter((x) => x.trim()));
+    if (ba.some((b) => b.length)) q.blanksAr = ba;
+  }
   const sc = String(raw.sc ?? "").trim();
   if (/^[\w-]{1,40}#\d{1,2}$/.test(sc)) q.sc = sc;
   return q;
@@ -514,7 +526,7 @@ export function scoreQuestion(question: QuizQuestion, answer: unknown): number {
       if (!n) return 0;
       const given = Array.isArray(answer) ? answer.map((a) => String(a ?? "")) : [];
       for (let i = 0; i < n; i++) {
-        if (!answersMatchShort(given[i] ?? "", question.blanks?.[i] || [])) return 0;
+        if (!answersMatchShort(given[i] ?? "", [...(question.blanks?.[i] || []), ...(question.blanksAr?.[i] || [])])) return 0;
       }
       return pts;
     }

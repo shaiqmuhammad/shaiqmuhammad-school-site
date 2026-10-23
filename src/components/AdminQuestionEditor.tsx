@@ -319,9 +319,9 @@ export function AdminQuestionEditor({ q, idx, onChange, onRemove, onMoveUp, setS
           <Field label="نص السؤال بالعربية">
             <textarea className={input + " min-h-14"} value={q.promptAr || ""} onChange={(e) => set({ promptAr: e.target.value })} placeholder={q.type === "fill_blank" ? "استخدم ___ لكل فراغ (بنفس عدد الفراغات)" : "اكتب السؤال بالعربية"} />
           </Field>
-          {q.type !== "image_choice" && q.type !== "short_answer" && q.type !== "fill_blank" && q.type !== "matching" && q.options.length > 0 && (
+          {q.type !== "image_choice" && q.type !== "short_answer" && q.type !== "matching" && q.options.length > 0 && (
             <div className="space-y-2">
-              <p className={hint}>الخيارات بالعربية (بنفس الترتيب)</p>
+              <p className={hint}>{q.type === "fill_blank" ? "الكلمات الإضافية في بنك الكلمات بالعربية (بنفس الترتيب)" : "الخيارات بالعربية (بنفس الترتيب)"}</p>
               {q.options.map((opt, oi) => (
                 <div key={oi} className="flex items-center gap-2">
                   <span className="w-1/3 truncate text-xs text-muted" dir="ltr">{opt}</span>
@@ -332,6 +332,47 @@ export function AdminQuestionEditor({ q, idx, onChange, onRemove, onMoveUp, setS
                       const next = Array.from({ length: q.options.length }, (_, j) => q.optionsAr?.[j] || "");
                       next[oi] = e.target.value;
                       set({ optionsAr: next });
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+          {q.type === "matching" && (q.pairs || []).length > 0 && (
+            <div className="space-y-2" data-testid="pairs-ar">
+              <p className={hint}>أزواج المطابقة بالعربية (بنفس الترتيب)</p>
+              {(q.pairs || []).map((p, pi) => (
+                <div key={pi} className="grid grid-cols-2 gap-2">
+                  {(["left", "right"] as const).map((side) => (
+                    <input
+                      key={side}
+                      className={input + " mt-0"}
+                      placeholder={p[side]}
+                      value={q.pairsAr?.[pi]?.[side] || ""}
+                      onChange={(e) => {
+                        const next = (q.pairs || []).map((_, j) => ({ left: q.pairsAr?.[j]?.left || "", right: q.pairsAr?.[j]?.right || "" }));
+                        next[pi] = { ...next[pi], [side]: e.target.value };
+                        set({ pairsAr: next });
+                      }}
+                    />
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+          {q.type === "fill_blank" && (q.blanks || []).length > 0 && (
+            <div className="space-y-2" data-testid="blanks-ar">
+              <p className={hint}>الإجابات المقبولة بالعربية لكل فراغ (افصل بينها بفاصلة). تُقبل الإجابات العربية والإنجليزية في اللغتين.</p>
+              {(q.blanks || []).map((b, bi) => (
+                <div key={bi} className="flex items-center gap-2">
+                  <span className="w-1/3 truncate text-xs text-muted" dir="ltr">{b.join(", ")}</span>
+                  <input
+                    className={input + " mt-0 flex-1"}
+                    value={(q.blanksAr?.[bi] || []).join("، ")}
+                    onChange={(e) => {
+                      const next = (q.blanks || []).map((_, j) => q.blanksAr?.[j] || []);
+                      next[bi] = e.target.value.split(/[,،]/).map((x) => x.trim()).filter(Boolean);
+                      set({ blanksAr: next });
                     }}
                   />
                 </div>
