@@ -39,10 +39,29 @@ export function initMods(sql: SqlStorage) {
   sql.exec(`CREATE TABLE IF NOT EXISTS beh (id TEXT PRIMARY KEY, student TEXT, cls TEXT, section TEXT, day TEXT, kind TEXT, category TEXT, severity INTEGER DEFAULT 1, note TEXT DEFAULT '', action TEXT DEFAULT '', follow TEXT DEFAULT 'none', follow_note TEXT DEFAULT '', sensitive INTEGER DEFAULT 0, by TEXT, by_name TEXT, at INTEGER, updated INTEGER)`);
   sql.exec(`CREATE INDEX IF NOT EXISTS beh_student ON beh (student, day)`);
   sql.exec(`CREATE TABLE IF NOT EXISTS cur (id TEXT PRIMARY KEY, subject TEXT, yr TEXT, term TEXT, title TEXT, objectives TEXT DEFAULT '', lessons TEXT DEFAULT '[]', resources TEXT DEFAULT '[]', wk_from INTEGER DEFAULT 0, wk_to INTEGER DEFAULT 0, status TEXT DEFAULT 'planned', quiz TEXT DEFAULT '', page TEXT DEFAULT '', ord INTEGER DEFAULT 0, by_name TEXT, updated INTEGER)`);
-  for (const col of ["links TEXT DEFAULT '[]'", "notes TEXT DEFAULT ''", "sc TEXT DEFAULT '[]'", "std TEXT DEFAULT '{}'"]) { try { sql.exec(`ALTER TABLE cur ADD COLUMN ${col}`); } catch { /* already there */ } }
+  for (const col of ["links TEXT DEFAULT '[]'", "notes TEXT DEFAULT ''", "sc TEXT DEFAULT '[]'", "std TEXT DEFAULT '{}'", "title_ar TEXT DEFAULT ''", "sc_ar TEXT DEFAULT '[]'"]) { try { sql.exec(`ALTER TABLE cur ADD COLUMN ${col}`); } catch { /* already there */ } }
 }
 
 type Link = { t: "hw" | "quiz"; id: string };
+/** Published site assessments (public/content/quizzes.json), cached for 2 minutes. */
+export type PubQuiz = { slug: string; title: string; titleAr: string; topic: string; visible: boolean; active: boolean };
+let pubCache: { at: number; items: PubQuiz[] } | null = null;
+export async function pubQuizzes(force = false): Promise<PubQuiz[]> {
+  if (!force && pubCache && Date.now() - pubCache.at < 120e3) return pubCache.items;
+  try {
+    const r = await fetch(`https://www.shaiqmuhammad.com/content/quizzes.json?t=${Date.now()}`, { headers: { "User-Agent": "Mozilla/5.0 (assessment-session)" } });
+    const j = (await r.json()) as { quizzes?: Record<string, unknown>[] };
+    const items = (j.quizzes || []).map((q) => ({ slug: String(q.slug || ""), title: String(q.title || ""), titleAr: String(q.titleAr || ""), topic: String(q.topic || ""), visible: q.visible !== false, active: q.active !== false && q.published !== false }));
+    pubCache = { at: Date.now(), items };
+  } catch { if (!pubCache) pubCache = { at: Date.now() - 100e3, items: [] }; }
+  return pubCache.items;
+}
+let pubNow: PubQuiz[] = [];
+export function setPubNow(p: PubQuiz[]) { pubNow = p; }
+/** Teacher quizzes (tq_*) linked to a topic, from their saved data. */
+export function tquizTopics(sql: SqlStorage) {
+  return sql.exec(`SELECT id, title, data FROM tquiz`).toArray().map((r) => { let t = ""; try { t = String((JSON.parse(String(r.data || "{}")) as Json).topic || ""); } catch { /* ignore */ } return { id: String(r.id), title: String(r.title || ""), topic: t }; });
+}
 const parseLinks = (r: Record<string, unknown>): Link[] => {
   let l: Link[] = [];
   try { l = (JSON.parse(String(r.links || "[]")) as Link[]).filter((x) => x && (x.t === "hw" || x.t === "quiz") && x.id); } catch { /* ignore */ }
@@ -60,7 +79,7 @@ const hwReaches = (h: HwLite, sid: string, cls: string, section: string) => h.st
 function resolveLinks(c: ModCtx, links: Link[], student: Record<string, unknown> | null) {
   const hws = new Map(c.hwList().map((h) => [h.id, h] as const));
   const qas = c.sql.exec(`SELECT * FROM qassign ORDER BY created DESC`).toArray();
-  const out: { t: string; id: string; title: string; mode?: string }[] = [];
+  const out: { t: string; id: string; title: string; mode?: string; titleAr?: string; pub?: boolean }[] = [];
   for (const l of links) {
     if (l.t === "hw") {
       const h = hws.get(l.id); if (!h) continue;
@@ -68,12 +87,14 @@ function resolveLinks(c: ModCtx, links: Link[], student: Record<string, unknown>
       out.push({ t: "hw", id: l.id, title: h.title });
     } else {
       const mine = qas.filter((x) => x.quiz === l.id);
-      let mode = "individual", title = String(mine[0]?.title || "");
+      const pub = pubNow.find((p) => p.slug === l.id);
+      let mode = "individual", title = String(mine[0]?.title || pub?.title || "");
       if (student) {
         const hit = mine.find((x) => qaReaches(x, String(student.id), String(student.cls || ""), String(student.section || "")));
-        if (!hit) continue;
-        mode = String(hit.mode); title = String(hit.title || "");
+        if (hit) { mode = String(hit.mode); title = String(hit.title || title); }
+        else if (!(pub && pub.visible && pub.active)) continue;
       }
+      if (pub) { out.push({ t: "quiz", id: l.id, title, mode, titleAr: pub.titleAr, pub: pub.visible && pub.active } as never); continue; }
       if (!title && l.id.startsWith("tq_")) title = String(c.sql.exec(`SELECT title FROM tquiz WHERE id=?`, l.id).toArray()[0]?.title || "");
       out.push({ t: "quiz", id: l.id, title, mode });
     }
@@ -94,6 +115,38 @@ const forbid = (e = "forbidden"): Reply => ({ status: 403, body: { error: e } })
 
 export async function modHandle(c: ModCtx, action: string, a: Actor, input: Json): Promise<Reply> {
   const sql = c.sql;
+  if (action === "cur-list" || action === "cur-for") setPubNow(await pubQuizzes());
+  if (action === "quiz-topics-sync") {
+    // Admin publish of public/content/quizzes.json: every assessment needs a curriculum topic, one assessment per topic.
+    if (a.role !== "admin") return forbid();
+    const list = (Array.isArray(input.quizzes) ? (input.quizzes as Json[]) : []).slice(0, 500).map((q) => ({ slug: str(q.slug, 80), title: str(q.title, 160), topic: str(q.topic, 40) })).filter((q) => q.slug);
+    const units = new Map(sql.exec(`SELECT * FROM cur`).toArray().map((r) => [String(r.id), r] as const));
+    const seen = new Map<string, { slug: string; title: string }>();
+    for (const tq of tquizTopics(sql)) if (tq.topic) seen.set(tq.topic, { slug: tq.id, title: tq.title });
+    for (const q of list) {
+      if (q.slug === "welcome-quiz" && !q.topic) continue; // general practice quiz, not a curriculum assessment
+      if (!q.topic) return { status: 400, body: { error: "topic_required", slug: q.slug, title: q.title } };
+      if (!units.has(q.topic)) return { status: 400, body: { error: "topic_unknown", slug: q.slug, title: q.title } };
+      const ex = seen.get(q.topic);
+      if (ex) return { status: 409, body: { error: "topic_taken", slug: q.slug, title: q.title, existing: ex } };
+      seen.set(q.topic, { slug: q.slug, title: q.title });
+    }
+    if (input.dry) return { status: 200, body: { ok: true, dry: true } };
+    const slugs = new Set(list.map((q) => q.slug));
+    let changed = 0;
+    for (const [id, r] of units) {
+      const want = list.find((q) => q.topic === id)?.slug || "";
+      const old = parseLinks(r);
+      const keep = old.filter((l) => !(l.t === "quiz" && !l.id.startsWith("tq_")) || (l.id === want));
+      // Links to published slugs that now belong to another topic (or no longer exist) are dropped.
+      const next = keep.filter((l) => !(l.t === "quiz" && !l.id.startsWith("tq_") && l.id !== want && slugs.has(l.id)));
+      if (want && !next.some((l) => l.t === "quiz" && l.id === want)) next.unshift({ t: "quiz", id: want });
+      const q1 = next.find((l) => l.t === "quiz")?.id || "";
+      if (JSON.stringify(next) !== JSON.stringify(old) || String(r.quiz || "") !== q1) { sql.exec(`UPDATE cur SET links=?, quiz=? WHERE id=?`, JSON.stringify(next), q1, id); changed++; }
+    }
+    pubCache = null;
+    return { status: 200, body: { ok: true, changed } };
+  }
   if (a.role === "student" && (action === "cur-list" || action === "cur-for")) {
     // Students: read-only, own year group only, only linked work that is assigned to them.
     const me = c.userRow("id=?", a.id);
@@ -379,7 +432,7 @@ export function parseStd(v: unknown): { codes: string[]; skill: number } {
   const skill = Math.round(Number(o.skill)); return { codes, skill: skill >= 1 && skill <= 6 ? skill : 0 };
 }
 function curRow(r: Record<string, unknown>) {
-  return { id: String(r.id), subject: String(r.subject), yr: String(r.yr), term: String(r.term), title: String(r.title), objectives: String(r.objectives || ""), sc: parseSc(r.sc), std: parseStd(r.std), lessons: JSON.parse(String(r.lessons || "[]")), resources: JSON.parse(String(r.resources || "[]")), wkFrom: Number(r.wk_from), wkTo: Number(r.wk_to), notes: String(r.notes || ""), status: String(r.status), quiz: String(r.quiz || ""), page: String(r.page || ""), ord: Number(r.ord), by: String(r.by_name || ""), updated: Number(r.updated) };
+  return { id: String(r.id), subject: String(r.subject), yr: String(r.yr), term: String(r.term), title: String(r.title), titleAr: String(r.title_ar || ""), objectives: String(r.objectives || ""), sc: parseSc(r.sc), scAr: parseSc(r.sc_ar), std: parseStd(r.std), lessons: JSON.parse(String(r.lessons || "[]")), resources: JSON.parse(String(r.resources || "[]")), wkFrom: Number(r.wk_from), wkTo: Number(r.wk_to), notes: String(r.notes || ""), status: String(r.status), quiz: String(r.quiz || ""), page: String(r.page || ""), ord: Number(r.ord), by: String(r.by_name || ""), updated: Number(r.updated) };
 }
 function curUpsert(c: ModCtx, a: Actor, subs: string[], input: Json): { id?: string; error?: string } {
   const subject = str(input.subject, 60), yr = str(input.yr, 60), term = str(input.term, 20) || "Term 1", title = str(input.title, 160);
@@ -409,15 +462,18 @@ function curUpsert(c: ModCtx, a: Actor, subs: string[], input: Json): { id?: str
       links.push({ t, id: lid });
     }
   } else if (quiz && !links.some((x) => x.t === "quiz" && x.id === quiz)) links.push({ t: "quiz", id: quiz });
+  if (links.filter((x) => x.t === "quiz").length > 1) return { error: "one_assessment_per_topic" };
   const quiz2 = links.find((x) => x.t === "quiz")?.id || "";
+  const titleAr = input.titleAr === undefined ? String(prev?.title_ar || "") : str(input.titleAr, 200);
+  const scAr = JSON.stringify(input.scAr === undefined ? parseSc(prev?.sc_ar) : (Array.isArray(input.scAr) ? (input.scAr as unknown[]).slice(0, 20).map((x) => str(x, 400)) : []));
   const sc = JSON.stringify(input.sc === undefined ? parseSc(prev?.sc) : cleanSc(input.sc));
   const std = JSON.stringify(input.std === undefined ? parseStd(prev?.std) : parseStd(input.std));
   const notes = input.notes === undefined ? String(prev?.notes || "") : String(input.notes ?? "").replace(/\r/g, "").slice(0, 3000);
   if (prev) {
-    c.sql.exec(`UPDATE cur SET subject=?, yr=?, term=?, title=?, objectives=?, lessons=?, resources=?, wk_from=?, wk_to=?, status=?, quiz=?, page=?, links=?, notes=?, sc=?, std=?, by_name=?, updated=? WHERE id=?`, subject, yr, term, title, objectives, JSON.stringify(lessons), JSON.stringify(resources), wf, wt, status, quiz2, page, JSON.stringify(links), notes, sc, std, a.name, now, id);
+    c.sql.exec(`UPDATE cur SET subject=?, yr=?, term=?, title=?, objectives=?, lessons=?, resources=?, wk_from=?, wk_to=?, status=?, quiz=?, page=?, links=?, notes=?, sc=?, std=?, title_ar=?, sc_ar=?, by_name=?, updated=? WHERE id=?`, subject, yr, term, title, objectives, JSON.stringify(lessons), JSON.stringify(resources), wf, wt, status, quiz2, page, JSON.stringify(links), notes, sc, std, titleAr, scAr, a.name, now, id);
     return { id };
   }
   const nid = rid("cu");
-  c.sql.exec(`INSERT INTO cur (id, subject, yr, term, title, objectives, lessons, resources, wk_from, wk_to, status, quiz, page, links, notes, sc, std, ord, by_name, updated) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, nid, subject, yr, term, title, objectives, JSON.stringify(lessons), JSON.stringify(resources), wf, wt, status, quiz2, page, JSON.stringify(links), notes, sc, std, Number(input.ord) || 0, a.name, now);
+  c.sql.exec(`INSERT INTO cur (id, subject, yr, term, title, objectives, lessons, resources, wk_from, wk_to, status, quiz, page, links, notes, sc, std, title_ar, sc_ar, ord, by_name, updated) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, nid, subject, yr, term, title, objectives, JSON.stringify(lessons), JSON.stringify(resources), wf, wt, status, quiz2, page, JSON.stringify(links), notes, sc, std, titleAr, scAr, Number(input.ord) || 0, a.name, now);
   return { id: nid };
 }
