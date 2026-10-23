@@ -156,6 +156,13 @@ function setCell(xml: string, ref: string, v: string): string {
   const ins = after ? rr[0].replace(`<c r="${after[1]}"`, `${cellXml(ref, "", v)}<c r="${after[1]}"`) : rr[0].replace("</row>", `${cellXml(ref, "", v)}</row>`);
   return xml.replace(rr[0], ins);
 }
+/** Empties one cell but keeps its style (and so its formatting / validation look). */
+function clearCell(xml: string, ref: string): string {
+  const m = new RegExp(`<c r="${ref}"([^>]*?)(/>|>[\\s\\S]*?</c>)`).exec(xml);
+  if (!m) return xml;
+  const st = /\ss="(\d+)"/.exec(m[1])?.[1];
+  return xml.replace(m[0], `<c r="${ref}"${st ? ` s="${st}"` : ""}/>`);
+}
 export async function fillIsams(b64: string, classes: { cls: string; students: IsamsStudent[] }[], fileName: string) {
   const JSZip = (await import("jszip")).default;
   const zip = await JSZip.loadAsync(Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)));
@@ -185,9 +192,10 @@ export async function fillIsams(b64: string, classes: { cls: string; students: I
       const st = cl?.students.find((s) => s.isamsId && s.isamsId === sid) || cl?.students.find((s) => norm(`${s.first} ${s.last}`) === norm(`${fore} ${sur}`) || norm(s.name) === norm(`${fore} ${sur}`));
       if (!st) { rep.unmatched.push(`${fore} ${sur}`); continue; }
       rep.matched++; if (st.isamsId !== sid) rep.learnedIds.push({ id: st.id, schoolId: sid });
-      if (cT && st.target) xml = setCell(xml, `${cT}${r}`, st.target);
-      if (cE && st.effort) xml = setCell(xml, `${cE}${r}`, st.effort);
-      if (cA && st.grade != null) xml = setCell(xml, `${cA}${r}`, String(st.grade));
+      // Every matched pupil gets the tracker's values; a value the tracker doesn't have is left blank (never the template's old value).
+      if (cT) xml = st.target ? setCell(xml, `${cT}${r}`, st.target) : clearCell(xml, `${cT}${r}`);
+      if (cE) xml = st.effort ? setCell(xml, `${cE}${r}`, st.effort) : clearCell(xml, `${cE}${r}`);
+      if (cA) xml = st.grade != null ? setCell(xml, `${cA}${r}`, String(st.grade)) : clearCell(xml, `${cA}${r}`);
     }
     zip.file(path, xml);
     report.push(rep);
