@@ -1,5 +1,6 @@
 "use client";
 
+import { useAdminScope } from "@/components/AdminScope";
 import { TrkLink } from "@/components/tracker/TrkLink";
 import { useCallback, useEffect, useState } from "react";
 import { exportAllHomeworkZip } from "@/components/lms/lmsFiles";
@@ -23,6 +24,8 @@ export function AdminLmsHomework() {
   const fail = useCallback((e: unknown) => { if ((e as { status?: number }).status === 401 && adminRelogin()) return; setErr(lmsErrorText(e, tr)); }, [tr]);
   const load = useCallback(() => { lmsApi.dashboard(true).then(setDash).catch(fail); }, [fail]);
   useEffect(() => { load(); }, [load]);
+  const scope = useAdminScope();
+  const hws = (dash?.homework || []).filter((h) => scope.itemOk(h));
   const names = new Map((dash?.students || []).map((s) => [s.id, s.name]));
 
   return (
@@ -31,7 +34,7 @@ export function AdminLmsHomework() {
       <QuranMap asAdmin classes={mapCat.classes} sections={mapCat.sections} />
       <div className={card + " py-3"}><LeaderboardSetting asAdmin /></div>
       <div className="flex flex-wrap items-center gap-2">
-        <h2 className="text-2xl font-extrabold" data-testid="admin-lms-heading">{tr("Homework", "الواجبات")} {dash && `(${dash.homework.length})`}</h2>
+        <h2 className="text-2xl font-extrabold" data-testid="admin-lms-heading">{tr("Homework", "الواجبات")} {dash && `(${hws.length}${scope.active ? ` / ${dash.homework.length}` : ""})`}</h2>
         <span className="flex-1" />
         <button type="button" className={smallBtn} onClick={() => exportAllHomeworkZip(true).catch(fail)} data-testid="admin-hw-export">⬇ {tr("Export all (ZIP)", "تصدير الكل (ZIP)")}</button>
       </div>
@@ -39,11 +42,11 @@ export function AdminLmsHomework() {
       {err && <p className="rounded-xl bg-rose-100 px-4 py-2 text-rose-800" role="alert">{err}</p>}
       {!dash ? (
         <p className="opacity-70">{tr("Loading…", "جارٍ التحميل…")}</p>
-      ) : !dash.homework.length ? (
+      ) : !hws.length ? (
         <p className={card}>{tr("No homework yet.", "لا توجد واجبات بعد.")}</p>
       ) : (
         <ul className="space-y-3">
-          {dash.homework.map((h) => (
+          {hws.map((h) => (
             <li key={h.id} className={card + " space-y-2"} data-testid="admin-hw-row">
               <div className="flex flex-wrap items-center gap-2">
                 <span aria-hidden>{h.kind === "quran" ? "📖" : "📝"}</span>

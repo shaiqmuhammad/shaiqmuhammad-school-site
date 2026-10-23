@@ -397,7 +397,7 @@ export default function AdminCms() {
             <button type="submit" className={btn}>Save teacher profile</button>
           </form></details>
         )}
-        {["home","quizzes","lmshw","reports","wall","tracker","logins","curriculum","pages","mail","certificate","asys"].includes(tab) && <AdminScopeBar testId="scope-bar" />}
+        {["home","quizzes","lmshw","reports","wall","tracker","logins","curriculum"].includes(tab) && <AdminScopeBar testId="scope-bar" />}
         {tab==="results" && <AdminResults quizzes={quizzesData.quizzes} />}
         {tab==="reports" && <AdminReports />}
         {tab==="wall" && <WallBoard asAdmin />}

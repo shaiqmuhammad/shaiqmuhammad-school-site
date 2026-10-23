@@ -1,4 +1,5 @@
 "use client";
+import { SubjectTeacherFields, useAdminScope } from "@/components/AdminScope";
 
 import { TrkLink } from "@/components/tracker/TrkLink";
 import { useRouter } from "next/navigation";
@@ -38,7 +39,9 @@ export default function AdminQuizzes({ setStatus, onNeedToken, data, setData, re
   const router = useRouter();
   const tr = (en: string, ar: string) => (lang === "ar" ? ar : en);
 
-  const sorted = useMemo(() => [...data.quizzes].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)), [data.quizzes]);
+  const scope = useAdminScope();
+  // t283 shared filter: subject (Islamic A shares Islamic B assessments), teacher, year.
+  const sorted = useMemo(() => [...data.quizzes].filter((q) => (!scope.subject || q.subject === scope.subject || (scope.subject === "Islamic A" && q.subject === "Islamic B")) && (!scope.teacher || q.teacher === scope.teacher || (scope.subject === "Islamic A" && q.subject === "Islamic B")) && scope.yearOk(q.year ?? q.topicInfo?.yr)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)), [data.quizzes, scope]);
 
   function saveQuiz(e: FormEvent) {
     e.preventDefault();
@@ -151,6 +154,7 @@ export default function AdminQuizzes({ setStatus, onNeedToken, data, setData, re
             <Field label="Slug (URL)"><input className={input} value={editing.slug} onChange={(e) => setEditing({ ...editing, slug: slugify(e.target.value) })} required /></Field>
           </div>
           <TopicPicker lang={lang} value={editing.topic} taken={(id) => data.quizzes.find((q) => q.id !== editing.id && q.topic === id)?.title} onChange={(topic, info) => setEditing({ ...editing, topic: topic || undefined, topicInfo: info, ...(info && /^Year\s*\d+$/i.test(info.yr) ? { year: Number(info.yr.replace(/\D/g, "")) } : {}) })} />
+          <SubjectTeacherFields testId="quiz-st" subject={editing.subject} teacher={editing.teacher} onChange={(v) => setEditing({ ...editing, ...v })} />
           <Field label="Description"><textarea className={input + " min-h-16"} value={editing.description} onChange={(e) => setEditing({ ...editing, description: e.target.value })} /></Field>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Arabic title (optional)"><input dir="rtl" className={input} value={editing.titleAr || ""} onChange={(e) => setEditing({ ...editing, titleAr: e.target.value })} placeholder="العنوان بالعربية" /></Field>

@@ -1,4 +1,5 @@
 "use client";
+import { useAdminScope } from "@/components/AdminScope";
 
 import { useEffect, useState } from "react";
 import { useI18n } from "@/lib/i18n";
@@ -44,6 +45,8 @@ export function AdminHome({ counts, refreshedAt, refreshing, hasToken, onTab }: 
     ? refreshedAt.toLocaleTimeString(lang === "ar" ? "ar-AE" : "en-GB", { hour: "2-digit", minute: "2-digit" })
     : "—";
 
+  const scope = useAdminScope();
+  const [hwList, setHwList] = useState<{ students?: string[]; cls?: string; section?: string; createdBy?: string }[]>([]);
   const [school, setSchool] = useState<{ students: number; teachers: number; blocked: number; homework: number; unread: number } | null>(null);
   useEffect(() => {
     let on = true;
@@ -52,6 +55,7 @@ export function AdminHome({ counts, refreshedAt, refreshing, hasToken, onTab }: 
       lmsApi.dashboard(true).catch(() => ({ homework: [] as unknown[] })),
     ]).then(([u, d]) => {
       if (!on) return;
+      setHwList(((d as { homework?: unknown[] }).homework || []) as never[]);
       const us = u.users as { role: string; disabled?: boolean }[];
       setSchool((x) => ({ students: us.filter((y) => y.role === "student").length, teachers: us.filter((y) => y.role === "teacher").length, blocked: us.filter((y) => y.disabled).length, homework: ((d as { homework?: unknown[] }).homework || []).length, unread: x?.unread ?? 0 }));
     });
@@ -67,10 +71,12 @@ export function AdminHome({ counts, refreshedAt, refreshing, hasToken, onTab }: 
     { tab: "activities", icon: "🎲", title: tr("Activities", "الأنشطة"), sub: tr("Wall, wheel, polls, votes", "الجدار، العجلة، الاستطلاعات") },
     { tab: "classes", icon: "🏫", title: tr("Classes", "الصفوف"), sub: tr("Class view & Quran map", "عرض الصف وخريطة القرآن") },
   ];
+  // t283 shared admin filter: the counts follow the chosen Subject / Teacher / Year / Section.
+  const sc = scope.active && scope.ready;
   const big: { label: string; value: string; tab: AdminHomeTab; tone: string }[] = school ? [
-    { label: tr("Students", "الطلاب"), value: String(school.students), tab: "students", tone: "bg-sky-500" },
-    { label: tr("Teachers", "المعلمون"), value: String(school.teachers), tab: "teachers", tone: "bg-emerald-500" },
-    { label: tr("Homework", "الواجبات"), value: String(school.homework), tab: "lmshw", tone: "bg-sun" },
+    { label: tr("Students", "الطلاب"), value: String(sc && scope.studentIds ? scope.studentIds.size : school.students), tab: "students", tone: "bg-sky-500" },
+    { label: tr("Teachers", "المعلمون"), value: String(sc && (scope.subject || scope.teacher) ? (scope.teacher ? 1 : scope.teacherOpts.length) : school.teachers), tab: "teachers", tone: "bg-emerald-500" },
+    { label: tr("Homework", "الواجبات"), value: String(sc ? hwList.filter((h) => scope.itemOk(h)).length : school.homework), tab: "lmshw", tone: "bg-sun" },
     { label: tr("Unread mail", "بريد غير مقروء"), value: String(school.unread), tab: "mail", tone: "bg-rose-500" },
   ] : [];
 
