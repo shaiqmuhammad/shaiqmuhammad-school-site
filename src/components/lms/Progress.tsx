@@ -5,7 +5,7 @@ import { dlGrant } from "@/lib/dl";
 import { CriteriaChart, TrackerEntries } from "@/components/lms/QuranScores";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { lmsApi, lmsErrorText, quranChapters, type Chapter, type MapRow, type Progress, type TrackerRow } from "@/lib/lms";
+import { lmsApi, lmsErrorText, lmsSession, quranChapters, type Chapter, type MapRow, type Progress, type TrackerRow } from "@/lib/lms";
 import { GRADE_STYLE, STATUS_STYLE, card, gradeLabel, inputCls, smallBtn, statusLabel, useTr } from "@/components/lms/useLms";
 
 type Tr = (en: string, ar: string) => string;
@@ -121,7 +121,8 @@ export function completedSurahs(tracker: TrackerRow[], ch: Chapter[]): Chapter[]
   });
 }
 
-export async function downloadCertificate(student: string, c: Chapter, tr: Tr) {
+export async function downloadCertificate(student: string, c: Chapter, tr: Tr, ar?: { arabic?: boolean; nameAr?: string }) {
+  if (ar?.arabic) return downloadCertificateAr(ar.nameAr?.trim() || student, c);
   if (!(await dlGrant("export"))) return;
   const W = 1754, H = 1240;
   const cv = document.createElement("canvas");
@@ -147,8 +148,42 @@ export async function downloadCertificate(student: string, c: Chapter, tr: Tr) {
   pdf.save(`certificate-${c.name_simple.replace(/\W+/g, "-")}-${student.replace(/\W+/g, "-")}.pdf`);
 }
 
-export function Certificates({ tracker, student }: { tracker: TrackerRow[]; student: string }) {
+/** t289: fully Arabic Surah certificate (Islamic A): Arabic template text, RTL, Surah name and student name in Arabic. */
+async function downloadCertificateAr(name: string, c: Chapter) {
+  if (!(await dlGrant("export"))) return;
+  const W = 1754, H = 1240, F = "'Noto Naskh Arabic', Amiri, serif";
+  try { await Promise.all([document.fonts.load(`bold 80px 'Noto Naskh Arabic'`), document.fonts.load(`bold 80px 'Amiri Quran'`)]); } catch { /* ignore */ }
+  const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
+  const g = cv.getContext("2d")!;
+  g.fillStyle = "#fffaf0"; g.fillRect(0, 0, W, H);
+  g.strokeStyle = "#1b3a57"; g.lineWidth = 28; g.strokeRect(40, 40, W - 80, H - 80);
+  g.strokeStyle = "#f5c542"; g.lineWidth = 8; g.strokeRect(80, 80, W - 160, H - 160);
+  g.textAlign = "center"; g.direction = "rtl"; g.fillStyle = "#1b3a57";
+  const n = (x: number) => x.toLocaleString("ar-EG");
+  g.font = `bold 92px ${F}`; g.fillText("شهادة حفظ", W / 2, 260);
+  g.font = `44px ${F}`; g.fillText("تشهد هذه الشهادة بأنّ الطالب/الطالبة", W / 2, 380);
+  g.font = `bold 96px ${F}`; g.fillStyle = "#b8892b"; g.fillText(name, W / 2, 510);
+  g.fillStyle = "#1b3a57"; g.font = `44px ${F}`; g.fillText("قد أتمّ حفظ", W / 2, 610);
+  g.font = "bold 110px 'Amiri Quran', 'Amiri', serif"; g.fillText(`سورة ${c.name_arabic}`, W / 2, 760);
+  g.font = `bold 52px ${F}`; g.fillText(`عدد الآيات: ${n(c.verses_count)}`, W / 2, 850);
+  g.font = `38px ${F}`; g.fillText(new Date().toLocaleDateString("ar-AE", { day: "numeric", month: "long", year: "numeric" }), W / 2, 980);
+  g.font = `bold 42px ${F}`; g.fillText("منصة شائق محمد التعليمية", W / 2, 1080);
+  g.direction = "ltr";
+  g.fillStyle = "#f5c542"; g.beginPath(); g.arc(W - 260, H - 260, 90, 0, Math.PI * 2); g.fill();
+  g.fillStyle = "#1b3a57"; g.font = "bold 90px serif"; g.fillText("★", W - 260, H - 228);
+  const { jsPDF } = await import("jspdf");
+  const pdf = new jsPDF({ orientation: "landscape", unit: "px", format: [W, H] });
+  pdf.addImage(cv.toDataURL("image/jpeg", 0.92), "JPEG", 0, 0, W, H);
+  pdf.save(`certificate-${c.name_simple.replace(/\W+/g, "-")}-${(name.replace(/[^\p{L}\p{N}]+/gu, "-") || "student")}.pdf`);
+  (window as unknown as { __lastCert?: string }).__lastCert = pdf.output("datauristring");
+}
+
+export function Certificates({ tracker, student, nameAr, arabic: arIn }: { tracker: TrackerRow[]; student: string; nameAr?: string; arabic?: boolean }) {
   const { tr } = useTr();
+  // Signed-in student: their own subject decides (Islamic A → Arabic certificate).
+  const [mine, setMine] = useState<{ arabic: boolean; nameAr: string } | null>(null);
+  useEffect(() => { if (arIn === undefined && lmsSession()?.user.role === "student") lmsApi.me().then((r) => setMine({ arabic: !!r.user.arabic, nameAr: r.user.nameAr || "" })).catch(() => undefined); }, [arIn]);
+  const arOpt = { arabic: arIn ?? mine?.arabic, nameAr: nameAr ?? mine?.nameAr };
   const ch = useChapters();
   const done = completedSurahs(tracker, ch);
   if (!done.length) return null;
@@ -156,7 +191,7 @@ export function Certificates({ tracker, student }: { tracker: TrackerRow[]; stud
     <DlGate kind="export"><section className={card + " space-y-2"} data-testid="lms-certificates">
       <h2 className="text-xl font-bold">🎓 {tr("Certificates", "الشهادات")}</h2>
       <div className="flex flex-wrap gap-2">
-        {done.map((c) => <button key={c.id} type="button" className={smallBtn} onClick={() => downloadCertificate(student, c, tr)} data-testid="lms-cert">⬇ {c.name_simple}</button>)}
+        {done.map((c) => <button key={c.id} type="button" className={smallBtn} onClick={() => downloadCertificate(student, c, tr, arOpt)} data-testid="lms-cert">⬇ {c.name_simple}</button>)}
       </div>
     </section></DlGate>
   );
@@ -247,7 +282,7 @@ export function StudentProgress({ id, asAdmin = false }: { id: string; asAdmin?:
       <div className="flex flex-wrap items-baseline gap-2"><h2 className="text-2xl font-bold" dir="auto">{d.student.name}</h2><span className="opacity-60">{[d.student.cls, d.student.section].filter(Boolean).join(" · ")}</span></div>
       <ProgressCard p={d.progress} />
       <section className={card + " space-y-2"}><h3 className="text-lg font-bold">📈 {tr("Quran tracker", "متابعة الحفظ")}</h3><TrackerBadges tracker={d.tracker} /></section>
-      <Certificates tracker={d.tracker} student={d.student.name} />
+      <Certificates tracker={d.tracker} student={d.student.name} nameAr={d.student.nameAr || ""} arabic={!!(d.student as { arabic?: boolean }).arabic} />
       <section className={card + " space-y-2"}>
         <h3 className="text-lg font-bold">📚 {tr("Homework", "الواجبات")}</h3>
         <ul className="divide-y divide-black/5 dark:divide-white/10">

@@ -49,7 +49,9 @@ export function QrPage() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!t) { setBad(true); return; }
-    lmsApi.qrView(t).then((v) => { setD(v); if (v.homework.kind === "quran") quranChapters().then((c) => setCh(c.find((x) => x.id === v.homework.data.surah))).catch(() => undefined); }).catch(() => setBad(true));
+    lmsApi.qrView(t).then((v) => { setD(v);
+      // t289: Islamic A students: the Quran homework / recording / feedback page opens in Arabic unless a language was chosen.
+      try { if (v.arabic && !localStorage.getItem("sm-lang-chosen") && localStorage.getItem("sm-lang") !== "ar") { localStorage.setItem("sm-lang", "ar"); window.dispatchEvent(new Event("sm-lang-change")); } } catch { /* ignore */ } if (v.homework.kind === "quran") quranChapters().then((c) => setCh(c.find((x) => x.id === v.homework.data.surah))).catch(() => undefined); }).catch(() => setBad(true));
   }, [t]);
   const audio = (id: string, label: string, testId: string, at?: number) => <AudioCard key={id} src={lmsApi.qrAudioUrl(t, id)} title={label} name={d?.student || ""} at={at ?? (d?.recAt?.[id] || d?.attempts.find((x) => x.audio === id)?.at)} testId={testId} />;
   const q = d?.homework.data as QuranData | undefined;
