@@ -168,9 +168,9 @@ function IsamsPanel({ g, access, setEffort, asAdmin, note, subject }: { subject:
   useEffect(() => { if (access.isams) trk<{ items: { cycle: string; name: string; term: string; at: number }[] }>("isams-tpl-list", {}).then((r) => { setTpls(r.items); setCycle((c) => c || r.items.find((x) => x.term === g.term)?.cycle || r.items[0]?.cycle || ""); }).catch(() => setTpls([])); }, [access.isams, g.term]);
   const run = async () => {
     try {
-      const d = await trk<{ data: string; name: string; term: string; classes: never[]; flag?: string }>("trk-isams", { cycle, term, subject });
+      const d = await trk<{ data: string; name: string; term: string; classes: never[]; flag?: string; roster?: boolean }>("trk-isams", { cycle, term, subject });
       setFlag(d.flag || "");
-      const r = await fillIsams(d.data, d.classes, (d.name || `iSAMS ${cycle}.xlsx`).replace(/\.xlsx$/i, "") + ` - filled.xlsx`);
+      const r = await fillIsams(d.data, d.classes, (d.name || `iSAMS ${cycle}.xlsx`).replace(/\.xlsx$/i, "") + ` - filled.xlsx`, { roster: !!d.roster });
       setRep(r);
       const learned = r.flatMap((x) => x.learnedIds);
       if (asAdmin && learned.length) await trk("trk-isams-ids", { items: learned }).catch(() => undefined);
@@ -179,7 +179,7 @@ function IsamsPanel({ g, access, setEffort, asAdmin, note, subject }: { subject:
   const S = g.students;
   return (
     <div className="space-y-3" data-testid="trk-isams">
-      {(flag || ARABIC_SUBJECTS.includes(subject)) && <p className="rounded-xl bg-amber-100 px-4 py-2 text-sm font-semibold text-amber-900" data-testid="trk-isams-flag">⚠ {flag || tr(`${subject}: no ${subject} iSAMS template supplied yet; it is exported with the same layout and labelled ${subject}.`, `${subject}: لم يُرفع قالب iSAMS خاص بها بعد؛ يُصدَّر بالتخطيط نفسه مع تسمية ${subject}.`)}</p>}
+      {flag && <p className="rounded-xl bg-amber-100 px-4 py-2 text-sm font-semibold text-amber-900" data-testid="trk-isams-flag">⚠ {flag}</p>}
       <div className={cardCls + " overflow-x-auto"}>
         <p className="mb-2 text-sm font-bold">{tr(`iSAMS report — ${g.cls} · ${g.term || "Whole year"}`, `تقرير iSAMS — ${g.cls}`)}</p>
         <table className="w-full text-sm" style={{ fontFamily: FONT }}><thead><tr className="text-left text-xs uppercase opacity-70"><th className="p-1">Surname</th><th className="p-1">Forename</th><th className="p-1">Target Grade</th><th className="p-1">Effort Grade</th><th className="p-1">Attainment Grade</th></tr></thead>

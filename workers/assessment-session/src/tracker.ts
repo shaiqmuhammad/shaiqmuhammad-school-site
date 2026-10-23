@@ -403,9 +403,11 @@ export async function trackerHandle(c: TrkCtx, a: Actor, action: string, input: 
         classes.push({ cls: cl, students: g.students.map((st) => { const r = g.results.find((x) => x.id === st.id)!; return { id: st.id, first: st.first, last: st.last, name: st.name, isamsId: st.isamsId, target: st.target, effort: r.effort, grade: r.grade }; }) });
       }
       const subject = str(input.subject, 60) || (a.role !== "admin" && a.subj?.length === 1 ? a.subj[0] : "");
-      // t284: no Islamic A template supplied yet, so a linked subject reuses its parent's template layout, labelled and flagged.
-      const flag = subject && CUR_LINK[subject] ? `${subject}: no ${subject} iSAMS template supplied yet; exported with the ${CUR_LINK[subject]} template layout.` : "";
-      return { status: 200, body: { cycle: String(t.cycle), name: subject ? `${String(t.name).replace(/\.xlsx$/i, "")} - ${subject}.xlsx` : String(t.name), term: tm, data: String(t.data), classes, sys: sysP, subject, flag } };
+      // t290: a linked subject (Islamic A) uses its parent's template; the pupil rows are rebuilt from this subject's roster (English names).
+      // A pupil also enrolled in the parent subject has that subject's Target, so it is left blank here.
+      const parent = subject ? CUR_LINK[subject] : "";
+      if (parent) for (const cl of classes) for (const st of cl.students) { const u = sql.exec(`SELECT subject FROM users WHERE id=?`, st.id).toArray()[0]; if (String(u?.subject || "").split(",").map((x) => x.trim()).includes(parent)) st.target = ""; }
+      return { status: 200, body: { cycle: String(t.cycle), name: subject ? `${String(t.name).replace(/\.xlsx$/i, "")} - ${subject}.xlsx` : String(t.name), term: tm, data: String(t.data), classes, sys: sysP, subject, roster: !!parent } };
     }
     case "trk-isams-ids": {
       if (a.role !== "admin" || a.viewAs) return forbid();

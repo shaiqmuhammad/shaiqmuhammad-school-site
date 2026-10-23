@@ -163,7 +163,24 @@ function clearCell(xml: string, ref: string): string {
   const st = /\ss="(\d+)"/.exec(m[1])?.[1];
   return xml.replace(m[0], `<c r="${ref}"${st ? ` s="${st}"` : ""}/>`);
 }
-export async function fillIsams(b64: string, classes: { cls: string; students: IsamsStudent[] }[], fileName: string) {
+/** t290: replaces a sheet's pupil rows (hr+1 ..) with the given roster, cloning the first pupil row's cell styles; header/hidden rows untouched. */
+function rebuildRows(xml: string, hr: number, roster: IsamsStudent[], head: Record<string, string>): string {
+  const rowRe = (r: number) => new RegExp(`<row r="${r}"[^>]*?(?:/>|>[\\s\\S]*?</row>)`);
+  const proto = rowRe(hr + 1).exec(xml)?.[0]; if (!proto) return xml;
+  let last = hr; while (rowRe(last + 1).test(xml)) last++;
+  for (let r = hr + 1; r <= last; r++) xml = xml.replace(rowRe(r), "");
+  const cells = [...proto.matchAll(/<c r="([A-Z]+)\d+"([^>]*?)(?:\/>|>[\s\S]*?<\/c>)/g)].map((m) => ({ col: m[1], s: /\ss="(\d+)"/.exec(m[2])?.[1] || "" }));
+  const open = /^<row [^>]*?>/.exec(proto)![0].replace(/\/>$/, ">");
+  const val = (col: string, st: IsamsStudent, house: string) => col === "A" ? st.isamsId : col === (head.Surname || "D") ? st.last || st.name : col === (head.Forename || "E") ? st.first : col === (head.House || "F") ? house : "";
+  const house = /<c r="F\d+"[^>]*>[\s\S]*?<\/c>/.test(proto) ? "Primary" : "";
+  const rows = roster.map((st, i) => { const r = hr + 1 + i; return open.replace(/r="\d+"/, `r="${r}"`) + cells.map((c) => { const v = val(c.col, st, house); return v ? cellXml(`${c.col}${r}`, c.s, v) : `<c r="${c.col}${r}"${c.s ? ` s="${c.s}"` : ""}/>`; }).join("") + "</row>"; }).join("");
+  const anchor = rowRe(hr).exec(xml)![0];
+  xml = xml.replace(anchor, anchor + rows);
+  const end = hr + roster.length;
+  if (end > last) xml = xml.replace(/sqref="([A-Z]+)(\d+):([A-Z]+)(\d+)"/g, (m, c1, r1, c2, r2) => Number(r2) === last ? `sqref="${c1}${r1}:${c2}${end}"` : m).replace(/<dimension ref="([A-Z]+\d+):([A-Z]+)\d+"\/>/, (m, a, c) => `<dimension ref="${a}:${c}${end}"/>`);
+  return xml;
+}
+export async function fillIsams(b64: string, classes: { cls: string; students: IsamsStudent[] }[], fileName: string, opts: { roster?: boolean } = {}) {
   const JSZip = (await import("jszip")).default;
   const zip = await JSZip.loadAsync(Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)));
   const ssXml = (await zip.file("xl/sharedStrings.xml")?.async("string")) || "";
@@ -186,6 +203,10 @@ export async function fillIsams(b64: string, classes: { cls: string; students: I
     if (!hr) continue;
     const head: Record<string, string> = {}; for (const col of "ABCDEFGHIJKLMNOP") head[val(`${col}${hr}`).trim()] = col;
     const cT = head["Target Grade"], cE = head["Effort Grade"], cA = head["Attainment Grade"];
+    if (opts.roster) {
+      const roster = [...(cl?.students || [])].sort((x, y) => (x.last || x.name).localeCompare(y.last || y.name, "en", { sensitivity: "base" }) || x.first.localeCompare(y.first, "en", { sensitivity: "base" }));
+      xml = rebuildRows(xml, hr, roster, head);
+    }
     for (let r = hr + 1; r < hr + 400; r++) {
       const sid = val(`A${r}`).trim(); if (!sid) break;
       const sur = val(`${head.Surname || "D"}${r}`), fore = val(`${head.Forename || "E"}${r}`);
