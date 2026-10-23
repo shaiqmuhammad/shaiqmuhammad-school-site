@@ -1,5 +1,6 @@
 "use client";
 
+import { TrkLink } from "@/components/tracker/TrkLink";
 import { CurChip } from "@/components/lms/mods/CurChip";
 import { Amiri_Quran } from "next/font/google";
 
@@ -222,6 +223,7 @@ function StudentWork({ hw, sub, reload, chapters = [] }: { hw: Data["homework"];
       {again && <p className="rounded-2xl bg-rose-50 px-3 py-2 font-semibold text-rose-900 dark:bg-rose-900/30 dark:text-rose-100" data-testid="hw-practise-again">🔴 {tr("Practise again: same verses. Listen to your teacher's feedback, practise, then record again and submit.", "تدرّب مجددًا: نفس الآيات. استمع لتعليق معلمك، تدرّب، ثم سجّل مجددًا وسلّم.")}</p>}
       {sub?.scores && sub.status !== "submitted" && <FeedbackText s={sub.scores} />}
       {sub?.status === "approved" && sub.grade && <p className="rounded-2xl bg-emerald-50 px-3 py-2 font-semibold text-emerald-900 dark:bg-emerald-900/30 dark:text-emerald-100" data-testid="hw-passed">🎉 {tr("Passed! You can move on to the next verses.", "نجحت! يمكنك الانتقال إلى الآيات التالية.")}</p>}
+      {hw.kind === "quran" && <div><TrkLink id={hw.id} kind="hw" student /></div>}
       {hw.kind === "quran" ? (
         <>
           <label className="flex items-center gap-2 text-lg font-semibold">
