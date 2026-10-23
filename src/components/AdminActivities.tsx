@@ -27,6 +27,9 @@ export function AdminActivities({ allowed }: { allowed?: string[] } = {}) {
   const types = allowed ? TYPES.filter((t) => allowed.includes(t)) : TYPES;
   const tools = allowed ? TOOLS.filter((t) => allowed.includes(t.href.split("/").pop() || "")) : TOOLS;
   const [type, setType] = useState<ActivityType>(types[0] || "wall");
+  // t302: the Classes tray opens a chosen activity directly (#t=wheel).
+  useEffect(() => { const m = /#t=([a-z]+)/.exec(window.location.hash); if (m && (types as string[]).includes(m[1])) setType(m[1] as ActivityType); // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [title, setTitle] = useState("");
   const [prompt, setPrompt] = useState("");
   const [moderation, setModeration] = useState<"live" | "approve">("live");

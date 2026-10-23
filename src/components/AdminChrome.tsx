@@ -381,9 +381,8 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
           {logo("h-9 w-9")}
           {/* t294: icons scroll instead of widening the page at 390 (that pushed fixed side panels off-screen). */}
           <div className="-my-2 ms-auto flex min-w-0 items-center gap-2 overflow-x-auto px-1 py-2 [scrollbar-width:none]" data-testid="admin-top-icons">
-          <MsgIcon variant="glass" asAdmin onClick={() => onTab("messages")} />
           <MailIcon unread={mailUnread} onClick={() => onTab("mail")} label={tr("Mailbox", "البريد")} />
-          <AdminToolbar variant="glass" onLogout={onLogout} bell={<LmsBell asAdmin testId="admin-bell" variant={"glass"} extra={onBell ? { count: pendingCount, label: tr(`${pendingCount} forum post${pendingCount === 1 ? "" : "s"} waiting for approval`, `${pendingCount} مشاركة في المنتدى بانتظار الموافقة`), onClick: onBell } : undefined} />} />
+          <AdminToolbar variant="glass" onLogout={onLogout} msg={<MsgIcon variant="glass" asAdmin onClick={() => onTab("messages")} />} bell={<LmsBell asAdmin testId="admin-bell" variant={"glass"} extra={onBell ? { count: pendingCount, label: tr(`${pendingCount} forum post${pendingCount === 1 ? "" : "s"} waiting for approval`, `${pendingCount} مشاركة في المنتدى بانتظار الموافقة`), onClick: onBell } : undefined} />} />
           </div>
         </div>
         <div className="flex items-center justify-between gap-2 border-t border-black/5 px-3 py-1.5 dark:border-white/10" data-testid="admin-date-row"><GregPill tone="light" compact /><HijriPill tone="light" compact /></div>
@@ -423,9 +422,8 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
           <GregPill tone="light" />
           <div className="min-w-0 flex-1">{quickStrip()}</div>
           <HijriPill tone="light" />
-          <MsgIcon variant="glass" asAdmin onClick={() => onTab("messages")} />
           <MailIcon unread={mailUnread} onClick={() => onTab("mail")} label={tr(`Mailbox${mailUnread ? ` (${mailUnread} unread)` : ""}`, `البريد${mailUnread ? ` (${mailUnread} غير مقروءة)` : ""}`)} />
-            <AdminToolbar variant="glass" onLogout={onLogout} bell={<LmsBell asAdmin testId="admin-bell" variant={"glass"} extra={onBell ? { count: pendingCount, label: tr(`${pendingCount} forum post${pendingCount === 1 ? "" : "s"} waiting for approval`, `${pendingCount} مشاركة في المنتدى بانتظار الموافقة`), onClick: onBell } : undefined} />} />
+            <AdminToolbar variant="glass" onLogout={onLogout} msg={<MsgIcon variant="glass" asAdmin onClick={() => onTab("messages")} />} bell={<LmsBell asAdmin testId="admin-bell" variant={"glass"} extra={onBell ? { count: pendingCount, label: tr(`${pendingCount} forum post${pendingCount === 1 ? "" : "s"} waiting for approval`, `${pendingCount} مشاركة في المنتدى بانتظار الموافقة`), onClick: onBell } : undefined} />} />
         </div>
         <div className={`mx-auto px-4 sm:px-8 ${tab === "mail" ? "py-3 lg:py-3" : "py-6 lg:py-8"} ${tab === "mail" || WIDE.includes(tab) ? "max-w-none" : collapsed ? "max-w-5xl" : "max-w-4xl"}`}>
           <div className="mb-6 flex items-center justify-between gap-3 lg:hidden">

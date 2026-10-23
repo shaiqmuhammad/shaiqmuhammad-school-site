@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AdminToolbar } from "@/components/AdminToolbar";
 import { LmsBell } from "@/components/lms/LmsBell";
+import { MsgIcon } from "@/components/lms/Messages";
 import { viewAs, lmsSession, lmsSignOut } from "@/lib/lms";
 import { useI18n } from "@/lib/i18n";
 
@@ -83,13 +84,14 @@ export function LmsStaffToolbar() {
   return (
     <div className="flex items-center gap-2">
       {who && (
-        <span className="hidden max-w-[14rem] truncate rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white sm:inline" data-testid="lms-who" dir="auto">
-          {who.role === "teacher" ? "🧑‍🏫" : who.role === "parent" ? "👨‍👩‍👧" : "🎒"} {roleLabel}: {who.name}
-        </span>
+        <Link href="/lms/account" title={ar ? "حسابي" : "My account"} className="max-w-[9rem] truncate rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white hover:bg-white/20 sm:max-w-[14rem]" data-testid="lms-who" dir="auto">
+          {who.role === "teacher" ? "🧑‍🏫" : who.role === "parent" ? "👨‍👩‍👧" : "🎒"} <span className="hidden sm:inline">{roleLabel}: </span>{who.name}
+        </Link>
       )}
       <AdminToolbar
         variant="navy"
         bell={who ? <LmsBell /> : undefined}
+        msg={who && who.role !== "parent" ? <MsgIcon href="/lms/messages" /> : undefined}
         onLogout={() => {
           lmsSignOut();
           router.push("/lms/login");

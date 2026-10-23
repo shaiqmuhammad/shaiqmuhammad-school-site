@@ -27,6 +27,7 @@ import { AdminForumQueue } from "@/components/AdminForumQueue";
 import { AdminResults } from "@/components/AdminResults";
 import { AdminReports } from "@/components/reports/AdminReports";
 import { AssessmentTracker } from "@/components/tracker/AssessmentTracker";
+import { PushSettings } from "@/components/lms/PushSettings";
 import { AttainmentSystems } from "@/components/tracker/AttainmentSystems";
 import { WallBoard } from "@/components/lms/LmsWall";
 import { AdminActivities } from "@/components/AdminActivities";
@@ -412,6 +413,7 @@ export default function AdminCms() {
         {tab==="messages" && <MessagesPanel asAdmin />}
         {tab==="vcomments" && <AdminVideoComments />}
         {tab==="notices" && <LmsAnnounceAdmin />}
+        {tab==="notices" && <div className="mt-6"><PushSettings asAdmin /></div>}
         {tab==="setup" && <LmsSetup />}
         {tab==="lmshw" && <AdminLmsHomework />}
         {tab==="mail" && <AdminMail />}
