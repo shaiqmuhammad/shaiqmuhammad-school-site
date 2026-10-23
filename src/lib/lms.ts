@@ -10,7 +10,16 @@ export type Catalog = { subjects: { id: string; name: string }[]; classes: { id:
 export type DashStudent = { id: string; name: string; cls: string; section: string };
 /** Teacher scope entry: "Year 2" (whole class) or "Year 2|2A" (one section). */
 export const scopeLabel = (s: string) => s.replace("|", " · ");
-export type Actor = { id: string; role: Role | "admin"; name: string; nameAr?: string; cls: string; perms: string[]; scope?: string[]; viewAs?: boolean; subj?: string[]; subject?: string; arabic?: boolean };
+/** t292: module permissions (Assessment Tracker, Department Report, Attainment & Progress report). */
+export const MP_MODS = ["trk", "rep", "aps"] as const;
+export const MP_KEYS = ["show", "view", "add", "edit", "delete", "xlsx", "pdf", "isams"] as const;
+export type MpMod = (typeof MP_MODS)[number];
+export type MpKey = (typeof MP_KEYS)[number];
+export type MpAcc = Record<MpKey, boolean>;
+export type MpPart = Partial<Record<MpMod, Partial<MpAcc>>>;
+export type MpCfg = { global: MpPart; roles: Record<string, MpPart>; subjects: Record<string, MpPart> };
+export const mpShown = (a: Actor | null | undefined, m: MpMod) => !a?.mods || !!a.mods[m]?.view;
+export type Actor = { id: string; role: Role | "admin"; name: string; nameAr?: string; cls: string; perms: string[]; scope?: string[]; viewAs?: boolean; subj?: string[]; subject?: string; arabic?: boolean; mods?: Record<MpMod, MpAcc> };
 export type Slide = { title: string; text: string; image: string };
 export type QuranData = { surah: number; from: number; to: number; reciter: string; notes: string; translit?: boolean; translation?: boolean };
 export type GeneralData = { slides: Slide[]; question: string };
@@ -185,6 +194,8 @@ export const lmsApi = {
     return storeSession(r);
   },
   me: () => call<{ user: Actor }>("me"),
+  modpermGet: () => call<{ cfg: MpCfg }>("modperm-get", {}, { asAdmin: true }),
+  modpermSave: (cfg: MpCfg) => call<{ cfg: MpCfg }>("modperm-save", { cfg }, { asAdmin: true }),
   nameMode: (asAdmin = false) => call<{ mode: string }>("name-mode", undefined, { asAdmin }),
   setNameMode: (mode: string) => call<{ mode: string }>("name-mode", { mode }, { asAdmin: true }),
   dashboard: (asAdmin = false) =>

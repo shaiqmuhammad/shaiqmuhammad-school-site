@@ -1,5 +1,6 @@
 "use client";
 
+import { ModulePermsTeacher } from "@/components/lms/ModulePerms";
 import { PresenceDot } from "@/components/lms/Presence";
 import { mailApi } from "@/lib/mail";
 import { listPublishedQuizzes, loadQuizzesData, type Quiz } from "@/lib/quiz";
@@ -144,8 +145,8 @@ function PermissionsModal({ u, onClose, onSaved, asAdmin, catalog }: { catalog: 
     try { const r = await lmsApi.saveUsers([{ ...u, perms, subjects, scope }], asAdmin); if (r.errors.length) throw new Error(r.errors[0].error); if (allGroups) { const before = (u.groups || []).map((g) => g.id); const add = picked.filter((x) => !before.includes(x)), remove = before.filter((x) => !picked.includes(x)); if (add.length || remove.length) await lmsApi.grpAssign(u.id, add, remove); } onSaved(); } catch (e) { setErr(e instanceof Error ? e.message : lmsErrorText(e, tr)); setBusy(false); }
   };
   return (
-    <div className="fixed inset-0 z-[2147483000] grid place-items-end bg-black/60 sm:place-items-center sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()} role="dialog" aria-modal="true" aria-label={tr("Permissions", "الصلاحيات")} data-testid="perm-modal">
-      <div className="max-h-[94vh] w-full overflow-y-auto rounded-t-3xl bg-white p-4 text-[#1b2f44] shadow-2xl dark:bg-[#12273b] dark:text-white sm:max-w-3xl sm:rounded-3xl sm:p-6">
+    <div className="fixed inset-0 z-[2147483000] flex justify-end bg-black/40 backdrop-blur-[2px]" onMouseDown={(e) => e.target === e.currentTarget && onClose()} role="dialog" aria-modal="true" aria-label={tr("Permissions", "الصلاحيات")} data-testid="perm-modal">
+      <div className="h-full w-full overflow-y-auto bg-white p-4 text-[#1b2f44] shadow-2xl dark:bg-[#12273b] dark:text-white sm:max-w-2xl sm:p-6" data-testid="perm-panel">
         <div className="mb-3 flex items-center gap-3"><h3 className="min-w-0 flex-1 text-lg font-extrabold">🔐 {tr("Permissions", "الصلاحيات")} — <span dir="auto">{u.name}</span></h3><button type="button" className={smallBtn} onClick={onClose} aria-label={tr("Close", "إغلاق")}>✕</button></div>
         <div className="space-y-3">
           <div className="rounded-2xl border border-dashed border-black/15 p-3 dark:border-white/20" data-testid="perm-subjects">
@@ -157,6 +158,7 @@ function PermissionsModal({ u, onClose, onSaved, asAdmin, catalog }: { catalog: 
             <a className="mt-1 inline-block text-xs font-bold underline" href="/admin#groups" data-testid="perm-groups-link">{tr("Manage groups in Admin → Members → Groups", "إدارة المجموعات من الإدارة ← الأعضاء ← المجموعات")}</a>
           </div>
           <ModuleAccess perms={perms} setPerms={setPerms} teachers={others} />
+          <ModulePermsTeacher perms={perms} setPerms={setPerms} />
           <div className="rounded-2xl border border-dashed border-black/15 p-3 dark:border-white/20">
             <p className="mb-2 text-sm font-bold">✅ {tr("General permissions", "الصلاحيات العامة")}</p>
             <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">{PERMS.map((p) => <label key={p} className="flex items-center gap-1.5"><input type="checkbox" checked={perms.includes(p)} onChange={() => toggle(p)} /> {tr(PERM_LABEL[p][0], PERM_LABEL[p][1])}</label>)}</div>
@@ -713,15 +715,6 @@ function ModuleAccess({ perms, setPerms, teachers }: { perms: string[]; setPerms
                 <option value="">{tr("As report settings", "كإعدادات التقرير")}</option><option value="on">{ex ? tr("Allow", "سماح") : tr("Show", "إظهار")}</option><option value="off">{ex ? tr("Not allow", "منع") : tr("Hide", "إخفاء")}</option>
               </select></label>); })}</>)}
           <p className="text-[11px] opacity-70">{tr("Read-only, limited to this teacher's classes. Defaults come from Assessment → Department Report → Settings.", "للقراءة فقط وضمن صفوف المعلم. الافتراضي من إعدادات التقرير.")}</p>
-        </div>
-        <div className="space-y-1.5 rounded-xl bg-black/[0.03] px-3 py-2 md:col-span-2 dark:bg-white/5" data-testid="perm-trk">
-          <div className="text-sm font-semibold">📊 {tr("Assessment Tracker", "متتبع التقييم")}</div>
-          <div className="ms-4 flex flex-wrap gap-x-4 gap-y-1 border-s-2 border-black/10 ps-3 dark:border-white/15">{TRK_PERM_KEYS.map(([k, en, ar]) => { const cur = perms.includes(`trk:${k}:on`) ? "on" : perms.includes(`trk:${k}:off`) ? "off" : ""; const v = k === "view"; return (
-            <label key={k} className="flex items-center gap-1.5 text-xs">{tr(en, ar)}
-              <select className="rounded-lg border border-black/15 bg-white px-1 py-0.5 text-xs dark:border-white/20 dark:bg-slate-900" value={cur} data-testid={`perm-trk-${k}`} onChange={(e) => setPerms([...perms.filter((p) => p !== `trk:${k}:on` && p !== `trk:${k}:off`), ...(e.target.value ? [`trk:${k}:${e.target.value}`] : [])])}>
-                <option value="">{tr("As system settings", "كإعدادات النظام")}</option><option value="on">{v ? tr("Show", "إظهار") : tr("Allow", "سماح")}</option><option value="off">{v ? tr("Hide", "إخفاء") : tr("Not allow", "منع")}</option>
-              </select></label>); })}</div>
-          <p className="text-[11px] opacity-70">{tr("Limited to this teacher's classes. Defaults come from Assessment → Attainment & Progress Systems.", "ضمن صفوف المعلم. الافتراضي من أنظمة التحصيل والتقدم.")}</p>
         </div>
         <div className="space-y-1.5 rounded-xl bg-black/[0.03] px-3 py-2 dark:bg-white/5" data-testid="perm-dl">
           <div className="text-sm font-semibold">⬇️ {tr("Downloads", "التنزيلات")}</div>

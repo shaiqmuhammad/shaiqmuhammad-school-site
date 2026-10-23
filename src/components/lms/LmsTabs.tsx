@@ -6,7 +6,7 @@ import { useTr, useLmsActor } from "@/components/lms/useLms";
 import { qhwPerm } from "@/lib/lmsMods";
 import { setOrigin } from "@/lib/origin";
 import { useUnreadMsgs } from "@/components/lms/DashWidgets";
-import { stuUi } from "@/lib/lms";
+import { mpShown, stuUi } from "@/lib/lms";
 
 type Tab = { id: string; href: string; hash?: string; en: string; ar: string; icon: string; lvl: 0 | 1 | 2 | 3 };
 const I = {
@@ -86,8 +86,8 @@ export function LmsTabs() {
     ...(staff && pm("cur") ? [{ id: "cur", href: "/lms/curriculum", en: "Curriculum", ar: "المنهج", icon: I.cur, lvl: 3 } as Tab] : []),
     ...(staff && qp.show ? [{ id: "map", href: "/lms/map", en: "Quran map", ar: "خريطة القرآن", icon: "", lvl: 3 } as Tab] : []),
     ...(staff ? [{ id: "pts", href: "/lms/points", en: "Points", ar: "النقاط", icon: "", lvl: 3 } as Tab] : []),
-    ...(staff && !actor.perms?.includes("trk:view:off") ? [{ id: "trk", href: "/lms/tracker", en: "Assessment Tracker", ar: "متتبع التقييم", icon: "", lvl: 3 } as Tab] : []),
-    ...(staff && actor.perms?.includes("rep:view") ? [{ id: "rep", href: "/lms/reports", en: "Department Report", ar: "تقرير القسم", icon: "", lvl: 3 } as Tab] : []),
+    ...(staff && !actor.perms?.includes("trk:view:off") && mpShown(actor, "trk") ? [{ id: "trk", href: "/lms/tracker", en: "Assessment Tracker", ar: "متتبع التقييم", icon: "", lvl: 3 } as Tab] : []),
+    ...(staff && actor.perms?.includes("rep:view") && mpShown(actor, "rep") ? [{ id: "rep", href: "/lms/reports", en: "Department Report", ar: "تقرير القسم", icon: "", lvl: 3 } as Tab] : []),
   ];
   const loginsTab: Tab[] = staff && stuUi(actor.perms || [], "view") ? [{ id: "logins", href: "/lms/logins", en: "Student Logins", ar: "دخول الطلاب", icon: "", lvl: 3 }] : [];
   const acctTab: Tab[] = [{ id: "acct", href: "/lms/account", en: "My account", ar: "حسابي", icon: "", lvl: 3 }];
