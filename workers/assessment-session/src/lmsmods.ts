@@ -7,6 +7,7 @@
  * Students and parents never reach these actions (staff only).
  */
 import type { Actor } from "./lms";
+import { curSubj } from "./tracker";
 
 type Json = Record<string, unknown>;
 type Reply = { status: number; body: unknown };
@@ -39,7 +40,7 @@ export function initMods(sql: SqlStorage) {
   sql.exec(`CREATE TABLE IF NOT EXISTS beh (id TEXT PRIMARY KEY, student TEXT, cls TEXT, section TEXT, day TEXT, kind TEXT, category TEXT, severity INTEGER DEFAULT 1, note TEXT DEFAULT '', action TEXT DEFAULT '', follow TEXT DEFAULT 'none', follow_note TEXT DEFAULT '', sensitive INTEGER DEFAULT 0, by TEXT, by_name TEXT, at INTEGER, updated INTEGER)`);
   sql.exec(`CREATE INDEX IF NOT EXISTS beh_student ON beh (student, day)`);
   sql.exec(`CREATE TABLE IF NOT EXISTS cur (id TEXT PRIMARY KEY, subject TEXT, yr TEXT, term TEXT, title TEXT, objectives TEXT DEFAULT '', lessons TEXT DEFAULT '[]', resources TEXT DEFAULT '[]', wk_from INTEGER DEFAULT 0, wk_to INTEGER DEFAULT 0, status TEXT DEFAULT 'planned', quiz TEXT DEFAULT '', page TEXT DEFAULT '', ord INTEGER DEFAULT 0, by_name TEXT, updated INTEGER)`);
-  for (const col of ["links TEXT DEFAULT '[]'", "notes TEXT DEFAULT ''", "sc TEXT DEFAULT '[]'", "std TEXT DEFAULT '{}'", "title_ar TEXT DEFAULT ''", "sc_ar TEXT DEFAULT '[]'"]) { try { sql.exec(`ALTER TABLE cur ADD COLUMN ${col}`); } catch { /* already there */ } }
+  for (const col of ["links TEXT DEFAULT '[]'", "notes TEXT DEFAULT ''", "sc TEXT DEFAULT '[]'", "std TEXT DEFAULT '{}'", "title_ar TEXT DEFAULT ''", "sc_ar TEXT DEFAULT '[]'", "obj_ar TEXT DEFAULT ''", "ar_review INTEGER DEFAULT 0"]) { try { sql.exec(`ALTER TABLE cur ADD COLUMN ${col}`); } catch { /* already there */ } }
 }
 
 type Link = { t: "hw" | "quiz"; id: string };
@@ -382,6 +383,18 @@ export async function modHandle(c: ModCtx, action: string, a: Actor, input: Json
       sql.exec(`UPDATE cur SET std=?, updated=? WHERE id=?`, JSON.stringify(std), Date.now(), String(r.id));
       return { status: 200, body: { ok: true, std } };
     }
+    case "cur-ar": {
+      // t284: bulk Arabic for units (titles, objectives, SCs). Admin only; marked "needs proofreading" until reviewed.
+      if (a.role !== "admin" || a.viewAs) return forbid();
+      let n = 0;
+      for (const r of ((Array.isArray(input.items) ? input.items : []) as Json[]).slice(0, 500)) {
+        const row = sql.exec(`SELECT id, sc FROM cur WHERE id=?`, str(r.id, 40)).toArray()[0]; if (!row) continue;
+        const scAr = Array.isArray(r.scAr) ? (r.scAr as unknown[]).slice(0, 30).map((x) => str(x, 400)) : null;
+        sql.exec(`UPDATE cur SET title_ar=COALESCE(NULLIF(?, ''), title_ar), obj_ar=COALESCE(NULLIF(?, ''), obj_ar), sc_ar=COALESCE(?, sc_ar), ar_review=? WHERE id=?`, str(r.titleAr, 200), String(r.objectivesAr ?? "").replace(/\r/g, "").slice(0, 3000), scAr ? JSON.stringify(scAr) : null, r.review === false ? 0 : 1, String(row.id));
+        n++;
+      }
+      return { status: 200, body: { ok: true, saved: n } };
+    }
     case "cur-delete": {
       if (a.viewAs || !modCan(a, "cur", "delete")) return forbid();
       const me = a.role === "teacher" ? c.userRow("id=?", a.id) : undefined;
@@ -416,7 +429,9 @@ function beh(r: Record<string, unknown>, a: Actor, u: Record<string, unknown>) {
 function curVisible(c: ModCtx, a: Actor, subs: string[], yr: string, subject: string) {
   if (a.role === "admin") return true;
   if (a.scope?.length && !a.scope.some((x) => x.split("|")[0] === yr)) return false;
-  if (subs.length && !subs.includes(subject)) return false;
+  // t284: subjects are limited to the teacher's own (profile + assigned groups); a linked subject (Islamic A) reads its parent's curriculum.
+  const own = [...new Set([...subs, ...(a.subj || [])].map(curSubj))];
+  if (own.length && !own.includes(subject)) return false;
   return true;
 }
 /** Success Criteria per unit: a plain list (one statement each, max 30 × 300 chars). */
@@ -432,7 +447,7 @@ export function parseStd(v: unknown): { codes: string[]; skill: number } {
   const skill = Math.round(Number(o.skill)); return { codes, skill: skill >= 1 && skill <= 6 ? skill : 0 };
 }
 function curRow(r: Record<string, unknown>) {
-  return { id: String(r.id), subject: String(r.subject), yr: String(r.yr), term: String(r.term), title: String(r.title), titleAr: String(r.title_ar || ""), objectives: String(r.objectives || ""), sc: parseSc(r.sc), scAr: parseSc(r.sc_ar), std: parseStd(r.std), lessons: JSON.parse(String(r.lessons || "[]")), resources: JSON.parse(String(r.resources || "[]")), wkFrom: Number(r.wk_from), wkTo: Number(r.wk_to), notes: String(r.notes || ""), status: String(r.status), quiz: String(r.quiz || ""), page: String(r.page || ""), ord: Number(r.ord), by: String(r.by_name || ""), updated: Number(r.updated) };
+  return { id: String(r.id), subject: String(r.subject), yr: String(r.yr), term: String(r.term), title: String(r.title), titleAr: String(r.title_ar || ""), objectives: String(r.objectives || ""), sc: parseSc(r.sc), scAr: parseSc(r.sc_ar), objectivesAr: String(r.obj_ar || ""), arReview: !!Number(r.ar_review || 0), std: parseStd(r.std), lessons: JSON.parse(String(r.lessons || "[]")), resources: JSON.parse(String(r.resources || "[]")), wkFrom: Number(r.wk_from), wkTo: Number(r.wk_to), notes: String(r.notes || ""), status: String(r.status), quiz: String(r.quiz || ""), page: String(r.page || ""), ord: Number(r.ord), by: String(r.by_name || ""), updated: Number(r.updated) };
 }
 function curUpsert(c: ModCtx, a: Actor, subs: string[], input: Json): { id?: string; error?: string } {
   const subject = str(input.subject, 60), yr = str(input.yr, 60), term = str(input.term, 20) || "Term 1", title = str(input.title, 160);

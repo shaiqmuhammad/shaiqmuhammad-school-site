@@ -13,6 +13,10 @@
 import type { Actor } from "./lms";
 
 type Json = Record<string, unknown>;
+/** t284: a subject that shares (links to, never copies) another subject's curriculum, topics, SCs and tracker structure. */
+export const CUR_LINK: Record<string, string> = { "Islamic A": "Islamic B" };
+export const curSubj = (s: string) => CUR_LINK[s] || s;
+const subjOf = (v: unknown) => String(v || "").split(/\s*,\s*/).map((x) => x.trim()).filter(Boolean);
 type Row = Record<string, unknown>;
 type Sql = { exec: (q: string, ...a: unknown[]) => { toArray: () => Row[]; one: () => Row } };
 type Hw = { id: string; kind: string };
@@ -159,11 +163,14 @@ const TERMS = ["Term 1", "Term 2", "Term 3"];
 type Cell = { v: number | null; src: "quiz" | "quiz-all" | "quran" | "override" | ""; auto: number | null; autoSrc: string; by?: string; at?: number; note?: string };
 
 /** The grid for one class (and term, "" = whole year), limited to the students this actor may see. */
-async function grid(c: TrkCtx, a: Actor, cls: string, term: string, want = "") {
+async function grid(c: TrkCtx, a: Actor, cls: string, term: string, want = "", subjIn = "") {
   const sys = sysFor(c.sql, cls, want);
   if (!sys) return null;
-  const students = c.sql.exec(`SELECT id, name, first_name, last_name, section, target, scaled, isams_id FROM users WHERE role='student' AND cls=? AND COALESCE(disabled,0)=0 ORDER BY name`, cls).toArray()
-    .filter((s) => a.role === "admin" || c.inScope(a, cls, String(s.section || ""), String(s.id)))
+  // Subject rows: explicit choice, else a one-subject teacher's own subject. Results only ever land on that subject's students.
+  const subject = subjIn || (a.role !== "admin" && a.subj?.length === 1 ? a.subj[0] : "");
+  if (subject && a.role !== "admin" && a.subj?.length && !a.subj.includes(subject)) return null;
+  const students = c.sql.exec(`SELECT id, name, first_name, last_name, section, target, scaled, isams_id, subject FROM users WHERE role='student' AND cls=? AND COALESCE(disabled,0)=0 ORDER BY name`, cls).toArray()
+    .filter((s) => (a.role === "admin" || c.inScope(a, cls, String(s.section || ""), String(s.id))) && (!subject || subjOf(s.subject).includes(subject)))
     .map((s) => {
       const rule = ruleFor(sys, cls);
       let t = "", src = "";
@@ -172,9 +179,10 @@ async function grid(c: TrkCtx, a: Actor, cls: string, term: string, want = "") {
       else { t = String(s.target || "") || (s.scaled ? targetFromScaledSys(Number(s.scaled), sys) : ""); src = s.target ? "profile" : t ? "scaled" : ""; }
       return { id: String(s.id), name: String(s.name), first: String(s.first_name || ""), last: String(s.last_name || ""), target: t, targetSrc: src, targetMode: rule.mode, isamsId: String(s.isams_id || "") };
     });
-  const units = c.sql.exec(`SELECT id, title, term, wk_from, sc, links, subject, quiz, std FROM cur WHERE yr=? ${sys.scope.subject ? "AND subject=?" : ""} ORDER BY term, wk_from, ord, title`, ...(sys.scope.subject ? [cls, sys.scope.subject] : [cls])).toArray()
+  const curS = curSubj(subject || sys.scope.subject);
+  const units = c.sql.exec(`SELECT id, title, title_ar, sc_ar, term, wk_from, sc, links, subject, quiz, std FROM cur WHERE yr=? ${curS ? "AND subject=?" : ""} ORDER BY term, wk_from, ord, title`, ...(curS ? [cls, curS] : [cls])).toArray()
     .filter((u) => !term || String(u.term) === term)
-    .map((u) => { let sc: string[] = []; let links: { t: string; id: string }[] = []; let std: { codes: string[]; skill: number } = { codes: [], skill: 0 }; try { sc = JSON.parse(String(u.sc || "[]")); } catch { /* */ } try { links = JSON.parse(String(u.links || "[]")); } catch { /* */ } try { std = { codes: [], skill: 0, ...JSON.parse(String(u.std || "{}")) }; } catch { /* */ } const quizzes = [...new Set([String(u.quiz || ""), ...links.filter((l) => l.t === "quiz").map((l) => l.id)].filter(Boolean))]; return { id: String(u.id), title: String(u.title), term: String(u.term), wk: Number(u.wk_from) || 0, sc, links, quizzes, std }; })
+    .map((u) => { let sc: string[] = []; let links: { t: string; id: string }[] = []; let std: { codes: string[]; skill: number } = { codes: [], skill: 0 }; try { sc = JSON.parse(String(u.sc || "[]")); } catch { /* */ } try { links = JSON.parse(String(u.links || "[]")); } catch { /* */ } try { std = { codes: [], skill: 0, ...JSON.parse(String(u.std || "{}")) }; } catch { /* */ } const quizzes = [...new Set([String(u.quiz || ""), ...links.filter((l) => l.t === "quiz").map((l) => l.id)].filter(Boolean))]; let scAr: string[] = []; try { scAr = JSON.parse(String(u.sc_ar || "[]")); } catch { /* */ } return { id: String(u.id), title: String(u.title), titleAr: String(u.title_ar || ""), scAr, term: String(u.term), wk: Number(u.wk_from) || 0, sc, links, quizzes, std }; })
     .filter((u) => u.sc.length)
     .sort((x, y) => TERMS.indexOf(x.term) - TERMS.indexOf(y.term) || x.wk - y.wk);
   const ids = students.map((s) => s.id);
@@ -230,7 +238,7 @@ async function grid(c: TrkCtx, a: Actor, cls: string, term: string, want = "") {
     const auto = grade != null ? String(map[String(Math.min(9, Math.round(grade)))] ?? "") : "";
     return { id: s.id, avg, calc, grade, override: o ? { by: String(o.by_name || ""), at: Number(o.at) } : null, effort: manual || auto, effortManual: !!manual, effortAuto: auto, n: vals.length };
   });
-  return { sys, cls, term, students, units: units.map(({ links: _l, ...u }) => u), cells, results };
+  return { sys, cls, term, subject, curSubject: curS, students, units: units.map(({ links: _l, ...u }) => u), cells, results };
 }
 
 /** Each class once, with the system that applies to it (default for its phase). */
@@ -285,7 +293,7 @@ export async function trackerHandle(c: TrkCtx, a: Actor, action: string, input: 
       if (!sys) return { status: 404, body: { error: "no_system_for_class" } };
       if (!acc.view) return forbid("module_hidden");
       if (action === "trk-export") { const k = String(input.kind) as TrkKey; if (!["xlsx", "pdf", "isams"].includes(k) || !acc[k]) return forbid("export_not_allowed"); }
-      const g = await grid(c, a, cls, term, want);
+      const g = await grid(c, a, cls, term, want, str(input.subject, 60));
       if (!g || (a.role !== "admin" && !g.students.length)) return forbid("not_your_class");
       return { status: 200, body: { ...g, access: acc, sys: g.sys } };
     }
@@ -391,10 +399,13 @@ export async function trackerHandle(c: TrkCtx, a: Actor, action: string, input: 
       const tm = TERMS.includes(String(input.term)) ? String(input.term) : String(t.term || "");
       const classes: { cls: string; students: { id: string; first: string; last: string; name: string; isamsId: string; target: string; effort: string; grade: number | null }[] }[] = [];
       for (const { cl } of yearSystems(sql)) {
-        const g = await grid(c, a, cl, tm); if (!g || !g.students.length) continue;
+        const g = await grid(c, a, cl, tm, "", str(input.subject, 60)); if (!g || !g.students.length) continue;
         classes.push({ cls: cl, students: g.students.map((st) => { const r = g.results.find((x) => x.id === st.id)!; return { id: st.id, first: st.first, last: st.last, name: st.name, isamsId: st.isamsId, target: st.target, effort: r.effort, grade: r.grade }; }) });
       }
-      return { status: 200, body: { cycle: String(t.cycle), name: String(t.name), term: tm, data: String(t.data), classes, sys: sysP } };
+      const subject = str(input.subject, 60) || (a.role !== "admin" && a.subj?.length === 1 ? a.subj[0] : "");
+      // t284: no Islamic A template supplied yet, so a linked subject reuses its parent's template layout, labelled and flagged.
+      const flag = subject && CUR_LINK[subject] ? `${subject}: no ${subject} iSAMS template supplied yet; exported with the ${CUR_LINK[subject]} template layout.` : "";
+      return { status: 200, body: { cycle: String(t.cycle), name: subject ? `${String(t.name).replace(/\.xlsx$/i, "")} - ${subject}.xlsx` : String(t.name), term: tm, data: String(t.data), classes, sys: sysP, subject, flag } };
     }
     case "trk-isams-ids": {
       if (a.role !== "admin" || a.viewAs) return forbid();
@@ -411,7 +422,7 @@ export async function trackerHandle(c: TrkCtx, a: Actor, action: string, input: 
         if (want && cl !== want) continue;
         let prev: Map<string, number | null> | null = null;
         for (const tm of TERMS) {
-          const g = await grid(c, a, cl, tm); if (!g || !g.students.length) continue;
+          const g = await grid(c, a, cl, tm, "", str(input.subject, 60)); if (!g || !g.students.length) continue;
           const gr = new Map(g.results.map((r) => [r.id, r.grade] as const));
           const graded = g.results.filter((r) => r.grade != null);
           const th: Record<string, number> = {}; for (const t of s.thresholds) th[`${t}+`] = graded.filter((r) => (r.grade as number) >= t).length;
