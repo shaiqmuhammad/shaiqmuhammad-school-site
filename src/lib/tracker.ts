@@ -180,7 +180,42 @@ function rebuildRows(xml: string, hr: number, roster: IsamsStudent[], head: Reco
   if (end > last) xml = xml.replace(/sqref="([A-Z]+)(\d+):([A-Z]+)(\d+)"/g, (m, c1, r1, c2, r2) => Number(r2) === last ? `sqref="${c1}${r1}:${c2}${end}"` : m).replace(/<dimension ref="([A-Z]+\d+):([A-Z]+)\d+"\/>/, (m, a, c) => `<dimension ref="${a}:${c}${end}"/>`);
   return xml;
 }
-export async function fillIsams(b64: string, classes: { cls: string; students: IsamsStudent[] }[], fileName: string, opts: { roster?: boolean; relabel?: [string, string][] } = {}) {
+/** t295 (provisional FS2 file): keep the first year sheet as "FS2 …", drop the other year sheets, keep everything else as it is. */
+async function fs2FromMain(zip: import("jszip")) {
+  const rd = async (f: string) => (await zip.file(f)?.async("string")) || "";
+  let wb = await rd("xl/workbook.xml"), rels = await rd("xl/_rels/workbook.xml.rels"), ct = await rd("[Content_Types].xml"), app = await rd("docProps/app.xml");
+  const sheets = [...wb.matchAll(/<sheet [^>]*name="([^"]+)"[^>]*r:id="([^"]+)"[^>]*\/>/g)];
+  const years = sheets.filter((m) => /^\d+\s/.test(m[1]));
+  if (!years.length) return;
+  const keep = years[0], drop = years.slice(1);
+  for (const m of drop) {
+    const tgt = new RegExp(`<Relationship [^>]*Id="${m[2]}"[^>]*\\/>`).exec(rels)?.[0] || "";
+    const file = /Target="([^"]+)"/.exec(tgt)?.[1] || "";
+    const path = file.startsWith("/") ? file.slice(1) : `xl/${file}`;
+    wb = wb.replace(m[0], ""); rels = rels.replace(tgt, ""); ct = ct.replace(new RegExp(`<Override [^>]*PartName="/${path}"[^>]*\\/>`), "");
+    if (file) zip.remove(path);
+    app = app.replace(`<vt:lpstr>${m[1]}</vt:lpstr>`, "");
+  }
+  const n = drop.length;
+  app = app.replace(/(<vt:lpstr>Worksheets<\/vt:lpstr><\/vt:variant><vt:variant><vt:i4>)(\d+)/, (_, a, b) => a + (Number(b) - n)).replace(/(<TitlesOfParts><vt:vector size=")(\d+)/, (_, a, b) => a + (Number(b) - n));
+  wb = wb.replace(/activeTab="\d+"/, `activeTab="${sheets.indexOf(keep)}"`);
+  const fsName = keep[1].replace(/^\d+ \d+ /, "FS2 ");
+  wb = wb.split(`name="${keep[1]}"`).join(`name="${fsName}"`); app = app.split(`<vt:lpstr>${keep[1]}</vt:lpstr>`).join(`<vt:lpstr>${fsName}</vt:lpstr>`);
+  zip.file("xl/workbook.xml", wb); zip.file("xl/_rels/workbook.xml.rels", rels); zip.file("[Content_Types].xml", ct); zip.file("docProps/app.xml", app);
+  // Labels: "1 1 Isl B … T280" -> "FS2 Isl B … T280" and the sheet's "1 Isl B" -> "FS2 Isl B" (cell text); the Information list keeps only the FS2 line.
+  let ss = await rd("xl/sharedStrings.xml");
+  ss = ss.replace(/<t([^>]*)>1 1 /g, "<t$1>FS2 ").replace(/<t([^>]*)>1 Isl /g, "<t$1>FS2 Isl ");
+  zip.file("xl/sharedStrings.xml", ss);
+  const info = sheets.find((m) => /^information$/i.test(m[1]));
+  if (info) {
+    const tgt = new RegExp(`Id="${info[2]}"[^>]*Target="([^"]+)"`).exec(rels)?.[1] || new RegExp(`Target="([^"]+)"[^>]*Id="${info[2]}"`).exec(rels)?.[1];
+    const path = tgt ? (tgt.startsWith("/") ? tgt.slice(1) : `xl/${tgt}`) : "";
+    if (path) { let x = await rd(path); const strs = [...ss.matchAll(/<si>([\s\S]*?)<\/si>/g)].map((m) => m[1].replace(/<[^>]+>/g, ""));
+      for (const c of [...x.matchAll(/<c r="(A\d+)"[^>]*t="s"[^>]*><v>(\d+)<\/v><\/c>/g)]) if (/^[2-9] [2-9] /.test(strs[Number(c[2])] || "")) x = clearCell(x, c[1]);
+      zip.file(path, x); }
+  }
+}
+export async function fillIsams(b64: string, classes: { cls: string; students: IsamsStudent[] }[], fileName: string, opts: { roster?: boolean; relabel?: [string, string][]; fs2?: { provisional: boolean } | null } = {}) {
   const JSZip = (await import("jszip")).default;
   const zip = await JSZip.loadAsync(Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)));
   // t291: subject label swap (cell text + sheet tab names), same-length so nothing else moves.
@@ -188,27 +223,29 @@ export async function fillIsams(b64: string, classes: { cls: string; students: I
     const zf = zip.file(f); if (!zf || !opts.relabel?.length) continue;
     let t = await zf.async("string"); for (const [a, b] of opts.relabel) t = t.split(a).join(b); zip.file(f, t);
   }
+  if (opts.fs2?.provisional) await fs2FromMain(zip);
   const ssXml = (await zip.file("xl/sharedStrings.xml")?.async("string")) || "";
   const shared = [...ssXml.matchAll(/<si>([\s\S]*?)<\/si>/g)].map((m) => [...m[1].matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map((t) => t[1]).join("").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">"));
   const wbXml = (await zip.file("xl/workbook.xml")!.async("string"));
   const rels = (await zip.file("xl/_rels/workbook.xml.rels")!.async("string"));
   const report: { sheet: string; year: string; matched: number; unmatched: string[]; learnedIds: { id: string; schoolId: string }[] } [] = [];
   for (const sm of wbXml.matchAll(/<sheet [^>]*name="([^"]+)"[^>]*r:id="([^"]+)"/g)) {
-    const name = sm[1].replace(/&amp;/g, "&"), yrNum = /^(\d+)\s/.exec(name)?.[1];
+    const name = sm[1].replace(/&amp;/g, "&"), yrNum = opts.fs2 ? (/^(information|isams information|sheet\d+)$/i.test(name) ? "" : "FS2") : /^(\d+)\s/.exec(name)?.[1];
     if (!yrNum) continue;
     const target = new RegExp(`Id="${sm[2]}"[^>]*Target="([^"]+)"`).exec(rels)?.[1] || new RegExp(`Target="([^"]+)"[^>]*Id="${sm[2]}"`).exec(rels)?.[1];
     if (!target) continue;
     const path = target.startsWith("/") ? target.slice(1) : `xl/${target}`;
     let xml = await zip.file(path)!.async("string");
     const val = (ref: string) => { const m = new RegExp(`<c r="${ref}"([^>]*?)(?:/>|>([\\s\\S]*?)</c>)`).exec(xml); if (!m) return ""; const t = /\st="(\w+)"/.exec(m[1])?.[1]; const inner = m[2] || ""; if (t === "s") return shared[Number(/<v>(\d+)<\/v>/.exec(inner)?.[1])] ?? ""; if (t === "inlineStr") return [...inner.matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map((x) => x[1]).join(""); return /<v>([\s\S]*?)<\/v>/.exec(inner)?.[1] ?? ""; };
-    const cl = classes.find((c) => c.cls === `Year ${yrNum}`);
-    const rep = { sheet: name, year: `Year ${yrNum}`, matched: 0, unmatched: [] as string[], learnedIds: [] as { id: string; schoolId: string }[] };
+    const yr = yrNum === "FS2" ? "FS2" : `Year ${yrNum}`;
+    const cl = classes.find((c) => c.cls === yr);
+    const rep = { sheet: name, year: yr, matched: 0, unmatched: [] as string[], learnedIds: [] as { id: string; schoolId: string }[] };
     // Header row: the one whose column A is "SchoolID"; pupils follow until column A is empty.
     let hr = 0; for (let r = 1; r < 40; r++) if (val(`A${r}`) === "SchoolID") { hr = r; break; }
     if (!hr) continue;
     const head: Record<string, string> = {}; for (const col of "ABCDEFGHIJKLMNOP") head[val(`${col}${hr}`).trim()] = col;
     const cT = head["Target Grade"], cE = head["Effort Grade"], cA = head["Attainment Grade"];
-    if (opts.roster) {
+    if (opts.roster || opts.fs2?.provisional) {
       const roster = [...(cl?.students || [])].sort((x, y) => (x.last || x.name).localeCompare(y.last || y.name, "en", { sensitivity: "base" }) || x.first.localeCompare(y.first, "en", { sensitivity: "base" }));
       xml = rebuildRows(xml, hr, roster, head);
     }
@@ -219,6 +256,7 @@ export async function fillIsams(b64: string, classes: { cls: string; students: I
       if (!st) { rep.unmatched.push(`${fore} ${sur}`); continue; }
       rep.matched++; if (st.isamsId !== sid) rep.learnedIds.push({ id: st.id, schoolId: sid });
       // Every matched pupil gets the tracker's values; a value the tracker doesn't have is left blank (never the template's old value).
+      if (yr === "FS2" && !st.target) st.target = "7"; // t295: FS2 Target is 7
       if (cT) xml = st.target ? setCell(xml, `${cT}${r}`, st.target) : clearCell(xml, `${cT}${r}`);
       if (cE) xml = st.effort ? setCell(xml, `${cE}${r}`, st.effort) : clearCell(xml, `${cE}${r}`);
       if (cA) xml = st.grade != null ? setCell(xml, `${cA}${r}`, String(st.grade)) : clearCell(xml, `${cA}${r}`);

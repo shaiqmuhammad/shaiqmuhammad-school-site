@@ -166,11 +166,13 @@ function IsamsPanel({ g, access, setEffort, asAdmin, note, subject }: { subject:
   const [term, setTerm] = useState(g.term || "Term 1");
   const [flag, setFlag] = useState("");
   useEffect(() => { if (access.isams) trk<{ items: { cycle: string; name: string; term: string; at: number }[] }>("isams-tpl-list", {}).then((r) => { setTpls(r.items); setCycle((c) => c || r.items.find((x) => x.term === g.term)?.cycle || r.items[0]?.cycle || ""); }).catch(() => setTpls([])); }, [access.isams, g.term]);
-  const run = async () => {
+  const [fsNote, setFsNote] = useState("");
+  const run = async (fs2 = false) => {
     try {
-      const d = await trk<{ data: string; name: string; term: string; classes: never[]; flag?: string; roster?: boolean; relabel?: [string, string][] }>("trk-isams", { cycle, term, subject });
+      const d = await trk<{ data: string; name: string; term: string; classes: never[]; flag?: string; roster?: boolean; relabel?: [string, string][]; fs2?: { provisional: boolean; template: string } | null }>("trk-isams", { cycle, term, subject, fs2 });
+      setFsNote(fs2 ? (d.fs2?.provisional ? tr("FS2 file is PROVISIONAL: built from the main template's year-sheet layout. Upload the FS2 sample in Attainment & Progress Systems (a report cycle whose name contains \"FS2\") and it becomes the FS2 template.", "ملف FS2 مؤقت: مبني على تخطيط القالب الرئيسي. ارفع نموذج FS2 ليصبح قالب FS2.") : tr(`FS2 file built from the uploaded FS2 template (${d.fs2?.template}).`, "ملف FS2 من قالب FS2 المرفوع.")) : "");
       setFlag(d.flag || "");
-      const r = await fillIsams(d.data, d.classes, (d.name || `iSAMS ${cycle}.xlsx`).replace(/\.xlsx$/i, "") + ` - filled.xlsx`, { roster: !!d.roster, relabel: d.relabel });
+      const r = await fillIsams(d.data, d.classes, (d.name || `iSAMS ${cycle}.xlsx`).replace(/\.xlsx$/i, "") + ` - filled.xlsx`, { roster: !!d.roster, relabel: d.relabel, fs2: d.fs2 });
       setRep(r);
       const learned = r.flatMap((x) => x.learnedIds);
       if (asAdmin && learned.length) await trk("trk-isams-ids", { items: learned }).catch(() => undefined);
@@ -191,7 +193,9 @@ function IsamsPanel({ g, access, setEffort, asAdmin, note, subject }: { subject:
       {access.isams && <div className={cardCls + " flex flex-wrap items-end gap-2"}>
         <label className="text-xs font-bold">{tr("Report cycle (uploaded iSAMS template)", "دورة التقرير (قالب iSAMS)")}<select className={field + " mt-1 !w-72"} value={cycle} onChange={(e) => setCycle(e.target.value)} data-testid="trk-isams-cycle">{(tpls || []).map((t) => <option key={t.cycle} value={t.cycle}>{t.cycle}{t.term ? ` · ${t.term}` : ""}</option>)}</select></label>
         <label className="text-xs font-bold">{tr("Attainment term", "فصل التحصيل")}<select className={field + " mt-1 !w-32"} value={term} onChange={(e) => setTerm(e.target.value)} data-testid="trk-isams-term">{["Term 1", "Term 2", "Term 3"].map((t) => <option key={t} value={t}>{tr(t, t.replace("Term", "الفصل"))}</option>)}</select></label>
-        <button type="button" className={btn} disabled={!cycle} onClick={run} data-testid="trk-isams-dl">📤 {tr("Send to iSAMS report (all Primary classes)", "إرسال إلى تقرير iSAMS (كل صفوف الابتدائي)")}</button>
+        <button type="button" className={btn} disabled={!cycle} onClick={() => run(false)} data-testid="trk-isams-dl">📤 {tr("Send to iSAMS report (all Primary classes)", "إرسال إلى تقرير iSAMS (كل صفوف الابتدائي)")}</button>
+        <button type="button" className={btn} disabled={!cycle} onClick={() => run(true)} data-testid="trk-isams-fs2">📤 {tr("Download FS2 iSAMS file", "تنزيل ملف iSAMS لـ FS2")}</button>
+        {fsNote && <p className="w-full rounded-xl bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-900" data-testid="trk-isams-fs2-note">{fsNote}</p>}
         {tpls && !tpls.length && <p className="text-xs opacity-70">{tr("No template yet — the admin uploads the blank iSAMS file per report cycle in Attainment & Progress Systems.", "لا يوجد قالب بعد.")}</p>}
         {rep && <ul className="w-full text-xs" data-testid="trk-isams-report">{rep.map((r) => <li key={r.sheet}><b>{r.sheet}</b>: {r.matched} {tr("filled", "مُعبأ")}{r.unmatched.length ? ` · ${tr("not matched", "غير مطابق")}: ${r.unmatched.join(", ")}` : ""}</li>)}</ul>}
       </div>}

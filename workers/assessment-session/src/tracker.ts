@@ -407,11 +407,16 @@ export async function trackerHandle(c: TrkCtx, a: Actor, action: string, input: 
       // Data to fill an uploaded iSAMS template: per Primary class, Target / Effort / Attainment per student (+ iSAMS SchoolID).
       const sysP = systems(sql).find((s) => s.active); const acc = trkAccess(sysP, a);
       if (!acc.isams) return forbid("export_not_allowed");
-      const t = sql.exec(`SELECT cycle, name, term, data FROM isams_tpl WHERE cycle=?`, str(input.cycle, 80)).toArray()[0];
+      // t295: FS2 has its own file. An uploaded template whose cycle name contains "FS2" is used as is; until then the
+      // main template's year-sheet layout is copied (provisional).
+      const fs2 = input.fs2 === true;
+      const fsT = fs2 ? sql.exec(`SELECT cycle, name, term, data FROM isams_tpl WHERE cycle LIKE '%FS2%' ORDER BY at DESC`).toArray()[0] : undefined;
+      const t = fsT || sql.exec(`SELECT cycle, name, term, data FROM isams_tpl WHERE cycle=?`, str(input.cycle, 80)).toArray()[0];
       if (!t) return { status: 404, body: { error: "no_template" } };
       const tm = TERMS.includes(String(input.term)) ? String(input.term) : String(t.term || "");
       const classes: { cls: string; students: { id: string; first: string; last: string; name: string; isamsId: string; target: string; effort: string; grade: number | null }[] }[] = [];
       for (const { cl } of yearSystems(sql)) {
+        if (fs2 !== (cl === "FS2")) continue;
         const g = await grid(c, a, cl, tm, "", str(input.subject, 60)); if (!g || !g.students.length) continue;
         classes.push({ cls: cl, students: g.students.map((st) => { const r = g.results.find((x) => x.id === st.id)!; return { id: st.id, first: st.first, last: st.last, name: st.name, isamsId: st.isamsId, target: st.target, effort: r.effort, grade: r.grade }; }) });
       }
@@ -420,7 +425,7 @@ export async function trackerHandle(c: TrkCtx, a: Actor, action: string, input: 
       // A pupil also enrolled in the parent subject has that subject's Target, so it is left blank here.
       const parent = subject ? CUR_LINK[subject] : "";
       if (parent) for (const cl of classes) for (const st of cl.students) { const u = sql.exec(`SELECT subject FROM users WHERE id=?`, st.id).toArray()[0]; if (String(u?.subject || "").split(",").map((x) => x.trim()).includes(parent)) st.target = ""; }
-      return { status: 200, body: { cycle: String(t.cycle), name: subject ? `${String(t.name).replace(/\.xlsx$/i, "")} - ${subject}.xlsx` : String(t.name), term: tm, data: String(t.data), classes, sys: sysP, subject, roster: !!parent,
+      return { status: 200, body: { cycle: String(t.cycle), name: `${String(t.name).replace(/\.xlsx$/i, "")}${subject ? ` - ${subject}` : ""}${fs2 && !fsT ? " - FS2 (provisional)" : fs2 ? " - FS2" : ""}.xlsx`, term: tm, fs2: fs2 ? { provisional: !fsT, template: String(t.cycle) } : null, data: String(t.data), classes, sys: sysP, subject, roster: !!parent,
         // t291: same file as the parent subject except the subject label (no teacher name appears in the template).
         relabel: parent ? [[`Isl ${parent.slice(-1)}`, `Isl ${subject.slice(-1)}`], [`Islamic Education ${parent.slice(-1)}`, `Islamic Education ${subject.slice(-1)}`]] : [] } };
     }
