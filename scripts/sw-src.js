@@ -66,3 +66,18 @@ self.addEventListener("fetch", (event) => {
   }
   // Everything else: default browser behaviour (network).
 });
+
+// t302: Web Push (VAPID). The LMS worker sends { title, body, url, kind }.
+self.addEventListener("push", (event) => {
+  let d = {};
+  try { d = event.data ? event.data.json() : {}; } catch { d = { body: event.data ? event.data.text() : "" }; }
+  event.waitUntil(self.registration.showNotification(d.title || "Shaiq Muhammad", { body: d.body || "", icon: "/icon-192.png", badge: "/icon-192.png", tag: d.kind || "lms", data: { url: d.url || "/lms" } }));
+});
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || "/lms";
+  event.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((cs) => {
+    for (const c of cs) { if ("focus" in c) { c.navigate(url); return c.focus(); } }
+    return self.clients.openWindow(url);
+  }));
+});

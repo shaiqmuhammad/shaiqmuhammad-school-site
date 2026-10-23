@@ -212,6 +212,10 @@ export function loadParticipant(code: string): StoredParticipant | null {
   return p && p.code === code ? p : null;
 }
 
+export function clearParticipant(): void {
+  try { window.localStorage.removeItem(STUDENT_KEY); } catch { /* ignore */ }
+}
+
 export function saveParticipant(p: StoredParticipant): void {
   window.localStorage.setItem(STUDENT_KEY, JSON.stringify(p));
 }

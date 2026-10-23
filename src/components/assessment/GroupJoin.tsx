@@ -13,6 +13,7 @@ import { downloadCertificatePdf } from "@/lib/certificatePdf";
 import { loadCertificateTemplate } from "@/lib/quiz";
 import {
   clockOffset,
+  clearParticipant,
   deviceId,
   groupApi,
   loadParticipant,
@@ -314,8 +315,11 @@ export function GroupJoin() {
               {lang === "ar" ? "لقد أزالك المعلم من هذه الجلسة" : "You have been removed by the teacher"}
             </h1>
             <p className="mt-3 text-base opacity-75">
-              {lang === "ar" ? "لا يمكنك العودة إلى هذه الجلسة إلا إذا سمح لك المعلم." : "You can't rejoin this session unless your teacher lets you back in."}
+              {lang === "ar" ? "يمكنك الانضمام مجددًا باسم جديد." : "You can join again with a new name."}
             </p>
+            <button type="button" className="mt-5 inline-flex rounded-full bg-header px-5 py-2.5 font-bold text-sun" data-testid="rejoin-new-name" onClick={() => { clearParticipant(); setMe(null); setName(""); setRemoved(false); }}>
+              {lang === "ar" ? "الانضمام باسم جديد" : "Rejoin with a new name"}
+            </button>
           </div>
         </div>
       </AssessmentShell>
