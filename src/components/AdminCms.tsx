@@ -1,4 +1,5 @@
 "use client";
+import { AdminScopeBar } from "@/components/AdminScope";
 
 import { Attendance } from "@/components/lms/mods/Attendance";
 import { AdminGroups } from "@/components/lms/mods/AdminGroups";
@@ -396,6 +397,7 @@ export default function AdminCms() {
             <button type="submit" className={btn}>Save teacher profile</button>
           </form></details>
         )}
+        {["home","quizzes","lmshw","reports","wall","tracker","logins","curriculum","pages","mail","certificate","asys"].includes(tab) && <AdminScopeBar testId="scope-bar" />}
         {tab==="results" && <AdminResults quizzes={quizzesData.quizzes} />}
         {tab==="reports" && <AdminReports />}
         {tab==="wall" && <WallBoard asAdmin />}

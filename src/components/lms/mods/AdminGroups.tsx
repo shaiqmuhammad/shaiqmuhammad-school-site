@@ -1,4 +1,5 @@
 "use client";
+import { AdminScopeBar, useAdminScope } from "@/components/AdminScope";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { StudentPicker } from "@/components/lms/StudentPicker";
@@ -18,7 +19,8 @@ export function AdminGroups() {
   const [teachers, setTeachers] = useState<LmsUser[]>([]);
   const [d, setD] = useState<Draft | null>(null);
   const [subjects, setSubjects] = useState<string[]>([]);
-  const [fSub, setFSub] = useState("");
+  const scope = useAdminScope();
+  const fSub = scope.subject;
   const [view, setView] = useState<"groups" | "teacher">("groups");
   const [tid, setTid] = useState("");
   const [msg, setMsg] = useState(""); const [bad, setBad] = useState(false);
@@ -30,7 +32,7 @@ export function AdminGroups() {
     return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true })).flatMap(([c, ss]) => [c, ...[...ss].sort().map((x) => `${c}|${x}`)]);
   }, [students]);
   const tname = (id: string) => teachers.find((t) => t.id === id)?.name || "?";
-  const shown = (items || []).filter((g) => !fSub || g.subject === fSub);
+  const shown = (items || []).filter((g) => (!fSub || g.subject === fSub) && (!scope.teacher || (g.teachers || []).includes(scope.teacher)));
   const assign = async (teacher: string, add: string[], remove: string[]) => { try { await modCall("grp-admin-assign", { teacher, add, remove }, true); setMsg(tr("Updated.", "تم التحديث.")); setBad(false); load(); } catch (e) { setMsg(modErr(e, tr)); setBad(true); } };
   const copy = async (g: StudentGroup) => { try { await modCall("grp-admin-copy", { id: g.id }, true); setMsg(tr("Copied — edit the copy to change its subject, classes or teachers.", "تم النسخ — عدّل النسخة لتغيير المادة أو الصفوف أو المعلمين.")); setBad(false); load(); } catch (e) { setMsg(modErr(e, tr)); setBad(true); } };
   const save = async () => {
@@ -62,7 +64,7 @@ export function AdminGroups() {
       <Tabs<"groups" | "teacher"> testId="ag-tabs" value={view} onChange={setView} items={[["groups", tr("All groups", "كل المجموعات")], ["teacher", tr("By teacher", "حسب المعلم")]]} />
       <Toast msg={msg} bad={bad} />
       <div className="flex flex-wrap items-center gap-2">
-        <select className={field + " !w-auto"} value={fSub} onChange={(e) => setFSub(e.target.value)} aria-label={tr("Subject", "المادة")} data-testid="ag-filter-subject"><option value="">{tr("All subjects", "كل المواد")}</option>{subjects.map((x) => <option key={x} value={x}>{x}</option>)}</select>
+        <AdminScopeBar years={false} count={`${shown.length}`} />
         {view === "teacher" && <select className={field + " !w-auto"} value={tid} onChange={(e) => setTid(e.target.value)} aria-label={tr("Teacher", "المعلم")} data-testid="ag-teacher"><option value="">{tr("Pick a teacher…", "اختر معلمًا…")}</option>{teachers.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</select>}
       </div>
       {view === "teacher" ? (

@@ -5,7 +5,8 @@ import { mailApi } from "@/lib/mail";
 import { listPublishedQuizzes, loadQuizzesData, type Quiz } from "@/lib/quiz";
 import { StudentProgress } from "@/components/lms/Progress";
 import { ParentLog } from "@/components/lms/ParentMail";
-import { Fragment, useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import { readAdminScope, setAdminScope } from "@/components/AdminScope";
 import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
 import { AssessmentShell, primaryBtn } from "@/components/assessment/AssessmentShell";
 import { exportStudentsXlsx, downloadCredentials, downloadSignInSheet, downloadUsersTemplate, exportAllHomeworkZip, parseUsersXlsx } from "@/components/lms/lmsFiles";
@@ -199,6 +200,7 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
   const [fSec, setFSec] = useState("");
   const [fSub, setFSub] = useState("");
   const [fTeach, setFTeach] = useState("");
+  const scopeReady = useRef(false);
   const [fOpen, setFOpen] = useState(false);
   const [grps, setGrps] = useState<StudentGroup[]>([]);
   const urlFilters = asAdmin && role === "student";
@@ -207,7 +209,10 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
     if (!urlFilters) return;
     const p = new URLSearchParams(window.location.search);
     /* eslint-disable react-hooks/set-state-in-effect */
-    setFSub(p.get("sub") || ""); setFTeach(p.get("teacher") || ""); setFCls(p.get("yr") || ""); setFSec(p.get("sec") || ""); setQ(p.get("q") || "");
+    // URL first; otherwise the shared admin filter remembered from other admin pages.
+    const has = ["sub", "teacher", "yr", "sec", "q"].some((k) => p.get(k));
+    const sh = readAdminScope();
+    setFSub(has ? p.get("sub") || "" : sh.subject); setFTeach(has ? p.get("teacher") || "" : sh.teacher); setFCls(has ? p.get("yr") || "" : sh.yr); setFSec(has ? p.get("sec") || "" : sh.sec); setQ(p.get("q") || "");
     /* eslint-enable react-hooks/set-state-in-effect */
     lmsApi.grpList(true).then((r) => setGrps(r.items)).catch(() => setGrps([]));
   }, [urlFilters]);
@@ -217,6 +222,7 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
     for (const [k, v] of [["sub", fSub], ["teacher", fTeach], ["yr", fCls], ["sec", fSec], ["q", q]] as const) { if (v) p.set(k, v); else p.delete(k); }
     const qs = p.toString();
     window.history.replaceState(window.history.state, "", `${window.location.pathname}${qs ? "?" + qs : ""}${window.location.hash}`);
+    if (scopeReady.current) setAdminScope({ subject: fSub, teacher: fTeach, yr: fCls, sec: fSec }); else scopeReady.current = true;
   }, [urlFilters, fSub, fTeach, fCls, fSec, q]);
   const [pins, setPins] = useState<Pins>([]);
   const [known, setKnown] = useState<Record<string, string | null> | null>(null);
