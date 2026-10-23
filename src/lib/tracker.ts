@@ -17,7 +17,7 @@ export type TCell = { v: number | null; src: "quiz" | "quiz-all" | "quran" | "ov
 export type TStudent = { id: string; name: string; first: string; last: string; target: string; targetSrc: string; targetMode?: "profile" | "fixed" | "teacher"; isamsId: string };
 export type TUnit = { id: string; title: string; titleAr?: string; scAr?: string[]; term: string; wk: number; sc: string[]; quizzes?: string[]; std?: { codes: string[]; skill: number } };
 export type TResult = { id: string; avg: number | null; calc: number | null; grade: number | null; override: { by: string; at: number } | null; effort: string; effortManual?: boolean; effortAuto?: string; n: number };
-export type TGrid = { sys: ASys; cls: string; term: string; subject?: string; students: TStudent[]; units: TUnit[]; cells: Record<string, TCell>; results: TResult[]; access: TrkAccess };
+export type TGrid = { sys: ASys; cls: string; term: string; subject?: string; students: TStudent[]; units: TUnit[]; cells: Record<string, TCell>; results: TResult[]; access: TrkAccess; ops?: { add: boolean; edit: boolean; delete: boolean } };
 export const TERMS = ["Term 1", "Term 2", "Term 3"];
 
 let admin = false;
@@ -231,3 +231,13 @@ export async function fillIsams(b64: string, classes: { cls: string; students: I
   return report;
 }
 export const fileToB64 = async (f: File) => { const b = new Uint8Array(await f.arrayBuffer()); let s = ""; for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode(...b.subarray(i, i + 0x8000)); return btoa(s); };
+
+/** t294: which choices a tracker dropdown offers under the Add / Edit / Delete switches (server enforces the same). */
+export function opRule(g: TGrid, had: boolean, tr: (en: string, ar: string) => string) {
+  const o = g.ops || { add: true, edit: true, delete: true };
+  const dis = had ? !o.edit && !o.delete : !o.add;
+  return {
+    dis, vals: had ? o.edit : o.add, revert: had && o.delete, blank: o.delete && (had ? o.edit : o.add),
+    tip: dis ? (had ? tr("You aren't allowed to edit or delete this grade.", "لا يُسمح لك بتعديل هذه الدرجة أو حذفها.") : tr("You aren't allowed to add grades.", "لا يُسمح لك بإضافة درجات.")) : "",
+  };
+}
