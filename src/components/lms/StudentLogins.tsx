@@ -7,6 +7,7 @@ import { useTr } from "@/components/lms/useLms";
 import { clsNum, secLetter } from "@/lib/classFmt";
 import { grpLabel, lmsApi, lmsErrorText, stuUi, type LoginCard, type StudentGroup } from "@/lib/lms";
 import { qrSvg } from "@/lib/qrLocal";
+import { loadNameMode, pickName, type NameMode } from "@/lib/studentName";
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] || c);
 const sc = "rounded-full border border-black/15 bg-white px-3 py-1.5 text-sm dark:border-white/20 dark:bg-black/20";
@@ -14,7 +15,9 @@ const urlOf = (t: string) => `${window.location.origin}/lms/qr/?t=${t}`;
 
 /** Student Logins: big cards with username, PIN and a login QR for every student the viewer may see (admin: all; teacher: own classes). */
 export function StudentLogins({ asAdmin, perms = [] }: { asAdmin: boolean; perms?: string[] }) {
-  const { tr } = useTr();
+  const { tr, lang } = useTr();
+  const [nameMode, setNameMode] = useState<NameMode>("auto");
+  useEffect(() => { loadNameMode(asAdmin).then(setNameMode).catch(() => undefined); }, [asAdmin]);
   const [items, setItems] = useState<LoginCard[] | null>(null);
   const [err, setErr] = useState("");
   const [cls, setCls] = useState("");
@@ -49,8 +52,8 @@ export function StudentLogins({ asAdmin, perms = [] }: { asAdmin: boolean; perms
   const print = () => {
     const w = window.open("", "_blank");
     if (!w) { setErr(tr("Allow pop-ups to print.", "اسمح بالنوافذ المنبثقة للطباعة.")); return; }
-    const cards = list.map((s) => `<div class="c"><h2>${esc(s.name)}</h2><p class="k">${esc([clsNum(s.cls), s.section ? secLetter(s.section) : ""].filter(Boolean).join(" · "))}</p><div class="r"><span>User ID</span><b>${esc(s.username)}</b></div><div class="r"><span>PIN</span><b>${esc(s.pin || "—")}</b></div><div class="qr">${qrSvg(urlOf(s.token), 190)}</div><p class="n">Scan to sign in · امسح للدخول</p></div>`).join("");
-    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Student logins</title><style>body{font-family:system-ui,sans-serif;margin:12px}.g{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.c{border:2px solid #16324f;border-radius:14px;padding:12px;text-align:center;break-inside:avoid}h2{margin:0;font-size:20px;color:#16324f}.k{margin:2px 0 8px;color:#555}.r{display:flex;justify-content:space-between;border-top:1px solid #ddd;padding:5px 4px;font-size:15px}.r b{font-family:monospace;font-size:18px}.qr{margin:8px 0 2px}.n{margin:0;font-size:12px;color:#555}@media print{body{margin:0}}</style></head><body><div class="g">${cards}</div><script>window.onload=function(){setTimeout(function(){window.print()},300)}</script></body></html>`);
+    const cards = list.map((s) => `<div class="c"><h2 dir="auto">${esc(pickName(s.name, s.nameAr, lang, nameMode))}</h2><p class="k">${esc([clsNum(s.cls), s.section ? secLetter(s.section) : ""].filter(Boolean).join(" · "))}</p><div class="r"><span>User ID</span><b>${esc(s.username)}</b></div><div class="r"><span>PIN</span><b>${esc(s.pin || "—")}</b></div><div class="qr">${qrSvg(urlOf(s.token), 190)}</div><p class="n">Scan to sign in · امسح للدخول</p></div>`).join("");
+    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Student logins</title><style>body{font-family:system-ui,"Noto Naskh Arabic","Segoe UI",Tahoma,sans-serif;margin:12px}.g{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.c{border:2px solid #16324f;border-radius:14px;padding:12px;text-align:center;break-inside:avoid}h2{margin:0;font-size:20px;color:#16324f}.k{margin:2px 0 8px;color:#555}.r{display:flex;justify-content:space-between;border-top:1px solid #ddd;padding:5px 4px;font-size:15px}.r b{font-family:monospace;font-size:18px}.qr{margin:8px 0 2px}.n{margin:0;font-size:12px;color:#555}@media print{body{margin:0}}</style></head><body><div class="g">${cards}</div><script>window.onload=function(){setTimeout(function(){window.print()},300)}</script></body></html>`);
     w.document.close();
   };
   return (

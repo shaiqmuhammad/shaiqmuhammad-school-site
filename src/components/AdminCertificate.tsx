@@ -1,4 +1,6 @@
 "use client";
+import { lmsApi } from "@/lib/lms";
+import { clearNameModeCache } from "@/lib/studentName";
 /* eslint-disable @next/next/no-img-element */
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -40,6 +42,8 @@ async function fileToDataUrl(file: File, maxSide: number): Promise<string> {
 export default function AdminCertificate({ setStatus, onNeedToken }: Props) {
   const [coll, setColl] = useState<CertCollection | null>(null);
   const [saved, setSaved] = useState("");
+  const [nameMode, setNameModeState] = useState("auto");
+  useEffect(() => { lmsApi.nameMode(true).then((r) => setNameModeState(r.mode || "auto")).catch(() => undefined); }, []);
   const [selId, setSelId] = useState("");
   const [busy, setBusy] = useState(false);
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
@@ -156,6 +160,7 @@ export default function AdminCertificate({ setStatus, onNeedToken }: Props) {
               {fontSel("Title font (Arabic)", "titleFontAr", ARABIC_FONTS)}{fontSel("Body font (Arabic)", "bodyFontAr", ARABIC_FONTS)}
             </div>
             <Field label="Certificate language"><select className={input} value={cur.labelLang} onChange={(e) => patch({ labelLang: e.target.value as CertLabelLang })} data-testid="cert-lang"><option value="en">English</option><option value="ar">العربية (Arabic)</option><option value="both">English + Arabic</option></select></Field>
+            <Field label="Student name on certificates & QR cards"><select className={input} value={nameMode} onChange={async (e) => { const m = e.target.value; setNameModeState(m); try { await lmsApi.setNameMode(m); clearNameModeCache(); } catch { /* shown as unchanged on reload */ } }} data-testid="cert-name-mode"><option value="auto">Follow the language (Arabic name in Arabic)</option><option value="ar">Arabic name</option><option value="en">English name</option><option value="both">Arabic + English</option></select></Field>
           </Card>
 
           <Card title="Wording">

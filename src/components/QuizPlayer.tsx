@@ -9,6 +9,8 @@ import { QuestionStage } from "@/components/assessment/QuestionStage";
 import { QuizReview } from "@/components/QuizReview";
 import { localizedDescription, localizedTitle, useAssessmentText } from "@/lib/assessmentI18n";
 import { downloadCertificatePdf } from "@/lib/certificatePdf";
+import { lmsApi, lmsSession } from "@/lib/lms";
+import { loadNameMode, pickName, type NameMode } from "@/lib/studentName";
 import { newId } from "@/lib/content";
 import { recordAttempt } from "@/lib/resultsRecord";
 import {
@@ -67,6 +69,15 @@ export function QuizPlayer({ quiz, initialTemplate, initialResults }: Props) {
   const { a, lang } = useAssessmentText();
   const [phase, setPhase] = useState<Phase>("intro");
   const [name, setName] = useState("");
+  // Signed-in student: pre-fill the English name; the certificate prints the Arabic name per the admin's name setting.
+  const [me, setMe] = useState<{ en: string; ar: string } | null>(null);
+  const [nameMode, setNameMode] = useState<NameMode>("auto");
+  useEffect(() => {
+    const s = lmsSession();
+    if (!s || s.user.role !== "student") return;
+    lmsApi.me().then((r) => { const en = r.user.name || ""; setMe({ en, ar: r.user.nameAr || "" }); setName((n) => n || en); }).catch(() => undefined);
+    loadNameMode().then(setNameMode).catch(() => undefined);
+  }, []);
   const [answers, setAnswers] = useState<Record<string, unknown>>({});
   const [rightOrders, setRightOrders] = useState<Record<string, number[]>>({});
   const [current, setCurrent] = useState(0);
@@ -250,7 +261,7 @@ export function QuizPlayer({ quiz, initialTemplate, initialResults }: Props) {
               {quiz.certificateIndividual && (
                 <button
                   type="button"
-                  onClick={() => downloadCertificatePdf({ template, result, quizTitle: quiz.title, positionLabel: positionLabel() })}
+                  onClick={() => downloadCertificatePdf({ template, result: me && result.name.trim() === me.en.trim() ? { ...result, name: pickName(me.en, me.ar, lang, nameMode) } : result, quizTitle: title, positionLabel: positionLabel() })}
                   className={primaryBtn}
                   data-testid="download-certificate"
                 >
