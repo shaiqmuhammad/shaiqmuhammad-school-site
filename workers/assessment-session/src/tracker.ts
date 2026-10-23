@@ -407,7 +407,9 @@ export async function trackerHandle(c: TrkCtx, a: Actor, action: string, input: 
       // A pupil also enrolled in the parent subject has that subject's Target, so it is left blank here.
       const parent = subject ? CUR_LINK[subject] : "";
       if (parent) for (const cl of classes) for (const st of cl.students) { const u = sql.exec(`SELECT subject FROM users WHERE id=?`, st.id).toArray()[0]; if (String(u?.subject || "").split(",").map((x) => x.trim()).includes(parent)) st.target = ""; }
-      return { status: 200, body: { cycle: String(t.cycle), name: subject ? `${String(t.name).replace(/\.xlsx$/i, "")} - ${subject}.xlsx` : String(t.name), term: tm, data: String(t.data), classes, sys: sysP, subject, roster: !!parent } };
+      return { status: 200, body: { cycle: String(t.cycle), name: subject ? `${String(t.name).replace(/\.xlsx$/i, "")} - ${subject}.xlsx` : String(t.name), term: tm, data: String(t.data), classes, sys: sysP, subject, roster: !!parent,
+        // t291: same file as the parent subject except the subject label (no teacher name appears in the template).
+        relabel: parent ? [[`Isl ${parent.slice(-1)}`, `Isl ${subject.slice(-1)}`], [`Islamic Education ${parent.slice(-1)}`, `Islamic Education ${subject.slice(-1)}`]] : [] } };
     }
     case "trk-isams-ids": {
       if (a.role !== "admin" || a.viewAs) return forbid();

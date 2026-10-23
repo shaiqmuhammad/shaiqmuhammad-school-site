@@ -180,9 +180,14 @@ function rebuildRows(xml: string, hr: number, roster: IsamsStudent[], head: Reco
   if (end > last) xml = xml.replace(/sqref="([A-Z]+)(\d+):([A-Z]+)(\d+)"/g, (m, c1, r1, c2, r2) => Number(r2) === last ? `sqref="${c1}${r1}:${c2}${end}"` : m).replace(/<dimension ref="([A-Z]+\d+):([A-Z]+)\d+"\/>/, (m, a, c) => `<dimension ref="${a}:${c}${end}"/>`);
   return xml;
 }
-export async function fillIsams(b64: string, classes: { cls: string; students: IsamsStudent[] }[], fileName: string, opts: { roster?: boolean } = {}) {
+export async function fillIsams(b64: string, classes: { cls: string; students: IsamsStudent[] }[], fileName: string, opts: { roster?: boolean; relabel?: [string, string][] } = {}) {
   const JSZip = (await import("jszip")).default;
   const zip = await JSZip.loadAsync(Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)));
+  // t291: subject label swap (cell text + sheet tab names), same-length so nothing else moves.
+  for (const f of ["xl/sharedStrings.xml", "xl/workbook.xml", "docProps/app.xml"]) {
+    const zf = zip.file(f); if (!zf || !opts.relabel?.length) continue;
+    let t = await zf.async("string"); for (const [a, b] of opts.relabel) t = t.split(a).join(b); zip.file(f, t);
+  }
   const ssXml = (await zip.file("xl/sharedStrings.xml")?.async("string")) || "";
   const shared = [...ssXml.matchAll(/<si>([\s\S]*?)<\/si>/g)].map((m) => [...m[1].matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map((t) => t[1]).join("").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">"));
   const wbXml = (await zip.file("xl/workbook.xml")!.async("string"));

@@ -168,9 +168,9 @@ function IsamsPanel({ g, access, setEffort, asAdmin, note, subject }: { subject:
   useEffect(() => { if (access.isams) trk<{ items: { cycle: string; name: string; term: string; at: number }[] }>("isams-tpl-list", {}).then((r) => { setTpls(r.items); setCycle((c) => c || r.items.find((x) => x.term === g.term)?.cycle || r.items[0]?.cycle || ""); }).catch(() => setTpls([])); }, [access.isams, g.term]);
   const run = async () => {
     try {
-      const d = await trk<{ data: string; name: string; term: string; classes: never[]; flag?: string; roster?: boolean }>("trk-isams", { cycle, term, subject });
+      const d = await trk<{ data: string; name: string; term: string; classes: never[]; flag?: string; roster?: boolean; relabel?: [string, string][] }>("trk-isams", { cycle, term, subject });
       setFlag(d.flag || "");
-      const r = await fillIsams(d.data, d.classes, (d.name || `iSAMS ${cycle}.xlsx`).replace(/\.xlsx$/i, "") + ` - filled.xlsx`, { roster: !!d.roster });
+      const r = await fillIsams(d.data, d.classes, (d.name || `iSAMS ${cycle}.xlsx`).replace(/\.xlsx$/i, "") + ` - filled.xlsx`, { roster: !!d.roster, relabel: d.relabel });
       setRep(r);
       const learned = r.flatMap((x) => x.learnedIds);
       if (asAdmin && learned.length) await trk("trk-isams-ids", { items: learned }).catch(() => undefined);
