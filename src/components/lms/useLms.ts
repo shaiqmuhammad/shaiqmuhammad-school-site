@@ -29,6 +29,8 @@ export function useLmsActor(): { actor: Actor | null; asAdmin: false; ready: boo
     setSt({ actor: lmsSession()?.user ?? null, asAdmin: false, ready: true, adminElsewhere: !!getServerSession() });
     // Permissions can change while a teacher is signed in: refresh the cached actor so buttons match the server.
     const cur = lmsSession();
+    // t288: Islamic A students open their area in Arabic unless they have picked a language themselves.
+    if (cur && cur.user.role === "student") lmsApi.me().then((r) => { try { if (r.user.arabic && !localStorage.getItem("sm-lang-chosen") && localStorage.getItem(LANG_STORAGE_KEY) !== "ar") { localStorage.setItem(LANG_STORAGE_KEY, "ar"); window.dispatchEvent(new Event("sm-lang-change")); } } catch { /* ignore */ } }).catch(() => undefined);
     if (cur && cur.user.role === "teacher") {
       lmsApi.me().then((r) => {
         const u = r.user;
