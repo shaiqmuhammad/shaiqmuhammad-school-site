@@ -198,6 +198,26 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
   const [fPhase, setFPhase] = useState("");
   const [fSec, setFSec] = useState("");
   const [fSub, setFSub] = useState("");
+  const [fTeach, setFTeach] = useState("");
+  const [fOpen, setFOpen] = useState(false);
+  const [grps, setGrps] = useState<StudentGroup[]>([]);
+  const urlFilters = asAdmin && role === "student";
+  // Admin Students: filters live in the URL (?sub=&teacher=&yr=&sec=&q=) so a filtered list can be bookmarked or shared.
+  useEffect(() => {
+    if (!urlFilters) return;
+    const p = new URLSearchParams(window.location.search);
+    /* eslint-disable react-hooks/set-state-in-effect */
+    setFSub(p.get("sub") || ""); setFTeach(p.get("teacher") || ""); setFCls(p.get("yr") || ""); setFSec(p.get("sec") || ""); setQ(p.get("q") || "");
+    /* eslint-enable react-hooks/set-state-in-effect */
+    lmsApi.grpList(true).then((r) => setGrps(r.items)).catch(() => setGrps([]));
+  }, [urlFilters]);
+  useEffect(() => {
+    if (!urlFilters) return;
+    const p = new URLSearchParams(window.location.search);
+    for (const [k, v] of [["sub", fSub], ["teacher", fTeach], ["yr", fCls], ["sec", fSec], ["q", q]] as const) { if (v) p.set(k, v); else p.delete(k); }
+    const qs = p.toString();
+    window.history.replaceState(window.history.state, "", `${window.location.pathname}${qs ? "?" + qs : ""}${window.location.hash}`);
+  }, [urlFilters, fSub, fTeach, fCls, fSec, q]);
   const [pins, setPins] = useState<Pins>([]);
   const [known, setKnown] = useState<Record<string, string | null> | null>(null);
   const [shown, setShown] = useState<Set<string>>(new Set());
@@ -273,7 +293,11 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
 
   // Staff = teacher accounts flagged "staff" (permissions like teachers, no class teaching required).
   const people = (users || []).filter((u) => u.role === role && (role !== "teacher" || (u.perms || []).includes("staff") === staff));
+  // Teacher filter: the students in that teacher's assigned groups (and of the chosen subject).
+  const teacherOpts = (users || []).filter((u) => u.role === "teacher" && (!fSub || u.subjects.includes(fSub) || (u.groups || []).some((g) => g.subject === fSub)));
+  const teachStu = fTeach ? new Set(grps.filter((g) => (g.teachers || []).includes(fTeach) && (!fSub || !g.subject || g.subject === fSub)).flatMap((g) => g.students)) : null;
   const list = people.filter((u) => {
+    if (teachStu && role === "student" && !teachStu.has(u.id)) return false;
     if (q && !`${u.name} ${u.username}`.toLowerCase().includes(q.toLowerCase())) return false;
     if (fPhase && !(u.phase || "").split(",").includes(fPhase)) return false;
     if (role === "student") return (!fCls || u.cls === fCls) && (!fSec || u.section === fSec) && (!fSub || (u.subject || "").split(/\s*,\s*/).includes(fSub));
@@ -281,6 +305,8 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
   });
   const errText = (e: string) => ({ username: tr("username must be 3+ letters/numbers", "اسم المستخدم 3 أحرف على الأقل"), username_taken: tr("username already used", "اسم المستخدم مستخدم"), name: tr("name missing", "الاسم مفقود"), pin_digits: tr("Password/PIN must be 4–64 characters", "كلمة المرور من 4 إلى 64 حرفًا"), admin_only: tr("only the admin can edit teachers", "فقط المدير يعدّل المعلمين"), full: tr("user limit reached", "تم بلوغ الحد"), unknown_class: tr("class not in Classes & Subjects", "الصف غير موجود في القائمة"), unknown_section: tr("section not in that class", "الشعبة ليست في هذا الصف"), unknown_subject: tr("subject not in the list", "المادة غير موجودة"), unknown_scope: tr("class/section not in the list", "الصف/الشعبة غير موجود") })[e] || e;
   const secOpts = catalog.sections.filter((s) => s.cls === fCls);
+  const nFilters = [fSub, fTeach, fCls, fSec, q].filter(Boolean).length;
+  const clearFilters = () => { setFSub(""); setFTeach(""); setFCls(""); setFSec(""); setQ(""); setFPhase(""); setFStatus(""); setPage(0); };
   const teacherSections = (u: LmsUser) => u.scope.filter((x) => x.includes("|")).map((x) => x.split("|")[1]);
   // Optional student columns (admin sees every field; teachers only "parent email on file").
   const EXTRA: [string, string, string, (u: LmsUser) => string][] = role !== "student" ? [] : asAdmin ? [
@@ -404,14 +430,20 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
         <section className={card + " space-y-3 p-3 sm:p-4"}>
           <div className="flex flex-wrap gap-2">
             <input className={inputCls + " mt-0 min-w-[12rem] flex-1 sm:max-w-sm"} placeholder={tr("Search name or username…", "ابحث بالاسم أو المستخدم…")} value={q} onChange={(e) => setQ(e.target.value)} data-testid="lms-search" aria-label={tr("Search", "بحث")} />
+            {urlFilters && <button type="button" className={smallBtn + " sm:hidden"} onClick={() => setFOpen(!fOpen)} aria-expanded={fOpen} data-testid="lms-filter-toggle">⚙ {tr("Filters", "عوامل التصفية")}{nFilters ? ` (${nFilters})` : ""}</button>}
+            <div className={urlFilters ? `${fOpen ? "flex" : "hidden"} w-full flex-col gap-2 sm:flex sm:w-auto sm:flex-row sm:flex-wrap` : "contents"} data-testid="lms-filter-panel">
             {asAdmin && <select className={inputCls + " mt-0 w-auto! min-w-[9rem]"} value={fPhase} onChange={(e) => setFPhase(e.target.value)} data-testid="lms-filter-phase" aria-label={tr("Phase", "المرحلة")}><option value="">{tr("All phases", "كل المراحل")}</option>{PHASES.map((x) => <option key={x} value={x}>{x}</option>)}</select>}
             {(role === "teacher" || asAdmin) && (
-              <select className={inputCls + " mt-0 w-auto! min-w-[9rem]"} value={fSub} onChange={(e) => setFSub(e.target.value)} data-testid="lms-filter-subject" aria-label={tr("Subject", "المادة")}>
+              <select className={inputCls + " mt-0 w-auto! min-w-[9rem]"} value={fSub} onChange={(e) => { setFSub(e.target.value); setFTeach(""); setPage(0); }} data-testid="lms-filter-subject" aria-label={tr("Subject", "المادة")}>
                 <option value="">{tr("All subjects", "كل المواد")}</option>
-                {catalog.subjects.map((s) => <option key={s.id}>{s.name}</option>)}
+                {catalog.subjects.map((s) => <option key={s.id} value={s.name}>{s.name}</option>)}
               </select>
             )}
-            {role === "student" && <><select className={inputCls + " mt-0 w-auto! min-w-[9rem]"} value={fCls} onChange={(e) => { setFCls(e.target.value); setFSec(""); }} data-testid="lms-filter-class" aria-label={tr("Class", "الصف")}>
+            {urlFilters && <select className={inputCls + " mt-0 w-auto! min-w-[9rem]"} value={fTeach} onChange={(e) => { setFTeach(e.target.value); setPage(0); }} data-testid="lms-filter-teacher" aria-label={tr("Teacher", "المعلم")}>
+              <option value="">{tr("All teachers", "كل المعلمين")}</option>
+              {teacherOpts.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>}
+            {role === "student" && <><select className={inputCls + " mt-0 w-auto! min-w-[9rem]"} value={fCls} onChange={(e) => { setFCls(e.target.value); setFSec(""); setPage(0); }} data-testid="lms-filter-class" aria-label={tr("Class", "الصف")}>
               <option value="">{tr("All classes", "كل الصفوف")}</option>
               {catalog.classes.map((c) => <option key={c.id} value={c.name}>{clsNum(c.name)}</option>)}
             </select>
@@ -419,6 +451,9 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
               <option value="">{tr("All sections", "كل الشعب")}</option>
               {secOpts.map((s) => <option key={s.id} value={s.name}>{secLetter(s.name)}</option>)}
             </select></>}
+            {urlFilters && <button type="button" className={smallBtn} onClick={clearFilters} disabled={!nFilters && !fPhase && !fStatus} data-testid="lms-filter-clear">✕ {tr("Clear", "مسح")}</button>}
+            {urlFilters && <span className="self-center text-sm font-semibold" data-testid="lms-filter-count">{tr(`${list.length} of ${people.length}`, `${list.length} من ${people.length}`)}</span>}
+            </div>
             {EXTRA.length > 0 && <div className="relative"><button type="button" className={smallBtn} onClick={() => setColMenu(!colMenu)} aria-expanded={colMenu} data-testid="lms-cols-btn">▥ {tr("Columns", "الأعمدة")}</button>
               {colMenu && <div className="absolute end-0 z-40 mt-1 w-52 rounded-2xl border border-black/10 bg-white p-2 text-sm shadow-xl dark:border-white/15 dark:bg-[#13202e]" data-testid="lms-cols-menu">{EXTRA.map((e) => <label key={e[0]} className="flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-black/5 dark:hover:bg-white/10"><input type="checkbox" checked={showCols.includes(e[0])} onChange={() => toggleCol(e[0])} />{tr(e[1], e[2])}</label>)}</div>}</div>}
             <select className={inputCls + " mt-0 w-auto! min-w-[9rem]"} value={fStatus} onChange={(e) => { setFStatus(e.target.value as typeof fStatus); setPage(0); }} data-testid="lms-filter-status" aria-label={tr("Status", "الحالة")}>
