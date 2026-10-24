@@ -12,7 +12,8 @@ const BASE: Card[] = [
   { href: "/encyclopedia/quran-com", src: "https://quran.com/", en: "Quran.com", ar: "Quran.com", icon: "🕌", tone: "from-sky-400 to-indigo-500", den: "Read and listen to the Quran.", dar: "اقرأ القرآن واستمع إليه." },
   { href: "/encyclopedia/hadith", src: "https://hadeethenc.com/en/home/about", en: "Encyclopedia of Hadith", ar: "موسوعة الحديث", icon: "📜", tone: "from-amber-400 to-orange-500", den: "Trusted hadith with meanings.", dar: "أحاديث موثوقة مع معانيها." },
   { href: "/encyclopedia/sunnah", src: "https://sunnah.com/", en: "Sunnah.com", ar: "Sunnah.com", icon: "🌙", tone: "from-violet-400 to-fuchsia-500", den: "Search the hadith collections.", dar: "ابحث في كتب الحديث." },
-  { href: "/lessons", en: "Learning Material", ar: "المواد التعليمية", icon: "🎒", tone: "from-rose-400 to-pink-500", den: "Lessons made by your teachers.", dar: "دروس أعدّها معلموك." },
+  { href: "/lms/material", en: "Learning Material", ar: "المواد التعليمية", icon: "🎒", tone: "from-rose-400 to-pink-500", den: "Slide lessons from your teachers.", dar: "دروس بالشرائح من معلميك." },
+  { href: "/lessons", en: "Lesson pages", ar: "صفحات الدروس", icon: "📄", tone: "from-pink-300 to-rose-400", den: "Lessons on the school website.", dar: "دروس على موقع المدرسة." },
   { href: "/videos", en: "Videos", ar: "الفيديوهات", icon: "🎬", tone: "from-cyan-400 to-blue-500", den: "Watch and learn.", dar: "شاهد وتعلّم." },
 ];
 

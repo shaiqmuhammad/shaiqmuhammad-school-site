@@ -92,6 +92,7 @@ export function LmsTabs() {
     ...(staff && pm("cur") ? [{ id: "cur", href: "/lms/curriculum", en: "Curriculum", ar: "المنهج", icon: I.cur, lvl: 3 } as Tab] : []),
     ...(staff && qp.show ? [{ id: "map", href: "/lms/map", en: "Quran map", ar: "خريطة القرآن", icon: "", lvl: 3 } as Tab] : []),
     ...(staff && mpShown(actor, "tt") ? [{ id: "tt", href: "/lms/timetable", en: "Timetable", ar: "الجدول", icon: "", lvl: 3 } as Tab] : []),
+    ...((staff && mpShown(actor, "lp")) || actor.role === "admin" ? [{ id: "lp", href: "/lms/material", en: "Learning Material", ar: "المواد التعليمية", icon: "", lvl: 3 } as Tab] : []),
     ...(staff ? [{ id: "std", href: "/lms/standards", en: "Standards book", ar: "كتاب المعايير", icon: "", lvl: 3 } as Tab] : []),
     ...(staff ? [{ id: "pts", href: "/lms/points", en: "Points", ar: "النقاط", icon: "", lvl: 3 } as Tab] : []),
     ...(staff && !actor.perms?.includes("trk:view:off") && mpShown(actor, "trk") ? [{ id: "trk", href: "/lms/tracker", en: "Assessment Tracker", ar: "متتبع التقييم", icon: "", lvl: 3 } as Tab] : []),
