@@ -164,7 +164,7 @@ function useChapters() {
 
 function Assess({ kid, ar }: { kid: Kid; ar: boolean }) {
   const { tr } = useTr();
-  const { d, bad } = useChild<{ items: { quizTitle: string; score: number; maxScore: number; percentage: number; finishedAt: number }[]; assigned: { id: string; title: string; due: number | null }[] }>("par-results", kid.id);
+  const { d, bad } = useChild<{ items: { quizTitle: string; score: number; maxScore: number; percentage: number; finishedAt: number; level?: number; label?: string }[]; assigned: { id: string; title: string; due: number | null }[] }>("par-results", kid.id);
   if (bad) return <Empty t={bad} />;
   if (!d) return <Load />;
   return (
@@ -176,7 +176,7 @@ function Assess({ kid, ar }: { kid: Kid; ar: boolean }) {
       <section className={card}>
         <h2 className="mb-2 text-lg font-bold">🏆 {tr("Results", "النتائج")}</h2>
         {!d.items.length ? <p className="opacity-70">{tr("No results yet.", "لا توجد نتائج بعد.")}</p> : (
-          <ul className="divide-y divide-black/10 dark:divide-white/10" data-testid="family-results">{d.items.map((x, i) => <li key={i} className="flex items-center justify-between gap-3 py-2"><span dir="auto" className="font-semibold">{x.quizTitle}<span className="block text-xs font-normal opacity-60">{dt(x.finishedAt, ar)}</span></span><span className="rounded-full bg-emerald-100 px-3 py-1 text-sm font-extrabold text-emerald-900">{x.score}/{x.maxScore} · {Math.round(x.percentage)}%</span></li>)}</ul>
+          <ul className="divide-y divide-black/10 dark:divide-white/10" data-testid="family-results">{d.items.map((x, i) => <li key={i} className="flex items-center justify-between gap-3 py-2"><span dir="auto" className="font-semibold">{x.quizTitle}<span className="block text-xs font-normal opacity-60">{dt(x.finishedAt, ar)}</span></span><span className="rounded-full bg-emerald-100 px-3 py-1 text-sm font-extrabold text-emerald-900">{x.score}/{x.maxScore} · {Math.round(x.percentage)}%{x.level ? ` · ${tr("Level", "المستوى")} ${x.level}` : ""}</span></li>)}</ul>
         )}
       </section>
     </div>

@@ -1,7 +1,8 @@
 "use client";
+import { saveNames } from "@/components/activity/ClassNames";
 
 import { dlGrant } from "@/lib/dl";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AssessmentShell } from "@/components/assessment/AssessmentShell";
 import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
 import { PresenceDot } from "@/components/lms/Presence";
@@ -110,6 +111,33 @@ export function LmsClassesPage() {
     } catch (e) { setErr(modErr(e, tr)); }
   };
   const label = (v: string) => (v.includes("|") ? v.replace("|", " · ") : v);
+  // t304: one tap = Present; long-press (or ⋯) = Late / Absent with a reason; Mark all present for the rest.
+  const lp = useRef<{ t?: ReturnType<typeof setTimeout>; fired?: boolean }>({});
+  const pressStart = (s: RosterStudent) => { if (!attMode) return; lp.current.fired = false; clearTimeout(lp.current.t); lp.current.t = setTimeout(() => { lp.current.fired = true; setAttFor(s); setReason(att[s.id]?.note || ""); }, 550); };
+  const pressEnd = () => clearTimeout(lp.current.t);
+  const markAll = async () => {
+    const rest = shown.filter((s) => !att[s.id]?.status);
+    if (!rest.length) { setToast(tr("Everyone is already marked.", "تم تسجيل الجميع.")); return; }
+    try {
+      await modCall("att-save", { day: attDay, period: attPeriod, marks: rest.map((s) => ({ student: s.id, status: "P", note: "" })) }, false);
+      setAtt((m) => ({ ...m, ...Object.fromEntries(rest.map((s) => [s.id, { status: "P", note: "" }])) }));
+      setToast(tr(`✅ ${rest.length} marked present`, `✅ تم تسجيل حضور ${rest.length}`));
+    } catch (e) { setErr(modErr(e, tr)); }
+  };
+  // t304: activity launcher — start with this class, or with random people (code / QR via the site's Join button).
+  const [launch, setLaunch] = useState<string[] | null>(null);
+  const viewName = view ? (view.startsWith("g:") ? groups.find((g) => g.id === view.slice(2))?.name || tr("this group", "هذه المجموعة") : label(view)) : tr("all my students", "كل طلابي");
+  const startClass = (t: string, en: string) => {
+    if (t === "wheel" || t === "randomiser") { saveNames(shown.map((s) => s.name)); window.location.assign(`/activities/${t}`); return; }
+    if (t === "wall") { window.location.assign(view ? `/lms/wall#k=${encodeURIComponent(view)}` : "/lms/wall"); return; }
+    try { sessionStorage.setItem("sm-act-prefill", JSON.stringify({ audience: shown.map((s) => s.id), title: `${en} · ${viewName}`, label: viewName })); } catch { /* */ }
+    window.location.assign(`/lms/activities#t=${t}`);
+  };
+  const startRandom = (t: string) => {
+    if (t === "wheel" || t === "randomiser") { window.location.assign(`/activities/${t}?lobby=1`); return; }
+    try { sessionStorage.removeItem("sm-act-prefill"); } catch { /* */ }
+    window.location.assign(`/lms/activities#t=${t}`);
+  };
   const maxPts = Math.max(1, ...shown.map((s) => s.points));
   return (
     <Gate title={tr("My classes", "صفوفي")}>
@@ -134,11 +162,12 @@ export function LmsClassesPage() {
           </div>}
         </div>
         {err && <p className="rounded-2xl bg-rose-100 px-4 py-2 text-sm text-rose-800">{err}</p>}
+        {attMode && <div className="flex flex-wrap items-center gap-2 rounded-3xl bg-emerald-50 px-4 py-2 text-sm text-emerald-950 dark:bg-emerald-900/30 dark:text-emerald-50" data-testid="att-bar"><span className="me-auto font-bold">📋 {attDay} · {attPeriod === "Day" ? tr("Whole day", "اليوم كله") : tr(`Period ${attPeriod.slice(1)}`, `الحصة ${attPeriod.slice(1)}`)} — {tr("tap = Present · hold or ⋯ = Late / Absent", "نقرة = حاضر · ضغط مطوّل أو ⋯ = متأخر / غائب")}</span><button type="button" className="rounded-full bg-emerald-600 px-4 py-1.5 font-bold text-white" onClick={markAll} data-testid="att-all">✅ {tr("Mark all present", "تسجيل حضور الجميع")}</button><a className="rounded-full border border-emerald-700/30 px-3 py-1.5 font-bold" href="/lms/attendance#history" data-testid="att-history-link">🗂 {tr("History", "السجل")}</a></div>}
         {roster === null ? <p className="opacity-70">{tr("Loading…", "جارٍ التحميل…")}</p> : !shown.length ? <p className="glass rounded-3xl p-8 text-center opacity-80">{tr("No students here yet.", "لا يوجد طلاب هنا بعد.")}</p> : (
           <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6" data-testid="cls-grid">
             {shown.map((s) => (
               <li key={s.id} className="group relative" data-testid="cls-card">
-                <button type="button" onClick={() => { if (attMode) { setAttFor(s); setReason(att[s.id]?.note || ""); return; } setWhole(false); setAward([s]); }} className="glass relative flex w-full flex-col items-center gap-2 rounded-3xl p-4 pt-5 text-center transition hover:-translate-y-1 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sun" aria-label={tr(`Award points to ${s.name}`, `منح نقاط لـ ${s.name}`)}>
+                <button type="button" onPointerDown={() => pressStart(s)} onPointerUp={pressEnd} onPointerLeave={pressEnd} onContextMenu={(e) => { if (attMode) e.preventDefault(); }} onClick={() => { if (attMode) { if (lp.current.fired) { lp.current.fired = false; return; } mark(s, "P"); return; } setWhole(false); setAward([s]); }} className="glass relative flex w-full flex-col items-center gap-2 rounded-3xl p-4 pt-5 text-center transition hover:-translate-y-1 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sun" aria-label={tr(`Award points to ${s.name}`, `منح نقاط لـ ${s.name}`)}>
                   <span className="relative"><Avatar code={s.avatar} size={72} className="ring-4 ring-white shadow dark:ring-white/10" /><PresenceDot seen={s.seen} className="absolute bottom-1 end-0" /></span>
                   <span className="line-clamp-2 min-h-[2.5rem] text-sm font-bold leading-tight" dir="auto" data-testid="cls-name">{s.name}</span>
                   {attMode && <span className={`rounded-full px-2.5 py-0.5 text-xs font-extrabold ${att[s.id]?.status === "P" ? "bg-emerald-100 text-emerald-900" : att[s.id]?.status === "L" ? "bg-amber-100 text-amber-900" : att[s.id]?.status === "A" ? "bg-rose-100 text-rose-900" : "bg-black/10"}`} data-testid="cls-att">{att[s.id]?.status === "P" ? tr("Present", "حاضر") : att[s.id]?.status === "L" ? tr("Late", "متأخر") : att[s.id]?.status === "A" ? tr("Absent", "غائب") : att[s.id]?.status === "E" ? tr("Excused", "بعذر") : tr("Not marked", "غير مسجّل")}</span>}
@@ -146,6 +175,7 @@ export function LmsClassesPage() {
                   <span className="h-1.5 w-full overflow-hidden rounded-full bg-black/10"><span className="block h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${Math.max(0, Math.round((s.points / maxPts) * 100))}%` }} /></span>
                   {flash[s.id] !== undefined && <span className={`pointer-events-none absolute -top-2 end-3 rounded-full px-2 py-0.5 text-sm font-extrabold text-white shadow ${flash[s.id] > 0 ? "bg-emerald-500" : "bg-rose-500"}`}>{flash[s.id] > 0 ? "+" : ""}{flash[s.id]}</span>}
                 </button>
+                {attMode && <button type="button" className="absolute end-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-white/90 text-base font-black shadow dark:bg-[#13202e]" onClick={() => { setAttFor(s); setReason(att[s.id]?.note || ""); }} aria-label={tr(`Late / Absent for ${s.name}`, `متأخر / غائب: ${s.name}`)} title={tr("Late / Absent + reason", "متأخر / غائب + السبب")} data-testid="cls-att-more">⋯</button>}
                 <div className="absolute start-2 top-2 flex gap-1 opacity-0 transition group-hover:opacity-100 focus-within:opacity-100 max-sm:opacity-100">
                   <button type="button" title={tr("New avatar", "صورة جديدة")} aria-label={tr("New avatar", "صورة جديدة")} className="grid h-7 w-7 place-items-center rounded-full bg-white/90 text-xs shadow dark:bg-[#13202e]" onClick={() => lmsApi.userAvatar(s.id).then((r) => setRoster((rs) => (rs || []).map((x) => (x.id === s.id ? { ...x, avatar: r.avatar } : x))))} data-testid="cls-reroll">🎲</button>
                   <button type="button" title={tr("Email parent report", "إرسال تقرير لولي الأمر")} aria-label={tr("Email report", "إرسال تقرير")} className="grid h-7 w-7 place-items-center rounded-full bg-white/90 text-xs shadow dark:bg-[#13202e]" onClick={() => setEmailFor(s)} data-testid="cls-email">✉️</button>
@@ -180,11 +210,20 @@ export function LmsClassesPage() {
           <label className="mt-3 block text-sm font-bold">{tr("Reason (for Late / Absent)", "السبب (للتأخر / الغياب)")}<input className="mt-1 w-full rounded-xl border border-black/10 bg-white px-3 py-2 dark:border-white/15 dark:bg-white/5" value={reason} onChange={(e) => setReason(e.target.value)} maxLength={200} dir="auto" placeholder={tr("e.g. Doctor appointment", "مثال: موعد طبي")} data-testid="att-reason" /></label>
         </Modal>
       )}
+      {launch && (
+        <Modal onClose={() => setLaunch(null)} label={tr(launch[2], launch[3])}>
+          <p className="mb-3 text-lg font-extrabold"><span aria-hidden>{launch[1]}</span> {tr(launch[2], launch[3])}</p>
+          <div className="grid gap-2" data-testid="launch">
+            <button type="button" disabled={!shown.length} className="rounded-2xl bg-sun px-4 py-4 text-start font-extrabold text-[#0b1b2b] disabled:opacity-50" onClick={() => startClass(launch[0], launch[2])} data-testid="launch-class">👥 {tr(`Start with ${viewName}`, `ابدأ مع ${viewName}`)}<span className="block text-xs font-semibold opacity-75">{launch[0] === "wheel" || launch[0] === "randomiser" ? tr(`${shown.length} names loaded`, `${shown.length} اسمًا`) : launch[0] === "wall" ? tr("Opens this class's wall", "يفتح جدار هذا الصف") : tr(`${shown.length} students join automatically`, `${shown.length} طالبًا ينضمون تلقائيًا`)}</span></button>
+            <button type="button" className="rounded-2xl bg-header px-4 py-4 text-start font-extrabold text-white" onClick={() => startRandom(launch[0])} data-testid="launch-random">🙋 {tr("Start with random people", "ابدأ مع أشخاص عشوائيين")}<span className="block text-xs font-semibold opacity-75">{tr("Show a code / QR — people join with the Join button on the website", "اعرض رمزًا / QR — ينضم الأشخاص بزر انضم في الموقع")}</span></button>
+          </div>
+        </Modal>
+      )}
       <nav className="fixed inset-x-0 bottom-0 z-[2000] border-t border-black/10 bg-white/95 pe-2 ps-[5.75rem] pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-6px_24px_rgba(0,0,0,0.08)] backdrop-blur dark:border-white/10 dark:bg-[#0f1f30]/95" aria-label={tr("Classroom tools", "أدوات الصف")} data-testid="cls-tray">
         <div className="mx-auto flex max-w-5xl items-stretch gap-1 overflow-x-auto">
           <button type="button" aria-pressed={attMode} onClick={() => setAttMode(!attMode)} className={`flex min-w-[4.5rem] flex-1 flex-col items-center gap-0.5 rounded-2xl px-2 py-1.5 text-[11px] font-bold ${attMode ? "bg-header text-white" : "hover:bg-sun/40"}`} data-testid="tray-att"><span className="text-3xl" aria-hidden>📋</span>{tr("Attendance", "الحضور")}</button>
           {([["wheel", "🎡", "Spin", "العجلة"], ["randomiser", "🎲", "Randomiser", "اختيار عشوائي"], ["wall", "🧱", "Wall", "الجدار"], ["wordcloud", "☁️", "Word cloud", "سحابة كلمات"], ["poll", "📊", "Poll", "استطلاع"], ["survey", "📝", "Survey", "استبيان"], ["tps", "💭", "Think-Pair-Share", "فكّر-زاوج-شارك"], ["vote", "🗳️", "Vote", "تصويت"]] as const).map(([t, ic, en, ar]) => (
-            <a key={t} href={`/lms/activities#t=${t}`} className="flex min-w-[4.5rem] flex-1 flex-col items-center gap-0.5 rounded-2xl px-2 py-1.5 text-center text-[11px] font-bold hover:bg-sun/40" data-testid={`tray-${t}`}><span className="text-3xl" aria-hidden>{ic}</span>{tr(en, ar)}</a>
+            <button type="button" key={t} onClick={() => setLaunch([t, ic, en, ar])} className="flex min-w-[4.5rem] flex-1 flex-col items-center gap-0.5 rounded-2xl px-2 py-1.5 text-center text-[11px] font-bold hover:bg-sun/40" data-testid={`tray-${t}`}><span className="text-3xl" aria-hidden>{ic}</span>{tr(en, ar)}</button>
           ))}
           <a href="/lms/assessments" className="flex min-w-[4.5rem] flex-1 flex-col items-center gap-0.5 rounded-2xl px-2 py-1.5 text-[11px] font-bold hover:bg-sun/40" data-testid="tray-assess"><span className="text-3xl" aria-hidden>🧩</span>{tr("Assessments", "التقييمات")}</a>
         </div>
@@ -363,8 +402,8 @@ export function LmsResultsPage() {
     if (!(await dlGrant("export"))) return;
     const ExcelJS = (await import("exceljs")).default;
     const wb = new ExcelJS.Workbook(); const ws = wb.addWorksheet("Results");
-    ws.columns = [["Assessment", 30], ["Mode", 11], ["Student", 24], ["Score", 8], ["Max", 8], ["%", 7], ["Correct", 9], ["Wrong", 8], ["Rank", 7], ["Finished", 20]].map(([header, width]) => ({ header: String(header), width: Number(width) }));
-    list.forEach((r) => ws.addRow([r.quizTitle, r.kind, r.name, r.score, r.maxScore, r.percentage, r.correct, r.wrong, r.rank ?? "", new Date(r.finishedAt).toISOString().slice(0, 16).replace("T", " ")]));
+    ws.columns = [["Assessment", 30], ["Mode", 11], ["Student", 24], ["Score", 8], ["Max", 8], ["%", 7], ["Level (1–4)", 11], ["Tracker level", 18], ["Correct", 9], ["Wrong", 8], ["Rank", 7], ["Finished", 20]].map(([header, width]) => ({ header: String(header), width: Number(width) }));
+    list.forEach((r) => ws.addRow([r.quizTitle, r.kind, r.name, r.score, r.maxScore, r.percentage, r.level ?? "", r.label ?? "", r.correct, r.wrong, r.rank ?? "", new Date(r.finishedAt).toISOString().slice(0, 16).replace("T", " ")]));
     ws.getRow(1).font = { bold: true };
     const blob = new Blob([await wb.xlsx.writeBuffer()], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "my-assessment-results.xlsx"; a.click();
@@ -381,8 +420,8 @@ export function LmsResultsPage() {
           <button type="button" className={pill} onClick={() => window.print()}>🖨 PDF</button>
         </div>
         {rows === null ? <p className="opacity-70">{tr("Loading…", "جارٍ التحميل…")}</p> : !list.length ? <p className="glass rounded-3xl p-8 text-center opacity-80">{tr("No results yet.", "لا توجد نتائج بعد.")}</p> : (
-          <div className="glass overflow-x-auto rounded-3xl p-2"><table className="w-full text-sm" data-testid="res-table"><thead><tr className="text-xs uppercase opacity-60">{["Assessment", "Mode", "Student", "Score", "%", "Rank", "Finished"].map((h) => <th key={h} className="px-3 py-2 text-start">{h}</th>)}</tr></thead>
-            <tbody>{list.map((r) => <tr key={r.id} className="border-t border-black/5 dark:border-white/10"><td className="px-3 py-1.5">{r.quizTitle}</td><td className="px-3">{r.kind === "group" ? tr("Group", "جماعي") : tr("Individual", "فردي")}</td><td className="px-3" dir="auto">{r.name}</td><td className="px-3">{r.score}/{r.maxScore}</td><td className="px-3 font-bold">{r.percentage}%</td><td className="px-3">{r.rank ?? "—"}</td><td className="px-3 whitespace-nowrap">{fmt(r.finishedAt)}</td></tr>)}</tbody></table></div>
+          <div className="glass overflow-x-auto rounded-3xl p-2"><table className="w-full text-sm" data-testid="res-table"><thead><tr className="text-xs uppercase opacity-60">{["Assessment", "Mode", "Student", "Score", "%", "Level", "Rank", "Finished"].map((h) => <th key={h} className="px-3 py-2 text-start">{h}</th>)}</tr></thead>
+            <tbody>{list.map((r) => <tr key={r.id} className="border-t border-black/5 dark:border-white/10"><td className="px-3 py-1.5">{r.quizTitle}</td><td className="px-3">{r.kind === "group" ? tr("Group", "جماعي") : tr("Individual", "فردي")}</td><td className="px-3" dir="auto">{r.name}</td><td className="px-3">{r.score}/{r.maxScore}</td><td className="px-3 font-bold">{r.percentage}%</td><td className="px-3" data-testid="res-level">{r.level ? <span className="whitespace-nowrap rounded-full bg-sky-100 px-2 py-0.5 text-xs font-extrabold text-sky-900" title={r.label}>L{r.level} · {r.label}</span> : "—"}</td><td className="px-3">{r.rank ?? "—"}</td><td className="px-3 whitespace-nowrap">{fmt(r.finishedAt)}</td></tr>)}</tbody></table></div>
         )}
       </div>)}
     </Gate>

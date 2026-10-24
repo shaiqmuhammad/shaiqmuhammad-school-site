@@ -178,7 +178,11 @@ export function WallBoard({ asAdmin = false }: { asAdmin?: boolean }) {
       // Defensive de-duplication by key (and by label for the same kind), so a name can never be listed twice.
       const seen = new Set<string>();
       const items = r.items.filter((c) => { const k = c.key, l = `${c.group ? "g" : "c"}|${c.label.trim().toLowerCase()}`; if (seen.has(k) || seen.has(l)) return false; seen.add(k); seen.add(l); return true; });
-      setClasses(items); setCanPost(r.canPost); setSel((s) => (s.length ? s : items[0] ? [items[0].key] : [])); if (!items.length) setPosts([]);
+      setClasses(items); setCanPost(r.canPost);
+      // t304: My classes → Wall → "Start with this class" opens that class's wall (#k=<key>).
+      const hk = /#k=([^&]+)/.exec(window.location.hash); const want = hk ? decodeURIComponent(hk[1]) : "";
+      const hit = want ? items.filter((c) => c.key === want || c.key.startsWith(want + "|")).map((c) => c.key) : [];
+      setSel((s) => (hit.length ? [hit[0]] : s.length ? s : items[0] ? [items[0].key] : [])); if (!items.length) setPosts([]);
     }).catch((e) => setErr(lmsErrorText(e, tr)));
   }, [on, tr]);
   // t283 shared admin filter: groups with a student in scope (or of that subject/teacher), classes with students in scope.

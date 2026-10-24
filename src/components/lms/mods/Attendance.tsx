@@ -1,5 +1,6 @@
 "use client";
 
+import { TimetableManager } from "@/components/lms/Timetable";
 import { DlGate } from "@/components/lms/DlGate";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLmsActor, useTr } from "@/components/lms/useLms";
@@ -20,15 +21,17 @@ export function Attendance({ asAdmin }: { asAdmin: boolean }) {
   const { tr } = useTr();
   const { actor } = useLmsActor();
   const perm = modPerm(actor?.perms, asAdmin, "att");
-  const [tab, setTab] = useState<"register" | "reports" | "overview" | "timetable" | "settings">("register");
+  const [tab, setTab] = useState<"register" | "history" | "reports" | "overview" | "timetable" | "settings">("register");
+  useEffect(() => { if (window.location.hash === "#history") setTab("history"); }, []);
   return (
     <div data-testid="attendance" className="space-y-1">
       <Head hide={asAdmin} icon="🗓️" title={tr("Attendance Register", "سجل الحضور")} sub={tr("Take the register per class, date and period; see attendance % and who needs attention.", "سجّل الحضور لكل صف وتاريخ وحصة، وراقب النسب ومن يحتاج متابعة.")} />
-      <Tabs testId="att-tabs" value={tab} onChange={setTab} items={[["register", tr("Register", "التسجيل")], ["reports", tr("Reports", "التقارير")], ["overview", tr("Overview", "نظرة عامة")], ["timetable", tr("Timetable", "الجدول")], ...(asAdmin ? [["settings", tr("Settings", "الإعدادات")] as ["settings", string]] : [])]} />
+      <Tabs testId="att-tabs" value={tab} onChange={setTab} items={[["register", tr("Register", "التسجيل")], ["history", tr("History", "السجل")], ["reports", tr("Reports", "التقارير")], ["overview", tr("Overview", "نظرة عامة")], ["timetable", tr("Timetable", "الجدول")], ...(asAdmin ? [["settings", tr("Settings", "الإعدادات")] as ["settings", string]] : [])]} />
       {tab === "register" && <Register asAdmin={asAdmin} canEdit={perm.edit} />}
+      {tab === "history" && <History asAdmin={asAdmin} />}
       {tab === "reports" && <Reports asAdmin={asAdmin} />}
       {tab === "overview" && <Overview asAdmin={asAdmin} />}
-      {tab === "timetable" && <Timetable asAdmin={asAdmin} />}
+      {tab === "timetable" && <TimetableManager asAdmin={asAdmin} />}
       {tab === "settings" && asAdmin && <><Settings /><PeriodTimes /></>}
     </div>
   );
@@ -282,46 +285,45 @@ function PeriodTimes() {
   );
 }
 
-/** t302: timetable area — admin adds lessons (weekday, period, class, teacher, subject, phase, department); teachers see their own. Filter by phase / department / teacher / subject. */
-function Timetable({ asAdmin }: { asAdmin: boolean }) {
+
+/** t304: register history — every register taken for a class in a date range (student × day/period), with the reason on hover. */
+function History({ asAdmin }: { asAdmin: boolean }) {
   const { tr } = useTr();
-  const [d, setD] = useState<AttTimes | null>(null);
-  const [f, setF] = useState({ phase: "", dept: "", teacher: "", subject: "" });
-  const [nw, setNw] = useState({ dow: 1, period: "P1", cls: "", section: "", teacher: "", subject: "", phase: "", dept: "" });
+  const { groups, students } = useRoster(asAdmin);
+  const [g, setG] = useState("");
+  const [to, setTo] = useState(todayStr());
+  const [from, setFrom] = useState(addDays(todayStr(), -13));
+  const [one, setOne] = useState("");
+  const [data, setData] = useState<{ cols: string[]; students: { id: string; name: string }[]; grid: Record<string, Record<string, { s: string; n: string }>> } | null>(null);
   const [msg, setMsg] = useState("");
-  const load = useCallback(() => { modCall<AttTimes>("att-times", {}, asAdmin).then(setD).catch((e) => setMsg(modErr(e, tr))); }, [asAdmin, tr]);
-  useEffect(() => { load(); }, [load]);
-  const rows = (d?.timetable || []).filter((r) => (!f.phase || r.phase === f.phase) && (!f.dept || r.dept === f.dept) && (!f.teacher || r.teacher === f.teacher) && (!f.subject || r.subject === f.subject));
-  const uniq = (k: "phase" | "dept" | "subject") => [...new Set((d?.timetable || []).map((r) => r[k]).filter(Boolean))].sort();
-  const add = async () => { try { await modCall("att-tt-save", nw, true); setMsg(tr("Added.", "تمت الإضافة.")); load(); } catch (e) { setMsg(modErr(e, tr)); } };
-  const del = async (id: string) => { try { await modCall("att-tt-del", { id }, true); load(); } catch (e) { setMsg(modErr(e, tr)); } };
-  const tm = (p: string) => d?.times[p] ? `${d.times[p].s}–${d.times[p].e}` : "";
+  const cur = g || groups[0]?.key || "";
+  const grp = groups.find((x) => x.key === cur);
+  const pairs = useMemo(() => groupClasses(students, grp?.ids || []).join(","), [students, grp]);
+  useEffect(() => {
+    if (!pairs) return;
+    const ids = new Set(grp?.ids || []);
+    Promise.all(pairs.split(",").map((p) => { const [cls, section] = p.split("|"); return modCall<{ cols: string[]; students: { id: string; name: string }[]; grid: Record<string, Record<string, { s: string; n: string }>> }>("att-history", { cls, section, from, to }, asAdmin); }))
+      .then((rs) => setData({ cols: [...new Set(rs.flatMap((r) => r.cols))].sort(), students: rs.flatMap((r) => r.students).filter((x) => !ids.size || ids.has(x.id)), grid: Object.assign({}, ...rs.map((r) => r.grid)) }))
+      .catch((e) => setMsg(modErr(e, tr)));
+  }, [pairs, grp, from, to, asAdmin, tr]);
+  const list = (data?.students || []).filter((x) => !one || x.id === one);
+  const pct = (id: string) => { const v = Object.values(data?.grid[id] || {}); if (!v.length) return "—"; return `${Math.round((v.filter((x) => x.s === "P" || x.s === "L").length / v.length) * 100)}%`; };
   return (
-    <div className="space-y-3" data-testid="att-timetable">
-      {d?.now && <p className="text-sm font-semibold opacity-80" data-testid="tt-now">🕒 {tr(DOW[d.now.dow][0], DOW[d.now.dow][1])} {d.now.hm} {tr("(Dubai)", "(دبي)")} · {d.now.period ? tr(`Now: Period ${d.now.period.slice(1)}`, `الآن: الحصة ${d.now.period.slice(1)}`) : tr("No period running now", "لا توجد حصة الآن")}</p>}
-      <div className="flex flex-wrap gap-2">
-        <select className={field + " w-auto!"} value={f.phase} onChange={(e) => setF({ ...f, phase: e.target.value })} data-testid="tt-f-phase"><option value="">{tr("All phases", "كل المراحل")}</option>{uniq("phase").map((x) => <option key={x}>{x}</option>)}</select>
-        <select className={field + " w-auto!"} value={f.dept} onChange={(e) => setF({ ...f, dept: e.target.value })} data-testid="tt-f-dept"><option value="">{tr("All departments", "كل الأقسام")}</option>{uniq("dept").map((x) => <option key={x}>{x}</option>)}</select>
-        {asAdmin && <select className={field + " w-auto!"} value={f.teacher} onChange={(e) => setF({ ...f, teacher: e.target.value })} data-testid="tt-f-teacher"><option value="">{tr("All teachers", "كل المعلمين")}</option>{(d?.teachers || []).map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</select>}
-        <select className={field + " w-auto!"} value={f.subject} onChange={(e) => setF({ ...f, subject: e.target.value })} data-testid="tt-f-subject"><option value="">{tr("All subjects", "كل المواد")}</option>{uniq("subject").map((x) => <option key={x}>{x}</option>)}</select>
+    <div className={cardCls} data-testid="att-history">
+      <div className="flex flex-wrap items-end gap-2">
+        <label className="text-sm font-bold">{tr("Class / group", "الصف / المجموعة")}<select className={field} value={cur} onChange={(e) => { setG(e.target.value); setOne(""); }} data-testid="atth-group">{groups.map((x) => <option key={x.key} value={x.key}>{groupLabel(x, tr)}</option>)}</select></label>
+        <label className="text-sm font-bold">{tr("Student", "الطالب")}<select className={field} value={one} onChange={(e) => setOne(e.target.value)} data-testid="atth-student"><option value="">{tr("All", "الكل")}</option>{(data?.students || []).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
+        <label className="text-sm font-bold">{tr("From", "من")}<input type="date" className={field} value={from} onChange={(e) => setFrom(e.target.value)} /></label>
+        <label className="text-sm font-bold">{tr("To", "إلى")}<input type="date" className={field} value={to} onChange={(e) => setTo(e.target.value)} /></label>
+        {data && <button type="button" className={btn} onClick={() => xlsxTable("History", [tr("Student", "الطالب"), ...data.cols.map((c) => c.replace("|", " "))], list.map((x) => [x.name, ...data.cols.map((c) => data.grid[x.id]?.[c] ? data.grid[x.id][c].s + (data.grid[x.id][c].n ? ` (${data.grid[x.id][c].n})` : "") : "")]), `attendance-history-${from}-${to}.xlsx`)} data-testid="atth-xlsx">⬇ Excel</button>}
       </div>
-      {asAdmin && (
-        <div className={cardCls + " grid gap-2 sm:grid-cols-4"} data-testid="tt-add">
-          <select className={field} value={nw.dow} onChange={(e) => setNw({ ...nw, dow: Number(e.target.value) })} aria-label={tr("Day", "اليوم")} data-testid="tt-dow">{DOW.map((x, i) => <option key={i} value={i}>{tr(x[0], x[1])}</option>)}</select>
-          <select className={field} value={nw.period} onChange={(e) => setNw({ ...nw, period: e.target.value })} aria-label={tr("Period", "الحصة")} data-testid="tt-period">{PIDS.map((p) => <option key={p} value={p}>{tr(`Period ${p.slice(1)}`, `الحصة ${p.slice(1)}`)}</option>)}</select>
-          <input className={field} placeholder={tr("Class, e.g. Year 3", "الصف")} value={nw.cls} onChange={(e) => setNw({ ...nw, cls: e.target.value })} data-testid="tt-cls" />
-          <input className={field} placeholder={tr("Section, e.g. A", "الشعبة")} value={nw.section} onChange={(e) => setNw({ ...nw, section: e.target.value })} data-testid="tt-section" />
-          <select className={field} value={nw.teacher} onChange={(e) => { const t = d?.teachers.find((x) => x.id === e.target.value); setNw({ ...nw, teacher: e.target.value, subject: nw.subject || t?.subject || "", phase: nw.phase || t?.phase || "" }); }} aria-label={tr("Teacher", "المعلم")} data-testid="tt-teacher"><option value="">{tr("Teacher…", "المعلم…")}</option>{(d?.teachers || []).map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</select>
-          <input className={field} placeholder={tr("Subject", "المادة")} value={nw.subject} onChange={(e) => setNw({ ...nw, subject: e.target.value })} data-testid="tt-subject" />
-          <input className={field} placeholder={tr("Phase", "المرحلة")} value={nw.phase} onChange={(e) => setNw({ ...nw, phase: e.target.value })} data-testid="tt-phase" />
-          <input className={field} placeholder={tr("Department", "القسم")} value={nw.dept} onChange={(e) => setNw({ ...nw, dept: e.target.value })} data-testid="tt-dept" />
-          <button type="button" className={btnCta + " sm:col-span-4"} onClick={add} data-testid="tt-add-btn">+ {tr("Add lesson", "إضافة حصة")}</button>
-        </div>
+      <Toast msg={msg} bad />
+      {!data ? <p className="py-8 text-center opacity-60">{tr("Loading…", "جارٍ التحميل…")}</p> : !data.cols.length ? <p className="py-8 text-center opacity-60" data-testid="atth-empty">{tr("No registers taken in this range.", "لا توجد سجلات في هذه الفترة.")}</p> : (
+        <div className="mt-3 overflow-x-auto"><table className="min-w-full text-sm" data-testid="atth-table">
+          <thead><tr><th className={th}>{tr("Student", "الطالب")}</th><th className={th}>%</th>{data.cols.map((c) => <th key={c} className={`${th} whitespace-nowrap text-center`}>{c.slice(5, 10)}<br /><span className="opacity-60">{c.split("|")[1]}</span></th>)}</tr></thead>
+          <tbody>{list.map((x) => <tr key={x.id} data-testid="atth-row"><td className={`${td} whitespace-nowrap font-bold`} dir="auto">{x.name}</td><td className={td}>{pct(x.id)}</td>{data.cols.map((c) => { const m = data.grid[x.id]?.[c]; return <td key={c} className={`${td} text-center`} title={m?.n || undefined}>{m ? <span className={`inline-block min-w-[1.6rem] rounded-full border px-1.5 text-xs font-extrabold ${STATUS_CLS[m.s as Status] || ""}`}>{m.s}{m.n ? "*" : ""}</span> : <span className="opacity-30">·</span>}</td>; })}</tr>)}</tbody>
+        </table><p className="mt-2 text-xs opacity-70">{tr("* has a reason — hover to read it.", "* يوجد سبب — مرّر للقراءة.")}</p></div>
       )}
-      <Toast msg={msg} />
-      <div className="overflow-x-auto"><table className="w-full text-sm" data-testid="tt-table"><thead><tr>{[tr("Day", "اليوم"), tr("Period", "الحصة"), tr("Class", "الصف"), tr("Teacher", "المعلم"), tr("Subject", "المادة"), tr("Phase", "المرحلة"), tr("Department", "القسم"), ""].map((h, i) => <th key={i} className={th}>{h}</th>)}</tr></thead>
-        <tbody>{rows.map((r) => <tr key={r.id} className={d?.now.dow === r.dow && d?.now.period === r.period ? "bg-emerald-50 dark:bg-emerald-900/20" : ""} data-testid="tt-row"><td className={td}>{tr(DOW[r.dow][0], DOW[r.dow][1])}</td><td className={td}>{r.period.slice(1)} <span className="opacity-60">{tm(r.period)}</span></td><td className={td}>{r.cls} {r.section}</td><td className={td}>{r.teacherName}</td><td className={td}>{r.subject}</td><td className={td}>{r.phase}</td><td className={td}>{r.dept}</td><td className={td}>{asAdmin && <button type="button" className={btn + " !py-0.5"} onClick={() => del(r.id)} data-testid="tt-del">🗑</button>}</td></tr>)}
-        {!rows.length && <tr><td className={td + " opacity-60"} colSpan={8}>{tr("No lessons yet.", "لا توجد حصص بعد.")}</td></tr>}</tbody></table></div>
     </div>
   );
 }
