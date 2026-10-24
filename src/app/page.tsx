@@ -74,18 +74,18 @@ export default function HomePage() {
           <>
             <div className="mb-8">
               <p className="eyebrow">Resources</p>
-              <h2 className="mt-2 text-2xl font-extrabold tracking-tight">Learning pages</h2>
+              <h2 className="mt-2 text-2xl font-extrabold tracking-tight">Learning Material</h2>
             </div>
             <p className="text-sm text-muted">No published lessons yet.</p>
           </>
         ) : (
           <CardCarousel
-            label="Learning pages"
+            label="Learning Material"
             labelAr="صفحات التعلّم"
             testId="home-lessons-carousel"
             moreHref="/lessons"
             moreTestId="home-lessons-more"
-            heading={<BlockHeading s={sec} eyebrow="Resources" title="Learning pages" />}
+            heading={<BlockHeading s={sec} eyebrow="Resources" title="Learning Material" />}
           >
             {pages.slice(0, sec.count || 9).map((page) => (
               <Link key={page.id} href={`/lessons/${page.slug}`} className="group">

@@ -18,7 +18,7 @@ export default function LessonsPage() {
     <>
       <PageHero
         eyebrow="Lessons"
-        title="Learning pages"
+        title="Learning Material"
         subtitle="Notes, summaries, and guidance from your teacher — read at your own pace."
       />
       <Section>

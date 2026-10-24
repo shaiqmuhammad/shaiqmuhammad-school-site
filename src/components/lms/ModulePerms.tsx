@@ -35,7 +35,7 @@ export function ModulePermsTeacher({ perms, setPerms }: { perms: string[]; setPe
   const { tr } = useTr();
   return (
     <div className="space-y-2 rounded-2xl border border-dashed border-black/15 p-3 dark:border-white/20" data-testid="perm-mp">
-      <p className="text-sm font-bold">🛡️ {tr("Tracker & report modules", "وحدات المتتبع والتقارير")}</p>
+      <p className="text-sm font-bold">🛡️ {tr("Timetable, tracker & report modules — Show/Hide, View, Add, Edit, Delete", "الجدول والمتتبع والتقارير — إظهار/إخفاء، عرض، إضافة، تعديل، حذف")}</p>
       <Grid testPrefix="perm-mp" inherit={tr("Default", "الافتراضي")}
         get={(m, k) => (perms.includes(`mp:${m}:${k}:on`) ? "on" : perms.includes(`mp:${m}:${k}:off`) ? "off" : "")}
         set={(m, k, v) => setPerms([...perms.filter((p) => p !== `mp:${m}:${k}:on` && p !== `mp:${m}:${k}:off`), ...(v ? [`mp:${m}:${k}:${v}`] : [])])} />
@@ -58,7 +58,7 @@ export function ModulePermsGlobal() {
   const save = async () => { try { setCfg((await lmsApi.modpermSave(cfg)).cfg); setMsg(tr("Saved.", "تم الحفظ.")); } catch (e) { setMsg(String((e as Error).message)); } setTimeout(() => setMsg(""), 4000); };
   return (
     <section className="space-y-2 rounded-2xl border border-card-border bg-white/80 p-4 dark:bg-white/5" data-testid="mp-global">
-      <h3 className="font-extrabold">🛡️ {tr("Module permissions — Assessment Tracker, Department Report, Attainment & Progress Report", "صلاحيات الوحدات")}</h3>
+      <h3 className="font-extrabold">🛡️ {tr("Module permissions — Timetable, Assessment Tracker, Department Report, Attainment & Progress Report", "صلاحيات الوحدات")}</h3>
       <p className="text-xs opacity-70">{tr("Order: global → role → subject → each teacher (Teachers › Permissions). Admin always has full access.", "الترتيب: عام ← الدور ← المادة ← المعلم. للمدير وصول كامل.")}</p>
       <label className="text-xs font-bold">{tr("Apply to", "تطبيق على")} <select className={sel + " ms-1 !text-sm"} value={layer} onChange={(e) => setLayer(e.target.value)} data-testid="mp-layer">
         <option value="global">{tr("Everyone (global)", "الجميع (عام)")}</option><option value="role:teacher">{tr("Role: Teacher", "الدور: معلم")}</option><option value="role:inspector">{tr("Role: Inspector", "الدور: مفتش")}</option>
