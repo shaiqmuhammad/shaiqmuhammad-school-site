@@ -166,7 +166,7 @@ export async function modHandle(c: ModCtx, action: string, a: Actor, input: Json
     }
     return { status: 200, body: { student: true, canEdit: false, canDelete: false, year: yr, items: rows.map((r) => ({ ...curRow(r), by: "", links: resolveLinks(c, parseLinks(r), me), notes: String(r.notes || "") })) } };
   }
-  if (a.role === "student" && action === "att-times") return ttHandle(c, a, action, input);
+  if (a.role === "student" && (action === "att-times" || (action === "att-times-save" && input.lead !== undefined && !input.times))) return ttHandle(c, a, action, input);
   if (a.role !== "admin" && a.role !== "teacher") return forbid();
   switch (action) {
     // ---------------- Attendance ----------------
@@ -531,7 +531,8 @@ export const ttFor = (r: TtRow, cls: string, section: string) => r.cls === cls &
 const dubaiNow = () => { const d = new Date(Date.now() + 4 * 3600e3); return { dow: d.getUTCDay(), hm: d.toISOString().slice(11, 16), day: d.toISOString().slice(0, 10) }; };
 function ttHandle(c: ModCtx, a: Actor, action: string, input: Json): { status: number; body: Json } {
   const sql = c.sql;
-  const acc = c.mp ? c.mp(a, "tt") : { show: true, view: true, add: a.role === "admin", edit: a.role === "admin", delete: a.role === "admin" };
+  const acc0 = c.mp ? c.mp(a, "tt") : { show: true, view: true, add: a.role === "admin", edit: a.role === "admin", delete: a.role === "admin" };
+  const acc = a.role === "student" ? { ...acc0, add: false, edit: false, delete: false } : acc0;
   if (action === "att-times") {
     if (!acc.view) return { status: 403, body: { error: "module_hidden" } };
     const times = ttTimes(sql), now = dubaiNow();
