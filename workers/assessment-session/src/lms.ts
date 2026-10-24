@@ -42,6 +42,7 @@ import { DurableObject } from "cloudflare:workers";
 import { corsHeaders, reply, verifyToken, type AdminEnv } from "./admin";
 import { fetchParentReplies, sendAuto, sendParentMail, type MailEnv } from "./mail/mailbox";
 import { ttFor, ttRows, ttSE, ttShared, ttTimes } from "./lmsmods";
+import { pageHandle, pagesInit } from "./lpages";
 import { initMods, modHandle, pubQuizzes, tquizTopics, today as modToday } from "./lmsmods";
 import { reportHandle } from "./reports";
 import { packHandle, packInit, packSweep, type PackCtx } from "./packs";
@@ -233,6 +234,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     this.sql.exec(`CREATE TABLE IF NOT EXISTS catalog (id TEXT PRIMARY KEY, kind TEXT, name TEXT, parent TEXT DEFAULT '', ord INTEGER DEFAULT 0)`);
     initMods(this.sql);
     packInit(this.sql as never);
+    pagesInit(this.sql as never);
     const cols = (t: string) => new Set(this.sql.exec(`PRAGMA table_info(${t})`).toArray().map((r) => String(r.name)));
     const uc = cols("users");
     for (const [c, def] of [["section", "TEXT DEFAULT ''"], ["subjects", "TEXT DEFAULT '[]'"], ["scope", "TEXT DEFAULT '[]'"], ["pin_enc", "TEXT"], ["qr_token", "TEXT"]] as const) if (!uc.has(c)) this.sql.exec(`ALTER TABLE users ADD COLUMN ${c} ${def}`);
@@ -825,6 +827,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
       return trackerHandle({ sql: this.sql as never, inScope: (x, c2, s2, i) => this.inScope(x, c2, s2, i), homework: () => this.allHomework().map((h) => ({ id: h.id, kind: h.kind })),
         tagged: (ids, qids) => { const k = ids.join(",") + "/" + qids.join(","); if (!memo.has(k)) memo.set(k, RES ? (RES.get(RES.idFromName("main")) as unknown as { scTagged(i: string[], q: string[]): Promise<unknown> }).scTagged(ids, qids) : Promise.resolve([])); return memo.get(k) as never; } }, a, action, input);
     }
+    if (/^pg-/.test(action)) return pageHandle({ sql: this.sql as never, acc: (x) => mpOf(this.sql as never, x as never, "lp"), subjectsOf: (uid) => { try { return JSON.parse(String(this.userRow("id=?", uid)?.subjects || "[]")) as string[]; } catch { return []; } } }, a as never, action, input);
     if (/^lp-/.test(action)) return packHandle(this.packCtx(), a as never, action, input);
     if (action === "att-tt-shared") return { status: 200, body: { shared: ttShared(this.sql as never, a as never) } };
     if (/^(att|beh|cur)-/.test(action) || action === "quiz-topics-sync") return modHandle({ sql: this.sql, hwList: () => this.allHomework().map((h) => ({ id: h.id, title: h.title, kind: h.kind, cls: h.cls, section: h.section, students: h.students, createdBy: h.createdBy })), inScope: (x, c, s, i) => this.inScope(x, c, s, i), userRow: (w, g) => this.userRow(w, g), mp: (x, m) => mpOf(this.sql as never, x, m), ttChanged: () => { this.ctx.waitUntil(this.planTT()); }, notify: (u, k, d) => this.notify(u, k, d), canReach: (x, ids) => this.packCtx().inScopeIds(x as never, ids.filter((i) => String(this.userRow("id=?", i)?.role || "") === "student")) }, action, a, input);
@@ -2763,7 +2766,7 @@ export async function handleLms(request: Request, env: LmsEnv, action: string): 
   let body: Json = {};
   if (request.method === "POST") {
     const text = await request.text();
-    if (text.length > (action === "std-doc-save" ? 14_500_000 : action === "wall-post" ? 2_200_000 : /^lp-(save|work-save)$/.test(action) ? 950_000 : 200_000)) return reply(origin, { error: "too_large" }, 413);
+    if (text.length > (action === "std-doc-save" ? 14_500_000 : action === "wall-post" ? 2_200_000 : /^(lp-(save|work-save)|pg-(save|import))$/.test(action) ? 950_000 : 200_000)) return reply(origin, { error: "too_large" }, 413);
     try {
       body = JSON.parse(text || "{}") as Json;
     } catch {
