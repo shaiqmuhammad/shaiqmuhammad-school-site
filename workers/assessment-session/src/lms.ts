@@ -41,7 +41,7 @@ import { buildFeedback, fromGrade, overallOf, parseScores, type Scores } from ".
 import { DurableObject } from "cloudflare:workers";
 import { corsHeaders, reply, verifyToken, type AdminEnv } from "./admin";
 import { fetchParentReplies, sendAuto, sendParentMail, type MailEnv } from "./mail/mailbox";
-import { ttFor, ttRows, ttTimes } from "./lmsmods";
+import { ttFor, ttRows, ttSE, ttTimes } from "./lmsmods";
 import { initMods, modHandle, pubQuizzes, tquizTopics, today as modToday } from "./lmsmods";
 import { reportHandle } from "./reports";
 import { packHandle, packInit, packSweep, type PackCtx } from "./packs";
@@ -97,6 +97,7 @@ const PUSH_TEXT: Record<string, [string, string]> = {
   returned: ["Please try again", "{title}"], feedback: ["Teacher feedback", "{title}"], feedback_audio: ["Voice feedback", "{title}"], mistakes: ["Mistakes marked", "{title}"],
   message: ["New message", "{by}: {title}"], announcement: ["Announcement", "{title}"], reminder: ["Homework reminder", "{title}"], revise: ["Time to revise", "{title}"], test: ["Test notification", "Push notifications are working ✅"],
   lesson: ["Lesson in {mins} min", "{subject} · {cls} at {time}"],
+  tt_shared: ["Timetable shared", "{by}: {title}"],
   lp_new: ["New learning material", "{by}: {title}"], lp_due: ["Due soon", "{title} is due within 24 hours"], lp_feedback: ["Teacher feedback on your slides", "{title}"],
 };
 const DEFAULT_CATS: [string, number, string][] = [["Helping", 1, "🤝"], ["Teamwork", 1, "👥"], ["Recitation", 1, "📖"], ["Respect", 1, "🌟"], ["Hard work", 1, "💪"], ["Off-task", -1, "💤"], ["Disrespect", -1, "⚠️"]];
@@ -619,8 +620,8 @@ export class LmsStore extends DurableObject<LmsEnv> {
     this.sql.exec(`DELETE FROM tt_sent WHERE at < ?`, nowMs - 3 * 864e5);
     const leadOf = (uid: string) => { const r = this.sql.exec(`SELECT v FROM settings WHERE k=?`, `ttlead:${uid}`).toArray()[0]; return r ? Number(r.v) : 5; };
     let sent = 0;
-    for (const r of rows.filter((x) => x.dow === dow && times[x.period]?.s && (!zzOnly || /^zz\./.test(String(this.userRow("id=?", x.teacher)?.username || ""))))) {
-      const [h, m] = times[r.period].s.split(":").map(Number); const start = h * 60 + m;
+    for (const r of rows.map((x) => ({ ...x, st: ttSE(x, times) })).filter((x) => x.dow === dow && x.st.s && (!zzOnly || /^zz\./.test(String(this.userRow("id=?", x.teacher)?.username || ""))))) {
+      const [h, m] = r.st.s.split(":").map(Number); const start = h * 60 + m;
       if (start - mins < 0 || start - mins > 30) continue;
       const studs = this.sql.exec(`SELECT id, username, cls, section FROM users WHERE role='student' AND disabled=0 AND cls=?`, r.cls).toArray().filter((u) => (!zzOnly || /^zz\./.test(String(u.username))) && ttFor(r, String(u.cls || ""), String(u.section || ""))).map((u) => String(u.id));
       for (const uid of [r.teacher, ...studs].filter(Boolean)) {
@@ -629,7 +630,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         const k = `${day}|${r.id}|${uid}`;
         if (this.sql.exec(`SELECT 1 FROM tt_sent WHERE k=?`, k).toArray().length) continue;
         this.sql.exec(`INSERT INTO tt_sent (k, at) VALUES (?, ?)`, k, nowMs);
-        this.notify([uid], "lesson", { subject: r.subject || "Lesson", cls: `${r.cls} ${r.sections.join("")}`.trim(), time: times[r.period].s, period: r.period, mins: lead });
+        this.notify([uid], "lesson", { subject: r.subject || "Lesson", cls: `${r.cls} ${r.sections.join("")}`.trim(), time: r.st.s, period: r.period, mins: lead });
         sent++;
       }
     }
@@ -825,7 +826,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         tagged: (ids, qids) => { const k = ids.join(",") + "/" + qids.join(","); if (!memo.has(k)) memo.set(k, RES ? (RES.get(RES.idFromName("main")) as unknown as { scTagged(i: string[], q: string[]): Promise<unknown> }).scTagged(ids, qids) : Promise.resolve([])); return memo.get(k) as never; } }, a, action, input);
     }
     if (/^lp-/.test(action)) return packHandle(this.packCtx(), a as never, action, input);
-    if (/^(att|beh|cur)-/.test(action) || action === "quiz-topics-sync") return modHandle({ sql: this.sql, hwList: () => this.allHomework().map((h) => ({ id: h.id, title: h.title, kind: h.kind, cls: h.cls, section: h.section, students: h.students, createdBy: h.createdBy })), inScope: (x, c, s, i) => this.inScope(x, c, s, i), userRow: (w, g) => this.userRow(w, g), mp: (x, m) => mpOf(this.sql as never, x, m), ttChanged: () => { this.ctx.waitUntil(this.planTT()); } }, action, a, input);
+    if (/^(att|beh|cur)-/.test(action) || action === "quiz-topics-sync") return modHandle({ sql: this.sql, hwList: () => this.allHomework().map((h) => ({ id: h.id, title: h.title, kind: h.kind, cls: h.cls, section: h.section, students: h.students, createdBy: h.createdBy })), inScope: (x, c, s, i) => this.inScope(x, c, s, i), userRow: (w, g) => this.userRow(w, g), mp: (x, m) => mpOf(this.sql as never, x, m), ttChanged: () => { this.ctx.waitUntil(this.planTT()); }, notify: (u, k, d) => this.notify(u, k, d), canReach: (x, ids) => this.packCtx().inScopeIds(x as never, ids.filter((i) => String(this.userRow("id=?", i)?.role || "") === "student")) }, action, a, input);
     switch (action) {
       case "dl-policy": return { status: 200, body: { audio: this.dlOf(a, "audio"), export: this.dlOf(a, "export") } };
       case "dl-grant": {
@@ -2463,7 +2464,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     switch (action) {
       case "me": return { status: 200, body: { user: { ...a, children: kids } } };
       case "par-children": return { status: 200, body: { children: kids } };
-      case "pin-change": case "dl-policy": case "dl-grant": case "notes": case "notes-read": case "msg-contacts": case "msg-threads": case "msg-thread": case "msg-send":
+      case "att-tt-shared": case "push-prefs": case "pin-change": case "dl-policy": case "dl-grant": case "notes": case "notes-read": case "msg-contacts": case "msg-threads": case "msg-thread": case "msg-send":
         return this.handle(action, a, pass(input));
     }
     const CHILD = new Set(["dashboard", "hw", "assess-list", "cur-list", "ann-list", "wall-classes", "wall-list", "wall-media", "par-att", "par-beh", "par-results"]);

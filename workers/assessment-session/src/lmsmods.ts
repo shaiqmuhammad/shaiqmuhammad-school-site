@@ -18,8 +18,11 @@ export type ModCtx = {
   inScope: (a: Actor, cls: string, section: string, sid?: string) => boolean;
   userRow: (where: string, arg: string) => Record<string, unknown> | undefined;
   /** t304: module permissions (timetable) and a hook to re-plan lesson reminders. */
-  mp?: (a: Actor, mod: "tt") => { show: boolean; view: boolean; add: boolean; edit: boolean; delete: boolean };
+  mp?: (a: Actor, mod: "tt") => { show: boolean; view: boolean; add: boolean; edit: boolean; delete: boolean; share?: boolean; xlsx?: boolean; pdf?: boolean };
   ttChanged?: () => void;
+  /** t317: notifications and "may this teacher reach these people" for sharing. */
+  notify?: (uids: string[], kind: string, data: Json) => void;
+  canReach?: (a: Actor, ids: string[]) => boolean;
 };
 
 const str = (v: unknown, max: number) => String(v ?? "").replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, " ").trim().slice(0, max);
@@ -42,6 +45,9 @@ export function initMods(sql: SqlStorage) {
   sql.exec(`CREATE INDEX IF NOT EXISTS att_day ON att (day, cls)`);
   // t302: timetable rows (weekday 0=Sun..6=Sat, period id P1..P8) per phase / department / teacher / subject / class.
   sql.exec(`CREATE TABLE IF NOT EXISTS tt (id TEXT PRIMARY KEY, dow INTEGER, period TEXT, cls TEXT, section TEXT, teacher TEXT, teacher_name TEXT, subject TEXT, phase TEXT, dept TEXT, at INTEGER)`);
+  // t317: own start/end time and colour per lesson; shared timetables.
+  for (const col of ["s TEXT DEFAULT ''", "e TEXT DEFAULT ''", "color TEXT DEFAULT ''"]) { try { sql.exec(`ALTER TABLE tt ADD COLUMN ${col}`); } catch { /* exists */ } }
+  sql.exec(`CREATE TABLE IF NOT EXISTS ttshare (id TEXT PRIMARY KEY, by TEXT, by_name TEXT, title TEXT, rows TEXT, recips TEXT, at INTEGER)`);
   sql.exec(`CREATE TABLE IF NOT EXISTS beh (id TEXT PRIMARY KEY, student TEXT, cls TEXT, section TEXT, day TEXT, kind TEXT, category TEXT, severity INTEGER DEFAULT 1, note TEXT DEFAULT '', action TEXT DEFAULT '', follow TEXT DEFAULT 'none', follow_note TEXT DEFAULT '', sensitive INTEGER DEFAULT 0, by TEXT, by_name TEXT, at INTEGER, updated INTEGER)`);
   sql.exec(`CREATE INDEX IF NOT EXISTS beh_student ON beh (student, day)`);
   sql.exec(`CREATE TABLE IF NOT EXISTS cur (id TEXT PRIMARY KEY, subject TEXT, yr TEXT, term TEXT, title TEXT, objectives TEXT DEFAULT '', lessons TEXT DEFAULT '[]', resources TEXT DEFAULT '[]', wk_from INTEGER DEFAULT 0, wk_to INTEGER DEFAULT 0, status TEXT DEFAULT 'planned', quiz TEXT DEFAULT '', page TEXT DEFAULT '', ord INTEGER DEFAULT 0, by_name TEXT, updated INTEGER)`);
@@ -250,6 +256,7 @@ export async function modHandle(c: ModCtx, action: string, a: Actor, input: Json
     case "att-times-save": return ttHandle(c, a, "att-times-save", input);
     case "att-tt-save": return ttHandle(c, a, "att-tt-save", input);
     case "att-tt-del": return ttHandle(c, a, "att-tt-del", input);
+    case "att-tt-share": case "att-tt-unshare": case "att-tt-shared": return ttHandle(c, a, action, input);
     case "att-history": {
       // t304: register history for a class: one row per student, one column per (day, period) taken in the range.
       if (!modCan(a, "att", "view")) return forbid();
@@ -518,20 +525,27 @@ function curUpsert(c: ModCtx, a: Actor, subs: string[], input: Json): { id?: str
 
 // ---------------- t302/t304 Timetable ----------------
 const PIDS = ["P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8"];
-export type TtRow = { id: string; dow: number; period: string; cls: string; sections: string[]; teacher: string; teacherName: string; subject: string; phase: string; dept: string };
+export type TtRow = { id: string; dow: number; period: string; cls: string; sections: string[]; teacher: string; teacherName: string; subject: string; phase: string; dept: string; s: string; e: string; color: string };
+/** t317: a lesson's own times win over its period's saved times. */
+export const ttSE = (r: TtRow, times: Record<string, { s: string; e: string }>) => ({ s: r.s || times[r.period]?.s || "", e: r.e || times[r.period]?.e || "" });
 const secList = (v: unknown) => String(v || "").split(",").map((x) => x.trim()).filter(Boolean);
 export function ttTimes(sql: SqlStorage): Record<string, { s: string; e: string }> {
   try { const raw = sql.exec(`SELECT v FROM settings WHERE k='att:times'`).toArray()[0]; return raw ? JSON.parse(String(raw.v)) : {}; } catch { return {}; }
 }
 export function ttRows(sql: SqlStorage): TtRow[] {
-  return sql.exec(`SELECT * FROM tt ORDER BY dow, period, cls`).toArray().map((r) => ({ id: String(r.id), dow: Number(r.dow), period: String(r.period), cls: String(r.cls), sections: secList(r.section), teacher: String(r.teacher), teacherName: String(r.teacher_name || ""), subject: String(r.subject || ""), phase: String(r.phase || ""), dept: String(r.dept || "") }));
+  return sql.exec(`SELECT * FROM tt ORDER BY dow, s, period, cls`).toArray().map((r) => ({ id: String(r.id), dow: Number(r.dow), period: String(r.period), cls: String(r.cls), sections: secList(r.section), teacher: String(r.teacher), teacherName: String(r.teacher_name || ""), subject: String(r.subject || ""), phase: String(r.phase || ""), s: String(r.s || ""), e: String(r.e || ""), color: String(r.color || ""), dept: String(r.dept || "") }));
 }
 /** Students a lesson is for: its class and (if set) any of its sections. */
+/** t317: timetables shared with this person (and the ones they shared). */
+export function ttShared(sql: SqlStorage, a: Actor) {
+  return sql.exec(`SELECT * FROM ttshare ORDER BY at DESC LIMIT 200`).toArray().filter((r) => a.role === "admin" || String(r.by) === a.id || (JSON.parse(String(r.recips || "[]")) as string[]).includes(a.id)).slice(0, 30)
+    .map((r) => ({ id: String(r.id), by: String(r.by), byName: String(r.by_name || ""), title: String(r.title), rows: JSON.parse(String(r.rows || "[]")), n: (JSON.parse(String(r.recips || "[]")) as unknown[]).length, mine: String(r.by) === a.id, at: Number(r.at) }));
+}
 export const ttFor = (r: TtRow, cls: string, section: string) => r.cls === cls && (!r.sections.length || r.sections.includes(section));
 const dubaiNow = () => { const d = new Date(Date.now() + 4 * 3600e3); return { dow: d.getUTCDay(), hm: d.toISOString().slice(11, 16), day: d.toISOString().slice(0, 10) }; };
 function ttHandle(c: ModCtx, a: Actor, action: string, input: Json): { status: number; body: Json } {
   const sql = c.sql;
-  const acc0 = c.mp ? c.mp(a, "tt") : { show: true, view: true, add: a.role === "admin", edit: a.role === "admin", delete: a.role === "admin" };
+  const acc0 = c.mp ? c.mp(a, "tt") : { show: true, view: true, add: a.role === "admin", edit: a.role === "admin", delete: a.role === "admin", share: a.role === "admin" };
   const acc = a.role === "student" ? { ...acc0, add: false, edit: false, delete: false } : acc0;
   if (action === "att-times") {
     if (!acc.view) return { status: 403, body: { error: "module_hidden" } };
@@ -540,14 +554,15 @@ function ttHandle(c: ModCtx, a: Actor, action: string, input: Json): { status: n
     const me = a.role === "student" ? c.userRow("id=?", a.id) : undefined;
     const all = ttRows(sql);
     const tt = a.role === "admin" ? all : a.role === "student" ? all.filter((r) => me && ttFor(r, String(me.cls || ""), String(me.section || ""))) : all.filter((r) => r.teacher === a.id);
-    const current = a.role === "admin" ? null : tt.find((r) => r.dow === now.dow && r.period === cur) || null;
+    const current = a.role === "admin" ? null : tt.find((r) => { const t = ttSE(r, times); return r.dow === now.dow && t.s && t.e && t.s <= now.hm && now.hm < t.e; }) || null;
     const staff = a.role === "admin" || (a.role === "teacher" && (acc.add || acc.edit));
     const teachers = staff ? sql.exec(`SELECT id, name, subject, phase FROM users WHERE role='teacher' AND disabled=0 ORDER BY name`).toArray().map((r) => ({ id: String(r.id), name: String(r.name), subject: String(r.subject || ""), phase: String(r.phase || "") })).filter((t) => a.role === "admin" || t.id === a.id) : [];
     const cat = staff ? sql.exec(`SELECT id, kind, name, parent FROM catalog ORDER BY kind, ord, name`).toArray() : [];
     const catalog = { subjects: cat.filter((r) => r.kind === "subject").map((r) => String(r.name)), classes: cat.filter((r) => r.kind === "class").map((r) => ({ id: String(r.id), name: String(r.name), sections: cat.filter((x) => x.kind === "section" && x.parent === r.id).map((x) => String(x.name)) })) };
     const depts = [...new Set([...all.map((r) => r.dept).filter(Boolean), ...((): string[] => { try { return JSON.parse(String(sql.exec(`SELECT v FROM settings WHERE k='tt:depts'`).toArray()[0]?.v || "[]")); } catch { return []; } })()])].sort();
     const pref = sql.exec(`SELECT v FROM settings WHERE k=?`, `ttlead:${a.id}`).toArray()[0];
-    return { status: 200, body: { times, timetable: tt, now: { dow: now.dow, hm: now.hm, period: cur }, current, teachers, catalog, phases: ["EYFS", "Primary", "Secondary"], depts, acc, lead: pref ? Number(pref.v) : 5 } };
+    const shared = ttShared(sql, a);
+    return { status: 200, body: { times, timetable: tt, shared, now: { dow: now.dow, hm: now.hm, period: cur }, current, teachers, catalog, phases: ["EYFS", "Primary", "Secondary"], depts, acc, lead: pref ? Number(pref.v) : 5 } };
   }
   if (action === "att-times-save") {
     if (input.lead !== undefined) {
@@ -565,6 +580,32 @@ function ttHandle(c: ModCtx, a: Actor, action: string, input: Json): { status: n
     c.ttChanged?.();
     return { status: 200, body: { ok: true, times: out } };
   }
+  if (action === "att-tt-shared") return { status: 200, body: { shared: ttShared(sql, a) } };
+  if (action === "att-tt-share") {
+    // t317: publish a copy of the timetable shown (filtered rows) to chosen teachers / students / parents.
+    if (a.viewAs || a.role === "student" || a.role === "parent" || !acc.share) return forbid("tt_share_not_allowed");
+    const ids = new Set((Array.isArray(input.rows) ? input.rows : []).map((x) => str(x, 40)));
+    const all = ttRows(sql).filter((r) => ids.has(r.id) && (a.role === "admin" || r.teacher === a.id || acc.view));
+    if (!all.length) return { status: 400, body: { error: "empty" } };
+    const times = ttTimes(sql);
+    const rows = all.map((r) => ({ ...r, ...ttSE(r, times) }));
+    const kidsP = (Array.isArray(input.parentsOf) ? input.parentsOf : []).map((x) => str(x, 40)).filter(Boolean).slice(0, 2000);
+    if (a.role === "teacher" && c.canReach && kidsP.length && !c.canReach(a, kidsP)) return forbid("out_of_scope");
+    const parents = kidsP.flatMap((k) => sql.exec(`SELECT parent FROM plink WHERE student=?`, k).toArray().map((r) => String(r.parent)));
+    const recips = [...new Set([...(Array.isArray(input.to) ? input.to : []).map((x) => str(x, 40)), ...parents].filter(Boolean))].slice(0, 2000);
+    if (!recips.length) return { status: 400, body: { error: "no_recipients" } };
+    if (a.role === "teacher" && c.canReach && !c.canReach(a, recips)) return forbid("out_of_scope");
+    const id = rid("tts"), title = str(input.title, 160) || "Timetable";
+    sql.exec(`INSERT INTO ttshare (id, by, by_name, title, rows, recips, at) VALUES (?, ?, ?, ?, ?, ?, ?)`, id, a.id, a.name, title, JSON.stringify(rows), JSON.stringify(recips), Date.now());
+    c.notify?.(recips, "tt_shared", { title, by: a.name });
+    return { status: 200, body: { ok: true, id, n: recips.length } };
+  }
+  if (action === "att-tt-unshare") {
+    const r = sql.exec(`SELECT by FROM ttshare WHERE id=?`, str(input.id, 40)).toArray()[0];
+    if (!r || (a.role !== "admin" && String(r.by) !== a.id)) return forbid();
+    sql.exec(`DELETE FROM ttshare WHERE id=?`, str(input.id, 40));
+    return { status: 200, body: { ok: true } };
+  }
   if (a.viewAs || a.role === "student") return forbid();
   const id0 = str(input.id, 40);
   const old = id0 ? sql.exec(`SELECT * FROM tt WHERE id=?`, id0).toArray()[0] : undefined;
@@ -576,16 +617,24 @@ function ttHandle(c: ModCtx, a: Actor, action: string, input: Json): { status: n
   }
   // att-tt-save: add (no id) or edit. Sections: several of the class's sections (comma list; empty = whole class).
   if (old ? !acc.edit || !own(old.teacher) : !acc.add) return forbid();
-  const dows = (Array.isArray(input.dows) ? input.dows : [input.dow]).map((x) => Math.floor(Number(x))).filter((x) => x >= 0 && x <= 6);
+  // t317: days may carry their own start/end ("days": [{dow, s, e}]); otherwise one time for all chosen days.
+  const HM = /^([01]\d|2[0-3]):[0-5]\d$/;
+  const dayList: { dow: number; s: string; e: string }[] = Array.isArray(input.days)
+    ? (input.days as Json[]).map((d) => ({ dow: Math.floor(Number(d.dow)), s: str(d.s, 5), e: str(d.e, 5) }))
+    : (Array.isArray(input.dows) ? input.dows : [input.dow]).map((x) => ({ dow: Math.floor(Number(x)), s: str(input.s, 5), e: str(input.e, 5) }));
+  const days = dayList.filter((d) => d.dow >= 0 && d.dow <= 6).map((d) => (HM.test(d.s) && HM.test(d.e) && d.s < d.e ? d : { ...d, s: "", e: "" }));
+  const dows = days.map((d) => d.dow);
   const period = str(input.period, 4);
-  if (!dows.length || !PIDS.includes(period)) return { status: 400, body: { error: "bad_input" } };
+  const color = /^#[0-9a-f]{6}$/i.test(String(input.color || "")) ? String(input.color) : "";
+  if (!dows.length || !(PIDS.includes(period) || days.every((d) => d.s))) return { status: 400, body: { error: "bad_input" } };
   const tid = a.role === "admin" ? str(input.teacher, 40) : a.id; const tu = tid ? c.userRow("id=? AND role='teacher'", tid) : undefined;
   const sections = (Array.isArray(input.sections) ? input.sections.map((x) => str(x, 40)) : secList(input.section)).filter(Boolean).slice(0, 20);
   const vals = [str(input.cls, 80), sections.join(","), tu ? tid : "", tu ? String(tu.name) : "", str(input.subject, 80), str(input.phase, 40), str(input.dept, 80)];
   const ids: string[] = [];
-  for (const [i, dow] of dows.entries()) {
+  for (const [i, dd] of days.entries()) {
+    const dow = dd.dow;
     const id = i === 0 && old ? id0 : rid("tt");
-    sql.exec(`INSERT INTO tt (id, dow, period, cls, section, teacher, teacher_name, subject, phase, dept, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET dow=excluded.dow, period=excluded.period, cls=excluded.cls, section=excluded.section, teacher=excluded.teacher, teacher_name=excluded.teacher_name, subject=excluded.subject, phase=excluded.phase, dept=excluded.dept, at=excluded.at`, id, dow, period, ...vals, Date.now());
+    sql.exec(`INSERT INTO tt (id, dow, period, cls, section, teacher, teacher_name, subject, phase, dept, at, s, e, color) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET dow=excluded.dow, period=excluded.period, cls=excluded.cls, section=excluded.section, teacher=excluded.teacher, teacher_name=excluded.teacher_name, subject=excluded.subject, phase=excluded.phase, dept=excluded.dept, at=excluded.at, s=excluded.s, e=excluded.e, color=excluded.color`, id, dow, period, ...vals, Date.now(), dd.s, dd.e, color);
     ids.push(id);
   }
   c.ttChanged?.();
