@@ -113,9 +113,10 @@ export function LmsTabs() {
   ];
   const HID: Record<string, string> = { hw: "homework", assess: "assessments", msg: "messaging", wall: "wall", act: "activities", res: "results" };
   const shownT = (t: Tab) => !(HID[t.id] && actor.perms?.includes(`hide:${HID[t.id]}`));
-  const tabs0 = isParent ? [...PARENT, ...acctTab] : staff ? [...TEACHER.slice(0, 3), ...qTab, ...TEACHER.slice(3), ...extra, ...loginsTab, ...acctTab].filter(shownT) : [...STUDENT, ...extra, ...acctTab];
+  // t309: My account is reached from the header avatar, not the side menu (parents keep it).
+  const tabs0 = isParent ? [...PARENT, ...acctTab] : staff ? [...TEACHER.slice(0, 3), ...qTab, ...TEACHER.slice(3), ...extra, ...loginsTab].filter(shownT) : [...STUDENT, ...extra];
   // t304: each student/teacher can reorder or hide rail items (Dashboard and My account always stay).
-  const tabs = isParent ? tabs0 : applyPref(tabs0, uiPrefs.rail, ["dash", "acct"]);
+  const tabs = isParent ? tabs0 : applyPref(tabs0, uiPrefs.rail, ["dash"]);
   const isActive = (t: Tab) => {
     if (t.hash) return path === t.href && hash === t.hash;
     if (t.id === "dash") return path === t.href && !tabs.some((x) => x.href === t.href && x.hash && x.hash === hash);
@@ -145,7 +146,7 @@ export function LmsTabs() {
         })}
         {!isParent && <button type="button" onClick={() => setEditMenu(true)} title={tr("Edit menu", "تعديل القائمة")} className="mt-1 flex w-full flex-col items-center gap-1 rounded-2xl px-1 py-1.5 text-[10px] font-bold text-white/80 hover:bg-white/10" data-testid="rail-edit"><span className="grid h-9 w-9 place-items-center rounded-full bg-white/10 text-lg" aria-hidden>✏️</span>{!slim && <span className="max-md:hidden">{tr("Edit menu", "تعديل القائمة")}</span>}</button>}
       </div>
-      {editMenu && <MenuEditor title={tr("Edit menu", "تعديل القائمة")} items={tabs0.map((t) => ({ id: t.id, label: label(t), icon: EMOJI[t.id] || "⭐" }))} pref={uiPrefs.rail} locked={["dash", "acct"]} onSave={(p) => savePrefs("rail", p)} onClose={() => setEditMenu(false)} tr={tr} />}
+      {editMenu && <MenuEditor title={tr("Edit menu", "تعديل القائمة")} items={tabs0.map((t) => ({ id: t.id, label: label(t), icon: EMOJI[t.id] || "⭐" }))} pref={uiPrefs.rail} locked={["dash"]} onSave={(p) => savePrefs("rail", p)} onClose={() => setEditMenu(false)} tr={tr} />}
     </nav>
   );
 }

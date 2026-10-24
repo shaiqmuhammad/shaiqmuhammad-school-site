@@ -10,7 +10,7 @@ import { CriteriaChart, TrackerEntries } from "@/components/lms/QuranScores";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { DashCarousel, useUnreadMsgs, type Widget } from "@/components/lms/DashWidgets";
-import { LmsStaffToolbar, useMyAvatar } from "@/components/lms/LmsEntry";
+import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
 import { AssessmentShell, primaryBtn } from "@/components/assessment/AssessmentShell";
 import { HomeworkEditor } from "@/components/lms/HomeworkEditor";
 import { Certificates, Leaderboard, LeaderboardSetting, ProgressCard, RevisionList } from "@/components/lms/Progress";
@@ -96,7 +96,6 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
     return () => { mo.disconnect(); clearTimeout(t); };
   }, [actor, staff, tr]);
   const unread = useUnreadMsgs();
-  const myAv = useMyAvatar(String((actor as { avatar?: string } | null)?.avatar || "n0"));
   const { prefs: uiPrefs, save: saveUi } = useUiPrefs();
   const [editTiles, setEditTiles] = useState(false);
   const canAssign = actor?.role === "admin" || actor?.perms.includes("assign");
@@ -113,14 +112,6 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
     >
       <div className="mx-auto w-full max-w-6xl flex-1 space-y-5 px-3 py-5 sm:px-6" data-testid="lms-dashboard">
         {actor && !hwOnly && actor.role !== "parent" && <TodayLessons />}
-        {actor && !hwOnly && (
-          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-header to-[#1d4a6e] px-6 py-6 pe-20 text-white sm:pe-28 shadow-[0_18px_40px_-24px_rgba(10,25,40,0.8)]">
-            <div aria-hidden className="absolute -end-10 -top-10 h-40 w-40 rounded-full bg-sun/30 blur-2xl" />
-            <p className="relative text-2xl font-extrabold !text-white sm:text-3xl" data-testid="lms-hello">{tr("Assalamu alaikum", "السلام عليكم")}, <span dir="auto">{actor.name}</span> 👋</p>
-            <p className="relative mt-1 text-sm text-white/75">{staff ? tr("Here is your class at a glance.", "هذه نظرة سريعة على صفك.") : tr("Keep going — every verse counts.", "استمر — كل آية لها أجر.")}</p>
-            <a href="/lms/account" className="absolute end-3 top-3 block rounded-full ring-4 ring-white/30 transition hover:scale-105 max-sm:scale-75 sm:end-4 sm:top-4" title={tr("Change my character", "تغيير شخصيتي")} data-testid="lms-hero-avatar"><Avatar code={myAv} size={72} /></a>
-          </div>
-        )}
         {actor && !hwOnly && (
           // t303: big friendly shortcuts for students and teachers.
           <>

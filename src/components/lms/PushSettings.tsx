@@ -5,7 +5,8 @@ import { useTr } from "@/components/lms/useLms";
 import { modCall } from "@/lib/lmsMods";
 
 type K = { kind: string; label: string; adminOn: boolean; on: boolean };
-const AR: Record<string, string> = { hw_new: "واجب جديد", sub_new: "تسليم واجب", graded: "تقييم الواجب", approved: "اعتماد الواجب", returned: "أعد المحاولة", feedback: "ملاحظات المعلم", feedback_audio: "ملاحظة صوتية", mistakes: "تحديد الأخطاء", message: "رسالة جديدة", announcement: "إعلان", reminder: "تذكير بالواجب", revise: "وقت المراجعة", test: "إشعار تجريبي" };
+const AR: Record<string, string> = { hw_new: "واجب جديد", sub_new: "تسليم واجب", graded: "تقييم الواجب", approved: "اعتماد الواجب", returned: "أعد المحاولة", feedback: "ملاحظات المعلم", feedback_audio: "ملاحظة صوتية", mistakes: "تحديد الأخطاء", message: "رسالة جديدة", announcement: "إعلان", reminder: "تذكير بالواجب", revise: "وقت المراجعة", test: "إشعار تجريبي", lesson: "تذكير بالحصة" };
+const EN: Record<string, string> = { lesson: "Lesson reminder (timetable)" };
 
 const b64ToU8 = (s: string) => { const t = s.replace(/-/g, "+").replace(/_/g, "/"); const b = atob(t + "===".slice((t.length + 3) % 4)); return Uint8Array.from(b, (c) => c.charCodeAt(0)); };
 
@@ -62,7 +63,7 @@ export function PushSettings({ asAdmin = false }: { asAdmin?: boolean }) {
       <ul className="divide-y divide-black/5 dark:divide-white/10" data-testid="push-kinds">
         {(kinds || []).filter((k) => k.kind !== "test").map((k) => (
           <li key={k.kind} className="flex items-center gap-3 py-2" data-testid="push-kind">
-            <span className="flex-1 text-sm font-semibold">{lang === "ar" ? AR[k.kind] || k.label : k.label}{!k.adminOn && !asAdmin && <span className="ms-2 text-xs opacity-60">({tr("off for everyone", "متوقف للجميع")})</span>}</span>
+            <span className="flex-1 text-sm font-semibold">{lang === "ar" ? AR[k.kind] || k.label : EN[k.kind] || k.label}{!k.adminOn && !asAdmin && <span className="ms-2 text-xs opacity-60">({tr("off for everyone", "متوقف للجميع")})</span>}</span>
             {asAdmin ? sw(k.adminOn, () => load({ kind: k.kind, admin: !k.adminOn }), `push-admin-${k.kind}`, k.label) : sw(k.on && k.adminOn, () => load({ kind: k.kind, on: !k.on }), `push-user-${k.kind}`, k.label, !k.adminOn)}
           </li>
         ))}

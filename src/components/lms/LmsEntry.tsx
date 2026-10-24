@@ -80,16 +80,23 @@ export function LmsStaffToolbar() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage is only readable after hydration
     if (s) setWho({ role: s.user.role, name: s.user.name });
     // t305: the header shows only the user's character / photo (a link to My account); refreshed when they change it.
-    const load = () => { if (s && s.user.role !== "parent") modCall<{ avatar: string }>("my-avatar-kind", {}, false).then((r) => setAv(r.avatar)).catch(() => undefined); };
+    const load = () => { if (s && s.user.role !== "parent") modCall<{ avatar: string; name?: string; nameAr?: string; arabic?: boolean }>("my-avatar-kind", {}, false).then((r) => { setAv(r.avatar); setNm({ en: r.name || "", ar: r.arabic && r.nameAr ? r.nameAr : "" }); }).catch(() => undefined); };
     load(); window.addEventListener("sm-avatar", load);
     return () => window.removeEventListener("sm-avatar", load);
   }, []);
   const [av, setAv] = useState("");
+  const [nm, setNm] = useState<{ en: string; ar: string }>({ en: "", ar: "" });
   const ar = lang === "ar";
   if (typeof window !== "undefined" && viewAs()) return null; // view-as: the banner is the only control (no LMS logout)
+  const fullName = (ar && nm.ar) || nm.en || who?.name || "";
+  const greet = who?.role === "teacher" ? (ar ? `مرحبًا 👋 المعلم ${fullName}` : `Hello 👋 Teacher ${fullName}`) : ar ? `مرحبًا 👋 الطالب ${fullName}` : `Hello 👋 Student ${fullName}`;
   const roleLabel = who?.role === "teacher" ? (ar ? "المعلم" : "Teacher") : who?.role === "parent" ? (ar ? "ولي الأمر" : "Parent") : ar ? "الطالب" : "Student";
   return (
     <div className="flex items-center gap-2">
+      {who && who.role !== "parent" && (
+        // t308: "Hello 👋 Teacher/Student <Full name>" (Arabic: Islamic A students see their Arabic name); the avatar opens My account.
+        <span className="min-w-0 max-w-[9.5rem] truncate text-sm font-bold text-white sm:max-w-[22rem]" dir="auto" title={greet} data-testid="lms-greet">{greet}</span>
+      )}
       {who && (
         <Link href="/lms/account" title={`${ar ? "حسابي" : "My account"} · ${who.name}`} aria-label={`${ar ? "حسابي" : "My account"} — ${roleLabel}: ${who.name}`} className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full bg-white/15 ring-2 ring-white/40 transition hover:scale-105 hover:ring-sun" data-testid="lms-who">
           {av ? <Avatar code={av} size={36} /> : <span aria-hidden>{who.role === "teacher" ? "🧑‍🏫" : who.role === "parent" ? "👨‍👩‍👧" : "🎒"}</span>}
