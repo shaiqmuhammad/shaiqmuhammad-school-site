@@ -42,6 +42,20 @@ export function AdminActivities({ allowed }: { allowed?: string[] } = {}) {
   const [audience, setAudience] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  // t304: "Start with this class" from My classes pre-fills the audience (auto-joined students) and a title.
+  const [preNote, setPreNote] = useState("");
+  useEffect(() => {
+    try {
+      const v = JSON.parse(sessionStorage.getItem("sm-act-prefill") || "null") as { audience?: string[]; title?: string; label?: string } | null;
+      sessionStorage.removeItem("sm-act-prefill");
+      if (!v || !allowed) return;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (v.audience?.length) setAudience(v.audience);
+      if (v.title) setTitle(v.title);
+      if (v.label) setPreNote(v.label);
+    } catch { /* */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const signedIn = Boolean(allowed) || Boolean(getServerSession());
   const [now, setNow] = useState(0);
   const router = useRouter();
@@ -141,6 +155,7 @@ export function AdminActivities({ allowed }: { allowed?: string[] } = {}) {
 
           <ActivityOptionsEditor type={type} options={options} setOptions={setOptions} />
 
+          {allowed && preNote && <p className="rounded-2xl bg-emerald-100 px-4 py-2 text-sm font-bold text-emerald-900" data-testid="act-prefill">👥 {tr(`Starting with ${preNote} — they'll see it on their dashboard and join automatically.`, `البدء مع ${preNote} — سيظهر لهم في لوحتهم وينضمون تلقائيًا.`)}</p>}
           {allowed && <AudiencePicker value={audience} onChange={setAudience} />}
           <fieldset className="flex flex-wrap gap-x-5 gap-y-2 text-sm">
             <legend className="mb-1 text-sm font-semibold">{tr("Settings (can be changed live)", "الإعدادات (يمكن تغييرها أثناء النشاط)")}</legend>

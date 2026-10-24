@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { activityApi, ACTIVITY_LABELS, loadHosted, type HostedActivity } from "@/lib/activity";
+import { activityApi, ACTIVITY_LABELS, loadHosted, saveHosted, type HostedActivity } from "@/lib/activity";
+import { qrSvg } from "@/lib/qrLocal";
 import { RosterLoader } from "@/components/lms/Audience";
 import { useI18n } from "@/lib/i18n";
 
@@ -67,8 +68,48 @@ export function ClassNames({ names, setNames }: { names: string[]; setNames: (n:
     saveNames(list);
   };
 
+  // t304: "Start with random people" — open a join lobby (code + QR, joined via the site's Join button); names arrive live.
+  const [lobby, setLobby] = useState<{ code: string; hostKey: string } | null>(null);
+  const openLobby = async () => {
+    setMsg("");
+    try {
+      const r = await activityApi.create({ type: "wall", title: tr("Join the class list", "انضم إلى قائمة الصف"), prompt: tr("Type your name to join", "اكتب اسمك للانضمام") });
+      saveHosted({ code: r.code, hostKey: r.hostKey, type: "wall", title: r.title, createdAt: r.createdAt, expiresAt: r.expiresAt });
+      setLobby({ code: r.code, hostKey: r.hostKey }); apply([]); setText("");
+    } catch { setMsg(tr("Couldn't open a join code — sign in as a teacher first.", "تعذر فتح رمز الانضمام — سجّل الدخول كمعلم أولًا.")); }
+  };
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("lobby") === "1") openLobby();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (!lobby) return;
+    let stop = false;
+    const tick = async () => {
+      try {
+        const st = await activityApi.state(lobby.code, { hostKey: lobby.hostKey });
+        if (!stop && !("same" in st)) { const list = [...new Set(st.participants.filter((p) => !p.removed).map((p) => p.name))]; setNames(list); saveNames(list); setText(list.join("\n")); }
+      } catch { /* */ }
+    };
+    tick(); const iv = setInterval(tick, 3000);
+    return () => { stop = true; clearInterval(iv); };
+  }, [lobby, setNames]);
+
   return (
     <div className="glass rounded-3xl p-4" data-testid="class-names">
+      {lobby ? (
+        <div className="mb-3 flex flex-wrap items-center gap-4 rounded-2xl bg-sun/30 p-3" data-testid="lobby">
+          <span className="rounded-xl bg-white p-1" dangerouslySetInnerHTML={{ __html: qrSvg(`${window.location.origin}/join?code=${lobby.code}`, 132) }} data-testid="lobby-qr" />
+          <div className="min-w-0">
+            <p className="text-sm font-bold">{tr("Join at shaiqmuhammad.com → Join, code:", "انضم من shaiqmuhammad.com ← انضم، الرمز:")}</p>
+            <p className="font-mono text-4xl font-black tracking-widest" data-testid="lobby-code">{lobby.code}</p>
+            <p className="text-sm">{tr(`${names.length} joined`, `انضم ${names.length}`)}</p>
+            <button type="button" className="mt-1 rounded-full bg-header px-3 py-1 text-xs font-bold text-sun" onClick={() => setLobby(null)} data-testid="lobby-close">{tr("Close joining", "إيقاف الانضمام")}</button>
+          </div>
+        </div>
+      ) : (
+        <button type="button" className="mb-3 rounded-full bg-sun px-4 py-1.5 text-sm font-bold text-[#0b1b2b]" onClick={openLobby} data-testid="lobby-open">🙋 {tr("Start with random people (code / QR)", "ابدأ مع أشخاص عشوائيين (رمز / QR)")}</button>
+      )}
       <label className="block text-sm font-bold" htmlFor="class-names-text">
         {tr("Names (one per line)", "الأسماء (اسم في كل سطر)")} · <span className="tabular-nums">{names.length}</span>
       </label>

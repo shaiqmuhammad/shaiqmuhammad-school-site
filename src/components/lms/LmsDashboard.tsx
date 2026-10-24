@@ -1,4 +1,6 @@
 "use client";
+import { applyPref, MenuEditor, useUiPrefs } from "@/components/lms/MenuPrefs";
+import { TodayLessons } from "@/components/lms/Timetable";
 
 
 import { DlGate } from "@/components/lms/DlGate";
@@ -8,7 +10,7 @@ import { CriteriaChart, TrackerEntries } from "@/components/lms/QuranScores";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { DashCarousel, useUnreadMsgs, type Widget } from "@/components/lms/DashWidgets";
-import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
+import { LmsStaffToolbar, useMyAvatar } from "@/components/lms/LmsEntry";
 import { AssessmentShell, primaryBtn } from "@/components/assessment/AssessmentShell";
 import { HomeworkEditor } from "@/components/lms/HomeworkEditor";
 import { Certificates, Leaderboard, LeaderboardSetting, ProgressCard, RevisionList } from "@/components/lms/Progress";
@@ -94,8 +96,12 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
     return () => { mo.disconnect(); clearTimeout(t); };
   }, [actor, staff, tr]);
   const unread = useUnreadMsgs();
+  const myAv = useMyAvatar(String((actor as { avatar?: string } | null)?.avatar || "n0"));
+  const { prefs: uiPrefs, save: saveUi } = useUiPrefs();
+  const [editTiles, setEditTiles] = useState(false);
   const canAssign = actor?.role === "admin" || actor?.perms.includes("assign");
 
+  const QUICK: string[][] = (staff ? [["/lms/timetable", "⏰", "Timetable", "الجدول", "from-lime-100 to-lime-200"], ["/lms/classes", "🧑‍🏫", "My classes", "صفوفي", "from-sky-100 to-sky-200"], ["/lms/homework", "📚", "Homeworks", "الواجبات", "from-amber-100 to-amber-200"], ["/lms/attendance", "📋", "Attendance", "الحضور", "from-emerald-100 to-emerald-200"], ["/lms/activities", "🎡", "Activities", "الأنشطة", "from-violet-100 to-violet-200"], ["/lms/assessments", "🧩", "Assessments", "التقييمات", "from-rose-100 to-rose-200"], ["/lms/messages", "💬", "Messages", "الرسائل", "from-cyan-100 to-cyan-200"]] : [["/lms/timetable", "⏰", "Timetable", "الجدول", "from-lime-100 to-lime-200"], ["/lms/homework", "✏️", "Homework", "الواجبات", "from-amber-100 to-amber-200"], ["/lms/assessments", "🧩", "Assessments", "التقييمات", "from-rose-100 to-rose-200"], ["/lms/library", "📚", "Libraries", "المكتبات", "from-emerald-100 to-emerald-200"], ["/lms#tracker", "📖", "Quran Tracker", "متابعة الحفظ", "from-sky-100 to-sky-200"], ["/lms/messages", "💬", "Messages", "الرسائل", "from-cyan-100 to-cyan-200"], ["/lms/account", "🦸", "My character", "شخصيتي", "from-violet-100 to-violet-200"]]);
   if (ready && !actor) return <NeedLogin adminElsewhere={adminElsewhere} />;
 
   return (
@@ -106,22 +112,26 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
       toolbar={actor ? <LmsStaffToolbar /> : undefined}
     >
       <div className="mx-auto w-full max-w-6xl flex-1 space-y-5 px-3 py-5 sm:px-6" data-testid="lms-dashboard">
+        {actor && !hwOnly && actor.role !== "parent" && <TodayLessons />}
         {actor && !hwOnly && (
-          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-header to-[#1d4a6e] px-6 py-6 text-white sm:pe-28 shadow-[0_18px_40px_-24px_rgba(10,25,40,0.8)]">
+          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-header to-[#1d4a6e] px-6 py-6 pe-20 text-white sm:pe-28 shadow-[0_18px_40px_-24px_rgba(10,25,40,0.8)]">
             <div aria-hidden className="absolute -end-10 -top-10 h-40 w-40 rounded-full bg-sun/30 blur-2xl" />
             <p className="relative text-2xl font-extrabold !text-white sm:text-3xl" data-testid="lms-hello">{tr("Assalamu alaikum", "السلام عليكم")}, <span dir="auto">{actor.name}</span> 👋</p>
             <p className="relative mt-1 text-sm text-white/75">{staff ? tr("Here is your class at a glance.", "هذه نظرة سريعة على صفك.") : tr("Keep going — every verse counts.", "استمر — كل آية لها أجر.")}</p>
-            <a href="/lms/account" className="absolute end-4 top-4 hidden rounded-full ring-4 ring-white/30 transition hover:scale-105 sm:block" title={tr("Change my character", "تغيير شخصيتي")} data-testid="lms-hero-avatar"><Avatar code={String((actor as { avatar?: string }).avatar || "n0")} size={72} /></a>
+            <a href="/lms/account" className="absolute end-3 top-3 block rounded-full ring-4 ring-white/30 transition hover:scale-105 max-sm:scale-75 sm:end-4 sm:top-4" title={tr("Change my character", "تغيير شخصيتي")} data-testid="lms-hero-avatar"><Avatar code={myAv} size={72} /></a>
           </div>
         )}
         {actor && !hwOnly && (
           // t303: big friendly shortcuts for students and teachers.
-          <nav className="grid grid-cols-3 gap-2 sm:grid-cols-6 sm:gap-3" aria-label={tr("Shortcuts", "اختصارات")} data-testid="lms-quick">
-            {(staff ? [["/lms/classes", "🧑‍🏫", "My classes", "صفوفي", "from-sky-100 to-sky-200"], ["/lms/homework", "📚", "Homeworks", "الواجبات", "from-amber-100 to-amber-200"], ["/lms/attendance", "📋", "Attendance", "الحضور", "from-emerald-100 to-emerald-200"], ["/lms/activities", "🎡", "Activities", "الأنشطة", "from-violet-100 to-violet-200"], ["/lms/assessments", "🧩", "Assessments", "التقييمات", "from-rose-100 to-rose-200"], ["/lms/messages", "💬", "Messages", "الرسائل", "from-cyan-100 to-cyan-200"]]
-              : [["/lms/homework", "✏️", "Homework", "الواجبات", "from-amber-100 to-amber-200"], ["/lms/assessments", "🧩", "Assessments", "التقييمات", "from-rose-100 to-rose-200"], ["/lms/library", "📚", "Libraries", "المكتبات", "from-emerald-100 to-emerald-200"], ["/lms#tracker", "📖", "Quran Tracker", "متابعة الحفظ", "from-sky-100 to-sky-200"], ["/lms/messages", "💬", "Messages", "الرسائل", "from-cyan-100 to-cyan-200"], ["/lms/account", "🦸", "My character", "شخصيتي", "from-violet-100 to-violet-200"]]).map(([href, ic, en, ar, tone]) => (
+          <>
+          <nav className="grid grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-3 lg:grid-cols-7" aria-label={tr("Shortcuts", "اختصارات")} data-testid="lms-quick">
+            {applyPref(QUICK.map(([href, ic, en, ar, tone]) => ({ id: href, href, ic, en, ar, tone })), uiPrefs.tiles).map(({ href, ic, en, ar, tone }) => (
               <a key={href} href={href} className={`flex flex-col items-center gap-1 rounded-3xl bg-gradient-to-br ${tone} px-2 py-3 text-center text-xs font-extrabold text-[#1b2f44] shadow-sm ring-1 ring-black/5 transition hover:-translate-y-0.5 hover:shadow-md sm:text-sm dark:opacity-90`} data-testid="lms-quick-item"><span className="text-3xl sm:text-4xl" aria-hidden>{ic}</span>{tr(en, ar)}</a>
             ))}
           </nav>
+          <div className="-mt-3 flex justify-end"><button type="button" className="rounded-full px-3 py-1 text-xs font-bold opacity-70 hover:opacity-100" onClick={() => setEditTiles(true)} data-testid="tiles-edit">✏️ {tr("Edit shortcuts", "تعديل الاختصارات")}</button></div>
+          {editTiles && <MenuEditor title={tr("Edit shortcuts", "تعديل الاختصارات")} items={QUICK.map(([href, ic, en, ar]) => ({ id: href, label: tr(en, ar), icon: ic }))} pref={uiPrefs.tiles} onSave={(p) => saveUi("tiles", p)} onClose={() => setEditTiles(false)} tr={tr} />}
+          </>
         )}
         {!staff && actor && !hwOnly && <LiveActivityBanner />}
         {dash && !hwOnly && <AnnFeed />}
