@@ -1,6 +1,8 @@
 "use client";
 
+import { SubjectPick } from "@/components/lms/SubjectPick";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { lmsSession } from "@/lib/lms";
 import { AssessmentShell } from "@/components/assessment/AssessmentShell";
 import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
 import { useLmsActor, useTr } from "@/components/lms/useLms";
@@ -83,6 +85,7 @@ export function TimetableManager({ asAdmin }: { asAdmin: boolean }) {
   const { d, err, load } = useTimetable(asAdmin);
   const [f, setF] = useState({ phase: "", dept: "", teacher: "", subject: "", cls: "" });
   const [ed, setEd] = useState<Draft | null>(null);
+  const onTtSubject = useCallback((subject: string) => setEd((e) => (e && e.subject !== subject ? { ...e, subject } : e)), []);
   const [msg, setMsg] = useState("");
   const rows = useMemo(() => (d?.timetable || []).filter((r) => (!f.phase || r.phase === f.phase) && (!f.dept || r.dept === f.dept) && (!f.teacher || r.teacher === f.teacher) && (!f.subject || r.subject === f.subject) && (!f.cls || r.cls === f.cls)), [d, f]);
   if (err) return <p className="rounded-2xl bg-amber-100 px-4 py-3 text-amber-900" data-testid="tt-hidden">{/module_hidden|forbidden/.test(err) ? tr("The timetable is switched off for your account.", "الجدول متوقف لحسابك.") : err}</p>;
@@ -90,6 +93,7 @@ export function TimetableManager({ asAdmin }: { asAdmin: boolean }) {
   const days = [...new Set([1, 2, 3, 4, 5, ...d.timetable.map((r) => r.dow)])].sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7));
   const uniq = (xs: string[]) => [...new Set(xs.filter(Boolean))].sort();
   const subjects = uniq([...d.catalog.subjects, ...d.timetable.map((r) => r.subject)]);
+  const mySubj = lmsSession()?.user.subj || [];
   const classes = d.catalog.classes.length ? d.catalog.classes : uniq(d.timetable.map((r) => r.cls)).map((n) => ({ id: n, name: n, sections: [] as string[] }));
   const canAdd = d.acc.add, canEdit = d.acc.edit, canDel = d.acc.delete;
   const save = async () => {
@@ -139,7 +143,7 @@ export function TimetableManager({ asAdmin }: { asAdmin: boolean }) {
           <label className="text-sm font-bold">{tr("Period (optional — uses its saved times)", "الحصة (اختياري — تستخدم أوقاتها المحفوظة)")}<select className={fld + " mt-1"} value={ed.period} onChange={(e) => setEd({ ...ed, period: e.target.value })} data-testid="tt-period"><option value="">{tr("— own times above —", "— الأوقات أعلاه —")}</option>{PIDS.map((p) => <option key={p} value={p}>{tr(`Period ${p.slice(1)}`, `الحصة ${p.slice(1)}`)}{d.times[p] ? ` (${d.times[p].s}–${d.times[p].e})` : ""}</option>)}</select></label>
           <label className="text-sm font-bold">{tr("Phase", "المرحلة")}<select className={fld + " mt-1"} value={ed.phase} onChange={(e) => setEd({ ...ed, phase: e.target.value })} data-testid="tt-phase"><option value="">—</option>{uniq([...d.phases, ed.phase]).map((x) => <option key={x}>{x}</option>)}</select></label>
           <label className="text-sm font-bold">{tr("Department", "القسم")}<input className={fld + " mt-1"} list="tt-depts" value={ed.dept} onChange={(e) => setEd({ ...ed, dept: e.target.value })} placeholder={tr("Choose or type", "اختر أو اكتب")} data-testid="tt-dept" /><datalist id="tt-depts">{d.depts.map((x) => <option key={x} value={x} />)}</datalist></label>
-          <label className="text-sm font-bold">{tr("Subject", "المادة")}<select className={fld + " mt-1"} value={ed.subject} onChange={(e) => setEd({ ...ed, subject: e.target.value })} data-testid="tt-subject"><option value="">—</option>{uniq([...subjects, ed.subject]).map((x) => <option key={x}>{x}</option>)}</select></label>
+          <label className="text-sm font-bold">{tr("Subject", "المادة")}<SubjectPick className={fld + " mt-1"} value={ed.subject} onChange={onTtSubject} mine={asAdmin ? [] : mySubj} all={subjects} admin={asAdmin} testId="tt-subject" /></label>
           {asAdmin ? <label className="text-sm font-bold">{tr("Teacher", "المعلم")}<select className={fld + " mt-1"} value={ed.teacher} onChange={(e) => { const t = d.teachers.find((x) => x.id === e.target.value); setEd({ ...ed, teacher: e.target.value, subject: ed.subject || t?.subject?.split(",")[0] || "", phase: ed.phase || t?.phase || "" }); }} data-testid="tt-teacher"><option value="">—</option>{d.teachers.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</select></label> : null}
           <label className="text-sm font-bold">{tr("Class", "الصف")}<select className={fld + " mt-1"} value={ed.cls} onChange={(e) => setEd({ ...ed, cls: e.target.value, sections: [] })} data-testid="tt-cls"><option value="">—</option>{uniq([...classes.map((c) => c.name), ed.cls]).map((x) => <option key={x}>{x}</option>)}</select></label>
           <fieldset className="sm:col-span-2"><legend className="text-sm font-bold">{tr("Sections (choose one or more; none = whole class)", "الشعب (واحدة أو أكثر؛ بلا اختيار = الصف كله)")}</legend>

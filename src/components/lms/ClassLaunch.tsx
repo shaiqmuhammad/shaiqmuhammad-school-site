@@ -30,8 +30,10 @@ export function rosterIds(keys: string[], roster: RosterStudent[], groups: Stude
 }
 export const keyLabel = (k: string, groups: StudentGroup[]) => (k.startsWith("g:") ? groups.find((g) => g.id === k.slice(2))?.name || "group" : k.replace("|", " · "));
 
-export function RosterPicker({ value, onChange, roster, groups }: { value: string[]; onChange: (v: string[]) => void; roster: RosterStudent[]; groups: StudentGroup[] }) {
+export function RosterPicker({ value, onChange, roster, groups: allGroups, subject }: { value: string[]; onChange: (v: string[]) => void; roster: RosterStudent[]; groups: StudentGroup[]; subject?: string }) {
   const { tr } = useTr();
+  // t322: only the groups of the chosen subject (groups without a subject always show).
+  const groups = subject ? allGroups.filter((g) => !g.subject || g.subject === subject) : allGroups;
   const years = useMemo(() => [...new Set(roster.map((s) => s.cls).filter(Boolean))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })), [roster]);
   const secs = (y: string) => [...new Set(roster.filter((s) => s.cls === y && s.section).map((s) => s.section))].sort();
   const tog = (k: string) => onChange(value.includes(k) ? value.filter((x) => x !== k) : [...value.filter((x) => !(k.includes("|") ? x === k.split("|")[0] : x.startsWith(k + "|"))), k]);
