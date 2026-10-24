@@ -25,7 +25,7 @@ export default function AdminHomepage({ setStatus, onNeedToken, data, setData }:
   const NAMES: Record<string, [string, string, string]> = {
     banners: ["Banner slider", "شريط اللافتات", "🖼️"], intro: ["Welcome intro", "مقدمة الترحيب", "👋"], lms: ["Student & teacher area card", "بطاقة منطقة الطلاب والمعلمين", "🎒"],
     assessments: ["Assessments slider", "شريط التقييمات", "📝"], libraries: ["Learning libraries", "المكتبات التعليمية", "📚"], teacher: ["Teacher card", "بطاقة المعلم", "🧑‍🏫"],
-    videos: ["Video lessons slider", "شريط دروس الفيديو", "🎬"], lessons: ["Learning pages slider", "شريط صفحات التعلم", "📄"],
+    videos: ["Video lessons slider", "شريط دروس الفيديو", "🎬"], lessons: ["Learning Material slider", "شريط المواد التعليمية", "📄"],
     text: ["Text block", "كتلة نص", "🔤"], imageText: ["Image + text", "صورة + نص", "🖼️"], cta: ["Call to action", "دعوة لإجراء", "📣"], youtube: ["YouTube video", "فيديو يوتيوب", "▶️"], cards: ["Cards grid", "شبكة بطاقات", "🗂️"],
   };
   const nm = (k: string) => tr(NAMES[k]?.[0] || k, NAMES[k]?.[1] || k);

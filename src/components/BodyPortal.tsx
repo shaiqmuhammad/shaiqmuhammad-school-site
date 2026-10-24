@@ -7,5 +7,5 @@ export function BodyPortal({ children }: { children: React.ReactNode }) {
   const [on, setOn] = useState(false);
   // eslint-disable-next-line react-hooks/set-state-in-effect -- document exists only after mount
   useEffect(() => setOn(true), []);
-  return on ? createPortal(children, document.body) : null;
+  return on ? createPortal(<div className="lms-main contents">{children}</div>, document.body) : null;
 }

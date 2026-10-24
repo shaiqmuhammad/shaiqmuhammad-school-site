@@ -417,7 +417,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
         </div>
       )}
 
-      <main className="min-w-0 flex-1">
+      <main className="lms-main min-w-0 flex-1">
         <div className="sticky top-0 z-30 hidden items-center gap-3 border-b border-black/10 bg-white px-6 py-2.5 dark:border-white/10 dark:bg-[#0f1f30] lg:flex" data-testid="admin-toolbar-wrap">
           <GregPill tone="light" />
           <div className="min-w-0 flex-1">{quickStrip()}</div>
