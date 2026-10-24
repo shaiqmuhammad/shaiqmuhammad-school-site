@@ -43,7 +43,7 @@ export function LearningLibrary() {
         </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {BASE.map((c) => (
-            <a key={c.href} href={`#open=${encodeURIComponent(c.href)}`} onClick={(e) => { e.preventDefault(); openCard(tr(c.en, c.ar), c.href, c.src); }} className="group flex items-center gap-4 rounded-3xl bg-white p-4 shadow-sm ring-1 ring-black/5 transition hover:-translate-y-0.5 hover:shadow-lg dark:bg-white/5 dark:ring-white/10" data-testid="lib-card">
+            <a key={c.href} href={c.href.startsWith("/lms/") ? c.href : `#open=${encodeURIComponent(c.href)}`} onClick={(e) => { if (c.href.startsWith("/lms/")) return; e.preventDefault(); openCard(tr(c.en, c.ar), c.href, c.src); }} className="group flex items-center gap-4 rounded-3xl bg-white p-4 shadow-sm ring-1 ring-black/5 transition hover:-translate-y-0.5 hover:shadow-lg dark:bg-white/5 dark:ring-white/10" data-testid="lib-card">
               <span className={`grid h-16 w-16 shrink-0 place-items-center rounded-2xl bg-gradient-to-br ${c.tone} text-3xl shadow-inner`} aria-hidden>{c.icon}</span>
               <span className="min-w-0"><span className="block text-lg font-extrabold" dir="auto">{tr(c.en, c.ar)}</span><span className="block text-sm opacity-70">{tr(c.den, c.dar)}</span></span>
             </a>

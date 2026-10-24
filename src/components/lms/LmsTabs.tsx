@@ -108,6 +108,7 @@ export function LmsTabs() {
     { id: "fcur", href: "/lms/family", hash: "#cur", en: "Curriculum", ar: "المنهج", icon: I.cur, lvl: 0 },
     { id: "att", href: "/lms/family", hash: "#att", en: "Attendance", ar: "الحضور", icon: I.att, lvl: 0 },
     { id: "beh", href: "/lms/family", hash: "#beh", en: "Behaviour", ar: "السلوك", icon: I.beh, lvl: 0 },
+    { id: "tt", href: "/lms/timetable", en: "Timetable", ar: "الجدول", icon: "", lvl: 0 },
     { id: "quran", href: "/lms/family", hash: "#quran", en: "Quran", ar: "القرآن", icon: I.quran, lvl: 0 },
     { id: "wall", href: "/lms/family", hash: "#wall", en: "Class Wall", ar: "جدار الصف", icon: I.wall, lvl: 0 },
     { id: "msg", href: "/lms/messages", en: "Messages", ar: "الرسائل", icon: I.msg, lvl: 0 },

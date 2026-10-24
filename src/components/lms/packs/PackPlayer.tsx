@@ -55,7 +55,7 @@ export function PackPlayer({ id, asAdmin = false, review, preview = false, locke
         <span className="flex-1" />
         <button type="button" className={smallBtn} onClick={() => setFull(!full)} data-testid="lp-full">{full ? "✕" : "⛶"} {full ? tr("Close", "إغلاق") : tr("Full screen", "ملء الشاشة")}</button>
       </div>
-      {editable && <AddTools add={(e) => { const el = withId({ ...e, by: "s" } as Omit<El, "id">); setLayer((l) => [...l, el]); setSel(el.id); }} pen={pen} setPen={setPen} asAdmin={false} teacher={false} onErr={setMsg}
+      {editable && <AddTools add={(e) => { const el = withId({ ...e, ...(e.t === "text" ? { y: Math.min(80, 40 + layer.filter((x) => x.t === "text").length * 8) } : {}), by: "s" } as Omit<El, "id">); setLayer((l) => [...l, el]); setSel(el.id); }} pen={pen} setPen={setPen} asAdmin={false} teacher={false} onErr={setMsg}
         onUndoStroke={() => { const d = draw(); if (d) setLayer((l) => l.map((e) => (e === d ? { ...d, paths: d.paths.slice(0, -1) } : e))); }} onClearDraw={() => { const d = draw(); if (d) setLayer((l) => l.filter((e) => e !== d)); }} />}
       <SlideView slide={s} layer={layer} asAdmin={asAdmin} edit={editable ? "s" : null} selected={sel} onSelect={setSel} pen={editable ? pen : null}
         onMove={(eid, q) => setLayer((l) => l.map((e) => (e.id === eid ? ({ ...e, ...q } as El) : e)))}

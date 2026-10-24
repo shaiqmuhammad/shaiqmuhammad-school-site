@@ -34,7 +34,7 @@ export function PackEditor({ initial, acc, asAdmin, subjects, onClose }: { initi
   const ids = useMemo(() => (keys.length ? rosterIds(keys, roster, groups) : p.students), [keys, roster, groups, p.students]);
   const s = slides[Math.min(cur, slides.length - 1)];
   const setSlide = (fn: (x: Slide) => Slide) => { setSlides((all) => all.map((x, i) => (i === cur ? fn(x) : x))); setDirty(true); };
-  const add = (e: Omit<El, "id">) => { const el = withId(e.t === "text" && arabic ? ({ ...e, font: "Amiri", text: "اكتب هنا" } as Omit<El, "id">) : e); setSlide((x) => ({ ...x, els: [...x.els, el] })); setSel(el.id); };
+  const add = (e0: Omit<El, "id">) => { const n = s.els.filter((x) => x.t !== "draw").length; const e = (e0.t === "text" ? { ...e0, y: Math.min(80, e0.y + n * 6) } : e0) as Omit<El, "id">; const el = withId(e.t === "text" && arabic ? ({ ...e, font: "Amiri", text: "اكتب هنا" } as Omit<El, "id">) : e); setSlide((x) => ({ ...x, els: [...x.els, el] })); setSel(el.id); };
   const patch = (id: string, q: Partial<El>) => setSlide((x) => ({ ...x, els: x.els.map((e) => (e.id === id ? ({ ...e, ...q } as El) : e)) }));
   const draw = () => s.els.find((e) => e.t === "draw") as Extract<El, { t: "draw" }> | undefined;
   const onStroke = (d: number[]) => setSlide((x) => { const dr = x.els.find((e) => e.t === "draw") as Extract<El, { t: "draw" }> | undefined; const path = { c: pen!.c, w: pen!.w, d }; return dr ? { ...x, els: x.els.map((e) => (e === dr ? { ...dr, paths: [...dr.paths, path] } : e)) } : { ...x, els: [...x.els, { id: uid(), t: "draw", x: 0, y: 0, w: 100, h: 100, paths: [path] } as El] }; });
