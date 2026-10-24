@@ -153,7 +153,7 @@ export function AssessmentShell({ title, exitHref = "/assessments", onExit, seco
         )}
       </header>
 
-      <main className={`relative z-10 flex min-w-0 flex-1 flex-col [&>*]:min-w-0 ${rail ? "pt-3 sm:pt-4" : ""}`}>{children}</main>
+      <main className={`lms-main relative z-10 flex min-w-0 flex-1 flex-col [&>*]:min-w-0 ${rail ? "pt-3 sm:pt-4" : ""}`}>{children}</main>
       </div>
     </div>
   );
