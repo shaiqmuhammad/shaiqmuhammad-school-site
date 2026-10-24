@@ -11,7 +11,7 @@ export type DashStudent = { id: string; name: string; cls: string; section: stri
 /** Teacher scope entry: "Year 2" (whole class) or "Year 2|2A" (one section). */
 export const scopeLabel = (s: string) => s.replace("|", " · ");
 /** t292: module permissions (Assessment Tracker, Department Report, Attainment & Progress report). */
-export const MP_MODS = ["trk", "rep", "aps"] as const;
+export const MP_MODS = ["trk", "rep", "aps", "tt"] as const;
 export const MP_KEYS = ["show", "view", "add", "edit", "delete", "xlsx", "pdf", "isams"] as const;
 export type MpMod = (typeof MP_MODS)[number];
 export type MpKey = (typeof MP_KEYS)[number];
@@ -260,7 +260,7 @@ export const lmsApi = {
   reportEmail: (id: string, kind: "points" | "quran", preview: boolean) => call<{ ok?: true; to: string; subject: string; heading: string; paragraphs: string[]; url: string }>("report-email", { id, kind, preview }),
   reportLog: () => call<{ items: { id: string; student: string; kind: string; to: string; by: string; at: number; ok: boolean }[] }>("report-log"),
   reportView: (t: string) => call<ReportView>("report", undefined, { query: { t } }),
-  assessResults: () => call<{ items: { id: string; kind: string; quizTitle: string; name: string; score: number; maxScore: number; percentage: number; correct: number; wrong: number; finishedAt: number; rank: number | null; sessionCode: string | null }[] }>("assess-results"),
+  assessResults: () => call<{ items: { id: string; kind: string; quizTitle: string; name: string; score: number; maxScore: number; percentage: number; level?: number; label?: string; correct: number; wrong: number; finishedAt: number; rank: number | null; sessionCode: string | null }[] }>("assess-results"),
   wallClasses: () => call<{ items: WallClass[]; canPost: boolean }>("wall-classes", undefined, { asAdmin: wallAdmin }),
   /** One wall or several selected group walls merged (a post sent to several of them shows once, with all its groups). */
   wallList: (keys: string | string[]) => call<{ posts: WallPost[]; canModerate: boolean }>("wall-list", Array.isArray(keys) ? { keys } : { key: keys }, { asAdmin: wallAdmin }),

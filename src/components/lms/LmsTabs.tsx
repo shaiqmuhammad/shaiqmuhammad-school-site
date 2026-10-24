@@ -1,4 +1,5 @@
 "use client";
+import { applyPref, MenuEditor, useUiPrefs } from "@/components/lms/MenuPrefs";
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -32,6 +33,7 @@ const STUDENT: Tab[] = [
   { id: "wall", href: "/lms/wall", en: "Class Wall", ar: "جدار الصف", icon: I.wall, lvl: 2 },
   { id: "quran", href: "/lms", hash: "#tracker", en: "Quran Tracker", ar: "متابعة الحفظ", icon: I.quran, lvl: 2 },
   { id: "lib", href: "/lms/library", en: "Learning Libraries", ar: "مكتبات التعلم", icon: I.cur, lvl: 1 },
+  { id: "tt", href: "/lms/timetable", en: "Timetable", ar: "الجدول", icon: I.att, lvl: 2 },
 ];
 const TEACHER: Tab[] = [
   { id: "dash", href: "/lms", en: "Dashboard", ar: "اللوحة", icon: I.dash, lvl: 0 },
@@ -44,7 +46,7 @@ const TEACHER: Tab[] = [
   { id: "res", href: "/lms/results", en: "Results", ar: "النتائج", icon: I.res, lvl: 3 },
 ];
 // Child-friendly look: one emoji per area, each on its own theme-coloured disc.
-const EMOJI: Record<string, string> = { rep: "📈", dash: "🏠", hw: "📝", assess: "✅", msg: "💬", wall: "🧱", quran: "📖", qhw: "📖", cls: "🏫", act: "🎲", res: "📊", att: "🗓️", beh: "🌟", cur: "📚", logins: "🔑", acct: "🙂", stu: "👥", map: "🗺️", pts: "🏆", fcur: "📚", fassess: "✅", corr: "💯" };
+const EMOJI: Record<string, string> = { tt: "⏰", std: "📘", lib: "📚", rep: "📈", dash: "🏠", hw: "📝", assess: "✅", msg: "💬", wall: "🧱", quran: "📖", qhw: "📖", cls: "🏫", act: "🎲", res: "📊", att: "🗓️", beh: "🌟", cur: "📚", logins: "🔑", acct: "🙂", stu: "👥", map: "🗺️", pts: "🏆", fcur: "📚", fassess: "✅", corr: "💯" };
 const DISC = ["bg-sun text-[#0b1b2b]", "bg-[#2e9c8f] text-white", "bg-coral text-[#3b1710]", "bg-[#bfdff3] text-header", "bg-[#cdebe4] text-[#0f4a42]", "bg-[#fde0d9] text-[#6b2b1d]"];
 
 /**
@@ -67,6 +69,8 @@ export function LmsTabs() {
   }, []);
   const toggle = (v: boolean) => { setCol(v); try { localStorage.setItem(mob ? "sm-rail-m" : "sm-rail-d", v ? "1" : "0"); } catch { /* ignore */ } };
   const [path, setPath] = useState("");
+  const { prefs, save: savePrefs } = useUiPrefs();
+  const [editMenu, setEditMenu] = useState(false);
   const [hash, setHash] = useState("");
   useEffect(() => {
     const upd = () => { setPath(window.location.pathname.replace(/\/$/, "") || "/"); setHash(window.location.hash); };
@@ -75,6 +79,7 @@ export function LmsTabs() {
     return () => { window.removeEventListener("hashchange", upd); window.removeEventListener("popstate", upd); };
   }, []);
   if (!ready || !actor || actor.viewAs) return null;
+  const uiPrefs = prefs;
   const isParent = actor.role === "parent";
   const staff = actor.role === "teacher";
   const pm = (m: string) => actor.perms?.includes(`${m}:view`) || actor.perms?.includes(`${m}:edit`) || actor.perms?.includes(`${m}:delete`);
@@ -86,6 +91,8 @@ export function LmsTabs() {
     ...(!staff && !isParent ? [{ id: "cur", href: "/lms/curriculum", en: "Curriculum", ar: "المنهج", icon: I.cur, lvl: 3 } as Tab] : []),
     ...(staff && pm("cur") ? [{ id: "cur", href: "/lms/curriculum", en: "Curriculum", ar: "المنهج", icon: I.cur, lvl: 3 } as Tab] : []),
     ...(staff && qp.show ? [{ id: "map", href: "/lms/map", en: "Quran map", ar: "خريطة القرآن", icon: "", lvl: 3 } as Tab] : []),
+    ...(staff && mpShown(actor, "tt") ? [{ id: "tt", href: "/lms/timetable", en: "Timetable", ar: "الجدول", icon: "", lvl: 3 } as Tab] : []),
+    ...(staff ? [{ id: "std", href: "/lms/standards", en: "Standards book", ar: "كتاب المعايير", icon: "", lvl: 3 } as Tab] : []),
     ...(staff ? [{ id: "pts", href: "/lms/points", en: "Points", ar: "النقاط", icon: "", lvl: 3 } as Tab] : []),
     ...(staff && !actor.perms?.includes("trk:view:off") && mpShown(actor, "trk") ? [{ id: "trk", href: "/lms/tracker", en: "Assessment Tracker", ar: "متتبع التقييم", icon: "", lvl: 3 } as Tab] : []),
     ...(staff && actor.perms?.includes("rep:view") && mpShown(actor, "rep") ? [{ id: "rep", href: "/lms/reports", en: "Department Report", ar: "تقرير القسم", icon: "", lvl: 3 } as Tab] : []),
@@ -106,7 +113,9 @@ export function LmsTabs() {
   ];
   const HID: Record<string, string> = { hw: "homework", assess: "assessments", msg: "messaging", wall: "wall", act: "activities", res: "results" };
   const shownT = (t: Tab) => !(HID[t.id] && actor.perms?.includes(`hide:${HID[t.id]}`));
-  const tabs = isParent ? [...PARENT, ...acctTab] : staff ? [...TEACHER.slice(0, 3), ...qTab, ...TEACHER.slice(3), ...extra, ...loginsTab, ...acctTab].filter(shownT) : [...STUDENT, ...extra, ...acctTab];
+  const tabs0 = isParent ? [...PARENT, ...acctTab] : staff ? [...TEACHER.slice(0, 3), ...qTab, ...TEACHER.slice(3), ...extra, ...loginsTab, ...acctTab].filter(shownT) : [...STUDENT, ...extra, ...acctTab];
+  // t304: each student/teacher can reorder or hide rail items (Dashboard and My account always stay).
+  const tabs = isParent ? tabs0 : applyPref(tabs0, uiPrefs.rail, ["dash", "acct"]);
   const isActive = (t: Tab) => {
     if (t.hash) return path === t.href && hash === t.hash;
     if (t.id === "dash") return path === t.href && !tabs.some((x) => x.href === t.href && x.hash && x.hash === hash);
@@ -123,7 +132,7 @@ export function LmsTabs() {
     <nav className={`sticky top-0 z-40 h-dvh shrink-0 overflow-y-auto overflow-x-hidden bg-header text-white [scrollbar-width:none] ${slim ? "w-[68px]" : "w-[64px] md:w-[108px]"}`} aria-label={tr("Main sections", "الأقسام الرئيسية")} data-testid="lms-tabs" data-collapsed={col ? "1" : "0"}>
       <div className="flex flex-col items-center gap-1 px-1 py-2 md:gap-1.5 md:px-2 md:py-3">
         <button type="button" onClick={() => toggle(!col)} className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white/10 text-sm font-black text-white hover:bg-white/20" aria-label={col ? tr("Expand menu", "توسيع القائمة") : tr("Collapse menu", "طي القائمة")} title={col ? tr("Expand menu", "توسيع القائمة") : tr("Collapse menu", "طي القائمة")} data-testid="lms-rail-toggle"><span className="rtl:rotate-180" aria-hidden>{col ? "»" : "«"}</span></button>
-        <Link href="/" className={`hidden shrink-0 ${slim ? "" : "md:block"}`} aria-label={tr("Home", "الرئيسية")} data-testid="lms-rail-logo"><img src="/logo.svg" alt="" width={52} height={52} className="h-[52px] w-[52px] rounded-full" /></Link>
+        <Link href={isParent ? "/lms/family" : "/lms"} className={`hidden shrink-0 ${slim ? "" : "md:block"}`} aria-label={tr("Home", "الرئيسية")} data-testid="lms-rail-logo"><img src="/logo.svg" alt="" width={52} height={52} className="h-[52px] w-[52px] rounded-full" /></Link>
         {tabs.map((t, i) => {
           const on = isActive(t);
           return (
@@ -134,7 +143,9 @@ export function LmsTabs() {
             </a>
           );
         })}
+        {!isParent && <button type="button" onClick={() => setEditMenu(true)} title={tr("Edit menu", "تعديل القائمة")} className="mt-1 flex w-full flex-col items-center gap-1 rounded-2xl px-1 py-1.5 text-[10px] font-bold text-white/80 hover:bg-white/10" data-testid="rail-edit"><span className="grid h-9 w-9 place-items-center rounded-full bg-white/10 text-lg" aria-hidden>✏️</span>{!slim && <span className="max-md:hidden">{tr("Edit menu", "تعديل القائمة")}</span>}</button>}
       </div>
+      {editMenu && <MenuEditor title={tr("Edit menu", "تعديل القائمة")} items={tabs0.map((t) => ({ id: t.id, label: label(t), icon: EMOJI[t.id] || "⭐" }))} pref={uiPrefs.rail} locked={["dash", "acct"]} onSave={(p) => savePrefs("rail", p)} onClose={() => setEditMenu(false)} tr={tr} />}
     </nav>
   );
 }

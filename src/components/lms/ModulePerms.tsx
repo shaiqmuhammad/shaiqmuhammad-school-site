@@ -4,10 +4,10 @@ import { useTr } from "@/components/lms/useLms";
 import { lmsApi, MP_KEYS, MP_MODS, type MpCfg, type MpKey, type MpMod, type MpPart } from "@/lib/lms";
 
 /** t292: labels for the module permission switches. */
-export const MP_MOD_LABEL: Record<MpMod, [string, string]> = { trk: ["📊 Assessment Tracker", "📊 متتبع التقييم"], rep: ["📈 Department Report", "📈 تقرير القسم"], aps: ["🎯 Attainment & Progress Report", "🎯 تقرير التحصيل والتقدم"] };
+export const MP_MOD_LABEL: Record<MpMod, [string, string]> = { trk: ["📊 Assessment Tracker", "📊 متتبع التقييم"], rep: ["📈 Department Report", "📈 تقرير القسم"], aps: ["🎯 Attainment & Progress Report", "🎯 تقرير التحصيل والتقدم"], tt: ["🗓️ Timetable", "🗓️ الجدول الدراسي"] };
 export const MP_KEY_LABEL: Record<MpKey, [string, string]> = { show: ["Show", "إظهار"], view: ["View", "عرض"], add: ["Add", "إضافة"], edit: ["Edit", "تعديل"], delete: ["Delete", "حذف"], xlsx: ["Download Excel", "تنزيل Excel"], pdf: ["Download PDF", "تنزيل PDF"], isams: ["Download iSAMS", "تنزيل iSAMS"] };
 /** Keys that do something in each module (others are hidden): the report is read-only for teachers; iSAMS exists only in the tracker. */
-export const MP_KEYS_OF: Record<MpMod, MpKey[]> = { trk: [...MP_KEYS], rep: ["show", "view", "xlsx", "pdf"], aps: ["show", "view"] };
+export const MP_KEYS_OF: Record<MpMod, MpKey[]> = { trk: [...MP_KEYS], rep: ["show", "view", "xlsx", "pdf"], aps: ["show", "view"], tt: ["show", "view", "add", "edit", "delete"] };
 const sel = "rounded-lg border border-black/15 bg-white px-1 py-0.5 text-xs dark:border-white/20 dark:bg-slate-900";
 
 /** Tri-state grid: "" = inherit, on, off. */
