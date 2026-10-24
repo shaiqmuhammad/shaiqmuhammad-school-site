@@ -35,12 +35,13 @@
  */
 import { makeVapid, sendPush, type Vapid } from "./push";
 import { textReplaceAll } from "./textfix";
-import { trackerHandle, trkInit } from "./tracker";
-import { MP_PERM, mpAll, mpCfg, mpSave } from "./modperm";
+import { scoreFromPct, systems, trackerHandle, trkInit } from "./tracker";
+import { MP_PERM, mpAll, mpCfg, mpOf, mpSave } from "./modperm";
 import { buildFeedback, fromGrade, overallOf, parseScores, type Scores } from "./quranScore";
 import { DurableObject } from "cloudflare:workers";
 import { corsHeaders, reply, verifyToken, type AdminEnv } from "./admin";
 import { fetchParentReplies, sendAuto, sendParentMail, type MailEnv } from "./mail/mailbox";
+import { ttFor, ttRows, ttTimes } from "./lmsmods";
 import { initMods, modHandle, pubQuizzes, tquizTopics, today as modToday } from "./lmsmods";
 import { reportHandle } from "./reports";
 import { renderEmail, renderText } from "./mail/template";
@@ -84,6 +85,7 @@ const STU_PERM = /^stu:(view|add|edit|block|delete|none)$/;
 function avatarOf(r: Record<string, unknown>): string {
   const g = r.gender === "b" || r.gender === "g" ? String(r.gender) : "n";
   const av = String(r.avatar || "");
+  if (av.startsWith("data:image/")) return av; // t305: uploaded profile photo (small JPEG/WebP data URL)
   if (/^[bgn]\d{1,2}$/.test(av) && av[0] === g) return av;
   let h = 7; for (const c of String(r.id)) h = (h * 31 + c.charCodeAt(0)) >>> 0;
   return `${g}${h % 12}`;
@@ -93,6 +95,7 @@ const PUSH_TEXT: Record<string, [string, string]> = {
   hw_new: ["New homework", "{title}"], sub_new: ["Homework submitted", "{student}: {title}"], graded: ["Homework graded", "{title}"], approved: ["Homework approved", "{title}"],
   returned: ["Please try again", "{title}"], feedback: ["Teacher feedback", "{title}"], feedback_audio: ["Voice feedback", "{title}"], mistakes: ["Mistakes marked", "{title}"],
   message: ["New message", "{by}: {title}"], announcement: ["Announcement", "{title}"], reminder: ["Homework reminder", "{title}"], revise: ["Time to revise", "{title}"], test: ["Test notification", "Push notifications are working ✅"],
+  lesson: ["Lesson in {mins} min", "{subject} · {cls} at {time}"],
 };
 const DEFAULT_CATS: [string, number, string][] = [["Helping", 1, "🤝"], ["Teamwork", 1, "👥"], ["Recitation", 1, "📖"], ["Respect", 1, "🌟"], ["Hard work", 1, "💪"], ["Off-task", -1, "💤"], ["Disrespect", -1, "⚠️"]];
 /** Spaced revision after a pass: 1, 3, 7, 14, 30, then every 60 days. */
@@ -581,6 +584,55 @@ export class LmsStore extends DurableObject<LmsEnv> {
       }
     }
   }
+  stdInit() {
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS stddoc (subject TEXT PRIMARY KEY, name TEXT, mime TEXT, lang TEXT, size INTEGER, at INTEGER)`);
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS stddoc_c (subject TEXT, i INTEGER, data TEXT, PRIMARY KEY (subject, i))`);
+  }
+  /** t304: lesson reminders. While a timetable exists, the store wakes once a minute and sends "lesson" notifications
+   *  to the lesson's teacher and students at each person's chosen lead time (default 5 minutes, 0 = off). */
+  async planTT() {
+    const has = Number(this.sql.exec(`SELECT COUNT(*) AS n FROM tt`).one().n) > 0 && Object.keys(ttTimes(this.sql)).length > 0;
+    if (!has) { await this.ctx.storage.deleteAlarm(); return; }
+    const cur = await this.ctx.storage.getAlarm();
+    if (!cur || cur < Date.now()) await this.ctx.storage.setAlarm(Math.ceil((Date.now() + 1000) / 60000) * 60000 + 2000);
+  }
+  async alarm() {
+    try { this.ttTick(); } finally {
+      const has = Number(this.sql.exec(`SELECT COUNT(*) AS n FROM tt`).one().n) > 0;
+      if (has) await this.ctx.storage.setAlarm(Math.ceil((Date.now() + 1000) / 60000) * 60000 + 2000);
+    }
+  }
+  ttTick(nowMs = Date.now(), zzOnly = false) {
+    const times = ttTimes(this.sql), rows = ttRows(this.sql);
+    const d = new Date(nowMs + 4 * 3600e3), dow = d.getUTCDay(), day = d.toISOString().slice(0, 10), mins = d.getUTCHours() * 60 + d.getUTCMinutes();
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS tt_sent (k TEXT PRIMARY KEY, at INTEGER)`);
+    this.sql.exec(`DELETE FROM tt_sent WHERE at < ?`, nowMs - 3 * 864e5);
+    const leadOf = (uid: string) => { const r = this.sql.exec(`SELECT v FROM settings WHERE k=?`, `ttlead:${uid}`).toArray()[0]; return r ? Number(r.v) : 5; };
+    let sent = 0;
+    for (const r of rows.filter((x) => x.dow === dow && times[x.period]?.s && (!zzOnly || /^zz\./.test(String(this.userRow("id=?", x.teacher)?.username || ""))))) {
+      const [h, m] = times[r.period].s.split(":").map(Number); const start = h * 60 + m;
+      if (start - mins < 0 || start - mins > 30) continue;
+      const studs = this.sql.exec(`SELECT id, username, cls, section FROM users WHERE role='student' AND disabled=0 AND cls=?`, r.cls).toArray().filter((u) => (!zzOnly || /^zz\./.test(String(u.username))) && ttFor(r, String(u.cls || ""), String(u.section || ""))).map((u) => String(u.id));
+      for (const uid of [r.teacher, ...studs].filter(Boolean)) {
+        const lead = leadOf(uid);
+        if (!lead || start - mins !== lead) continue;
+        const k = `${day}|${r.id}|${uid}`;
+        if (this.sql.exec(`SELECT 1 FROM tt_sent WHERE k=?`, k).toArray().length) continue;
+        this.sql.exec(`INSERT INTO tt_sent (k, at) VALUES (?, ?)`, k, nowMs);
+        this.notify([uid], "lesson", { subject: r.subject || "Lesson", cls: `${r.cls} ${r.sections.join("")}`.trim(), time: times[r.period].s, period: r.period, mins: lead });
+        sent++;
+      }
+    }
+    return sent;
+  }
+  /** t304: an assessment % as the tracker entry level: the tracker's SC scale 0–3 (cut-offs from the Attainment system for that year) shown as Level 1–4. */
+  levelOf(pct: number, year: string): { level: number; label: string } {
+    const all = systems(this.sql as never).filter((x) => x.active);
+    const sys = all.find((x) => (x.scope.years || []).includes(year) && x.isDefault) || all.find((x) => (x.scope.years || []).includes(year)) || all.find((x) => x.isDefault) || all[0];
+    const cut = sys?.cut || [40, 60, 85];
+    const v = scoreFromPct(Number(pct) || 0, cut);
+    return { level: v + 1, label: sys?.scale?.find((x) => x.v === v)?.label || ["Working Below", "Working Towards", "Working At", "Greater Depth"][v] };
+  }
   private async vapid(): Promise<Vapid> {
     const r = this.sql.exec(`SELECT v FROM settings WHERE k='push:vapid'`).toArray()[0];
     if (r) return JSON.parse(String(r.v)) as Vapid;
@@ -710,7 +762,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
       return trackerHandle({ sql: this.sql as never, inScope: (x, c2, s2, i) => this.inScope(x, c2, s2, i), homework: () => this.allHomework().map((h) => ({ id: h.id, kind: h.kind })),
         tagged: (ids, qids) => { const k = ids.join(",") + "/" + qids.join(","); if (!memo.has(k)) memo.set(k, RES ? (RES.get(RES.idFromName("main")) as unknown as { scTagged(i: string[], q: string[]): Promise<unknown> }).scTagged(ids, qids) : Promise.resolve([])); return memo.get(k) as never; } }, a, action, input);
     }
-    if (/^(att|beh|cur)-/.test(action) || action === "quiz-topics-sync") return modHandle({ sql: this.sql, hwList: () => this.allHomework().map((h) => ({ id: h.id, title: h.title, kind: h.kind, cls: h.cls, section: h.section, students: h.students, createdBy: h.createdBy })), inScope: (x, c, s, i) => this.inScope(x, c, s, i), userRow: (w, g) => this.userRow(w, g) }, action, a, input);
+    if (/^(att|beh|cur)-/.test(action) || action === "quiz-topics-sync") return modHandle({ sql: this.sql, hwList: () => this.allHomework().map((h) => ({ id: h.id, title: h.title, kind: h.kind, cls: h.cls, section: h.section, students: h.students, createdBy: h.createdBy })), inScope: (x, c, s, i) => this.inScope(x, c, s, i), userRow: (w, g) => this.userRow(w, g), mp: (x, m) => mpOf(this.sql as never, x, m), ttChanged: () => { this.ctx.waitUntil(this.planTT()); } }, action, a, input);
     switch (action) {
       case "dl-policy": return { status: 200, body: { audio: this.dlOf(a, "audio"), export: this.dlOf(a, "export") } };
       case "dl-grant": {
@@ -944,6 +996,11 @@ export class LmsStore extends DurableObject<LmsEnv> {
         const devices = Number(this.sql.exec(`SELECT COUNT(*) AS n FROM push_sub WHERE uid=?`, a.id).one().n);
         return { status: 200, body: { kinds, devices } };
       }
+      case "tt-tick-test": {
+        // Admin test hook: run the lesson-reminder check for a given time, only for zz test accounts.
+        if (a.role !== "admin") return { status: 403, body: { error: "forbidden" } };
+        return { status: 200, body: { sent: this.ttTick(Number(input.at) || Date.now(), true) } };
+      }
       case "push-test": {
         // Sends a test push to the caller's own devices only.
         if (a.viewAs) return { status: 403, body: { error: "forbidden" } };
@@ -960,6 +1017,53 @@ export class LmsStore extends DurableObject<LmsEnv> {
         if (!(n >= 0 && n < 12)) return { status: 400, body: { error: "bad_input" } };
         this.sql.exec(`UPDATE users SET avatar=? WHERE id=?`, `${g}${n}`, a.id);
         return { status: 200, body: { avatar: `${g}${n}`, kind: g } };
+      }
+      case "ui-prefs": {
+        // t304: per-user menu layout (rail order/hidden, dashboard tiles order/hidden).
+        if (a.viewAs) return { status: 403, body: { error: "forbidden" } };
+        const k = `ui:${a.id}`;
+        if (input.save && typeof input.save === "object") { const v = JSON.stringify(input.save).slice(0, 6000); this.sql.exec(`INSERT INTO settings (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v=excluded.v`, k, v); }
+        if (input.reset) this.sql.exec(`DELETE FROM settings WHERE k=?`, k);
+        let v: unknown = {}; try { v = JSON.parse(String(this.sql.exec(`SELECT v FROM settings WHERE k=?`, k).toArray()[0]?.v || "{}")); } catch { v = {}; }
+        return { status: 200, body: { prefs: v } };
+      }
+      case "my-photo": {
+        // t305: own profile photo (already cropped + compressed in the browser), or remove it to go back to a character.
+        if (a.viewAs || a.role === "parent" || a.role === "admin") return { status: 403, body: { error: "forbidden" } };
+        if (input.remove) { this.sql.exec(`UPDATE users SET avatar='' WHERE id=?`, a.id); return { status: 200, body: { avatar: avatarOf(this.userRow("id=?", a.id) || {}) } }; }
+        const d = String(input.data || "");
+        if (!/^data:image\/(jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(d) || d.length > 40000) return { status: 400, body: { error: "photo_too_big" } };
+        this.sql.exec(`UPDATE users SET avatar=? WHERE id=?`, d, a.id);
+        return { status: 200, body: { avatar: d } };
+      }
+      case "std-doc-list": {
+        if (!isStaff(a)) return { status: 403, body: { error: "forbidden" } };
+        this.stdInit();
+        return { status: 200, body: { items: this.sql.exec(`SELECT subject, name, lang, size, at FROM stddoc ORDER BY subject`).toArray().map((r) => ({ subject: String(r.subject), name: String(r.name), lang: String(r.lang || ""), size: Number(r.size), at: Number(r.at) })) } };
+      }
+      case "std-doc-get": {
+        if (!isStaff(a)) return { status: 403, body: { error: "forbidden" } };
+        this.stdInit();
+        const subj = str(input.subject, 80);
+        const m = this.sql.exec(`SELECT * FROM stddoc WHERE subject=?`, subj).toArray()[0];
+        if (!m) return { status: 404, body: { error: "not_found" } };
+        const data = this.sql.exec(`SELECT data FROM stddoc_c WHERE subject=? ORDER BY i`, subj).toArray().map((r) => String(r.data)).join("");
+        return { status: 200, body: { subject: subj, name: String(m.name), mime: String(m.mime), lang: String(m.lang || ""), data } };
+      }
+      case "std-doc-save": {
+        // t304: the Standards document of a subject (admin, Subjects form). Stored in chunks; one per subject.
+        if (a.role !== "admin" || a.viewAs) return { status: 403, body: { error: "admin_only" } };
+        this.stdInit();
+        const subj = str(input.subject, 80);
+        if (!subj) return { status: 400, body: { error: "name" } };
+        if (input.remove) { this.sql.exec(`DELETE FROM stddoc WHERE subject=?`, subj); this.sql.exec(`DELETE FROM stddoc_c WHERE subject=?`, subj); return { status: 200, body: { ok: true } }; }
+        const data = String(input.data || "").replace(/^data:[^,]*,/, "");
+        const mime = /^(application\/pdf|image\/(png|jpeg)|application\/vnd\.openxmlformats-officedocument\.wordprocessingml\.document)$/.test(String(input.mime)) ? String(input.mime) : "";
+        if (!mime || !/^[A-Za-z0-9+/=]+$/.test(data) || data.length > 14_000_000) return { status: 400, body: { error: "bad_file" } };
+        this.sql.exec(`DELETE FROM stddoc_c WHERE subject=?`, subj);
+        for (let i = 0, k = 0; i < data.length; i += 900_000, k++) this.sql.exec(`INSERT INTO stddoc_c (subject, i, data) VALUES (?, ?, ?)`, subj, k, data.slice(i, i + 900_000));
+        this.sql.exec(`INSERT INTO stddoc (subject, name, mime, lang, size, at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(subject) DO UPDATE SET name=excluded.name, mime=excluded.mime, lang=excluded.lang, size=excluded.size, at=excluded.at`, subj, str(input.name, 120) || "Standards", mime, input.lang === "ar" ? "ar" : "en", Math.floor(data.length * 0.75), Date.now());
+        return { status: 200, body: { ok: true } };
       }
       case "my-avatar-kind": {
         if (a.viewAs || a.role === "parent") return { status: 403, body: { error: "forbidden" } };
@@ -1261,7 +1365,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         const hosts = a.perms.filter((p) => p.startsWith("host:")).map((p) => p.slice(5));
         const all = await (RES.get(RES.idFromName("main")) as unknown as { list(f: object): Promise<Record<string, unknown>[]> }).list({ details: false });
         const items = all.filter((r) => a.role === "admin" || mineQ.has(String(r.quizId)) || mineQ.has(String(r.quizSlug)) || (r.kind === "group" && (hosts.includes("*") || hosts.includes(String(r.quizSlug)) || hosts.includes(String(r.quizId)))));
-        return { status: 200, body: { items } };
+        return { status: 200, body: { items: items.map((r) => ({ ...r, ...this.levelOf(Number(r.percentage), String(r.year || "")) })) } };
       }
       case "assess-list": {
         // Students: assessments assigned to them. Staff: assignments they made (admin: all).
@@ -2324,7 +2428,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         const slugs = new Set(assigned.items.map((x) => x.quiz));
         const all = await (RES.get(RES.idFromName("main")) as unknown as { list(f: object): Promise<Record<string, unknown>[]> }).list({ details: false });
         const items = all.filter((r) => r.linkState !== "ignored" && (String(r.studentId || "") === String(srow.id) || (!r.studentId && r.kind === "individual" && String(r.name).trim().toLowerCase() === nm && (slugs.has(String(r.quizSlug)) || slugs.has(String(r.quizId)))))).slice(0, 60)
-          .map((r) => ({ quizTitle: String(r.quizTitle), score: Number(r.score), maxScore: Number(r.maxScore), percentage: Number(r.percentage), finishedAt: Number(r.finishedAt) }));
+          .map((r) => ({ quizTitle: String(r.quizTitle), score: Number(r.score), maxScore: Number(r.maxScore), percentage: Number(r.percentage), finishedAt: Number(r.finishedAt), ...this.levelOf(Number(r.percentage), String(srow.cls || r.year || "")) }));
         return { status: 200, body: { items, assigned: assigned.items } };
       }
     }
@@ -2574,7 +2678,7 @@ export async function handleLms(request: Request, env: LmsEnv, action: string): 
   let body: Json = {};
   if (request.method === "POST") {
     const text = await request.text();
-    if (text.length > (action === "wall-post" ? 2_200_000 : 200_000)) return reply(origin, { error: "too_large" }, 413);
+    if (text.length > (action === "std-doc-save" ? 14_500_000 : action === "wall-post" ? 2_200_000 : 200_000)) return reply(origin, { error: "too_large" }, 413);
     try {
       body = JSON.parse(text || "{}") as Json;
     } catch {

@@ -17,6 +17,9 @@ export type ModCtx = {
   hwList: () => HwLite[];
   inScope: (a: Actor, cls: string, section: string, sid?: string) => boolean;
   userRow: (where: string, arg: string) => Record<string, unknown> | undefined;
+  /** t304: module permissions (timetable) and a hook to re-plan lesson reminders. */
+  mp?: (a: Actor, mod: "tt") => { show: boolean; view: boolean; add: boolean; edit: boolean; delete: boolean };
+  ttChanged?: () => void;
 };
 
 const str = (v: unknown, max: number) => String(v ?? "").replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, " ").trim().slice(0, max);
@@ -163,6 +166,7 @@ export async function modHandle(c: ModCtx, action: string, a: Actor, input: Json
     }
     return { status: 200, body: { student: true, canEdit: false, canDelete: false, year: yr, items: rows.map((r) => ({ ...curRow(r), by: "", links: resolveLinks(c, parseLinks(r), me), notes: String(r.notes || "") })) } };
   }
+  if (a.role === "student" && action === "att-times") return ttHandle(c, a, action, input);
   if (a.role !== "admin" && a.role !== "teacher") return forbid();
   switch (action) {
     // ---------------- Attendance ----------------
@@ -242,42 +246,21 @@ export async function modHandle(c: ModCtx, action: string, a: Actor, input: Json
       }
       return { status: 200, body: { day, groups: [...groups.values()].map((g) => ({ ...g, periods: [...g.periods], by: [...g.by] })), absent } };
     }
-    case "att-times": {
-      // t302: saved period timings + timetable (teachers see their own rows) + the current Dubai weekday/time and period.
-      const raw = sql.exec(`SELECT v FROM settings WHERE k='att:times'`).toArray()[0];
-      let times: Record<string, { s: string; e: string }> = {};
-      try { times = raw ? JSON.parse(String(raw.v)) : {}; } catch { times = {}; }
-      const d = new Date(Date.now() + 4 * 3600e3), dow = d.getUTCDay(), hm = d.toISOString().slice(11, 16);
-      const now = Object.entries(times).find(([, t]) => t.s && t.e && t.s <= hm && hm < t.e)?.[0] || "";
-      const rows = sql.exec(`SELECT * FROM tt ORDER BY dow, period, cls, section`).toArray().filter((r) => a.role === "admin" || String(r.teacher) === a.id);
-      const tt = rows.map((r) => ({ id: String(r.id), dow: Number(r.dow), period: String(r.period), cls: String(r.cls), section: String(r.section), teacher: String(r.teacher), teacherName: String(r.teacher_name || ""), subject: String(r.subject || ""), phase: String(r.phase || ""), dept: String(r.dept || "") }));
-      const mine = tt.find((r) => r.dow === dow && r.period === now && (a.role === "admin" ? false : true));
-      const teachers = a.role === "admin" ? sql.exec(`SELECT id, name, subject, phase FROM users WHERE role='teacher' AND disabled=0 ORDER BY name`).toArray().map((r) => ({ id: String(r.id), name: String(r.name), subject: String(r.subject || ""), phase: String(r.phase || "") })) : [];
-      return { status: 200, body: { times, timetable: tt, now: { dow, hm, period: now }, current: mine || null, teachers } };
-    }
-    case "att-times-save": {
-      if (a.role !== "admin" || a.viewAs) return forbid();
-      const inT = (input.times && typeof input.times === "object" ? input.times : {}) as Record<string, Json>;
-      const HM = /^([01]\d|2[0-3]):[0-5]\d$/;
-      const out: Record<string, { s: string; e: string }> = {};
-      for (const k of ["P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8"]) { const t = inT[k]; if (t && HM.test(String(t.s)) && HM.test(String(t.e)) && String(t.s) < String(t.e)) out[k] = { s: String(t.s), e: String(t.e) }; }
-      sql.exec(`INSERT INTO settings (k, v) VALUES ('att:times', ?) ON CONFLICT(k) DO UPDATE SET v=excluded.v`, JSON.stringify(out));
-      return { status: 200, body: { ok: true, times: out } };
-    }
-    case "att-tt-save": {
-      if (a.role !== "admin" || a.viewAs) return forbid();
-      const dow = Math.floor(Number(input.dow)), period = str(input.period, 4);
-      if (!(dow >= 0 && dow <= 6) || !/^P[1-8]$/.test(period)) return { status: 400, body: { error: "bad_input" } };
-      const tid = str(input.teacher, 40); const tu = tid ? c.userRow("id=? AND role='teacher'", tid) : null;
-      const id = str(input.id, 40) || crypto.randomUUID();
-      sql.exec(`INSERT INTO tt (id, dow, period, cls, section, teacher, teacher_name, subject, phase, dept, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET dow=excluded.dow, period=excluded.period, cls=excluded.cls, section=excluded.section, teacher=excluded.teacher, teacher_name=excluded.teacher_name, subject=excluded.subject, phase=excluded.phase, dept=excluded.dept, at=excluded.at`,
-        id, dow, period, str(input.cls, 80), str(input.section, 80), tu ? tid : "", tu ? String(tu.name) : "", str(input.subject, 80), str(input.phase, 40), str(input.dept, 80), Date.now());
-      return { status: 200, body: { ok: true, id } };
-    }
-    case "att-tt-del": {
-      if (a.role !== "admin" || a.viewAs) return forbid();
-      sql.exec(`DELETE FROM tt WHERE id=?`, str(input.id, 40));
-      return { status: 200, body: { ok: true } };
+    case "att-times": return ttHandle(c, a, "att-times", input);
+    case "att-times-save": return ttHandle(c, a, "att-times-save", input);
+    case "att-tt-save": return ttHandle(c, a, "att-tt-save", input);
+    case "att-tt-del": return ttHandle(c, a, "att-tt-del", input);
+    case "att-history": {
+      // t304: register history for a class: one row per student, one column per (day, period) taken in the range.
+      if (!modCan(a, "att", "view")) return forbid();
+      const cls = str(input.cls, 80), section = str(input.section, 80);
+      const to = DAY.test(String(input.to)) ? String(input.to) : today(), from = DAY.test(String(input.from)) ? String(input.from) : new Date(dayMs(to) - 13 * 864e5).toISOString().slice(0, 10);
+      const allowed = new Map(students(c, a, cls, section).map((r) => [String(r.id), r]));
+      const rows = sql.exec(`SELECT student, day, period, status, note, by_name FROM att WHERE day>=? AND day<=? ORDER BY day, period`, from, to).toArray().filter((r) => allowed.has(String(r.student)));
+      const cols = [...new Set(rows.map((r) => `${r.day}|${r.period}`))];
+      const grid: Record<string, Record<string, { s: string; n: string }>> = {};
+      for (const r of rows) { (grid[String(r.student)] ||= {})[`${r.day}|${r.period}`] = { s: String(r.status), n: String(r.note || "") }; }
+      return { status: 200, body: { from, to, cols, students: [...allowed.values()].map((r) => ({ id: String(r.id), name: String(r.name), cls: String(r.cls), section: String(r.section) })), grid } };
     }
     case "att-settings": {
       if (a.role !== "admin" || a.viewAs) return forbid();
@@ -530,4 +513,80 @@ function curUpsert(c: ModCtx, a: Actor, subs: string[], input: Json): { id?: str
   const nid = rid("cu");
   c.sql.exec(`INSERT INTO cur (id, subject, yr, term, title, objectives, lessons, resources, wk_from, wk_to, status, quiz, page, links, notes, sc, std, title_ar, sc_ar, ord, by_name, updated) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, nid, subject, yr, term, title, objectives, JSON.stringify(lessons), JSON.stringify(resources), wf, wt, status, quiz2, page, JSON.stringify(links), notes, sc, std, titleAr, scAr, Number(input.ord) || 0, a.name, now);
   return { id: nid };
+}
+
+
+// ---------------- t302/t304 Timetable ----------------
+const PIDS = ["P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8"];
+export type TtRow = { id: string; dow: number; period: string; cls: string; sections: string[]; teacher: string; teacherName: string; subject: string; phase: string; dept: string };
+const secList = (v: unknown) => String(v || "").split(",").map((x) => x.trim()).filter(Boolean);
+export function ttTimes(sql: SqlStorage): Record<string, { s: string; e: string }> {
+  try { const raw = sql.exec(`SELECT v FROM settings WHERE k='att:times'`).toArray()[0]; return raw ? JSON.parse(String(raw.v)) : {}; } catch { return {}; }
+}
+export function ttRows(sql: SqlStorage): TtRow[] {
+  return sql.exec(`SELECT * FROM tt ORDER BY dow, period, cls`).toArray().map((r) => ({ id: String(r.id), dow: Number(r.dow), period: String(r.period), cls: String(r.cls), sections: secList(r.section), teacher: String(r.teacher), teacherName: String(r.teacher_name || ""), subject: String(r.subject || ""), phase: String(r.phase || ""), dept: String(r.dept || "") }));
+}
+/** Students a lesson is for: its class and (if set) any of its sections. */
+export const ttFor = (r: TtRow, cls: string, section: string) => r.cls === cls && (!r.sections.length || r.sections.includes(section));
+const dubaiNow = () => { const d = new Date(Date.now() + 4 * 3600e3); return { dow: d.getUTCDay(), hm: d.toISOString().slice(11, 16), day: d.toISOString().slice(0, 10) }; };
+function ttHandle(c: ModCtx, a: Actor, action: string, input: Json): { status: number; body: Json } {
+  const sql = c.sql;
+  const acc = c.mp ? c.mp(a, "tt") : { show: true, view: true, add: a.role === "admin", edit: a.role === "admin", delete: a.role === "admin" };
+  if (action === "att-times") {
+    if (!acc.view) return { status: 403, body: { error: "module_hidden" } };
+    const times = ttTimes(sql), now = dubaiNow();
+    const cur = Object.entries(times).find(([, t]) => t.s && t.e && t.s <= now.hm && now.hm < t.e)?.[0] || "";
+    const me = a.role === "student" ? c.userRow("id=?", a.id) : undefined;
+    const all = ttRows(sql);
+    const tt = a.role === "admin" ? all : a.role === "student" ? all.filter((r) => me && ttFor(r, String(me.cls || ""), String(me.section || ""))) : all.filter((r) => r.teacher === a.id);
+    const current = a.role === "admin" ? null : tt.find((r) => r.dow === now.dow && r.period === cur) || null;
+    const staff = a.role === "admin" || (a.role === "teacher" && (acc.add || acc.edit));
+    const teachers = staff ? sql.exec(`SELECT id, name, subject, phase FROM users WHERE role='teacher' AND disabled=0 ORDER BY name`).toArray().map((r) => ({ id: String(r.id), name: String(r.name), subject: String(r.subject || ""), phase: String(r.phase || "") })).filter((t) => a.role === "admin" || t.id === a.id) : [];
+    const cat = staff ? sql.exec(`SELECT id, kind, name, parent FROM catalog ORDER BY kind, ord, name`).toArray() : [];
+    const catalog = { subjects: cat.filter((r) => r.kind === "subject").map((r) => String(r.name)), classes: cat.filter((r) => r.kind === "class").map((r) => ({ id: String(r.id), name: String(r.name), sections: cat.filter((x) => x.kind === "section" && x.parent === r.id).map((x) => String(x.name)) })) };
+    const depts = [...new Set([...all.map((r) => r.dept).filter(Boolean), ...((): string[] => { try { return JSON.parse(String(sql.exec(`SELECT v FROM settings WHERE k='tt:depts'`).toArray()[0]?.v || "[]")); } catch { return []; } })()])].sort();
+    const pref = sql.exec(`SELECT v FROM settings WHERE k=?`, `ttlead:${a.id}`).toArray()[0];
+    return { status: 200, body: { times, timetable: tt, now: { dow: now.dow, hm: now.hm, period: cur }, current, teachers, catalog, phases: ["EYFS", "Primary", "Secondary"], depts, acc, lead: pref ? Number(pref.v) : 5 } };
+  }
+  if (action === "att-times-save") {
+    if (input.lead !== undefined) {
+      // Per-user lesson reminder: minutes before (0 = off).
+      const n = Math.round(Number(input.lead)); if (![0, 2, 5, 10, 15, 30].includes(n)) return { status: 400, body: { error: "bad_input" } };
+      sql.exec(`INSERT INTO settings (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v=excluded.v`, `ttlead:${a.id}`, String(n));
+      return { status: 200, body: { ok: true, lead: n } };
+    }
+    if (a.role !== "admin" || a.viewAs) return forbid();
+    const inT = (input.times && typeof input.times === "object" ? input.times : {}) as Record<string, Json>;
+    const HM = /^([01]\d|2[0-3]):[0-5]\d$/;
+    const out: Record<string, { s: string; e: string }> = {};
+    for (const k of PIDS) { const t = inT[k]; if (t && HM.test(String(t.s)) && HM.test(String(t.e)) && String(t.s) < String(t.e)) out[k] = { s: String(t.s), e: String(t.e) }; }
+    sql.exec(`INSERT INTO settings (k, v) VALUES ('att:times', ?) ON CONFLICT(k) DO UPDATE SET v=excluded.v`, JSON.stringify(out));
+    c.ttChanged?.();
+    return { status: 200, body: { ok: true, times: out } };
+  }
+  if (a.viewAs || a.role === "student") return forbid();
+  const id0 = str(input.id, 40);
+  const old = id0 ? sql.exec(`SELECT * FROM tt WHERE id=?`, id0).toArray()[0] : undefined;
+  const own = (tid: unknown) => a.role === "admin" || String(tid || "") === a.id;
+  if (action === "att-tt-del") {
+    if (!acc.delete || !old || !own(old.teacher)) return forbid();
+    sql.exec(`DELETE FROM tt WHERE id=?`, id0); c.ttChanged?.();
+    return { status: 200, body: { ok: true } };
+  }
+  // att-tt-save: add (no id) or edit. Sections: several of the class's sections (comma list; empty = whole class).
+  if (old ? !acc.edit || !own(old.teacher) : !acc.add) return forbid();
+  const dows = (Array.isArray(input.dows) ? input.dows : [input.dow]).map((x) => Math.floor(Number(x))).filter((x) => x >= 0 && x <= 6);
+  const period = str(input.period, 4);
+  if (!dows.length || !PIDS.includes(period)) return { status: 400, body: { error: "bad_input" } };
+  const tid = a.role === "admin" ? str(input.teacher, 40) : a.id; const tu = tid ? c.userRow("id=? AND role='teacher'", tid) : undefined;
+  const sections = (Array.isArray(input.sections) ? input.sections.map((x) => str(x, 40)) : secList(input.section)).filter(Boolean).slice(0, 20);
+  const vals = [str(input.cls, 80), sections.join(","), tu ? tid : "", tu ? String(tu.name) : "", str(input.subject, 80), str(input.phase, 40), str(input.dept, 80)];
+  const ids: string[] = [];
+  for (const [i, dow] of dows.entries()) {
+    const id = i === 0 && old ? id0 : rid("tt");
+    sql.exec(`INSERT INTO tt (id, dow, period, cls, section, teacher, teacher_name, subject, phase, dept, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET dow=excluded.dow, period=excluded.period, cls=excluded.cls, section=excluded.section, teacher=excluded.teacher, teacher_name=excluded.teacher_name, subject=excluded.subject, phase=excluded.phase, dept=excluded.dept, at=excluded.at`, id, dow, period, ...vals, Date.now());
+    ids.push(id);
+  }
+  c.ttChanged?.();
+  return { status: 200, body: { ok: true, id: ids[0], ids } };
 }

@@ -6,14 +6,14 @@
  */
 type Sql = { exec: (q: string, ...b: unknown[]) => { toArray: () => Record<string, unknown>[] } };
 type Act = { role: string; perms?: string[]; subj?: string[] };
-export const MP_MODS = ["trk", "rep", "aps"] as const;
+export const MP_MODS = ["trk", "rep", "aps", "tt"] as const;
 export const MP_KEYS = ["show", "view", "add", "edit", "delete", "xlsx", "pdf", "isams"] as const;
 export type MpMod = (typeof MP_MODS)[number];
 export type MpKey = (typeof MP_KEYS)[number];
 export type MpAcc = Record<MpKey, boolean>;
 type Part = Partial<Record<MpMod, Partial<MpAcc>>>;
 export type MpCfg = { global: Part; roles: Record<string, Part>; subjects: Record<string, Part> };
-export const MP_PERM = /^mp:(trk|rep|aps):(show|view|add|edit|delete|xlsx|pdf|isams):(on|off)$/;
+export const MP_PERM = /^mp:(trk|rep|aps|tt):(show|view|add|edit|delete|xlsx|pdf|isams):(on|off)$/;
 const pick = (o: unknown): Part => {
   const out: Part = {}; const x = (o && typeof o === "object" ? o : {}) as Record<string, Record<string, unknown>>;
   for (const m of MP_MODS) { const r: Partial<MpAcc> = {}; for (const k of MP_KEYS) if (typeof x[m]?.[k] === "boolean") r[k] = x[m][k] as boolean; if (Object.keys(r).length) out[m] = r; }
