@@ -335,7 +335,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
   return (
     <div className="admin-calm min-h-screen lg:flex">
       {/* Sidebar (lg+): full width or a 64px icon rail */}
-      <aside
+      <aside data-frame
         className={`hidden bg-header text-white transition-[width] duration-200 lg:sticky lg:top-0 lg:flex lg:h-screen lg:shrink-0 lg:flex-col lg:pb-6 lg:pt-3 ${collapsed ? "lg:w-16 lg:px-2" : "lg:w-64 lg:px-4"}`}
         data-testid="admin-sidebar"
         data-collapsed={collapsed ? "true" : "false"}
@@ -365,7 +365,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
       </aside>
 
       {/* Top bar (phones / tablets) with a slide-in drawer */}
-      <header className="sticky top-0 z-30 pt-[env(safe-area-inset-top)] border-b border-black/10 bg-white text-heading dark:border-white/10 dark:bg-[#0f1f30] lg:hidden">
+      <header data-frame className="sticky top-0 z-30 pt-[env(safe-area-inset-top)] border-b border-black/10 bg-white text-heading dark:border-white/10 dark:bg-[#0f1f30] lg:hidden">
         <div className="flex items-center gap-2 px-3 py-3 sm:gap-3 sm:px-4">
           <button
             type="button"
@@ -397,7 +397,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
             role="dialog"
             aria-modal="true"
             aria-label={tr("Admin sections", "أقسام الإدارة")}
-            data-testid="admin-drawer"
+            data-frame data-testid="admin-drawer"
             className="absolute inset-y-0 start-0 flex w-72 max-w-[85vw] flex-col bg-header px-4 py-5 text-white shadow-2xl"
           >
             <div className="flex items-center gap-3">

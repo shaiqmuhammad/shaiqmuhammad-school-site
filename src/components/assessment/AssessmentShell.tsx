@@ -74,7 +74,7 @@ export function AssessmentShell({ title, exitHref = "/assessments", onExit, seco
 
       {rail && <LmsTabs />}
       <div className="relative z-10 flex min-w-0 flex-1 flex-col">
-      <header className="sticky top-0 z-30 border-b border-[#0f2438] bg-header pt-[env(safe-area-inset-top)] text-white" data-testid="lms-header">
+      <header data-frame className="sticky top-0 z-30 border-b border-[#0f2438] bg-header pt-[env(safe-area-inset-top)] text-white" data-testid="lms-header">
         <div className={`mx-auto flex ${wide ? "max-w-[1800px]" : "max-w-5xl"} items-center gap-3 px-3 py-2.5 sm:px-6`}>
           <Link
             href={exitTo}

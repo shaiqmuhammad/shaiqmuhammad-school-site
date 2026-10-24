@@ -141,7 +141,7 @@ export function LmsTabs() {
     );
   }
   return (
-    <nav className={`sticky top-0 z-40 h-dvh shrink-0 overflow-y-auto overflow-x-hidden bg-header text-white [scrollbar-width:none] ${slim ? "w-[68px]" : "w-[64px] md:w-[108px]"}`} aria-label={tr("Main sections", "الأقسام الرئيسية")} data-testid="lms-tabs" data-collapsed={col ? "1" : "0"}>
+    <nav data-frame className={`sticky top-0 z-40 h-dvh shrink-0 overflow-y-auto overflow-x-hidden bg-header text-white [scrollbar-width:none] ${slim ? "w-[68px]" : "w-[64px] md:w-[108px]"}`} aria-label={tr("Main sections", "الأقسام الرئيسية")} data-testid="lms-tabs" data-collapsed={col ? "1" : "0"}>
       <div className="flex flex-col items-center gap-1 px-1 py-2 md:gap-1.5 md:px-2 md:py-3">
         <button type="button" onClick={() => toggle(!col)} className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white/10 text-sm font-black text-white hover:bg-white/20" aria-label={col ? tr("Expand menu", "توسيع القائمة") : tr("Collapse menu", "طي القائمة")} title={col ? tr("Expand menu", "توسيع القائمة") : tr("Collapse menu", "طي القائمة")} data-testid="lms-rail-toggle"><span className="rtl:rotate-180" aria-hidden>{col ? "»" : "«"}</span></button>
         <Link href={isParent ? "/lms/family" : "/lms"} className={`hidden shrink-0 ${slim ? "" : "md:block"}`} aria-label={tr("Home", "الرئيسية")} data-testid="lms-rail-logo"><img src="/logo.svg" alt="" width={52} height={52} className="h-[52px] w-[52px] rounded-full" /></Link>
