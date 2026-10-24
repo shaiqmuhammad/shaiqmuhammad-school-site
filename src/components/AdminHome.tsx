@@ -35,7 +35,7 @@ export function AdminHome({ counts, refreshedAt, refreshing, hasToken, onTab }: 
   const stats: Stat[] = [
     { label: tr("Active assessments", "التقييمات النشطة"), value: `${counts.assessmentsEnabled} / ${counts.assessments}`, tab: "quizzes" },
     { label: tr("Published results", "النتائج المنشورة"), value: String(counts.results), tab: "quizzes" },
-    { label: tr("Lesson pages", "صفحات الدروس"), value: String(counts.pages), tab: "pages" },
+    { label: tr("Learning Material", "المواد التعليمية"), value: String(counts.pages), tab: "pages" },
     { label: tr("Forum threads", "مواضيع المنتدى"), value: String(counts.threads), tab: "forum" },
     { label: tr("Announcements", "الإعلانات"), value: String(counts.announcements), tab: "announcements" },
     { label: tr("Banners", "اللافتات"), value: String(counts.banners), tab: "banners" },

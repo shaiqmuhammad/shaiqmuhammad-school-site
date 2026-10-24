@@ -81,7 +81,7 @@ export default function HomePage() {
         ) : (
           <CardCarousel
             label="Learning Material"
-            labelAr="صفحات التعلّم"
+            labelAr="المواد التعليمية"
             testId="home-lessons-carousel"
             moreHref="/lessons"
             moreTestId="home-lessons-more"
