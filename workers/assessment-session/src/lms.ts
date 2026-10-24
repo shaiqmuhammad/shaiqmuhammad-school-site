@@ -44,6 +44,7 @@ import { fetchParentReplies, sendAuto, sendParentMail, type MailEnv } from "./ma
 import { ttFor, ttRows, ttTimes } from "./lmsmods";
 import { initMods, modHandle, pubQuizzes, tquizTopics, today as modToday } from "./lmsmods";
 import { reportHandle } from "./reports";
+import { packHandle, packInit, packSweep, type PackCtx } from "./packs";
 import { renderEmail, renderText } from "./mail/template";
 import { blobStore, sqliteChunkStore, type BlobStore, type StorageEnv } from "./storage";
 
@@ -96,6 +97,7 @@ const PUSH_TEXT: Record<string, [string, string]> = {
   returned: ["Please try again", "{title}"], feedback: ["Teacher feedback", "{title}"], feedback_audio: ["Voice feedback", "{title}"], mistakes: ["Mistakes marked", "{title}"],
   message: ["New message", "{by}: {title}"], announcement: ["Announcement", "{title}"], reminder: ["Homework reminder", "{title}"], revise: ["Time to revise", "{title}"], test: ["Test notification", "Push notifications are working ✅"],
   lesson: ["Lesson in {mins} min", "{subject} · {cls} at {time}"],
+  lp_new: ["New learning material", "{by}: {title}"], lp_due: ["Due soon", "{title} is due within 24 hours"], lp_feedback: ["Teacher feedback on your slides", "{title}"],
 };
 const DEFAULT_CATS: [string, number, string][] = [["Helping", 1, "🤝"], ["Teamwork", 1, "👥"], ["Recitation", 1, "📖"], ["Respect", 1, "🌟"], ["Hard work", 1, "💪"], ["Off-task", -1, "💤"], ["Disrespect", -1, "⚠️"]];
 /** Spaced revision after a pass: 1, 3, 7, 14, 30, then every 60 days. */
@@ -229,6 +231,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     this.sql.exec(`CREATE INDEX IF NOT EXISTS notes_uid ON notes (uid, created)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS catalog (id TEXT PRIMARY KEY, kind TEXT, name TEXT, parent TEXT DEFAULT '', ord INTEGER DEFAULT 0)`);
     initMods(this.sql);
+    packInit(this.sql as never);
     const cols = (t: string) => new Set(this.sql.exec(`PRAGMA table_info(${t})`).toArray().map((r) => String(r.name)));
     const uc = cols("users");
     for (const [c, def] of [["section", "TEXT DEFAULT ''"], ["subjects", "TEXT DEFAULT '[]'"], ["scope", "TEXT DEFAULT '[]'"], ["pin_enc", "TEXT"], ["qr_token", "TEXT"]] as const) if (!uc.has(c)) this.sql.exec(`ALTER TABLE users ADD COLUMN ${c} ${def}`);
@@ -663,7 +666,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     const v = await this.vapid();
     const [title, body] = PUSH_TEXT[kind] || ["Shaiq Muhammad", "You have a new notification"];
     const fill = (t: string) => t.replace(/\{(\w+)\}/g, (_, x) => String(data[x] ?? ""));
-    const url = data.hw ? `/lms/homework?id=${encodeURIComponent(String(data.hw))}` : data.thread ? "/lms/messages" : "/lms";
+    const url = data.hw ? `/lms/homework?id=${encodeURIComponent(String(data.hw))}` : data.thread ? "/lms/messages" : kind.startsWith("lp_") ? "/lms/material" : "/lms";
     for (const sb of subs) {
       const st = await sendPush({ endpoint: String(sb.endpoint), p256dh: String(sb.p256dh), auth: String(sb.auth) }, { title: fill(title), body: fill(body), url, kind }, v).catch(() => 0);
       if (st === 404 || st === 410) this.sql.exec(`DELETE FROM push_sub WHERE endpoint=?`, String(sb.endpoint));
@@ -717,6 +720,50 @@ export class LmsStore extends DurableObject<LmsEnv> {
     const h = this.allHomework(String(r.hw))[0];
     this.notify([String(r.student)], "feedback_audio", { hw: String(r.hw), title: h?.title || "", by: a.name });
     return { status: 200, body: { ok: true, id } };
+  }
+
+  /** t315: Lesson Pack context (see packs.ts). */
+  private packCtx(): PackCtx {
+    return {
+      sql: this.sql as never,
+      acc: (x) => mpOf(this.sql as never, x as never, "lp"),
+      hwSave: (x, inp) => this.handle("hw-save", x as Actor, inp),
+      hwDelete: (x, id) => this.handle("hw-delete", x as Actor, { id }),
+      notify: (u, k, d) => this.notify(u, k, d),
+      sectionOf: (uid) => String(this.userRow("id=?", uid)?.section || ""),
+      subOf: (hw, st) => this.sub(hw, st) as never,
+      hwRow: (id) => this.allHomework(id)[0],
+      inScopeIds: (x, ids) => {
+        if (x.role !== "teacher" || !x.scope?.length) return true;
+        const inScope = (c: string, sec: string) => x.scope!.some((k) => { const [kc, ks] = k.split("|"); return kc === c && (!ks || ks === sec); });
+        const rows = this.sql.exec(`SELECT id, cls, section FROM users WHERE role='student'`).toArray().filter((r) => ids.includes(String(r.id)));
+        return rows.length === ids.length && rows.every((r) => inScope(String(r.cls || ""), String(r.section || "")) || !!x.stu?.includes(String(r.id)));
+      },
+    };
+  }
+  /** t315: Lesson Pack media (pictures, recordings, imported PowerPoint pictures). Staff upload for packs; students upload into their own copy. */
+  async lpMediaUpload(a: Actor, data: ArrayBuffer, mime: string): Promise<Reply> {
+    const type = mime.split(";")[0];
+    const img = /^image\/(png|jpeg|webp|gif)$/.test(type), aud = AUDIO_TYPES.test(mime);
+    if (!img && !aud) return { status: 415, body: { error: "media_type" } };
+    if (!data.byteLength) return { status: 400, body: { error: "empty" } };
+    if (data.byteLength > (img ? 2_500_000 : MAX_AUDIO)) return { status: 413, body: { error: "too_large" } };
+    if (a.role === "teacher" && !mpOf(this.sql as never, a as never, "lp").view) return { status: 403, body: { error: "module_hidden" } };
+    const used = Number(this.sql.exec(`SELECT COALESCE(SUM(size),0) AS n FROM blobs WHERE owner=?`, a.id).one().n);
+    const total = Number(this.sql.exec(`SELECT COALESCE(SUM(size),0) AS n FROM blobs`).one().n);
+    if (used + data.byteLength > (a.role === "student" ? USER_AUDIO_CAP : USER_AUDIO_CAP * 10)) return { status: 409, body: { error: "audio_user_full" } };
+    if (total + data.byteLength > TOTAL_AUDIO_CAP) return { status: 409, body: { error: "audio_full" } };
+    const id = rid("lpm");
+    await this.files.put(id, data, type);
+    this.sql.exec(`INSERT INTO blobs (id, owner, sub, kind, mime, size, created) VALUES (?, ?, '', 'lpm', ?, ?, ?)`, id, a.id, type, data.byteLength, Date.now());
+    return { status: 200, body: { ok: true, id } };
+  }
+  async lpMediaGet(a: Actor, id: string): Promise<{ status: number; mime?: string; data?: ArrayBuffer; error?: string }> {
+    const b = this.sql.exec(`SELECT * FROM blobs WHERE id=? AND kind='lpm'`, id).toArray()[0];
+    if (!b) return { status: 404, error: "not_found" };
+    const f = await this.files.get(id);
+    if (!f) return { status: 404, error: "not_found" };
+    return { status: 200, mime: String(b.mime), data: f.body instanceof ArrayBuffer ? f.body : await new Response(f.body).arrayBuffer() };
   }
 
   async dlAllowed(a: Actor, kind: DlKind): Promise<boolean> { return this.dlOf(a, kind); }
@@ -777,6 +824,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
       return trackerHandle({ sql: this.sql as never, inScope: (x, c2, s2, i) => this.inScope(x, c2, s2, i), homework: () => this.allHomework().map((h) => ({ id: h.id, kind: h.kind })),
         tagged: (ids, qids) => { const k = ids.join(",") + "/" + qids.join(","); if (!memo.has(k)) memo.set(k, RES ? (RES.get(RES.idFromName("main")) as unknown as { scTagged(i: string[], q: string[]): Promise<unknown> }).scTagged(ids, qids) : Promise.resolve([])); return memo.get(k) as never; } }, a, action, input);
     }
+    if (/^lp-/.test(action)) return packHandle(this.packCtx(), a as never, action, input);
     if (/^(att|beh|cur)-/.test(action) || action === "quiz-topics-sync") return modHandle({ sql: this.sql, hwList: () => this.allHomework().map((h) => ({ id: h.id, title: h.title, kind: h.kind, cls: h.cls, section: h.section, students: h.students, createdBy: h.createdBy })), inScope: (x, c, s, i) => this.inScope(x, c, s, i), userRow: (w, g) => this.userRow(w, g), mp: (x, m) => mpOf(this.sql as never, x, m), ttChanged: () => { this.ctx.waitUntil(this.planTT()); } }, action, a, input);
     switch (action) {
       case "dl-policy": return { status: 200, body: { audio: this.dlOf(a, "audio"), export: this.dlOf(a, "export") } };
@@ -1760,10 +1808,10 @@ export class LmsStore extends DurableObject<LmsEnv> {
           const from = Math.trunc(Number(d.from));
           const to = Math.trunc(Number(d.to));
           if (!(surah >= 1 && surah <= 114) || !(from >= 1) || !(to >= from) || to - from > 300) return { status: 400, body: { error: "verses" } };
-          data = { surah, from, to, reciter: str(d.reciter, 60) || "Alafasy_128kbps", notes: str(d.notes, 1000), translit: d.translit === true, translation: d.translation === true, extra: str(d.extra, 80), memorise: d.memorise === true, memoAudio: d.memoAudio !== false };
+          data = { ...(d.pack ? { pack: str(d.pack, 40), assignAt: Number(d.assignAt) || 0 } : {}), surah, from, to, reciter: str(d.reciter, 60) || "Alafasy_128kbps", notes: str(d.notes, 1000), translit: d.translit === true, translation: d.translation === true, extra: str(d.extra, 80), memorise: d.memorise === true, memoAudio: d.memoAudio !== false };
         } else {
           const slides = (Array.isArray(d.slides) ? (d.slides as Json[]) : []).slice(0, 30).map((s) => ({ title: str(s.title, 160), text: str(s.text, 3000), image: /^https:\/\//.test(String(s.image || "")) ? str(s.image, 500) : "" }));
-          data = { slides, question: str(d.question, 1000) };
+          data = { slides, question: str(d.question, 1000), ...(d.pack ? { pack: str(d.pack, 40), assignAt: Number(d.assignAt) || 0 } : {}) };
         }
         const students = Array.isArray(input.students) ? (input.students as unknown[]).map((x) => str(x, 40)).filter(Boolean).slice(0, 500) : [];
         const cls = str(input.cls, 40);
@@ -1790,7 +1838,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         if (Number(this.sql.exec(`SELECT COUNT(*) AS n FROM homework`).one().n) >= MAX_HW) return { status: 409, body: { error: "full" } };
         const id = rid("hw");
         this.sql.exec(`INSERT INTO homework (id, kind, title, cls, section, students, data, due, created_by, created) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, id, kind, title, cls, section, JSON.stringify(students), blob, due, a.id, Date.now());
-        this.notify(this.assignees({ cls, section, students }), "hw_new", { hw: id, title, by: a.name });
+        if (input.quiet !== true) this.notify(this.assignees({ cls, section, students }), "hw_new", { hw: id, title, by: a.name });
         return { status: 200, body: { ok: true, id } };
       }
 
@@ -1917,7 +1965,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
           const nd = { hw: String(r.hw), title: hh?.title || "", by: a.name };
           if (grade) this.notify([String(r.student)], "graded", { ...nd, grade });
           else if (status !== String(r.status) && (status === "approved" || status === "returned")) this.notify([String(r.student)], status, nd);
-          else if (c) this.notify([String(r.student)], "feedback", nd);
+          else if (c) this.notify([String(r.student)], (this.allHomework(String(r.hw))[0]?.data as Json | undefined)?.pack ? "lp_feedback" : "feedback", nd);
         }
         // Approving a Quran homework updates the student's tracker automatically.
         const h = this.allHomework(String(r.hw))[0];
@@ -2170,7 +2218,8 @@ export class LmsStore extends DurableObject<LmsEnv> {
   }
   private assignedTo(a: Actor) {
     const sec = String(this.userRow("id=?", a.id)?.section || "");
-    return this.allHomework().filter((h) => (h.students.includes(a.id) || (h.cls ? h.cls === a.cls && (!h.section || h.section === sec) : !h.students.length)));
+    const now = Date.now();
+    return this.allHomework().filter((h) => !(Number((h.data as Json).assignAt || 0) > now)).filter((h) => (h.students.includes(a.id) || (h.cls ? h.cls === a.cls && (!h.section || h.section === sec) : !h.students.length)));
   }
   private subOut(r: Record<string, unknown>) {
     return { id: String(r.id), status: String(r.status), text: String(r.text || ""), practised: Boolean(r.practised), liked: Boolean(r.liked), comments: JSON.parse(String(r.comments || "[]")) as { by: string; text: string; at: number; audio?: string }[], audio: String(r.audio || ""), grade: String(r.grade || ""), scores: parseScores(r.scores) || fromGrade(String(r.grade || "")), mistakes: JSON.parse(String(r.mistakes || "[]")) as { ayah: number; word: number; text: string; note: string }[], submittedAt: Number(r.submitted_at || 0), attempts: (JSON.parse(String(r.attempts || "[]")) as { n: number; audio: string; grade: string; by: string; at: number; scores?: Scores }[]).map((x) => ({ ...x, scores: x.scores || fromGrade(x.grade) || undefined })), updated: Number(r.updated) };
@@ -2678,6 +2727,20 @@ export async function handleLms(request: Request, env: LmsEnv, action: string): 
     if (r.status !== 200 || !r.data) return reply(origin, { error: "not_found" }, 404);
     return new Response(r.data, { headers: { ...corsHeaders(origin), "Content-Type": r.mime || "audio/mpeg", "Cache-Control": "private, max-age=3600", "X-Robots-Tag": "noindex" } });
   }
+  if (action === "lp-media-upload" || action === "lp-media") {
+    const a = await lmsActor(request, env, store);
+    if (!a) return reply(origin, { error: "unauthorized" }, 401);
+    if (action === "lp-media") {
+      const r = (await store.lpMediaGet(a, str(new URL(request.url).searchParams.get("id"), 60))) as unknown as { status: number; mime?: string; data?: ArrayBuffer; error?: string };
+      if (r.status !== 200 || !r.data) return reply(origin, { error: r.error }, r.status);
+      return new Response(r.data, { headers: { ...corsHeaders(origin), "Content-Type": r.mime || "application/octet-stream", "Cache-Control": "private, max-age=604800" } });
+    }
+    if (a.viewAs) return reply(origin, { error: "read_only" }, 403);
+    if (request.method !== "POST") return reply(origin, { error: "method" }, 405);
+    if (Number(request.headers.get("Content-Length") || 0) > 2_600_000) return reply(origin, { error: "too_large" }, 413);
+    const r = (await store.lpMediaUpload(a, await request.arrayBuffer(), request.headers.get("Content-Type") || "")) as unknown as Reply;
+    return reply(origin, r.body, r.status);
+  }
   if (action === "audio-upload" || action === "audio") {
     const a = await lmsActor(request, env, store);
     if (!a) return reply(origin, { error: "unauthorized" }, 401);
@@ -2698,7 +2761,7 @@ export async function handleLms(request: Request, env: LmsEnv, action: string): 
   let body: Json = {};
   if (request.method === "POST") {
     const text = await request.text();
-    if (text.length > (action === "std-doc-save" ? 14_500_000 : action === "wall-post" ? 2_200_000 : 200_000)) return reply(origin, { error: "too_large" }, 413);
+    if (text.length > (action === "std-doc-save" ? 14_500_000 : action === "wall-post" ? 2_200_000 : /^lp-(save|work-save)$/.test(action) ? 950_000 : 200_000)) return reply(origin, { error: "too_large" }, 413);
     try {
       body = JSON.parse(text || "{}") as Json;
     } catch {
