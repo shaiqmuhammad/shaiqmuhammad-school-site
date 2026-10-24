@@ -59,19 +59,19 @@ export const addDays = (d: string, n: number) => new Date(Date.parse(`${d}T00:00
 export function weekStart(d: string) { const x = new Date(`${d}T00:00:00Z`); return addDays(d, -((x.getUTCDay() + 6) % 7)); }
 
 /** Excel download of one table. */
-export async function xlsxTable(sheet: string, headers: string[], rows: (string | number)[][], filename: string, widths?: number[]) {
+export async function xlsxTable(sheet: string, headers: string[], rows: (string | number)[][], filename: string, widths?: number[], rowColors?: (string | undefined)[], rtl = false) {
   if (!(await dlGrant("export"))) return;
   const ExcelJS = (await import("exceljs")).default;
   const wb = new ExcelJS.Workbook(); const ws = wb.addWorksheet(sheet.slice(0, 30));
   ws.columns = headers.map((h, i) => ({ header: h, key: `c${i}`, width: widths?.[i] || Math.min(50, Math.max(12, h.length + 4)) }));
-  rows.forEach((r) => ws.addRow(r));
-  ws.getRow(1).font = { bold: true }; ws.views = [{ state: "frozen", ySplit: 1 }];
+  rows.forEach((r, i) => { const row = ws.addRow(r); const c = rowColors?.[i]; if (c && /^#[0-9a-f]{6}$/i.test(c)) row.eachCell((cell) => { cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF" + c.slice(1).toUpperCase() } }; }); });
+  ws.getRow(1).font = { bold: true }; ws.views = [{ state: "frozen", ySplit: 1, rightToLeft: rtl }];
   ws.autoFilter = { from: "A1", to: { row: 1, column: headers.length } };
   downloadBlob(new Blob([await wb.xlsx.writeBuffer()], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), filename);
 }
 
 /** PDF of one table, drawn on canvas first so Arabic text shapes correctly (jsPDF alone can't). */
-export async function pdfTable(opts: { title: string; subtitle?: string; headers: string[]; rows: (string | number)[][]; filename: string; rtl?: boolean }) {
+export async function pdfTable(opts: { title: string; subtitle?: string; headers: string[]; rows: (string | number)[][]; filename: string; rtl?: boolean; rowColors?: (string | undefined)[] }) {
   if (!(await dlGrant("export"))) return;
   const { jsPDF } = await import("jspdf");
   const W = 842, H = 595, M = 28, S = 2, RH = 20, HEAD = 62;
@@ -93,6 +93,7 @@ export async function pdfTable(opts: { title: string; subtitle?: string; headers
     let y = HEAD;
     const row = (cells: (string | number)[], head: boolean, i: number) => {
       c.fillStyle = head ? "#12324a" : i % 2 ? "#f2f6f9" : "#fff"; c.fillRect(M, y, W - 2 * M, RH);
+      const rc = !head ? opts.rowColors?.[p * perPage + i] : undefined; if (rc) { c.fillStyle = rc; c.globalAlpha = 0.35; c.fillRect(M, y, W - 2 * M, RH); c.globalAlpha = 1; c.fillRect(opts.rtl ? W - M - 6 : M, y, 6, RH); }
       let x = M; c.font = `${head ? "700" : "400"} 11px ${font}`; c.fillStyle = head ? "#fff" : "#1b2f44";
       cells.forEach((v, j) => { const t = String(v ?? ""); const ar = /[\u0600-\u06FF]/.test(t); c.direction = ar ? "rtl" : "ltr"; c.textAlign = ar ? "right" : "left"; c.fillText(cut(t, cw[j]), ar ? x + cw[j] - 4 : x + 4, y + RH / 2); x += cw[j]; });
       c.textAlign = "left"; c.direction = "ltr"; y += RH;

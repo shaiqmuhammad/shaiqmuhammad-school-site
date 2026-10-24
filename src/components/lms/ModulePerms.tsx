@@ -5,9 +5,9 @@ import { lmsApi, MP_KEYS, MP_MODS, type MpCfg, type MpKey, type MpMod, type MpPa
 
 /** t292: labels for the module permission switches. */
 export const MP_MOD_LABEL: Record<MpMod, [string, string]> = { trk: ["📊 Assessment Tracker", "📊 متتبع التقييم"], rep: ["📈 Department Report", "📈 تقرير القسم"], aps: ["🎯 Attainment & Progress Report", "🎯 تقرير التحصيل والتقدم"], tt: ["🗓️ Timetable", "🗓️ الجدول الدراسي"], lp: ["📚 Learning Material & Lesson Packs (incl. Homework, Quran Homework)", "📚 المواد التعليمية وحزم الدروس (مع الواجبات وواجب القرآن)"] };
-export const MP_KEY_LABEL: Record<MpKey, [string, string]> = { show: ["Show", "إظهار"], view: ["View", "عرض"], add: ["Add", "إضافة"], edit: ["Edit", "تعديل"], delete: ["Delete", "حذف"], xlsx: ["Download Excel", "تنزيل Excel"], pdf: ["Download PDF", "تنزيل PDF"], isams: ["Download iSAMS", "تنزيل iSAMS"] };
+export const MP_KEY_LABEL: Record<MpKey, [string, string]> = { show: ["Show", "إظهار"], view: ["View", "عرض"], add: ["Add", "إضافة"], edit: ["Edit", "تعديل"], delete: ["Delete", "حذف"], xlsx: ["Download Excel", "تنزيل Excel"], pdf: ["Download PDF", "تنزيل PDF"], isams: ["Download iSAMS", "تنزيل iSAMS"], share: ["Share", "مشاركة"] };
 /** Keys that do something in each module (others are hidden): the report is read-only for teachers; iSAMS exists only in the tracker. */
-export const MP_KEYS_OF: Record<MpMod, MpKey[]> = { trk: [...MP_KEYS], rep: ["show", "view", "xlsx", "pdf"], aps: ["show", "view"], tt: ["show", "view", "add", "edit", "delete"], lp: ["show", "view", "add", "edit", "delete"] };
+export const MP_KEYS_OF: Record<MpMod, MpKey[]> = { trk: MP_KEYS.filter((k) => k !== "share"), rep: ["show", "view", "xlsx", "pdf"], aps: ["show", "view"], tt: ["show", "view", "add", "edit", "delete", "xlsx", "pdf", "share"], lp: ["show", "view", "add", "edit", "delete"] };
 const sel = "rounded-lg border border-black/15 bg-white px-1 py-0.5 text-xs dark:border-white/20 dark:bg-slate-900";
 
 /** Tri-state grid: "" = inherit, on, off. */
@@ -18,7 +18,7 @@ function Grid({ get, set, inherit, testPrefix }: { get: (m: MpMod, k: MpKey) => 
       {MP_MODS.map((m) => (
         <div key={m} className="space-y-1 rounded-xl bg-black/[0.03] px-3 py-2 dark:bg-white/5" data-testid={`${testPrefix}-${m}`}>
           <p className="text-sm font-semibold">{tr(...MP_MOD_LABEL[m])}</p>
-          {MP_KEYS.filter((k) => k !== "isams" || m === "trk").map((k) => { const live = MP_KEYS_OF[m].includes(k); return (
+          {MP_KEYS.filter((k) => (k !== "isams" || m === "trk") && (k !== "share" || m === "tt")).map((k) => { const live = MP_KEYS_OF[m].includes(k); return (
             <label key={k} className={`flex items-center justify-between gap-2 text-xs ${live ? "" : "opacity-50"}`} title={live ? "" : tr("Teachers have nothing to change or download here; admin only.", "لا يوجد ما يعدّله المعلم هنا.")}>{tr(...MP_KEY_LABEL[k])}
               <select className={sel} disabled={!live} value={live ? get(m, k) : ""} onChange={(e) => set(m, k, e.target.value as "" | "on" | "off")} data-testid={`${testPrefix}-${m}-${k}`}>
                 <option value="">{inherit}</option>
