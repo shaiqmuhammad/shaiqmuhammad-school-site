@@ -311,3 +311,33 @@ a.glass:hover, button.glass:hover, li.glass:hover { transform: translateY(-2px);
 .dark :is(.lms-main,.pub-main) table:not([data-frame],[data-frame] *) { background-color: #ffffff; }
 .dark :is(.lms-main,.pub-main) :is([class*="bg-white/6"],[class*="bg-white/7"],[class*="bg-white/8"],[class*="bg-white/9"]) { background-color: #f7f9fc; }
 .dark :is(.lms-main,.pub-main) .glass.opacity-80 { opacity: 1; color: var(--muted); }
+
+/* t321: Learning Material editor opens full screen — top bar and page chrome hidden, only the side menu stays. */
+body.lp-full [data-topbar], body.lp-full .admin-page-head, body.lp-full [data-pagechrome], body.lp-full #announcement-ticker, body.lp-full [data-testid=lms-tabs-top] { display: none !important; }
+body.lp-full .lp-editor-full { min-height: calc(100dvh - 1rem); }
+
+/* t321: admin colour — each section group has an accent; tinted page, coloured page header, accent-topped cards, tinted table heads and stat cards. */
+.admin-main { --acc: #2563eb; --acc-soft: #e8f0fe; --acc-ink: #1e3a8a; }
+.admin-main[data-group=site] { --acc: #7c3aed; --acc-soft: #f1ebfe; --acc-ink: #4c1d95; }
+.admin-main[data-group=teach] { --acc: #0d9488; --acc-soft: #e3f6f3; --acc-ink: #134e4a; }
+.admin-main[data-group=members] { --acc: #2563eb; --acc-soft: #e8f0fe; --acc-ink: #1e3a8a; }
+.admin-main[data-group=assess] { --acc: #d97706; --acc-soft: #fdf3e1; --acc-ink: #78350f; }
+.admin-main[data-group=tools] { --acc: #db2777; --acc-soft: #fdeaf3; --acc-ink: #831843; }
+.admin-main[data-group=community] { --acc: #059669; --acc-soft: #e3f7ee; --acc-ink: #064e3b; }
+.admin-main[data-group=home] { --acc: #e9b949; --acc-soft: #fff6e0; --acc-ink: #6b4a00; }
+html:not(.dark) .admin-main { background: radial-gradient(1200px 500px at 100% 0%, var(--acc-soft), transparent 60%), linear-gradient(180deg, #f4f7fb 0%, #fbf8f1 100%); }
+.admin-main .admin-page-head { position: relative; border-bottom: 0 !important; padding: 1rem 1.25rem !important; border-radius: 1.25rem; background: linear-gradient(120deg, var(--acc-soft), #ffffff 70%); box-shadow: inset 4px 0 0 var(--acc), 0 1px 2px rgba(15,36,56,.06); color: #1b2f44; }
+[dir=rtl] .admin-main .admin-page-head { box-shadow: inset -4px 0 0 var(--acc), 0 1px 2px rgba(15,36,56,.06); }
+.admin-main .admin-page-head > div > p:first-child { color: var(--acc-ink) !important; }
+.admin-main .admin-page-head h1 { color: #14263a; }
+.admin-main .admin-page-head .text-muted { color: #4a5b6d; }
+.admin-main :is(.glass,.bg-card,.bg-card-solid):not([data-frame] *) { border-top: 3px solid var(--acc) !important; }
+.admin-main table:not([data-frame] *) thead:not([class*="bg-"]) { background: var(--acc-soft); color: var(--acc-ink); }
+.admin-main [data-testid=admin-home-school] > *, .admin-main dl.grid > div { border-radius: 1rem; }
+.admin-main [data-testid=admin-home-school] > *:nth-child(4n+1), .admin-main dl.grid > div:nth-child(6n+1) { background: linear-gradient(135deg,#e8f0fe,#fff) !important; box-shadow: inset 0 3px 0 #2563eb; }
+.admin-main [data-testid=admin-home-school] > *:nth-child(4n+2), .admin-main dl.grid > div:nth-child(6n+2) { background: linear-gradient(135deg,#e3f6f3,#fff) !important; box-shadow: inset 0 3px 0 #0d9488; }
+.admin-main [data-testid=admin-home-school] > *:nth-child(4n+3), .admin-main dl.grid > div:nth-child(6n+3) { background: linear-gradient(135deg,#fdf3e1,#fff) !important; box-shadow: inset 0 3px 0 #d97706; }
+.admin-main [data-testid=admin-home-school] > *:nth-child(4n+4), .admin-main dl.grid > div:nth-child(6n+4) { background: linear-gradient(135deg,#f1ebfe,#fff) !important; box-shadow: inset 0 3px 0 #7c3aed; }
+.admin-main dl.grid > div:nth-child(6n+5) { background: linear-gradient(135deg,#fdeaf3,#fff) !important; box-shadow: inset 0 3px 0 #db2777; }
+.admin-main dl.grid > div:nth-child(6n) { background: linear-gradient(135deg,#e3f7ee,#fff) !important; box-shadow: inset 0 3px 0 #059669; }
+.admin-main [data-testid=admin-home-school] > *, .admin-main dl.grid > div { color: #1b2f44; }

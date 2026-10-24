@@ -365,7 +365,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
       </aside>
 
       {/* Top bar (phones / tablets) with a slide-in drawer */}
-      <header data-frame className="sticky top-0 z-30 pt-[env(safe-area-inset-top)] border-b border-black/10 bg-white text-heading dark:border-white/10 dark:bg-[#0f1f30] lg:hidden">
+      <header data-frame data-topbar className="sticky top-0 z-30 pt-[env(safe-area-inset-top)] border-b border-black/10 bg-white text-heading dark:border-white/10 dark:bg-[#0f1f30] lg:hidden">
         <div className="flex items-center gap-2 px-3 py-3 sm:gap-3 sm:px-4">
           <button
             type="button"
@@ -417,7 +417,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
         </div>
       )}
 
-      <main className="lms-main min-w-0 flex-1">
+      <main className="lms-main admin-main min-w-0 flex-1" data-group={GROUPS.find((x) => x.ids.includes(tab))?.id || "home"}>
         <div className="sticky top-0 z-30 hidden items-center gap-3 border-b border-black/10 bg-white px-6 py-2.5 dark:border-white/10 dark:bg-[#0f1f30] lg:flex" data-testid="admin-toolbar-wrap">
           <GregPill tone="light" />
           <div className="min-w-0 flex-1">{quickStrip()}</div>
