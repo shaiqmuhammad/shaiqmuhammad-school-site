@@ -1,6 +1,7 @@
 "use client";
 
 import { lmsSession } from "@/lib/lms";
+import { studentLoginToken } from "@/lib/lmsToken";
 import { actingAs } from "@/lib/origin";
 import { getServerSession } from "@/lib/adminServer";
 import { ASSESSMENT_API_BASE } from "@/lib/groupSession";
@@ -105,7 +106,7 @@ export const activityApi = {
     return call<{ items: (HostedActivity & { ended: boolean; participants: number })[] }>("mine", undefined, { Authorization: `Bearer ${tok}` });
   },
   info: (code: string) => call<ActivityInfo>(code),
-  join: (code: string, name: string, deviceId: string) => call<ActivityInfo & { pid: string; token: string; name: string }>(`${code}/join`, { name, deviceId }),
+  join: (code: string, name: string, deviceId: string) => call<ActivityInfo & { pid: string; token: string; name: string }>(`${code}/join`, { name, deviceId, ...(studentLoginToken() ? { lmsToken: studentLoginToken() } : {}) }),
   state: (code: string, who: Who, since?: number) => call<ActivityState | { same: true; rev: number; now: number }>(`${code}/state${q({ ...who, since })}`),
   post: (code: string, who: Who, p: { text?: string; link?: string; youtube?: string; image?: string; kind?: string; stage?: string }) =>
     call<{ ok: true; id: string; status: string }>(`${code}/post`, { ...who, ...p }),

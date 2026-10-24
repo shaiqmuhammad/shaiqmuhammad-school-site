@@ -269,7 +269,7 @@ export const lmsApi = {
   wallComment: (post: string, text: string, key?: string) => call<{ ok: true }>("wall-comment", key ? { post, text, key } : { post, text }, { asAdmin: wallAdmin }),
   wallLike: (post: string, key?: string) => call<{ ok: true }>("wall-like", key ? { post, key } : { post }, { asAdmin: wallAdmin }),
   wallMod: (op: "delete" | "pin" | "unpin" | "delcom", id: string) => call<{ ok: true }>("wall-mod", { op, id }, { asAdmin: wallAdmin }),
-  actPublish: (code: string, type: string, title: string, students: string[]) => call<{ ok: true; count: number }>("act-publish", { code, type, title, students }),
+  actPublish: (code: string, type: string, title: string, students: string[], locked = false) => call<{ ok: true; count: number }>("act-publish", { code, type, title, students, locked }),
   actLive: () => call<{ items: LiveActivity[] }>("act-live"),
   assessList: (asAdmin = false) => call<{ items: Assignment[] }>("assess-list", undefined, { asAdmin }),
   assessAssign: (a: { quiz: string; title: string; mode: "individual" | "group"; cls?: string; section?: string; students?: string[]; due?: number | null }, asAdmin = false) => call<{ ok: true; id: string; sent: number }>("assess-assign", a, { asAdmin }),

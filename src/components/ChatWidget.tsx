@@ -19,6 +19,18 @@ declare global {
  * IDs from NEXT_PUBLIC_TAWK_* env (preferred) OR public/content/settings.json via Admin → Settings.
  * Without IDs, shows a discreet “Chat coming soon” fallback.
  */
+/** t313: stop Tawk completely (hide, shut down, remove its script and injected widget) — used in the LMS areas. */
+function killTawk() {
+  try {
+    const api = window.Tawk_API as (Record<string, unknown> & { hideWidget?: () => void; shutdown?: () => void }) | undefined;
+    api?.hideWidget?.();
+    api?.shutdown?.();
+  } catch { /* not loaded */ }
+  document.getElementById("tawk-script")?.remove();
+  document.querySelectorAll('script[src*="tawk.to"], [id^="tawk"], .widget-visible, iframe[src*="tawk.to"], iframe[title*="chat" i]').forEach((el) => el.remove());
+  window.Tawk_API = undefined;
+}
+
 export function ChatWidget() {
   const [mounted, setMounted] = useState(false);
   const [propertyId, setPropertyId] = useState("");
@@ -30,9 +42,13 @@ export function ChatWidget() {
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setLmsUser(lmsSession()); }, [pathname]);
   const isLms = /^\/lms(\/|$)/.test(pathname);
-  const tracked = /^\/admin(\/|$)/.test(pathname) || (isLms && !!lmsUser);
-  // Fully off on assessment / join / activity / QR screens (and LMS when nobody is signed in).
-  const immersive = !tracked && isImmersivePath(pathname);
+  // t313: never in the student / teacher / parent areas — any LMS page, or any page while signed in to an LMS account
+  // (play / join / library / QR pages and client-side navigation included). Admin keeps the hidden visitor monitor.
+  const lmsOff = isLms || !!lmsUser || /^\/(join|play|activities|q|r|p)(\/|$)/.test(pathname);
+  const tracked = /^\/admin(\/|$)/.test(pathname) && !lmsOff;
+  // Fully off on assessment / join / activity / QR screens.
+  const immersive = lmsOff || (!tracked && isImmersivePath(pathname));
+  useEffect(() => { if (lmsOff) killTawk(); }, [lmsOff, pathname]);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => setMounted(true), []);
@@ -45,7 +61,6 @@ export function ChatWidget() {
       try {
         if (hide) api.hideWidget?.(); else api.showWidget?.();
         // Visitor attributes for signed-in LMS users only (no PIN / token / sensitive data).
-        if (tracked && isLms && lmsUser) api.setAttributes?.({ name: String(lmsUser.user.name || ""), role: String(lmsUser.user.role || ""), class: [(lmsUser.user as { cls?: string }).cls, (lmsUser.user as { section?: string }).section].filter(Boolean).join(" ") }, () => undefined);
         if (tracked) api.addEvent?.("page", { title: document.title.slice(0, 60), path: pathname.slice(0, 60) }, () => undefined);
       } catch {
         // widget not ready yet
@@ -53,7 +68,7 @@ export function ChatWidget() {
     };
     apply();
     api.onLoad = apply;
-  }, [immersive, tracked, isLms, lmsUser, pathname]);
+  }, [immersive, tracked, pathname]);
 
   useEffect(() => {
     let cancelled = false;
