@@ -7,6 +7,7 @@ const N = 12;
 
 const hash = (s: string) => { let h = 7; for (const c of s) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; };
 export function avatarCode(id: string, gender = "", avatar = ""): string {
+  if (avatar.startsWith("data:image/")) return avatar;
   if (/^[bgn]\d{1,2}$/.test(avatar) && (avatar[0] === (gender || "n") || !gender)) return avatar;
   return `${gender === "b" || gender === "g" ? gender : "n"}${hash(id) % N}`;
 }
@@ -30,6 +31,9 @@ function Face({ skin }: { skin: string }) {
 }
 
 export function Avatar({ code, size = 56, className = "" }: { code: string; size?: number; className?: string }) {
+  // t305: an uploaded profile photo (data URL) instead of a character.
+  // eslint-disable-next-line @next/next/no-img-element
+  if (code.startsWith("data:image/")) return <img src={code} alt="" width={size} height={size} className={`shrink-0 rounded-full object-cover ${className}`} style={{ width: size, height: size }} data-testid="avatar-photo" />;
   const g = code[0], n = Number(code.slice(1)) || 0;
   const skin = SKIN[n % SKIN.length], bg = BG[n % BG.length], hair = HAIR[(n >> 1) % HAIR.length], scarf = SCARF[n % SCARF.length];
   let body: React.ReactNode;

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { adminRelogin, card, inputCls, smallBtn, useTr } from "@/components/lms/useLms";
+import { modCall, modErr } from "@/lib/lmsMods";
 import { lmsApi, lmsErrorText, type Catalog, type LmsError } from "@/lib/lms";
 
 type Item = { id: string; name: string };
@@ -85,6 +86,7 @@ export function LmsSetup() {
           </div>
           <AddForm placeholder={tr("e.g. Islamic B, Arabic, Quran", "مثل التربية الإسلامية، العربية، القرآن")} testId="setup-subject" onAdd={(name) => run(lmsApi.catalogSave({ kind: "subject", name }))} />
         </section>
+        {cat && <StdDocs subjects={cat.subjects.map((x) => x.name)} />}
 
         <section className={card + " space-y-3"}>
           <h2 className="text-xl font-bold">🏫 {tr("Classes & sections", "الصفوف والشعب")}</h2>
@@ -104,5 +106,42 @@ export function LmsSetup() {
         </section>
       </div>
     </>
+  );
+}
+
+/** t304: each subject's Standards document (PDF / Word / image, up to 10 MB) — teachers read it in the Standards book. */
+function StdDocs({ subjects }: { subjects: string[] }) {
+  const { tr } = useTr();
+  const [docs, setDocs] = useState<{ subject: string; name: string; lang: string; size: number }[]>([]);
+  const [busy, setBusy] = useState("");
+  const [msg, setMsg] = useState("");
+  const load = useCallback(() => modCall<{ items: typeof docs }>("std-doc-list", {}, true).then((r) => setDocs(r.items)).catch(() => undefined), []);
+  useEffect(() => { load(); }, [load]);
+  const upload = async (subject: string, f: File) => {
+    if (f.size > 10 * 1048576) { setMsg(tr("That file is over 10 MB.", "الملف أكبر من 10 ميغابايت.")); return; }
+    setBusy(subject); setMsg("");
+    try {
+      const data = await new Promise<string>((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = rej; r.readAsDataURL(f); });
+      const lang = /islamic a/i.test(subject) || /[\u0600-\u06ff]/.test(f.name) ? "ar" : "en";
+      await modCall("std-doc-save", { subject, name: f.name, lang, mime: f.type || "application/pdf", data }, true);
+      setMsg(tr(`Uploaded for ${subject}.`, `تم الرفع لمادة ${subject}.`)); load();
+    } catch (e) { setMsg(modErr(e, tr)); }
+    setBusy("");
+  };
+  const remove = async (subject: string) => { if (!confirm(tr(`Remove the standards document of ${subject}?`, `حذف وثيقة معايير ${subject}؟`))) return; try { await modCall("std-doc-save", { subject, remove: true }, true); load(); } catch (e) { setMsg(modErr(e, tr)); } };
+  return (
+    <section className={card + " space-y-3"} data-testid="std-docs">
+      <h2 className="text-xl font-bold">📄 {tr("Subject standards documents", "وثائق معايير المواد")}</h2>
+      <p className="text-sm opacity-75">{tr("Upload each subject's Standards document. Teachers open it in their Standards book (Islamic A in Arabic, Islamic B in English).", "ارفع وثيقة معايير كل مادة. يفتحها المعلمون في كتاب المعايير (الإسلامية أ بالعربية، والإسلامية ب بالإنجليزية).")}</p>
+      <ul className="divide-y divide-black/10 dark:divide-white/10">{subjects.map((sub) => { const d = docs.find((x) => x.subject === sub); return (
+        <li key={sub} className="flex flex-wrap items-center gap-2 py-2" data-testid="std-doc-row">
+          <span className="min-w-[8rem] font-bold" dir="auto">{sub}</span>
+          <span className="flex-1 text-sm opacity-75" dir="auto">{d ? `${d.name} · ${(d.size / 1048576).toFixed(1)} MB · ${d.lang === "ar" ? "عربي" : "English"}` : tr("No document", "لا توجد وثيقة")}</span>
+          <label className={smallBtn + " cursor-pointer"}>{busy === sub ? tr("Uploading…", "جارٍ الرفع…") : d ? tr("Replace", "استبدال") : tr("Upload", "رفع")}<input type="file" accept="application/pdf,.pdf,.docx,image/png,image/jpeg" className="sr-only" disabled={!!busy} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) upload(sub, f); }} data-testid="std-doc-input" /></label>
+          {d && <button type="button" className={smallBtn} onClick={() => remove(sub)} data-testid="std-doc-remove">🗑</button>}
+        </li>
+      ); })}</ul>
+      {msg && <p className="text-sm font-semibold" role="status">{msg}</p>}
+    </section>
   );
 }

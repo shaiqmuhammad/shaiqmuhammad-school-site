@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { Avatar } from "@/components/lms/Avatar";
+import { modCall } from "@/lib/lmsMods";
 import { useRouter } from "next/navigation";
 import { AdminToolbar } from "@/components/AdminToolbar";
 import { LmsBell } from "@/components/lms/LmsBell";
@@ -77,15 +79,20 @@ export function LmsStaffToolbar() {
     const s = lmsSession();
     // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage is only readable after hydration
     if (s) setWho({ role: s.user.role, name: s.user.name });
+    // t305: the header shows only the user's character / photo (a link to My account); refreshed when they change it.
+    const load = () => { if (s && s.user.role !== "parent") modCall<{ avatar: string }>("my-avatar-kind", {}, false).then((r) => setAv(r.avatar)).catch(() => undefined); };
+    load(); window.addEventListener("sm-avatar", load);
+    return () => window.removeEventListener("sm-avatar", load);
   }, []);
+  const [av, setAv] = useState("");
   const ar = lang === "ar";
   if (typeof window !== "undefined" && viewAs()) return null; // view-as: the banner is the only control (no LMS logout)
   const roleLabel = who?.role === "teacher" ? (ar ? "المعلم" : "Teacher") : who?.role === "parent" ? (ar ? "ولي الأمر" : "Parent") : ar ? "الطالب" : "Student";
   return (
     <div className="flex items-center gap-2">
       {who && (
-        <Link href="/lms/account" title={ar ? "حسابي" : "My account"} className="max-w-[9rem] truncate rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white hover:bg-white/20 sm:max-w-[14rem]" data-testid="lms-who" dir="auto">
-          {who.role === "teacher" ? "🧑‍🏫" : who.role === "parent" ? "👨‍👩‍👧" : "🎒"} <span className="hidden sm:inline">{roleLabel}: </span>{who.name}
+        <Link href="/lms/account" title={`${ar ? "حسابي" : "My account"} · ${who.name}`} aria-label={`${ar ? "حسابي" : "My account"} — ${roleLabel}: ${who.name}`} className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full bg-white/15 ring-2 ring-white/40 transition hover:scale-105 hover:ring-sun" data-testid="lms-who">
+          {av ? <Avatar code={av} size={36} /> : <span aria-hidden>{who.role === "teacher" ? "🧑‍🏫" : who.role === "parent" ? "👨‍👩‍👧" : "🎒"}</span>}
         </Link>
       )}
       <AdminToolbar
@@ -99,4 +106,18 @@ export function LmsStaffToolbar() {
       />
     </div>
   );
+}
+
+/** t306: the signed-in user's current character / photo, refreshed on "sm-avatar" (fired after any change in My account). */
+export function useMyAvatar(fallback = "") {
+  const [av, setAv] = useState(fallback);
+  useEffect(() => {
+    const s = lmsSession();
+    const load = () => { if (s && s.user.role !== "parent") modCall<{ avatar: string }>("my-avatar-kind", {}, false).then((r) => setAv(r.avatar)).catch(() => undefined); };
+    load(); window.addEventListener("sm-avatar", load);
+    const vis = () => { if (document.visibilityState === "visible") load(); };
+    document.addEventListener("visibilitychange", vis);
+    return () => { window.removeEventListener("sm-avatar", load); document.removeEventListener("visibilitychange", vis); };
+  }, []);
+  return av || fallback;
 }

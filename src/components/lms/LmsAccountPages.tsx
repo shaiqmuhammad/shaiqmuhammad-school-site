@@ -17,13 +17,34 @@ function CharacterPicker() {
   useEffect(() => { modCall<{ avatar: string; kind: string }>("my-avatar-kind", {}, false).then((r) => { setCur(r.avatar); setKind(r.kind); }).catch(() => undefined); }, []);
   if (!cur) return null;
   const pick = async (n: number) => {
-    try { const r = await modCall<{ avatar: string }>("my-avatar", { n }, false); setCur(r.avatar); setMsg(tr("✅ Character saved!", "✅ تم حفظ الشخصية!")); } catch { setMsg(tr("Could not save. Try again.", "تعذّر الحفظ. حاول مجددًا.")); }
+    try { const r = await modCall<{ avatar: string }>("my-avatar", { n }, false); setCur(r.avatar); setMsg(tr("✅ Character saved!", "✅ تم حفظ الشخصية!")); window.dispatchEvent(new Event("sm-avatar")); } catch { setMsg(tr("Could not save. Try again.", "تعذّر الحفظ. حاول مجددًا.")); }
   };
+  // t305: upload a photo — cropped to a centred square, resized to 128 px and compressed in the browser (max ~30 KB).
+  const upload = async (f: File | undefined) => {
+    if (!f) return; setMsg("");
+    if (!/^image\/(jpeg|png|webp|gif|heic|heif)$/.test(f.type) || f.size > 15_000_000) { setMsg(tr("Please choose a photo (JPG, PNG or WebP, up to 15 MB).", "اختر صورة (JPG أو PNG أو WebP حتى 15 ميغابايت).")); return; }
+    try {
+      const bmp = await createImageBitmap(f);
+      const side = Math.min(bmp.width, bmp.height), cv = document.createElement("canvas"); cv.width = cv.height = 128;
+      cv.getContext("2d")!.drawImage(bmp, (bmp.width - side) / 2, (bmp.height - side) / 2, side, side, 0, 0, 128, 128);
+      let q = 0.85, d = cv.toDataURL("image/webp", q);
+      if (!d.startsWith("data:image/webp")) d = cv.toDataURL("image/jpeg", q);
+      while (d.length > 38000 && q > 0.3) { q -= 0.1; d = cv.toDataURL(d.startsWith("data:image/webp") ? "image/webp" : "image/jpeg", q); }
+      const r = await modCall<{ avatar: string }>("my-photo", { data: d }, false);
+      setCur(r.avatar); setMsg(tr("✅ Photo saved!", "✅ تم حفظ الصورة!")); window.dispatchEvent(new Event("sm-avatar"));
+    } catch { setMsg(tr("Could not use that photo. Try another one.", "تعذّر استخدام هذه الصورة. جرّب صورة أخرى.")); }
+  };
+  const removePhoto = async () => { try { const r = await modCall<{ avatar: string }>("my-photo", { remove: true }, false); setCur(r.avatar); setMsg(tr("Photo removed — your character is back.", "أزيلت الصورة — عادت شخصيتك.")); window.dispatchEvent(new Event("sm-avatar")); } catch { /* ignore */ } };
   return (
     <section className="mb-5 rounded-3xl bg-white/80 p-5 shadow-sm dark:bg-white/5" data-testid="char-picker">
       <div className="mb-3 flex items-center gap-3"><Avatar code={cur} size={64} /><div><h2 className="text-lg font-extrabold">{tr("My character", "شخصيتي")}</h2><p className="text-sm opacity-70">{tr("Tap a character to use it everywhere.", "اضغط على شخصية لاستخدامها في كل مكان.")}</p></div></div>
+      <div className="mb-3 flex flex-wrap items-center gap-2" data-testid="photo-controls">
+        <label className="cursor-pointer rounded-full bg-sun px-4 py-2 text-sm font-bold text-[#0b1b2b]">📷 {tr("Upload my photo", "رفع صورتي")}<input type="file" accept="image/*" className="sr-only" onChange={(e) => { upload(e.target.files?.[0]); e.target.value = ""; }} data-testid="photo-input" /></label>
+        {cur.startsWith("data:image/") && <button type="button" className="rounded-full border border-black/15 px-3 py-2 text-sm font-bold dark:border-white/20" onClick={removePhoto} data-testid="photo-remove">🗑 {tr("Remove photo", "إزالة الصورة")}</button>}
+        <span className="text-xs opacity-60">{tr("…or tap a character below", "…أو اختر شخصية بالأسفل")}</span>
+      </div>
       <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
-        {Array.from({ length: 12 }, (_, n) => { const c = `${kind}${n}`; const on = c === cur; return (
+        {Array.from({ length: 12 }, (_, n) => { const c = `${kind === "p" ? "n" : kind}${n}`; const on = c === cur; return (
           <button key={c} type="button" aria-pressed={on} aria-label={tr(`Character ${n + 1}`, `الشخصية ${n + 1}`)} onClick={() => pick(n)} className={`grid place-items-center rounded-2xl p-1 transition hover:scale-105 ${on ? "bg-sun/60 ring-4 ring-sun" : "bg-black/[0.04] dark:bg-white/10"}`} data-testid="char-opt"><Avatar code={c} size={52} /></button>
         ); })}
       </div>
