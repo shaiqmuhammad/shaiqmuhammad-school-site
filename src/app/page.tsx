@@ -68,39 +68,7 @@ export default function HomePage() {
       case "videos": return (
         <HomeVideos count={sec.count || 9} heading={<BlockHeading s={sec} eyebrow="Video lessons" title="Latest from your teacher" />} />
       );
-      case "lessons": return (
-      <Section>
-        {pages.length === 0 ? (
-          <>
-            <div className="mb-8">
-              <p className="eyebrow">Resources</p>
-              <h2 className="mt-2 text-2xl font-extrabold tracking-tight">Learning Material</h2>
-            </div>
-            <p className="text-sm text-muted">No published lessons yet.</p>
-          </>
-        ) : (
-          <CardCarousel
-            label="Learning Material"
-            labelAr="المواد التعليمية"
-            testId="home-lessons-carousel"
-            moreHref="/lessons"
-            moreTestId="home-lessons-more"
-            heading={<BlockHeading s={sec} eyebrow="Resources" title="Learning Material" />}
-          >
-            {pages.slice(0, sec.count || 9).map((page) => (
-              <Link key={page.id} href={`/lessons/${page.slug}`} className="group">
-                <Card className="h-full transition group-hover:-translate-y-0.5 group-hover:border-sun-border">
-                  <h3 className="text-lg font-semibold group-hover:text-primary">{page.title}</h3>
-                  <p className="mt-2 text-sm text-muted leading-relaxed">{page.excerpt}</p>
-                  <p className="mt-4 text-sm font-medium text-primary">Read lesson →</p>
-                </Card>
-              </Link>
-            ))}
-          </CardCarousel>
-        )}
-      </Section>
-
-      );
+      case "lessons": return null; // t320: Learning Material is account-only
       default: return <CustomSection s={sec} />;
     }
   };

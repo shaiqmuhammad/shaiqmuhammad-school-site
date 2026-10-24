@@ -4,7 +4,7 @@ export const siteConfig = {
   domain: "shaiqmuhammad.com",
   tagline: "A calm learning home for students of Shaiq Muhammad",
   description:
-    "Educational learning platform for students of Shaiq Muhammad — Quran and Hadith encyclopedias, written lessons, and video classes.",
+    "Educational learning platform for students of Shaiq Muhammad — Quran and Hadith encyclopedias, assessments and video classes.",
   location: "Dubai, United Arab Emirates",
   address: "Dubai, UAE",
   email: "contact@shaiqmuhammad.com",
@@ -57,7 +57,6 @@ export const resourceLinks = [
   { href: "/encyclopedia/hadith", key: "enc.hadith", label: "Encyclopedia of Hadith", kind: "hadith" },
   { href: "/encyclopedia/quran-com", key: "enc.quran-com", label: "Quran.com", kind: "quran" },
   { href: "/encyclopedia/sunnah", key: "enc.sunnah", label: "Sunnah.com", kind: "hadith" },
-  { href: "/lessons", key: "nav./lessons", label: "Lessons", kind: "lessons" },
   { href: "/videos", key: "nav./videos", label: "Videos", kind: "videos" },
 ] as const;
 
@@ -75,7 +74,6 @@ export const navLinks: readonly { href: string; label: string; menu?: "resources
 /** Footer "Explore" column (plain links, no dropdown). */
 export const footerLinks = [
   { href: "/", label: "Home" },
-  { href: "/lessons", label: "Lessons" },
   { href: "/videos", label: "Videos" },
   { href: "/assessments", label: "Assessments" },
   { href: "/forum", label: "Forum" },
