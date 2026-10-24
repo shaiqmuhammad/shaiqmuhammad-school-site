@@ -1,5 +1,6 @@
 "use client";
 
+import { pgApi } from "@/lib/lessonPages";
 import { useI18n } from "@/lib/i18n";
 import { DlGate } from "@/components/lms/DlGate";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -10,7 +11,6 @@ import { useAdminScope } from "@/components/AdminScope";
 /** Subjects that share (link to) another subject's curriculum. Mirrors the worker's CUR_LINK. */
 const CUR_LINK: Record<string, string> = { "Islamic A": "Islamic B" };
 import { btn, btnCta, cardCls, field, Head, Modal, ModPage, Tabs, Toast } from "@/components/lms/mods/ModUi";
-import { loadContentData } from "@/lib/content";
 import { downloadBlob } from "@/lib/exportUtils";
 import { modCall, modErr, modPerm, pdfTable, xlsxTable, type Cat, type CurLink, type CurUnit } from "@/lib/lmsMods";
 import { loadQuizzesData } from "@/lib/quiz";
@@ -84,7 +84,7 @@ export function Curriculum({ asAdmin, student = false }: { asAdmin: boolean; stu
   const note = (m: string, b = false) => { setMsg(m); setBad(b); };
   const load = useCallback(() => { modCall<{ items: CurUnit[]; canEdit: boolean; canDelete?: boolean; year?: string }>("cur-list", {}, asAdmin).then((r) => { setItems(r.items); setCanEdit(r.canEdit); setCanDelete(!!r.canDelete); setYear(r.year || ""); }).catch((e) => { setItems([]); note(modErr(e, tr), true); }); }, [asAdmin, tr]);
   useEffect(() => { load(); if (!student) modCall<Cat>("catalog", undefined, asAdmin).then(setCat).catch(() => undefined);
-    Promise.all([loadQuizzesData().catch(() => null), loadContentData().catch(() => null)]).then(([q, c]) => setLinks({ quizzes: (q?.quizzes || []).map((x) => ({ slug: x.slug, title: x.title })), pages: (c?.pages || []).map((x) => ({ slug: x.slug, title: x.title })) })); }, [load, asAdmin, student]);
+    Promise.all([loadQuizzesData().catch(() => null), pgApi.list(asAdmin).catch(() => null)]).then(([q, c]) => setLinks({ quizzes: (q?.quizzes || []).map((x) => ({ slug: x.slug, title: x.title })), pages: (c?.items || []).map((x) => ({ slug: x.slug, title: x.title })) })); }, [load, asAdmin, student]);
   useEffect(() => { if (focus && items) setTimeout(() => document.getElementById(`u-${focus}`)?.scrollIntoView({ block: "center" }), 150); }, [focus, items]);
   const subjects = useMemo(() => [...new Set([...(cat?.subjects.map((s) => s.name) || []), ...(items || []).map((i) => i.subject)])], [cat, items]);
   const years = useMemo(() => [...new Set([...(cat?.classes.map((s) => s.name) || []), ...(items || []).map((i) => i.yr)])], [cat, items]);

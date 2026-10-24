@@ -1,4 +1,5 @@
 "use client";
+import { LessonPagesManager } from "@/components/LessonPages";
 import { AdminScopeBar } from "@/components/AdminScope";
 
 import { Attendance } from "@/components/lms/mods/Attendance";
@@ -268,7 +269,7 @@ export default function AdminCms() {
     if (!token) { setStatus("Publishing isn't connected on this device — open Settings."); setTab("settings"); return; }
     setBusy(true);
     const jobs: { label: string; run: () => Promise<{ ok: boolean; error?: string; htmlUrl?: string }> }[] = [
-      { label: "data.json", run: () => publishContentToGithub(data, token) },
+      { label: "data.json", run: () => publishContentToGithub({ ...data, pages: [] }, token) }, // t320: lesson pages live in the LMS, never in the public file
       { label: "forum.json", run: () => publishForumToGithub(normalizeForum(forum), token) },
       { label: "quizzes.json", run: async () => { const err = await syncQuizTopics(quizzesForPublish(quizzesData), lang); return err ? { ok: false, error: err } : publishJsonToGithub(GITHUB_QUIZZES_PATH, quizzesForPublish(quizzesData), token, "chore(quiz): publish quizzes.json"); } },
       { label: "quiz-results.json", run: () => publishJsonToGithub(GITHUB_QUIZ_RESULTS_PATH, normalizeResults(quizResults), token, "chore(quiz): publish quiz-results.json") },
@@ -340,44 +341,7 @@ export default function AdminCms() {
             onTab={setTab}
           />
         )}
-        {tab==="pages" && (
-          <section className="space-y-4">
-            <div className="flex justify-between"><h2 className="text-xl font-semibold">{t("admin.pages.heading")}</h2><button type="button" className={btn} onClick={() => setEditingPage(emptyPage())}>{t("admin.pages.new")}</button></div>
-            {editingPage && (
-              <form onSubmit={savePage} className="space-y-3 rounded-2xl border border-card-border bg-card p-5">
-                <Field label="Title"><input className={input} value={editingPage.title} onChange={(e)=>{const title=e.target.value;setEditingPage({...editingPage,title,slug:editingPage.slug||slugify(title)});}} required /></Field>
-                <Field label="Slug"><input className={input} value={editingPage.slug} onChange={(e)=>setEditingPage({...editingPage,slug:slugify(e.target.value)})} required /></Field>
-                <Field label="Excerpt"><textarea className={input+" min-h-20"} value={editingPage.excerpt} onChange={(e)=>setEditingPage({...editingPage,excerpt:e.target.value})} /></Field>
-                <div className="rounded-xl border border-dashed border-card-border bg-accent-soft/40 p-3 space-y-2">
-                  <p className="text-xs font-semibold uppercase text-muted">Insert rich blocks</p>
-                  <div className="flex flex-wrap gap-2">
-                    <button type="button" className={btnGhost} onClick={()=>insertIntoBody("## Heading\n\nYour paragraph here.")}>+ Heading</button>
-                    <button type="button" className={btnGhost} onClick={()=>{insertIntoBody(`![Lesson image](${imageUrlDraft.trim()||"https://picsum.photos/800/450"})`);setImageUrlDraft("");}}>+ Image</button>
-                    <button type="button" className={btnGhost} onClick={()=>{insertIntoBody(`:::youtube ${extractYouTubeId(ytDraft)||"jNQXAC9IVRw"}`);setYtDraft("");}}>+ YouTube</button>
-                  </div>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <input className={input} placeholder="Image URL or data:image/…;base64,…" value={imageUrlDraft} onChange={(e)=>setImageUrlDraft(e.target.value)} />
-                    <input className={input} placeholder="YouTube URL or ID" value={ytDraft} onChange={(e)=>setYtDraft(e.target.value)} />
-                  </div>
-                </div>
-                <Field label="Body"><textarea className={input+" min-h-48 font-mono text-xs"} value={editingPage.body} onChange={(e)=>setEditingPage({...editingPage,body:e.target.value})} /></Field>
-                <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={editingPage.published} onChange={(e)=>setEditingPage({...editingPage,published:e.target.checked})} /> Published</label>
-                <div className="flex gap-2"><button type="submit" className={btn}>Save page</button><button type="button" className="text-sm text-muted" onClick={()=>setEditingPage(null)}>Cancel</button></div>
-              </form>
-            )}
-            <ul className="divide-y divide-card-border rounded-2xl border border-card-border bg-card">
-              {sortedPages.map((page)=>(
-                <li key={page.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-                  <div><p className="font-medium">{page.title}</p><p className="text-xs text-muted">/lessons/{page.slug} · {page.published?"Published":"Draft"}</p></div>
-                  <div className="flex gap-2">
-                    <button type="button" className="text-sm text-primary" onClick={()=>setEditingPage({...page})}>Edit</button>
-                    <button type="button" className="text-sm text-red-600" onClick={()=>{if(confirm(`Delete "${page.title}"?`)){setData((prev)=>({...prev,pages:prev.pages.filter((p)=>p.id!==page.id)}));}}}>Delete</button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
+        {tab==="pages" && <LessonPagesManager asAdmin />}
         {tab==="quizzes" && <AdminQuizzes setStatus={setStatus} onNeedToken={()=>setTab("settings")} data={quizzesData} setData={setQuizzesData} results={quizResults} setResults={setQuizResults} />}
         {tab==="quizzes" && <div className="mt-6"><LmsAssessAdmin quizzes={quizzesData.quizzes} /></div>}
         {tab==="certificate" && <AdminCertificate setStatus={setStatus} onNeedToken={()=>setTab("settings")} tpl={certificate} setTpl={setCertificate} />}
