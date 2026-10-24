@@ -6,6 +6,9 @@ import { inputCls, smallBtn, useTr } from "@/components/lms/useLms";
 import { FONTS, mediaUpload, uid, ytId, type El } from "@/lib/packs";
 import { thumb, ytApi, type YtVideo } from "@/lib/yt";
 
+/** t321: colourful toolbar buttons (each tool has its own colour). */
+const TB: Record<string, string> = { sky: "bg-sky-100 text-sky-900 ring-sky-300 hover:bg-sky-200", violet: "bg-violet-100 text-violet-900 ring-violet-300 hover:bg-violet-200", rose: "bg-rose-100 text-rose-900 ring-rose-300 hover:bg-rose-200", orange: "bg-orange-100 text-orange-900 ring-orange-300 hover:bg-orange-200", red: "bg-red-100 text-red-900 ring-red-300 hover:bg-red-200", indigo: "bg-indigo-100 text-indigo-900 ring-indigo-300 hover:bg-indigo-200", emerald: "bg-emerald-100 text-emerald-900 ring-emerald-300 hover:bg-emerald-200" };
+const tb = (c: string) => `inline-flex cursor-pointer items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-bold ring-1 shadow-sm transition hover:-translate-y-0.5 active:translate-y-0 ${TB[c]}`;
 const COLORS = ["#1b2f44", "#000000", "#e11d48", "#ea580c", "#ca8a04", "#16a34a", "#0284c7", "#7c3aed", "#db2777", "#ffffff"];
 export type Pen = { c: string; w: number } | null;
 type Add = (e: Omit<El, "id">) => void;
@@ -16,18 +19,18 @@ export function AddTools({ add, pen, setPen, onUndoStroke, onClearDraw, asAdmin,
   const [panel, setPanel] = useState<"" | "yt" | "act" | "quran" | "rec">("");
   const [busy, setBusy] = useState(false);
   const pic = async (f: File | undefined) => { if (!f) return; setBusy(true); try { add({ t: "img", src: await mediaUpload(f, asAdmin), x: 25, y: 15, w: 50, h: 60 } as Omit<El, "id">); } catch (e) { onErr(String((e as Error).message)); } setBusy(false); };
-  const b = (on: boolean) => `${smallBtn} ${on ? "!bg-header !text-sun" : ""}`;
+  const b = (on: boolean, c = "sky") => `${tb(c)} ${on ? "!bg-[#1b2f44] !text-white !ring-[#1b2f44]" : ""}`;
   return (
     <div className="space-y-2" data-testid="lp-tools">
-      <div className="flex flex-wrap items-center gap-1.5">
-        <button type="button" className={smallBtn} onClick={() => add({ t: "text", text: tr("Type here", "اكتب هنا"), color: "#1b2f44", font: "Nunito", size: 40, x: 10, y: 10, w: 50, h: 14 } as Omit<El, "id">)} data-testid="lp-add-text">🔤 {tr("Text", "نص")}</button>
-        <label className={smallBtn + " cursor-pointer"} data-testid="lp-add-pic">🖼️ {busy ? "…" : tr("Picture", "صورة")}<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="hidden" onChange={(e) => { pic(e.target.files?.[0]); e.target.value = ""; }} data-testid="lp-pic-input" /></label>
-        <button type="button" className={b(panel === "rec")} onClick={() => setPanel(panel === "rec" ? "" : "rec")} data-testid="lp-add-audio">🎙️ {tr("Record audio", "تسجيل صوت")}</button>
-        <button type="button" className={b(!!pen)} onClick={() => setPen(pen ? null : { c: "#e11d48", w: 0.5 })} data-testid="lp-pen">✏️ {pen ? tr("Drawing — tap to stop", "الرسم — اضغط للإيقاف") : tr("Draw", "رسم")}</button>
+      <div className="flex flex-wrap items-center gap-1.5 rounded-2xl bg-white/80 p-2 shadow-sm ring-1 ring-black/5" data-testid="lp-toolbar">
+        <button type="button" className={tb("sky")} onClick={() => add({ t: "text", text: tr("Type here", "اكتب هنا"), color: "#1b2f44", font: "Nunito", size: 40, x: 10, y: 10, w: 50, h: 14 } as Omit<El, "id">)} data-testid="lp-add-text">🔤 {tr("Text", "نص")}</button>
+        <label className={tb("violet")} data-testid="lp-add-pic">🖼️ {busy ? "…" : tr("Picture", "صورة")}<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="hidden" onChange={(e) => { pic(e.target.files?.[0]); e.target.value = ""; }} data-testid="lp-pic-input" /></label>
+        <button type="button" className={b(panel === "rec", "rose")} onClick={() => setPanel(panel === "rec" ? "" : "rec")} data-testid="lp-add-audio">🎙️ {tr("Record audio", "تسجيل صوت")}</button>
+        <button type="button" className={b(!!pen, "orange")} onClick={() => setPen(pen ? null : { c: "#e11d48", w: 0.5 })} data-testid="lp-pen">✏️ {pen ? tr("Drawing — tap to stop", "الرسم — اضغط للإيقاف") : tr("Draw", "رسم")}</button>
         {teacher && <>
-          <button type="button" className={b(panel === "yt")} onClick={() => setPanel(panel === "yt" ? "" : "yt")} data-testid="lp-add-yt">▶️ YouTube</button>
-          <button type="button" className={b(panel === "act")} onClick={() => setPanel(panel === "act" ? "" : "act")} data-testid="lp-add-act">🎲 {tr("Activity", "نشاط")}</button>
-          <button type="button" className={b(panel === "quran")} onClick={() => setPanel(panel === "quran" ? "" : "quran")} data-testid="lp-add-quran">📖 {tr("Quran", "القرآن")}</button>
+          <button type="button" className={b(panel === "yt", "red")} onClick={() => setPanel(panel === "yt" ? "" : "yt")} data-testid="lp-add-yt">▶️ YouTube</button>
+          <button type="button" className={b(panel === "act", "indigo")} onClick={() => setPanel(panel === "act" ? "" : "act")} data-testid="lp-add-act">🎲 {tr("Activity", "نشاط")}</button>
+          <button type="button" className={tb("emerald")} onClick={() => add({ t: "quran", surah: 1, from: 1, to: 7, memoAudio: true, x: 20, y: 30, w: 60, h: 30 } as Omit<El, "id">)} data-testid="lp-add-quran">📖 {tr("Quran", "القرآن")}</button>
         </>}
       </div>
       {pen && <div className="flex flex-wrap items-center gap-1.5" data-testid="lp-pen-bar">
@@ -39,7 +42,6 @@ export function AddTools({ add, pen, setPen, onUndoStroke, onClearDraw, asAdmin,
       {panel === "rec" && <AudioRecorder label={tr("Record (up to 3 minutes)", "سجّل (حتى 3 دقائق)")} testId="lp-rec" onSave={async (blob) => { const id = await mediaUpload(blob, asAdmin); add({ t: "audio", src: id, x: 30, y: 75, w: 40, h: 12 } as Omit<El, "id">); setPanel(""); }} />}
       {panel === "yt" && <YtPick onPick={(vid, title) => { add({ t: "yt", vid, title, x: 15, y: 12, w: 70, h: 76 } as Omit<El, "id">); setPanel(""); }} />}
       {panel === "act" && <ActPick onPick={(v) => { add({ t: "act", ...v, x: 10, y: 10, w: 80, h: 80 } as Omit<El, "id">); setPanel(""); }} />}
-      {panel === "quran" && <QuranPick onPick={(v) => { add({ t: "quran", ...v, x: 20, y: 30, w: 60, h: 30 } as Omit<El, "id">); setPanel(""); }} />}
     </div>
   );
 }
@@ -81,22 +83,6 @@ function ActPick({ onPick }: { onPick: (v: { code?: string; quiz?: string; label
       <label className="block text-sm font-bold">{tr("Or a self-paced assessment", "أو تقييم ذاتي")}
         <div className="flex gap-2"><select className={inputCls} value={quiz} onChange={(e) => setQuiz(e.target.value)} data-testid="lp-act-quiz"><option value="">{tr("Pick an assessment…", "اختر تقييمًا…")}</option>{quizzes.map((x) => <option key={x.slug} value={x.slug}>{x.title}</option>)}</select>
           <button type="button" className={smallBtn + " mt-1"} disabled={!quiz} onClick={() => onPick({ quiz, label: quizzes.find((x) => x.slug === quiz)?.title || quiz })} data-testid="lp-act-quiz-add">{tr("Add", "إضافة")}</button></div></label>
-    </div>
-  );
-}
-
-function QuranPick({ onPick }: { onPick: (v: { surah: number; from: number; to: number; memorise: boolean }) => void }) {
-  const { tr } = useTr();
-  const [s, setS] = useState(1), [f, setF] = useState(1), [t, setT] = useState(7), [m, setM] = useState(false);
-  const n = (v: string, lo: number, hi: number) => Math.min(hi, Math.max(lo, Math.trunc(Number(v) || lo)));
-  return (
-    <div className="flex flex-wrap items-end gap-2 rounded-2xl border border-black/10 bg-white p-3 text-sm" data-testid="lp-quran-panel">
-      <label className="font-bold">{tr("Surah", "السورة")}<input type="number" min={1} max={114} className={inputCls + " !w-20"} value={s} onChange={(e) => setS(n(e.target.value, 1, 114))} data-testid="lp-q-surah" /></label>
-      <label className="font-bold">{tr("From", "من")}<input type="number" min={1} className={inputCls + " !w-20"} value={f} onChange={(e) => setF(n(e.target.value, 1, 286))} data-testid="lp-q-from" /></label>
-      <label className="font-bold">{tr("To", "إلى")}<input type="number" min={1} className={inputCls + " !w-20"} value={t} onChange={(e) => setT(n(e.target.value, 1, 286))} data-testid="lp-q-to" /></label>
-      <label className="flex items-center gap-1 font-bold"><input type="checkbox" checked={m} onChange={(e) => setM(e.target.checked)} /> {tr("Memorise & record", "احفظ وسجّل")}</label>
-      <button type="button" className={smallBtn} onClick={() => onPick({ surah: s, from: f, to: Math.max(f, t), memorise: m })} data-testid="lp-q-add">{tr("Add", "إضافة")}</button>
-      <p className="w-full text-xs opacity-70">{tr("Quran Homework packs use this passage for the usual reading, recording, marking and tracker.", "تستخدم حزم واجب القرآن هذا المقطع للقراءة والتسجيل والتصحيح والمتابعة.")}</p>
     </div>
   );
 }
