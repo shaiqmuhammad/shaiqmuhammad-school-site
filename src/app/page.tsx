@@ -1,15 +1,11 @@
-import Link from "next/link";
 import { AssessmentCards, HomeAssessmentsHeading } from "@/components/assessment/AssessmentCards";
 import { BannerCarousel } from "@/components/BannerCarousel";
-import { Card } from "@/components/Card";
-import { CardCarousel } from "@/components/CardCarousel";
 import { EncyclopediaCards } from "@/components/EncyclopediaCards";
 import { TeacherProfileCard } from "@/components/TeacherProfileCard";
 import { Section } from "@/components/Section";
 import { LmsHomeCard } from "@/components/lms/LmsEntry";
 import { siteConfig } from "@/content/site";
 import {
-  listPublishedPages,
 } from "@/lib/content";
 import { loadContentDataSync } from "@/lib/contentServer";
 import { listPublishedBanners } from "@/lib/banners";
@@ -23,7 +19,6 @@ import { BlockHeading, CustomSection, IntroBlock } from "@/components/home/HomeB
 
 export default function HomePage() {
   const data = loadContentDataSync();
-  const pages = listPublishedPages(data).slice(0, 24);
   const banners = listPublishedBanners(loadBannersSync());
   const quizzes = listPublishedQuizzes(loadQuizzesSync());
   const layout = loadHomepageSync();

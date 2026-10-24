@@ -4,3 +4,4 @@
 /quizzes/ /assessments 301
 /quizzes/* /assessments/:splat 301
 /join/:code /join?code=:code 302
+/lessons/* /lms/lessons?p=:splat 302
