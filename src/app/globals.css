@@ -308,3 +308,5 @@ a.glass:hover, button.glass:hover, li.glass:hover { transform: translateY(-2px);
   color: var(--foreground); color-scheme: light;
 }
 .dark .lms-main :is(.glass,.bg-card,.bg-card-solid,dialog,[role=dialog]) { background-color: #f7f9fc; }
+.dark .lms-main :is([class*="bg-white/6"],[class*="bg-white/7"],[class*="bg-white/8"],[class*="bg-white/9"]) { background-color: #f7f9fc; }
+.dark .lms-main .glass.opacity-80 { opacity: 1; color: var(--muted); }
