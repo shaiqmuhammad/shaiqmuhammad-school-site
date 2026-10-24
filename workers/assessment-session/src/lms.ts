@@ -1069,7 +1069,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         if (a.viewAs || a.role === "parent") return { status: 403, body: { error: "forbidden" } };
         const u0 = this.userRow("id=?", a.id);
         if (!u0) return { status: 404, body: { error: "not_found" } };
-        return { status: 200, body: { avatar: avatarOf(u0), kind: u0.gender === "b" || u0.gender === "g" ? String(u0.gender) : "n" } };
+        return { status: 200, body: { avatar: avatarOf(u0), kind: u0.gender === "b" || u0.gender === "g" ? String(u0.gender) : "n", name: String(u0.name || ""), nameAr: String(u0.name_ar || ""), arabic: subjList(u0.subject).includes("Islamic A") } };
       }
       case "user-avatar": {
         // Teacher/admin: reroll the cartoon avatar (gender stays server-side; set by the admin only).
