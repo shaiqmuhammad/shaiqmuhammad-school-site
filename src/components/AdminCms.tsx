@@ -1,5 +1,6 @@
 "use client";
 import { LessonPagesManager } from "@/components/LessonPages";
+import { pgApi } from "@/lib/lessonPages";
 import { AdminScopeBar } from "@/components/AdminScope";
 
 import { Attendance } from "@/components/lms/mods/Attendance";
@@ -208,6 +209,8 @@ export default function AdminCms() {
   }
 
   const hasUnpublished = publishedSnapshot !== null && JSON.stringify(data) !== publishedSnapshot;
+  const [pgCount, setPgCount] = useState(0);
+  useEffect(() => { pgApi.list(true).then((r) => setPgCount(r.items.length)).catch(() => undefined); }, [tab]);
   const sortedPages = useMemo(() => [...data.pages].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)), [data.pages]);
 
   function insertIntoBody(snippet: string) {
@@ -326,7 +329,7 @@ export default function AdminCms() {
         {tab==="home" && (
           <AdminHome
             counts={{
-              pages: data.pages.length,
+              pages: pgCount,
               videos: data.videos.length,
               assessments: quizzesData.quizzes.length,
               assessmentsEnabled: quizzesData.quizzes.filter((q) => q.published).length,
