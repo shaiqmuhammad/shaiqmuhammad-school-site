@@ -4,6 +4,8 @@ import { useEffect } from "react";
 import { useTr } from "@/components/lms/useLms";
 
 const KEY = "sm-last-subject";
+/** A teacher's subjects: their subject groups (subj) or, failing that, the subjects on their account. */
+export const teacherSubjects = (u?: { subj?: string[]; subjects?: string[] } | null) => [...new Set([...(u?.subj || []), ...(u?.subjects || [])].filter(Boolean))];
 export const lastSubject = () => { try { return localStorage.getItem(KEY) || ""; } catch { return ""; } };
 const remember = (s: string) => { try { if (s) localStorage.setItem(KEY, s); } catch { /* ignore */ } };
 /** The default subject for a teacher with these subjects. */

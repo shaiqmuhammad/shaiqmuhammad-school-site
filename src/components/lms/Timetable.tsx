@@ -1,6 +1,6 @@
 "use client";
 
-import { SubjectPick } from "@/components/lms/SubjectPick";
+import { SubjectPick, teacherSubjects } from "@/components/lms/SubjectPick";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { lmsSession } from "@/lib/lms";
 import { AssessmentShell } from "@/components/assessment/AssessmentShell";
@@ -93,7 +93,7 @@ export function TimetableManager({ asAdmin }: { asAdmin: boolean }) {
   const days = [...new Set([1, 2, 3, 4, 5, ...d.timetable.map((r) => r.dow)])].sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7));
   const uniq = (xs: string[]) => [...new Set(xs.filter(Boolean))].sort();
   const subjects = uniq([...d.catalog.subjects, ...d.timetable.map((r) => r.subject)]);
-  const mySubj = lmsSession()?.user.subj || [];
+  const mySubj = teacherSubjects(lmsSession()?.user as never);
   const classes = d.catalog.classes.length ? d.catalog.classes : uniq(d.timetable.map((r) => r.cls)).map((n) => ({ id: n, name: n, sections: [] as string[] }));
   const canAdd = d.acc.add, canEdit = d.acc.edit, canDel = d.acc.delete;
   const save = async () => {

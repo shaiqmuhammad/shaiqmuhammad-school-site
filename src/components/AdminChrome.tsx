@@ -418,7 +418,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
       )}
 
       <main className="lms-main admin-main min-w-0 flex-1" data-group={GROUPS.find((x) => x.ids.includes(tab))?.id || "home"}>
-        <div className="sticky top-0 z-30 hidden items-center gap-3 border-b border-black/10 bg-white px-6 py-2.5 dark:border-white/10 dark:bg-[#0f1f30] lg:flex" data-testid="admin-toolbar-wrap">
+        <div data-frame data-topbar className="sticky top-0 z-30 hidden items-center gap-3 border-b border-black/10 bg-white px-6 py-2.5 dark:border-white/10 dark:bg-[#0f1f30] lg:flex" data-testid="admin-toolbar-wrap">
           <GregPill tone="light" />
           <div className="min-w-0 flex-1">{quickStrip()}</div>
           <HijriPill tone="light" />

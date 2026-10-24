@@ -1,5 +1,6 @@
 "use client";
 
+import { defaultSubject, teacherSubjects } from "@/components/lms/SubjectPick";
 import { useCallback, useEffect, useState } from "react";
 import { AssessmentShell } from "@/components/assessment/AssessmentShell";
 import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
@@ -32,14 +33,14 @@ export function PacksPage() {
   useEffect(() => { const q = new URLSearchParams(location.search); if (q.get("open")) setOpen(q.get("open")!); }, []);
   useEffect(() => { const q = new URLSearchParams(location.search); const t = q.get("new") as PackType | null; if (t && acc?.add && !edit) newPack(t, "blank"); // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [acc]);
-  const newPack = (type: PackType, tpl: string) => setEdit({ id: "", owner: "", ownerName: "", title: "", type, subject: actor?.subj?.[0] || "", aud: [], students: [], topic: {}, mode: "self", assignAt: 0, due: 0, status: "draft", hw: "", live: -1, tpl: false, created: 0, updated: 0, slides: TEMPLATES.find((x) => x[0] === tpl)![3](/^islamic a$/i.test(actor?.subj?.[0] || "") || lang === "ar") });
+  const newPack = (type: PackType, tpl: string) => setEdit({ id: "", owner: "", ownerName: "", title: "", type, subject: asAdmin ? "" : defaultSubject(teacherSubjects(actor as never)), aud: [], students: [], topic: {}, mode: "self", assignAt: 0, due: 0, status: "draft", hw: "", live: -1, tpl: false, created: 0, updated: 0, slides: TEMPLATES.find((x) => x[0] === tpl)![3](/^islamic a$/i.test(actor?.subj?.[0] || "") || lang === "ar") });
   const title = tr("Learning Material", "المواد التعليمية");
   if (ready && !actor) return <AssessmentShell title={title} exitHref="/lms"><p className="p-8 text-center">{tr("Please sign in.", "يرجى تسجيل الدخول.")}</p></AssessmentShell>;
   const list = (items || []).filter((x) => !filter || x.type === filter);
   return (
     <AssessmentShell title={title} exitHref="/lms" wide toolbar={staff ? <LmsStaffToolbar /> : undefined}>
       <div className="mx-auto w-full max-w-6xl flex-1 space-y-4 px-3 py-5 sm:px-6" data-testid="lp-page">
-        {edit && acc ? <PackEditor key={edit.id || "new"} initial={edit} acc={acc} asAdmin={asAdmin} subjects={asAdmin ? ["Islamic A", "Islamic B", ...(actor?.subj || [])].filter((x, i, a) => a.indexOf(x) === i) : actor?.subj || []} onClose={() => { setEdit(null); load(); }} />
+        {edit && acc ? <PackEditor key={edit.id || "new"} initial={edit} acc={acc} asAdmin={asAdmin} subjects={asAdmin ? ["Islamic A", "Islamic B", ...(actor?.subj || [])].filter((x, i, a) => a.indexOf(x) === i)   : teacherSubjects(actor as never)} onClose={() => { setEdit(null); load(); }} />
         : open ? <div className="space-y-2"><button type="button" className={smallBtn} onClick={() => setOpen("")} data-testid="lp-close">← {tr("Back", "رجوع")}</button><PackPlayer id={open} asAdmin={asAdmin} preview={staff} /></div>
         : <>
           <div className="rounded-3xl bg-gradient-to-br from-[#1d4a6e] to-header p-5 text-white">
