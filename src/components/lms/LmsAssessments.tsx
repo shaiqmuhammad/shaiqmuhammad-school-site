@@ -1,4 +1,5 @@
 "use client";
+import { LaunchChooser } from "@/components/lms/ClassLaunch";
 
 import { TrkLink } from "@/components/tracker/TrkLink";
 import { CurChip } from "@/components/lms/mods/CurChip";
@@ -90,9 +91,14 @@ function TeacherAssess({ quizzes, tr }: { quizzes: Quiz[]; tr: Tr }) {
   const [refresh, setRefresh] = useState(0);
   const loadMine = () => lmsApi.tquizList().then((r) => setMine(r.items)).catch(() => undefined);
   useEffect(() => { loadMine(); }, []);
-  const host = async (id: string) => {
-    if (id.startsWith("tq_")) { const q = await loadAnyQuiz(id); if (q) sessionStorage.setItem(HOST_DRAFT_KEY, JSON.stringify({ ...q, active: true })); }
-    window.location.assign(`/assessments/host?quiz=${encodeURIComponent(id)}`);
+  // t312: hosting asks "class / year group" (locked to those students, no names typed) or "random people" (code / QR).
+  const [launchFor, setLaunchFor] = useState<{ id: string; title: string } | null>(null);
+  const [pending, setPending] = useState<{ ids: string[]; label: string } | null>(null);
+  useEffect(() => { try { const v = JSON.parse(sessionStorage.getItem("sm-host-roster") || "null"); if (v && Date.now() - v.at < 30 * 60e3) setPending(v); } catch { /* */ } }, []);
+  const prep = async (id: string) => { if (id.startsWith("tq_")) { const q = await loadAnyQuiz(id); if (q) sessionStorage.setItem(HOST_DRAFT_KEY, JSON.stringify({ ...q, active: true })); } };
+  const host = async (id: string, title = "") => {
+    if (pending) { await prep(id); window.location.assign(`/assessments/host?quiz=${encodeURIComponent(id)}`); return; }
+    setLaunchFor({ id, title });
   };
   const card = (id: string, title: string, own: boolean) => (
     <li key={id} className="glass flex flex-col gap-3 rounded-3xl p-5" data-testid={own ? "tquiz-card" : "lms-assess-card"}>
@@ -100,7 +106,7 @@ function TeacherAssess({ quizzes, tr }: { quizzes: Quiz[]; tr: Tr }) {
       <div className="flex flex-wrap items-center gap-1.5"><CurChip type="quiz" id={id} /><TrkLink id={id} /></div>
       <div className="mt-auto flex flex-wrap gap-2">
         <button type="button" className="rounded-full bg-header px-3 py-1.5 text-xs font-bold text-white" onClick={() => setAssignFor(assignFor === id ? null : id)} data-testid="lms-assess-assign">📌 {tr("Assign", "إسناد")}</button>
-        <button type="button" className="rounded-full bg-sun px-3 py-1.5 text-xs font-bold text-[#0b1b2b]" onClick={() => host(id)} data-testid="lms-assess-host">▶ {tr("Start group session", "بدء جلسة جماعية")}</button>
+        <button type="button" className="rounded-full bg-sun px-3 py-1.5 text-xs font-bold text-[#0b1b2b]" onClick={() => host(id, title)} data-testid="lms-assess-host">▶ {tr("Start group session", "بدء جلسة جماعية")}</button>
         <a className="rounded-full border border-black/15 px-3 py-1.5 text-xs font-semibold dark:border-white/20" href={`/lms/quiz?id=${encodeURIComponent(id)}`}>👁 {tr("Preview", "معاينة")}</a>
         {own && <a className="rounded-full border border-black/15 px-3 py-1.5 text-xs font-semibold dark:border-white/20" href={`/lms/quiz-edit?id=${id}`} data-testid="tquiz-edit">✎ {tr("Edit", "تعديل")}</a>}
         {own && <button type="button" className="rounded-full px-3 py-1.5 text-xs text-rose-600" onClick={() => { if (confirm(tr("Delete this assessment?", "حذف هذا التقييم؟"))) lmsApi.tquizDelete(id).then(() => { loadMine(); setRefresh((r) => r + 1); }); }} data-testid="tquiz-delete">🗑 {tr("Delete", "حذف")}</button>}
@@ -110,6 +116,8 @@ function TeacherAssess({ quizzes, tr }: { quizzes: Quiz[]; tr: Tr }) {
   );
   return (
     <>
+      {launchFor && <LaunchChooser type="assess" icon="🧩" title={launchFor.title || tr("Assessment", "تقييم")} quiz={launchFor.id} onClose={() => setLaunchFor(null)} onClass={async (ids, label) => { await prep(launchFor.id); try { sessionStorage.setItem("sm-host-roster", JSON.stringify({ ids, label, at: Date.now() })); } catch { /* */ } window.location.assign(`/assessments/host?quiz=${encodeURIComponent(launchFor.id)}`); }} />}
+      {pending && <p className="rounded-2xl bg-emerald-100 px-4 py-2 text-sm font-bold text-emerald-900" data-testid="assess-pending">👥 {tr(`Pick an assessment to start with ${pending.label} (${pending.ids.length} students).`, `اختر تقييمًا للبدء مع ${pending.label} (${pending.ids.length} طالبًا).`)} <button type="button" className="underline" onClick={() => { sessionStorage.removeItem("sm-host-roster"); setPending(null); }}>{tr("Cancel", "إلغاء")}</button></p>}
       <section>
         <div className="mb-3 flex items-center gap-2"><H2>{tr("My assessments", "تقييماتي")}</H2><span className="flex-1" /><a href="/lms/quiz-edit" className="rounded-full bg-sun px-4 py-2 text-sm font-bold text-[#0b1b2b] transition hover:scale-105" data-testid="tquiz-new">＋ {tr("New assessment", "تقييم جديد")}</a></div>
         {!mine.length ? <p className="rounded-2xl bg-black/5 px-4 py-3 text-sm dark:bg-white/10">✨ {tr("Create your own assessment with pictures and tap-to-answer questions.", "أنشئ تقييمك الخاص بالصور والأسئلة باللمس.")}</p>

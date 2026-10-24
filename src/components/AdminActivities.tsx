@@ -44,6 +44,7 @@ export function AdminActivities({ allowed }: { allowed?: string[] } = {}) {
   const [error, setError] = useState("");
   // t304: "Start with this class" from My classes pre-fills the audience (auto-joined students) and a title.
   const [preNote, setPreNote] = useState("");
+  const [lockAud, setLockAud] = useState(false);
   useEffect(() => {
     try {
       const v = JSON.parse(sessionStorage.getItem("sm-act-prefill") || "null") as { audience?: string[]; title?: string; label?: string } | null;
@@ -53,6 +54,7 @@ export function AdminActivities({ allowed }: { allowed?: string[] } = {}) {
       if (v.audience?.length) setAudience(v.audience);
       if (v.title) setTitle(v.title);
       if (v.label) setPreNote(v.label);
+      if ((v as { locked?: boolean }).locked) setLockAud(true);
     } catch { /* */ }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -91,7 +93,7 @@ export function AdminActivities({ allowed }: { allowed?: string[] } = {}) {
       const settings: Partial<ActivitySettings> = { moderation, hideNames, allowImages, allowLinks, likes, options: prepared.options };
       const r = await activityApi.create({ type, title: title.trim(), prompt: prompt.trim(), settings });
       await afterCreate(type, r.code, r.hostKey, prepared.options, prepared.images);
-      if (allowed && audience.length) await lmsApi.actPublish(r.code, type, r.title, audience).catch(() => undefined);
+      if (allowed && audience.length) await lmsApi.actPublish(r.code, type, r.title, audience, lockAud).catch(() => undefined);
       saveHosted({ code: r.code, hostKey: r.hostKey, type, title: r.title, createdAt: r.createdAt, expiresAt: r.expiresAt });
       router.push(`/activities/host?code=${r.code}`);
     } catch (err) {
@@ -157,6 +159,7 @@ export function AdminActivities({ allowed }: { allowed?: string[] } = {}) {
 
           {allowed && preNote && <p className="rounded-2xl bg-emerald-100 px-4 py-2 text-sm font-bold text-emerald-900" data-testid="act-prefill">👥 {tr(`Starting with ${preNote} — they'll see it on their dashboard and join automatically.`, `البدء مع ${preNote} — سيظهر لهم في لوحتهم وينضمون تلقائيًا.`)}</p>}
           {allowed && <AudiencePicker value={audience} onChange={setAudience} />}
+          {allowed && audience.length > 0 && <label className="flex items-center gap-2 text-sm font-semibold" data-testid="act-lock-label"><input type="checkbox" className="h-5 w-5" checked={lockAud} onChange={(e) => setLockAud(e.target.checked)} data-testid="act-lock" /> 🔒 {tr("Only these students — they join straight in under their own name (no typing); anyone else is refused", "فقط هؤلاء الطلاب — ينضمون مباشرة بأسمائهم (دون كتابة)؛ ويُرفض غيرهم")}</label>}
           <fieldset className="flex flex-wrap gap-x-5 gap-y-2 text-sm">
             <legend className="mb-1 text-sm font-semibold">{tr("Settings (can be changed live)", "الإعدادات (يمكن تغييرها أثناء النشاط)")}</legend>
             {(type === "wall" || type === "tps") && (

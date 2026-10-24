@@ -1,4 +1,5 @@
 "use client";
+import { LaunchChooser, LOCK_TYPES } from "@/components/lms/ClassLaunch";
 import { saveNames } from "@/components/activity/ClassNames";
 
 import { dlGrant } from "@/lib/dl";
@@ -210,7 +211,8 @@ export function LmsClassesPage() {
           <label className="mt-3 block text-sm font-bold">{tr("Reason (for Late / Absent)", "السبب (للتأخر / الغياب)")}<input className="mt-1 w-full rounded-xl border border-black/10 bg-white px-3 py-2 dark:border-white/15 dark:bg-white/5" value={reason} onChange={(e) => setReason(e.target.value)} maxLength={200} dir="auto" placeholder={tr("e.g. Doctor appointment", "مثال: موعد طبي")} data-testid="att-reason" /></label>
         </Modal>
       )}
-      {launch && (
+      {launch && LOCK_TYPES.includes(launch[0]) && <LaunchChooser type={launch[0]} icon={launch[1]} title={tr(launch[2], launch[3])} defaultKeys={view ? [view] : []} given={{ roster, groups }} onClose={() => setLaunch(null)} />}
+      {launch && !LOCK_TYPES.includes(launch[0]) && (
         <Modal onClose={() => setLaunch(null)} label={tr(launch[2], launch[3])}>
           <p className="mb-3 text-lg font-extrabold"><span aria-hidden>{launch[1]}</span> {tr(launch[2], launch[3])}</p>
           <div className="grid gap-2" data-testid="launch">
@@ -225,7 +227,7 @@ export function LmsClassesPage() {
           {([["wheel", "🎡", "Spin", "العجلة"], ["randomiser", "🎲", "Randomiser", "اختيار عشوائي"], ["wall", "🧱", "Wall", "الجدار"], ["wordcloud", "☁️", "Word cloud", "سحابة كلمات"], ["poll", "📊", "Poll", "استطلاع"], ["survey", "📝", "Survey", "استبيان"], ["tps", "💭", "Think-Pair-Share", "فكّر-زاوج-شارك"], ["vote", "🗳️", "Vote", "تصويت"]] as const).map(([t, ic, en, ar]) => (
             <button type="button" key={t} onClick={() => setLaunch([t, ic, en, ar])} className="flex min-w-[4.5rem] flex-1 flex-col items-center gap-0.5 rounded-2xl px-2 py-1.5 text-center text-[11px] font-bold hover:bg-sun/40" data-testid={`tray-${t}`}><span className="text-3xl" aria-hidden>{ic}</span>{tr(en, ar)}</button>
           ))}
-          <a href="/lms/assessments" className="flex min-w-[4.5rem] flex-1 flex-col items-center gap-0.5 rounded-2xl px-2 py-1.5 text-[11px] font-bold hover:bg-sun/40" data-testid="tray-assess"><span className="text-3xl" aria-hidden>🧩</span>{tr("Assessments", "التقييمات")}</a>
+          <button type="button" onClick={() => setLaunch(["assess", "🧩", "Assessments", "التقييمات"])} className="flex min-w-[4.5rem] flex-1 flex-col items-center gap-0.5 rounded-2xl px-2 py-1.5 text-[11px] font-bold hover:bg-sun/40" data-testid="tray-assess"><span className="text-3xl" aria-hidden>🧩</span>{tr("Assessments", "التقييمات")}</button>
         </div>
       </nav>
       <div className="h-24" aria-hidden />
