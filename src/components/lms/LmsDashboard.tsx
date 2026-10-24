@@ -1,5 +1,5 @@
 "use client";
-import { applyPref, MenuEditor, useUiPrefs } from "@/components/lms/MenuPrefs";
+import { applyPref, MenuEditor, useMyPages, useUiPrefs } from "@/components/lms/MenuPrefs";
 import { TodayLessons } from "@/components/lms/Timetable";
 
 
@@ -98,9 +98,13 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
   const unread = useUnreadMsgs();
   const { prefs: uiPrefs, save: saveUi } = useUiPrefs();
   const [editTiles, setEditTiles] = useState(false);
+  const myPages = useMyPages();
   const canAssign = actor?.role === "admin" || actor?.perms.includes("assign");
 
   const QUICK: string[][] = (staff ? [["/lms/timetable", "⏰", "Timetable", "الجدول", "from-lime-100 to-lime-200"], ["/lms/classes", "🧑‍🏫", "My classes", "صفوفي", "from-sky-100 to-sky-200"], ["/lms/homework", "📚", "Homeworks", "الواجبات", "from-amber-100 to-amber-200"], ["/lms/attendance", "📋", "Attendance", "الحضور", "from-emerald-100 to-emerald-200"], ["/lms/activities", "🎡", "Activities", "الأنشطة", "from-violet-100 to-violet-200"], ["/lms/assessments", "🧩", "Assessments", "التقييمات", "from-rose-100 to-rose-200"], ["/lms/messages", "💬", "Messages", "الرسائل", "from-cyan-100 to-cyan-200"]] : [["/lms/timetable", "⏰", "Timetable", "الجدول", "from-lime-100 to-lime-200"], ["/lms/homework", "✏️", "Homework", "الواجبات", "from-amber-100 to-amber-200"], ["/lms/assessments", "🧩", "Assessments", "التقييمات", "from-rose-100 to-rose-200"], ["/lms/library", "📚", "Libraries", "المكتبات", "from-emerald-100 to-emerald-200"], ["/lms#tracker", "📖", "Quran Tracker", "متابعة الحفظ", "from-sky-100 to-sky-200"], ["/lms/messages", "💬", "Messages", "الرسائل", "from-cyan-100 to-cyan-200"], ["/lms/account", "🦸", "My character", "شخصيتي", "from-violet-100 to-violet-200"]]);
+  // t310: the shortcuts editor lists every page the user can open (extra ones start hidden).
+  const TILES = [...QUICK.map(([href, ic, en, ar, tone]) => ({ id: href, href, ic, en, ar, tone })), ...myPages.filter((p) => !QUICK.some((q) => q[0] === p.href)).map((p) => ({ id: p.href, href: p.href, ic: p.icon, en: p.label, ar: p.label, tone: "from-slate-100 to-slate-200" }))];
+  const tileDefHidden = TILES.filter((t) => !QUICK.some((q) => q[0] === t.id)).map((t) => t.id);
   if (ready && !actor) return <NeedLogin adminElsewhere={adminElsewhere} />;
 
   return (
@@ -116,12 +120,12 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
           // t303: big friendly shortcuts for students and teachers.
           <>
           <nav className="grid grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-3 lg:grid-cols-7" aria-label={tr("Shortcuts", "اختصارات")} data-testid="lms-quick">
-            {applyPref(QUICK.map(([href, ic, en, ar, tone]) => ({ id: href, href, ic, en, ar, tone })), uiPrefs.tiles).map(({ href, ic, en, ar, tone }) => (
+            {applyPref(TILES, uiPrefs.tiles, [], tileDefHidden).map(({ href, ic, en, ar, tone }) => (
               <a key={href} href={href} className={`flex flex-col items-center gap-1 rounded-3xl bg-gradient-to-br ${tone} px-2 py-3 text-center text-xs font-extrabold text-[#1b2f44] shadow-sm ring-1 ring-black/5 transition hover:-translate-y-0.5 hover:shadow-md sm:text-sm dark:opacity-90`} data-testid="lms-quick-item"><span className="text-3xl sm:text-4xl" aria-hidden>{ic}</span>{tr(en, ar)}</a>
             ))}
           </nav>
           <div className="-mt-3 flex justify-end"><button type="button" className="rounded-full px-3 py-1 text-xs font-bold opacity-70 hover:opacity-100" onClick={() => setEditTiles(true)} data-testid="tiles-edit">✏️ {tr("Edit shortcuts", "تعديل الاختصارات")}</button></div>
-          {editTiles && <MenuEditor title={tr("Edit shortcuts", "تعديل الاختصارات")} items={QUICK.map(([href, ic, en, ar]) => ({ id: href, label: tr(en, ar), icon: ic }))} pref={uiPrefs.tiles} onSave={(p) => saveUi("tiles", p)} onClose={() => setEditTiles(false)} tr={tr} />}
+          {editTiles && <MenuEditor title={tr("Edit shortcuts", "تعديل الاختصارات")} items={TILES.map((t) => ({ id: t.id, label: tr(t.en, t.ar), icon: t.ic }))} pref={uiPrefs.tiles} defHidden={tileDefHidden} onSave={(p) => saveUi("tiles", p)} onClose={() => setEditTiles(false)} tr={tr} />}
           </>
         )}
         {!staff && actor && !hwOnly && <LiveActivityBanner />}

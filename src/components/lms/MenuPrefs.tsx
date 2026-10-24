@@ -6,7 +6,13 @@ import { lmsSession } from "@/lib/lms";
 import { modCall } from "@/lib/lmsMods";
 
 /** t304: per-user menu layout, saved on the server (and cached locally so the menu doesn't jump on load). */
-export type MenuPref = { order: string[]; hidden: string[] };
+export type MenuPref = { order: string[]; hidden: string[]; shown?: string[] };
+/** t310: every page the signed-in user can open (published by the side menu), used by the shortcuts editor. */
+export type MyPage = { id: string; href: string; label: string; icon: string };
+let pages: MyPage[] = [];
+const psubs = new Set<() => void>();
+export function setMyPages(p: MyPage[]) { const k = JSON.stringify(p); if (k === JSON.stringify(pages)) return; pages = p; psubs.forEach((f) => f()); }
+export function useMyPages() { const [p, setP] = useState<MyPage[]>(pages); useEffect(() => { setP(pages); const f = () => setP(pages); psubs.add(f); return () => { psubs.delete(f); }; }, []); return p; }
 export type UiPrefs = { rail?: MenuPref; tiles?: MenuPref };
 const key = () => `sm-ui-${lmsSession()?.user.id || "x"}`;
 let mem: UiPrefs | null = null;
@@ -31,16 +37,16 @@ export function useUiPrefs() {
 }
 
 /** Apply a saved order / hidden list to items with ids (new items keep their default place at the end of known ones). */
-export function applyPref<T extends { id: string }>(items: T[], pref: MenuPref | undefined, locked: string[] = []): T[] {
-  if (!pref) return items;
-  const idx = (id: string) => { const i = pref.order.indexOf(id); return i < 0 ? 1000 + items.findIndex((x) => x.id === id) : i; };
-  return [...items].filter((x) => locked.includes(x.id) || !pref.hidden.includes(x.id)).sort((a, b) => idx(a.id) - idx(b.id));
+export const isHidden = (id: string, pref: MenuPref | undefined, defHidden: string[] = []) => (pref?.hidden || []).includes(id) || (defHidden.includes(id) && !(pref?.shown || []).includes(id));
+export function applyPref<T extends { id: string }>(items: T[], pref: MenuPref | undefined, locked: string[] = [], defHidden: string[] = []): T[] {
+  const idx = (id: string) => { const i = pref ? pref.order.indexOf(id) : -1; return i < 0 ? 1000 + items.findIndex((x) => x.id === id) : i; };
+  return [...items].filter((x) => locked.includes(x.id) || !isHidden(x.id, pref, defHidden)).sort((a, b) => idx(a.id) - idx(b.id));
 }
 
 /** Side panel to reorder (↑ ↓) and show/hide menu items. */
-export function MenuEditor({ title, items, pref, locked = [], onSave, onClose, tr }: { title: string; items: { id: string; label: string; icon?: string }[]; pref?: MenuPref; locked?: string[]; onSave: (p: MenuPref | null) => void; onClose: () => void; tr: (en: string, ar: string) => string }) {
-  const [order, setOrder] = useState<string[]>(() => applyPref(items, pref ? { ...pref, hidden: [] } : undefined).map((x) => x.id));
-  const [hidden, setHidden] = useState<string[]>(pref?.hidden || []);
+export function MenuEditor({ title, items, pref, locked = [], defHidden = [], onSave, onClose, tr }: { title: string; items: { id: string; label: string; icon?: string }[]; pref?: MenuPref; locked?: string[]; defHidden?: string[]; onSave: (p: MenuPref | null) => void; onClose: () => void; tr: (en: string, ar: string) => string }) {
+  const [order, setOrder] = useState<string[]>(() => applyPref(items, pref ? { ...pref, hidden: [], shown: items.map((x) => x.id) } : undefined).map((x) => x.id));
+  const [hidden, setHidden] = useState<string[]>(() => items.map((x) => x.id).filter((id) => isHidden(id, pref, defHidden)));
   const mv = (i: number, d: number) => { const j = i + d; if (j < 0 || j >= order.length) return; const o = [...order]; [o[i], o[j]] = [o[j], o[i]]; setOrder(o); };
   return (
     <BodyPortal>
@@ -59,7 +65,7 @@ export function MenuEditor({ title, items, pref, locked = [], onSave, onClose, t
             ); })}
           </ul>
           <div className="flex gap-2 border-t border-black/10 p-3 dark:border-white/10">
-            <button type="button" className="flex-1 rounded-full bg-sun px-4 py-2 font-bold text-[#0b1b2b]" onClick={() => { onSave({ order, hidden }); onClose(); }} data-testid="menu-save">{tr("Save", "حفظ")}</button>
+            <button type="button" className="flex-1 rounded-full bg-sun px-4 py-2 font-bold text-[#0b1b2b]" onClick={() => { onSave({ order, hidden: hidden.filter((x) => !defHidden.includes(x)), shown: order.filter((x) => defHidden.includes(x) && !hidden.includes(x)) }); onClose(); }} data-testid="menu-save">{tr("Save", "حفظ")}</button>
             <button type="button" className="rounded-full border border-black/15 px-4 py-2 font-bold dark:border-white/20" onClick={() => { onSave(null); onClose(); }} data-testid="menu-reset">{tr("Reset", "إعادة ضبط")}</button>
           </div>
         </div>
