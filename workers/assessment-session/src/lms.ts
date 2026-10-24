@@ -408,7 +408,8 @@ export class LmsStore extends DurableObject<LmsEnv> {
   }
   private mkActor(u: { id: string; role: Role; name: string; cls: string; perms: string[]; scope: string[] }): Actor {
     if (u.role !== "teacher") return { id: u.id, role: u.role, name: u.name, cls: u.cls, perms: u.perms, scope: u.scope, nameAr: (u as { nameAr?: string }).nameAr || "" };
-    return { id: u.id, role: u.role, name: u.name, cls: u.cls, perms: u.perms, ...this.teacherScope(u.id) };
+    let subjects: string[] = []; try { subjects = JSON.parse(String(this.userRow("id=?", u.id)?.subjects || "[]")) as string[]; } catch { /* ignore */ }
+    return { id: u.id, role: u.role, name: u.name, cls: u.cls, perms: u.perms, subjects, ...this.teacherScope(u.id) } as Actor;
   }
   /** EYFS / Primary / Secondary from a stored class value such as "FS2", "Year 2", "Demo Year 3". FS and Year 1-2 = EYFS, Year 3-6 = Primary, Year 7+ = Secondary. */
   private phaseOfClass(cls: string): string {
