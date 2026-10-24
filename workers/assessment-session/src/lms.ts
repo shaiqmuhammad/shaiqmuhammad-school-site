@@ -629,7 +629,9 @@ export class LmsStore extends DurableObject<LmsEnv> {
   stdMine(a: Actor): string[] | null {
     if (a.role === "admin" && !a.viewAs) return null;
     const u = this.userRow("id=?", a.id);
-    return u ? subjList(u.subject) : [];
+    let js: string[] = []; try { js = JSON.parse(String(u?.subjects || "[]")) as string[]; } catch { /* */ }
+    // Own subjects (profile) plus the subject of any subject group the admin assigned them to.
+    return [...new Set([...(u ? subjList(u.subject) : []), ...js.map(String), ...(a.subj || [])].map((x) => x.trim()).filter(Boolean))];
   }
   /** t304: an assessment % as the tracker entry level: the tracker's SC scale 0–3 (cut-offs from the Attainment system for that year) shown as Level 1–4. */
   levelOf(pct: number, year: string): { level: number; label: string } {
