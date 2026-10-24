@@ -444,7 +444,8 @@ export function LmsHomework() {
               </div>
             )}
             {editing && <HomeworkEditor initial={hw} classes={extra.classes} students={extra.students} catalog={extra.catalog} scope={extra.scope} asAdmin={asAdmin} onCancel={() => setEditing(false)} onSaved={() => { setEditing(false); load(); }} />}
-            {hw.kind === "quran" ? <QuranReader data={hw.data as QuranData} mistakes={(d.sub?.mistakes || [])} /> : <Slides data={hw.data as GeneralData} />}
+            {hw.kind === "quran" && staff && (hw.data as QuranData).memorise && <p className="rounded-2xl bg-violet-100 px-4 py-2 text-sm font-bold text-violet-900" data-testid="hw-memo-teacher">🧠 {tr("Memorise & record — students don't see these verses.", "احفظ وسجّل — لا يرى الطلاب هذه الآيات.")}</p>}
+            {hw.kind === "quran" ? (!staff && (hw.data as QuranData).memorise ? <MemoriseCard data={hw.data as QuranData} chapters={chapters} /> : <QuranReader data={hw.data as QuranData} mistakes={(d.sub?.mistakes || [])} />) : <Slides data={hw.data as GeneralData} />}
             {!staff && <StudentWork key={d?.sub?.updated || 0} hw={hw} sub={d?.sub || null} reload={load} chapters={chapters} />}
             {staff && (
               <section className="space-y-3">
@@ -536,5 +537,30 @@ function LockList({ hwId, asAdmin }: { hwId: string; asAdmin: boolean }) {
         </ul>
       ))}
     </details>
+  );
+}
+
+/** t307: Memorise & record — the student sees only the Surah, the verse range, the reciter (if allowed) and the record button below. */
+function MemoriseCard({ data, chapters }: { data: QuranData; chapters: Chapter[] }) {
+  const { tr } = useTr();
+  const ch = chapters.find((c) => c.id === data.surah);
+  const [n, setN] = useState<number | null>(null);
+  const audio = useRef<HTMLAudioElement | null>(null);
+  const playFrom = (v: number) => {
+    if (v > data.to) { setN(null); return; }
+    setN(v);
+    if (!audio.current) audio.current = new Audio();
+    const a = audio.current; a.src = ayahAudio(data.reciter, data.surah, v); a.onended = () => playFrom(v + 1); a.play().catch(() => setN(null));
+  };
+  useEffect(() => () => { audio.current?.pause(); }, []);
+  return (
+    <div className="rounded-3xl bg-gradient-to-br from-violet-100 to-sky-100 p-6 text-center text-[#1b2f44] shadow-sm" data-testid="hw-memorise-card">
+      <p className="text-4xl" aria-hidden>🧠</p>
+      <p className="mt-2 text-2xl font-extrabold" dir="auto" data-testid="memo-surah">{ch ? `${ch.name_simple} · ${ch.name_arabic}` : `Surah ${data.surah}`}</p>
+      <p className="text-lg font-bold" data-testid="memo-range">{tr(`Verses ${data.from}–${data.to}`, `الآيات ${data.from}–${data.to}`)}</p>
+      <p className="mx-auto mt-2 max-w-md text-sm opacity-80">{tr("Recite these verses from memory and record yourself below. The text is hidden for this homework.", "اتلُ هذه الآيات من حفظك وسجّل تلاوتك في الأسفل. النص مخفي في هذا الواجب.")}</p>
+      {data.notes && <p className="mt-2 text-sm font-semibold" dir="auto">📝 {data.notes}</p>}
+      {data.memoAudio !== false && <button type="button" className="mt-3 rounded-full bg-header px-5 py-2 font-bold text-sun" onClick={() => { if (n) { audio.current?.pause(); setN(null); } else playFrom(data.from); }} data-testid="memo-listen">{n ? `⏸ ${tr("Stop", "إيقاف")} (${n})` : `🔊 ${tr("Listen to the reciter", "استمع إلى القارئ")}`}</button>}
+    </div>
   );
 }

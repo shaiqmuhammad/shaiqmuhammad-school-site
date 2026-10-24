@@ -1740,7 +1740,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
           const from = Math.trunc(Number(d.from));
           const to = Math.trunc(Number(d.to));
           if (!(surah >= 1 && surah <= 114) || !(from >= 1) || !(to >= from) || to - from > 300) return { status: 400, body: { error: "verses" } };
-          data = { surah, from, to, reciter: str(d.reciter, 60) || "Alafasy_128kbps", notes: str(d.notes, 1000), translit: d.translit === true, translation: d.translation === true };
+          data = { surah, from, to, reciter: str(d.reciter, 60) || "Alafasy_128kbps", notes: str(d.notes, 1000), translit: d.translit === true, translation: d.translation === true, extra: str(d.extra, 80), memorise: d.memorise === true, memoAudio: d.memoAudio !== false };
         } else {
           const slides = (Array.isArray(d.slides) ? (d.slides as Json[]) : []).slice(0, 30).map((s) => ({ title: str(s.title, 160), text: str(s.text, 3000), image: /^https:\/\//.test(String(s.image || "")) ? str(s.image, 500) : "" }));
           data = { slides, question: str(d.question, 1000) };

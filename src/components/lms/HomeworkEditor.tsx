@@ -36,6 +36,10 @@ export function HomeworkEditor({ initial, classes, students, catalog, scope = []
   const [translit, setTranslit] = useState(!!q0.translit);
   const [translation, setTranslation] = useState(!!q0.translation);
   const [notes, setNotes] = useState(q0.notes || "");
+  // t307: free text after "Surah from–to" (e.g. "revision"), and Memorise & record (students don't see the verse text).
+  const [extra, setExtra] = useState(q0.extra || "");
+  const [memorise, setMemorise] = useState(!!q0.memorise);
+  const [memoAudio, setMemoAudio] = useState(q0.memoAudio !== false);
   const [slides, setSlides] = useState<Slide[]>(g0.slides?.length ? g0.slides : [{ title: "", text: "", image: "" }]);
   const [question, setQuestion] = useState(g0.question || "");
   const [chapters, setChapters] = useState<Chapter[]>([]);
@@ -51,7 +55,8 @@ export function HomeworkEditor({ initial, classes, students, catalog, scope = []
   const [myList, setMyList] = useState<number[]>([]);
   useEffect(() => { try { setMyList((JSON.parse(localStorage.getItem("sm-surah-list") || "[]") as number[]).filter((n) => n >= 1 && n <= 114)); } catch { /* ignore */ } }, []);
   const saveList = (l: number[]) => { setMyList(l); try { localStorage.setItem("sm-surah-list", JSON.stringify(l)); } catch { /* ignore */ } };
-  const autoTitle = `${ch?.name_simple || `Surah ${surah}`} ${from}–${Math.max(from, to)}`;
+  const baseTitle = `${ch?.name_simple || `Surah ${surah}`} ${from}–${Math.max(from, to)}`;
+  const autoTitle = (extra.trim() ? `${baseTitle}, ${extra.trim()}` : baseTitle).slice(0, 160);
   const max = ch?.verses_count || 286;
 
   const picker = (
@@ -90,7 +95,7 @@ export function HomeworkEditor({ initial, classes, students, catalog, scope = []
         setBusy(true);
         setErr("");
         try {
-          const data = kind === "quran" ? { surah, from, to: Math.max(from, to), reciter, notes, translit, translation } : { slides: slides.filter((s) => s.title || s.text || s.image), question };
+          const data = kind === "quran" ? { surah, from, to: Math.max(from, to), reciter, notes, translit, translation, extra: extra.trim(), memorise, memoAudio } : { slides: slides.filter((s) => s.title || s.text || s.image), question };
           const r = await lmsApi.saveHomework({ id: initial?.id, kind, title: kind === "quran" ? autoTitle : title.trim(), cls: who === "students" || (!asAdmin && pick.length) ? "" : cls, section: who === "students" || (!asAdmin && pick.length) ? "" : section || (cls && !wholeClassOk(cls) ? sectionsOf(cls)[0] || "" : ""), students: pick, due: due ? new Date(due + "T23:59:00").getTime() : null, data: data as QuranData | GeneralData }, asAdmin);
           onSaved(r.id);
         } catch (x) {
@@ -108,7 +113,12 @@ export function HomeworkEditor({ initial, classes, students, catalog, scope = []
         ))}
       </div>
       {kind === "quran" ? (
-        <p className="rounded-xl bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-900 dark:bg-emerald-900/30 dark:text-emerald-100" data-testid="hw-title-auto">{tr("Title", "العنوان")}: <b dir="auto">{autoTitle}</b> <span className="font-normal opacity-70">({tr("made from the Surah and verses", "من السورة والآيات")})</span></p>
+        <div className="rounded-xl bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-900 dark:bg-emerald-900/30 dark:text-emerald-100" data-testid="hw-title-auto">
+          <span>{tr("Title", "العنوان")}:</span>
+          <span className="mt-1 flex flex-wrap items-center gap-2"><b dir="auto" className="rounded-full bg-white/70 px-3 py-1 dark:bg-white/10" data-testid="hw-title-base">{baseTitle}</b><span aria-hidden>,</span>
+            <input className="min-w-[10rem] flex-1 rounded-full border border-emerald-700/20 bg-white px-3 py-1 font-normal text-[#1b2f44] dark:bg-white/10 dark:text-white" value={extra} onChange={(e) => setExtra(e.target.value)} maxLength={80} dir="auto" placeholder={tr("add text, e.g. revision", "أضف نصًا، مثل: مراجعة")} aria-label={tr("Text after the Surah name", "نص بعد اسم السورة")} data-testid="hw-title-extra" /></span>
+          <span className="mt-1 block text-xs font-normal opacity-70">{tr("Saved as", "يُحفظ باسم")}: <span dir="auto" data-testid="hw-title-final">{autoTitle}</span></span>
+        </div>
       ) : (
       <label className="block text-sm font-semibold">
         {tr("Title", "العنوان")}
@@ -147,6 +157,8 @@ export function HomeworkEditor({ initial, classes, students, catalog, scope = []
           <div className="flex flex-wrap gap-4 text-sm font-semibold sm:col-span-2">
             <label className="flex items-center gap-2"><input type="checkbox" className="h-5 w-5" checked={translit} onChange={(e) => setTranslit(e.target.checked)} data-testid="hw-translit" /> {tr("Show transliteration", "إظهار النطق بالحروف اللاتينية")}</label>
             <label className="flex items-center gap-2"><input type="checkbox" className="h-5 w-5" checked={translation} onChange={(e) => setTranslation(e.target.checked)} data-testid="hw-translation" /> {tr("Show translation", "إظهار الترجمة / التفسير الميسر")}</label>
+            <label className="flex items-center gap-2" data-testid="hw-memorise-label"><input type="checkbox" className="h-5 w-5" checked={memorise} onChange={(e) => setMemorise(e.target.checked)} data-testid="hw-memorise" /> 🧠 {tr("Memorise & record (hide the verses from students)", "احفظ وسجّل (إخفاء الآيات عن الطلاب)")}</label>
+            {memorise && <label className="flex items-center gap-2"><input type="checkbox" className="h-5 w-5" checked={memoAudio} onChange={(e) => setMemoAudio(e.target.checked)} data-testid="hw-memo-audio" /> 🔊 {tr("Let students listen to the reciter", "السماح للطلاب بالاستماع للقارئ")}</label>}
           </div>
           <label className="block text-sm font-semibold sm:col-span-2">
             {tr("Notes for students", "ملاحظات للطلاب")}

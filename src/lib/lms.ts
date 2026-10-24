@@ -21,7 +21,7 @@ export type MpCfg = { global: MpPart; roles: Record<string, MpPart>; subjects: R
 export const mpShown = (a: Actor | null | undefined, m: MpMod) => !a?.mods || !!a.mods[m]?.view;
 export type Actor = { id: string; role: Role | "admin"; name: string; nameAr?: string; cls: string; perms: string[]; scope?: string[]; viewAs?: boolean; subj?: string[]; subject?: string; arabic?: boolean; mods?: Record<MpMod, MpAcc> };
 export type Slide = { title: string; text: string; image: string };
-export type QuranData = { surah: number; from: number; to: number; reciter: string; notes: string; translit?: boolean; translation?: boolean };
+export type QuranData = { surah: number; from: number; to: number; reciter: string; notes: string; translit?: boolean; translation?: boolean; extra?: string; memorise?: boolean; memoAudio?: boolean };
 export type GeneralData = { slides: Slide[]; question: string };
 export type Homework = { id: string; kind: "quran" | "general"; title: string; cls: string; section?: string; students: string[]; data: QuranData | GeneralData; due: number | null; createdBy: string; created: number; locked?: boolean; lockedBy?: { surah: number; from: number; to: number; title: string } | null; late?: boolean };
 export type Comment = { by: string; text: string; at: number; audio?: string };
