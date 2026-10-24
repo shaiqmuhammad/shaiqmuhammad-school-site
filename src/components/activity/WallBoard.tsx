@@ -21,6 +21,7 @@ export function errorText(e: unknown, tr: (en: string, ar: string) => string): s
   const c = e instanceof ActivityError ? e.code : "";
   const map: Record<string, [string, string]> = {
     slow_down: ["Slow down a little and try again.", "تمهّل قليلًا ثم حاول مجددًا."],
+    not_in_group: ["This activity is for a particular class. Sign in with a student account from that class.", "هذا النشاط لصف محدد. سجّل الدخول بحساب طالب من هذا الصف."],
     closed: ["Posting is closed.", "النشر مغلق."],
     language: ["Please use kind words.", "من فضلك استخدم كلمات طيبة."],
     image_too_large: ["That picture is too large.", "الصورة كبيرة جدًا."],

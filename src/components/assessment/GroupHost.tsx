@@ -22,7 +22,7 @@ import {
   type SessionResults,
   type StoredHost,
 } from "@/lib/groupSession";
-import { lmsSession } from "@/lib/lms";
+import { lmsApi, lmsSession } from "@/lib/lms";
 import { actingAs } from "@/lib/origin";
 import { loadQuizzesData, normalizeQuiz, type Quiz } from "@/lib/quiz";
 
@@ -120,6 +120,7 @@ export function GroupHost() {
 
   const quiz = quizzes.find((q) => q.slug === slug);
 
+  const [rosterNote, setRosterNote] = useState("");
   async function create() {
     if (!quiz || !quiz.active) return;
     setBusy(true);
@@ -128,6 +129,12 @@ export function GroupHost() {
       const r = await groupApi.create(quiz, Math.max(1, Math.round(minutes)) * 60, secret || undefined);
       const h = { code: r.code, hostKey: r.hostKey, quizSlug: quiz.slug };
       saveHost(h);
+      // t312: started "with a class / year group" from the LMS — lock the code to those students (they join under their account name).
+      try {
+        const v = JSON.parse(sessionStorage.getItem("sm-host-roster") || "null") as { ids: string[]; label: string; at: number } | null;
+        sessionStorage.removeItem("sm-host-roster");
+        if (v?.ids?.length && Date.now() - v.at < 30 * 60e3 && lmsSession()) { await lmsApi.actPublish(r.code, "assess", quiz.title, v.ids, true); setRosterNote(`${v.label} (${v.ids.length})`); }
+      } catch { /* */ }
       setHost(h);
     } catch (e) {
       setError(
@@ -294,6 +301,7 @@ export function GroupHost() {
     : "lobby";
   const title = data ? (lang === "ar" && data.titleAr ? data.titleAr : data.title) : a("groupAssessment");
   const url = joinUrl(host.code);
+  const rosterBadge = rosterNote ? <p className="rounded-2xl bg-emerald-100 px-4 py-2 text-sm font-bold text-emerald-900" data-testid="host-roster">🔒 {lang === "ar" ? `لهذا الصف فقط: ${rosterNote} — ينضم الطلاب بأسمائهم دون كتابة` : `Class only: ${rosterNote} — students join under their own name, no typing`}</p> : null;
   const secondsLeft = status === "running" && data?.endAt ? Math.max(0, (data.endAt - serverNow) / 1000) : null;
   // Names as shown on this (projected) screen: "Student N" in join order when the teacher hides them.
   const hidden = Boolean(data?.hideNames);
@@ -369,6 +377,7 @@ export function GroupHost() {
                   <div className="flex flex-wrap items-center justify-between gap-4">
                     <h2 className="text-2xl font-bold">{a("studentsJoined", { n: data?.participantCount ?? 0 })}</h2>
                     <div className="flex flex-wrap items-center gap-2">
+                      {rosterBadge}
                       {toolbar}
                       <button type="button" className={primaryBtn} onClick={start} disabled={busy || !data || data.participantCount === 0}>
                         ▶ {a("startForEveryone")}

@@ -39,7 +39,8 @@ export function ActivityJoin({ code }: { code: string }) {
   useEffect(() => {
     if (autoTried.current || seat || !info || info.ended || typeof window === "undefined") return;
     const s = lmsSession();
-    if (!new URLSearchParams(window.location.search).get("auto") || !s || s.user.role !== "student") return;
+    // t312: any signed-in student goes straight in under their account name (no typing).
+    if (!s || s.user.role !== "student") return;
     autoTried.current = true;
     activityApi.join(code, s.user.name, deviceId()).then((r) => { const seat2 = { code, pid: r.pid, token: r.token, name: r.name }; saveSeat(seat2); setSeat(seat2); }).catch((e) => setJoinError(errorText(e, tr)));
   }, [info, seat, code]); // eslint-disable-line react-hooks/exhaustive-deps

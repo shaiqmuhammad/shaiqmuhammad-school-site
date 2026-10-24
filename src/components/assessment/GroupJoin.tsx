@@ -25,6 +25,7 @@ import {
   type StoredParticipant,
 } from "@/lib/groupSession";
 import { isAnswered, type QuizQuestion } from "@/lib/quiz";
+import { lmsSession } from "@/lib/lms";
 
 function cleanCode(raw: string): string {
   return raw.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
@@ -71,11 +72,23 @@ export function GroupJoin() {
       if (c === "not_found" || c === "bad_code") return a("codeNotFound");
       if (c === "ended") return a("sessionEnded");
       if (c === "full") return a("sessionFull");
+      if (c === "not_in_group") return lang === "ar" ? "هذا التقييم لصف محدد. سجّل الدخول بحساب طالب من هذا الصف." : "This assessment is for a particular class. Sign in with a student account from that class.";
       if (c === "network") return a("apiMissing");
       return a("codeNotFound");
     },
-    [a],
+    [a, lang],
   );
+
+  // t312: a signed-in student goes straight in under their account name (no typing).
+  const autoTried = useRef(false);
+  useEffect(() => {
+    if (autoTried.current || me || !info || !code || info.status === "ended") return;
+    const s = lmsSession();
+    if (!s || s.user.role !== "student") return;
+    autoTried.current = true;
+    setBusy(true);
+    groupApi.join(code, s.user.name, deviceId()).then((r) => { const p = { code, pid: r.participantId, token: r.token, name: r.name }; saveParticipant(p); setMe(p); setInfo(r); }).catch((err) => { if (err instanceof SessionError && err.code === "removed") setRemoved(true); else setError(errorText(err)); }).finally(() => setBusy(false));
+  }, [info, me, code, errorText]);
 
   // Load session info (and any saved participant) when a code is set.
   useEffect(() => {
