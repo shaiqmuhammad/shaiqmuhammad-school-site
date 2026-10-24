@@ -16,7 +16,7 @@ import { LmsHeaderButton } from "@/components/lms/LmsEntry";
 
 const samePath = (pathname: string, href: string) => pathname.replace(/\/$/, "") === href || pathname.startsWith(href + "/");
 
-function ResourceIcon({ kind, className = "h-4 w-4 shrink-0" }: { kind: ResourceLink["kind"]; className?: string }) {
+function ResourceIcon({ kind, className = "h-4 w-4 shrink-0" }: { kind: ResourceLink["kind"] | "lessons"; className?: string }) {
   if (kind === "quran") return <QuranBookIcon className={className} />;
   if (kind === "hadith") return <HadithScrollIcon className={className} />;
   return (

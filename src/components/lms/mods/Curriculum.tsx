@@ -181,7 +181,7 @@ export function Curriculum({ asAdmin, student = false }: { asAdmin: boolean; stu
                           {u.notes && <details className="mt-2 text-xs"><summary className="cursor-pointer font-bold opacity-70">{tr("Vocabulary & assessment ideas", "المفردات وأفكار التقييم")}</summary><p className="mt-1 whitespace-pre-line opacity-80" dir="auto">{u.notes}</p></details>}
                           <LinkRow u={u} student={student} tr={tr} qTitle={qTitle} />
                           <div className="mt-2 flex flex-wrap gap-1.5 text-xs">
-                            {u.page && <a className="rounded-full bg-violet-100 px-2.5 py-1 font-bold text-violet-900 hover:underline" href={`/lessons/${u.page}`}>📄 {pTitle(u.page)}</a>}
+                            {u.page && <a className="rounded-full bg-violet-100 px-2.5 py-1 font-bold text-violet-900 hover:underline" href={`/lms/lessons?p=${u.page}`}>📄 {pTitle(u.page)}</a>}
                             {u.resources.map((r, i) => <a key={i} className="rounded-full bg-black/5 px-2.5 py-1 font-bold hover:underline dark:bg-white/10" href={r.url} target="_blank" rel="noreferrer">🔗 {r.label || r.url}</a>)}
                           </div>
                           {(canEdit || canDelete) && <div className="mt-3 flex gap-2">{canEdit && <button type="button" className={btn + " !py-1"} onClick={() => setEdit(u)} data-testid="cur-edit">✎ {tr("Edit", "تعديل")}</button>}{canDelete && <button type="button" className={btn + " !py-1"} onClick={() => del(u.id)} data-testid="cur-del">🗑</button>}</div>}
