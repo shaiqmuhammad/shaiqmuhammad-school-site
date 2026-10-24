@@ -23,7 +23,7 @@
  */
 import { DurableObject } from "cloudflare:workers";
 import { corsHeaders, reply, verifyToken, type AdminEnv } from "./admin";
-import { teacherIdOf, teacherWithPerm, type LmsEnv } from "./lms";
+import { rosterGate, teacherIdOf, teacherWithPerm, type LmsEnv } from "./lms";
 
 export interface ActivityEnv extends AdminEnv {
   ACTIVITIES: DurableObjectNamespace<ClassActivity>;
@@ -132,6 +132,7 @@ export class ClassActivity extends DurableObject<ActivityEnv> {
     this.sql = ctx.storage.sql;
     this.sql.exec(`CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS parts (id TEXT PRIMARY KEY, token TEXT, name TEXT, device TEXT, joined INTEGER, removed INTEGER)`);
+    if (!this.sql.exec(`PRAGMA table_info(parts)`).toArray().some((r) => r.name === "lms")) this.sql.exec(`ALTER TABLE parts ADD COLUMN lms TEXT DEFAULT ''`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS items (id TEXT PRIMARY KEY, pid TEXT, kind TEXT, data TEXT, status TEXT, created INTEGER, pinned INTEGER DEFAULT 0, color TEXT DEFAULT '', highlight INTEGER DEFAULT 0, img TEXT)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS likes (item TEXT, pid TEXT, PRIMARY KEY (item, pid))`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS comments (id TEXT PRIMARY KEY, item TEXT, text TEXT, created INTEGER)`);
@@ -227,11 +228,18 @@ export class ClassActivity extends DurableObject<ActivityEnv> {
           if (blocked) return { status: 403, body: { error: "removed" } };
           if (this.limited(`d:${device}`, "join")) return { status: 429, body: { error: "slow_down" } };
         }
+        const lms = str(input.lmsStudent, 40);
+        if (lms) {
+          // t312: a class student rejoining (another device / refresh) gets the same seat — one record per student.
+          const ex = this.sql.exec(`SELECT id, token, name, removed FROM parts WHERE lms=?`, lms).toArray()[0];
+          if (ex && ex.removed != null) return { status: 403, body: { error: "removed" } };
+          if (ex) return { status: 200, body: { pid: String(ex.id), token: String(ex.token), name: String(ex.name), ...this.info(m) } };
+        }
         const count = Number(this.sql.exec(`SELECT COUNT(*) AS n FROM parts WHERE removed IS NULL`).one().n);
         if (count >= MAX_PARTS) return { status: 409, body: { error: "full" } };
         const id = rand(10);
         const token = rand(24);
-        this.sql.exec(`INSERT INTO parts (id, token, name, device, joined, removed) VALUES (?, ?, ?, ?, ?, NULL)`, id, token, name, device, Date.now());
+        this.sql.exec(`INSERT INTO parts (id, token, name, device, joined, removed, lms) VALUES (?, ?, ?, ?, ?, NULL, ?)`, id, token, name, device, Date.now(), lms);
         this.bump();
         return { status: 200, body: { pid: id, token, name, ...this.info(m) } };
       }
@@ -620,6 +628,14 @@ export async function handleActivity(request: Request, env: ActivityEnv, parts: 
     return new Response(img.bytes, { headers: { "Content-Type": img.mime, "Cache-Control": "public, max-age=604800, immutable", "Access-Control-Allow-Origin": "*" } });
   }
   const input: Json = { ...Object.fromEntries(url.searchParams), ...body };
+  delete input.lmsStudent;
+  if (action === "join") {
+    // t312: a code locked to a class only lets those students in, under their account name (no typing).
+    const g = await rosterGate(env as unknown as LmsEnv, code, typeof input.lmsToken === "string" ? input.lmsToken : "").catch(() => null);
+    if (g && !g.ok) return reply(origin, { error: "not_in_group" }, 403);
+    if (g?.ok) { input.name = g.name; input.lmsStudent = g.sid; }
+  }
+  delete input.lmsToken;
   const r = (await stub.handle(action, request.method, input)) as unknown as Reply;
   if (r.status === 200 && action === "destroy") await lmsStore(env).actDel(code);
   return reply(origin, r.body, r.status);

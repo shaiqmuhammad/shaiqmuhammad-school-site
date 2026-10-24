@@ -292,6 +292,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     this.sql.exec(`CREATE TABLE IF NOT EXISTS wcom (id TEXT PRIMARY KEY, post TEXT, by TEXT, name TEXT, role TEXT, text TEXT, at INTEGER)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS wlike (post TEXT, by TEXT, PRIMARY KEY (post, by))`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS alive (code TEXT PRIMARY KEY, type TEXT, title TEXT, owner TEXT, owner_name TEXT, students TEXT, at INTEGER)`);
+    if (!cols("alive").has("locked")) this.sql.exec(`ALTER TABLE alive ADD COLUMN locked INTEGER DEFAULT 0`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS grp (id TEXT PRIMARY KEY, owner TEXT, name TEXT, students TEXT, updated INTEGER)`);
     for (const [c, d] of [["classes", "TEXT DEFAULT '[]'"], ["teachers", "TEXT DEFAULT '[]'"], ["admin", "INTEGER DEFAULT 0"], ["subject", "TEXT DEFAULT ''"]]) if (!cols("grp").has(c)) this.sql.exec(`ALTER TABLE grp ADD COLUMN ${c} ${d}`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS rtok (token TEXT PRIMARY KEY, student TEXT, kind TEXT, by TEXT, created INTEGER)`);
@@ -526,6 +527,12 @@ export class LmsStore extends DurableObject<LmsEnv> {
   }
   /** Short stamp of the current PIN hash; tokens carry it so a PIN change/reset signs out older sessions. */
   pinStamp(uid: string): string { const r = this.userRow("id=?", uid); return r ? String(r.hash || "").slice(0, 10) : ""; }
+  /** t312: the class roster a live activity / assessment session is locked to (null = open to anyone with the code). */
+  async rosterOf(code: string): Promise<{ students: string[] } | null> {
+    const r = this.sql.exec(`SELECT students, locked, at FROM alive WHERE code=?`, code).toArray()[0];
+    if (!r || !Number(r.locked) || Number(r.at) < Date.now() - 12 * 3600e3) return null;
+    return { students: JSON.parse(String(r.students || "[]")) as string[] };
+  }
   async actor(uid: string, pv = ""): Promise<Actor | null> {
     const r = this.userRow("id=?", uid);
     if (!r || r.disabled) return null;
@@ -1110,10 +1117,11 @@ export class LmsStore extends DurableObject<LmsEnv> {
         if (!isStaff(a) || a.viewAs) return { status: 403, body: { error: "forbidden" } };
         const code = str(input.code, 8).toUpperCase();
         const ids = strList(input.students, 300).filter((sid) => this.inScope(a, ...this.placeOf(sid), sid));
-        if (!/^[A-Z0-9]{5}$/.test(code) || !ids.length) return { status: 400, body: { error: "bad" } };
+        if (!/^[A-Z0-9]{4,8}$/.test(code) || !ids.length) return { status: 400, body: { error: "bad" } };
         this.sql.exec(`DELETE FROM alive WHERE at<?`, Date.now() - 6 * 3600e3);
-        this.sql.exec(`INSERT OR REPLACE INTO alive (code, type, title, owner, owner_name, students, at) VALUES (?, ?, ?, ?, ?, ?, ?)`, code, str(input.type, 12), str(input.title, 120), a.id, a.name, JSON.stringify(ids), Date.now());
-        return { status: 200, body: { ok: true, count: ids.length } };
+        // t312: locked = only these students may join (signed in, under their account name); everyone else is refused.
+        this.sql.exec(`INSERT OR REPLACE INTO alive (code, type, title, owner, owner_name, students, at, locked) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, code, str(input.type, 12), str(input.title, 120), a.id, a.name, JSON.stringify(ids), Date.now(), input.locked === true ? 1 : 0);
+        return { status: 200, body: { ok: true, count: ids.length, locked: input.locked === true } };
       }
       case "act-live": {
         if (a.role !== "student") return { status: 200, body: { items: [] } };
@@ -2767,6 +2775,17 @@ export async function studentIdOf(env: LmsEnv, tokenOrHeader: string | null | un
   if (!tk) return null;
   const u = (await env.LMS.get(env.LMS.idFromName("main")).actor(tk.uid, tk.pv)) as unknown as Actor | null;
   return u && u.role === "student" ? u.id : null;
+}
+/** t312: join gate for locked codes — null if the code is open; else ok (with the student's account name) or refused. */
+export async function rosterGate(env: LmsEnv, code: string, lmsToken: string): Promise<{ ok: boolean; sid?: string; name?: string } | null> {
+  if (!env.LMS) return null;
+  const store = env.LMS.get(env.LMS.idFromName("main"));
+  const ro = (await store.rosterOf(code)) as unknown as { students: string[] } | null;
+  if (!ro) return null;
+  const tk = lmsToken ? await verifyUserTokenPv(env, lmsToken.startsWith("Bearer ") ? lmsToken : `Bearer ${lmsToken}`) : null;
+  const u = tk ? ((await store.actor(tk.uid, tk.pv)) as unknown as Actor | null) : null;
+  if (!u || u.role !== "student" || !ro.students.includes(u.id)) return { ok: false };
+  return { ok: true, sid: u.id, name: u.name };
 }
 export async function teacherIdOf(request: Request, env: LmsEnv): Promise<string | null> {
   return (await verifyUserTokenPv(env, request.headers.get("Authorization")))?.uid ?? null;

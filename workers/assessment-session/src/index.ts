@@ -35,7 +35,7 @@ import { handleAdmin, type AdminEnv } from "./admin";
 import { handleForum } from "./forum";
 import { handleResults, resultsStore, type ResultRecord, type ResultsEnv } from "./results";
 import { handleActivity, type ActivityEnv } from "./activity";
-import { handleLms, studentIdOf, type LmsEnv } from "./lms";
+import { handleLms, rosterGate, studentIdOf, type LmsEnv } from "./lms";
 import { handleYt, SiteKV, type YtEnv } from "./youtube";
 import { handleCert } from "./cert";
 import { handleContact, handleMail } from "./mail/routes";
@@ -406,6 +406,12 @@ export class AssessmentSession extends DurableObject<Env> {
         const deviceId = String(body.deviceId ?? "").replace(/[^a-zA-Z0-9-]/g, "").slice(0, 64);
         let name = cleanName(body.name);
         if (!name) return { status: 400, body: { error: "name_required" } };
+        // t312: a class student rejoining keeps their seat (one result per student).
+        if (typeof body.lmsStudent === "string" && body.lmsStudent) {
+          const ex = [...this.participants.values()].find((x) => x.lmsStudent === body.lmsStudent);
+          if (ex?.removedAt) return { status: 403, body: { error: "removed" } };
+          if (ex) return { status: 200, body: { participantId: ex.id, token: ex.token, name: ex.name, ...this.info(now, { selfId: ex.id }) } };
+        }
         // t302: a removed student may rejoin, but only under a new name (the removed name stays blocked on that device).
         if (deviceId && [...this.participants.values()].some((x) => x.removedAt && x.deviceId === deviceId && x.name.replace(/ \(\d+\)$/, "").toLowerCase() === name.toLowerCase())) {
           return { status: 403, body: { error: "removed" } };
@@ -607,6 +613,11 @@ export default {
     const lmsToken = typeof input.lmsToken === "string" ? input.lmsToken : "";
     delete input.lmsToken;
     if (action === "join" && lmsToken) input.lmsStudent = (await studentIdOf(env as unknown as LmsEnv, lmsToken).catch(() => null)) || "";
+    if (action === "join") {
+      const g = await rosterGate(env as unknown as LmsEnv, code, lmsToken).catch(() => null);
+      if (g && !g.ok) return json({ error: "not_in_group" }, 403);
+      if (g?.ok) { input.name = g.name; input.lmsStudent = g.sid; }
+    }
     const stub = env.SESSIONS.get(env.SESSIONS.idFromName(code));
     const reply = (await stub.handle(action, request.method, input)) as unknown as Reply;
     return json(reply.body, reply.status);
