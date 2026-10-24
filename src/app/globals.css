@@ -3,7 +3,7 @@
 /* Class-based dark mode (next-themes sets class="dark" on <html>). */
 /* t314: inside LMS content, panels ("light islands") stay light in dark mode like the dashboard tiles; frame/rail/header stay dark.
    The dark: variant is switched off inside islands, and islands get the light palette. One shared rule — no per-page patches. */
-@custom-variant dark (&:where(.dark, .dark *):not(:where(.lms-main :is(.glass,.bg-card,.bg-card-solid,.bg-white,[class*="bg-white/6"],[class*="bg-white/7"],[class*="bg-white/8"],[class*="bg-white/9"],.bg-background,table,dialog,[role=dialog],input,select,textarea), .lms-main :is(.glass,.bg-card,.bg-card-solid,.bg-white,[class*="bg-white/6"],[class*="bg-white/7"],[class*="bg-white/8"],[class*="bg-white/9"],.bg-background,table,dialog,[role=dialog],input,select,textarea) *)));
+@custom-variant dark (&:where(.dark, .dark *):not(:where(:is(.lms-main,.pub-main) :is(.glass,.bg-card,.bg-card-solid,.bg-white,[class*="bg-white/6"],[class*="bg-white/7"],[class*="bg-white/8"],[class*="bg-white/9"],.bg-background,table,dialog,[role=dialog],input,select,textarea,[class*="dark:bg-white/"],[class*="dark:bg-slate-"],[class*="dark:bg-gray-"],[class*="dark:bg-neutral-"],[class*="dark:bg-zinc-"],[class*="dark:bg-black/"],[class*="dark:bg-card"],[class*="dark:bg-[#"]):not(aside *,header *,nav *,footer *,[data-frame] *), :is(.lms-main,.pub-main) :is(.glass,.bg-card,.bg-card-solid,.bg-white,[class*="bg-white/6"],[class*="bg-white/7"],[class*="bg-white/8"],[class*="bg-white/9"],.bg-background,table,dialog,[role=dialog],input,select,textarea,[class*="dark:bg-white/"],[class*="dark:bg-slate-"],[class*="dark:bg-gray-"],[class*="dark:bg-neutral-"],[class*="dark:bg-zinc-"],[class*="dark:bg-black/"],[class*="dark:bg-card"],[class*="dark:bg-[#"]):not(aside *,header *,nav *,footer *,[data-frame] *) *)));
 
 :root {
   /* Palette from the classroom slides: navy bars, warm yellow pills, cream bands, teal eyebrows, coral step. */
@@ -300,13 +300,14 @@ a.glass:hover, button.glass:hover, li.glass:hover { transform: translateY(-2px);
 }
 
 /* t314 light islands in dark mode (see @custom-variant dark above) */
-.dark .lms-main :is(.glass,.bg-card,.bg-card-solid,.bg-white,[class*="bg-white/6"],[class*="bg-white/7"],[class*="bg-white/8"],[class*="bg-white/9"],.bg-background,table,dialog,[role=dialog],input,select,textarea) {
+.dark :is(.lms-main,.pub-main) :is(.glass,.bg-card,.bg-card-solid,.bg-white,[class*="bg-white/6"],[class*="bg-white/7"],[class*="bg-white/8"],[class*="bg-white/9"],.bg-background,table,dialog,[role=dialog],input,select,textarea,[class*="dark:bg-white/"],[class*="dark:bg-slate-"],[class*="dark:bg-gray-"],[class*="dark:bg-neutral-"],[class*="dark:bg-zinc-"],[class*="dark:bg-black/"],[class*="dark:bg-card"],[class*="dark:bg-[#"]):not(aside *,header *,nav *,footer *,[data-frame] *) {
   --background: #ffffff; --foreground: #1b2f44; --heading: #1b3a57; --muted: #586a7d;
   --card: rgba(255,255,255,0.94); --card-solid: #ffffff; --card-border: rgba(27,58,87,0.12);
   --primary: #1b3a57; --primary-foreground: #ffffff; --accent: #e9b949; --accent-soft: #fff8ec;
   --gold: #b7860f; --gold-soft: #fff8ec; --ring: #e9b949; --teal: #24857a; --glass-border: rgba(255,255,255,0.7);
   color: var(--foreground); color-scheme: light;
 }
-.dark .lms-main :is(.glass,.bg-card,.bg-card-solid) { background-color: #f7f9fc; }
-.dark .lms-main :is([class*="bg-white/6"],[class*="bg-white/7"],[class*="bg-white/8"],[class*="bg-white/9"]) { background-color: #f7f9fc; }
-.dark .lms-main .glass.opacity-80 { opacity: 1; color: var(--muted); }
+.dark :is(.lms-main,.pub-main) :is(.glass,.bg-card,.bg-card-solid,[class*="dark:bg-white/"],[class*="dark:bg-slate-"],[class*="dark:bg-gray-"],[class*="dark:bg-neutral-"],[class*="dark:bg-zinc-"],[class*="dark:bg-black/"],[class*="dark:bg-card"],[class*="dark:bg-[#"]):not(aside *,header *,nav *,footer *,[data-frame] *) { background-color: #f7f9fc; }
+.dark :is(.lms-main,.pub-main) table:not(aside *,header *,nav *,footer *,[data-frame] *) { background-color: #ffffff; }
+.dark :is(.lms-main,.pub-main) :is([class*="bg-white/6"],[class*="bg-white/7"],[class*="bg-white/8"],[class*="bg-white/9"]) { background-color: #f7f9fc; }
+.dark :is(.lms-main,.pub-main) .glass.opacity-80 { opacity: 1; color: var(--muted); }

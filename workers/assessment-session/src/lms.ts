@@ -41,7 +41,7 @@ import { buildFeedback, fromGrade, overallOf, parseScores, type Scores } from ".
 import { DurableObject } from "cloudflare:workers";
 import { corsHeaders, reply, verifyToken, type AdminEnv } from "./admin";
 import { fetchParentReplies, sendAuto, sendParentMail, type MailEnv } from "./mail/mailbox";
-import { ttFor, ttRows, ttSE, ttTimes } from "./lmsmods";
+import { ttFor, ttRows, ttSE, ttShared, ttTimes } from "./lmsmods";
 import { initMods, modHandle, pubQuizzes, tquizTopics, today as modToday } from "./lmsmods";
 import { reportHandle } from "./reports";
 import { packHandle, packInit, packSweep, type PackCtx } from "./packs";
@@ -826,6 +826,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         tagged: (ids, qids) => { const k = ids.join(",") + "/" + qids.join(","); if (!memo.has(k)) memo.set(k, RES ? (RES.get(RES.idFromName("main")) as unknown as { scTagged(i: string[], q: string[]): Promise<unknown> }).scTagged(ids, qids) : Promise.resolve([])); return memo.get(k) as never; } }, a, action, input);
     }
     if (/^lp-/.test(action)) return packHandle(this.packCtx(), a as never, action, input);
+    if (action === "att-tt-shared") return { status: 200, body: { shared: ttShared(this.sql as never, a as never) } };
     if (/^(att|beh|cur)-/.test(action) || action === "quiz-topics-sync") return modHandle({ sql: this.sql, hwList: () => this.allHomework().map((h) => ({ id: h.id, title: h.title, kind: h.kind, cls: h.cls, section: h.section, students: h.students, createdBy: h.createdBy })), inScope: (x, c, s, i) => this.inScope(x, c, s, i), userRow: (w, g) => this.userRow(w, g), mp: (x, m) => mpOf(this.sql as never, x, m), ttChanged: () => { this.ctx.waitUntil(this.planTT()); }, notify: (u, k, d) => this.notify(u, k, d), canReach: (x, ids) => this.packCtx().inScopeIds(x as never, ids.filter((i) => String(this.userRow("id=?", i)?.role || "") === "student")) }, action, a, input);
     switch (action) {
       case "dl-policy": return { status: 200, body: { audio: this.dlOf(a, "audio"), export: this.dlOf(a, "export") } };

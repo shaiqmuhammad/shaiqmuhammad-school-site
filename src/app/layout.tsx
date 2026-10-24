@@ -85,7 +85,7 @@ export default function RootLayout({
           <SiteBrandProvider brand={brand} social={settings.social}>
             <AnnouncementTicker />
             <Header />
-            <main className="flex-1">{children}</main>
+            <main className="pub-main flex-1">{children}</main>
             <Footer />
             <ChatWidget />
             <PwaInstall />
