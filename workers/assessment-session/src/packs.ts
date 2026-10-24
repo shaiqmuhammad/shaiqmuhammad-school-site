@@ -47,7 +47,7 @@ function el(e: Json, student = false): Json | null {
   if (student) return null; // students can't add videos, activities or Quran blocks
   if (t === "yt") return YT.test(String(e.vid)) ? { ...base, vid: String(e.vid), title: str(e.title, 160) } : null;
   if (t === "act") { const code = str(e.code, 12).toUpperCase().replace(/[^A-Z0-9]/g, ""); const quiz = str(e.quiz, 80).replace(/[^a-z0-9-]/gi, ""); return code || quiz ? { ...base, code, quiz, label: str(e.label, 160) } : null; }
-  if (t === "quran") { const surah = Math.trunc(num(e.surah, 1, 114, 1)), from = Math.trunc(num(e.from, 1, 286, 1)); return { ...base, surah, from, to: Math.max(from, Math.trunc(num(e.to, 1, 286, from))), reciter: str(e.reciter, 60) || "Alafasy_128kbps", memorise: e.memorise === true }; }
+  if (t === "quran") { const surah = Math.trunc(num(e.surah, 1, 114, 1)), from = Math.trunc(num(e.from, 1, 286, 1)); return { ...base, surah, from, to: Math.max(from, Math.trunc(num(e.to, 1, 286, from))), reciter: str(e.reciter, 60) || "Alafasy_128kbps", memorise: e.memorise === true, memoAudio: e.memoAudio !== false, translit: e.translit === true, translation: e.translation === true, notes: str(e.notes, 1000) }; }
   return null;
 }
 function slides(v: unknown, student = false): Json[] {
@@ -118,6 +118,8 @@ export async function packHandle(c: PackCtx, a: Actor, action: string, input: Js
       if (!staff || a.viewAs) return forbid();
       const old = get();
       if (old ? !acc.edit || !mine(a, old) : !acc.add) return forbid(old ? "lp_edit_not_allowed" : "lp_add_not_allowed");
+      // t322: teachers can only use their own subject(s).
+      if (a.role === "teacher" && a.subj?.length && str(input.subject, 80) && !a.subj.includes(str(input.subject, 80))) return forbid("subject_not_yours");
       const title = str(input.title, 160).trim();
       if (!title) return { status: 400, body: { error: "title" } };
       const type = TYPES.includes(String(input.type)) ? String(input.type) : "material";
@@ -219,7 +221,7 @@ async function publish(c: PackCtx, a: Actor, id: string): Promise<Reply> {
   if (type === "quran" && !q) return { status: 400, body: { error: "lp_needs_quran_slide" } };
   const students = JSON.parse(String(r.students || "[]")) as string[];
   const assignAt = Number(r.assign_at || 0);
-  const data = type === "quran" ? { surah: q!.surah, from: q!.from, to: q!.to, reciter: q!.reciter, memorise: q!.memorise === true, notes: "", pack: id, assignAt } : { slides: [], question: "", pack: id, assignAt };
+  const data = type === "quran" ? { surah: q!.surah, from: q!.from, to: q!.to, reciter: q!.reciter, memorise: q!.memorise === true, memoAudio: q!.memoAudio !== false, translit: q!.translit === true, translation: q!.translation === true, notes: String(q!.notes || ""), pack: id, assignAt } : { slides: [], question: "", pack: id, assignAt };
   const rr = await c.hwSave(a, { id: String(r.hw || "") || undefined, kind: type === "quran" ? "quran" : "general", title: String(r.title), cls: "", section: "", students, due: Number(r.due || 0) || null, data, quiet: true });
   if (rr.status !== 200) return rr;
   const hw = String((rr.body as { id?: string }).id || r.hw || "");

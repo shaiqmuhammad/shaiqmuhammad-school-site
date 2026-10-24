@@ -617,6 +617,7 @@ function ttHandle(c: ModCtx, a: Actor, action: string, input: Json): { status: n
   }
   // att-tt-save: add (no id) or edit. Sections: several of the class's sections (comma list; empty = whole class).
   if (old ? !acc.edit || !own(old.teacher) : !acc.add) return forbid();
+  { const sj = (a as { subj?: string[] }).subj; if (a.role === "teacher" && sj?.length && str(input.subject, 80) && !sj.includes(str(input.subject, 80))) return forbid("subject_not_yours"); }
   // t317: days may carry their own start/end ("days": [{dow, s, e}]); otherwise one time for all chosen days.
   const HM = /^([01]\d|2[0-3]):[0-5]\d$/;
   const dayList: { dow: number; s: string; e: string }[] = Array.isArray(input.days)
