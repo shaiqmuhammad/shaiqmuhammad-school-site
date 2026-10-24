@@ -625,6 +625,12 @@ export class LmsStore extends DurableObject<LmsEnv> {
     }
     return sent;
   }
+  /** t311: subjects whose standards this user may read (null = all, for the admin). */
+  stdMine(a: Actor): string[] | null {
+    if (a.role === "admin" && !a.viewAs) return null;
+    const u = this.userRow("id=?", a.id);
+    return u ? subjList(u.subject) : [];
+  }
   /** t304: an assessment % as the tracker entry level: the tracker's SC scale 0–3 (cut-offs from the Attainment system for that year) shown as Level 1–4. */
   levelOf(pct: number, year: string): { level: number; label: string } {
     const all = systems(this.sql as never).filter((x) => x.active);
@@ -1039,12 +1045,16 @@ export class LmsStore extends DurableObject<LmsEnv> {
       case "std-doc-list": {
         if (!isStaff(a)) return { status: 403, body: { error: "forbidden" } };
         this.stdInit();
-        return { status: 200, body: { items: this.sql.exec(`SELECT subject, name, lang, size, at FROM stddoc ORDER BY subject`).toArray().map((r) => ({ subject: String(r.subject), name: String(r.name), lang: String(r.lang || ""), size: Number(r.size), at: Number(r.at) })) } };
+        // t311: teachers only see the standards of their own subject(s); admin sees all.
+        const mine = this.stdMine(a);
+        return { status: 200, body: { all: mine === null, subjects: mine, items: this.sql.exec(`SELECT subject, name, lang, size, at FROM stddoc ORDER BY subject`).toArray().filter((r) => mine === null || mine.some((x) => x.toLowerCase() === String(r.subject).toLowerCase())).map((r) => ({ subject: String(r.subject), name: String(r.name), lang: String(r.lang || ""), size: Number(r.size), at: Number(r.at) })) } };
       }
       case "std-doc-get": {
         if (!isStaff(a)) return { status: 403, body: { error: "forbidden" } };
         this.stdInit();
         const subj = str(input.subject, 80);
+        const mine = this.stdMine(a);
+        if (mine !== null && !mine.some((x) => x.toLowerCase() === subj.toLowerCase())) return { status: 403, body: { error: "not_your_subject" } };
         const m = this.sql.exec(`SELECT * FROM stddoc WHERE subject=?`, subj).toArray()[0];
         if (!m) return { status: 404, body: { error: "not_found" } };
         const data = this.sql.exec(`SELECT data FROM stddoc_c WHERE subject=? ORDER BY i`, subj).toArray().map((r) => String(r.data)).join("");

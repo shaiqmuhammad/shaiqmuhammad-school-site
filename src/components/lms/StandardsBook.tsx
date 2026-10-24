@@ -26,10 +26,14 @@ export function StandardsBook() {
   const [pdf, setPdf] = useState("");
   const [msg, setMsg] = useState("");
   const staff = actor?.role === "teacher" || actor?.role === "admin";
-  useEffect(() => { if (staff) modCall<{ items: Doc[] }>("std-doc-list", {}, actor?.role === "admin").then((r) => setDocs(r.items)).catch(() => undefined); }, [staff, actor]);
-  const subjects = useMemo(() => [...new Set(["Islamic A", "Islamic B", ...docs.map((d) => d.subject)])], [docs]);
-  const islamic = /^islamic/i.test(subject);
-  const pick = (s: string) => { setSubject(s); setPdf(""); const d = docs.find((x) => x.subject === s); setBookLang(/ islamic a$|^islamic a$/i.test(s) || d?.lang === "ar" ? "ar" : "en"); };
+  const [mine, setMine] = useState<string[] | null | undefined>(undefined);
+  useEffect(() => { if (staff) modCall<{ items: Doc[]; subjects: string[] | null }>("std-doc-list", {}, actor?.role === "admin").then((r) => { setDocs(r.items); setMine(r.subjects); }).catch(() => setMine([])); }, [staff, actor]);
+  // t311: strictly subject-scoped — teachers only get their own subject(s); Islamic A = Arabic only, Islamic B = English only.
+  const subjects = useMemo(() => mine === undefined ? [] : mine === null ? [...new Set(["Islamic A", "Islamic B", ...docs.map((d) => d.subject)])] : mine.filter((x) => /^islamic [ab]$/i.test(x) || docs.some((d) => d.subject.toLowerCase() === x.toLowerCase())), [docs, mine]);
+  useEffect(() => { if (subjects.length && !subjects.includes(subject)) pick(subjects[0]); // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subjects]);
+  const islamic = /^islamic [ab]$/i.test(subject) && subjects.includes(subject);
+  const pick = (s: string) => { setSubject(s); setPdf(""); const d = docs.find((x) => x.subject === s); setBookLang(/^islamic a$/i.test(s) ? "ar" : /^islamic b$/i.test(s) ? "en" : d?.lang === "ar" ? "ar" : "en"); };
   const list = useMemo(() => {
     if (!islamic) return [];
     const n = q.trim().toLowerCase();
@@ -45,7 +49,7 @@ export function StandardsBook() {
       setPdf(URL.createObjectURL(new Blob([u8], { type: r.mime || "application/pdf" })));
     } catch (e) { setMsg(modErr(e, tr)); }
   };
-  const doc = docs.find((d) => d.subject === subject);
+  const doc = docs.find((d) => d.subject.toLowerCase() === subject.toLowerCase());
   const ar = bookLang === "ar";
   const field = "mt-1 w-full rounded-xl border border-black/10 bg-white px-3 py-2 text-sm dark:border-white/15 dark:bg-white/5";
   if (ready && !staff) return <AssessmentShell title={tr("Standards book", "كتاب المعايير")} exitHref="/lms"><p className="p-8 text-center">{tr("Teachers only.", "للمعلمين فقط.")}</p></AssessmentShell>;
@@ -57,13 +61,10 @@ export function StandardsBook() {
           <p className="text-sm text-white/80">{tr("Search the learning outcomes by field and year, or open the original document.", "ابحث في نواتج التعلم حسب المجال والسنة، أو افتح الوثيقة الأصلية.")}</p>
         </div>
         <div className="grid gap-2 rounded-3xl bg-white p-4 shadow-sm ring-1 ring-black/5 sm:grid-cols-2 lg:grid-cols-5 dark:bg-white/5">
-          <label className="text-sm font-bold">{tr("Subject", "المادة")}<select className={field} value={subject} onChange={(e) => pick(e.target.value)} data-testid="std-subject">{subjects.map((s) => <option key={s}>{s}</option>)}</select></label>
+          <div className="text-sm font-bold">{tr("Subject", "المادة")}<div className="mt-1 flex flex-wrap gap-1.5" role="tablist" data-testid="std-subjects">{subjects.map((x) => <button key={x} type="button" role="tab" aria-selected={x === subject} className={`rounded-full px-3 py-2 text-sm font-bold ring-1 ring-black/15 ${x === subject ? "bg-header text-sun" : ""}`} onClick={() => pick(x)} data-testid="std-subject" data-subject={x}>{x}{/^islamic a$/i.test(x) ? " · عربي" : /^islamic b$/i.test(x) ? " · English" : ""}</button>)}{!subjects.length && mine !== undefined && <span className="font-normal opacity-70" data-testid="std-none">{tr("No standards for your subject yet.", "لا توجد معايير لمادتك بعد.")}</span>}</div></div>
           <label className="text-sm font-bold">{tr("Field", "المجال")}<select className={field} value={dom} onChange={(e) => setDom(Number(e.target.value))} disabled={!islamic} data-testid="std-domain"><option value={0}>{tr("All fields", "كل المجالات")}</option>{STD_DOMAINS.map((d) => <option key={d.n} value={d.n}>{d.n}. {ar ? d.ar : d.en}</option>)}</select></label>
           <label className="text-sm font-bold">{tr("Year", "السنة")}<select className={field} value={grade} onChange={(e) => setGrade(e.target.value)} disabled={!islamic} data-testid="std-grade"><option value="">{tr("All years", "كل السنوات")}</option>{GRADES.map((g) => <option key={g} value={g}>{lang === "ar" ? yearOfAr(g) : yearOf(g)}</option>)}</select></label>
           <label className="text-sm font-bold">{tr("Search", "بحث")}<input className={field} value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr("word or code…", "كلمة أو رمز…")} disabled={!islamic} data-testid="std-search" /></label>
-          <div className="flex items-end gap-2">
-            <div className="flex overflow-hidden rounded-full ring-1 ring-black/15" role="group" aria-label={tr("Book language", "لغة الكتاب")}>{(["en", "ar"] as const).map((l) => <button key={l} type="button" aria-pressed={bookLang === l} className={`px-3 py-2 text-sm font-bold ${bookLang === l ? "bg-header text-sun" : ""}`} onClick={() => setBookLang(l)} data-testid={`std-lang-${l}`}>{l === "en" ? "English" : "عربي"}</button>)}</div>
-          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {doc ? <button type="button" className="rounded-full bg-sun px-4 py-2 text-sm font-extrabold text-[#0b1b2b]" onClick={openPdf} data-testid="std-open-doc">📄 {tr("Open original document", "افتح الوثيقة الأصلية")} <span className="font-normal opacity-70" dir="auto">({doc.name}, {(doc.size / 1048576).toFixed(1)} MB)</span></button> : <span className="text-sm opacity-70" data-testid="std-no-doc">{tr("No document uploaded for this subject yet (Admin → Classes & subjects).", "لم تُرفع وثيقة لهذه المادة بعد (الإدارة ← الصفوف والمواد).")}</span>}
