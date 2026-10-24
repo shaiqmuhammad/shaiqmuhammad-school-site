@@ -11,7 +11,7 @@ export type DashStudent = { id: string; name: string; cls: string; section: stri
 /** Teacher scope entry: "Year 2" (whole class) or "Year 2|2A" (one section). */
 export const scopeLabel = (s: string) => s.replace("|", " · ");
 /** t292: module permissions (Assessment Tracker, Department Report, Attainment & Progress report). */
-export const MP_MODS = ["trk", "rep", "aps", "tt"] as const;
+export const MP_MODS = ["trk", "rep", "aps", "tt", "lp"] as const;
 export const MP_KEYS = ["show", "view", "add", "edit", "delete", "xlsx", "pdf", "isams"] as const;
 export type MpMod = (typeof MP_MODS)[number];
 export type MpKey = (typeof MP_KEYS)[number];
