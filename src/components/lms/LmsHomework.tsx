@@ -12,6 +12,7 @@ import { LmsDashboard, NeedLogin } from "@/components/lms/LmsDashboard";
 import { AudioClip, AudioRecorder } from "@/components/lms/Audio";
 import { AssessmentShell, primaryBtn } from "@/components/assessment/AssessmentShell";
 import { HomeworkEditor } from "@/components/lms/HomeworkEditor";
+import { PackPlayer } from "@/components/lms/packs/PackPlayer";
 import { studentQrCardsPdf } from "@/components/lms/lmsFiles";
 import { FeedbackText, ScoreBadges, ScoreGrader } from "@/components/lms/QuranScores";
 import { qhwPerm } from "@/lib/lmsMods";
@@ -248,7 +249,7 @@ function StudentWork({ hw, sub, reload, chapters = [] }: { hw: Data["homework"];
       <textarea className={inputCls + " min-h-28"} value={text} onChange={(e) => setText(e.target.value)} disabled={locked} maxLength={4000} dir="auto" placeholder={hw.kind === "quran" ? tr("A note for your teacher (optional)", "ملاحظة لمعلمك (اختياري)") : tr("Your answer", "إجابتك")} data-testid="hw-text" />
       {!locked && (
         <div className="flex flex-wrap gap-2">
-          <button type="button" className={primaryBtn} disabled={busy || (hw.kind === "general" ? !text.trim() && !(sub?.audio || draftOk) : !practised || !(sub?.audio || draftOk))} onClick={() => { if (confirm(tr("Submit your homework now? You can only submit once.", "تسليم واجبك الآن؟ يمكنك التسليم مرة واحدة فقط."))) save(true); }} data-testid="hw-submit">📤 {tr("Submit Your Homework", "سلّم واجبك")}</button>
+          <button type="button" className={primaryBtn} disabled={busy || (hw.kind === "general" ? !(hw.data as { pack?: string }).pack && !text.trim() && !(sub?.audio || draftOk) : !practised || !(sub?.audio || draftOk))} onClick={() => { if (confirm(tr("Submit your homework now? You can only submit once.", "تسليم واجبك الآن؟ يمكنك التسليم مرة واحدة فقط."))) save(true); }} data-testid="hw-submit">📤 {tr("Submit Your Homework", "سلّم واجبك")}</button>
           <button type="button" className={smallBtn} disabled={busy} onClick={() => save(false)} data-testid="hw-draft">{tr("Save for later", "حفظ لاحقًا")}</button>
         </div>
       )}
@@ -288,8 +289,9 @@ const PRESETS: [string, string][] = [
   ["Great effort! Listen to the reciter again before recording.", "جهد رائع! استمع للقارئ مرة أخرى قبل التسجيل."],
 ];
 
-function Review({ s, asAdmin, reload, quran, qdata, regrade = false, onGraded }: { s: NonNullable<Data["subs"]>[number]; asAdmin: boolean; reload: () => void; quran: boolean; qdata?: QuranData; regrade?: boolean; onGraded?: () => void }) {
+function Review({ s, asAdmin, reload, quran, qdata, regrade = false, onGraded, pack }: { s: NonNullable<Data["subs"]>[number]; asAdmin: boolean; reload: () => void; quran: boolean; qdata?: QuranData; regrade?: boolean; onGraded?: () => void; pack?: string }) {
   const [editGrade, setEditGrade] = useState(false);
+  const [slidesOpen, setSlidesOpen] = useState(false);
   const { tr } = useTr();
   const [marking, setMarking] = useState(false);
   const [mistakes, setMistakes] = useState<Mistake[]>(s.mistakes || []);
@@ -316,6 +318,7 @@ function Review({ s, asAdmin, reload, quran, qdata, regrade = false, onGraded }:
       <div className="flex flex-wrap items-center gap-2">
         <b dir="auto">{s.name}</b>
         <span className="text-sm opacity-60">{s.cls}</span>
+        {pack && <button type="button" className={smallBtn} onClick={() => setSlidesOpen(!slidesOpen)} data-testid="hw-sub-slides">🖼️ {slidesOpen ? tr("Hide slides", "إخفاء الشرائح") : tr("View their slides", "عرض شرائحه")}</button>}
         <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${STATUS_STYLE[s.status]}`} data-testid="hw-sub-status">{statusLabel(s.status, tr)}</span>
         {s.practised && <span className="text-sm">✅ {tr("practised", "تدرّب")}</span>}
         <span className="flex-1" />
@@ -333,6 +336,7 @@ function Review({ s, asAdmin, reload, quran, qdata, regrade = false, onGraded }:
         ) : s.status !== "approved" && <button type="button" className="rounded-full bg-emerald-600 px-3 py-1.5 text-sm font-bold text-white" onClick={() => act({ status: "approved" })} data-testid="hw-approve">✓ {tr("Approve", "قبول")}</button>}
         {!quran && s.status !== "returned" && <button type="button" className={smallBtn} onClick={() => act({ status: "returned" })} data-testid="hw-return">↺ {tr("Ask to try again", "اطلب المحاولة مجددًا")}</button>}
       </div>
+      {pack && slidesOpen && <PackPlayer id={pack} asAdmin={asAdmin} review={{ student: s.student }} />}
       {quran && s.scores && s.status !== "submitted" && <div className="space-y-1.5" data-testid="hw-sub-scores"><ScoreBadges s={s.scores} /><FeedbackText s={s.scores} /></div>}
       {s.text && <p className="whitespace-pre-wrap rounded-2xl bg-white/80 px-3 py-2 dark:bg-white/5" dir="auto">{s.text}</p>}
       {s.audio && <AudioClip id={s.audio} asAdmin={asAdmin} label={"🎙️ " + tr("Student recording", "تسجيل الطالب")} testId="sub-clip" />}
@@ -446,6 +450,7 @@ export function LmsHomework() {
             {editing && <HomeworkEditor initial={hw} classes={extra.classes} students={extra.students} catalog={extra.catalog} scope={extra.scope} asAdmin={asAdmin} onCancel={() => setEditing(false)} onSaved={() => { setEditing(false); load(); }} />}
             {hw.kind === "quran" && staff && (hw.data as QuranData).memorise && <p className="rounded-2xl bg-violet-100 px-4 py-2 text-sm font-bold text-violet-900" data-testid="hw-memo-teacher">🧠 {tr("Memorise & record — students don't see these verses.", "احفظ وسجّل — لا يرى الطلاب هذه الآيات.")}</p>}
             {hw.kind === "quran" ? (!staff && (hw.data as QuranData).memorise ? <MemoriseCard data={hw.data as QuranData} chapters={chapters} /> : <QuranReader data={hw.data as QuranData} mistakes={(d.sub?.mistakes || [])} />) : <Slides data={hw.data as GeneralData} />}
+            {(hw.data as { pack?: string }).pack && <PackPlayer key={String(d?.sub?.status)} id={(hw.data as { pack?: string }).pack!} asAdmin={asAdmin} preview={staff} locked={!staff && (d?.sub?.status === "approved" || (d?.sub?.status === "submitted" && !(d.sub.comments || []).some((c) => c.at > (d.sub!.submittedAt || 0))))} />}
             {!staff && <StudentWork key={d?.sub?.updated || 0} hw={hw} sub={d?.sub || null} reload={load} chapters={chapters} />}
             {staff && (
               <section className="space-y-3">
@@ -473,7 +478,7 @@ export function LmsHomework() {
                       {list.length === 0 && <p className="text-sm opacity-70" data-testid="subs-empty">{subTab === "corr" ? tr("Nothing corrected yet.", "لا يوجد واجب مصحّح بعد.") : tr("Nothing waiting for review.", "لا شيء بانتظار المراجعة.")}</p>}
                       <ul className="space-y-3">
                         {list.map((s) => (
-                          <Review quran={quran} qdata={quran ? (d.homework.data as QuranData) : undefined} key={s.id + s.updated} s={s} asAdmin={asAdmin} reload={load} regrade={subTab === "corr"} onGraded={() => { setGradeMsg(tr("✅ Grade saved — moved to Corrected", "✅ تم حفظ التقييم — نُقل إلى المصحَّح")); setTimeout(() => setGradeMsg(""), 6000); }} />
+                          <Review pack={(d.homework.data as { pack?: string }).pack} quran={quran} qdata={quran ? (d.homework.data as QuranData) : undefined} key={s.id + s.updated} s={s} asAdmin={asAdmin} reload={load} regrade={subTab === "corr"} onGraded={() => { setGradeMsg(tr("✅ Grade saved — moved to Corrected", "✅ تم حفظ التقييم — نُقل إلى المصحَّح")); setTimeout(() => setGradeMsg(""), 6000); }} />
                         ))}
                       </ul>
                     </>
