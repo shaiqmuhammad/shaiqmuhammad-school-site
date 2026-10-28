@@ -3,7 +3,7 @@
     {
       "id": "banners",
       "kind": "banners",
-      "hidden": true
+      "hidden": false
     },
     {
       "id": "intro",
@@ -13,7 +13,7 @@
     {
       "id": "lms",
       "kind": "lms",
-      "hidden": true
+      "hidden": false
     },
     {
       "id": "libraries",
