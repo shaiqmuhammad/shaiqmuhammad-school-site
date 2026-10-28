@@ -3,7 +3,7 @@
     {
       "id": "banners",
       "kind": "banners",
-      "hidden": false
+      "hidden": true
     },
     {
       "id": "intro",
