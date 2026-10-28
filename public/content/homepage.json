@@ -8,7 +8,7 @@
     {
       "id": "intro",
       "kind": "intro",
-      "hidden": true
+      "hidden": false
     },
     {
       "id": "lms",
@@ -39,6 +39,16 @@
       "id": "teacher",
       "kind": "teacher",
       "hidden": false
+    },
+    {
+      "id": "s_9",
+      "kind": "cta",
+      "hidden": false,
+      "title": "New section",
+      "button": {
+        "label": "Get started",
+        "href": "/assessments"
+      }
     }
   ]
 }
