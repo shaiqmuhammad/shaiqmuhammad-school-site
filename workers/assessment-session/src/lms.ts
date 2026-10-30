@@ -2025,7 +2025,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         const qd = qhwOf(a);
         if (a.role === "teacher" && !(qd.show && qd.view)) return { status: 403, body: { error: "quran_not_allowed" } };
         const hws = new Map(this.allHomework().filter((h) => h.kind === "quran").map((h) => [h.id, h]));
-        const mine = (h: { createdBy: string; data?: unknown }, r: Record<string, unknown>) => a.role === "admin" || this.va(a, h.createdBy) || h.createdBy === a.id || this.sharedTo(h, a.id) || (JSON.parse(String(r.attempts || "[]")) as { by: string }[]).some((x) => x.by === a.name) || (JSON.parse(String(r.comments || "[]")) as { by: string }[]).some((x) => x.by === a.name);
+        const mine = (h: { createdBy: string; data?: unknown }, r: Record<string, unknown>) => a.role === "admin" || this.va(a, h.createdBy) || h.createdBy === a.id || this.sharedTo(h, a.id) || (JSON.parse(String(r.attempts || "[]")) as { by: string; byId?: string }[]).some((x) => x.byId === a.id || x.by === a.name) || (JSON.parse(String(r.comments || "[]")) as { by: string; byId?: string }[]).some((x) => x.byId === a.id || x.by === a.name);
         const names = new Map(this.sql.exec(`SELECT id, name, cls, section FROM users`).toArray().map((r) => [String(r.id), { name: String(r.name), cls: String(r.cls || ""), section: String(r.section || "") }]));
         // t347: also list work a teacher corrected with feedback (comments / verse marks / voice notes after the last submit) but did not grade yet — shown to the assigning teacher and the correcting teacher.
         const fbOf = (r: Record<string, unknown>) => { const cm = JSON.parse(String(r.comments || "[]")) as { by: string; at?: number }[]; const after = cm.filter((x) => Number(x.at || 0) > Number(r.submitted_at || 0)); const mk = (JSON.parse(String(r.mistakes || "[]")) as unknown[]).length; return { after, mk }; };
@@ -2087,7 +2087,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         { const hq0 = this.allHomework(String(r.hw))[0]; if (hq0?.kind === "quran" && a.role === "teacher") { const qv = qhwOf(a); if (!(qv.show && qv.view)) return { status: 403, body: { error: "quran_not_allowed" } }; } }
         const comments = JSON.parse(String(r.comments || "[]")) as { by: string; text: string; at: number }[];
         const c = str(input.comment, 1000);
-        if (c) comments.push({ by: a.name, text: c, at: Date.now() });
+        if (c) comments.push({ by: a.name, byId: a.id, text: c, at: Date.now() } as { by: string; text: string; at: number });
         const liked = typeof input.like === "boolean" ? (input.like ? 1 : 0) : Number(r.liked);
         const hq = this.allHomework(String(r.hw))[0];
         // Quran: three criteria (or a legacy colour) -> overall grade + generated feedback.
@@ -2098,7 +2098,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         let status = input.status === "approved" || input.status === "returned" ? String(input.status) : String(r.status);
         if (grade) status = grade === "red" ? "returned" : "approved";
         const attempts = JSON.parse(String(r.attempts || "[]")) as { n: number; audio: string; grade: string; by: string; at: number; scores?: Scores }[];
-        if (grade) attempts.push({ n: attempts.length + 1, audio: String(r.audio || ""), grade, by: a.name, at: Date.now(), scores: scores || undefined });
+        if (grade) attempts.push({ n: attempts.length + 1, audio: String(r.audio || ""), grade, by: a.name, byId: a.id, at: Date.now(), scores: scores || undefined } as (typeof attempts)[number]);
         if (scores) this.sql.exec(`UPDATE subs SET scores=? WHERE id=?`, JSON.stringify(scores), String(r.id));
         this.sql.exec(`UPDATE subs SET comments=?, liked=?, status=?, grade=?, attempts=?, updated=? WHERE id=?`, JSON.stringify(comments.slice(-50)), liked, status, grade || String(r.grade || ""), JSON.stringify(attempts.slice(-300)), Date.now(), String(r.id));
         if (grade === "red") this.sql.exec(`UPDATE subs SET audio='', practised=0 WHERE id=?`, String(r.id));

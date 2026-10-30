@@ -34,7 +34,7 @@ export function ScoreBadges({ s, compact = false }: { s?: Scores | null; compact
       {CRITS.filter((c) => s[c.k]).map((c) => {
         const v = s[c.k] as Level;
         return (
-          <span key={c.k} className="inline-flex items-center gap-1 rounded-full bg-black/5 px-2 py-0.5 text-[11px] font-bold dark:bg-white/10" title={`${tr(c.en, c.ar)}: ${tr(LEVELS[v][0], LEVELS[v][1])}`} data-crit={c.k} data-level={v}>
+          <span key={c.k} className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold ring-1 ${({ t: "bg-violet-100 text-violet-900 ring-violet-200", m: "bg-sky-100 text-sky-900 ring-sky-200", r: "bg-teal-100 text-teal-900 ring-teal-200", h: "bg-amber-100 text-amber-900 ring-amber-200" } as Record<string, string>)[c.k] || "bg-slate-100 text-slate-900 ring-slate-200"}`} title={`${tr(c.en, c.ar)}: ${tr(LEVELS[v][0], LEVELS[v][1])}`} data-crit={c.k} data-level={v}>
             {compact ? tr(c.short[0], c.short[1]) : tr(c.en, c.ar)}
             <span className="inline-flex gap-0.5" aria-hidden>{[1, 2, 3].map((i) => <span key={i} className={`h-2 w-2.5 rounded-sm ${i <= v ? LEVELS[v][2] : "bg-black/15 dark:bg-white/20"}`} />)}</span>
             <span className="sr-only">{v}/3</span>
@@ -111,6 +111,8 @@ export function ScoreGrader({ onSubmit, busy, asAdmin = false }: { onSubmit: (s:
   // t335: one tap adds a ready-made comment to the student's comment; tap again removes it.
   const parts = comment.split("\n").map((x) => x.trim()).filter(Boolean);
   const has = (t: string) => parts.includes(t);
+  const [qcOpen, setQcOpen] = useState(false);
+  const [qcTab, setQcTab] = useState("t");
   const tap = (t: string) => setComment((has(t) ? parts.filter((x) => x !== t) : [...parts, t]).join("\n"));
   const GROUPS: { k: string; icon: string; en: string; ar: string; cls: string; on: string; items: [string, string][] }[] = [
     { k: "t", icon: "📜", en: "Tajweed", ar: "التجويد", cls: "bg-violet-50 text-violet-900 ring-violet-200", on: "bg-violet-600 text-white ring-violet-600", items: pre.t },
@@ -120,7 +122,7 @@ export function ScoreGrader({ onSubmit, busy, asAdmin = false }: { onSubmit: (s:
     { k: "e", icon: "🌟", en: "Encouragement", ar: "تشجيع", cls: "bg-rose-50 text-rose-900 ring-rose-200", on: "bg-rose-500 text-white ring-rose-500", items: ENCOURAGE },
   ];
   return (
-    <div className="w-full space-y-3 rounded-2xl bg-white p-3 text-slate-900 shadow-sm ring-1 ring-black/10" data-testid="hw-grader">
+    <div className="light-island w-full space-y-2.5 rounded-2xl border-t-4 border-violet-500 bg-gradient-to-br from-white via-sky-50 to-emerald-50 p-3 text-slate-900 shadow-md ring-1 ring-black/10" data-testid="hw-grader">
       {/* t335: all four criteria in one line of compact segmented selectors (wraps at narrow widths). */}
       <div className="flex flex-wrap gap-2" data-testid="grade-row">
         {CRITS.map((c) => (
@@ -138,19 +140,25 @@ export function ScoreGrader({ onSubmit, busy, asAdmin = false }: { onSubmit: (s:
         {o ? <span className={`rounded-full px-3 py-1 text-sm font-bold ${GRADE_STYLE[o]}`} data-testid="grade-overall">{gradeLabel(o, tr)}</span> : <span className="text-xs text-slate-500">{tr("Choose a level for each criterion.", "اختر مستوى لكل معيار.")}</span>}
         <span className="text-[11px] text-slate-500">{tr("All 3 = Excellent · any 1 = Needs practice · otherwise Good", "الكل 3 = ممتاز · أي 1 = يحتاج تدريبًا · غير ذلك = جيد")}</span>
       </div>
-      <div className="space-y-2" data-testid="qc-groups">
-        <p className="text-xs font-bold text-slate-600">💬 {tr("Ready-made comments — tap to add, tap again to remove", "تعليقات جاهزة — اضغط للإضافة، واضغط مجددًا للإزالة")}</p>
-        {GROUPS.map((g) => (
-          <div key={g.k} className="flex flex-wrap items-start gap-1.5" data-testid={`qc-group-${g.k}`}>
-            <span className="w-full text-[11px] font-extrabold text-slate-700 sm:w-32 sm:pt-1">{g.icon} {tr(g.en, g.ar)}</span>
-            <span className="flex flex-1 flex-wrap gap-1.5">
-              {g.items.map(([en, ar]) => { const t = tr(en, ar); const on = has(t); return <button key={en} type="button" aria-pressed={on} onClick={() => tap(t)} className={`rounded-full px-2.5 py-1 text-[12px] font-semibold ring-1 transition ${on ? g.on : g.cls + " hover:brightness-95"}`} data-testid="qc-chip">{on ? "✓ " : ""}{t}</button>; })}
-            </span>
+      {/* t351: ready-made comments in one big dropdown (tap to add / tap again to remove) so grading fits without scrolling. */}
+      <div className="relative" data-testid="qc-groups">
+        <button type="button" aria-expanded={qcOpen} onClick={() => setQcOpen((x) => !x)} className="flex w-full items-center gap-2 rounded-xl bg-gradient-to-r from-violet-100 via-sky-100 to-amber-100 px-3 py-2 text-start text-sm font-extrabold text-slate-900 ring-1 ring-black/10" data-testid="qc-toggle">
+          💬 {tr("Ready-made comments", "تعليقات جاهزة")} <span className="rounded-full bg-white/80 px-2 py-0.5 text-xs font-bold" data-testid="qc-count">{parts.length} {tr("added", "مضاف")}</span><span className="flex-1" /><span aria-hidden>{qcOpen ? "▴" : "▾"}</span>
+        </button>
+        {qcOpen && (
+          <div className="absolute inset-x-0 top-full z-30 mt-1 max-h-[60vh] overflow-y-auto rounded-2xl bg-white p-3 text-slate-900 shadow-2xl ring-1 ring-black/15" data-testid="qc-panel">
+            <div className="mb-2 flex flex-wrap gap-1.5" role="tablist">{GROUPS.map((g) => <button key={g.k} type="button" role="tab" aria-selected={qcTab === g.k} onClick={() => setQcTab(g.k)} className={`rounded-full px-3 py-1 text-xs font-extrabold ring-1 ${qcTab === g.k ? g.on : g.cls}`} data-testid={`qc-tab-${g.k}`}>{g.icon} {tr(g.en, g.ar)}</button>)}</div>
+            {GROUPS.filter((g) => g.k === qcTab).map((g) => (
+              <div key={g.k} className="flex flex-wrap gap-1.5" data-testid={`qc-group-${g.k}`}>
+                {g.items.map(([en, ar]) => { const t = tr(en, ar); const on = has(t); return <button key={en} type="button" aria-pressed={on} onClick={() => tap(t)} className={`rounded-full px-3 py-1.5 text-[13px] font-semibold ring-1 transition ${on ? g.on : g.cls + " hover:brightness-95"}`} data-testid="qc-chip">{on ? "✓ " : ""}{t}</button>; })}
+              </div>
+            ))}
+            <div className="mt-2 text-end"><button type="button" onClick={() => setQcOpen(false)} className="rounded-full bg-header px-4 py-1 text-xs font-bold text-white" data-testid="qc-done">{tr("Done", "تم")}</button></div>
           </div>
-        ))}
+        )}
       </div>
       <label className="block text-xs font-bold text-slate-600">{tr("Comment for the student (optional)", "تعليق للطالب (اختياري)")}
-        <textarea className="mt-1 w-full rounded-xl border border-black/15 bg-white px-3 py-2 text-sm font-normal text-slate-900" rows={3} dir="auto" value={comment} onChange={(e) => setComment(e.target.value)} placeholder={tr("Tap comments above or type your own…", "اضغط على التعليقات أعلاه أو اكتب تعليقك…")} data-testid="grade-comment" />
+        <textarea className="mt-1 w-full rounded-xl border border-black/15 bg-white px-3 py-2 text-sm font-normal text-slate-900" rows={2} dir="auto" value={comment} onChange={(e) => setComment(e.target.value)} placeholder={tr("Pick ready-made comments above or type your own…", "اضغط على التعليقات أعلاه أو اكتب تعليقك…")} data-testid="grade-comment" />
       </label>
       <div className="flex flex-wrap items-center gap-2">
         {asAdmin && <button type="button" className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-800" onClick={() => (editP ? setEditP(false) : openEdit())} data-testid="qpre-edit">✏️ {tr("Edit quick comments", "تعديل التعليقات السريعة")}</button>}
