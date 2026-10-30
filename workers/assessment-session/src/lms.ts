@@ -2013,6 +2013,8 @@ export class LmsStore extends DurableObject<LmsEnv> {
           return { status: 200, body: { homework: { ...h, locked: this.lockedFor(h, a.id), lockedBy: this.lockInfo(h, a.id) }, sub: this.sub(h.id, a.id) } };
         }
         if (h.kind === "quran" && a.role === "teacher") { const qv = qhwOf(a); if (!(qv.show && qv.view)) return { status: 403, body: { error: "quran_not_allowed" } }; }
+        // t347: teachers open only their own, shared, or picked teachers' homework (View all homework → selected teachers).
+        if (a.role === "teacher" && h.createdBy !== a.id && !this.va(a, h.createdBy) && !this.sharedTo(h, a.id)) return { status: 403, body: { error: "forbidden" } };
         const names = new Map(this.sql.exec(`SELECT id, name, cls FROM users`).toArray().map((r) => [String(r.id), { name: String(r.name), cls: String(r.cls || "") }]));
         const subs = this.sql.exec(`SELECT * FROM subs WHERE hw=? ORDER BY updated DESC`, h.id).toArray().map((r) => ({ ...this.withVersions(this.subOut(r), r), student: String(r.student), name: names.get(String(r.student))?.name ?? "?", cls: names.get(String(r.student))?.cls ?? "" }));
         const pending = this.assignees(h).filter((id) => !subs.some((s) => s.student === id)).map((id) => ({ id, name: names.get(id)?.name ?? "?" }));
@@ -2042,6 +2044,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         if (!can(a, "review")) return { status: 403, body: { error: "forbidden" } };
         const r = this.sql.exec(`SELECT * FROM subs WHERE id=?`, str(input.id, 40)).toArray()[0];
         if (!r) return { status: 404, body: { error: "not_found" } };
+        { const hs = this.allHomework(String(r.hw))[0]; if (hs && a.role === "teacher" && hs.createdBy !== a.id && !this.va(a, hs.createdBy) && !this.sharedTo(hs, a.id)) return { status: 403, body: { error: "forbidden" } }; }
         { const hs = this.allHomework(String(r.hw))[0]; if (hs && a.role === "teacher" && hs.createdBy !== a.id && !this.va(a, hs.createdBy) && this.sharedTo(hs, a.id) && !this.shareCanCorrect(hs, a)) return { status: 403, body: { error: "share_view_only" } }; }
         { const hq0 = this.allHomework(String(r.hw))[0]; if (hq0?.kind === "quran" && a.role === "teacher") { const qv = qhwOf(a); if (!(qv.show && qv.view)) return { status: 403, body: { error: "quran_not_allowed" } }; } }
         const comments = JSON.parse(String(r.comments || "[]")) as { by: string; text: string; at: number }[];
