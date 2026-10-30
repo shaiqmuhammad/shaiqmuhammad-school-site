@@ -6,18 +6,18 @@ import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
 import { StudentLogins } from "@/components/lms/StudentLogins";
 import { useLmsActor, useTr } from "@/components/lms/useLms";
 import { lmsApi, lmsErrorText, stuUi } from "@/lib/lms";
-import { Avatar } from "@/components/lms/Avatar";
+import { ANIMALS, Avatar } from "@/components/lms/Avatar";
 import { PushSettings } from "@/components/lms/PushSettings";
 import { modCall } from "@/lib/lmsMods";
 
 /** t303: students (and teachers) choose their own cartoon character. */
 function CharacterPicker() {
   const { tr } = useTr();
-  const [cur, setCur] = useState(""); const [kind, setKind] = useState("n"); const [msg, setMsg] = useState("");
-  useEffect(() => { modCall<{ avatar: string; kind: string }>("my-avatar-kind", {}, false).then((r) => { setCur(r.avatar); setKind(r.kind); }).catch(() => undefined); }, []);
+  const [cur, setCur] = useState(""); const [kind, setKind] = useState("n"); const [msg, setMsg] = useState(""); const [photos, setPhotos] = useState(false);
+  useEffect(() => { modCall<{ avatar: string; kind: string; photos?: boolean }>("my-avatar-kind", {}, false).then((r) => { setCur(r.avatar); setKind(r.kind); setPhotos(!!r.photos); }).catch(() => undefined); }, []);
   if (!cur) return null;
-  const pick = async (n: number) => {
-    try { const r = await modCall<{ avatar: string }>("my-avatar", { n }, false); setCur(r.avatar); setMsg(tr("✅ Character saved!", "✅ تم حفظ الشخصية!")); window.dispatchEvent(new Event("sm-avatar")); } catch { setMsg(tr("Could not save. Try again.", "تعذّر الحفظ. حاول مجددًا.")); }
+  const pick = async (n: number, animal = false) => {
+    try { const r = await modCall<{ avatar: string }>("my-avatar", { n, ...(animal ? { kind: "a" } : {}) }, false); setCur(r.avatar); setMsg(tr("✅ Character saved!", "✅ تم حفظ الشخصية!")); window.dispatchEvent(new Event("sm-avatar")); } catch { setMsg(tr("Could not save. Try again.", "تعذّر الحفظ. حاول مجددًا.")); }
   };
   // t305: upload a photo — cropped to a centred square, resized to 128 px and compressed in the browser (max ~30 KB).
   const upload = async (f: File | undefined) => {
@@ -38,14 +38,20 @@ function CharacterPicker() {
   return (
     <section className="mb-5 rounded-3xl bg-white/80 p-5 shadow-sm dark:bg-white/5" data-testid="char-picker">
       <div className="mb-3 flex items-center gap-3"><Avatar code={cur} size={64} /><div><h2 className="text-lg font-extrabold">{tr("My character", "شخصيتي")}</h2><p className="text-sm opacity-70">{tr("Tap a character to use it everywhere.", "اضغط على شخصية لاستخدامها في كل مكان.")}</p></div></div>
-      <div className="mb-3 flex flex-wrap items-center gap-2" data-testid="photo-controls">
+      {photos && <div className="mb-3 flex flex-wrap items-center gap-2" data-testid="photo-controls">
         <label className="cursor-pointer rounded-full bg-sun px-4 py-2 text-sm font-bold text-[#0b1b2b]">📷 {tr("Upload my photo", "رفع صورتي")}<input type="file" accept="image/*" className="sr-only" onChange={(e) => { upload(e.target.files?.[0]); e.target.value = ""; }} data-testid="photo-input" /></label>
         {cur.startsWith("data:image/") && <button type="button" className="rounded-full border border-black/15 px-3 py-2 text-sm font-bold dark:border-white/20" onClick={removePhoto} data-testid="photo-remove">🗑 {tr("Remove photo", "إزالة الصورة")}</button>}
         <span className="text-xs opacity-60">{tr("…or tap a character below", "…أو اختر شخصية بالأسفل")}</span>
-      </div>
+      </div>}
       <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
-        {Array.from({ length: 12 }, (_, n) => { const c = `${kind === "p" ? "n" : kind}${n}`; const on = c === cur; return (
+        {Array.from({ length: 24 }, (_, n) => { const c = `${kind === "p" ? "n" : kind}${n}`; const on = c === cur; return (
           <button key={c} type="button" aria-pressed={on} aria-label={tr(`Character ${n + 1}`, `الشخصية ${n + 1}`)} onClick={() => pick(n)} className={`grid place-items-center rounded-2xl p-1 transition hover:scale-105 ${on ? "bg-sun/60 ring-4 ring-sun" : "bg-black/[0.04] dark:bg-white/10"}`} data-testid="char-opt"><Avatar code={c} size={52} /></button>
+        ); })}
+      </div>
+      <h3 className="mb-2 mt-4 text-sm font-extrabold">🐾 {tr("Animal friends", "أصدقاء من الحيوانات")}</h3>
+      <div className="grid grid-cols-4 gap-2 sm:grid-cols-6" data-testid="animal-opts">
+        {Array.from({ length: ANIMALS }, (_, n) => { const c = `a${n}`; const on = c === cur; return (
+          <button key={c} type="button" aria-pressed={on} aria-label={tr(`Animal ${n + 1}`, `حيوان ${n + 1}`)} onClick={() => pick(n, true)} className={`grid place-items-center rounded-2xl p-1 transition hover:scale-105 ${on ? "bg-sun/60 ring-4 ring-sun" : "bg-black/[0.04] dark:bg-white/10"}`} data-testid="animal-opt"><Avatar code={c} size={56} /></button>
         ); })}
       </div>
       {msg && <p className="mt-2 text-sm font-bold" role="status" data-testid="char-msg">{msg}</p>}

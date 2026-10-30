@@ -166,6 +166,13 @@ export class ResultsStore extends DurableObject {
     return [...cursor].map((row) => toRecord(row, Boolean(f.details)));
   }
 
+  /** t329: one student's own attempts (individual + group), newest first, with per-question details. */
+  async byStudent(sid: string): Promise<ResultRecord[]> {
+    this.init();
+    if (!sid) return [];
+    return [...this.ctx.storage.sql.exec(`SELECT * FROM records WHERE student_id = ? AND COALESCE(link_state,'') != 'ignored' ORDER BY finished_at DESC LIMIT 500`, sid)].map((row) => toRecord(row, true));
+  }
+
   /** Assessment Tracker: linked attempts whose questions carry Success Criteria tags (compact). */
   async scTagged(ids: string[], quizIds: string[] = []): Promise<{ studentId: string; quizId: string; slug?: string; at: number; details: { sc?: string; earned: number; points: number }[] }[]> {
     this.init();

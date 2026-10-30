@@ -31,6 +31,7 @@ export function QuranHomeworkPage() {
 
 export function QuranHomework() {
   const { tr, lang } = useTr();
+  const { actor } = useLmsActor();
   const [d, setD] = useState<Dash | null>(null);
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [extra, setExtra] = useState<{ classes: { cls: string; students: number }[]; students: never[]; catalog?: never; scope?: string[] }>({ classes: [], students: [] });
@@ -62,8 +63,8 @@ export function QuranHomework() {
               <p className="mt-2 flex flex-wrap gap-1.5 text-xs font-bold"><span className="rounded-full bg-slate-200 px-2 py-0.5 text-slate-800 dark:bg-white/10 dark:text-white">{tr("Assigned", "مُسند")} {h.assigned ?? 0}</span><span className="rounded-full bg-amber-100 px-2 py-0.5 text-amber-900">{tr("Submitted", "مُسلَّم")} {c.submitted || 0}</span><span className="rounded-full bg-emerald-100 px-2 py-0.5 text-emerald-900">{tr("Approved", "مقبول")} {c.approved || 0}</span></p>
               <div className="mt-3 flex flex-wrap gap-2">
                 <a className={btn + " !py-1"} href={`/lms/homework?id=${h.id}`} data-testid="qhw-open">{tr("Open / review", "فتح / مراجعة")}</a>
-                {q.edit && <button type="button" className={btn + " !py-1"} onClick={() => setEditor(h)} data-testid="qhw-edit">✎ {tr("Edit", "تعديل")}</button>}
-                {q.del && <button type="button" className={btn + " !py-1"} onClick={() => del(h)} data-testid="qhw-del">🗑</button>}
+                {q.edit && !(actor?.role === "teacher" && h.createdBy !== actor.id && ((h.data as { share?: { teachers?: string[] } }).share?.teachers || []).includes(actor.id)) && <button type="button" className={btn + " !py-1"} onClick={() => setEditor(h)} data-testid="qhw-edit">✎ {tr("Edit", "تعديل")}</button>}
+                {q.del && !(actor?.role === "teacher" && h.createdBy !== actor.id && ((h.data as { share?: { teachers?: string[] } }).share?.teachers || []).includes(actor.id)) && <button type="button" className={btn + " !py-1"} onClick={() => del(h)} data-testid="qhw-del">🗑</button>}
                 <HwShare hw={h.id} />
               </div>
             </article>

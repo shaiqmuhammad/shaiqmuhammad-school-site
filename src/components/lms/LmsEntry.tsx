@@ -1,5 +1,7 @@
 "use client";
 
+import { JoinButton } from "@/components/Header";
+
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Avatar } from "@/components/lms/Avatar";
@@ -93,6 +95,7 @@ export function LmsStaffToolbar() {
   const roleLabel = who?.role === "teacher" ? (ar ? "المعلم" : "Teacher") : who?.role === "parent" ? (ar ? "ولي الأمر" : "Parent") : ar ? "الطالب" : "Student";
   return (
     <div className="flex items-center gap-2">
+      {who?.role === "student" && <JoinButton lang={lang} />}
       {who && who.role !== "parent" && (
         // t308: "Hello 👋 Teacher/Student <Full name>" (Arabic: Islamic A students see their Arabic name); the avatar opens My account.
         <span className="min-w-0 max-w-[9.5rem] truncate text-sm font-bold text-white sm:max-w-[22rem]" dir="auto" title={greet} data-testid="lms-greet">{greet}</span>

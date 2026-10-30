@@ -349,7 +349,7 @@ export function GroupHost() {
   );
 
   return (
-    <AssessmentShell title={`${title} · ${a("sessionCode", { code: host.code })}`} exitHref="/admin" secondsLeft={secondsLeft}>
+    <AssessmentShell title={`${title} · ${a("sessionCode", { code: host.code })}`} exitHref="/admin" alarm secondsLeft={secondsLeft}>
       <div className="mx-auto w-full max-w-6xl space-y-6 px-4 py-8">
         {error && <p className="rounded-xl bg-rose-100 px-4 py-2 text-base text-rose-800 dark:bg-rose-900/40 dark:text-rose-100">{error}</p>}
 

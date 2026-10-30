@@ -17,6 +17,8 @@ type Props = {
   onExit?: () => boolean;
   /** Seconds remaining; null/undefined hides the timer. */
   secondsLeft?: number | null;
+  /** t329: the last-10-seconds alarm plays only on the teacher's leaderboard/host screen, never on student devices. */
+  alarm?: boolean;
   /** Progress bar: current index (0-based), total, and which questions are answered. */
   progress?: { current: number; total: number; answered?: boolean[]; onJump?: (i: number) => void };
   /** Extra buttons in the bar (before language/theme), e.g. the projector's full-screen toggle. */
@@ -46,7 +48,7 @@ export function alarmBeep(dur = 0.18, freq = 880) {
   } catch { /* ignore */ }
 }
 
-export function AssessmentShell({ title, exitHref = "/assessments", onExit, secondsLeft, progress, actions, toolbar, wide = false, children }: Props) {
+export function AssessmentShell({ title, exitHref = "/assessments", onExit, secondsLeft, alarm = false, progress, actions, toolbar, wide = false, children }: Props) {
   const { a } = useAssessmentText();
   const exitTo = useLmsExit(exitHref);
   useEffect(() => { lmsRenew(); }, []);
@@ -58,12 +60,12 @@ export function AssessmentShell({ title, exitHref = "/assessments", onExit, seco
   const beeped = useRef(-1);
   const sec = showTimer ? Math.ceil(secondsLeft as number) : -1;
   useEffect(() => {
-    if (sec < 0 || sec > 10 || beeped.current === sec) return;
+    if (!alarm || sec < 0 || sec > 10 || beeped.current === sec) return;
     if (beeped.current === -1 && sec === 0) return; // page opened after the end
     beeped.current = sec;
     try { if (localStorage.getItem("sm-timer-sound") === "off") return; } catch { /* ignore */ }
     alarmBeep(sec === 0 ? 0.9 : 0.18, sec === 0 ? 660 : 880);
-  }, [sec]);
+  }, [sec, alarm]);
 
   return (
     <div className={`relative flex min-h-dvh ${rail ? "flex-row" : "flex-col"} overflow-x-clip bg-gradient-to-br from-cream via-white to-white text-[#1b2f44] dark:from-[#0d1b2a] dark:via-[#0d1b2a] dark:to-[#10263b] dark:text-[#e6eef6]`}>

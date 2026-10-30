@@ -256,6 +256,9 @@ export function QuizPlayer({ quiz, initialTemplate, initialResults }: Props) {
                 </div>
               ))}
             </div>
+            {typeof window !== "undefined" && lmsSession()?.user?.role === "student" && (
+              <a href="/lms/assessments#my-record" className="mt-5 inline-block rounded-full bg-sun px-5 py-2 font-bold text-[#0b1b2b]" data-testid="end-report-link">📊 {lmsSession()?.user && document.documentElement.lang === "ar" ? "تقريري الكامل (لكل سؤال ومعيار)" : "My full report (per question and success criterion)"}</a>
+            )}
             {template.showPosition && rank && rank.total > 0 && (
               <p className="mt-5 text-base">
                 {a("position")}: <strong dir="ltr">{positionLabel()}</strong>

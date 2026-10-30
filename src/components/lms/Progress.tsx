@@ -216,7 +216,7 @@ export function QuranMap({ asAdmin = false, classes = [], sections = [] }: { asA
   const ch = useChapters();
   const [cls, setCls] = useState(classes[0] || "");
   const [section, setSection] = useState("");
-  const [crit, setCrit] = useState<"" | "m" | "t" | "r">("");
+  const [crit, setCrit] = useState<"" | "m" | "t" | "r" | "h">("");
   const [d, setD] = useState<{ rows: MapRow[]; surahs: number[] } | null>(null);
   const [err, setErr] = useState("");
   useEffect(() => { lmsApi.quranMap(cls, section, asAdmin).then(setD).catch((e) => setErr(lmsErrorText(e, tr))); }, [cls, section, asAdmin, tr]);
@@ -230,11 +230,12 @@ export function QuranMap({ asAdmin = false, classes = [], sections = [] }: { asA
           <option value="">{tr("All classes", "كل الصفوف")}</option>
           {classes.map((c) => <option key={c}>{c}</option>)}
         </select>
-        <select className={inputCls + " mt-0 w-auto!"} value={crit} onChange={(e) => setCrit(e.target.value as "" | "m" | "t" | "r")} aria-label={tr("Show", "عرض")} data-testid="map-crit">
+        <select className={inputCls + " mt-0 w-auto!"} value={crit} onChange={(e) => setCrit(e.target.value as "" | "m" | "t" | "r" | "h")} aria-label={tr("Show", "عرض")} data-testid="map-crit">
           <option value="">{tr("Overall result", "النتيجة الإجمالية")}</option>
           <option value="m">{tr("Makharij", "المخارج")}</option>
           <option value="t">{tr("Tajweed", "التجويد")}</option>
           <option value="r">{tr("Recitation", "التلاوة")}</option>
+          <option value="h">{tr("Memorisation", "الحفظ")}</option>
         </select>
         <select className={inputCls + " mt-0 w-auto!"} value={section} onChange={(e) => setSection(e.target.value)} disabled={!cls} aria-label={tr("Section", "الشعبة")}>
           <option value="">{tr("All sections", "كل الشعب")}</option>
@@ -254,7 +255,7 @@ export function QuranMap({ asAdmin = false, classes = [], sections = [] }: { asA
                   <td className="sticky start-0 border-t border-black/5 bg-white px-3 py-1.5 font-semibold whitespace-nowrap dark:border-white/10 dark:bg-[#0f1a26]">
                     {asAdmin ? <span dir="auto">{r.name}</span> : <Link href={`/lms/student?id=${encodeURIComponent(r.id)}`} className="underline-offset-2 hover:underline" dir="auto">{r.name}</Link>} <span className="opacity-50">{r.section}</span>
                   </td>
-                  {d.surahs.map((s) => { const c0 = r.cells[s]; const lv = crit && c0 ? (c0 as { m?: number; t?: number; r?: number })[crit] : undefined; const c = c0 && crit ? { ...c0, grade: lv === 3 ? "green" : lv === 2 ? "yellow" : lv === 1 ? "red" : "" } : c0; return <td key={s} className="border-t border-black/5 p-1 text-center dark:border-white/10"><span className={`mx-auto block h-6 w-10 rounded ${cellCls(c?.grade || "")}`} title={c ? `${surahLabel(ch, s)}: ${gradeLabel(c.grade, tr)} · ${c.verses} ${tr("verses", "آيات")}` : ""} data-grade={c?.grade || ""} /></td>; })}
+                  {d.surahs.map((s) => { const c0 = r.cells[s]; const lv = crit && c0 ? (c0 as { m?: number; t?: number; r?: number; h?: number })[crit] : undefined; const c = c0 && crit ? { ...c0, grade: lv === 3 ? "green" : lv === 2 ? "yellow" : lv === 1 ? "red" : "" } : c0; return <td key={s} className="border-t border-black/5 p-1 text-center dark:border-white/10"><span className={`mx-auto block h-6 w-10 rounded ${cellCls(c?.grade || "")}`} title={c ? `${surahLabel(ch, s)}: ${gradeLabel(c.grade, tr)} · ${c.verses} ${tr("verses", "آيات")}` : ""} data-grade={c?.grade || ""} /></td>; })}
                 </tr>
               ))}
             </tbody>

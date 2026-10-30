@@ -389,6 +389,8 @@ export function LmsHomework() {
 
   const staff = actor?.role === "teacher" || actor?.role === "admin";
   const hw = d?.homework;
+  // t329: a teacher who only sees this homework because it was shared with them can't edit or delete it.
+  const sharedOnly = !!hw && actor?.role === "teacher" && hw.createdBy !== actor.id && (((hw.data as { share?: { teachers?: string[] } }).share?.teachers) || []).includes(actor.id);
   const q = hw?.data as QuranData | undefined;
   const ch = q ? chapters.find((c) => c.id === q.surah) : undefined;
   const subtitle = hw?.kind === "quran" && q ? `${ch?.name_simple || `Surah ${q.surah}`} ${ch?.name_arabic || ""} · ${q.from}–${q.to}` : hw?.cls || "";
@@ -419,7 +421,7 @@ export function LmsHomework() {
                 <button type="button" className={smallBtn} onClick={async () => { try { const r = await lmsApi.qrLinks(hw.id, {}, asAdmin); const { loadNameMode } = await import("@/lib/studentName"); const mode = await loadNameMode(asAdmin); await studentQrCardsPdf(hw, { lang: document.documentElement.dir === "rtl" ? "ar" : "en", mode, surahEn: ch?.name_simple, surahAr: ch?.name_arabic, verses: q ? `${tr("verses", "الآيات")} ${q.from}–${q.to}` : "", versesAr: q ? `الآيات ${q.from}–${q.to}` : "", teacher: r.teacher, links: r.links }); } catch { setErr(tr("Couldn't make the QR cards.", "تعذر إنشاء بطاقات QR.")); } }} data-testid="hw-qr-pdf">🔳 {tr("Student QR cards (PDF)", "بطاقات QR للطلاب (PDF)")}</button>
                 <QrLinks hwId={hw.id} asAdmin={asAdmin} />
                 {hw.kind === "quran" && <LockList hwId={hw.id} asAdmin={asAdmin} />}
-{(hw.kind !== "quran" || qhwPerm(actor?.perms, actor?.role === "admin").edit) && (<button
+{!sharedOnly && (hw.kind !== "quran" || qhwPerm(actor?.perms, actor?.role === "admin").edit) && (<button
                   type="button"
                   className={smallBtn}
                   onClick={async () => {
@@ -431,7 +433,7 @@ export function LmsHomework() {
                 >
                   ✏️ {tr("Edit", "تعديل")}
                 </button> )}
-{(hw.kind !== "quran" || qhwPerm(actor?.perms, actor?.role === "admin").del) && (<button
+{!sharedOnly && (hw.kind !== "quran" || qhwPerm(actor?.perms, actor?.role === "admin").del) && (<button
                   type="button"
                   className={smallBtn + " text-rose-600"}
                   onClick={async () => {

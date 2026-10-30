@@ -104,7 +104,7 @@ function ResourcesMenu({ label, groupLabel, active, t }: { label: string; groupL
 }
 
 /** Bright "Join" pill: students tap it to join a live class assessment with the teacher's code. */
-function JoinButton({ lang }: { lang: string }) {
+export function JoinButton({ lang }: { lang: string }) {
   const ar = lang === "ar";
   return (
     <Link

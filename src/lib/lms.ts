@@ -62,7 +62,7 @@ export type MapRow = { id: string; name: string; cls: string; section: string; c
 
 /** Student-account switches. Legacy "Manage students" with none of the stu:* flags set means all four. */
 export const stuUi = (perms: string[], op: "view" | "add" | "edit" | "block" | "delete") => { if (!perms.includes("manageUsers")) return false; const has = perms.filter((p) => p.startsWith("stu:")); return has.length ? has.includes(`stu:${op}`) : true; };
-export const PERMS = ["assign", "review", "manageUsers", "viewAll", "shareCorrect"] as const;
+export const PERMS = ["assign", "review", "manageUsers", "viewAll", "shareCorrect", "viewAsStudent"] as const;
 
 export class LmsError extends Error {
   data?: Record<string, unknown>;
@@ -128,12 +128,16 @@ export function lmsSignOut() {
 /** Admin read-only "view as" (this browser tab only; never touches the user's real LMS session). */
 export type QrLink = { student: string; name: string; nameAr?: string; arabic?: boolean; cls: string; section: string; token: string };
 export type QrView = { versions?: Version[]; dl?: boolean; student: string; studentAr?: string; arabic?: boolean; cls: string; section: string; homework: { title: string; kind: "quran" | "general"; data: Partial<QuranData> }; status: string; grade: Grade | ""; scores?: Scores | null; recordings: string[]; recAt?: Record<string, number>; attempts: { n: number; grade: Grade; audio: string; at: number; scores?: Scores }[]; feedback: { by: string; text: string; audio: string; at: number }[]; tracker: TrackerRow[] };
-export type ViewAs = { id: string; name: string; role: "student" | "teacher"; cls: string };
+import type { ResultRecord } from "@/lib/resultsRecord";
+export type ViewAs = { id: string; name: string; role: "student" | "teacher"; cls: string; by?: "t" };
 export function viewAs(): ViewAs | null {
   if (typeof window === "undefined") return null;
   try {
     const v = JSON.parse(sessionStorage.getItem("sm_view_as") || "null") as ViewAs | null;
-    return v && getServerSession() ? v : null;
+    if (!v) return null;
+    // t329: a teacher's "log in as student" uses the teacher's own LMS session; admin's uses the admin session.
+    if (v.by === "t") return lmsSession()?.user?.role === "teacher" ? v : null;
+    return getServerSession() ? v : null;
   } catch {
     return null;
   }
@@ -143,7 +147,7 @@ export function exitViewAs() {
 }
 function authHeaders(asAdmin = false): Record<string, string> {
   const va = !asAdmin ? viewAs() : null;
-  if (va) return { Authorization: `Bearer ${getServerSession()!.token}`, "X-View-As": va.id };
+  if (va) return { Authorization: `Bearer ${va.by === "t" ? lmsSession()!.token : getServerSession()!.token}`, "X-View-As": va.id };
   const tok = bearer(asAdmin);
   return tok ? { Authorization: `Bearer ${tok}` } : {};
 }
@@ -195,7 +199,7 @@ export const lmsApi = {
   qpreGet: (asAdmin = false) => call<{ presets: Record<string, [string, string][]> | null }>("qpre-get", {}, { asAdmin }),
   qpreSave: (presets: Record<string, [string, string][]>) => call<{ ok: true }>("qpre-save", { presets }, { asAdmin: true }),
   qrAudioUrl: (t: string, id: string, dl = false) => `${ASSESSMENT_API_BASE}/api/lms/qr-audio?t=${encodeURIComponent(t)}&id=${encodeURIComponent(id)}${dl ? "&dl=1" : ""}`,
-  viewAsLog: () => call<{ items: { uid: string; name: string; role: string; at: number }[] }>("viewas-log", undefined, { asAdmin: true }),
+  viewAsLog: () => call<{ items: { uid: string; name: string; role: string; at: number; by?: string }[] }>("viewas-log", undefined, { asAdmin: true }),
   async login(username: string, pin: string) {
     const r = await call<{ token: string; exp: number; user: LmsUser }>("login", { username, pin });
     return storeSession(r);
@@ -278,6 +282,7 @@ export const lmsApi = {
   wallMod: (op: "delete" | "pin" | "unpin" | "delcom", id: string) => call<{ ok: true }>("wall-mod", { op, id }, { asAdmin: wallAdmin }),
   actPublish: (code: string, type: string, title: string, students: string[], locked = false) => call<{ ok: true; count: number }>("act-publish", { code, type, title, students, locked }),
   actLive: () => call<{ items: LiveActivity[] }>("act-live"),
+  myAssess: () => call<{ items: (ResultRecord & { level?: number; label?: string })[] }>("my-assess"),
   assessList: (asAdmin = false) => call<{ items: Assignment[] }>("assess-list", undefined, { asAdmin }),
   assessAssign: (a: { quiz: string; title: string; mode: "individual" | "group"; cls?: string; section?: string; students?: string[]; due?: number | null }, asAdmin = false) => call<{ ok: true; id: string; sent: number }>("assess-assign", a, { asAdmin }),
   assessUnassign: (id: string, asAdmin = false) => call<{ ok: true }>("assess-unassign", { id }, { asAdmin }),

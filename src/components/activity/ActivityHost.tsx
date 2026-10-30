@@ -138,7 +138,7 @@ export function ActivityHost() {
   );
 
   return (
-    <AssessmentShell title={title} exitHref="/admin" secondsLeft={state?.ended ? null : left} actions={actions} wide>
+    <AssessmentShell title={title} exitHref="/admin" alarm secondsLeft={state?.ended ? null : left} actions={actions} wide>
       <div className="mx-auto w-full max-w-[1800px] flex-1 px-3 py-4 sm:px-6" data-testid="activity-host">
         {offline && <p className="mb-3 rounded-xl bg-amber-100 px-4 py-2 text-sm font-semibold text-amber-900 dark:bg-amber-900/40 dark:text-amber-100">{tr("Reconnecting…", "جارٍ إعادة الاتصال…")}</p>}
 

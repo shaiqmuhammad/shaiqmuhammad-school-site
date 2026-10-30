@@ -1,4 +1,6 @@
 "use client";
+
+import { useAssessFilter, useFacets } from "@/components/lms/AssessFilter";
 import { SubjectTeacherFields, useAdminScope } from "@/components/AdminScope";
 
 import { TrkLink } from "@/components/tracker/TrkLink";
@@ -43,6 +45,11 @@ export default function AdminQuizzes({ setStatus, onNeedToken, data, setData, re
   const scope = useAdminScope();
   // t283 shared filter: subject (Islamic A shares Islamic B assessments), teacher, year.
   const sorted = useMemo(() => [...data.quizzes].filter((q) => (!scope.subject || q.subject === scope.subject || (scope.subject === "Islamic A" && q.subject === "Islamic B")) && (!scope.teacher || q.teacher === scope.teacher || (scope.subject === "Islamic A" && q.subject === "Islamic B")) && scope.yearOk(q.year ?? q.topicInfo?.yr)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)), [data.quizzes, scope]);
+
+  // t329: class/year, section, subject and topic filters (on top of the shared admin scope).
+  const facets = useFacets(data.quizzes.map((q) => q.slug), data.quizzes, true);
+  const flt = useAssessFilter(facets, tr);
+  const shown = sorted.filter((q) => flt.pass(q.slug));
 
   function saveQuiz(e: FormEvent) {
     e.preventDefault();
@@ -229,9 +236,10 @@ export default function AdminQuizzes({ setStatus, onNeedToken, data, setData, re
         </form>
       )}
 
+      {flt.ui}
       <ul className="divide-y divide-card-border rounded-2xl bg-card ring-1 ring-card-border/50">
-        {sorted.length === 0 && <li className="px-4 py-3 text-sm text-muted">No assessments yet.</li>}
-        {sorted.map((quiz) => (
+        {shown.length === 0 && <li className="px-4 py-3 text-sm text-muted">{flt.active ? "No assessments match these filters." : "No assessments yet."}</li>}
+        {shown.map((quiz) => (
           <li key={quiz.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
             <div className="min-w-0">
               <p className="font-medium">{quiz.title}{quiz.titleAr ? <span className="ms-2 text-sm text-muted" dir="rtl">{quiz.titleAr}</span> : null}</p>

@@ -57,7 +57,7 @@ export interface LmsEnv extends AdminEnv, StorageEnv, MailEnv {
 
 type Json = Record<string, unknown>;
 /** Actions allowed in admin read-only "view as" mode. */
-const VIEW_AS_READ = new Set(["dl-policy", "dl-grant", "dashboard", "hw", "progress", "quran-map", "leaderboard", "notes", "catalog", "me", "ann-list", "msg-threads", "msg-thread", "msg-contacts", "assess-list", "cur-list", "cur-for", "tquiz-get", "tquiz-list", "class-roster", "pcat-list", "pts-list", "grp-list", "report-log"]);
+const VIEW_AS_READ = new Set(["my-assess", "dl-policy", "dl-grant", "dashboard", "hw", "progress", "quran-map", "leaderboard", "notes", "catalog", "me", "ann-list", "msg-threads", "msg-thread", "msg-contacts", "assess-list", "cur-list", "cur-for", "tquiz-get", "tquiz-list", "class-roster", "pcat-list", "pts-list", "grp-list", "report-log"]);
 
 /** Which LMS notifications also go out by email (when the user has an email and mail is configured). */
 const EMAIL_KINDS: Record<string, [string, string]> = {
@@ -80,15 +80,18 @@ const TOKEN_DAYS = 3650; // effectively "until you log out" (sliding renewal on 
 const MAX_USERS = 3000;
 const MAX_HW = 2000;
 const FAIL_WINDOW = 15 * 60_000;
-const PERMS = ["assign", "review", "manageUsers", "viewAll", "staff", "shareCorrect"] as const;
+const PERMS = ["assign", "review", "manageUsers", "viewAll", "staff", "shareCorrect", "viewAsStudent"] as const;
 const STU_OPS = ["view", "add", "edit", "block", "delete"] as const;
 const STU_PERM = /^stu:(view|add|edit|block|delete|none)$/;
 /** Cartoon avatar code: stored reroll, else derived from id + gender (gender itself never leaves the server for non-admins). */
+const AV_N = 24;
 function avatarOf(r: Record<string, unknown>): string {
   const g = r.gender === "b" || r.gender === "g" ? String(r.gender) : "n";
   const av = String(r.avatar || "");
-  if (av.startsWith("data:image/")) return av; // t305: uploaded profile photo (small JPEG/WebP data URL)
-  if (/^[bgn]\d{1,2}$/.test(av) && av[0] === g) return av;
+  // t305: uploaded profile photo (teachers only since t329 — students always get a character).
+  if (av.startsWith("data:image/") && r.role !== "student") return av;
+  if (/^a\d{1,2}$/.test(av) && Number(av.slice(1)) < AV_N) return av; // t329: animal characters, for everyone
+  if (/^[bgn]\d{1,2}$/.test(av) && av[0] === g && Number(av.slice(1)) < AV_N) return av;
   let h = 7; for (const c of String(r.id)) h = (h * 31 + c.charCodeAt(0)) >>> 0;
   return `${g}${h % 12}`;
 }
@@ -252,6 +255,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     // t328: Quran QR codes are permanent and per student + Surah (old per-homework tokens keep working and resolve to the same page).
     if (!cols("qr").has("surah")) this.sql.exec(`ALTER TABLE qr ADD COLUMN surah INTEGER DEFAULT 0`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS viewlog (id TEXT PRIMARY KEY, uid TEXT, name TEXT, role TEXT, at INTEGER)`);
+    if (!cols("viewlog").has("by")) this.sql.exec(`ALTER TABLE viewlog ADD COLUMN by TEXT DEFAULT 'Admin'`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS contacts (id TEXT PRIMARY KEY, name TEXT, email TEXT, subject TEXT, message TEXT, created INTEGER, read INTEGER DEFAULT 0, emailed INTEGER DEFAULT 0, ip TEXT)`);
     if (!cols("users").has("parent_token")) this.sql.exec(`ALTER TABLE users ADD COLUMN parent_token TEXT DEFAULT ''`);
     if (!cols("users").has("parent_name")) this.sql.exec(`ALTER TABLE users ADD COLUMN parent_name TEXT DEFAULT ''`);
@@ -293,6 +297,9 @@ export class LmsStore extends DurableObject<LmsEnv> {
     }
     if (!cols("users").has("last_seen")) this.sql.exec(`ALTER TABLE users ADD COLUMN last_seen INTEGER DEFAULT 0`);
     if (!cols("users").has("avatar")) this.sql.exec(`ALTER TABLE users ADD COLUMN avatar TEXT DEFAULT ''`);
+    // t329: students may not use photos — keep a copy (reversible), switch them to their character.
+    if (!cols("users").has("avatar_photo_bak")) this.sql.exec(`ALTER TABLE users ADD COLUMN avatar_photo_bak TEXT DEFAULT ''`);
+    this.sql.exec(`UPDATE users SET avatar_photo_bak=avatar, avatar='' WHERE role='student' AND avatar LIKE 'data:image/%'`);
     // Points (ClassDojo-style), custom groups, parent report tokens + send log.
     this.sql.exec(`CREATE TABLE IF NOT EXISTS pcat (id TEXT PRIMARY KEY, owner TEXT, label TEXT, pts INTEGER, icon TEXT, pos INTEGER)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS pts (id TEXT PRIMARY KEY, student TEXT, cat TEXT, label TEXT, pts INTEGER, icon TEXT, by TEXT, owner TEXT, batch TEXT, at INTEGER)`);
@@ -1089,9 +1096,10 @@ export class LmsStore extends DurableObject<LmsEnv> {
         if (!u0) return { status: 404, body: { error: "not_found" } };
         const g = u0.gender === "b" || u0.gender === "g" ? String(u0.gender) : "n";
         const n = Math.floor(Number(input.n));
-        if (!(n >= 0 && n < 12)) return { status: 400, body: { error: "bad_input" } };
-        this.sql.exec(`UPDATE users SET avatar=? WHERE id=?`, `${g}${n}`, a.id);
-        return { status: 200, body: { avatar: `${g}${n}`, kind: g } };
+        if (!(n >= 0 && n < AV_N)) return { status: 400, body: { error: "bad_input" } };
+        const code = `${input.kind === "a" ? "a" : g}${n}`;
+        this.sql.exec(`UPDATE users SET avatar=? WHERE id=?`, code, a.id);
+        return { status: 200, body: { avatar: code, kind: g } };
       }
       case "ui-prefs": {
         // t304: per-user menu layout (rail order/hidden, dashboard tiles order/hidden).
@@ -1105,6 +1113,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
       case "my-photo": {
         // t305: own profile photo (already cropped + compressed in the browser), or remove it to go back to a character.
         if (a.viewAs || a.role === "parent" || a.role === "admin") return { status: 403, body: { error: "forbidden" } };
+        if (a.role === "student" && !input.remove) return { status: 403, body: { error: "photos_not_allowed" } };
         if (input.remove) { this.sql.exec(`UPDATE users SET avatar='' WHERE id=?`, a.id); return { status: 200, body: { avatar: avatarOf(this.userRow("id=?", a.id) || {}) } }; }
         const d = String(input.data || "");
         if (!/^data:image\/(jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(d) || d.length > 40000) return { status: 400, body: { error: "photo_too_big" } };
@@ -1148,7 +1157,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         if (a.viewAs || a.role === "parent") return { status: 403, body: { error: "forbidden" } };
         const u0 = this.userRow("id=?", a.id);
         if (!u0) return { status: 404, body: { error: "not_found" } };
-        return { status: 200, body: { avatar: avatarOf(u0), kind: u0.gender === "b" || u0.gender === "g" ? String(u0.gender) : "n", name: String(u0.name || ""), nameAr: String(u0.name_ar || ""), arabic: subjList(u0.subject).includes("Islamic A") } };
+        return { status: 200, body: { avatar: avatarOf(u0), kind: u0.gender === "b" || u0.gender === "g" ? String(u0.gender) : "n", name: String(u0.name || ""), nameAr: String(u0.name_ar || ""), arabic: subjList(u0.subject).includes("Islamic A"), photos: u0.role !== "student" } };
       }
       case "user-avatar": {
         // Teacher/admin: reroll the cartoon avatar (gender stays server-side; set by the admin only).
@@ -1159,7 +1168,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         const g = u0.gender === "b" || u0.gender === "g" ? String(u0.gender) : "n";
         const cur = avatarOf(u0);
         let code = cur;
-        while (code === cur) code = `${g}${Math.floor(Math.random() * 12)}`;
+        while (code === cur) code = `${g}${Math.floor(Math.random() * AV_N)}`;
         this.sql.exec(`UPDATE users SET avatar=? WHERE id=?`, code, sid);
         return { status: 200, body: { avatar: code } };
       }
@@ -1436,6 +1445,13 @@ export class LmsStore extends DurableObject<LmsEnv> {
         if (!isStaff(a)) return { status: 403, body: { error: "forbidden" } };
         const rows = this.sql.exec(`SELECT l.*, u.name AS sname, u.cls, u.section FROM rlog l LEFT JOIN users u ON u.id=l.student ORDER BY l.at DESC LIMIT 300`).toArray().filter((r) => a.role === "admin" || this.inScope(a, String(r.cls || ""), String(r.section || ""), String(r.id)));
         return { status: 200, body: { items: rows.map((r) => ({ id: String(r.id), student: String(r.sname || ""), kind: String(r.kind), to: String(r.to_addr), by: String(r.by), at: Number(r.at), ok: !!r.ok })) } };
+      }
+      case "my-assess": {
+        // t329: a student's own assessment record — every attempt with score and the per-question report.
+        const RES = (this.env as unknown as { RESULTS?: DurableObjectNamespace }).RESULTS;
+        if (a.role !== "student" || !RES) return { status: 403, body: { error: "forbidden" } };
+        const rs = await (RES.get(RES.idFromName("main")) as unknown as { byStudent(sid: string): Promise<Record<string, unknown>[]> }).byStudent(a.id);
+        return { status: 200, body: { items: rs.map((r) => ({ ...r, ...this.levelOf(Number(r.percentage), String(r.year || "")) })) } };
       }
       case "assess-results": {
         // Teacher: results of assessments they created or assigned (+ group sessions of quizzes they may host). Admin: all.
@@ -1806,6 +1822,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         {
           // Quran Homework switches (teachers with an explicit set): Add for new, Edit for existing; plain homework still needs "assign".
           const q = qhwOf(a);
+          if (input.id && this.sharedOnly(str(input.id, 40), a)) return { status: 403, body: { error: "share_owner_only" } };
           const prevKind = input.id ? String(this.sql.exec(`SELECT kind FROM homework WHERE id=?`, str(input.id, 40)).toArray()[0]?.kind || "") : "";
           const touchesQ = kind === "quran" || prevKind === "quran";
           if (a.role === "teacher" && touchesQ && q.set && !(input.id ? q.edit : q.add)) return { status: 403, body: { error: "quran_not_allowed" } };
@@ -1858,6 +1875,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         const id = str(input.id, 40);
         const r = this.sql.exec(`SELECT created_by, kind FROM homework WHERE id=?`, id).toArray()[0];
         if (!r) return { status: 404, body: { error: "not_found" } };
+        if (this.sharedOnly(id, a)) return { status: 403, body: { error: "share_owner_only" } };
         const qd = qhwOf(a);
         if (a.role === "teacher" && r.kind === "quran" && qd.set && !qd.del) return { status: 403, body: { error: "quran_not_allowed" } };
         if (!can(a, "assign") && !(a.role === "teacher" && r.kind === "quran" && qd.set && qd.del)) return { status: 403, body: { error: "forbidden" } };
@@ -2076,7 +2094,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
 
       case "viewas-log": {
         if (a.role !== "admin") return { status: 403, body: { error: "admin_only" } };
-        return { status: 200, body: { items: this.sql.exec(`SELECT * FROM viewlog ORDER BY at DESC LIMIT 200`).toArray().map((r) => ({ uid: String(r.uid), name: String(r.name), role: String(r.role), at: Number(r.at) })) } };
+        return { status: 200, body: { items: this.sql.exec(`SELECT * FROM viewlog ORDER BY at DESC LIMIT 200`).toArray().map((r) => ({ uid: String(r.uid), name: String(r.name), role: String(r.role), at: Number(r.at), by: String(r.by || "Admin") })) } };
       }
 
       case "contacts": {
@@ -2109,11 +2127,12 @@ export class LmsStore extends DurableObject<LmsEnv> {
         const students = this.sql.exec(`SELECT * FROM users WHERE role='student' AND disabled=0 ORDER BY cls, section, name`).toArray().filter((u) => (!cls || u.cls === cls) && (!section || u.section === section) && this.canSeeStudent(a, String(u.id)));
         const rank: Record<string, number> = { red: 1, yellow: 2, green: 3 };
         const rows = students.map((u) => {
-          const cells: Record<number, { grade: string; verses: number; m?: number; t?: number; r?: number }> = {};
+          const cells: Record<number, { grade: string; verses: number; m?: number; t?: number; r?: number; h?: number }> = {};
           for (const t of this.trackerOf(String(u.id))) {
             const c = cells[t.surah] || { grade: "", verses: 0 };
             // Per-criterion cell level = weakest level across that surah's passages (for the criterion filter).
             if (t.scores) for (const k of ["m", "t", "r"] as const) c[k] = Math.min(c[k] ?? 3, t.scores[k]);
+            if (t.scores?.h) c.h = Math.min(c.h ?? 3, t.scores.h); // t329: Memorisation (only graded on newer work)
             if (t.grade !== "red") c.verses += t.to - t.from + 1;
             if ((rank[t.grade] || 0) > (rank[c.grade] || 0)) c.grade = t.grade;
             cells[t.surah] = c;
@@ -2696,13 +2715,32 @@ export class LmsStore extends DurableObject<LmsEnv> {
   }
 
   /** Admin "view as" access log. */
-  logViewAs(uid: string) {
+  /** t329 (t328 follow-up): a teacher who only has this homework because it was shared with them may not edit or delete it. */
+  private sharedOnly(id: string, a: Actor): boolean {
+    if (a.role !== "teacher") return false;
+    const h = this.allHomework(id)[0];
+    return !!h && h.createdBy !== a.id && this.sharedTo(h, a.id);
+  }
+
+  /** t329: a teacher with the viewAsStudent permission opens a student in their scope (read-only, logged). */
+  async teacherViewAs(tid: string, pv: string, sid: string): Promise<Actor | null> {
+    const t = await this.actor(tid, pv);
+    if (!t || t.role !== "teacher" || !t.perms.includes("viewAsStudent")) return null;
+    const u = this.userRow("id=?", sid);
+    if (!u || String(u.role) !== "student" || !this.inScope(t, ...this.placeOf(sid), sid)) return null;
+    const s = await this.actor(sid);
+    if (!s) return null;
+    this.logViewAs(sid, `${t.name} (teacher)`);
+    return { ...s, viewAs: true };
+  }
+
+  logViewAs(uid: string, by = "Admin") {
     const u = this.userRow("id=?", uid);
     if (!u) return;
     const now = Date.now();
-    // One log row per user per 10 minutes is enough.
-    const last = this.sql.exec(`SELECT at FROM viewlog WHERE uid=? ORDER BY at DESC LIMIT 1`, uid).toArray()[0];
-    if (!last || now - Number(last.at) > 600e3) this.sql.exec(`INSERT INTO viewlog (id, uid, name, role, at) VALUES (?, ?, ?, ?, ?)`, rid("v"), uid, String(u.name), String(u.role), now);
+    // One log row per user per viewer per 10 minutes is enough.
+    const last = this.sql.exec(`SELECT at FROM viewlog WHERE uid=? AND by=? ORDER BY at DESC LIMIT 1`, uid, by).toArray()[0];
+    if (!last || now - Number(last.at) > 600e3) this.sql.exec(`INSERT INTO viewlog (id, uid, name, role, at, by) VALUES (?, ?, ?, ?, ?, ?)`, rid("v"), uid, String(u.name), String(u.role), now, by);
     this.sql.exec(`DELETE FROM viewlog WHERE at < ?`, now - 180 * 864e5);
   }
 
@@ -2961,5 +2999,9 @@ async function lmsActor(request: Request, env: LmsEnv, store: DurableObjectStub<
     return { id: "admin", role: "admin", name: "Admin", cls: "", perms: [...PERMS] };
   }
   const tk = await verifyUserTokenPv(env, auth);
-  return tk ? ((await store.actor(tk.uid, tk.pv)) as unknown as Actor | null) : null;
+  if (!tk) return null;
+  const as = str(request.headers.get("X-View-As"), 40);
+  // t329: teacher "log in as student" — read-only, scope + permission checked, audit-logged. Never falls back to the teacher.
+  if (as) return (await store.teacherViewAs(tk.uid, tk.pv, as)) as unknown as Actor | null;
+  return (await store.actor(tk.uid, tk.pv)) as unknown as Actor | null;
 }

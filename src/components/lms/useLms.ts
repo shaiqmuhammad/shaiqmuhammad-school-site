@@ -16,9 +16,10 @@ export function useLmsActor(): { actor: Actor | null; asAdmin: false; ready: boo
   useEffect(() => {
     // Admin "view as" (opened from Admin → Students/Teachers): ?viewAs=<id>&n=<name>&r=<role>&c=<class> -> this tab only.
     const p = new URLSearchParams(window.location.search);
-    if (p.get("viewAs") && getServerSession()) {
-      sessionStorage.setItem("sm_view_as", JSON.stringify({ id: p.get("viewAs"), name: p.get("n") || "", role: p.get("r") === "teacher" ? "teacher" : "student", cls: p.get("c") || "" }));
-      ["viewAs", "n", "r", "c"].forEach((k) => p.delete(k));
+    const byT = p.get("by") === "t" && lmsSession()?.user?.role === "teacher";
+    if (p.get("viewAs") && (byT || getServerSession())) {
+      sessionStorage.setItem("sm_view_as", JSON.stringify({ id: p.get("viewAs"), name: p.get("n") || "", role: byT || p.get("r") !== "teacher" ? "student" : "teacher", cls: p.get("c") || "", ...(byT ? { by: "t" } : {}) }));
+      ["viewAs", "n", "r", "c", "by"].forEach((k) => p.delete(k));
       window.history.replaceState(null, "", window.location.pathname + (p.toString() ? `?${p}` : ""));
     }
     lmsRenew();
