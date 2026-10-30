@@ -825,7 +825,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     if (/^(asys|trk|isams)-/.test(action)) {
       const RES = (this.env as unknown as { RESULTS?: DurableObjectNamespace }).RESULTS;
       const memo = new Map<string, Promise<unknown>>();
-      return trackerHandle({ sql: this.sql as never, inScope: (x, c2, s2, i) => this.inScope(x, c2, s2, i), homework: () => this.allHomework().map((h) => ({ id: h.id, kind: h.kind })),
+      return trackerHandle({ sql: this.sql as never, inScope: (x, c2, s2, i) => this.inScope(x, c2, s2, i), homework: () => this.allHomework().map((h) => ({ id: h.id, kind: h.kind, cls: String(h.cls || "") })),
         tagged: (ids, qids) => { const k = ids.join(",") + "/" + qids.join(","); if (!memo.has(k)) memo.set(k, RES ? (RES.get(RES.idFromName("main")) as unknown as { scTagged(i: string[], q: string[]): Promise<unknown> }).scTagged(ids, qids) : Promise.resolve([])); return memo.get(k) as never; } }, a, action, input);
     }
     if (/^pg-/.test(action)) return pageHandle({ sql: this.sql as never, acc: (x) => mpOf(this.sql as never, x as never, "lp"), subjectsOf: (uid) => { try { return JSON.parse(String(this.userRow("id=?", uid)?.subjects || "[]")) as string[]; } catch { return []; } } }, a as never, action, input);

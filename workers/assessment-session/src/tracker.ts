@@ -20,7 +20,7 @@ export const curSubj = (s: string) => CUR_LINK[s] || s;
 const subjOf = (v: unknown) => String(v || "").split(/\s*,\s*/).map((x) => x.trim()).filter(Boolean);
 type Row = Record<string, unknown>;
 type Sql = { exec: (q: string, ...a: unknown[]) => { toArray: () => Row[]; one: () => Row } };
-type Hw = { id: string; kind: string };
+type Hw = { id: string; kind: string; cls?: string };
 export type TrkCtx = {
   sql: Sql;
   inScope: (a: Actor, cls: string, section: string, sid?: string) => boolean;
@@ -102,6 +102,9 @@ export function linkRule(sql: Sql) {
   return (id: string, at: number) => { const r = rows.get(id); if (!r) return def; return r.on || (r.keep > 0 && at < r.keep); };
 }
 
+/** t324: the Assessment Tracker record system covers EYFS (FS1/FS2) and Primary (Year 1-6) only. */
+export const TRK_YEARS = ["FS1", "FS2", "Year 1", "Year 2", "Year 3", "Year 4", "Year 5", "Year 6"];
+export const trkYear = (y: string) => TRK_YEARS.includes(y);
 const num = (v: unknown, d: number, lo: number, hi: number) => { const n = Number(v); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d; };
 const strs = (v: unknown, d: string[], n = 20) => (Array.isArray(v) ? v.slice(0, n).map((x) => String(x ?? "").slice(0, 40)) : d);
 function cleanSys(raw: Json, prev: ASys): ASys {
@@ -138,6 +141,7 @@ export function systems(sql: Sql): ASys[] {
 /** Year rule first, then phase rule, else profile. */
 export const ruleFor = (sys: ASys, cls: string) => (sys.targetRules || {})[cls] || (sys.targetRules || {})[sys.scope.phase] || { mode: "profile" as const };
 const sysFor = (sql: Sql, cls: string, want = "") => {
+  if (!trkYear(cls)) return undefined;
   const all = systems(sql).filter((s) => s.active && s.scope.years.includes(cls));
   return (want && all.find((s) => s.id === want)) || all.find((s) => s.isDefault) || all[0];
 };
@@ -220,9 +224,9 @@ async function grid(c: TrkCtx, a: Actor, cls: string, term: string, want = "", s
       let auto: number | null = null, autoSrc = "";
       const qn = qv !== "" && qv !== undefined && Number.isFinite(Number(qv)) ? Number(qv) : null;
       if (qn != null && re.test(t)) { auto = qn; autoSrc = "quran"; }
-      else if (quizP) { auto = scoreFromPct((quizP.e / quizP.p) * 100, sys.cut); autoSrc = tagP ? "quiz" : "quiz-all"; }
+      else if (quizP) { auto = tagP ? Math.max(0, Math.min(3, Math.round((quizP.e / quizP.p) * 3))) : scoreFromPct((quizP.e / quizP.p) * 100, sys.cut); autoSrc = tagP ? "quiz" : "quiz-all"; }
       else if (qn != null) { auto = qn; autoSrc = "quran"; }
-      cells[key(s.id, u.id, i)] = { v: auto, src: autoSrc as Cell["src"], auto, autoSrc, note: autoSrc.startsWith("quiz") && quizP ? `${Math.round((quizP.e / quizP.p) * 100)}%` : autoSrc === "quran" ? String(g) : undefined };
+      cells[key(s.id, u.id, i)] = { v: auto, src: autoSrc as Cell["src"], auto, autoSrc, note: autoSrc === "quiz" && tagP ? `${tagP.e}/${tagP.p} pts` : autoSrc.startsWith("quiz") && quizP ? `${Math.round((quizP.e / quizP.p) * 100)}%` : autoSrc === "quran" ? String(g) : undefined };
     });
   }
   if (ids.length) for (const o of c.sql.exec(`SELECT * FROM trk_ov WHERE student IN (${ids.map(() => "?").join(",")})`, ...ids).toArray()) {
@@ -248,6 +252,16 @@ async function grid(c: TrkCtx, a: Actor, cls: string, term: string, want = "", s
 /** Each class once, with the system that applies to it (default for its phase). */
 const yearSystems = (sql: Sql) => { const seen = new Set<string>(); const out: { cl: string; s: ASys }[] = []; for (const s of systems(sql).filter((x) => x.active)) for (const cl of s.scope.years) { if (seen.has(cl)) continue; const d = sysFor(sql, cl); if (d) { seen.add(cl); out.push({ cl, s: d }); } } return out; };
 
+/** Years an assessment / Quran homework belongs to: its curriculum topic(s), else the given year. */
+function yearsOf(sql: Sql, id: string, year: unknown, hwCls?: string): string[] {
+  const out = new Set<string>();
+  for (const r of sql.exec(`SELECT yr, quiz, links FROM cur`).toArray()) { let l: { id: string }[] = []; try { l = JSON.parse(String(r.links || "[]")); } catch { /* */ } if (String(r.quiz || "") === id || l.some((x) => x.id === id)) out.add(String(r.yr)); }
+  if (!out.size && hwCls) out.add(hwCls);
+  const y = String(year ?? "").trim();
+  if (!out.size && y) out.add(/^\d+$/.test(y) ? `Year ${y}` : y);
+  return [...out];
+}
+const trackable = (ys: string[]) => ys.length > 0 && ys.some(trkYear);
 export async function trackerHandle(c: TrkCtx, a: Actor, action: string, input: Json): Promise<Reply> {
   const sql = c.sql;
   if (a.role !== "admin" && a.role !== "teacher" && action !== "trk-link-get") return forbid();
@@ -267,7 +281,7 @@ export async function trackerHandle(c: TrkCtx, a: Actor, action: string, input: 
       const def = String(sql.exec(`SELECT v FROM settings WHERE k='trk_link_default'`).toArray()[0]?.v || "off");
       const rows = new Map(sql.exec(`SELECT * FROM trk_link`).toArray().map((r) => [String(r.id), r] as const));
       const sys = systems(sql).find((x) => x.active && x.isDefault) || systems(sql)[0];
-      return { status: 200, body: { default: def, canSet: a.role === "admin" || (a.role === "teacher" && !a.viewAs && trkAccess(sys, a).edit), items: Object.fromEntries(ids.map((id) => { const r = rows.get(id); return [id, r ? { on: Number(r.on_) === 1, keepBefore: Number(r.keep_before) || 0, by: String(r.by_name || ""), at: Number(r.at) } : { on: def === "on", keepBefore: 0, by: "", at: 0, isDefault: true }]; })) } };
+      return { status: 200, body: { default: def, canSet: a.role === "admin" || (a.role === "teacher" && !a.viewAs && trkAccess(sys, a).edit), items: Object.fromEntries(ids.map((id) => { const r = rows.get(id); const tracked = trackable(yearsOf(sql, id, (input.years as Json | undefined)?.[id], c.homework().find((h) => h.id === id)?.cls)); if (!tracked) return [id, { on: false, keepBefore: 0, by: "", at: 0, tracked: false }]; return [id, r ? { on: Number(r.on_) === 1, keepBefore: Number(r.keep_before) || 0, by: String(r.by_name || ""), at: Number(r.at), tracked: true } : { on: def === "on", keepBefore: 0, by: "", at: 0, isDefault: true, tracked: true }]; })) } };
     }
     case "trk-link-set": {
       // Teachers with tracker Add/Edit and admin. keep=false when switching off removes the scores it already added.
@@ -275,6 +289,7 @@ export async function trackerHandle(c: TrkCtx, a: Actor, action: string, input: 
       if (a.viewAs || (a.role !== "admin" && !trkAccess(sys, a).edit)) return forbid("edit_not_allowed");
       if (input.default !== undefined) { if (a.role !== "admin") return forbid(); sql.exec(`INSERT OR REPLACE INTO settings (k, v) VALUES ('trk_link_default', ?)`, input.default === "on" ? "on" : "off"); return { status: 200, body: { ok: true } }; }
       const id = str(input.id, 80); if (!id) return { status: 400, body: { error: "missing_id" } };
+      if (!!input.on && !trackable(yearsOf(sql, id, input.year, c.homework().find((h) => h.id === id)?.cls))) return forbid("phase_not_tracked");
       const on = !!input.on; const prev = sql.exec(`SELECT * FROM trk_link WHERE id=?`, id).toArray()[0];
       const keep = on ? 0 : input.keep === true ? Date.now() : 0;
       sql.exec(`INSERT OR REPLACE INTO trk_link (id, kind, on_, keep_before, by_name, at) VALUES (?, ?, ?, ?, ?, ?)`, id, input.kind === "hw" ? "hw" : "quiz", on ? 1 : 0, keep, a.name || "Admin", Date.now());

@@ -171,7 +171,7 @@ function rebuildRows(xml: string, hr: number, roster: IsamsStudent[], head: Reco
   for (let r = hr + 1; r <= last; r++) xml = xml.replace(rowRe(r), "");
   const cells = [...proto.matchAll(/<c r="([A-Z]+)\d+"([^>]*?)(?:\/>|>[\s\S]*?<\/c>)/g)].map((m) => ({ col: m[1], s: /\ss="(\d+)"/.exec(m[2])?.[1] || "" }));
   const open = /^<row [^>]*?>/.exec(proto)![0].replace(/\/>$/, ">");
-  const val = (col: string, st: IsamsStudent, house: string) => col === "A" ? st.isamsId : col === (head.Surname || "D") ? st.last || st.name : col === (head.Forename || "E") ? st.first : col === (head.House || "F") ? house : "";
+  const val = (col: string, st: IsamsStudent, house: string) => col === "A" ? st.isamsId : col === (head.Surname || "D") ? st.last || st.name : col === (head.Forename || "E") ? st.first : col === (head.House || "F") ? house : col === head.intVersion || col === head.Progress ? "1" : "";
   const house = /<c r="F\d+"[^>]*>[\s\S]*?<\/c>/.test(proto) ? "Primary" : "";
   const rows = roster.map((st, i) => { const r = hr + 1 + i; return open.replace(/r="\d+"/, `r="${r}"`) + cells.map((c) => { const v = val(c.col, st, house); return v ? cellXml(`${c.col}${r}`, c.s, v) : `<c r="${c.col}${r}"${c.s ? ` s="${c.s}"` : ""}/>`; }).join("") + "</row>"; }).join("");
   const anchor = rowRe(hr).exec(xml)![0];
@@ -255,7 +255,8 @@ export async function fillIsams(b64: string, classes: { cls: string; students: I
       // t295: a pupil without an iSAMS SchoolID (e.g. new FS2 pupils) is still a row; stop only at a fully empty row.
       if (!sid && !sur.trim() && !fore.trim()) break;
       const st = cl?.students.find((s) => s.isamsId && s.isamsId === sid) || cl?.students.find((s) => norm(`${s.first} ${s.last}`) === norm(`${fore} ${sur}`) || norm(s.name) === norm(`${fore} ${sur}`) || (norm(s.last || s.name) === norm(sur) && norm(s.first) === norm(fore)));
-      if (!st) { rep.unmatched.push(`${fore} ${sur}`); continue; }
+      // t324: a pupil the tracker can't match gets blank grades (the template's sample values never leak into the report).
+      if (!st) { rep.unmatched.push(`${fore} ${sur}`); for (const c of [cT, cE, cA]) if (c) xml = clearCell(xml, `${c}${r}`); continue; }
       rep.matched++; if (sid && st.isamsId !== sid) rep.learnedIds.push({ id: st.id, schoolId: sid });
       // Every matched pupil gets the tracker's values; a value the tracker doesn't have is left blank (never the template's old value).
       if (yr === "FS2" && !st.target) st.target = "7"; // t295: FS2 Target is 7

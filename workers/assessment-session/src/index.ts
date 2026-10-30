@@ -368,6 +368,7 @@ export class AssessmentSession extends DurableObject<Env> {
           answered: d.answered,
           earned: d.earned,
           points: d.points,
+          ...(typeof (question as { sc?: unknown } | undefined)?.sc === "string" ? { sc: String((question as { sc?: string }).sc) } : {}),
           seconds: d.secondsFromStart,
         };
       }),

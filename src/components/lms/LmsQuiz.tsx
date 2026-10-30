@@ -10,6 +10,7 @@ import { lmsApi, lmsErrorText, type Assignment } from "@/lib/lms";
 import { defaultCertificate, emptyQuestion, loadQuizzesData, normalizeQuiz, type Quiz } from "@/lib/quiz";
 import { useTr } from "@/components/lms/useLms";
 import { TopicContext, TopicPicker } from "@/components/tracker/TopicPicker";
+import { ScGroups, oneMarkSc, scProblems } from "@/components/tracker/ScGroups";
 import { useI18n } from "@/lib/i18n";
 
 const qp = (k: string) => (typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get(k) || "");
@@ -52,7 +53,8 @@ export function LmsQuizEditPage() {
   const save = async () => {
     if (!q?.title.trim()) { setStatus(tr("Add a title first.", "أضف عنوانًا أولًا.")); return; }
     if (!q.topic) { setStatus(tr("Choose the curriculum topic first (Year › Term › Week › Topic).", "اختر موضوع المنهج أولًا (السنة › الفصل › الأسبوع › الموضوع).")); return; }
-    try { const r = await lmsApi.tquizSave({ ...q, updatedAt: new Date().toISOString() }, asAdmin); setQ({ ...q, id: r.id, slug: r.id }); setStatus(tr("Saved ✓", "تم الحفظ ✓")); history.replaceState(null, "", `?id=${r.id}${asAdmin ? "&admin=1" : ""}`); } catch (e) { setStatus(lmsErrorText(e, tr)); }
+    { const p = scProblems(q.questions, lang); if (p) { setStatus(p); return; } }
+    try { const r = await lmsApi.tquizSave({ ...q, questions: oneMarkSc(q.questions), updatedAt: new Date().toISOString() }, asAdmin); setQ({ ...q, id: r.id, slug: r.id }); setStatus(tr("Saved ✓", "تم الحفظ ✓")); history.replaceState(null, "", `?id=${r.id}${asAdmin ? "&admin=1" : ""}`); } catch (e) { setStatus(lmsErrorText(e, tr)); }
   };
   const pic = (f: File) => { const r = new FileReader(); r.onload = () => q && setQ({ ...q, cardImage: String(r.result) }); r.readAsDataURL(f); };
   return (
@@ -70,6 +72,7 @@ export function LmsQuizEditPage() {
             </div>
           </div>
           <TopicPicker lang={lang} value={q.topic} onChange={(topic, info) => setQ({ ...q, topic: topic || undefined, topicInfo: info })} />
+          <ScGroups lang={lang} topic={q.topic} questions={q.questions} onAdd={(nq) => setQ({ ...q, questions: [...q.questions, nq] })} />
           <TopicContext.Provider value={q.topic}>{q.questions.map((qq, i) => (
             <div key={qq.id || i} className="glass rounded-3xl p-4">
               <AdminQuestionEditor q={qq} idx={i} setStatus={setStatus} onChange={(n) => setQ({ ...q, questions: q.questions.map((x, j) => (j === i ? n : x)) })} onRemove={() => setQ({ ...q, questions: q.questions.filter((_, j) => j !== i) })} onMoveUp={i ? () => { const n = [...q.questions]; [n[i - 1], n[i]] = [n[i], n[i - 1]]; setQ({ ...q, questions: n }); } : undefined} />

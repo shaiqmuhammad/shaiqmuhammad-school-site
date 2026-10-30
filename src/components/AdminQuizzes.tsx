@@ -12,6 +12,7 @@ import { ImageSizeHint } from "@/components/ImageSizeHint";
 import { downloadJson, getStoredGithubToken, publishJsonToGithub } from "@/lib/githubPublish";
 import { AdminQuestionEditor } from "@/components/AdminQuestionEditor";
 import { TopicContext, TopicPicker } from "@/components/tracker/TopicPicker";
+import { ScGroups, oneMarkSc, scProblems } from "@/components/tracker/ScGroups";
 import { syncQuizTopics } from "@/lib/quizTopics";
 import {
   emptyQuestion, emptyQuiz, GITHUB_QUIZ_RESULTS_PATH, GITHUB_QUIZZES_PATH, loadLocalResults,
@@ -56,7 +57,8 @@ export default function AdminQuizzes({ setStatus, onNeedToken, data, setData, re
       const problem = questionProblem(editing.questions[i]);
       if (problem) { setStatus(`Question ${i + 1} ${problem}.`); return; }
     }
-    const next = normalizeQuiz({ ...editing, slug, title: editing.title.trim(), updatedAt: new Date().toISOString() });
+    { const p = scProblems(editing.questions, lang); if (p) { setStatus(p); return; } }
+    const next = normalizeQuiz({ ...editing, questions: oneMarkSc(editing.questions), slug, title: editing.title.trim(), updatedAt: new Date().toISOString() });
     setData((prev) => ({ quizzes: prev.quizzes.some((q) => q.id === next.id) ? prev.quizzes.map((q) => (q.id === next.id ? next : q)) : [...prev.quizzes, next] }));
     setEditing(null);
     setStatus(`Saved assessment "${next.title}" locally. Click "Publish assessments" to make it live.`);
@@ -204,6 +206,7 @@ export default function AdminQuizzes({ setStatus, onNeedToken, data, setData, re
             <p className="pb-2 text-xs text-muted">Total marks: {quizMaxScore(editing)}</p>
           </div>
 
+          <ScGroups lang={lang} topic={editing.topic} questions={editing.questions} onAdd={(nq) => setEditing({ ...editing, questions: [...editing.questions, nq] })} />
           <div className="space-y-4">
             <TopicContext.Provider value={editing.topic}>{editing.questions.map((q, idx) => (
               <AdminQuestionEditor
@@ -233,7 +236,7 @@ export default function AdminQuizzes({ setStatus, onNeedToken, data, setData, re
             <div className="min-w-0">
               <p className="font-medium">{quiz.title}{quiz.titleAr ? <span className="ms-2 text-sm text-muted" dir="rtl">{quiz.titleAr}</span> : null}</p>
               <p className="text-xs text-muted">{quiz.year ? `Year ${quiz.year} · ` : ""}{isSowSeed(quiz.id) ? "SOW · " : ""}/assessments/{quiz.slug} · {quiz.questions.length} Qs · {quiz.timeLimitMinutes || "no"} min</p>
-              <div className="mt-1"><TrkLink id={quiz.slug} asAdmin /></div>
+              <div className="mt-1"><TrkLink id={quiz.slug} asAdmin year={quiz.year} /></div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <FlagSwitch
