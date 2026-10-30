@@ -1446,7 +1446,9 @@ export class LmsStore extends DurableObject<LmsEnv> {
         // Own groups + admin groups assigned to this teacher. Admin-made groups = explicit students + whole classes/sections; teachers only get members inside their own scope.
         const all = this.sql.exec(`SELECT * FROM grp ORDER BY name`).toArray();
         const stu = this.sql.exec(`SELECT id, cls, section FROM users WHERE role='student' AND disabled=0`).toArray();
-        const rows = all.filter((r) => a.role === "admin" || r.owner === a.id || (Number(r.admin) === 1 && (JSON.parse(String(r.teachers || "[]")) as string[]).includes(a.id)));
+        // t349: groups picked in the teacher's Teaching assignment ("grp:<id>") count as assigned too.
+        const myGrp = a.role === "teacher" ? (JSON.parse(String(this.userRow("id=?", a.id)?.scope || "[]")) as string[]).filter((x) => x.startsWith("grp:")).map((x) => x.slice(4)) : [];
+        const rows = all.filter((r) => a.role === "admin" || r.owner === a.id || (Number(r.admin) === 1 && ((JSON.parse(String(r.teachers || "[]")) as string[]).includes(a.id) || myGrp.includes(String(r.id)))));
         return { status: 200, body: { items: rows.map((r) => {
           const toks = JSON.parse(String(r.classes || "[]")) as string[];
           const ids = new Set(JSON.parse(String(r.students || "[]")) as string[]);
