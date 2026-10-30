@@ -95,20 +95,58 @@ function PersonForm({ role, catalog, initial, onSave, submitLabel, testPrefix, s
       {!initial && <input className={inputCls} placeholder={tr("PIN (auto)", "الرقم السري (تلقائي)")} value={f.pin} onChange={(e) => setF({ ...f, pin: e.target.value.slice(0, 64) })} dir="ltr" data-testid={`${testPrefix}-pin`} aria-label="PIN" />}
       {role === "teacher" && (
         <div className="space-y-2 sm:col-span-6">
-          {!initial && <><p className="text-sm font-semibold">{tr("Subjects", "المواد")}</p>
+          {admin ? <TeacherAssign f={f} setF={setF} catalog={catalog} testPrefix={testPrefix} /> : !initial && <><p className="text-sm font-semibold">{tr("Subjects", "المواد")}</p>
           <div className="flex flex-wrap gap-1.5">
             {catalog.subjects.map((s) => <button key={s.id} type="button" aria-pressed={f.subjects.includes(s.name)} className={chip(f.subjects.includes(s.name))} onClick={() => toggle("subjects", s.name)} data-testid={`${testPrefix}-subject`}>{s.name}</button>)}
-            {!catalog.subjects.length && <span className="text-sm opacity-60">{tr("No subjects yet — add them in Classes & Subjects.", "لا توجد مواد — أضفها في الصفوف والمواد.")}</span>}
-          </div>
-          <p className="text-sm font-semibold">{tr("Phase", "المرحلة")}</p>
-          <div className="flex flex-wrap gap-1.5" data-testid={`${testPrefix}-phase-chips`}>{PHASES.map((x) => { const on = f.phase.split(",").includes(x); return <button key={x} type="button" aria-pressed={on} className={chip(on)} onClick={() => setF((y) => ({ ...y, phase: PHASES.filter((z) => (z === x ? !on : y.phase.split(",").includes(z))).join(",") }))}>{x}</button>; })}</div>
-          <p className="text-xs opacity-70" data-testid="grp-hint">{tr("Students come from Groups: after saving, assign groups in Admin → Members → Groups.", "الطلاب يأتون من المجموعات: بعد الحفظ أسند المجموعات من الإدارة ← الأعضاء ← المجموعات.")}</p></>}
-<p className="text-xs opacity-70" data-testid="perm-hint">{initial ? tr("Subjects, class groups and all permissions are set from the 🔐 Permissions button in the Teachers list.", "المواد ومجموعات الصفوف وكل الصلاحيات من زر 🔐 الصلاحيات في قائمة المعلمين.") : tr("After adding, use 🔐 Permissions in the Teachers list to set access.", "بعد الإضافة، استخدم 🔐 الصلاحيات في قائمة المعلمين لضبط الوصول.")}</p>
+          </div></>}
+          {!initial && <p className="text-xs opacity-70" data-testid="grp-hint">{tr("Students can also come from Groups (Admin → Members → Groups); groups take priority over the classes picked here.", "يمكن أيضًا إسناد الطلاب من المجموعات؛ المجموعات لها الأولوية.")}</p>}
+<p className="text-xs opacity-70" data-testid="perm-hint">{initial ? tr("Module and general permissions are set from the 🔐 Permissions button in the Teachers list.", "المواد ومجموعات الصفوف وكل الصلاحيات من زر 🔐 الصلاحيات في قائمة المعلمين.") : tr("After adding, use 🔐 Permissions in the Teachers list to set access.", "بعد الإضافة، استخدم 🔐 الصلاحيات في قائمة المعلمين لضبط الوصول.")}</p>
         </div>
       )}
       {initial && <label className="flex items-center gap-2 text-sm sm:col-span-3"><input type="checkbox" checked={f.disabled} onChange={(e) => setF({ ...f, disabled: e.target.checked })} /> {tr("Disabled (can't sign in)", "معطّل (لا يمكنه الدخول)")}</label>}
       <button type="submit" className={primaryBtn + " sm:col-span-6 sm:w-fit"} disabled={busy || !(role === "student" ? f.first.trim() : f.name.trim()) || f.username.length < 3} data-testid={`${testPrefix}-save`}>{submitLabel}</button>
     </form>
+  );
+}
+
+/** t343: class-of-year → phase (UI filter only). */
+const phaseOfCls = (c: string) => /^(fs|eyfs|foundation|reception|nursery|kg)/i.test(c.trim()) ? "EYFS" : Number((c.match(/\d+/) || ["0"])[0]) >= 7 ? "Secondary" : Number((c.match(/\d+/) || ["0"])[0]) >= 1 ? "Primary" : "";
+const deptOfSubj = (s: string) => s.replace(/\s*[–-]?\s*\b[AB]$/u, "").trim() || s;
+type AssignF = { phase: string; subjects: string[]; scope: string[] };
+/** t343: admin Add/Edit Teacher — Phase → Department → Subject(s) → Classes → Sections (multi-select, cascading). Lists every class/section from Classes & Subjects setup. Saved as phase, subjects and scope ("Year 3" or "Year 3|3A"). */
+function TeacherAssign<T extends AssignF>({ f, setF, catalog, testPrefix }: { f: T; setF: (fn: (x: T) => T) => void; catalog: Catalog; testPrefix: string }) {
+  const { tr } = useTr();
+  const phases = f.phase.split(",").filter(Boolean);
+  const allDepts = [...new Set(catalog.subjects.map((s) => deptOfSubj(s.name)))].sort();
+  const [depts, setDepts] = useState<string[]>(() => [...new Set(f.subjects.map(deptOfSubj))]);
+  const subs = catalog.subjects.filter((s) => !depts.length || depts.includes(deptOfSubj(s.name)) || f.subjects.includes(s.name));
+  const classes = catalog.classes.filter((c) => !phases.length || phases.includes(phaseOfCls(c.name)) || f.scope.some((t) => t.split("|")[0] === c.name));
+  const pill = (on: boolean, tone: string) => `rounded-full border px-3 py-1 text-sm font-semibold transition ${on ? `border-transparent ${tone} text-white shadow` : "border-black/15 bg-white text-[#1b2f44] dark:border-white/20 dark:bg-white/5 dark:text-white"}`;
+  const flip = (xs: string[], v: string) => xs.includes(v) ? xs.filter((y) => y !== v) : [...xs, v];
+  const clsOn = (c: string) => f.scope.some((t) => t.split("|")[0] === c);
+  const toggleCls = (c: string) => setF((x) => ({ ...x, scope: clsOn(c) ? x.scope.filter((t) => t.split("|")[0] !== c) : [...x.scope, c] }));
+  const toggleSec = (c: string, sec: string) => setF((x) => { const k = `${c}|${sec}`; let sc = x.scope.filter((t) => t !== c); sc = sc.includes(k) ? sc.filter((t) => t !== k) : [...sc, k]; if (!sc.some((t) => t.split("|")[0] === c)) sc = [...sc, c]; return { ...x, scope: sc }; });
+  const H = ({ n, t }: { n: string; t: string }) => <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-[#1b2f44]/70 dark:text-white/70"><span className="me-1">{n}</span>{t}</p>;
+  return (
+    <div className="space-y-2 rounded-2xl border border-sky-200 bg-gradient-to-br from-sky-50 via-white to-emerald-50 p-3 dark:border-white/15 dark:from-white/5 dark:via-white/5 dark:to-white/5" data-testid={`${testPrefix}-assign`}>
+      <p className="text-sm font-extrabold">🎯 {tr("Teaching assignment", "إسناد التدريس")} <span className="font-normal opacity-70">— {tr("used for Tracker, Progress Check, timetable and homework", "يُستخدم للمتتبع والتقييم والجدول والواجبات")}</span></p>
+      <H n="1" t={tr("Phase", "المرحلة")} />
+      <div className="flex flex-wrap gap-1.5" data-testid={`${testPrefix}-phase-chips`}>{PHASES.map((p) => <button key={p} type="button" aria-pressed={phases.includes(p)} className={pill(phases.includes(p), "bg-indigo-600")} onClick={() => setF((x) => ({ ...x, phase: PHASES.filter((z) => flip(x.phase.split(",").filter(Boolean), p).includes(z)).join(",") }))}>{p}</button>)}</div>
+      <H n="2" t={tr("Department", "القسم")} />
+      <div className="flex flex-wrap gap-1.5" data-testid={`${testPrefix}-dept-chips`}>{allDepts.map((d) => <button key={d} type="button" aria-pressed={depts.includes(d)} className={pill(depts.includes(d), "bg-violet-600")} onClick={() => setDepts((x) => flip(x, d))} data-testid={`${testPrefix}-dept`}>{d}</button>)}{!allDepts.length && <span className="text-sm opacity-60">{tr("No subjects yet — add them in Classes & Subjects.", "لا توجد مواد — أضفها في الصفوف والمواد.")}</span>}</div>
+      <H n="3" t={tr("Subject(s)", "المواد")} />
+      <div className="flex flex-wrap gap-1.5">{subs.map((s) => <button key={s.id} type="button" aria-pressed={f.subjects.includes(s.name)} className={pill(f.subjects.includes(s.name), "bg-sky-600")} onClick={() => setF((x) => ({ ...x, subjects: flip(x.subjects, s.name) }))} data-testid={`${testPrefix}-subject`}>{s.name}</button>)}</div>
+      <H n="4" t={tr("Classes / Year groups — tap a class, then optionally pick sections (none = whole class)", "الصفوف — اختر صفًا ثم الشعب (بدونها = الصف كله)")} />
+      <div className="space-y-1.5" data-testid={`${testPrefix}-classes`}>{classes.map((c) => { const on = clsOn(c.name); const secs = catalog.sections.filter((s) => s.classId === c.id || s.cls === c.name); return (
+        <div key={c.id} className="flex flex-wrap items-center gap-1.5">
+          <button type="button" aria-pressed={on} className={pill(on, "bg-emerald-600")} onClick={() => toggleCls(c.name)} data-testid={`${testPrefix}-cls`}>{c.name}</button>
+          {on && secs.map((s) => { const sOn = f.scope.includes(`${c.name}|${s.name}`); return <button key={s.id} type="button" aria-pressed={sOn} className={pill(sOn, "bg-amber-500") + " !px-2 !py-0.5 !text-xs"} onClick={() => toggleSec(c.name, s.name)} data-testid={`${testPrefix}-sec`}>{s.name}</button>; })}
+          {on && !!secs.length && !f.scope.some((t) => t.startsWith(c.name + "|")) && <span className="text-xs opacity-60">{tr("all sections", "كل الشعب")}</span>}
+        </div>); })}
+        {!classes.length && <span className="text-sm opacity-60">{tr("No classes for this phase — add them in Classes & Subjects.", "لا صفوف لهذه المرحلة.")}</span>}
+      </div>
+      <p className="text-xs opacity-70" data-testid={`${testPrefix}-assign-sum`}>{f.scope.length ? f.scope.map(scopeLabel).join(", ") : tr("No classes picked = all classes", "بدون صفوف = كل الصفوف")}</p>
+    </div>
   );
 }
 
