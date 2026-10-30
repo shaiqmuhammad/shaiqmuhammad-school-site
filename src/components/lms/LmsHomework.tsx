@@ -325,7 +325,7 @@ function Review({ s, asAdmin, reload, quran, qdata, regrade = false, onGraded, p
         {s.grade && <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${GRADE_STYLE[s.grade]}`} data-testid="hw-sub-grade">{gradeLabel(s.grade, tr)}</span>}
         {quran ? (
           s.status === "submitted" || editGrade ? (
-            <ScoreGrader asAdmin={asAdmin} onSubmit={async (sc) => { await act({ scores: sc }); setEditGrade(false); onGraded?.(); }} />
+            <ScoreGrader asAdmin={asAdmin} onSubmit={async ({ comment, ...sc }) => { await act({ scores: sc, ...(comment ? { comment } : {}) }); setEditGrade(false); onGraded?.(); }} />
           ) : regrade ? (
             <span className="flex flex-wrap gap-2">
               <button type="button" className={smallBtn} onClick={() => setEditGrade(true)} data-testid="hw-edit-grade">✎ {tr("Edit grade", "تعديل التقييم")}</button>
@@ -351,13 +351,14 @@ function Review({ s, asAdmin, reload, quran, qdata, regrade = false, onGraded, p
           {!marking && mistakes.length > 0 && <ul className="text-sm" dir="auto">{mistakes.map((m, i) => <li key={i}>✏️ {tr("Verse", "آية")} {m.ayah}: <b>{m.text}</b>{m.note ? ` — ${m.note}` : ""}</li>)}</ul>}
         </div>
       )}
+      {!(quran && s.status === "submitted") && <>{/* t335: while grading Quran work, comments are composed in the grader and sent with Save grade */}
       <div className="flex flex-wrap gap-1" data-testid="hw-presets">
         {PRESETS.map(([en, ar]) => <button key={en} type="button" className="rounded-full bg-black/5 px-2.5 py-1 text-xs font-semibold hover:bg-sun/40 dark:bg-white/10" onClick={() => act({ comment: tr(en, ar) })} data-testid="hw-preset">{tr(en, ar)}</button>)}
       </div>
       <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); if (c.trim()) act({ comment: c.trim() }); }}>
         <input className={inputCls + " mt-0"} value={c} onChange={(e) => setC(e.target.value)} placeholder={tr("Write a comment…", "اكتب تعليقًا…")} dir="auto" data-testid="hw-comment-input" />
         <button type="submit" className={smallBtn} disabled={!c.trim()}>{tr("Send", "أرسل")}</button>
-      </form>
+      </form></>}
     </li>
   );
 }
@@ -473,7 +474,7 @@ export function LmsHomework() {
                   const isCorr = (s: NonNullable<Data["subs"]>[number]) => quran && !!s.grade && (s.status === "approved" || s.status === "returned");
                   const all = [...(d?.subs || [])].sort((x, y) => (y.submittedAt || 0) - (x.submittedAt || 0) || x.name.localeCompare(y.name));
                   // t302: commented after the last submit = waiting for the student; it leaves the review list until they respond.
-                  const waits = (s: NonNullable<Data["subs"]>[number]) => s.status === "submitted" && (s.comments || []).some((m) => (m.at || 0) > (s.submittedAt || 0));
+                  const waits = (s: NonNullable<Data["subs"]>[number]) => !quran && s.status === "submitted" && (s.comments || []).some((m) => (m.at || 0) > (s.submittedAt || 0)); // t335: Quran work stays in "To review" until Save grade
                   const list = all.filter((s) => (subTab === "corr") === isCorr(s) && (subTab === "corr" || !waits(s)));
                   const waiting = all.filter(waits);
                   const nCorr = all.filter(isCorr).length;

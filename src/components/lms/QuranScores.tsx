@@ -16,6 +16,8 @@ export const CRITS = [
 export const LEVELS: Record<Level, [string, string, string]> = { 1: ["Needs practice", "يحتاج تدريبًا", "bg-rose-500"], 2: ["Good", "جيد", "bg-amber-400"], 3: ["Excellent", "ممتاز", "bg-emerald-500"] };
 type CK = "m" | "t" | "r" | "h";
 /** Default quick comments (admin can replace them; saved on the server). */
+/** t335: general encouragement chips (Quran grading). */
+const ENCOURAGE: [string, string][] = [["MashaAllah, beautiful recitation!", "ما شاء الله، تلاوة جميلة!"], ["Great effort — keep going!", "جهد رائع — استمر!"], ["You have improved a lot", "لقد تحسّنت كثيرًا"], ["Proud of you!", "أنا فخور بك!"], ["Keep practising daily", "واصل التدريب يوميًا"]];
 export const CRIT_PRESETS: Record<CK, [string, string][]> = {
   h: [["Revise these verses daily", "راجع هذه الآيات يوميًا"], ["Secure the start of each verse", "ثبّت بدايات الآيات"], ["Mixed up verse order", "خلط في ترتيب الآيات"], ["Fully memorised — MashaAllah", "محفوظ تمامًا — ما شاء الله"]],
   m: [["Makharij: work on ح / ه", "المخارج: تدرّب على ح / ه"], ["Makharij: work on ع / ء", "المخارج: تدرّب على ع / ء"], ["Makharij: ق / ك", "المخارج: ق / ك"], ["Makharij: س / ص", "المخارج: س / ص"], ["Makharij: د / ض", "المخارج: د / ض"], ["Heavy letters (ص ض ط ظ ق)", "حروف التفخيم (ص ض ط ظ ق)"], ["ث / ذ / ظ with the tongue tip", "ث / ذ / ظ بطرف اللسان"]],
@@ -94,10 +96,10 @@ export function CriteriaChart({ rows }: { rows: TrackerRow[] }) {
 /** Teacher grading: three criteria × 3 levels, optional comment/presets per criterion, live overall preview. */
 let presetCache: Promise<Record<CK, [string, string][]>> | null = null;
 const loadPresets = (asAdmin: boolean) => (presetCache ??= lmsApi.qpreGet(asAdmin).then((r) => ({ ...CRIT_PRESETS, ...Object.fromEntries(Object.entries(r.presets || {}).filter(([, v]) => Array.isArray(v) && v.length)) }) as Record<CK, [string, string][]>).catch(() => CRIT_PRESETS));
-export function ScoreGrader({ onSubmit, busy, asAdmin = false }: { onSubmit: (s: { m: Level; t: Level; r: Level; h: Level; notes: { m?: string; t?: string; r?: string; h?: string } }) => void; busy?: boolean; asAdmin?: boolean }) {
+export function ScoreGrader({ onSubmit, busy, asAdmin = false }: { onSubmit: (s: { m: Level; t: Level; r: Level; h: Level; notes: { m?: string; t?: string; r?: string; h?: string }; comment?: string }) => void; busy?: boolean; asAdmin?: boolean }) {
   const { tr } = useTr();
   const [v, setV] = useState<{ m: Level | 0; t: Level | 0; r: Level | 0; h: Level | 0 }>({ m: 0, t: 0, r: 0, h: 0 });
-  const [notes, setNotes] = useState<{ m?: string; t?: string; r?: string; h?: string }>({});
+  const [comment, setComment] = useState("");
   const [pre, setPre] = useState<Record<CK, [string, string][]>>(CRIT_PRESETS);
   const [editP, setEditP] = useState(false);
   const [draft, setDraft] = useState<Record<CK, string>>({ m: "", t: "", r: "", h: "" });
@@ -106,26 +108,54 @@ export function ScoreGrader({ onSubmit, busy, asAdmin = false }: { onSubmit: (s:
   const o = ready ? overallOf(v as { m: Level; t: Level; r: Level; h: Level }) : "";
   const openEdit = () => { setDraft(Object.fromEntries((["m", "t", "r", "h"] as CK[]).map((k) => [k, pre[k].map(([en, ar]) => `${en} | ${ar}`).join("\n")])) as Record<CK, string>); setEditP(true); };
   const savePre = async () => { const next = Object.fromEntries((["m", "t", "r", "h"] as CK[]).map((k) => [k, draft[k].split("\n").map((l) => l.split("|").map((x) => x.trim())).filter((x) => x[0]).map((x) => [x[0], x[1] || x[0]] as [string, string])])) as Record<CK, [string, string][]>; await lmsApi.qpreSave(next); presetCache = null; setPre({ ...CRIT_PRESETS, ...next }); setEditP(false); };
+  // t335: one tap adds a ready-made comment to the student's comment; tap again removes it.
+  const parts = comment.split("\n").map((x) => x.trim()).filter(Boolean);
+  const has = (t: string) => parts.includes(t);
+  const tap = (t: string) => setComment((has(t) ? parts.filter((x) => x !== t) : [...parts, t]).join("\n"));
+  const GROUPS: { k: string; icon: string; en: string; ar: string; cls: string; on: string; items: [string, string][] }[] = [
+    { k: "t", icon: "📜", en: "Tajweed", ar: "التجويد", cls: "bg-violet-50 text-violet-900 ring-violet-200", on: "bg-violet-600 text-white ring-violet-600", items: pre.t },
+    { k: "m", icon: "👄", en: "Makharij", ar: "المخارج", cls: "bg-sky-50 text-sky-900 ring-sky-200", on: "bg-sky-600 text-white ring-sky-600", items: pre.m },
+    { k: "r", icon: "🌊", en: "Fluency", ar: "الطلاقة", cls: "bg-teal-50 text-teal-900 ring-teal-200", on: "bg-teal-600 text-white ring-teal-600", items: pre.r },
+    { k: "h", icon: "🧠", en: "Memorisation", ar: "الحفظ", cls: "bg-amber-50 text-amber-900 ring-amber-200", on: "bg-amber-500 text-white ring-amber-500", items: pre.h },
+    { k: "e", icon: "🌟", en: "Encouragement", ar: "تشجيع", cls: "bg-rose-50 text-rose-900 ring-rose-200", on: "bg-rose-500 text-white ring-rose-500", items: ENCOURAGE },
+  ];
   return (
-    <div className="w-full space-y-2 rounded-2xl border border-dashed border-black/15 p-3 dark:border-white/20" data-testid="hw-grader">
-      {CRITS.map((c) => (
-        <div key={c.k} className="flex flex-wrap items-center gap-2">
-          <span className="w-28 text-sm font-bold">{tr(c.en, c.ar)}<span className="block text-[11px] font-normal opacity-60">{tr(c.hintEn, c.hintAr)}</span></span>
-          {([1, 2, 3] as Level[]).map((l) => (
-            <button key={l} type="button" aria-pressed={v[c.k] === l} onClick={() => setV({ ...v, [c.k]: l })} className={`rounded-full px-3 py-1 text-xs font-bold ring-1 ring-black/10 ${v[c.k] === l ? `${LEVELS[l][2]} text-white` : "bg-white/70 dark:bg-white/5"}`} data-testid={`grade-${c.k}-${l}`}>{l} · {tr(LEVELS[l][0], LEVELS[l][1])}</button>
-          ))}
-          <input className="min-w-[10rem] flex-1 rounded-full border border-black/10 bg-white/80 px-3 py-1 text-xs dark:border-white/15 dark:bg-white/5" placeholder={tr("Comment (optional)", "تعليق (اختياري)")} value={notes[c.k] || ""} onChange={(e) => setNotes({ ...notes, [c.k]: e.target.value })} data-testid={`grade-note-${c.k}`} />
-          <span className="flex w-full flex-wrap gap-1 ps-28">
-            {pre[c.k].map(([en, ar]) => <button key={en} type="button" className="rounded-full bg-black/5 px-2 py-0.5 text-[11px] hover:bg-sun/40 dark:bg-white/10" onClick={() => setNotes({ ...notes, [c.k]: [notes[c.k], tr(en, ar)].filter(Boolean).join("; ") })}>{tr(en, ar)}</button>)}
-          </span>
-        </div>
-      ))}
-      <div className="flex flex-wrap items-center gap-2 pt-1">
-        {o ? <span className={`rounded-full px-3 py-1 text-sm font-bold ${GRADE_STYLE[o]}`} data-testid="grade-overall">{gradeLabel(o, tr)}</span> : <span className="text-xs opacity-60">{tr("Choose a level for each criterion.", "اختر مستوى لكل معيار.")}</span>}
-        <span className="text-[11px] opacity-60">{tr("All 3 = Excellent · any 1 = Needs practice · otherwise Good", "الكل 3 = ممتاز · أي 1 = يحتاج تدريبًا · غير ذلك = جيد")}</span>
-        {asAdmin && <button type="button" className="rounded-full bg-black/5 px-3 py-1 text-xs font-bold" onClick={() => (editP ? setEditP(false) : openEdit())} data-testid="qpre-edit">✏️ {tr("Edit quick comments", "تعديل التعليقات السريعة")}</button>}
+    <div className="w-full space-y-3 rounded-2xl bg-white p-3 text-slate-900 shadow-sm ring-1 ring-black/10" data-testid="hw-grader">
+      {/* t335: all four criteria in one line of compact segmented selectors (wraps at narrow widths). */}
+      <div className="flex flex-wrap gap-2" data-testid="grade-row">
+        {CRITS.map((c) => (
+          <div key={c.k} className="min-w-[10.5rem] flex-1" data-testid={`grade-${c.k}`}>
+            <p className="mb-1 text-[11px] font-extrabold uppercase tracking-wide text-slate-600">{tr(c.en, c.ar)}</p>
+            <div role="radiogroup" aria-label={tr(c.en, c.ar)} className="flex overflow-hidden rounded-full ring-1 ring-black/15">
+              {([1, 2, 3] as Level[]).map((l) => (
+                <button key={l} type="button" role="radio" aria-checked={v[c.k] === l} title={tr(LEVELS[l][0], LEVELS[l][1])} onClick={() => setV({ ...v, [c.k]: l })} className={`flex-1 px-1 py-1.5 text-xs font-bold transition ${l > 1 ? "border-s border-black/10" : ""} ${v[c.k] === l ? `${LEVELS[l][2]} text-white` : "bg-slate-50 text-slate-700 hover:bg-slate-100"}`} data-testid={`grade-${c.k}-${l}`}>{l} · {tr(LEVELS[l][0], LEVELS[l][1]).split(" ")[0]}</button>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        {o ? <span className={`rounded-full px-3 py-1 text-sm font-bold ${GRADE_STYLE[o]}`} data-testid="grade-overall">{gradeLabel(o, tr)}</span> : <span className="text-xs text-slate-500">{tr("Choose a level for each criterion.", "اختر مستوى لكل معيار.")}</span>}
+        <span className="text-[11px] text-slate-500">{tr("All 3 = Excellent · any 1 = Needs practice · otherwise Good", "الكل 3 = ممتاز · أي 1 = يحتاج تدريبًا · غير ذلك = جيد")}</span>
+      </div>
+      <div className="space-y-2" data-testid="qc-groups">
+        <p className="text-xs font-bold text-slate-600">💬 {tr("Ready-made comments — tap to add, tap again to remove", "تعليقات جاهزة — اضغط للإضافة، واضغط مجددًا للإزالة")}</p>
+        {GROUPS.map((g) => (
+          <div key={g.k} className="flex flex-wrap items-start gap-1.5" data-testid={`qc-group-${g.k}`}>
+            <span className="w-full text-[11px] font-extrabold text-slate-700 sm:w-32 sm:pt-1">{g.icon} {tr(g.en, g.ar)}</span>
+            <span className="flex flex-1 flex-wrap gap-1.5">
+              {g.items.map(([en, ar]) => { const t = tr(en, ar); const on = has(t); return <button key={en} type="button" aria-pressed={on} onClick={() => tap(t)} className={`rounded-full px-2.5 py-1 text-[12px] font-semibold ring-1 transition ${on ? g.on : g.cls + " hover:brightness-95"}`} data-testid="qc-chip">{on ? "✓ " : ""}{t}</button>; })}
+            </span>
+          </div>
+        ))}
+      </div>
+      <label className="block text-xs font-bold text-slate-600">{tr("Comment for the student (optional)", "تعليق للطالب (اختياري)")}
+        <textarea className="mt-1 w-full rounded-xl border border-black/15 bg-white px-3 py-2 text-sm font-normal text-slate-900" rows={3} dir="auto" value={comment} onChange={(e) => setComment(e.target.value)} placeholder={tr("Tap comments above or type your own…", "اضغط على التعليقات أعلاه أو اكتب تعليقك…")} data-testid="grade-comment" />
+      </label>
+      <div className="flex flex-wrap items-center gap-2">
+        {asAdmin && <button type="button" className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-800" onClick={() => (editP ? setEditP(false) : openEdit())} data-testid="qpre-edit">✏️ {tr("Edit quick comments", "تعديل التعليقات السريعة")}</button>}
         <span className="flex-1" />
-        <button type="button" disabled={!ready || busy} className="rounded-full bg-header px-4 py-1.5 text-sm font-bold text-white disabled:opacity-50" onClick={() => ready && onSubmit({ ...(v as { m: Level; t: Level; r: Level; h: Level }), notes })} data-testid="grade-submit">{tr("Save grade", "حفظ التقييم")}</button>
+        <button type="button" disabled={!ready || busy} className="rounded-full bg-header px-5 py-2 text-sm font-bold text-white disabled:opacity-50" onClick={() => ready && onSubmit({ ...(v as { m: Level; t: Level; r: Level; h: Level }), notes: {}, comment: comment.trim() || undefined })} data-testid="grade-submit">{tr("Save grade", "حفظ التقييم")}</button>
       </div>
       {asAdmin && editP && <div className="space-y-2 rounded-xl bg-amber-50 p-3 text-slate-900" data-testid="qpre-panel"><p className="text-xs">{tr("One comment per line: English | Arabic", "تعليق في كل سطر: الإنجليزية | العربية")}</p>{CRITS.map((c) => <label key={c.k} className="block text-xs font-bold">{tr(c.en, c.ar)}<textarea className="mt-1 w-full rounded-lg border border-black/15 bg-white p-2 text-xs font-normal" rows={4} value={draft[c.k]} onChange={(e) => setDraft({ ...draft, [c.k]: e.target.value })} data-testid={`qpre-${c.k}`} /></label>)}<button type="button" className="rounded-full bg-header px-4 py-1.5 text-xs font-bold text-white" onClick={savePre} data-testid="qpre-save">{tr("Save quick comments", "حفظ التعليقات")}</button></div>}
     </div>
