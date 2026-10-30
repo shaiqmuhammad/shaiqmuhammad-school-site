@@ -66,11 +66,11 @@ export function CorrectedList({ asAdmin }: { asAdmin: boolean }) {
                 <b dir="auto">{x.name}</b>
                 <span className="text-xs opacity-60">{[x.cls, x.section].filter(Boolean).join(" · ")}</span>
                 <span className="flex-1" />
-                <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${GRADE_STYLE[x.grade] || ""}`} data-testid="corr-grade">{gradeLabel(x.grade, tr)}</span>
+                <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${GRADE_STYLE[x.grade] || "bg-sky-100 text-sky-900"}`} data-testid="corr-grade">{gradeLabel(x.grade, tr) || tr("📝 Feedback given", "📝 تمت الملاحظات")}</span>
               </div>
               <p className="text-sm font-semibold" dir="auto">📖 {x.title} <span className="font-normal opacity-70">· {sn(x.data?.surah)} {x.data?.from}–{x.data?.to}</span></p>
               <ScoreBadges s={x.scores} compact />
-              <p className="text-xs opacity-70">🗓 {new Date(x.gradedAt).toLocaleString(lang === "ar" ? "ar" : "en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}{x.by ? ` · ${x.by}` : ""}{x.status === "returned" ? ` · ${tr("sent back to practise", "أُعيد للتدرّب")}` : ""}</p>
+              <p className="text-xs opacity-70">🗓 {new Date(x.gradedAt).toLocaleString(lang === "ar" ? "ar" : "en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}{x.by ? ` · ${tr("Corrected by", "صحّحه")} ${x.by}` : ""}{x.setBy && x.setBy !== x.by ? ` · ${tr("set by", "أسنده")} ${x.setBy}` : ""}{x.status === "feedback" ? ` · ${tr("feedback sent, not graded yet", "أُرسلت الملاحظات، دون تقييم بعد")}` : ""}{x.status === "returned" ? ` · ${tr("sent back to practise", "أُعيد للتدرّب")}` : ""}</p>
               <div className="flex flex-wrap gap-2">
                 <button type="button" className="inline-flex rounded-full bg-header px-3 py-1 text-xs font-bold text-white" aria-expanded={edit === x.id} onClick={() => setEdit(edit === x.id ? "" : x.id)} data-testid="corr-edit">✎ {tr("Edit grade", "تعديل التقييم")}</button>
                 {x.status === "approved" && <button type="button" className="inline-flex rounded-full bg-black/5 px-3 py-1 text-xs font-bold dark:bg-white/10" onClick={() => { if (confirm(tr("Reopen this homework? The student will be asked to practise and submit again.", "إعادة فتح هذا الواجب؟ سيُطلب من الطالب التدرّب والتسليم مجددًا."))) review(x.id, { status: "returned" }, tr("Reopened — the student can submit again.", "أُعيد فتحه — يمكن للطالب التسليم مجددًا.")); }} data-testid="corr-reopen">↺ {tr("Reopen", "إعادة فتح")}</button>}

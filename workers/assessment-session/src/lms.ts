@@ -337,6 +337,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     this.migrateScopeToGroups();
     this.migrateSubjectPhase();
     this.migrateGroupsToAssignment();
+    this.migrateViewAllTeachers();
   }
 
   private catalog() {
@@ -404,6 +405,20 @@ export class LmsStore extends DurableObject<LmsEnv> {
     this.sql.exec(`INSERT INTO settings (k, v) VALUES ('mig:t346', '1') ON CONFLICT(k) DO UPDATE SET v='1'`);
     this.sql.exec(`INSERT INTO settings (k, v) VALUES ('mig:t346:log', ?) ON CONFLICT(k) DO UPDATE SET v=excluded.v`, JSON.stringify(log));
   }
+  /** t347 one-time: teachers who already have "View all homework" keep current behaviour — every teacher sharing a subject is pre-selected. */
+  private migrateViewAllTeachers() {
+    if (this.setting("mig:t347") === "1") return;
+    const ts = this.sql.exec(`SELECT id, username, perms, subjects FROM users WHERE role='teacher'`).toArray().map((r) => ({ id: String(r.id), u: String(r.username), perms: JSON.parse(String(r.perms || "[]")) as string[], subs: JSON.parse(String(r.subjects || "[]")) as string[] }));
+    const log: unknown[] = [];
+    for (const t of ts) {
+      if (!t.perms.includes("viewAll") || t.perms.some((p) => p.startsWith("vat:"))) continue;
+      const add = ts.filter((o) => o.id !== t.id && o.subs.some((x) => t.subs.includes(x))).map((o) => `vat:${o.id}`);
+      this.sql.exec(`UPDATE users SET perms=? WHERE id=?`, JSON.stringify([...t.perms, ...add]), t.id);
+      log.push({ t: t.u, before: t.perms, added: add });
+    }
+    this.sql.exec(`INSERT INTO settings (k, v) VALUES ('mig:t347', '1') ON CONFLICT(k) DO UPDATE SET v='1'`);
+    this.sql.exec(`INSERT INTO settings (k, v) VALUES ('mig:t347:log', ?) ON CONFLICT(k) DO UPDATE SET v=excluded.v`, JSON.stringify(log));
+  }
   private legacyGroupScope(tid: string): { scope: string[]; stu: string[]; subj: string[] } {
     const gs = this.sql.exec(`SELECT students, classes, teachers, subject FROM grp WHERE admin=1`).toArray().filter((r) => (JSON.parse(String(r.teachers || "[]")) as string[]).includes(tid));
     // Subject groups (e.g. Islamic A / Islamic B): the teacher only ever sees students who take one of those subjects.
@@ -438,11 +453,11 @@ export class LmsStore extends DurableObject<LmsEnv> {
   private shareCanCorrect(h: { data: unknown }, a: Actor): boolean { const sh = ((h.data || {}) as Json).share as { teachers?: string[]; correct?: boolean } | undefined; return a.role === "teacher" && !!sh?.teachers?.includes(a.id) && sh.correct === true && a.perms.includes("shareCorrect"); }
   private va(a: Actor, by: string): boolean {
     if (!a.perms.includes("viewAll")) return false;
-    if (!a.subj?.length || !by) return true;
+    if (!by) return true;
     const u = this.userRow("id=?", by);
     if (!u || u.role !== "teacher") return true;
-    const theirs = this.teacherScope(by).subj;
-    return !theirs.length || theirs.some((x) => a.subj!.includes(x));
+    // t347: only homework of the teachers picked in Permissions ("vat:<teacherId>"); none picked = none.
+    return a.perms.includes(`vat:${by}`);
   }
   /** Subject rule for teachers with subject groups: the student must take one of the teacher's subjects. */
   private subjOk(a: Actor, sid?: string): boolean {
@@ -974,7 +989,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
           const role: Role = raw.role === "teacher" ? "teacher" : "student";
           // Only the admin can create or edit teachers.
           if (role === "teacher" && a.role !== "admin") { errors.push({ row: i + 1, username, error: "admin_only" }); continue; }
-          const perms = role === "teacher" ? (Array.isArray(raw.perms) ? (raw.perms as unknown[]).map(String).filter((p) => (PERMS as readonly string[]).includes(p) || STU_PERM.test(p) || /^(act|host):[\w*-]{1,80}$/.test(p) || /^(att|beh):(view|edit)$|^cur:(view|edit|delete)$|^qhw:(set|show|view|add|edit|delete)$|^nodl:(audio|export)$|^hide:(messaging|wall|activities|homework|assessments|results)$|^rep:view$|^trk:(view|edit|effort|xlsx|pdf|isams):(on|off)$|^rep:(kpi|attainment|progress|quran|homework|coverage|drill|pdf|xlsx):(on|off)$/.test(p) || MP_PERM.test(p)).slice(0, 80) : ["assign", "review"]) : [];
+          const perms = role === "teacher" ? (Array.isArray(raw.perms) ? (raw.perms as unknown[]).map(String).filter((p) => (PERMS as readonly string[]).includes(p) || STU_PERM.test(p) || /^(act|host):[\w*-]{1,80}$/.test(p) || /^vat:u_[\w-]{1,60}$/.test(p) || /^(att|beh):(view|edit)$|^cur:(view|edit|delete)$|^qhw:(set|show|view|add|edit|delete)$|^nodl:(audio|export)$|^hide:(messaging|wall|activities|homework|assessments|results)$|^rep:view$|^trk:(view|edit|effort|xlsx|pdf|isams):(on|off)$|^rep:(kpi|attainment|progress|quran|homework|coverage|drill|pdf|xlsx):(on|off)$/.test(p) || MP_PERM.test(p)).slice(0, 80) : ["assign", "review"]) : [];
           const cls = str(raw.cls, 40);
           const section = role === "student" ? str(raw.section, 40) : "";
           const subjects = role === "teacher" ? strList(raw.subjects) : [];
@@ -1972,12 +1987,20 @@ export class LmsStore extends DurableObject<LmsEnv> {
         const qd = qhwOf(a);
         if (a.role === "teacher" && !(qd.show && qd.view)) return { status: 403, body: { error: "quran_not_allowed" } };
         const hws = new Map(this.allHomework().filter((h) => h.kind === "quran").map((h) => [h.id, h]));
-        const mine = (h: { createdBy: string; data?: unknown }, r: Record<string, unknown>) => a.role === "admin" || this.va(a, h.createdBy) || h.createdBy === a.id || this.sharedTo(h, a.id) || (JSON.parse(String(r.attempts || "[]")) as { by: string }[]).some((x) => x.by === a.name);
+        const mine = (h: { createdBy: string; data?: unknown }, r: Record<string, unknown>) => a.role === "admin" || this.va(a, h.createdBy) || h.createdBy === a.id || this.sharedTo(h, a.id) || (JSON.parse(String(r.attempts || "[]")) as { by: string }[]).some((x) => x.by === a.name) || (JSON.parse(String(r.comments || "[]")) as { by: string }[]).some((x) => x.by === a.name);
         const names = new Map(this.sql.exec(`SELECT id, name, cls, section FROM users`).toArray().map((r) => [String(r.id), { name: String(r.name), cls: String(r.cls || ""), section: String(r.section || "") }]));
-        const items = this.sql.exec(`SELECT * FROM subs WHERE grade != '' AND status IN ('approved','returned') ORDER BY updated DESC LIMIT 1000`).toArray().filter((r) => hws.has(String(r.hw)) && mine(hws.get(String(r.hw))!, r)).map((r) => {
+        // t347: also list work a teacher corrected with feedback (comments / verse marks / voice notes after the last submit) but did not grade yet — shown to the assigning teacher and the correcting teacher.
+        const fbOf = (r: Record<string, unknown>) => { const cm = JSON.parse(String(r.comments || "[]")) as { by: string; at?: number }[]; const after = cm.filter((x) => Number(x.at || 0) > Number(r.submitted_at || 0)); const mk = (JSON.parse(String(r.mistakes || "[]")) as unknown[]).length; return { after, mk }; };
+        const items = this.sql.exec(`SELECT * FROM subs WHERE (grade != '' AND status IN ('approved','returned')) OR status='submitted' ORDER BY updated DESC LIMIT 2000`).toArray().filter((r) => {
+          if (!hws.has(String(r.hw))) return false;
+          const fb = String(r.status) === "submitted" ? fbOf(r) : null;
+          if (fb && !fb.after.length && !fb.mk) return false;
+          return mine(hws.get(String(r.hw))!, r) || !!(fb && fb.after.some((x) => x.by === a.name));
+        }).slice(0, 1000).map((r) => {
           const h = hws.get(String(r.hw))!; const at = JSON.parse(String(r.attempts || "[]")) as { at: number; by: string }[]; const last = at[at.length - 1];
           const u = names.get(String(r.student));
-          return { id: String(r.id), hw: h.id, title: h.title, data: h.data, student: String(r.student), name: u?.name ?? "?", cls: u?.cls ?? "", section: u?.section ?? "", grade: String(r.grade), status: String(r.status), scores: r.scores ? JSON.parse(String(r.scores)) : null, gradedAt: last?.at || Number(r.updated), by: last?.by || "" };
+          const fb = String(r.status) === "submitted" ? fbOf(r) : null; const lc = fb?.after[fb.after.length - 1];
+          return { id: String(r.id), hw: h.id, title: h.title, data: h.data, student: String(r.student), name: u?.name ?? "?", cls: u?.cls ?? "", section: u?.section ?? "", grade: String(r.grade || ""), status: fb ? "feedback" : String(r.status), scores: r.scores ? JSON.parse(String(r.scores)) : null, gradedAt: fb ? Number(lc?.at || r.updated) : last?.at || Number(r.updated), by: fb ? lc?.by || "" : last?.by || "", setBy: names.get(h.createdBy)?.name || "" };
         });
         return { status: 200, body: { items } };
       }

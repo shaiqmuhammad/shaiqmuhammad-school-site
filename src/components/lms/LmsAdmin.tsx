@@ -206,6 +206,12 @@ function PermissionsModal({ u, onClose, onSaved, asAdmin, catalog }: { catalog: 
             <div className="mt-3 space-y-1.5 rounded-xl bg-black/[0.03] p-2 text-sm dark:bg-white/5" data-testid="perm-hw-group">
               <p className="text-xs font-bold opacity-70">📝 {tr("Homework", "الواجبات")}</p>
               {(["viewAll", "shareCorrect"] as const).map((p) => <label key={p} className="flex items-center gap-1.5" data-testid={`perm-${p}`}><input type="checkbox" role="switch" checked={perms.includes(p)} onChange={() => toggle(p)} /> {tr(PERM_LABEL[p][0], PERM_LABEL[p][1])}</label>)}
+              {(() => { const same = others.filter((o) => (o.subjects || []).some((x) => subjects.includes(x))); const picked = same.filter((o) => perms.includes(`vat:${o.id}`)); return (
+                <details className="rounded-lg border border-emerald-300 bg-white p-2" data-testid="perm-vat">
+                  <summary className="cursor-pointer text-sm font-bold text-emerald-800">👩‍🏫 {tr("Which teachers' homework (see & correct)", "واجبات أي المعلمين (عرض وتصحيح)")}: <span className="font-normal" data-testid="perm-vat-sum">{picked.length ? picked.map((o) => o.name).join(", ") : tr("none selected", "لا أحد")}</span></summary>
+                  <p className="my-1 text-xs opacity-70">{tr("Only teachers who share a subject are listed. Works when “See all homework” is on.", "يظهر فقط المعلمون الذين يشاركون مادة. يعمل عند تفعيل «رؤية كل الواجبات».")}</p>
+                  <div className="flex flex-col gap-1">{same.map((o) => <label key={o.id} className="flex items-center gap-1.5"><input type="checkbox" checked={perms.includes(`vat:${o.id}`)} onChange={() => toggle(`vat:${o.id}`)} data-testid="perm-vat-opt" /> {o.name} <span className="text-xs opacity-60">({(o.subjects || []).filter((x) => subjects.includes(x)).join(", ")})</span></label>)}{!same.length && <span className="text-xs opacity-60">{tr("No other teacher shares a subject.", "لا يوجد معلم يشارك مادة.")}</span>}</div>
+                </details>); })()}
             </div>
           </div>
           {perms.includes("manageUsers") && <StudentAccess perms={perms} setPerms={setPerms} />}
