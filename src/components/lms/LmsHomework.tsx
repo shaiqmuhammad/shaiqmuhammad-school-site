@@ -207,6 +207,7 @@ function StudentWork({ hw, sub, reload, chapters = [] }: { hw: Data["homework"];
     try {
       await lmsApi.saveSub(hw.id, text, hw.kind === "quran" ? true : practised, submit); // t328: no 'practised' tick box for Quran; recording is enough
       if (submit) try { sessionStorage.setItem("sm_hw_sent", hw.id); } catch { /* ignore */ }
+      if (submit) window.dispatchEvent(new Event("lms-memo-show"));
       setMsg(submit ? tr("✅ Your homework has been submitted! Your teacher will check it soon.", "✅ تم تسليم واجبك! سيراجعه معلمك قريبًا.") : tr("Saved ✓", "تم الحفظ ✓"));
       reload();
     } catch (e) {
@@ -231,7 +232,7 @@ function StudentWork({ hw, sub, reload, chapters = [] }: { hw: Data["homework"];
       {hw.kind === "quran" ? (
         <>
           {sub?.audio ? (
-            <AudioClip id={sub.audio} label={"🎙️ " + tr("My recitation", "تلاوتي")} testId="my-rec" onDelete={locked ? undefined : async () => { if (confirm(tr("Delete this recording?", "حذف هذا التسجيل؟"))) { await lmsApi.audioDelete(sub.audio!).catch(() => undefined); reload(); } }} />
+            <AudioClip id={sub.audio} label={"🎙️ " + tr("My recitation", "تلاوتي")} testId="my-rec" onDelete={locked ? undefined : async () => { if (confirm(tr("Delete this recording?", "حذف هذا التسجيل؟"))) { await lmsApi.audioDelete(sub.audio!).catch(() => undefined); window.dispatchEvent(new Event("lms-memo-show")); reload(); } }} />
           ) : null}
 {sub?.status === "submitted" && <p className="rounded-2xl bg-emerald-50 px-3 py-2 font-semibold text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200" data-testid="rec-sent">✅ {tr("Submitted — waiting for your teacher.", "تم التسليم — بانتظار معلمك.")}</p>}
           {!locked && sub?.status !== "approved" && <AudioRecorder label={sub?.audio ? tr("Record again (replaces the old one)", "سجّل مجددًا (يستبدل القديم)") : tr("Record your recitation (up to 3 minutes)", "سجّل تلاوتك (حتى 3 دقائق)")} testId="rec-student" big autoSave onSave={async (b) => { await lmsApi.audioUpload({ hw: hw.id }, b); setDraftOk(true); }} />}
@@ -389,6 +390,18 @@ export function LmsHomework() {
 
   const staff = actor?.role === "teacher" || actor?.role === "admin";
   const hw = d?.homework;
+  // t331: Memorise & record — the verses and recitation stay open for learning; they hide from "record" until that recording is submitted or deleted.
+  const [memoHide, setMemoHide] = useState(false);
+  useEffect(() => {
+    if (!hw?.id) return;
+    const k = `sm_memo_hide_${hw.id}`;
+    try { if (sessionStorage.getItem(k) === "1") setMemoHide(true); } catch { /* ignore */ }
+    const on = () => { setMemoHide(true); try { sessionStorage.setItem(k, "1"); } catch { /* ignore */ } };
+    const off = () => { setMemoHide(false); try { sessionStorage.removeItem(k); } catch { /* ignore */ } };
+    window.addEventListener("lms-rec-start", on);
+    window.addEventListener("lms-memo-show", off);
+    return () => { window.removeEventListener("lms-rec-start", on); window.removeEventListener("lms-memo-show", off); };
+  }, [hw?.id]);
   // t329: a teacher who only sees this homework because it was shared with them can't edit or delete it.
   const sharedOnly = !!hw && actor?.role === "teacher" && hw.createdBy !== actor.id && (((hw.data as { share?: { teachers?: string[] } }).share?.teachers) || []).includes(actor.id);
   const q = hw?.data as QuranData | undefined;
@@ -449,7 +462,7 @@ export function LmsHomework() {
             )}
             {editing && <HomeworkEditor initial={hw} classes={extra.classes} students={extra.students} catalog={extra.catalog} scope={extra.scope} asAdmin={asAdmin} onCancel={() => setEditing(false)} onSaved={() => { setEditing(false); load(); }} />}
             {hw.kind === "quran" && staff && (hw.data as QuranData).memorise && <p className="rounded-2xl bg-violet-100 px-4 py-2 text-sm font-bold text-violet-900" data-testid="hw-memo-teacher">🧠 {tr("Memorise & record — students don't see these verses.", "احفظ وسجّل — لا يرى الطلاب هذه الآيات.")}</p>}
-            {hw.kind === "quran" ? (!staff && (hw.data as QuranData).memorise ? <MemoriseCard data={hw.data as QuranData} chapters={chapters} /> : <QuranReader data={hw.data as QuranData} mistakes={(d.sub?.mistakes || [])} />) : <Slides data={hw.data as GeneralData} />}
+            {hw.kind === "quran" ? (!staff && (hw.data as QuranData).memorise && memoHide ? <MemoriseCard data={hw.data as QuranData} chapters={chapters} /> : <QuranReader data={hw.data as QuranData} mistakes={(d.sub?.mistakes || [])} />) : <Slides data={hw.data as GeneralData} />}
             {(hw.data as { pack?: string }).pack && <PackPlayer key={String(d?.sub?.status)} id={(hw.data as { pack?: string }).pack!} asAdmin={asAdmin} preview={staff} locked={!staff && (d?.sub?.status === "approved" || (d?.sub?.status === "submitted" && !(d.sub.comments || []).some((c) => c.at > (d.sub!.submittedAt || 0))))} />}
             {!staff && <StudentWork key={d?.sub?.updated || 0} hw={hw} sub={d?.sub || null} reload={load} chapters={chapters} />}
             {staff && (
@@ -563,7 +576,7 @@ function MemoriseCard({ data, chapters }: { data: QuranData; chapters: Chapter[]
       <p className="text-4xl" aria-hidden>🧠</p>
       <p className="mt-2 text-2xl font-extrabold" dir="auto" data-testid="memo-surah">{ch ? `${ch.name_simple} · ${ch.name_arabic}` : `Surah ${data.surah}`}</p>
       <p className="text-lg font-bold" data-testid="memo-range">{tr(`Verses ${data.from}–${data.to}`, `الآيات ${data.from}–${data.to}`)}</p>
-      <p className="mx-auto mt-2 max-w-md text-sm opacity-80">{tr("Recite these verses from memory and record yourself below. The text is hidden for this homework.", "اتلُ هذه الآيات من حفظك وسجّل تلاوتك في الأسفل. النص مخفي في هذا الواجب.")}</p>
+      <p className="mx-auto mt-2 max-w-md text-sm opacity-80">{tr("Recording — recite from memory. The verses come back after you submit or delete this recording.", "تسجيل — اتلُ من الحفظ. تعود الآيات بعد التسليم أو حذف هذا التسجيل.")}</p>
       {data.notes && <p className="mt-2 text-sm font-semibold" dir="auto">📝 {data.notes}</p>}
       {data.memoAudio !== false && <button type="button" className="mt-3 rounded-full bg-header px-5 py-2 font-bold text-sun" onClick={() => { if (n) { audio.current?.pause(); setN(null); } else playFrom(data.from); }} data-testid="memo-listen">{n ? `⏸ ${tr("Stop", "إيقاف")} (${n})` : `🔊 ${tr("Listen to the reciter", "استمع إلى القارئ")}`}</button>}
     </div>
