@@ -29,7 +29,11 @@ const getSnap = () => snap;
 export function PwaInstall() {
   useEffect(() => {
     if ("serviceWorker" in navigator && location.protocol === "https:") {
-      navigator.serviceWorker.register("/sw.js", { scope: "/" }).then((reg) => {
+      // t342: when a new service worker takes over (new deploy), reload once so the page runs the new code straight away.
+      const hadController = !!navigator.serviceWorker.controller; let reloaded = false;
+      navigator.serviceWorker.addEventListener("controllerchange", () => { if (hadController && !reloaded) { reloaded = true; location.reload(); } });
+      navigator.serviceWorker.register("/sw.js", { scope: "/", updateViaCache: "none" }).then((reg) => {
+        reg.update().catch(() => undefined);
         document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") reg.update().catch(() => undefined); });
       }).catch(() => undefined);
     }

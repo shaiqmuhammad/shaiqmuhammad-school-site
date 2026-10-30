@@ -177,7 +177,7 @@ function PermissionsModal({ u, onClose, onSaved, asAdmin, catalog }: { catalog: 
           <ClassroomAccess perms={perms} toggle={toggle} chip={chip} />
         </div>
         {err && <p className="mt-3 rounded-xl bg-rose-100 px-3 py-2 text-sm text-rose-800" role="alert">{err}</p>}
-        <p className="mt-3 text-xs opacity-70">{tr("Changes apply to the teacher straight away.", "تسري التغييرات على المعلم فورًا.")}</p>
+        <p className="mt-3 text-xs opacity-70">{tr("Changes apply to the teacher straight away.", "تسري التغييرات على المعلم فورًا.")} <span className="opacity-60" data-testid="perm-build">· build {process.env.NEXT_PUBLIC_BUILD}</span></p>
         <div className="mt-4 flex justify-end gap-2"><button type="button" className={smallBtn} onClick={onClose}>{tr("Cancel", "إلغاء")}</button><button type="button" className={primaryBtn} disabled={busy} onClick={save} data-testid="perm-modal-save">{busy ? "…" : tr("Save permissions", "حفظ الصلاحيات")}</button></div>
       </div>
     </div>
