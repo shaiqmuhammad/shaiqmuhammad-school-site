@@ -13,7 +13,7 @@ export const CRITS = [
   { k: "r", short: ["R", "ت"], en: "Recitation", ar: "التلاوة", hintEn: "Fluency", hintAr: "الطلاقة" },
   { k: "h", short: ["Mem", "ح"], en: "Memorisation", ar: "الحفظ", hintEn: "Recited from memory", hintAr: "التلاوة من الحفظ" },
 ] as const;
-export const LEVELS: Record<Level, [string, string, string]> = { 1: ["Needs practice", "يحتاج تدريبًا", "bg-rose-500"], 2: ["Good", "جيد", "bg-amber-400"], 3: ["Excellent", "ممتاز", "bg-emerald-500"] };
+export const LEVELS: Record<Level, [string, string, string]> = { 1: ["Needs practice", "يحتاج تدريبًا", "bg-rose-700"], 2: ["Good", "جيد", "bg-amber-400"], 3: ["Excellent", "ممتاز", "bg-emerald-500"] };
 type CK = "m" | "t" | "r" | "h";
 /** Default quick comments (admin can replace them; saved on the server). */
 /** t335: general encouragement chips (Quran grading). */
@@ -115,11 +115,11 @@ export function ScoreGrader({ onSubmit, busy, asAdmin = false }: { onSubmit: (s:
   const [qcTab, setQcTab] = useState("t");
   const tap = (t: string) => setComment((has(t) ? parts.filter((x) => x !== t) : [...parts, t]).join("\n"));
   const GROUPS: { k: string; icon: string; en: string; ar: string; cls: string; on: string; items: [string, string][] }[] = [
-    { k: "t", icon: "📜", en: "Tajweed", ar: "التجويد", cls: "bg-violet-50 text-violet-900 ring-violet-200", on: "bg-violet-600 text-white ring-violet-600", items: pre.t },
-    { k: "m", icon: "👄", en: "Makharij", ar: "المخارج", cls: "bg-sky-50 text-sky-900 ring-sky-200", on: "bg-sky-600 text-white ring-sky-600", items: pre.m },
-    { k: "r", icon: "🌊", en: "Fluency", ar: "الطلاقة", cls: "bg-teal-50 text-teal-900 ring-teal-200", on: "bg-teal-600 text-white ring-teal-600", items: pre.r },
-    { k: "h", icon: "🧠", en: "Memorisation", ar: "الحفظ", cls: "bg-amber-50 text-amber-900 ring-amber-200", on: "bg-amber-500 text-white ring-amber-500", items: pre.h },
-    { k: "e", icon: "🌟", en: "Encouragement", ar: "تشجيع", cls: "bg-rose-50 text-rose-900 ring-rose-200", on: "bg-rose-500 text-white ring-rose-500", items: ENCOURAGE },
+    { k: "t", icon: "📜", en: "Tajweed", ar: "التجويد", cls: "bg-violet-50 text-violet-900 ring-violet-200", on: "bg-violet-700 text-white ring-violet-700", items: pre.t },
+    { k: "m", icon: "👄", en: "Makharij", ar: "المخارج", cls: "bg-sky-50 text-sky-900 ring-sky-200", on: "bg-sky-700 text-white ring-sky-700", items: pre.m },
+    { k: "r", icon: "🌊", en: "Fluency", ar: "الطلاقة", cls: "bg-teal-50 text-teal-900 ring-teal-200", on: "bg-teal-700 text-white ring-teal-700", items: pre.r },
+    { k: "h", icon: "🧠", en: "Memorisation", ar: "الحفظ", cls: "bg-amber-50 text-amber-900 ring-amber-200", on: "bg-amber-700 text-white ring-amber-700", items: pre.h },
+    { k: "e", icon: "🌟", en: "Encouragement", ar: "تشجيع", cls: "bg-rose-50 text-rose-900 ring-rose-200", on: "bg-rose-700 text-white ring-rose-700", items: ENCOURAGE },
   ];
   return (
     <div className="light-island w-full space-y-2.5 rounded-2xl border-t-4 border-violet-500 bg-gradient-to-br from-white via-sky-50 to-emerald-50 p-3 text-slate-900 shadow-md ring-1 ring-black/10" data-testid="hw-grader">

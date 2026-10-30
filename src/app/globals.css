@@ -357,3 +357,6 @@ html:not(.dark) .admin-main { background: radial-gradient(1200px 500px at 100% 0
 .perm-colour > .space-y-3 > *:nth-child(6n+1) > p:first-child { color: #1e3a8a; } .perm-colour > .space-y-3 > *:nth-child(6n+2) > p:first-child { color: #134e4a; }
 .perm-colour > .space-y-3 > *:nth-child(6n+3) > p:first-child { color: #065f46; } .perm-colour > .space-y-3 > *:nth-child(6n+4) > p:first-child { color: #4c1d95; }
 .perm-colour > .space-y-3 > *:nth-child(6n+5) > p:first-child { color: #78350f; } .perm-colour > .space-y-3 > *:nth-child(6n+6) > p:first-child { color: #831843; }
+
+/* t352: headings inside white-text bands/headers use the band's text colour (the global heading navy merged into coloured headers). */
+@layer base { .text-white :is(h1, h2, h3, h4) { color: inherit; } }

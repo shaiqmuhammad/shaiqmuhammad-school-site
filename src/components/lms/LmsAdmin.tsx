@@ -133,16 +133,16 @@ function TeacherAssign<T extends AssignF>({ f, setF, catalog, testPrefix }: { f:
     <div className="space-y-2 rounded-2xl border border-sky-200 bg-gradient-to-br from-sky-50 via-white to-emerald-50 p-3 dark:border-white/15 dark:from-white/5 dark:via-white/5 dark:to-white/5" data-testid={`${testPrefix}-assign`}>
       <p className="text-sm font-extrabold">🎯 {tr("Teaching assignment", "إسناد التدريس")} <span className="font-normal opacity-70">— {tr("used for Tracker, Progress Check, timetable and homework", "يُستخدم للمتتبع والتقييم والجدول والواجبات")}</span></p>
       <H n="1" t={tr("Phase", "المرحلة")} />
-      <div className="flex flex-wrap gap-1.5" data-testid={`${testPrefix}-phase-chips`}>{PH.map((p) => <button key={p} type="button" aria-pressed={phases.includes(p)} className={pill(phases.includes(p), "bg-indigo-600")} onClick={() => setF((x) => ({ ...x, phase: PH.filter((z) => flip(x.phase.split(",").filter(Boolean), p).includes(z)).join(",") }))}>{p}</button>)}</div>
+      <div className="flex flex-wrap gap-1.5" data-testid={`${testPrefix}-phase-chips`}>{PH.map((p) => <button key={p} type="button" aria-pressed={phases.includes(p)} className={pill(phases.includes(p), "bg-indigo-800")} onClick={() => setF((x) => ({ ...x, phase: PH.filter((z) => flip(x.phase.split(",").filter(Boolean), p).includes(z)).join(",") }))}>{p}</button>)}</div>
       <H n="2" t={tr("Department", "القسم")} />
-      <div className="flex flex-wrap gap-1.5" data-testid={`${testPrefix}-dept-chips`}>{allDepts.map((d) => <button key={d} type="button" aria-pressed={depts.includes(d)} className={pill(depts.includes(d), "bg-violet-600")} onClick={() => setDepts((x) => flip(x, d))} data-testid={`${testPrefix}-dept`}>{d}</button>)}{!allDepts.length && <span className="text-sm opacity-60">{tr("No subjects yet — add them in Classes & Subjects.", "لا توجد مواد — أضفها في الصفوف والمواد.")}</span>}</div>
+      <div className="flex flex-wrap gap-1.5" data-testid={`${testPrefix}-dept-chips`}>{allDepts.map((d) => <button key={d} type="button" aria-pressed={depts.includes(d)} className={pill(depts.includes(d), "bg-violet-800")} onClick={() => setDepts((x) => flip(x, d))} data-testid={`${testPrefix}-dept`}>{d}</button>)}{!allDepts.length && <span className="text-sm opacity-60">{tr("No subjects yet — add them in Classes & Subjects.", "لا توجد مواد — أضفها في الصفوف والمواد.")}</span>}</div>
       <H n="3" t={tr("Subject(s)", "المواد")} />
-      <div className="flex flex-wrap gap-1.5">{subs.map((s) => <button key={s.id} type="button" aria-pressed={f.subjects.includes(s.name)} className={pill(f.subjects.includes(s.name), "bg-sky-600")} onClick={() => setF((x) => ({ ...x, subjects: flip(x.subjects, s.name) }))} data-testid={`${testPrefix}-subject`}>{s.name}</button>)}</div>
+      <div className="flex flex-wrap gap-1.5">{subs.map((s) => <button key={s.id} type="button" aria-pressed={f.subjects.includes(s.name)} className={pill(f.subjects.includes(s.name), "bg-sky-800")} onClick={() => setF((x) => ({ ...x, subjects: flip(x.subjects, s.name) }))} data-testid={`${testPrefix}-subject`}>{s.name}</button>)}</div>
       <H n="4" t={tr("Classes / Year groups — tap a class, then optionally pick sections (none = whole class)", "الصفوف — اختر صفًا ثم الشعب (بدونها = الصف كله)")} />
       <div className="space-y-1.5" data-testid={`${testPrefix}-classes`}>{classes.map((c) => { const on = clsOn(c.name); const secs = catalog.sections.filter((s) => s.classId === c.id || s.cls === c.name); return (
         <div key={c.id} className="flex flex-wrap items-center gap-1.5">
-          <button type="button" aria-pressed={on} className={pill(on, "bg-emerald-600")} onClick={() => toggleCls(c.name)} data-testid={`${testPrefix}-cls`}>{c.name}</button>
-          {on && secs.map((s) => { const sOn = f.scope.includes(`${c.name}|${s.name}`); return <button key={s.id} type="button" aria-pressed={sOn} className={pill(sOn, "bg-amber-500") + " !px-2 !py-0.5 !text-xs"} onClick={() => toggleSec(c.name, s.name)} data-testid={`${testPrefix}-sec`}>{s.name}</button>; })}
+          <button type="button" aria-pressed={on} className={pill(on, "bg-emerald-800")} onClick={() => toggleCls(c.name)} data-testid={`${testPrefix}-cls`}>{c.name}</button>
+          {on && secs.map((s) => { const sOn = f.scope.includes(`${c.name}|${s.name}`); return <button key={s.id} type="button" aria-pressed={sOn} className={pill(sOn, "bg-amber-700") + " !px-2 !py-0.5 !text-xs"} onClick={() => toggleSec(c.name, s.name)} data-testid={`${testPrefix}-sec`}>{s.name}</button>; })}
           {on && !!secs.length && !f.scope.some((t) => t.startsWith(c.name + "|")) && <span className="text-xs opacity-60">{tr("all sections", "كل الشعب")}</span>}
         </div>); })}
         {!classes.length && <span className="text-sm opacity-60">{tr("No classes for this phase — add them in Classes & Subjects.", "لا صفوف لهذه المرحلة.")}</span>}
@@ -193,7 +193,7 @@ function PermissionsModal({ u, onClose, onSaved, asAdmin, catalog }: { catalog: 
     <BodyPortal>
     <div className="fixed inset-0 z-[2147483000] flex justify-end bg-black/40 backdrop-blur-[2px] dark:bg-black/80" onMouseDown={(e) => e.target === e.currentTarget && onClose()} role="dialog" aria-modal="true" aria-label={tr("Permissions", "الصلاحيات")} data-testid="perm-modal">
       <div className="light-island perm-colour h-full w-full overflow-y-auto bg-gradient-to-b from-slate-50 to-white p-4 text-[#1b2f44] shadow-2xl sm:max-w-2xl sm:p-6" data-testid="perm-panel">
-        <div className="sticky -top-4 z-10 -mx-4 -mt-4 mb-3 flex items-center gap-3 bg-gradient-to-r from-indigo-600 via-sky-600 to-emerald-500 px-4 py-3 text-white shadow sm:-top-6 sm:-mx-6 sm:-mt-6 sm:px-6" data-testid="perm-panel-head"><h3 className="min-w-0 flex-1 text-lg font-extrabold">🔐 {tr("Permissions", "الصلاحيات")} — <span dir="auto">{u.name}</span></h3><button type="button" className={smallBtn} onClick={onClose} aria-label={tr("Close", "إغلاق")} data-testid="perm-panel-close">✕</button></div>
+        <div className="sticky -top-4 z-10 -mx-4 -mt-4 mb-3 flex items-center gap-3 bg-gradient-to-r from-indigo-800 via-sky-800 to-emerald-800 px-4 py-3 text-white shadow sm:-top-6 sm:-mx-6 sm:-mt-6 sm:px-6" data-testid="perm-panel-head"><h3 className="min-w-0 flex-1 text-lg font-extrabold">🔐 {tr("Permissions", "الصلاحيات")} — <span dir="auto">{u.name}</span></h3><button type="button" className={smallBtn} onClick={onClose} aria-label={tr("Close", "إغلاق")} data-testid="perm-panel-close">✕</button></div>
         <div className="space-y-3">
           <div className="rounded-2xl border border-dashed border-black/15 p-3 dark:border-white/20" data-testid="perm-subjects">
             <p className="mb-2 text-sm font-bold">📚 {tr("Subjects taught", "المواد")}</p>
@@ -671,7 +671,7 @@ function HeadBtn({ label, text, icon, onClick, primary, testId }: { label: strin
 }
 
 function Stat({ label, value, tone, onClick, active, small }: { label: string; value: number; tone?: "ok" | "bad"; onClick: () => void; active?: boolean; small?: boolean }) {
-  const dot = tone === "ok" ? "bg-emerald-500" : tone === "bad" ? "bg-rose-500" : "bg-sun";
+  const dot = tone === "ok" ? "bg-emerald-500" : tone === "bad" ? "bg-rose-700" : "bg-sun";
   return (
     <button type="button" onClick={onClick} aria-pressed={!!active} data-testid="lms-stat"
       className={`flex shrink-0 items-center gap-2 rounded-2xl border px-3 text-start transition ${small ? "py-1.5" : "py-2"} ${active ? "border-sun bg-sun/15" : "border-black/10 bg-white/70 hover:bg-black/5 dark:border-white/15 dark:bg-white/5 dark:hover:bg-white/10"}`}>

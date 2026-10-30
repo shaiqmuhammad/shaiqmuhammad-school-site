@@ -95,7 +95,7 @@ export function LmsSetup() {
   return (
     <>
       <div className="light-island space-y-5 text-[#1b2f44]" data-testid="lms-setup">
-        <div className="rounded-3xl bg-gradient-to-r from-indigo-600 via-sky-600 to-emerald-500 p-5 text-white shadow">
+        <div className="rounded-3xl bg-gradient-to-r from-indigo-800 via-sky-800 to-emerald-800 p-5 text-white shadow">
           <h2 className="text-2xl font-extrabold" data-testid="admin-lms-heading">🏫 {tr("Classes & subjects", "الصفوف والمواد")}</h2>
           <p className="mt-1 text-sm opacity-90">{tr("The only place to create Phases, Departments, Subjects, Classes and Sections. Groups, Teaching assignment, Timetable, filters, trackers and reports all read from here. Renaming updates everyone who uses the name.", "المكان الوحيد لإنشاء المراحل والأقسام والمواد والصفوف والشعب. كل الصفحات تقرأ من هنا.")}</p>
           <p className="mt-2 text-xs font-bold opacity-90">{tr("Phase → Department → Subject · Phase → Class → Section", "المرحلة ← القسم ← المادة · المرحلة ← الصف ← الشعبة")}</p>
@@ -103,22 +103,22 @@ export function LmsSetup() {
         {err && <p className="rounded-xl bg-rose-100 px-4 py-2 text-rose-800" role="alert" data-testid="lms-setup-error">{err}</p>}
         <div className="grid gap-5 lg:grid-cols-2">
           <section className={panel + " border-indigo-200"} data-testid="setup-phases">
-            <H icon="🧭" t={tr("Phases", "المراحل")} sub={tr("e.g. EYFS, Primary, Secondary", "مثل EYFS، الابتدائي، الثانوي")} tone="bg-indigo-600" />
+            <H icon="🧭" t={tr("Phases", "المراحل")} sub={tr("e.g. EYFS, Primary, Secondary", "مثل EYFS، الابتدائي، الثانوي")} tone="bg-indigo-800" />
             <div className="mb-3 flex flex-wrap gap-2">{phases.map((x) => <ItemChip key={x.id} item={x} testId="setup-phase" onRename={(name) => save("phase", x.id, name)} onDelete={() => del(x)} />)}{cat && !phases.length && <span className="text-sm opacity-60">{tr("None yet.", "لا يوجد بعد.")}</span>}</div>
             <AddWithParent save={save} kind="phase" placeholder={tr("New phase", "مرحلة جديدة")} testId="setup-phase" />
           </section>
           <section className={panel + " border-violet-200"} data-testid="setup-depts">
-            <H icon="🏛️" t={tr("Departments", "الأقسام")} sub={tr("Each department can belong to a phase (or all phases).", "كل قسم يتبع مرحلة (أو كل المراحل).")} tone="bg-violet-600" />
+            <H icon="🏛️" t={tr("Departments", "الأقسام")} sub={tr("Each department can belong to a phase (or all phases).", "كل قسم يتبع مرحلة (أو كل المراحل).")} tone="bg-violet-800" />
             <ul className="mb-3 space-y-2">{depts.map((x) => <li key={x.id} className="flex flex-wrap items-center gap-2" data-testid="setup-dept-row"><ItemChip item={x} testId="setup-dept" onRename={(name) => save("dept", x.id, name)} onDelete={() => del(x)} /><PSel value={x.phaseId} opts={phases} none={tr("All phases", "كل المراحل")} onChange={(v) => save("dept", x.id, x.name, v)} testId="setup-dept-phase" /></li>)}</ul>
             <AddWithParent save={save} kind="dept" placeholder={tr("New department", "قسم جديد")} opts={phases} none={tr("All phases", "كل المراحل")} testId="setup-dept" />
           </section>
           <section className={panel + " border-sky-200"} data-testid="setup-subjects">
-            <H icon="📘" t={tr("Subjects", "المواد")} sub={tr("Each subject belongs to a department.", "كل مادة تتبع قسمًا.")} tone="bg-sky-600" />
+            <H icon="📘" t={tr("Subjects", "المواد")} sub={tr("Each subject belongs to a department.", "كل مادة تتبع قسمًا.")} tone="bg-sky-800" />
             <ul className="mb-3 space-y-2">{cat?.subjects.map((x) => <li key={x.id} className="flex flex-wrap items-center gap-2" data-testid="setup-subject-row"><ItemChip item={x} testId="setup-subject" onRename={(name) => save("subject", x.id, name)} onDelete={() => del(x)} /><PSel value={x.deptId || ""} opts={depts} none={tr("No department", "بلا قسم")} onChange={(v) => save("subject", x.id, x.name, v)} testId="setup-subject-dept" /></li>)}</ul>
             <AddWithParent save={save} kind="subject" placeholder={tr("e.g. Islamic B, Arabic", "مثل التربية الإسلامية")} opts={depts} none={tr("No department", "بلا قسم")} testId="setup-subject" />
           </section>
           <section className={panel + " border-emerald-200"} data-testid="setup-classes">
-            <H icon="🏫" t={tr("Classes & sections", "الصفوف والشعب")} sub={tr("Each class belongs to a phase; sections belong to a class.", "كل صف يتبع مرحلة؛ والشعب تتبع الصف.")} tone="bg-emerald-600" />
+            <H icon="🏫" t={tr("Classes & sections", "الصفوف والشعب")} sub={tr("Each class belongs to a phase; sections belong to a class.", "كل صف يتبع مرحلة؛ والشعب تتبع الصف.")} tone="bg-emerald-800" />
             <AddWithParent save={save} kind="class" placeholder={tr("New class, e.g. Year 2", "صف جديد، مثل Year 2")} opts={phases} none={tr("No phase", "بلا مرحلة")} testId="setup-class" />
             <ul className="mt-3 space-y-2">
               {cat?.classes.map((c) => (
