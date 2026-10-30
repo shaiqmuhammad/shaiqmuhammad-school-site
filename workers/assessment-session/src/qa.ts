@@ -117,6 +117,7 @@ export async function qaHandle(c: QaCtx, a: Actor, action: string, input: Json):
   if (a.role !== "admin" && f.subject && !subjOfActor(a).includes(f.subject)) return forbid("not_your_subject");
   const k = keyOf(f);
   const prev = sql.exec(`SELECT * FROM qa_rep WHERE k=?`, k).toArray()[0];
+  if (action === "qa-delete") { if (a.role !== "admin" || a.viewAs) return forbid("admin_only"); sql.exec(`DELETE FROM qa_rep WHERE k=?`, k); return { status: 200, body: { ok: true, removed: !!prev } }; }
   if (action === "qa-save") {
     if (a.viewAs) return forbid("read_only");
     if (prev ? !acc.edit : !acc.add) return forbid(prev ? "edit_not_allowed" : "add_not_allowed");
