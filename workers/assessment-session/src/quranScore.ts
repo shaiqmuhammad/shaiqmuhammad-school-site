@@ -8,11 +8,14 @@
  * Older colour-only grades map to all three criteria equal (green 3/3/3, yellow 2/2/2, red 1/1/1).
  */
 export type Level = 1 | 2 | 3;
-export type Scores = { m: Level; t: Level; r: Level; notes?: { m?: string; t?: string; r?: string }; fb?: { en: string; ar: string } };
+/** t328: h = Memorisation (hifz), optional so older grades stay valid; when present it counts in the overall rule. */
+export type Scores = { m: Level; t: Level; r: Level; h?: Level; notes?: { m?: string; t?: string; r?: string; h?: string }; fb?: { en: string; ar: string } };
 
 const lv = (v: unknown): Level | null => (v === 1 || v === 2 || v === 3 ? v : [1, 2, 3].includes(Number(v)) ? (Number(v) as Level) : null);
-export const overallOf = (s: Pick<Scores, "m" | "t" | "r">): "green" | "yellow" | "red" =>
-  s.m === 3 && s.t === 3 && s.r === 3 ? "green" : Math.min(s.m, s.t, s.r) === 1 ? "red" : "yellow";
+export const overallOf = (s: Pick<Scores, "m" | "t" | "r" | "h">): "green" | "yellow" | "red" => {
+  const v = [s.m, s.t, s.r, ...(s.h ? [s.h] : [])];
+  return v.every((x) => x === 3) ? "green" : Math.min(...v) === 1 ? "red" : "yellow";
+};
 export const fromGrade = (g: string): Scores | null => {
   const l = g === "green" ? 3 : g === "yellow" ? 2 : g === "red" ? 1 : 0;
   return l ? { m: l as Level, t: l as Level, r: l as Level } : null;
@@ -20,15 +23,20 @@ export const fromGrade = (g: string): Scores | null => {
 export function parseScores(raw: unknown): Scores | null {
   const o = (typeof raw === "string" ? (() => { try { return JSON.parse(raw); } catch { return null; } })() : raw) as Record<string, unknown> | null;
   if (!o) return null;
-  const m = lv(o.m), t = lv(o.t), r = lv(o.r);
+  const m = lv(o.m), t = lv(o.t), r = lv(o.r), h = lv(o.h);
   if (!m || !t || !r) return null;
   const n = (o.notes || {}) as Record<string, unknown>;
   const s = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim().slice(0, 300) : undefined);
   const fb = o.fb as { en?: string; ar?: string } | undefined;
-  return { m, t, r, notes: { m: s(n.m), t: s(n.t), r: s(n.r) }, fb: fb?.en ? { en: String(fb.en), ar: String(fb.ar || fb.en) } : undefined };
+  return { m, t, r, ...(h ? { h } : {}), notes: { m: s(n.m), t: s(n.t), r: s(n.r), h: s(n.h) }, fb: fb?.en ? { en: String(fb.en), ar: String(fb.ar || fb.en) } : undefined };
 }
 
-const LINES: Record<"m" | "t" | "r", Record<Level, [string, string]>> = {
+const LINES: Record<"m" | "t" | "r" | "h", Record<Level, [string, string]>> = {
+  h: {
+    3: ["Memorisation: excellent — recited fully from memory.", "الحفظ: ممتاز — تلاوة كاملة من الحفظ."],
+    2: ["Memorisation: good — a few verses need more revision.", "الحفظ: جيد — بعض الآيات تحتاج مراجعة."],
+    1: ["Memorisation: needs practice — revise the verses daily until they are secure.", "الحفظ: يحتاج تدريبًا — راجع الآيات يوميًا حتى تثبت."],
+  },
   m: {
     3: ["Makharij: excellent — every letter comes from its correct point.", "المخارج: ممتازة — كل حرف يخرج من مخرجه الصحيح."],
     2: ["Makharij: good — polish a few letters (e.g. ح/ه, ع/ء, ق/ك).", "المخارج: جيدة — حسّن بعض الحروف (مثل ح/ه، ع/ء، ق/ك)."],
@@ -55,10 +63,12 @@ const OVERALL: Record<string, [string, string]> = {
 export function buildFeedback(s: Scores, mistakes: { text: string; note?: string }[] = [], teacherNote = ""): { en: string; ar: string } {
   const o = overallOf(s);
   const en: string[] = [OVERALL[o][0]], ar: string[] = [OVERALL[o][1]];
-  for (const k of ["m", "t", "r"] as const) {
+  for (const k of ["m", "t", "r", "h"] as const) {
+    if (k === "h" && !s.h) continue;
     const note = s.notes?.[k];
-    en.push(`• ${LINES[k][s[k]][0]}${note ? ` ${note}` : ""}`);
-    ar.push(`• ${LINES[k][s[k]][1]}${note ? ` ${note}` : ""}`);
+    const lvK = s[k] as Level;
+    en.push(`• ${LINES[k][lvK][0]}${note ? ` ${note}` : ""}`);
+    ar.push(`• ${LINES[k][lvK][1]}${note ? ` ${note}` : ""}`);
   }
   if (mistakes.length) {
     const list = mistakes.slice(0, 12).map((x) => `${x.text}${x.note ? ` (${x.note})` : ""}`).join("، ");

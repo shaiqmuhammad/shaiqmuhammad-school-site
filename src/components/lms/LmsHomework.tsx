@@ -15,6 +15,7 @@ import { HomeworkEditor } from "@/components/lms/HomeworkEditor";
 import { PackPlayer } from "@/components/lms/packs/PackPlayer";
 import { studentQrCardsPdf } from "@/components/lms/lmsFiles";
 import { FeedbackText, ScoreBadges, ScoreGrader } from "@/components/lms/QuranScores";
+import { VersionTimeline } from "@/components/lms/Versions";
 import { qhwPerm } from "@/lib/lmsMods";
 import { GRADE_STYLE, STATUS_STYLE, card, gradeLabel, inputCls, smallBtn, statusLabel, useLmsActor, useTr } from "@/components/lms/useLms";
 import { quranExtras, ayahAudio, lmsApi, lmsErrorText, quranChapters, quranVerses, type Chapter, type GeneralData, type QuranData, type Submission, type Attempt, type Mistake, type QrLink, type Catalog, type DashStudent } from "@/lib/lms";
@@ -190,7 +191,7 @@ function StudentWork({ hw, sub, reload, chapters = [] }: { hw: Data["homework"];
   const { tr } = useTr();
   const lockName = (n: number, l: "en" | "ar") => { const c = chapters.find((x) => x.id === n); return c ? (l === "ar" ? c.name_arabic : c.name_simple) : String(n); };
   const [text, setText] = useState(sub?.text || "");
-  const [practised, setPractised] = useState(sub?.practised || false);
+  const [practised] = useState(sub?.practised || false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const [draftOk, setDraftOk] = useState(false);
@@ -204,7 +205,7 @@ function StudentWork({ hw, sub, reload, chapters = [] }: { hw: Data["homework"];
     setBusy(true);
     setMsg("");
     try {
-      await lmsApi.saveSub(hw.id, text, practised, submit);
+      await lmsApi.saveSub(hw.id, text, hw.kind === "quran" ? true : practised, submit); // t328: no 'practised' tick box for Quran; recording is enough
       if (submit) try { sessionStorage.setItem("sm_hw_sent", hw.id); } catch { /* ignore */ }
       setMsg(submit ? tr("✅ Your homework has been submitted! Your teacher will check it soon.", "✅ تم تسليم واجبك! سيراجعه معلمك قريبًا.") : tr("Saved ✓", "تم الحفظ ✓"));
       reload();
@@ -229,9 +230,6 @@ function StudentWork({ hw, sub, reload, chapters = [] }: { hw: Data["homework"];
       {hw.kind === "quran" && <div><TrkLink id={hw.id} kind="hw" student /></div>}
       {hw.kind === "quran" ? (
         <>
-          <label className="flex items-center gap-2 text-lg font-semibold">
-            <input type="checkbox" className="h-6 w-6" checked={practised} disabled={locked} onChange={(e) => setPractised(e.target.checked)} data-testid="hw-practised" /> {tr("I have practised these verses", "تدرّبت على هذه الآيات")}
-          </label>
           {sub?.audio ? (
             <AudioClip id={sub.audio} label={"🎙️ " + tr("My recitation", "تلاوتي")} testId="my-rec" onDelete={locked ? undefined : async () => { if (confirm(tr("Delete this recording?", "حذف هذا التسجيل؟"))) { await lmsApi.audioDelete(sub.audio!).catch(() => undefined); reload(); } }} />
           ) : null}
@@ -249,13 +247,13 @@ function StudentWork({ hw, sub, reload, chapters = [] }: { hw: Data["homework"];
       <textarea className={inputCls + " min-h-28"} value={text} onChange={(e) => setText(e.target.value)} disabled={locked} maxLength={4000} dir="auto" placeholder={hw.kind === "quran" ? tr("A note for your teacher (optional)", "ملاحظة لمعلمك (اختياري)") : tr("Your answer", "إجابتك")} data-testid="hw-text" />
       {!locked && (
         <div className="flex flex-wrap gap-2">
-          <button type="button" className={primaryBtn} disabled={busy || (hw.kind === "general" ? !(hw.data as { pack?: string }).pack && !text.trim() && !(sub?.audio || draftOk) : !practised || !(sub?.audio || draftOk))} onClick={() => { if (confirm(tr("Submit your homework now? You can only submit once.", "تسليم واجبك الآن؟ يمكنك التسليم مرة واحدة فقط."))) save(true); }} data-testid="hw-submit">📤 {tr("Submit Your Homework", "سلّم واجبك")}</button>
+          <button type="button" className={primaryBtn} disabled={busy || (hw.kind === "general" ? !(hw.data as { pack?: string }).pack && !text.trim() && !(sub?.audio || draftOk) : !(sub?.audio || draftOk))} onClick={() => { if (confirm(tr("Submit your homework now? You can only submit once.", "تسليم واجبك الآن؟ يمكنك التسليم مرة واحدة فقط."))) save(true); }} data-testid="hw-submit">📤 {tr("Submit Your Homework", "سلّم واجبك")}</button>
           <button type="button" className={smallBtn} disabled={busy} onClick={() => save(false)} data-testid="hw-draft">{tr("Save for later", "حفظ لاحقًا")}</button>
         </div>
       )}
       {(msg || (justSent && sub?.status === "submitted")) && <p className="font-semibold" role="status" data-testid="hw-msg">{msg || tr("✅ Your homework has been submitted! Your teacher will check it soon.", "✅ تم تسليم واجبك! سيراجعه معلمك قريبًا.")}</p>}
       {sub && <Comments sub={sub} />}
-      {sub?.attempts && sub.attempts.length > 0 && <Attempts list={sub.attempts} />}
+      {sub?.versions && sub.versions.length > 0 ? <VersionTimeline list={sub.versions} audio={(id) => <AudioClip id={id} testId="version-clip" />} /> : sub?.attempts && sub.attempts.length > 0 && <Attempts list={sub.attempts} />}
     </section>
   );
 }
@@ -326,7 +324,7 @@ function Review({ s, asAdmin, reload, quran, qdata, regrade = false, onGraded, p
         {s.grade && <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${GRADE_STYLE[s.grade]}`} data-testid="hw-sub-grade">{gradeLabel(s.grade, tr)}</span>}
         {quran ? (
           s.status === "submitted" || editGrade ? (
-            <ScoreGrader onSubmit={async (sc) => { await act({ scores: sc }); setEditGrade(false); onGraded?.(); }} />
+            <ScoreGrader asAdmin={asAdmin} onSubmit={async (sc) => { await act({ scores: sc }); setEditGrade(false); onGraded?.(); }} />
           ) : regrade ? (
             <span className="flex flex-wrap gap-2">
               <button type="button" className={smallBtn} onClick={() => setEditGrade(true)} data-testid="hw-edit-grade">✎ {tr("Edit grade", "تعديل التقييم")}</button>
@@ -343,7 +341,7 @@ function Review({ s, asAdmin, reload, quran, qdata, regrade = false, onGraded, p
       {s.comments.map((x, i) => (
         <div key={i} className="text-sm" dir="auto"><b>{x.by}:</b> {x.text}{x.audio && <AudioClip id={x.audio} asAdmin={asAdmin} label={"🎙️ " + tr("Voice feedback", "تعليق صوتي")} testId="fb-clip" onDelete={async () => { if (confirm(tr("Delete this voice feedback?", "حذف هذا التعليق الصوتي؟"))) { await lmsApi.audioDelete(x.audio!, asAdmin).catch(() => undefined); reload(); } }} />}</div>
       ))}
-      {s.attempts && s.attempts.length > 0 && <Attempts list={s.attempts} asAdmin={asAdmin} />}
+      {s.versions && s.versions.length > 0 ? <VersionTimeline list={s.versions} audio={(id) => <AudioClip id={id} asAdmin={asAdmin} testId="version-clip" />} /> : s.attempts && s.attempts.length > 0 && <Attempts list={s.attempts} asAdmin={asAdmin} />}
       <AudioRecorder label={tr("Record voice feedback (up to 3 minutes)", "سجّل تعليقًا صوتيًا (حتى 3 دقائق)")} testId="rec-teacher" onSave={async (b) => { await lmsApi.audioUpload({ sub: s.id }, b, asAdmin); reload(); }} />
       {quran && qdata && (
         <div className="space-y-2">

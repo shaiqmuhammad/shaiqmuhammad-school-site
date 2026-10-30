@@ -23,6 +23,7 @@ const PERM_LABEL: Record<string, [string, string]> = {
   review: ["Review & approve", "المراجعة والقبول"],
   manageUsers: ["Manage students", "إدارة الطلاب"],
   viewAll: ["See all homework", "رؤية كل الواجبات"],
+  shareCorrect: ["Correct homework shared with them", "تصحيح الواجبات المشاركة معه"],
 };
 const PHASES = ["EYFS", "Primary", "Secondary"];
 const EMPTY: Catalog = { subjects: [], classes: [], sections: [] };

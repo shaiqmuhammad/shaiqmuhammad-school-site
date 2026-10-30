@@ -80,7 +80,7 @@ const TOKEN_DAYS = 3650; // effectively "until you log out" (sliding renewal on 
 const MAX_USERS = 3000;
 const MAX_HW = 2000;
 const FAIL_WINDOW = 15 * 60_000;
-const PERMS = ["assign", "review", "manageUsers", "viewAll", "staff"] as const;
+const PERMS = ["assign", "review", "manageUsers", "viewAll", "staff", "shareCorrect"] as const;
 const STU_OPS = ["view", "add", "edit", "block", "delete"] as const;
 const STU_PERM = /^stu:(view|add|edit|block|delete|none)$/;
 /** Cartoon avatar code: stored reroll, else derived from id + gender (gender itself never leaves the server for non-admins). */
@@ -99,6 +99,7 @@ const PUSH_TEXT: Record<string, [string, string]> = {
   message: ["New message", "{by}: {title}"], announcement: ["Announcement", "{title}"], reminder: ["Homework reminder", "{title}"], revise: ["Time to revise", "{title}"], test: ["Test notification", "Push notifications are working ✅"],
   lesson: ["Lesson in {mins} min", "{subject} · {cls} at {time}"],
   tt_shared: ["Timetable shared", "{by}: {title}"],
+  hw_shared: ["Homework shared with you", "{by}: {title}"],
   lp_new: ["New learning material", "{by}: {title}"], lp_due: ["Due soon", "{title} is due within 24 hours"], lp_feedback: ["Teacher feedback on your slides", "{title}"],
 };
 const DEFAULT_CATS: [string, number, string][] = [["Helping", 1, "🤝"], ["Teamwork", 1, "👥"], ["Recitation", 1, "📖"], ["Respect", 1, "🌟"], ["Hard work", 1, "💪"], ["Off-task", -1, "💤"], ["Disrespect", -1, "⚠️"]];
@@ -248,6 +249,8 @@ export class LmsStore extends DurableObject<LmsEnv> {
     this.sql.exec(`CREATE TABLE IF NOT EXISTS settings (k TEXT PRIMARY KEY, v TEXT)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS unlocks (hw TEXT, student TEXT, PRIMARY KEY (hw, student))`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS qr (token TEXT PRIMARY KEY, hw TEXT, student TEXT, created INTEGER)`);
+    // t328: Quran QR codes are permanent and per student + Surah (old per-homework tokens keep working and resolve to the same page).
+    if (!cols("qr").has("surah")) this.sql.exec(`ALTER TABLE qr ADD COLUMN surah INTEGER DEFAULT 0`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS viewlog (id TEXT PRIMARY KEY, uid TEXT, name TEXT, role TEXT, at INTEGER)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS contacts (id TEXT PRIMARY KEY, name TEXT, email TEXT, subject TEXT, message TEXT, created INTEGER, read INTEGER DEFAULT 0, emailed INTEGER DEFAULT 0, ip TEXT)`);
     if (!cols("users").has("parent_token")) this.sql.exec(`ALTER TABLE users ADD COLUMN parent_token TEXT DEFAULT ''`);
@@ -391,6 +394,9 @@ export class LmsStore extends DurableObject<LmsEnv> {
     return { scope: scope.length ? scope : ["\u0000"], stu, subj };
   }
   /** "View all homework" for a teacher with subject groups only covers homework from admin or teachers of the same subject. */
+  /** t328: homework the owner shared with this teacher (read; correcting needs the per-share switch + the admin "shareCorrect" permission). */
+  private sharedTo(h: { data?: unknown }, uid: string): boolean { const sh = ((h.data || {}) as Json).share as { teachers?: string[] } | undefined; return !!sh?.teachers?.includes(uid); }
+  private shareCanCorrect(h: { data: unknown }, a: Actor): boolean { const sh = ((h.data || {}) as Json).share as { teachers?: string[]; correct?: boolean } | undefined; return a.role === "teacher" && !!sh?.teachers?.includes(a.id) && sh.correct === true && a.perms.includes("shareCorrect"); }
   private va(a: Actor, by: string): boolean {
     if (!a.perms.includes("viewAll")) return false;
     if (!a.subj?.length || !by) return true;
@@ -1870,7 +1876,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
           return { status: 200, body: { homework: hw, tracker: this.trackerOf(a.id), progress: this.progressOf(a.id), leaderboard: this.setting("leaderboard", "off") !== "off" } };
         }
         const qd = qhwOf(a);
-        const all = this.allHomework().filter((h) => a.role === "admin" || this.va(a, h.createdBy) || h.createdBy === a.id).filter((h) => h.kind !== "quran" || (qd.show && qd.view));
+        const all = this.allHomework().filter((h) => a.role === "admin" || this.va(a, h.createdBy) || h.createdBy === a.id || this.sharedTo(h, a.id)).filter((h) => h.kind !== "quran" || (qd.show && qd.view));
         const counts = new Map<string, Record<string, number>>();
         for (const s of this.sql.exec(`SELECT hw, status, COUNT(*) AS n FROM subs GROUP BY hw, status`).toArray()) {
           const c = counts.get(String(s.hw)) || {};
@@ -1901,7 +1907,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         const qd = qhwOf(a);
         if (a.role === "teacher" && !(qd.show && qd.view)) return { status: 403, body: { error: "quran_not_allowed" } };
         const hws = new Map(this.allHomework().filter((h) => h.kind === "quran").map((h) => [h.id, h]));
-        const mine = (h: { createdBy: string }, r: Record<string, unknown>) => a.role === "admin" || this.va(a, h.createdBy) || h.createdBy === a.id || (JSON.parse(String(r.attempts || "[]")) as { by: string }[]).some((x) => x.by === a.name);
+        const mine = (h: { createdBy: string; data?: unknown }, r: Record<string, unknown>) => a.role === "admin" || this.va(a, h.createdBy) || h.createdBy === a.id || this.sharedTo(h, a.id) || (JSON.parse(String(r.attempts || "[]")) as { by: string }[]).some((x) => x.by === a.name);
         const names = new Map(this.sql.exec(`SELECT id, name, cls, section FROM users`).toArray().map((r) => [String(r.id), { name: String(r.name), cls: String(r.cls || ""), section: String(r.section || "") }]));
         const items = this.sql.exec(`SELECT * FROM subs WHERE grade != '' AND status IN ('approved','returned') ORDER BY updated DESC LIMIT 1000`).toArray().filter((r) => hws.has(String(r.hw)) && mine(hws.get(String(r.hw))!, r)).map((r) => {
           const h = hws.get(String(r.hw))!; const at = JSON.parse(String(r.attempts || "[]")) as { at: number; by: string }[]; const last = at[at.length - 1];
@@ -1920,7 +1926,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         }
         if (h.kind === "quran" && a.role === "teacher") { const qv = qhwOf(a); if (!(qv.show && qv.view)) return { status: 403, body: { error: "quran_not_allowed" } }; }
         const names = new Map(this.sql.exec(`SELECT id, name, cls FROM users`).toArray().map((r) => [String(r.id), { name: String(r.name), cls: String(r.cls || "") }]));
-        const subs = this.sql.exec(`SELECT * FROM subs WHERE hw=? ORDER BY updated DESC`, h.id).toArray().map((r) => ({ ...this.subOut(r), student: String(r.student), name: names.get(String(r.student))?.name ?? "?", cls: names.get(String(r.student))?.cls ?? "" }));
+        const subs = this.sql.exec(`SELECT * FROM subs WHERE hw=? ORDER BY updated DESC`, h.id).toArray().map((r) => ({ ...this.withVersions(this.subOut(r), r), student: String(r.student), name: names.get(String(r.student))?.name ?? "?", cls: names.get(String(r.student))?.cls ?? "" }));
         const pending = this.assignees(h).filter((id) => !subs.some((s) => s.student === id)).map((id) => ({ id, name: names.get(id)?.name ?? "?" }));
         return { status: 200, body: { homework: h, subs, notStarted: pending } };
       }
@@ -1948,6 +1954,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         if (!can(a, "review")) return { status: 403, body: { error: "forbidden" } };
         const r = this.sql.exec(`SELECT * FROM subs WHERE id=?`, str(input.id, 40)).toArray()[0];
         if (!r) return { status: 404, body: { error: "not_found" } };
+        { const hs = this.allHomework(String(r.hw))[0]; if (hs && a.role === "teacher" && hs.createdBy !== a.id && !this.va(a, hs.createdBy) && this.sharedTo(hs, a.id) && !this.shareCanCorrect(hs, a)) return { status: 403, body: { error: "share_view_only" } }; }
         { const hq0 = this.allHomework(String(r.hw))[0]; if (hq0?.kind === "quran" && a.role === "teacher") { const qv = qhwOf(a); if (!(qv.show && qv.view)) return { status: 403, body: { error: "quran_not_allowed" } }; } }
         const comments = JSON.parse(String(r.comments || "[]")) as { by: string; text: string; at: number }[];
         const c = str(input.comment, 1000);
@@ -1964,7 +1971,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         const attempts = JSON.parse(String(r.attempts || "[]")) as { n: number; audio: string; grade: string; by: string; at: number; scores?: Scores }[];
         if (grade) attempts.push({ n: attempts.length + 1, audio: String(r.audio || ""), grade, by: a.name, at: Date.now(), scores: scores || undefined });
         if (scores) this.sql.exec(`UPDATE subs SET scores=? WHERE id=?`, JSON.stringify(scores), String(r.id));
-        this.sql.exec(`UPDATE subs SET comments=?, liked=?, status=?, grade=?, attempts=?, updated=? WHERE id=?`, JSON.stringify(comments.slice(-50)), liked, status, grade || String(r.grade || ""), JSON.stringify(attempts.slice(-30)), Date.now(), String(r.id));
+        this.sql.exec(`UPDATE subs SET comments=?, liked=?, status=?, grade=?, attempts=?, updated=? WHERE id=?`, JSON.stringify(comments.slice(-50)), liked, status, grade || String(r.grade || ""), JSON.stringify(attempts.slice(-300)), Date.now(), String(r.id));
         if (grade === "red") this.sql.exec(`UPDATE subs SET audio='', practised=0 WHERE id=?`, String(r.id));
         {
           const hh = this.allHomework(String(r.hw))[0];
@@ -2011,6 +2018,37 @@ export class LmsStore extends DurableObject<LmsEnv> {
         const locks = this.assignees(h).map((s2) => ({ student: s2, name: String(this.userRow("id=?", s2)?.name || s2), section: String(this.userRow("id=?", s2)?.section || ""), lockedBy: this.lockInfo(h, s2), unlocked: this.sql.exec(`SELECT 1 FROM unlocks WHERE hw=? AND student=?`, h.id, s2).toArray().length > 0 }));
         return { status: 200, body: { ok: true, locks } };
       }
+      case "qpre-get": case "qpre-save": {
+        // t328: Quran correction quick comments per criterion (m/t/r/h), each [English, Arabic]. Admin edits; staff read.
+        if (action === "qpre-save") {
+          if (a.role !== "admin" || a.viewAs) return { status: 403, body: { error: "admin_only" } };
+          const raw = (input.presets || {}) as Record<string, unknown>; const out: Record<string, [string, string][]> = {};
+          for (const k of ["m", "t", "r", "h"]) out[k] = (Array.isArray(raw[k]) ? (raw[k] as unknown[]) : []).slice(0, 60).map((x) => (Array.isArray(x) ? [str(x[0], 120), str(x[1] ?? x[0], 120)] : [str(x, 120), str(x, 120)]) as [string, string]).filter((x) => x[0]);
+          this.sql.exec(`INSERT OR REPLACE INTO settings (k, v) VALUES ('qpresets', ?)`, JSON.stringify(out));
+          return { status: 200, body: { ok: true, presets: out } };
+        }
+        if (a.role === "student") return { status: 403, body: { error: "forbidden" } };
+        const v = this.sql.exec(`SELECT v FROM settings WHERE k='qpresets'`).toArray()[0]?.v;
+        return { status: 200, body: { presets: v ? JSON.parse(String(v)) : null } };
+      }
+      case "hw-share": {
+        // t328: owner (or admin) shares a homework with other teachers; "correct" lets them grade it (needs the admin shareCorrect permission too).
+        const h = this.allHomework(str(input.hw, 40))[0];
+        if (!h) return { status: 404, body: { error: "not_found" } };
+        const own = a.role === "admin" || h.createdBy === a.id;
+        const teachers = this.sql.exec(`SELECT id, name, perms, subjects FROM users WHERE role='teacher' AND COALESCE(disabled,0)=0 ORDER BY name`).toArray().filter((t) => String(t.id) !== h.createdBy).map((t) => ({ id: String(t.id), name: String(t.name), permitted: String(t.perms || "").includes("shareCorrect") }));
+        const cur = ((h.data as Json).share || { teachers: [], correct: false }) as { teachers: string[]; correct: boolean };
+        if (input.__method === "POST") {
+          if (!own || a.viewAs) return { status: 403, body: { error: "owner_only" } };
+          const ids = (Array.isArray(input.teachers) ? input.teachers : []).map((x) => str(x, 40)).filter((x) => teachers.some((t) => t.id === x)).slice(0, 60);
+          const next = { teachers: ids, correct: input.correct === true };
+          this.sql.exec(`UPDATE homework SET data=? WHERE id=?`, JSON.stringify({ ...(h.data as Json), share: next }), h.id);
+          const fresh = ids.filter((x) => !cur.teachers.includes(x) || (next.correct && !cur.correct));
+          if (fresh.length) this.notify(fresh, "hw_shared", { hw: h.id, title: h.title, by: a.name, correct: next.correct });
+          return { status: 200, body: { ok: true, share: next } };
+        }
+        return { status: 200, body: { share: cur, teachers: own ? teachers : [], own } };
+      }
       case "qr-links": {
         // Teacher/admin: per-student QR tokens for one homework (created on demand; reset/revoke one).
         if (!can(a, "assign") && !can(a, "review")) return { status: 403, body: { error: "forbidden" } };
@@ -2018,12 +2056,13 @@ export class LmsStore extends DurableObject<LmsEnv> {
         if (!h) return { status: 404, body: { error: "not_found" } };
         if (input.__method === "POST") {
           const sid = str(input.student, 40);
+          if (h.kind === "quran" && (input.revoke === true || input.reset === true)) return { status: 409, body: { error: "qr_permanent" } };
           if (input.revoke === true || input.reset === true) this.sql.exec(`DELETE FROM qr WHERE hw=? AND student=?`, h.id, sid);
           if (input.revoke === true) this.sql.exec(`INSERT INTO qr (token, hw, student, created) VALUES (?, ?, ?, 0)`, "revoked:" + rid("x"), h.id, sid);
         }
         const out = this.assignees(h).map((sid) => {
           const u = this.userRow("id=?", sid);
-          let row = this.sql.exec(`SELECT token FROM qr WHERE hw=? AND student=?`, h.id, sid).toArray()[0];
+          let row = h.kind === "quran" ? this.qrFor(sid, Number((h.data as Json).surah) || 0, h.id) : this.sql.exec(`SELECT token FROM qr WHERE hw=? AND student=?`, h.id, sid).toArray()[0];
           if (!row) {
             const tok = b64url(crypto.getRandomValues(new Uint8Array(18)));
             this.sql.exec(`INSERT INTO qr (token, hw, student, created) VALUES (?, ?, ?, ?)`, tok, h.id, sid, Date.now());
@@ -2161,7 +2200,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
       case "export": {
         if (!isStaff(a)) return { status: 403, body: { error: "forbidden" } };
         if (!this.dlOf(a, "export")) return { status: 403, body: { error: "download_not_allowed" } };
-        const hw = this.allHomework().filter((h) => a.role === "admin" || this.va(a, h.createdBy) || h.createdBy === a.id);
+        const hw = this.allHomework().filter((h) => a.role === "admin" || this.va(a, h.createdBy) || h.createdBy === a.id || this.sharedTo(h, a.id));
         const ids = new Set(hw.map((h) => h.id));
         const users = this.sql.exec(`SELECT id, username, name, role, cls, section FROM users`).toArray().map((r) => ({ id: String(r.id), username: String(r.username), name: String(r.name), role: String(r.role), cls: String(r.cls || ""), section: String(r.section || "") }));
         const subs = this.sql.exec(`SELECT * FROM subs ORDER BY updated`).toArray().filter((r) => ids.has(String(r.hw))).map((r) => ({ ...this.subOut(r), hw: String(r.hw), student: String(r.student) }));
@@ -2230,9 +2269,14 @@ export class LmsStore extends DurableObject<LmsEnv> {
   private subOut(r: Record<string, unknown>) {
     return { id: String(r.id), status: String(r.status), text: String(r.text || ""), practised: Boolean(r.practised), liked: Boolean(r.liked), comments: JSON.parse(String(r.comments || "[]")) as { by: string; text: string; at: number; audio?: string }[], audio: String(r.audio || ""), grade: String(r.grade || ""), scores: parseScores(r.scores) || fromGrade(String(r.grade || "")), mistakes: JSON.parse(String(r.mistakes || "[]")) as { ayah: number; word: number; text: string; note: string }[], submittedAt: Number(r.submitted_at || 0), attempts: (JSON.parse(String(r.attempts || "[]")) as { n: number; audio: string; grade: string; by: string; at: number; scores?: Scores }[]).map((x) => ({ ...x, scores: x.scores || fromGrade(x.grade) || undefined })), updated: Number(r.updated) };
   }
+  /** t328: Quran submissions carry the student's full version timeline on that Surah (teacher view). */
+  private withVersions<T extends { id: string }>(o: T, r: Record<string, unknown>): T {
+    const h = this.allHomework(String(r.hw))[0]; const s2 = h?.kind === "quran" ? Number((h.data as Json).surah) || 0 : 0;
+    return s2 ? { ...o, versions: this.surahVersions(String(r.student), s2) } : o;
+  }
   private sub(hw: string, student: string) {
     const r = this.sql.exec(`SELECT * FROM subs WHERE hw=? AND student=?`, hw, student).toArray()[0];
-    return r ? this.subOut(r) : null;
+    return r ? this.withVersions(this.subOut(r), r) : null;
   }
   private trackerOf(student: string) {
     return this.sql.exec(`SELECT surah, from_ayah, to_ayah, approved, grade, hw, rev_count, rev_at, scores FROM tracker WHERE student=? ORDER BY surah, from_ayah`, student).toArray().map((r) => {
@@ -2667,8 +2711,12 @@ export class LmsStore extends DurableObject<LmsEnv> {
     if (!/^[A-Za-z0-9_-]{22,64}$/.test(token)) return { status: 404, body: { error: "not_found" } };
     const q = this.sql.exec(`SELECT * FROM qr WHERE token=?`, token).toArray()[0];
     if (!q) return { status: 404, body: { error: "not_found" } };
-    const h = this.allHomework(String(q.hw))[0];
+    let h = this.allHomework(String(q.hw))[0];
     const u = this.userRow("id=?", String(q.student));
+    // t328: a Quran code belongs to the student + Surah: it shows the latest homework on that Surah and every version.
+    const qs = Number(q.surah) || (h?.kind === "quran" ? Number((h.data as Json).surah) || 0 : 0);
+    const sameS = qs ? this.allHomework().filter((x) => x.kind === "quran" && Number((x.data as Json).surah) === qs && this.assignees(x).includes(String(q.student))) : [];
+    if (sameS.length) { const withSub = sameS.filter((x) => this.sub(x.id, String(q.student))); h = (withSub.length ? withSub : sameS).sort((a2, b2) => Number(b2.created || 0) - Number(a2.created || 0))[0]; }
     if (!h || !u || u.disabled) return { status: 404, body: { error: "not_found" } };
     const sb = this.sub(h.id, String(u.id));
     const recs = [...new Set([...(sb?.attempts || []).map((x) => x.audio), sb?.audio || ""].filter(Boolean))];
@@ -2680,14 +2728,44 @@ export class LmsStore extends DurableObject<LmsEnv> {
       status: sb?.status || "none", grade: sb?.grade || "", scores: sb?.scores || null,
       recordings: recs, recAt: Object.fromEntries(recs.map((id) => [id, Number(this.sql.exec(`SELECT created FROM blobs WHERE id=?`, id).toArray()[0]?.created || 0)])), attempts: (sb?.attempts || []).map((x) => ({ n: x.n, grade: x.grade, audio: x.audio, at: x.at, scores: x.scores })),
       feedback: (sb?.comments || []).map((c) => ({ by: c.by, text: c.text, audio: c.audio || "", at: c.at })),
-      tracker,
+      tracker, versions: qs ? this.surahVersions(String(u.id), qs) : [],
     } };
+  }
+  /** t328: the one permanent QR token for a student + Surah (earliest existing token wins; created on demand). */
+  private qrFor(student: string, surah: number, hw: string): { token: string } {
+    if (surah) {
+      for (const r of this.sql.exec(`SELECT token, hw, surah FROM qr WHERE student=? AND token NOT LIKE 'revoked:%' ORDER BY created`, student).toArray()) {
+        const s2 = Number(r.surah) || Number((this.allHomework(String(r.hw))[0]?.data as Json | undefined)?.surah) || 0;
+        if (s2 && !Number(r.surah)) this.sql.exec(`UPDATE qr SET surah=? WHERE token=?`, s2, String(r.token));
+        if (s2 === surah) return { token: String(r.token) };
+      }
+    }
+    const tok = b64url(crypto.getRandomValues(new Uint8Array(18)));
+    this.sql.exec(`INSERT INTO qr (token, hw, student, created, surah) VALUES (?, ?, ?, ?, ?)`, tok, hw, student, Date.now(), surah);
+    return { token: tok };
+  }
+  /** t328: every submission on a Surah (all its homework) as numbered versions v1, v2… with recording, marks and feedback. */
+  private surahVersions(student: string, surah: number) {
+    const hws = this.allHomework().filter((x) => x.kind === "quran" && Number((x.data as Json).surah) === surah);
+    const out: { hw: string; title: string; from: number; to: number; audio: string; at: number; grade: string; scores: Scores | null; by: string; pending: boolean; feedback: string[] }[] = [];
+    for (const h of hws) {
+      const r = this.sql.exec(`SELECT * FROM subs WHERE hw=? AND student=?`, h.id, student).toArray()[0]; if (!r) continue;
+      const d = h.data as Json; const comments = JSON.parse(String(r.comments || "[]")) as { text: string; at: number }[];
+      const att = JSON.parse(String(r.attempts || "[]")) as { audio: string; grade: string; by: string; at: number; scores?: Scores }[];
+      let prev = 0;
+      for (const x of att) { out.push({ hw: h.id, title: h.title, from: Number(d.from) || 0, to: Number(d.to) || 0, audio: x.audio || "", at: x.at, grade: x.grade, scores: x.scores || fromGrade(x.grade), by: x.by, pending: false, feedback: comments.filter((c) => c.at > prev && c.at <= x.at + 5000).map((c) => c.text) }); prev = x.at + 5000; }
+      if (r.audio && String(r.status) === "submitted" && !att.some((x) => x.audio === String(r.audio))) out.push({ hw: h.id, title: h.title, from: Number(d.from) || 0, to: Number(d.to) || 0, audio: String(r.audio), at: Number(r.submitted_at || r.updated || 0), grade: "", scores: null, by: "", pending: true, feedback: [] });
+    }
+    return out.sort((a2, b2) => a2.at - b2.at).map((v, i) => ({ v: i + 1, ...v }));
   }
 
   async qrAudio(token: string, id: string): Promise<{ status: number; mime?: string; data?: ArrayBuffer }> {
     const q = this.sql.exec(`SELECT * FROM qr WHERE token=?`, token).toArray()[0];
     if (!q || !/^[A-Za-z0-9_-]{22,64}$/.test(token)) return { status: 404 };
-    const b = this.sql.exec(`SELECT b.* FROM blobs b JOIN subs s ON s.id=b.sub WHERE b.id=? AND s.hw=? AND s.student=?`, id, String(q.hw), String(q.student)).toArray()[0];
+    const qs = Number(q.surah) || Number((this.allHomework(String(q.hw))[0]?.data as Json | undefined)?.surah) || 0;
+    const okHw = new Set([String(q.hw), ...(qs ? this.allHomework().filter((x) => x.kind === "quran" && Number((x.data as Json).surah) === qs).map((x) => x.id) : [])]);
+    const b0 = this.sql.exec(`SELECT b.*, s.hw AS shw FROM blobs b JOIN subs s ON s.id=b.sub WHERE b.id=? AND s.student=?`, id, String(q.student)).toArray()[0];
+    const b = b0 && okHw.has(String(b0.shw)) ? b0 : undefined;
     if (!b) return { status: 404 };
     const f = await this.files.get(id);
     if (!f) return { status: 404 };

@@ -1,6 +1,7 @@
 "use client";
 
 import { FeedbackText, ScoreBadges } from "@/components/lms/QuranScores";
+import { VersionTimeline } from "@/components/lms/Versions";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { GRADE_STYLE, card, gradeLabel, useTr } from "@/components/lms/useLms";
@@ -80,6 +81,7 @@ export function QrPage() {
               {d.grade ? <span className={`mt-3 inline-block rounded-full px-3 py-1 text-sm font-bold ${GRADE_STYLE[d.grade]}`} data-testid="qr-grade">{gradeLabel(d.grade, tr)}</span> : null}
               {d.scores && <div className="mt-3 space-y-2"><ScoreBadges s={d.scores} /><FeedbackText s={d.scores} /></div>}
             </header>
+            {d.versions && d.versions.length > 0 && <section className={card + " space-y-3"} data-testid="qr-versions"><VersionTimeline open list={d.versions} audio={(id, v) => audio(id, `v${v.v}`, "qr-version-rec", v.at)} /></section>}
                         <section className={card + " space-y-3"}>
               <h2 className="text-xl font-bold">🎙️ {tr("My recitation", "تلاوتي")}</h2>
               {d.recordings.length ? d.recordings.map((id, i) => audio(id, d.recordings.length > 1 ? tr(`Recording ${i + 1}`, `التسجيل ${i + 1}`) : "", "qr-rec")) : <p className="opacity-70">{tr("No recording yet.", "لا يوجد تسجيل بعد.")}</p>}

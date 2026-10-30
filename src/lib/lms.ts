@@ -48,8 +48,11 @@ export type Msg = { id: string; sender: string; body: string; created: number; m
 export type Note = { id: string; kind: "hw_new" | "sub_new" | "feedback" | "feedback_audio" | "approved" | "returned" | "graded" | "reminder" | "revise" | "mistakes" | "announcement" | "message"; data: { hw?: string; title?: string; by?: string; student?: string; grade?: Grade; overdue?: boolean; count?: number; surah?: number }; created: number; read: boolean };
 export type Level = 1 | 2 | 3;
 /** Makharij / Tajweed / Recitation levels (1 Needs practice · 2 Good · 3 Excellent) + generated feedback. */
-export type Scores = { m: Level; t: Level; r: Level; notes?: { m?: string; t?: string; r?: string }; fb?: { en: string; ar: string } };
-export type Submission = { id: string; status: "draft" | "submitted" | "approved" | "returned"; text: string; practised: boolean; liked: boolean; comments: Comment[]; audio?: string; grade?: Grade | ""; scores?: Scores | null; attempts?: Attempt[]; mistakes?: Mistake[]; submittedAt?: number; updated: number };
+export type Scores = { m: Level; t: Level; r: Level; h?: Level; notes?: { m?: string; t?: string; r?: string; h?: string }; fb?: { en: string; ar: string } };
+/** t328: one submission on a Surah (all its homework), numbered v1, v2… */
+export type Version = { v: number; hw: string; title: string; from: number; to: number; audio: string; at: number; grade: Grade | ""; scores: Scores | null; by: string; pending: boolean; feedback: string[] };
+export type HwShare = { teachers: string[]; correct: boolean };
+export type Submission = { versions?: Version[]; id: string; status: "draft" | "submitted" | "approved" | "returned"; text: string; practised: boolean; liked: boolean; comments: Comment[]; audio?: string; grade?: Grade | ""; scores?: Scores | null; attempts?: Attempt[]; mistakes?: Mistake[]; submittedAt?: number; updated: number };
 export type Grade = "green" | "yellow" | "red";
 export type Attempt = { n: number; audio: string; grade: Grade; by: string; at: number; scores?: Scores };
 export type TrackerRow = { surah: number; from: number; to: number; approved: number; grade?: Grade; hw?: string; revCount?: number; revDue?: number; scores?: Scores | null };
@@ -59,7 +62,7 @@ export type MapRow = { id: string; name: string; cls: string; section: string; c
 
 /** Student-account switches. Legacy "Manage students" with none of the stu:* flags set means all four. */
 export const stuUi = (perms: string[], op: "view" | "add" | "edit" | "block" | "delete") => { if (!perms.includes("manageUsers")) return false; const has = perms.filter((p) => p.startsWith("stu:")); return has.length ? has.includes(`stu:${op}`) : true; };
-export const PERMS = ["assign", "review", "manageUsers", "viewAll"] as const;
+export const PERMS = ["assign", "review", "manageUsers", "viewAll", "shareCorrect"] as const;
 
 export class LmsError extends Error {
   data?: Record<string, unknown>;
@@ -124,7 +127,7 @@ export function lmsSignOut() {
 
 /** Admin read-only "view as" (this browser tab only; never touches the user's real LMS session). */
 export type QrLink = { student: string; name: string; nameAr?: string; arabic?: boolean; cls: string; section: string; token: string };
-export type QrView = { dl?: boolean; student: string; studentAr?: string; arabic?: boolean; cls: string; section: string; homework: { title: string; kind: "quran" | "general"; data: Partial<QuranData> }; status: string; grade: Grade | ""; scores?: Scores | null; recordings: string[]; recAt?: Record<string, number>; attempts: { n: number; grade: Grade; audio: string; at: number; scores?: Scores }[]; feedback: { by: string; text: string; audio: string; at: number }[]; tracker: TrackerRow[] };
+export type QrView = { versions?: Version[]; dl?: boolean; student: string; studentAr?: string; arabic?: boolean; cls: string; section: string; homework: { title: string; kind: "quran" | "general"; data: Partial<QuranData> }; status: string; grade: Grade | ""; scores?: Scores | null; recordings: string[]; recAt?: Record<string, number>; attempts: { n: number; grade: Grade; audio: string; at: number; scores?: Scores }[]; feedback: { by: string; text: string; audio: string; at: number }[]; tracker: TrackerRow[] };
 export type ViewAs = { id: string; name: string; role: "student" | "teacher"; cls: string };
 export function viewAs(): ViewAs | null {
   if (typeof window === "undefined") return null;
@@ -187,6 +190,10 @@ export const lmsApi = {
   hwLocks: (hw: string, opts: { student?: string; unlock?: boolean } = {}, asAdmin = false) => (opts.student ? call<{ locks: { student: string; name: string; section: string; lockedBy: Homework["lockedBy"]; unlocked: boolean }[] }>("hw-unlock", { hw, ...opts }, { asAdmin }) : call<{ locks: { student: string; name: string; section: string; lockedBy: Homework["lockedBy"]; unlocked: boolean }[] }>("hw-unlock", undefined, { asAdmin, query: { hw } })),
   qrLinks: (hw: string, opts: { student?: string; reset?: boolean; revoke?: boolean } = {}, asAdmin = false) => (opts.student ? call<{ links: QrLink[]; teacher: string }>("qr-links", { hw, ...opts }, { asAdmin }) : call<{ links: QrLink[]; teacher: string }>("qr-links", undefined, { asAdmin, query: { hw } })),
   qrView: (t: string) => call<QrView>("qr", undefined, { query: { t } }),
+  hwShareGet: (hw: string, asAdmin = false) => call<{ share: HwShare; teachers: { id: string; name: string; permitted: boolean }[]; own: boolean }>("hw-share", undefined, { asAdmin, query: { hw } }),
+  hwShareSet: (hw: string, share: HwShare, asAdmin = false) => call<{ ok: true; share: HwShare }>("hw-share", { hw, ...share }, { asAdmin }),
+  qpreGet: (asAdmin = false) => call<{ presets: Record<string, [string, string][]> | null }>("qpre-get", {}, { asAdmin }),
+  qpreSave: (presets: Record<string, [string, string][]>) => call<{ ok: true }>("qpre-save", { presets }, { asAdmin: true }),
   qrAudioUrl: (t: string, id: string, dl = false) => `${ASSESSMENT_API_BASE}/api/lms/qr-audio?t=${encodeURIComponent(t)}&id=${encodeURIComponent(id)}${dl ? "&dl=1" : ""}`,
   viewAsLog: () => call<{ items: { uid: string; name: string; role: string; at: number }[] }>("viewas-log", undefined, { asAdmin: true }),
   async login(username: string, pin: string) {

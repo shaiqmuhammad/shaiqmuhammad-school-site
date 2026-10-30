@@ -76,7 +76,7 @@ export function CorrectedList({ asAdmin }: { asAdmin: boolean }) {
                 {x.status === "approved" && <button type="button" className="inline-flex rounded-full bg-black/5 px-3 py-1 text-xs font-bold dark:bg-white/10" onClick={() => { if (confirm(tr("Reopen this homework? The student will be asked to practise and submit again.", "إعادة فتح هذا الواجب؟ سيُطلب من الطالب التدرّب والتسليم مجددًا."))) review(x.id, { status: "returned" }, tr("Reopened — the student can submit again.", "أُعيد فتحه — يمكن للطالب التسليم مجددًا.")); }} data-testid="corr-reopen">↺ {tr("Reopen", "إعادة فتح")}</button>}
                 {!asAdmin && <a className="inline-flex rounded-full bg-black/5 px-3 py-1 text-xs font-bold dark:bg-white/10" href={`/lms/homework?id=${x.hw}#corrected`} data-testid="corr-open">📖 {tr("Open homework", "فتح الواجب")}</a>}
               </div>
-              {edit === x.id && <ScoreGrader onSubmit={(sc) => review(x.id, { scores: sc }, tr("✅ Grade updated.", "✅ تم تحديث التقييم."))} />}
+              {edit === x.id && <ScoreGrader asAdmin={asAdmin} onSubmit={(sc) => review(x.id, { scores: sc }, tr("✅ Grade updated.", "✅ تم تحديث التقييم."))} />}
             </li>
           ))}
         </ul>
