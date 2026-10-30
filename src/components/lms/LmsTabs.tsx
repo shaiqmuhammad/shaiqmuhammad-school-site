@@ -115,7 +115,9 @@ export function LmsTabs() {
     { id: "msg", href: "/lms/messages", en: "Messages", ar: "الرسائل", icon: I.msg, lvl: 0 },
   ];
   const HID: Record<string, string> = { hw: "homework", assess: "assessments", msg: "messaging", wall: "wall", act: "activities", res: "results" };
-  const shownT = (t: Tab) => !(HID[t.id] && actor.perms?.includes(`hide:${HID[t.id]}`));
+  // t350: Activities only when the admin ticked at least one activity (act:*) or assessment to host (host:*).
+  const hasAct = (actor.perms || []).some((p) => p.startsWith("act:") || p.startsWith("host:"));
+  const shownT = (t: Tab) => !(HID[t.id] && actor.perms?.includes(`hide:${HID[t.id]}`)) && !(t.id === "act" && staff && !hasAct);
   // t309: My account is reached from the header avatar, not the side menu (parents keep it).
   const tabs0 = isParent ? [...PARENT, ...acctTab] : staff ? [...TEACHER.slice(0, 3), ...qTab, ...TEACHER.slice(3), ...extra, ...loginsTab].filter(shownT) : [...STUDENT, ...extra];
   // t304: each student/teacher can reorder or hide rail items (Dashboard and My account always stay).

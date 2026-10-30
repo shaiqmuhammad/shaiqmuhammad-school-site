@@ -1,3 +1,4 @@
+import { loadCat, catPhases, rulePhase, ruleDept } from "./catx";
 /**
  * LMS phase 1: student/teacher accounts (username + PIN), homework (Quran + general), review, tracker.
  *
@@ -75,7 +76,7 @@ export type Role = "student" | "teacher" | "parent";
 export type Actor = { id: string; role: Role | "admin"; name: string; cls: string; perms: string[]; scope?: string[]; stu?: string[]; viewAs?: boolean; subj?: string[]; nameAr?: string };
 /** A student's subjects ("Islamic A, Islamic B" → ["Islamic A", "Islamic B"]). */
 export const subjList = (v: unknown) => String(v || "").split(/\s*,\s*/).map((x) => x.trim()).filter(Boolean);
-type CatKind = "subject" | "class" | "section";
+type CatKind = "phase" | "dept" | "subject" | "class" | "section";
 
 const TOKEN_DAYS = 3650; // effectively "until you log out" (sliding renewal on visits); logout, block or PIN reset end it
 const MAX_USERS = 3000;
@@ -338,14 +339,18 @@ export class LmsStore extends DurableObject<LmsEnv> {
     this.migrateSubjectPhase();
     this.migrateGroupsToAssignment();
     this.migrateViewAllTeachers();
+    this.migrateCatalogTree();
   }
 
   private catalog() {
     const rows = this.sql.exec(`SELECT * FROM catalog ORDER BY kind, ord, name`).toArray().map((r) => ({ id: String(r.id), kind: String(r.kind) as CatKind, name: String(r.name), parent: String(r.parent || "") }));
     const className = new Map(rows.filter((r) => r.kind === "class").map((r) => [r.id, r.name]));
     return {
-      subjects: rows.filter((r) => r.kind === "subject").map(({ id, name }) => ({ id, name })),
-      classes: rows.filter((r) => r.kind === "class").map(({ id, name }) => ({ id, name })),
+      // t349: Phase > Department > Subject; classes belong to a phase; sections to a class.
+      phases: rows.filter((r) => r.kind === "phase").map(({ id, name }) => ({ id, name })),
+      depts: rows.filter((r) => r.kind === "dept").map(({ id, name, parent }) => ({ id, name, phaseId: parent })),
+      subjects: rows.filter((r) => r.kind === "subject").map(({ id, name, parent }) => ({ id, name, deptId: parent })),
+      classes: rows.filter((r) => r.kind === "class").map(({ id, name, parent }) => ({ id, name, phaseId: parent })),
       sections: rows.filter((r) => r.kind === "section").map(({ id, name, parent }) => ({ id, name, classId: parent, cls: className.get(parent) || "" })),
     };
   }
@@ -356,6 +361,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     if (section && !c.sections.some((x) => x.name === section && (!cls || x.cls === cls))) return "unknown_section";
     if (subjects.some((n) => !c.subjects.some((x) => x.name === n))) return "unknown_subject";
     for (const sc of scope) {
+      if (sc.startsWith("grp:")) { if (!this.sql.exec(`SELECT id FROM grp WHERE id=? AND admin=1`, sc.slice(4)).toArray().length) return "unknown_scope"; continue; }
       const [k, sec] = sc.split("|");
       if (!c.classes.some((x) => x.name === k) || (sec && !c.sections.some((x) => x.name === sec && x.cls === k))) return "unknown_scope";
     }
@@ -382,10 +388,13 @@ export class LmsStore extends DurableObject<LmsEnv> {
   /** t346: the teacher's "Teaching assignment" (users.scope + users.subjects, set on Add/Edit Teacher) is the single source of which classes they see. subj = their subjects that students actually take (none match → no subject filter). */
   private teacherScope(tid: string): { scope: string[]; stu: string[]; subj: string[] } {
     const u = this.sql.exec(`SELECT scope, subjects FROM users WHERE id=?`, tid).toArray()[0];
-    const scope = u ? (JSON.parse(String(u.scope || "[]")) as string[]).filter(Boolean) : [];
+    const raw = u ? (JSON.parse(String(u.scope || "[]")) as string[]).filter(Boolean) : [];
+    // t349: "grp:<id>" = an admin group picked in Teaching assignment → its class/section tokens + its individual students.
+    const scope = raw.filter((x) => !x.startsWith("grp:")), stu: string[] = [];
+    for (const t of raw.filter((x) => x.startsWith("grp:"))) { const g = this.sql.exec(`SELECT students, classes FROM grp WHERE id=? AND admin=1`, t.slice(4)).toArray()[0]; if (!g) continue; scope.push(...(JSON.parse(String(g.classes || "[]")) as string[])); stu.push(...(JSON.parse(String(g.students || "[]")) as string[])); }
     const subs = u ? (JSON.parse(String(u.subjects || "[]")) as string[]) : [];
     const stuSubs = new Set<string>(); for (const r of this.sql.exec(`SELECT DISTINCT subject FROM users WHERE role='student'`).toArray()) for (const x of subjList(r.subject)) stuSubs.add(x);
-    return { scope: scope.length ? scope : ["\u0000"], stu: [], subj: subs.filter((x) => stuSubs.has(x)) };
+    return { scope: scope.length ? scope : ["\u0000"], stu: [...new Set(stu)], subj: subs.filter((x) => stuSubs.has(x)) };
   }
   /** t346 one-time: copy each teacher's group-based class access into their Teaching assignment so nobody loses access. Individual students in partly-covered sections add that section. Group subjects are added to the teacher's subjects. Teachers without groups keep their stored assignment. */
   private migrateGroupsToAssignment() {
@@ -419,6 +428,25 @@ export class LmsStore extends DurableObject<LmsEnv> {
     this.sql.exec(`INSERT INTO settings (k, v) VALUES ('mig:t347', '1') ON CONFLICT(k) DO UPDATE SET v='1'`);
     this.sql.exec(`INSERT INTO settings (k, v) VALUES ('mig:t347:log', ?) ON CONFLICT(k) DO UPDATE SET v=excluded.v`, JSON.stringify(log));
   }
+  /** t349 one-time: create Phases (EYFS/Primary/Secondary + any used), Departments from subject names, link subjects → dept, classes → phase (majority of their students' phase, else naming rule). Nothing removed. */
+  private migrateCatalogTree() {
+    if (this.setting("mig:t349") === "1") return;
+    const cat = () => this.sql.exec(`SELECT id, kind, name, parent FROM catalog`).toArray();
+    const ensure = (kind: string, name: string, parent = "") => { const ex = cat().find((r) => r.kind === kind && r.name === name); if (ex) return String(ex.id); const id = rid(kind[0]); this.sql.exec(`INSERT INTO catalog (id, kind, name, parent) VALUES (?, ?, ?, ?)`, id, kind, name, parent); return id; };
+    const used = new Set<string>(["EYFS", "Primary", "Secondary"]);
+    for (const r of this.sql.exec(`SELECT phase FROM users WHERE phase != ''`).toArray()) for (const x of String(r.phase).split(",")) if (x.trim()) used.add(x.trim());
+    const ph = new Map([...used].map((n) => [n, ensure("phase", n)]));
+    const log: Record<string, unknown> = { phases: [...used], depts: {}, classes: {} };
+    for (const s of cat().filter((r) => r.kind === "subject" && !r.parent)) { const d = ruleDept(String(s.name)); const did = ensure("dept", d); this.sql.exec(`UPDATE catalog SET parent=? WHERE id=?`, did, String(s.id)); (log.depts as Record<string, string>)[String(s.name)] = d; }
+    for (const c of cat().filter((r) => r.kind === "class" && !r.parent)) {
+      const cnt = new Map<string, number>();
+      for (const u of this.sql.exec(`SELECT phase FROM users WHERE role='student' AND cls=? AND phase != ''`, String(c.name)).toArray()) cnt.set(String(u.phase), (cnt.get(String(u.phase)) || 0) + 1);
+      const best = [...cnt.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || rulePhase(String(c.name));
+      if (best && ph.has(best)) { this.sql.exec(`UPDATE catalog SET parent=? WHERE id=?`, ph.get(best)!, String(c.id)); (log.classes as Record<string, string>)[String(c.name)] = best; }
+    }
+    this.sql.exec(`INSERT INTO settings (k, v) VALUES ('mig:t349', '1') ON CONFLICT(k) DO UPDATE SET v='1'`);
+    this.sql.exec(`INSERT INTO settings (k, v) VALUES ('mig:t349:log', ?) ON CONFLICT(k) DO UPDATE SET v=excluded.v`, JSON.stringify(log));
+  }
   private legacyGroupScope(tid: string): { scope: string[]; stu: string[]; subj: string[] } {
     const gs = this.sql.exec(`SELECT students, classes, teachers, subject FROM grp WHERE admin=1`).toArray().filter((r) => (JSON.parse(String(r.teachers || "[]")) as string[]).includes(tid));
     // Subject groups (e.g. Islamic A / Islamic B): the teacher only ever sees students who take one of those subjects.
@@ -449,7 +477,9 @@ export class LmsStore extends DurableObject<LmsEnv> {
   }
   /** "View all homework" for a teacher with subject groups only covers homework from admin or teachers of the same subject. */
   /** t328: homework the owner shared with this teacher (read; correcting needs the per-share switch + the admin "shareCorrect" permission). */
-  private sharedTo(h: { data?: unknown }, uid: string): boolean { const sh = ((h.data || {}) as Json).share as { teachers?: string[] } | undefined; return !!sh?.teachers?.includes(uid); }
+  // t349: per-homework "Share with teachers" was removed; Permissions (See all homework + teacher list) is the only cross-teacher access.
+  private sharedTo(_h: { data?: unknown }, _uid: string): boolean { return false; }
+  private sharedToOld(h: { data?: unknown }, uid: string): boolean { const sh = ((h.data || {}) as Json).share as { teachers?: string[] } | undefined; return !!sh?.teachers?.includes(uid); }
   private shareCanCorrect(h: { data: unknown }, a: Actor): boolean { const sh = ((h.data || {}) as Json).share as { teachers?: string[]; correct?: boolean } | undefined; return a.role === "teacher" && !!sh?.teachers?.includes(a.id) && sh.correct === true && a.perms.includes("shareCorrect"); }
   private va(a: Actor, by: string): boolean {
     if (!a.perms.includes("viewAll")) return false;
@@ -475,13 +505,14 @@ export class LmsStore extends DurableObject<LmsEnv> {
   private phaseOfClass(cls: string): string {
     const c = String(cls || "").trim();
     if (!c) return "";
+    { const r = this.sql.exec(`SELECT p.name AS n FROM catalog c JOIN catalog p ON p.id=c.parent AND p.kind='phase' WHERE c.kind='class' AND c.name=?`, c).toArray()[0]; if (r) return String(r.n); }
     if (/^(fs|eyfs|foundation|reception|nursery|kg)/i.test(c)) return "EYFS";
     const n = Number((c.match(/\d+/) || [""])[0]);
     if (!n) return "";
     return n <= 2 ? "EYFS" : n <= 6 ? "Primary" : "Secondary";
   }
   private normPhase(v: unknown, multi: boolean): string {
-    const ok = ["EYFS", "Primary", "Secondary"];
+    const ok = (loadCat(this.sql as never), catPhases());
     const xs = (Array.isArray(v) ? v : String(v ?? "").split(",")).map((x) => String(x).trim()).filter((x) => ok.includes(x));
     const u = ok.filter((x) => xs.includes(x));
     return multi ? u.join(",") : u[0] || "";
@@ -1241,11 +1272,12 @@ export class LmsStore extends DurableObject<LmsEnv> {
         const students = this.sql.exec(`SELECT id, name, first_name, last_name, cls, section, gender, avatar, email, last_seen FROM users WHERE role='student' AND disabled=0 ORDER BY cls, section, name`).toArray()
           .filter((r) => this.inScope(a, String(r.cls || ""), String(r.section || ""), String(r.id)))
           .map((r) => ({ id: String(r.id), name: String(r.name), cls: String(r.cls || ""), section: String(r.section || ""), avatar: avatarOf(r), parentEmail: Boolean(r.email), seen: Number(r.last_seen || 0), points: tot.get(String(r.id)) || 0 }));
-        return { status: 200, body: { students, canManage: stuCan(a, "view"), stuPerms: { view: stuCan(a, "view"), add: stuCan(a, "add"), edit: stuCan(a, "edit"), block: stuCan(a, "block"), delete: stuCan(a, "delete") }, now: Date.now() } };
+        return { status: 200, body: { students, assigned: a.role === "teacher" ? [...new Set((a.scope || []).filter((x) => x && x !== "\u0000"))] : [], canManage: stuCan(a, "view"), stuPerms: { view: stuCan(a, "view"), add: stuCan(a, "add"), edit: stuCan(a, "edit"), block: stuCan(a, "block"), delete: stuCan(a, "delete") }, now: Date.now() } };
       }
       case "act-publish": {
         // Teacher started a live activity for chosen students: it shows up on their LMS home with a one-tap Join (no code to type).
         if (!isStaff(a) || a.viewAs) return { status: 403, body: { error: "forbidden" } };
+        { const ty = str(input.type, 12); if (a.role === "teacher" && (a.perms.includes("hide:activities") || !(a.perms.includes("act:*") || a.perms.includes(`act:${ty}`) || (ty === "assess" && a.perms.some((p) => p.startsWith("host:")))))) return { status: 403, body: { error: "activity_not_allowed" } }; }
         const code = str(input.code, 8).toUpperCase();
         const ids = strList(input.students, 300).filter((sid) => this.inScope(a, ...this.placeOf(sid), sid));
         if (!/^[A-Z0-9]{4,8}$/.test(code) || !ids.length) return { status: 400, body: { error: "bad" } };
@@ -1769,13 +1801,16 @@ export class LmsStore extends DurableObject<LmsEnv> {
 
       case "catalog-save": {
         if (a.role !== "admin") return { status: 403, body: { error: "admin_only" } };
-        const kind = (["subject", "class", "section"] as const).find((k) => k === input.kind);
+        const kind = (["phase", "dept", "subject", "class", "section"] as const).find((k) => k === input.kind);
         const name = str(input.name, 40);
         if (!kind || !name) return { status: 400, body: { error: "name" } };
-        const parent = kind === "section" ? str(input.parent, 40) : "";
+        // t349: section → class (required); dept → phase, subject → dept, class → phase (optional).
+        const pk = ({ section: "class", dept: "phase", subject: "dept", class: "phase", phase: "" } as const)[kind];
+        const parent = pk ? str(input.parent, 40) : "";
         if (kind === "section" && !this.sql.exec(`SELECT id FROM catalog WHERE id=? AND kind='class'`, parent).toArray().length) return { status: 400, body: { error: "unknown_class" } };
+        if (parent && kind !== "section" && !this.sql.exec(`SELECT id FROM catalog WHERE id=? AND kind=?`, parent, pk).toArray().length) return { status: 400, body: { error: "unknown_parent" } };
         const id = str(input.id, 40);
-        const dup = this.sql.exec(`SELECT id FROM catalog WHERE kind=? AND name=? AND parent=?`, kind, name, parent).toArray()[0];
+        const dup = kind === "section" ? this.sql.exec(`SELECT id FROM catalog WHERE kind=? AND name=? AND parent=?`, kind, name, parent).toArray()[0] : this.sql.exec(`SELECT id FROM catalog WHERE kind=? AND name=?`, kind, name).toArray()[0];
         if (dup && String(dup.id) !== id) return { status: 409, body: { error: "duplicate" } };
         if (Number(this.sql.exec(`SELECT COUNT(*) AS n FROM catalog`).one().n) >= 500 && !id) return { status: 409, body: { error: "full" } };
         if (!id) {
@@ -1786,7 +1821,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         const old = this.sql.exec(`SELECT * FROM catalog WHERE id=?`, id).toArray()[0];
         if (!old || old.kind !== kind) return { status: 404, body: { error: "not_found" } };
         const was = String(old.name);
-        this.sql.exec(`UPDATE catalog SET name=?, parent=? WHERE id=?`, name, parent || String(old.parent || ""), id);
+        this.sql.exec(`UPDATE catalog SET name=?, parent=? WHERE id=?`, name, kind === "section" ? parent || String(old.parent || "") : input.parent !== undefined ? parent : String(old.parent || ""), id);
         if (was !== name) this.renameEverywhere(kind, was, name, kind === "section" ? this.className(String(old.parent)) : "");
         return { status: 200, body: { ok: true, id, ...this.catalog() } };
       }
@@ -1823,6 +1858,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
           if (r.kind !== "subject") for (const g of this.sql.exec(`SELECT id, classes FROM grp`).toArray()) { const t = JSON.parse(String(g.classes || "[]")) as string[]; if (t.some(tokHit)) this.sql.exec(`UPDATE grp SET classes=? WHERE id=?`, JSON.stringify(t.filter((x) => !tokHit(x))), String(g.id)); }
           if (r.kind === "class") this.sql.exec(`DELETE FROM catalog WHERE parent=?`, String(r.id));
         }
+        if (r.kind === "phase" || r.kind === "dept") this.sql.exec(`UPDATE catalog SET parent='' WHERE parent=?`, String(r.id));
         this.sql.exec(`DELETE FROM catalog WHERE id=?`, String(r.id));
         return { status: 200, body: { ok: true, ...this.catalog() } };
       }
@@ -1977,7 +2013,9 @@ export class LmsStore extends DurableObject<LmsEnv> {
         const scoped = a.role === "teacher" && (a.scope || []).length > 0;
         const okFor = (c: string, sec: string) => (a.scope || []).some((x) => { const [k, s2] = x.split("|"); return k === c && (!s2 || s2 === sec); });
         const students = scoped ? allStudents.filter((x) => okFor(x.cls, x.section) || (a.stu || []).includes(x.id)) : allStudents;
-        const classesOut = scoped ? classes.map((c) => ({ ...c, students: students.filter((x) => x.cls === c.cls).length })).filter((c) => c.students > 0) : classes;
+        // t349: assigned classes show even with 0 students (empty class cards; students can be added later).
+        const mineCls = [...new Set((a.scope || []).filter((x) => x && x !== "\u0000").map((x) => x.split("|")[0]))];
+        const classesOut = scoped ? [...classes.map((c) => ({ ...c, students: students.filter((x) => x.cls === c.cls).length })).filter((c) => c.students > 0 || mineCls.includes(c.cls)), ...mineCls.filter((c) => !classes.some((x) => x.cls === c)).map((c) => ({ cls: c, students: 0 }))] : classes;
         return { status: 200, body: { homework: all.map((h) => ({ ...h, counts: counts.get(h.id) || {}, assigned: this.assignees(h).length })), classes: classesOut, students, catalog: this.catalog(), scope: a.scope || [], quran: { show: qd.show, view: qd.view, add: qd.add, edit: qd.edit, del: qd.del } } };
       }
 
@@ -2131,6 +2169,8 @@ export class LmsStore extends DurableObject<LmsEnv> {
         return { status: 200, body: { presets: v ? JSON.parse(String(v)) : null } };
       }
       case "hw-share": {
+        // t349: per-homework sharing removed — Permissions (See all homework + teacher list) controls correction access.
+        if (Date.now() > 0) return { status: 410, body: { error: "share_removed" } };
         // t328: owner (or admin) shares a homework with other teachers; "correct" lets them grade it (needs the admin shareCorrect permission too).
         const h = this.allHomework(str(input.hw, 40))[0];
         if (!h) return { status: 404, body: { error: "not_found" } };
@@ -2354,6 +2394,8 @@ export class LmsStore extends DurableObject<LmsEnv> {
   }
   /** Keeps users, homework and teacher scopes pointing at a renamed subject/class/section. */
   private renameEverywhere(kind: CatKind, was: string, now: string, inClass: string) {
+    if (kind === "phase") { for (const u of this.sql.exec(`SELECT id, phase FROM users`).toArray()) { const l = String(u.phase || "").split(","); if (l.includes(was)) this.sql.exec(`UPDATE users SET phase=? WHERE id=?`, l.map((x) => (x === was ? now : x)).join(","), String(u.id)); } return; }
+    if (kind === "dept") return;
     const users = this.sql.exec(`SELECT id, subjects, scope FROM users`).toArray();
     if (kind === "subject") {
       for (const u of users) { const l = JSON.parse(String(u.subjects || "[]")) as string[]; if (l.includes(was)) this.sql.exec(`UPDATE users SET subjects=? WHERE id=?`, JSON.stringify(l.map((x) => (x === was ? now : x))), String(u.id)); }
@@ -3133,8 +3175,11 @@ export async function teacherWithPerm(request: Request, env: LmsEnv, perm: strin
   const tk = await verifyUserTokenPv(env, request.headers.get("Authorization"));
   if (!tk) return false;
   const u = (await env.LMS.get(env.LMS.idFromName("main")).actor(tk.uid, tk.pv)) as unknown as Actor | null;
-  // Every active teacher may run any classroom activity; hosting a specific assessment still needs an explicit host: permission.
-  return !!u && u.role === "teacher" && (perm.startsWith("act:") || u.perms.includes(perm) || u.perms.includes(perm.split(":")[0] + ":*"));
+  // t350: activities are enforced per type — "act:<type>" or "act:*"; "act:any" = holds at least one; "hide:activities" blocks all activities.
+  if (!u || u.role !== "teacher") return false;
+  if (perm.startsWith("act:") && u.perms.includes("hide:activities")) return false;
+  if (perm === "act:any") return u.perms.some((p) => p.startsWith("act:"));
+  return u.perms.includes(perm) || u.perms.includes(perm.split(":")[0] + ":*");
 }
 
 async function lmsActor(request: Request, env: LmsEnv, store: DurableObjectStub<LmsStore>): Promise<Actor | null> {

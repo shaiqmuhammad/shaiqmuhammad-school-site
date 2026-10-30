@@ -46,6 +46,8 @@ export function LmsClassesPage() {
   const [canManage, setCanManage] = useState(false);
   const [cats, setCats] = useState<PointCat[]>([]);
   const [groups, setGroups] = useState<StudentGroup[]>([]);
+  // t349: classes/sections assigned to the teacher show as tabs even with 0 students.
+  const [assigned, setAssigned] = useState<string[]>([]);
   const [view, setView] = useState<string>(""); // "cls|sec" | "g:<id>" | ""
   const [award, setAward] = useState<RosterStudent[] | null>(null); // students receiving
   const [whole, setWhole] = useState(false);
@@ -64,14 +66,14 @@ export function LmsClassesPage() {
   const attDay = new Date(Date.now() + 4 * 3600e3).toISOString().slice(0, 10);
 
   const load = useCallback(() => {
-    lmsApi.classRoster().then((r) => { setRoster(r.students); setCanManage(r.canManage); }).catch((e) => setErr(lmsErrorText(e, tr)));
+    lmsApi.classRoster().then((r) => { setRoster(r.students); setAssigned((r as { assigned?: string[] }).assigned || []); setCanManage(r.canManage); }).catch((e) => setErr(lmsErrorText(e, tr)));
     lmsApi.pcatList().then((r) => setCats(r.items)).catch(() => undefined);
     lmsApi.grpList().then((r) => setGroups(lmsSession()?.user.role === "teacher" ? r.items.filter((g) => g.assigned) : r.items)).catch(() => undefined);
   }, [tr]);
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load(); }, [load]);
 
-  const classes = useMemo(() => [...new Set((roster || []).map((s) => (s.section ? `${s.cls}|${s.section}` : s.cls)))], [roster]);
+  const classes = useMemo(() => [...new Set([...(roster || []).map((s) => (s.section ? `${s.cls}|${s.section}` : s.cls)), ...assigned])].sort(), [roster, assigned]);
   const classTabs = useMemo(() => { const out: string[] = []; for (const t of classes) { const c = t.split("|")[0]; if (!out.includes(c)) out.push(c); if (t.includes("|")) out.push(t); } return out; }, [classes]);
   const shown = useMemo(() => {
     const all = roster || [];

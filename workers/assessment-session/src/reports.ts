@@ -1,3 +1,4 @@
+import { catPhases, loadCat } from "./catx";
 /**
  * Department Report (KHDA-style): server-side aggregation over LMS data. Read-only by design.
  *
@@ -197,7 +198,7 @@ export async function reportHandle(c: ReportCtx, a: Actor, action: string, input
   const ids = new Set(sel.map((s) => s.id));
   const uniq = (xs: string[]) => [...new Set(xs.filter(Boolean))];
   const options = {
-    subjects: uniq([...c.sql.exec(`SELECT name FROM catalog WHERE kind='subject'`).toArray().map((r) => String(r.name)), ...all.map((s) => s.subject)]).sort(), phases: uniq(["EYFS", "Primary", "Secondary", ...all.map((s) => s.phase)]),
+    subjects: uniq([...c.sql.exec(`SELECT name FROM catalog WHERE kind='subject'`).toArray().map((r) => String(r.name)), ...all.map((s) => s.subject)]).sort(), phases: uniq([...(loadCat(c.sql as never), catPhases()), ...all.map((s) => s.phase)]),
     years: uniq(all.map((s) => s.cls)).sort(yearSort), sections: uniq(all.filter((s) => !fv("year") || s.cls === fv("year")).map((s) => s.section)).sort(),
     groups: groups.map((g) => ({ id: g.id, name: g.name })),
   };

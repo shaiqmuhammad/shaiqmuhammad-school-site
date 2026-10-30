@@ -14,7 +14,7 @@ import { AssessmentShell, primaryBtn } from "@/components/assessment/AssessmentS
 import { exportStudentsXlsx, downloadCredentials, downloadSignInSheet, downloadUsersTemplate, exportAllHomeworkZip, parseUsersXlsx } from "@/components/lms/lmsFiles";
 import { ADMIN_ACTOR, adminRelogin, card, inputCls, smallBtn, useLmsActor, useTr } from "@/components/lms/useLms";
 import { clsNum, secLetter } from "@/lib/classFmt";
-import { lmsApi, lmsErrorText, PERMS, stuUi, scopeLabel, grpLabel, type Catalog, type LmsUser, type Role, type StudentGroup } from "@/lib/lms";
+import { catDeptOf, catPhaseNames, catPhaseOf, lmsApi, lmsErrorText, PERMS, stuUi, scopeLabel, grpLabel, type Catalog, type LmsUser, type Role, type StudentGroup } from "@/lib/lms";
 
 type Pins = { username: string; name: string; pin: string }[];
 type Row = Partial<LmsUser & { pin: string }>;
@@ -26,7 +26,7 @@ const PERM_LABEL: Record<string, [string, string]> = {
   shareCorrect: ["Correct homework shared with them", "تصحيح الواجبات المشاركة معه"],
   viewAsStudent: ["Log in as student (read-only, logged)", "الدخول كطالب (للعرض فقط، مسجَّل)"],
 };
-const PHASES = ["EYFS", "Primary", "Secondary"];
+
 const EMPTY: Catalog = { subjects: [], classes: [], sections: [] };
 
 /** Add / edit one student or teacher, with dropdowns from Classes & Subjects. */
@@ -70,7 +70,7 @@ function PersonForm({ role, catalog, initial, onSave, submitLabel, testPrefix, s
         <input className={inputCls} placeholder={tr("Nationality", "الجنسية")} value={f.nat} onChange={(e) => setF({ ...f, nat: e.target.value })} data-testid={`${testPrefix}-nat`} />
         <input className={inputCls} placeholder={tr("Preferred language", "اللغة المفضلة")} value={f.lang} onChange={(e) => setF({ ...f, lang: e.target.value })} data-testid={`${testPrefix}-lang`} />
         <select className={inputCls} value={f.subject} onChange={(e) => setF({ ...f, subject: e.target.value })} aria-label={tr("Subject", "المادة")} data-testid={`${testPrefix}-subject-field`}><option value="">{tr("Subject —", "المادة —")}</option>{f.subject.includes(",") && <option value={f.subject}>{f.subject}</option>}{[...new Set([...(f.subject ? [f.subject] : []), ...catalog.subjects.map((x) => x.name)])].map((x) => <option key={x} value={x}>{x}</option>)}</select>
-        <select className={inputCls} value={f.phase} onChange={(e) => setF({ ...f, phase: e.target.value })} aria-label={tr("Phase", "المرحلة")} data-testid={`${testPrefix}-phase-field`}><option value="">{tr("Phase — auto from class", "المرحلة — تلقائي من الصف")}</option>{PHASES.map((x) => <option key={x} value={x}>{x}</option>)}</select>
+        <select className={inputCls} value={f.phase} onChange={(e) => setF({ ...f, phase: e.target.value })} aria-label={tr("Phase", "المرحلة")} data-testid={`${testPrefix}-phase-field`}><option value="">{tr("Phase — auto from class", "المرحلة — تلقائي من الصف")}</option>{catPhaseNames(catalog).map((x) => <option key={x} value={x}>{x}</option>)}</select>
         <input className={inputCls} type="number" min={1} max={9} placeholder={tr("Target grade (tracker)", "الهدف (المتتبع)")} value={f.target} onChange={(e) => setF({ ...f, target: e.target.value })} aria-label={tr("Target grade", "الهدف")} data-testid={`${testPrefix}-target`} />
         <input className={inputCls} type="number" min={1} max={200} placeholder={tr("Scaled score (optional)", "الدرجة المعيارية (اختياري)")} value={f.scaled} onChange={(e) => setF({ ...f, scaled: e.target.value })} aria-label={tr("Scaled score", "الدرجة المعيارية")} title={tr("Used only when no Target is set: 67–80→2, 81–93→3, 94–109→4, 110–120→5, 121+→6", "تُستخدم فقط عند عدم وجود هدف")} data-testid={`${testPrefix}-scaled`} />
         <input className={inputCls + " sm:col-span-2"} placeholder={tr("Arabic name", "الاسم بالعربية")} value={f.nameAr} onChange={(e) => setF({ ...f, nameAr: e.target.value })} aria-label={tr("Arabic name", "الاسم بالعربية")} dir="rtl" data-testid={`${testPrefix}-name-ar`} />
@@ -109,21 +109,23 @@ function PersonForm({ role, catalog, initial, onSave, submitLabel, testPrefix, s
   );
 }
 
-/** t343: class-of-year → phase (UI filter only). */
-const phaseOfCls = (c: string) => /^(fs|eyfs|foundation|reception|nursery|kg)/i.test(c.trim()) ? "EYFS" : Number((c.match(/\d+/) || ["0"])[0]) >= 7 ? "Secondary" : Number((c.match(/\d+/) || ["0"])[0]) >= 1 ? "Primary" : "";
-const deptOfSubj = (s: string) => s.replace(/\s*[–-]?\s*\b[AB]$/u, "").trim() || s;
 type AssignF = { phase: string; subjects: string[]; scope: string[] };
-/** t343: admin Add/Edit Teacher — Phase → Department → Subject(s) → Classes → Sections (multi-select, cascading). Lists every class/section from Classes & Subjects setup. Saved as phase, subjects and scope ("Year 3" or "Year 3|3A"). */
+/** t343/t349: admin Add/Edit Teacher — Phase → Department → Subject(s) → Classes → Sections, plus Groups (all from Classes & Subjects / Groups). Saved as phase, subjects and scope ("Year 3", "Year 3|3A" or "grp:<id>"). */
 function TeacherAssign<T extends AssignF>({ f, setF, catalog, testPrefix }: { f: T; setF: (fn: (x: T) => T) => void; catalog: Catalog; testPrefix: string }) {
   const { tr } = useTr();
+  const PH = catPhaseNames(catalog);
   const phases = f.phase.split(",").filter(Boolean);
-  const allDepts = [...new Set(catalog.subjects.map((s) => deptOfSubj(s.name)))].sort();
-  const [depts, setDepts] = useState<string[]>(() => [...new Set(f.subjects.map(deptOfSubj))]);
-  const subs = catalog.subjects.filter((s) => !depts.length || depts.includes(deptOfSubj(s.name)) || f.subjects.includes(s.name));
-  const classes = catalog.classes.filter((c) => !phases.length || phases.includes(phaseOfCls(c.name)) || f.scope.some((t) => t.split("|")[0] === c.name));
+  const phaseIds = (catalog.phases || []).filter((p) => phases.includes(p.name)).map((p) => p.id);
+  const allDepts = [...new Set([...(catalog.depts || []).filter((d) => !phaseIds.length || !d.phaseId || phaseIds.includes(d.phaseId)).map((d) => d.name), ...catalog.subjects.filter((x) => !x.deptId).map((x) => catDeptOf(catalog, x.name))])].sort();
+  const [depts, setDepts] = useState<string[]>(() => [...new Set(f.subjects.map((x) => catDeptOf(catalog, x)))]);
+  const subs = catalog.subjects.filter((s) => !depts.length || depts.includes(catDeptOf(catalog, s.name)) || f.subjects.includes(s.name));
+  const classes = catalog.classes.filter((c) => !phases.length || phases.includes(catPhaseOf(catalog, c.name)) || f.scope.some((t) => t.split("|")[0] === c.name));
+  const [groups, setGroups] = useState<StudentGroup[]>([]);
+  useEffect(() => { lmsApi.grpList(true).then((r) => setGroups(r.items.filter((g) => g.adminGroup))).catch(() => undefined); }, []);
+  const shownGroups = groups.filter((g) => !f.subjects.length || !g.subject || f.subjects.includes(g.subject) || f.scope.includes(`grp:${g.id}`));
   const pill = (on: boolean, tone: string) => `rounded-full border px-3 py-1 text-sm font-semibold transition ${on ? `border-transparent ${tone} text-white shadow` : "border-black/15 bg-white text-[#1b2f44] dark:border-white/20 dark:bg-white/5 dark:text-white"}`;
   const flip = (xs: string[], v: string) => xs.includes(v) ? xs.filter((y) => y !== v) : [...xs, v];
-  const clsOn = (c: string) => f.scope.some((t) => t.split("|")[0] === c);
+  const clsOn = (c: string) => f.scope.some((t) => !t.startsWith("grp:") && t.split("|")[0] === c);
   const toggleCls = (c: string) => setF((x) => ({ ...x, scope: clsOn(c) ? x.scope.filter((t) => t.split("|")[0] !== c) : [...x.scope, c] }));
   const toggleSec = (c: string, sec: string) => setF((x) => { const k = `${c}|${sec}`; let sc = x.scope.filter((t) => t !== c); sc = sc.includes(k) ? sc.filter((t) => t !== k) : [...sc, k]; if (!sc.some((t) => t.split("|")[0] === c)) sc = [...sc, c]; return { ...x, scope: sc }; });
   const H = ({ n, t }: { n: string; t: string }) => <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-[#1b2f44]/70 dark:text-white/70"><span className="me-1">{n}</span>{t}</p>;
@@ -131,7 +133,7 @@ function TeacherAssign<T extends AssignF>({ f, setF, catalog, testPrefix }: { f:
     <div className="space-y-2 rounded-2xl border border-sky-200 bg-gradient-to-br from-sky-50 via-white to-emerald-50 p-3 dark:border-white/15 dark:from-white/5 dark:via-white/5 dark:to-white/5" data-testid={`${testPrefix}-assign`}>
       <p className="text-sm font-extrabold">🎯 {tr("Teaching assignment", "إسناد التدريس")} <span className="font-normal opacity-70">— {tr("used for Tracker, Progress Check, timetable and homework", "يُستخدم للمتتبع والتقييم والجدول والواجبات")}</span></p>
       <H n="1" t={tr("Phase", "المرحلة")} />
-      <div className="flex flex-wrap gap-1.5" data-testid={`${testPrefix}-phase-chips`}>{PHASES.map((p) => <button key={p} type="button" aria-pressed={phases.includes(p)} className={pill(phases.includes(p), "bg-indigo-600")} onClick={() => setF((x) => ({ ...x, phase: PHASES.filter((z) => flip(x.phase.split(",").filter(Boolean), p).includes(z)).join(",") }))}>{p}</button>)}</div>
+      <div className="flex flex-wrap gap-1.5" data-testid={`${testPrefix}-phase-chips`}>{PH.map((p) => <button key={p} type="button" aria-pressed={phases.includes(p)} className={pill(phases.includes(p), "bg-indigo-600")} onClick={() => setF((x) => ({ ...x, phase: PH.filter((z) => flip(x.phase.split(",").filter(Boolean), p).includes(z)).join(",") }))}>{p}</button>)}</div>
       <H n="2" t={tr("Department", "القسم")} />
       <div className="flex flex-wrap gap-1.5" data-testid={`${testPrefix}-dept-chips`}>{allDepts.map((d) => <button key={d} type="button" aria-pressed={depts.includes(d)} className={pill(depts.includes(d), "bg-violet-600")} onClick={() => setDepts((x) => flip(x, d))} data-testid={`${testPrefix}-dept`}>{d}</button>)}{!allDepts.length && <span className="text-sm opacity-60">{tr("No subjects yet — add them in Classes & Subjects.", "لا توجد مواد — أضفها في الصفوف والمواد.")}</span>}</div>
       <H n="3" t={tr("Subject(s)", "المواد")} />
@@ -145,7 +147,9 @@ function TeacherAssign<T extends AssignF>({ f, setF, catalog, testPrefix }: { f:
         </div>); })}
         {!classes.length && <span className="text-sm opacity-60">{tr("No classes for this phase — add them in Classes & Subjects.", "لا صفوف لهذه المرحلة.")}</span>}
       </div>
-      <p className="text-xs opacity-70" data-testid={`${testPrefix}-assign-sum`}>{f.scope.length ? f.scope.map(scopeLabel).join(", ") : tr("No classes picked = this teacher sees no students", "بدون صفوف = لا يرى المعلم أي طالب")}</p>
+      <H n="5" t={tr("Groups (from Admin → Members → Groups)", "المجموعات")} />
+      <div className="flex flex-wrap gap-1.5" data-testid={`${testPrefix}-groups`}>{shownGroups.map((g) => { const k = `grp:${g.id}`; const on = f.scope.includes(k); return <button key={g.id} type="button" aria-pressed={on} className={pill(on, "bg-rose-600")} onClick={() => setF((x) => ({ ...x, scope: on ? x.scope.filter((t) => t !== k) : [...x.scope, k] }))} data-testid={`${testPrefix}-grp`}>👥 {grpLabel(g)}</button>; })}{!shownGroups.length && <span className="text-sm opacity-60">{tr("No groups yet.", "لا توجد مجموعات.")}</span>}</div>
+      <p className="text-xs opacity-70" data-testid={`${testPrefix}-assign-sum`}>{f.scope.length ? f.scope.map((t) => t.startsWith("grp:") ? "👥 " + (groups.find((g) => g.id === t.slice(4)) ? grpLabel(groups.find((g) => g.id === t.slice(4))!) : tr("group", "مجموعة")) : scopeLabel(t)).join(", ") : tr("No classes picked = this teacher sees no students", "بدون صفوف = لا يرى المعلم أي طالب")}</p>
     </div>
   );
 }
@@ -492,7 +496,7 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
             <input className={inputCls + " mt-0 min-w-[12rem] flex-1 sm:max-w-sm"} placeholder={tr("Search name or username…", "ابحث بالاسم أو المستخدم…")} value={q} onChange={(e) => setQ(e.target.value)} data-testid="lms-search" aria-label={tr("Search", "بحث")} />
             {urlFilters && <button type="button" className={smallBtn + " sm:hidden"} onClick={() => setFOpen(!fOpen)} aria-expanded={fOpen} data-testid="lms-filter-toggle">⚙ {tr("Filters", "عوامل التصفية")}{nFilters ? ` (${nFilters})` : ""}</button>}
             <div className={urlFilters ? `${fOpen ? "flex" : "hidden"} w-full flex-col gap-2 sm:flex sm:w-auto sm:flex-row sm:flex-wrap` : "contents"} data-testid="lms-filter-panel">
-            {asAdmin && <select className={inputCls + " mt-0 w-auto! min-w-[9rem]"} value={fPhase} onChange={(e) => setFPhase(e.target.value)} data-testid="lms-filter-phase" aria-label={tr("Phase", "المرحلة")}><option value="">{tr("All phases", "كل المراحل")}</option>{PHASES.map((x) => <option key={x} value={x}>{x}</option>)}</select>}
+            {asAdmin && <select className={inputCls + " mt-0 w-auto! min-w-[9rem]"} value={fPhase} onChange={(e) => setFPhase(e.target.value)} data-testid="lms-filter-phase" aria-label={tr("Phase", "المرحلة")}><option value="">{tr("All phases", "كل المراحل")}</option>{catPhaseNames(catalog).map((x) => <option key={x} value={x}>{x}</option>)}</select>}
             {(role === "teacher" || asAdmin) && (
               <select className={inputCls + " mt-0 w-auto! min-w-[9rem]"} value={fSub} onChange={(e) => { setFSub(e.target.value); setFTeach(""); setPage(0); }} data-testid="lms-filter-subject" aria-label={tr("Subject", "المادة")}>
                 <option value="">{tr("All subjects", "كل المواد")}</option>

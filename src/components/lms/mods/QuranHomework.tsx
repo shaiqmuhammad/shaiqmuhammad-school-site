@@ -4,7 +4,6 @@ import { TrkLink } from "@/components/tracker/TrkLink";
 import { useCallback, useEffect, useState } from "react";
 import { AssessmentShell } from "@/components/assessment/AssessmentShell";
 import { HomeworkEditor } from "@/components/lms/HomeworkEditor";
-import { HwShare } from "@/components/lms/HwShare";
 import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
 import { btn, btnCta, cardCls, Head, Toast } from "@/components/lms/mods/ModUi";
 import { useLmsActor, useTr } from "@/components/lms/useLms";
@@ -65,7 +64,6 @@ export function QuranHomework() {
                 <a className={btn + " !py-1"} href={`/lms/homework?id=${h.id}`} data-testid="qhw-open">{tr("Open / review", "فتح / مراجعة")}</a>
                 {q.edit && !(actor?.role === "teacher" && h.createdBy !== actor.id && ((h.data as { share?: { teachers?: string[] } }).share?.teachers || []).includes(actor.id)) && <button type="button" className={btn + " !py-1"} onClick={() => setEditor(h)} data-testid="qhw-edit">✎ {tr("Edit", "تعديل")}</button>}
                 {q.del && !(actor?.role === "teacher" && h.createdBy !== actor.id && ((h.data as { share?: { teachers?: string[] } }).share?.teachers || []).includes(actor.id)) && <button type="button" className={btn + " !py-1"} onClick={() => del(h)} data-testid="qhw-del">🗑</button>}
-                <HwShare hw={h.id} />
               </div>
             </article>
           ); })}

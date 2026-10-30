@@ -591,7 +591,7 @@ export async function handleActivity(request: Request, env: ActivityEnv, parts: 
     const type = String(body.type) as ActivityType;
     if (!ACTIVITY_TYPES.includes(type)) return reply(origin, { error: "bad_type" }, 400);
     // Admin, or a teacher the admin granted this activity type to.
-    const owner = await ownerOf(request, env);
+    const owner = await ownerOf(request, env, `act:${type}`);
     if (!owner) return reply(origin, { error: "unauthorized" }, 401);
     for (let attempt = 0; attempt < 8; attempt++) {
       const code = rand(5, ALPHABET);
@@ -643,8 +643,8 @@ export async function handleActivity(request: Request, env: ActivityEnv, parts: 
 
 const lmsStore = (env: ActivityEnv) => { const e = env as unknown as LmsEnv; return e.LMS.get(e.LMS.idFromName("main")); };
 /** Who owns created activities: "admin" for the admin session, else the active teacher's id. */
-async function ownerOf(request: Request, env: ActivityEnv): Promise<string | null> {
+async function ownerOf(request: Request, env: ActivityEnv, perm = "act:any"): Promise<string | null> {
   if (await verifyToken(env, request.headers.get("Authorization"))) return "admin";
-  if (!(await teacherWithPerm(request, env as unknown as LmsEnv, "act:*"))) return null;
+  if (!(await teacherWithPerm(request, env as unknown as LmsEnv, perm))) return null;
   return teacherIdOf(request, env as unknown as LmsEnv);
 }

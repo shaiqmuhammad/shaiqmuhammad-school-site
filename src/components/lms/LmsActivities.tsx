@@ -19,7 +19,8 @@ export function LmsActivitiesPage() {
     lmsApi.me().then((r) => { setRole(String(r.user.role)); setPerms(r.user.perms || []); }).catch(() => setPerms([]));
   }, []);
   const acts = (perms || []).filter((p) => p.startsWith("act:")).map((p) => p.slice(4));
-  const allActs = role === "teacher" || acts.includes("*") ? ["wall", "wordcloud", "poll", "survey", "tps", "vote", "wheel", "randomiser"] : acts;
+  // t350: only the activities the admin ticked (act:* = all); "hide:activities" hides them all.
+  const allActs = (perms || []).includes("hide:activities") ? [] : acts.includes("*") ? ["wall", "wordcloud", "poll", "survey", "tps", "vote", "wheel", "randomiser"] : acts;
   return (
     <AssessmentShell title={tr("Classroom", "الصف")} exitHref="/lms" wide toolbar={<LmsStaffToolbar />}>
       <div className="mx-auto w-full max-w-6xl flex-1 space-y-8 px-3 py-6 sm:px-6" data-testid="lms-activities">

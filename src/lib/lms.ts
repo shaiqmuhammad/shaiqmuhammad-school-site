@@ -6,7 +6,11 @@ import { ASSESSMENT_API_BASE } from "@/lib/groupSession";
 /** LMS phase 1 client (see workers/assessment-session/src/lms.ts). */
 export type Role = "student" | "teacher" | "parent";
 export type LmsUser = { id: string; username: string; name: string; nameAr?: string; role: Role; cls: string; section: string; subjects: string[]; scope: string[]; perms: string[]; groups?: { id: string; name: string; subject: string }[]; subject?: string; phase?: string; disabled: boolean; hasPin: boolean; firstName?: string; lastName?: string; parentEmail?: boolean; parentName?: string; gender?: string; avatar?: string; email?: string; dob?: string; phone?: string; semail?: string; nationality?: string; prefLang?: string; sen?: boolean; eal?: boolean; gt?: boolean; /** Tracker Target (as entered), scaled score, and the effective Target (Target, else from scaled score) */ target?: string; scaled?: string; targetEff?: string; /** iSAMS (admin only) */ isamsId?: string; isamsSurname?: string; created: number; lastLogin: number | null; lastSeen?: number };
-export type Catalog = { subjects: { id: string; name: string }[]; classes: { id: string; name: string }[]; sections: { id: string; name: string; classId: string; cls: string }[] };
+/** t349: Phase > Department > Subject; classes → phase; sections → class (all optional links). */
+export type Catalog = { phases?: { id: string; name: string }[]; depts?: { id: string; name: string; phaseId: string }[]; subjects: { id: string; name: string; deptId?: string }[]; classes: { id: string; name: string; phaseId?: string }[]; sections: { id: string; name: string; classId: string; cls: string }[] };
+export const catPhaseNames = (c?: Catalog | null) => (c?.phases?.length ? c.phases.map((p) => p.name) : ["EYFS", "Primary", "Secondary"]);
+export const catDeptOf = (c: Catalog | null | undefined, subj: string) => { const s = c?.subjects.find((x) => x.name === subj); const d = s?.deptId && c?.depts?.find((x) => x.id === s.deptId); return d ? d.name : subj.replace(/\s*[–-]?\s*\b[AB]$/u, "").trim() || subj; };
+export const catPhaseOf = (c: Catalog | null | undefined, cls: string) => { const k = c?.classes.find((x) => x.name === cls); const p = k?.phaseId && c?.phases?.find((x) => x.id === k.phaseId); return p ? p.name : /^(fs|eyfs|foundation|reception|nursery|kg)/i.test(cls.trim()) ? "EYFS" : Number((cls.match(/\d+/) || ["0"])[0]) >= 7 ? "Secondary" : Number((cls.match(/\d+/) || ["0"])[0]) >= 1 ? "Primary" : ""; };
 export type DashStudent = { id: string; name: string; cls: string; section: string };
 /** Teacher scope entry: "Year 2" (whole class) or "Year 2|2A" (one section). */
 export const scopeLabel = (s: string) => s.replace("|", " · ");
@@ -242,7 +246,7 @@ export const lmsApi = {
   saveSub: (hw: string, text: string, practised: boolean, submit: boolean) => call<{ ok: true; sub: Submission }>("sub-save", { hw, text, practised, submit }),
   review: (id: string, patch: { comment?: string; like?: boolean; status?: "approved" | "returned"; grade?: Grade; scores?: { m: Level; t: Level; r: Level; notes?: { m?: string; t?: string; r?: string } } }, asAdmin = false) => call<{ ok: true }>("sub-review", { id, ...patch }, { asAdmin }),
   catalog: (asAdmin = false) => call<Catalog>("catalog", undefined, { asAdmin }),
-  catalogSave: (item: { kind: "subject" | "class" | "section"; id?: string; name: string; parent?: string }) => call<Catalog & { ok: true; id: string }>("catalog-save", item, { asAdmin: true }),
+  catalogSave: (item: { kind: "phase" | "dept" | "subject" | "class" | "section"; id?: string; name: string; parent?: string }) => call<Catalog & { ok: true; id: string }>("catalog-save", item, { asAdmin: true }),
   catalogDelete: (id: string, force = false) => call<Catalog & { ok: true }>("catalog-delete", { id, force }, { asAdmin: true }),
   /** Admin only: decrypted PINs (null = stored before PIN viewing existed → reset to view). */
   pinsView: (ids?: string[], asAdmin = true) => call<{ pins: Record<string, string | null> }>("pins-view", { ids }, { asAdmin }),

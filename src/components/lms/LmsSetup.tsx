@@ -38,6 +38,24 @@ function AddForm({ placeholder, onAdd, testId }: { placeholder: string; onAdd: (
   );
 }
 
+
+type K = "phase" | "dept" | "subject" | "class";
+type SaveFn = (kind: K | "section", id: string | undefined, name: string, parent?: string) => Promise<boolean>;
+function PSel({ value, opts, onChange, none, testId }: { value: string; opts: Item[]; onChange: (v: string) => void; none: string; testId: string }) {
+  return (
+    <select className="rounded-full border border-black/15 bg-white px-2 py-1 text-xs font-semibold text-[#1b2f44]" value={value} onChange={(e) => onChange(e.target.value)} data-testid={testId} aria-label={none}>
+      <option value="">{none}</option>{opts.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+    </select>
+  );
+}
+function AddWithParent({ kind, placeholder, opts, none, testId, save }: { kind: K; placeholder: string; opts?: Item[]; none?: string; testId: string; save: SaveFn }) {
+  const [pv, setPv] = useState("");
+  return <div className="flex flex-wrap items-center gap-2">{opts && <PSel value={pv} opts={opts} onChange={setPv} none={none || ""} testId={`${testId}-parent`} />}<AddForm placeholder={placeholder} testId={testId} onAdd={(name) => save(kind, undefined, name, opts ? pv : undefined)} /></div>;
+}
+function H({ icon, t, sub, tone }: { icon: string; t: string; sub: string; tone: string }) {
+  return <div className={`-mx-4 -mt-4 mb-3 rounded-t-3xl px-4 py-3 text-white sm:-mx-5 sm:-mt-5 sm:px-5 ${tone}`}><h3 className="text-lg font-extrabold">{icon} {t}</h3><p className="text-xs opacity-90">{sub}</p></div>;
+}
+
 /** Admin area only (rendered inside the Admin layout): Subjects, Classes and their Sections (used by people forms, templates, homework targeting and filters). */
 export function LmsSetup() {
   const { tr } = useTr();
@@ -71,39 +89,52 @@ export function LmsSetup() {
     }
   };
 
+  const save: SaveFn = (kind, id, name, parent) => run(lmsApi.catalogSave({ kind, id, name, ...(parent !== undefined ? { parent } : {}) }));
+  const phases = cat?.phases || [], depts = cat?.depts || [];
+  const panel = "rounded-3xl border bg-white p-4 shadow-sm sm:p-5";
   return (
     <>
-      <div className="space-y-5" data-testid="lms-setup">
-        <h2 className="text-2xl font-extrabold" data-testid="admin-lms-heading">{tr("Classes & subjects", "الصفوف والمواد")}</h2>
+      <div className="light-island space-y-5 text-[#1b2f44]" data-testid="lms-setup">
+        <div className="rounded-3xl bg-gradient-to-r from-indigo-600 via-sky-600 to-emerald-500 p-5 text-white shadow">
+          <h2 className="text-2xl font-extrabold" data-testid="admin-lms-heading">🏫 {tr("Classes & subjects", "الصفوف والمواد")}</h2>
+          <p className="mt-1 text-sm opacity-90">{tr("The only place to create Phases, Departments, Subjects, Classes and Sections. Groups, Teaching assignment, Timetable, filters, trackers and reports all read from here. Renaming updates everyone who uses the name.", "المكان الوحيد لإنشاء المراحل والأقسام والمواد والصفوف والشعب. كل الصفحات تقرأ من هنا.")}</p>
+          <p className="mt-2 text-xs font-bold opacity-90">{tr("Phase → Department → Subject · Phase → Class → Section", "المرحلة ← القسم ← المادة · المرحلة ← الصف ← الشعبة")}</p>
+        </div>
         {err && <p className="rounded-xl bg-rose-100 px-4 py-2 text-rose-800" role="alert" data-testid="lms-setup-error">{err}</p>}
-        <p className="text-sm opacity-75">{tr("Renaming updates every student, teacher and homework that uses the name. Something still in use can't be deleted.", "إعادة التسمية تحدّث كل الطلاب والمعلمين والواجبات. لا يمكن حذف ما زال مستخدمًا.")}</p>
-
-        <section className={card + " space-y-3"}>
-          <h2 className="text-xl font-bold">📘 {tr("Subjects", "المواد")}</h2>
-          <div className="flex flex-wrap gap-2">
-            {cat?.subjects.map((s) => <ItemChip key={s.id} item={s} testId="setup-subject" onRename={(name) => run(lmsApi.catalogSave({ kind: "subject", id: s.id, name }))} onDelete={() => del(s)} />)}
-            {cat && !cat.subjects.length && <span className="text-sm opacity-60">{tr("None yet.", "لا يوجد بعد.")}</span>}
-          </div>
-          <AddForm placeholder={tr("e.g. Islamic B, Arabic, Quran", "مثل التربية الإسلامية، العربية، القرآن")} testId="setup-subject" onAdd={(name) => run(lmsApi.catalogSave({ kind: "subject", name }))} />
-        </section>
-        {cat && <StdDocs subjects={cat.subjects.map((x) => x.name)} />}
-
-        <section className={card + " space-y-3"}>
-          <h2 className="text-xl font-bold">🏫 {tr("Classes & sections", "الصفوف والشعب")}</h2>
-          <AddForm placeholder={tr("New class, e.g. Year 2", "صف جديد، مثل Year 2")} testId="setup-class" onAdd={(name) => run(lmsApi.catalogSave({ kind: "class", name }))} />
-          <ul className="space-y-3">
-            {cat?.classes.map((c) => (
-              <li key={c.id} className="rounded-2xl border border-black/10 p-3 dark:border-white/15" data-testid="setup-class-row">
-                <ItemChip item={c} testId="setup-class" onRename={(name) => run(lmsApi.catalogSave({ kind: "class", id: c.id, name }))} onDelete={() => del(c)} />
-                <div className="mt-2 flex flex-wrap items-center gap-2 ps-4">
-                  <span className="text-sm opacity-70">{tr("Sections:", "الشعب:")}</span>
-                  {cat.sections.filter((s) => s.classId === c.id).map((s) => <ItemChip key={s.id} item={s} testId="setup-section" onRename={(name) => run(lmsApi.catalogSave({ kind: "section", id: s.id, name, parent: c.id }))} onDelete={() => del(s)} />)}
-                  <AddForm placeholder={tr("e.g. 2A", "مثل 2A")} testId="setup-section" onAdd={(name) => run(lmsApi.catalogSave({ kind: "section", name, parent: c.id }))} />
-                </div>
-              </li>
-            ))}
-          </ul>
-        </section>
+        <div className="grid gap-5 lg:grid-cols-2">
+          <section className={panel + " border-indigo-200"} data-testid="setup-phases">
+            <H icon="🧭" t={tr("Phases", "المراحل")} sub={tr("e.g. EYFS, Primary, Secondary", "مثل EYFS، الابتدائي، الثانوي")} tone="bg-indigo-600" />
+            <div className="mb-3 flex flex-wrap gap-2">{phases.map((x) => <ItemChip key={x.id} item={x} testId="setup-phase" onRename={(name) => save("phase", x.id, name)} onDelete={() => del(x)} />)}{cat && !phases.length && <span className="text-sm opacity-60">{tr("None yet.", "لا يوجد بعد.")}</span>}</div>
+            <AddWithParent save={save} kind="phase" placeholder={tr("New phase", "مرحلة جديدة")} testId="setup-phase" />
+          </section>
+          <section className={panel + " border-violet-200"} data-testid="setup-depts">
+            <H icon="🏛️" t={tr("Departments", "الأقسام")} sub={tr("Each department can belong to a phase (or all phases).", "كل قسم يتبع مرحلة (أو كل المراحل).")} tone="bg-violet-600" />
+            <ul className="mb-3 space-y-2">{depts.map((x) => <li key={x.id} className="flex flex-wrap items-center gap-2" data-testid="setup-dept-row"><ItemChip item={x} testId="setup-dept" onRename={(name) => save("dept", x.id, name)} onDelete={() => del(x)} /><PSel value={x.phaseId} opts={phases} none={tr("All phases", "كل المراحل")} onChange={(v) => save("dept", x.id, x.name, v)} testId="setup-dept-phase" /></li>)}</ul>
+            <AddWithParent save={save} kind="dept" placeholder={tr("New department", "قسم جديد")} opts={phases} none={tr("All phases", "كل المراحل")} testId="setup-dept" />
+          </section>
+          <section className={panel + " border-sky-200"} data-testid="setup-subjects">
+            <H icon="📘" t={tr("Subjects", "المواد")} sub={tr("Each subject belongs to a department.", "كل مادة تتبع قسمًا.")} tone="bg-sky-600" />
+            <ul className="mb-3 space-y-2">{cat?.subjects.map((x) => <li key={x.id} className="flex flex-wrap items-center gap-2" data-testid="setup-subject-row"><ItemChip item={x} testId="setup-subject" onRename={(name) => save("subject", x.id, name)} onDelete={() => del(x)} /><PSel value={x.deptId || ""} opts={depts} none={tr("No department", "بلا قسم")} onChange={(v) => save("subject", x.id, x.name, v)} testId="setup-subject-dept" /></li>)}</ul>
+            <AddWithParent save={save} kind="subject" placeholder={tr("e.g. Islamic B, Arabic", "مثل التربية الإسلامية")} opts={depts} none={tr("No department", "بلا قسم")} testId="setup-subject" />
+          </section>
+          <section className={panel + " border-emerald-200"} data-testid="setup-classes">
+            <H icon="🏫" t={tr("Classes & sections", "الصفوف والشعب")} sub={tr("Each class belongs to a phase; sections belong to a class.", "كل صف يتبع مرحلة؛ والشعب تتبع الصف.")} tone="bg-emerald-600" />
+            <AddWithParent save={save} kind="class" placeholder={tr("New class, e.g. Year 2", "صف جديد، مثل Year 2")} opts={phases} none={tr("No phase", "بلا مرحلة")} testId="setup-class" />
+            <ul className="mt-3 space-y-2">
+              {cat?.classes.map((c) => (
+                <li key={c.id} className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-2.5" data-testid="setup-class-row">
+                  <div className="flex flex-wrap items-center gap-2"><ItemChip item={c} testId="setup-class" onRename={(name) => save("class", c.id, name)} onDelete={() => del(c)} /><PSel value={c.phaseId || ""} opts={phases} none={tr("No phase", "بلا مرحلة")} onChange={(v) => save("class", c.id, c.name, v)} testId="setup-class-phase" /></div>
+                  <div className="mt-2 flex flex-wrap items-center gap-2 ps-3">
+                    <span className="text-xs font-bold opacity-70">{tr("Sections:", "الشعب:")}</span>
+                    {cat.sections.filter((s) => s.classId === c.id).map((s) => <ItemChip key={s.id} item={s} testId="setup-section" onRename={(name) => save("section", s.id, name, c.id)} onDelete={() => del(s)} />)}
+                    <AddForm placeholder={tr("e.g. 2A", "مثل 2A")} testId="setup-section" onAdd={(name) => save("section", undefined, name, c.id)} />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
+        </div>
+        {cat && <div className="rounded-3xl bg-white p-1"><StdDocs subjects={cat.subjects.map((x) => x.name)} /></div>}
       </div>
     </>
   );

@@ -1,3 +1,4 @@
+import { catPhases, loadCat } from "./catx";
 /**
  * LMS modules: Attendance Register, Behaviour Management, Curriculum Management.
  * Runs inside the LMS Durable Object (same SQLite as users/points) via modHandle().
@@ -562,7 +563,7 @@ function ttHandle(c: ModCtx, a: Actor, action: string, input: Json): { status: n
     const depts = [...new Set([...all.map((r) => r.dept).filter(Boolean), ...((): string[] => { try { return JSON.parse(String(sql.exec(`SELECT v FROM settings WHERE k='tt:depts'`).toArray()[0]?.v || "[]")); } catch { return []; } })()])].sort();
     const pref = sql.exec(`SELECT v FROM settings WHERE k=?`, `ttlead:${a.id}`).toArray()[0];
     const shared = ttShared(sql, a);
-    return { status: 200, body: { times, timetable: tt, shared, now: { dow: now.dow, hm: now.hm, period: cur }, current, teachers, catalog, phases: ["EYFS", "Primary", "Secondary"], depts, acc, lead: pref ? Number(pref.v) : 5 } };
+    return { status: 200, body: { times, timetable: tt, shared, now: { dow: now.dow, hm: now.hm, period: cur }, current, teachers, catalog, phases: (loadCat(sql as never), catPhases()), depts: [...new Set([...depts, ...sql.exec(`SELECT name FROM catalog WHERE kind='dept'`).toArray().map((r) => String(r.name))])].sort(), acc, lead: pref ? Number(pref.v) : 5 } };
   }
   if (action === "att-times-save") {
     if (input.lead !== undefined) {

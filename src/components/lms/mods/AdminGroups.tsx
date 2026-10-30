@@ -6,7 +6,7 @@ import { StudentPicker } from "@/components/lms/StudentPicker";
 import { btn, btnCta, cardCls, field, Head, Modal, Tabs, Toast, useRoster } from "@/components/lms/mods/ModUi";
 import { useTr } from "@/components/lms/useLms";
 import { clsNum, secLetter } from "@/lib/classFmt";
-import { grpLabel, lmsApi, scopeLabel, type LmsUser, type StudentGroup } from "@/lib/lms";
+import { grpLabel, lmsApi, scopeLabel, type Catalog, type LmsUser, type StudentGroup } from "@/lib/lms";
 import { modCall, modErr } from "@/lib/lmsMods";
 
 type Draft = { id?: string; name: string; subject: string; classes: string[]; students: string[]; teachers: string[] };
@@ -19,18 +19,21 @@ export function AdminGroups() {
   const [teachers, setTeachers] = useState<LmsUser[]>([]);
   const [d, setD] = useState<Draft | null>(null);
   const [subjects, setSubjects] = useState<string[]>([]);
+  // t349: classes and sections come from Classes & Subjects (all of them, even with no students yet).
+  const [cat, setCat] = useState<Catalog | null>(null);
   const scope = useAdminScope();
   const fSub = scope.subject;
   const [view, setView] = useState<"groups" | "teacher">("groups");
   const [tid, setTid] = useState("");
   const [msg, setMsg] = useState(""); const [bad, setBad] = useState(false);
   const load = useCallback(() => { lmsApi.grpList(true).then((r) => setItems(r.items.filter((g) => g.adminGroup))).catch((e) => { setItems([]); setMsg(modErr(e, tr)); setBad(true); }); }, [tr]);
-  useEffect(() => { load(); lmsApi.catalog(true).then((c) => setSubjects(c.subjects.map((x) => x.name))).catch(() => undefined); lmsApi.users(true).then((r) => setTeachers(r.users.filter((u) => u.role === "teacher"))).catch(() => undefined); }, [load]);
+  useEffect(() => { load(); lmsApi.catalog(true).then((c) => { setSubjects(c.subjects.map((x) => x.name)); setCat(c); }).catch(() => undefined); lmsApi.users(true).then((r) => setTeachers(r.users.filter((u) => u.role === "teacher"))).catch(() => undefined); }, [load]);
   const tokens = useMemo(() => {
     const m = new Map<string, Set<string>>();
+    for (const c of cat?.classes || []) m.set(c.name, new Set((cat?.sections || []).filter((x) => x.classId === c.id || x.cls === c.name).map((x) => x.name)));
     for (const s of students || []) { if (!m.has(s.cls)) m.set(s.cls, new Set()); if (s.section) m.get(s.cls)!.add(s.section); }
     return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true })).flatMap(([c, ss]) => [c, ...[...ss].sort().map((x) => `${c}|${x}`)]);
-  }, [students]);
+  }, [students, cat]);
   const tname = (id: string) => teachers.find((t) => t.id === id)?.name || "?";
   const shown = (items || []).filter((g) => (!fSub || g.subject === fSub) && (!scope.teacher || (g.teachers || []).includes(scope.teacher)));
   const assign = async (teacher: string, add: string[], remove: string[]) => { try { await modCall("grp-admin-assign", { teacher, add, remove }, true); setMsg(tr("Updated.", "تم التحديث.")); setBad(false); load(); } catch (e) { setMsg(modErr(e, tr)); setBad(true); } };

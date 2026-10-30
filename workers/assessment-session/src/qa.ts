@@ -1,3 +1,4 @@
+import { catDept, catPhase, loadCat } from "./catx";
 /**
  * t336: Progress Check Quality Assurance (PC1 = Term 1, PC2 = Term 2, PC3 = Term 3) — EYFS & Primary only.
  * Every number is calculated from the Assessment Tracker grid (same Attainment Grade and the same "4+ / 5+ … % of graded
@@ -26,8 +27,9 @@ export function khdaCfg(sql: Sql): Khda {
 }
 /** First rule (best first) whose two minimums are met. */
 export const rate = (pa: number | null, pb: number | null, rules: KRule[]) => (pa == null ? "" : (rules.find((x) => pa >= x.a - 1e-9 && (pb ?? 0) >= x.b - 1e-9) || rules[rules.length - 1]).r);
-export const phaseOf = (cls: string) => (/^(fs|eyfs|kg)/i.test(cls) ? "EYFS" : (() => { const n = Number((cls.match(/\d+/) || [""])[0]); return !n ? "" : n <= 2 ? "EYFS" : n <= 6 ? "Primary" : "Secondary"; })());
-export const deptOf = (subj: string) => subj.replace(/\s*[–-]?\s*\b[AB]$/u, "").trim() || subj;
+// t349: phase of a class and department of a subject come from the admin catalog (fallback: old naming rules).
+export const phaseOf = (cls: string) => catPhase(cls);
+export const deptOf = (subj: string) => catDept(subj);
 const str = (v: unknown, m: number) => String(v ?? "").replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, " ").trim().slice(0, m);
 const txt = (v: unknown, m = 4000) => String(v ?? "").replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, " ").slice(0, m);
 /** A teacher's subjects: from their groups, else from their profile. */
@@ -102,6 +104,7 @@ const normF = (raw: unknown, a: Actor): Filters => {
 const keyOf = (f: Filters) => F_KEYS.map((k) => f[k]).join("~");
 
 export async function qaHandle(c: QaCtx, a: Actor, action: string, input: Json): Promise<Reply> {
+  loadCat(c.sql as never);
   const sql = c.sql; qaInit(sql);
   if (a.role !== "admin" && a.role !== "teacher") return forbid();
   const acc = mpOf(sql as never, a, "qa");
