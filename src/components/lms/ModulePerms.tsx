@@ -11,11 +11,11 @@ export const MP_KEYS_OF: Record<MpMod, MpKey[]> = { qa: ["view", "add", "edit", 
 const sel = "rounded-lg border border-black/15 bg-white px-1 py-0.5 text-xs dark:border-white/20 dark:bg-slate-900";
 
 /** Tri-state grid: "" = inherit, on, off. */
-function Grid({ get, set, inherit, testPrefix }: { get: (m: MpMod, k: MpKey) => "" | "on" | "off"; set: (m: MpMod, k: MpKey, v: "" | "on" | "off") => void; inherit: string; testPrefix: string }) {
+function Grid({ get, set, inherit, testPrefix, hideQa = false }: { hideQa?: boolean; get: (m: MpMod, k: MpKey) => "" | "on" | "off"; set: (m: MpMod, k: MpKey, v: "" | "on" | "off") => void; inherit: string; testPrefix: string }) {
   const { tr } = useTr();
   return (
     <div className="grid gap-2 md:grid-cols-3">
-      {MP_MODS.map((m) => (
+      {MP_MODS.filter((m) => !(hideQa && m === "qa")).map((m) => (
         <div key={m} className="space-y-1 rounded-xl bg-black/[0.03] px-3 py-2 dark:bg-white/5" data-testid={`${testPrefix}-${m}`}>
           <p className="text-sm font-semibold">{tr(...MP_MOD_LABEL[m])}</p>
           {MP_KEYS.filter((k) => m === "qa" ? MP_KEYS_OF.qa.includes(k) : (k !== "isams" || m === "trk") && (k !== "share" || m === "tt") && k !== "dl").map((k) => { const live = MP_KEYS_OF[m].includes(k); return (
@@ -36,7 +36,7 @@ export function ModulePermsTeacher({ perms, setPerms }: { perms: string[]; setPe
   return (
     <div className="space-y-2 rounded-2xl border border-dashed border-black/15 p-3 dark:border-white/20" data-testid="perm-mp">
       <p className="text-sm font-bold">🛡️ {tr("Timetable, Learning Material, tracker & report modules — Show/Hide, View, Add, Edit, Delete", "الجدول والمواد التعليمية والمتتبع والتقارير — إظهار/إخفاء، عرض، إضافة، تعديل، حذف")}</p>
-      <Grid testPrefix="perm-mp" inherit={tr("Default", "الافتراضي")}
+      <Grid hideQa testPrefix="perm-mp" inherit={tr("Default", "الافتراضي")}
         get={(m, k) => (perms.includes(`mp:${m}:${k}:on`) ? "on" : perms.includes(`mp:${m}:${k}:off`) ? "off" : "")}
         set={(m, k, v) => setPerms([...perms.filter((p) => p !== `mp:${m}:${k}:on` && p !== `mp:${m}:${k}:off`), ...(v ? [`mp:${m}:${k}:${v}`] : [])])} />
       <p className="text-[11px] opacity-70">{tr("Default = the global, role and subject settings in Assessment → Attainment & Progress Systems → Module permissions. The server enforces these; admin always has full access.", "الافتراضي من الإعدادات العامة. يُطبَّق على الخادم؛ للمدير وصول كامل.")}</p>
@@ -69,5 +69,20 @@ export function ModulePermsGlobal() {
         set={(m, k, v) => { const p = { ...part() }; const r = { ...(p[m] || {}) }; if (v) r[k] = v === "on"; else delete r[k]; p[m] = r; put(p); }} />
       <div className="flex items-center gap-2"><button type="button" className="rounded-full bg-header px-4 py-1.5 text-sm font-bold text-sun" onClick={save} data-testid="mp-save">{tr("Save module permissions", "حفظ صلاحيات الوحدات")}</button>{msg && <span className="text-xs font-semibold" role="status">{msg}</span>}</div>
     </section>
+  );
+}
+
+/** t340: Progress Check QA switches for one teacher, in their own clearly labelled block (perms "mp:qa:<key>:on|off"). Off unless switched on. */
+export function QaPermsTeacher({ perms, setPerms }: { perms: string[]; setPerms: (p: string[]) => void }) {
+  const { tr } = useTr();
+  const keys: [MpKey, string][] = [["view", tr("QA View", "عرض")], ["add", tr("QA Add", "إضافة")], ["edit", tr("QA Edit", "تعديل")], ["dl", tr("QA Download (PDF, Word, Excel)", "تنزيل (PDF و Word و Excel)")]];
+  const on = (k: MpKey) => perms.includes(`mp:qa:${k}:on`);
+  const flip = (k: MpKey) => { const base = perms.filter((p) => p !== `mp:qa:${k}:on` && p !== `mp:qa:${k}:off`); setPerms(on(k) ? base : [...base, `mp:qa:${k}:on`, ...(k !== "view" && !perms.includes("mp:qa:view:on") ? ["mp:qa:view:on"] : [])].filter((x, i, a) => a.indexOf(x) === i)); };
+  return (
+    <div className="rounded-2xl border-2 border-emerald-300 bg-emerald-50/60 p-3 text-slate-900 dark:border-emerald-500/50 dark:bg-emerald-900/20 dark:text-white" data-testid="perm-qa">
+      <p className="mb-2 text-sm font-bold">✅ {tr("Progress Check QA (Assessment Tracker → Progress Check tab)", "ضمان جودة فحص التقدم")}</p>
+      <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">{keys.map(([k, l]) => <label key={k} className="flex items-center gap-1.5"><input type="checkbox" role="switch" checked={on(k)} onChange={() => flip(k)} data-testid={`perm-qa-${k}`} /> {l}</label>)}</div>
+      <p className="mt-1 text-[11px] opacity-70">{tr("Off by default. Turning on Add, Edit or Download also turns on View. The teacher sees only their own classes and subjects.", "مغلق افتراضيًا. يرى المعلم صفوفه ومواده فقط.")}</p>
+    </div>
   );
 }

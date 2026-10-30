@@ -1,7 +1,7 @@
 "use client";
 
 import { BodyPortal } from "@/components/BodyPortal";
-import { ModulePermsTeacher } from "@/components/lms/ModulePerms";
+import { ModulePermsTeacher , QaPermsTeacher } from "@/components/lms/ModulePerms";
 import { PresenceDot } from "@/components/lms/Presence";
 import { mailApi } from "@/lib/mail";
 import { listPublishedQuizzes, loadQuizzesData, type Quiz } from "@/lib/quiz";
@@ -162,6 +162,7 @@ function PermissionsModal({ u, onClose, onSaved, asAdmin, catalog }: { catalog: 
             <a className="mt-1 inline-block text-xs font-bold underline" href="/admin#groups" data-testid="perm-groups-link">{tr("Manage groups in Admin → Members → Groups", "إدارة المجموعات من الإدارة ← الأعضاء ← المجموعات")}</a>
           </div>
           <ModuleAccess perms={perms} setPerms={setPerms} teachers={others} />
+          <QaPermsTeacher perms={perms} setPerms={setPerms} />
           <ModulePermsTeacher perms={perms} setPerms={setPerms} />
           <div className="rounded-2xl border border-dashed border-black/15 p-3 dark:border-white/20">
             <p className="mb-2 text-sm font-bold">✅ {tr("General permissions", "الصلاحيات العامة")}</p>
