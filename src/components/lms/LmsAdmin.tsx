@@ -339,6 +339,7 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
       ? [{ key: "cls", label: tr("Class", "الصف"), sort: true }, { key: "section", label: tr("Section", "الشعبة"), sort: true }]
       : [{ key: "subjects", label: tr("Subjects", "المواد"), sort: true }, { key: "phase", label: tr("Phase", "المرحلة"), sort: true }, { key: "groups", label: tr("Groups", "المجموعات"), sort: true }]),
     ...extraOn.map((e) => ({ key: "x_" + e[0], label: tr(e[1], e[2]), sort: true })),
+    ...(asAdmin && role === "teacher" ? [{ key: "sharecorrect", label: tr("Correct shared homework", "تصحيح الواجبات المشاركة"), sort: false }] : []),
     { key: "status", label: tr("Status", "الحالة"), sort: true },
     { key: "actions", label: tr("Actions", "إجراءات"), sort: false },
   ];
@@ -480,6 +481,7 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
               <b>{tr(`${sel.size} selected`, `${sel.size} محدد`)}</b>
               {canOp("block") && <button type="button" className={smallBtn} onClick={() => bulk(false)} data-testid="lms-bulk-activate">✅ {tr("Activate", "تفعيل")}</button>}
               {canOp("block") && <button type="button" className={smallBtn} onClick={() => bulk(true)} data-testid="lms-bulk-block">⛔ {tr("Block", "إيقاف")}</button>}
+              {asAdmin && role === "teacher" && <><button type="button" className={smallBtn} onClick={async () => { await lmsApi.permSwitch([...sel], "shareCorrect", true).catch((e) => setErr(lmsErrorText(e, tr))); setSel(new Set()); load(); }} data-testid="bulk-sharecorrect-on">🤝 {tr("Correct shared homework: On", "تصحيح المشارك: تشغيل")}</button><button type="button" className={smallBtn} onClick={async () => { await lmsApi.permSwitch([...sel], "shareCorrect", false).catch((e) => setErr(lmsErrorText(e, tr))); setSel(new Set()); load(); }} data-testid="bulk-sharecorrect-off">{tr("Off", "إيقاف")}</button></>}
               <button type="button" className={smallBtn} onClick={() => setSel(new Set())}>{tr("Clear", "مسح")}</button>
             </div>
           )}
@@ -537,6 +539,7 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
                           </>
                         )}
                         {extraOn.map((e) => <td key={e[0]} className={td + " whitespace-nowrap text-[13px]"} data-testid={`col-${e[0]}`} dir="auto">{e[3](u) || "—"}</td>)}
+                        {asAdmin && role === "teacher" && <td className={td + " whitespace-nowrap"} data-testid="col-sharecorrect"><label className="inline-flex items-center gap-1.5 text-xs font-bold" title={tr("Correct homework shared with them", "تصحيح الواجبات المشاركة معه")}><input type="checkbox" role="switch" checked={(u.perms || []).includes("shareCorrect")} onChange={async (e) => { await lmsApi.permSwitch([u.id], "shareCorrect", e.target.checked).catch((er) => setErr(lmsErrorText(er, tr))); load(); }} data-testid="sharecorrect-switch" />{(u.perms || []).includes("shareCorrect") ? tr("On", "مفعّل") : tr("Off", "متوقف")}</label></td>}
                         <td className={td} data-testid="col-status">
                           <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold ${u.disabled ? "bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-100" : "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-100"}`}>{u.disabled ? tr("Blocked", "موقوف") : tr("Active", "نشط")}</span>
                         </td>

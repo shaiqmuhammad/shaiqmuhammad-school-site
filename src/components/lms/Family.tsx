@@ -9,6 +9,11 @@ import { Tabs } from "@/components/lms/mods/ModUi";
 import { GRADE_STYLE, STATUS_STYLE, card, gradeLabel, statusLabel, useLmsActor, useTr } from "@/components/lms/useLms";
 import { quranChapters, type Chapter, type Homework, type QuranData, type TrackerRow, type WallPost } from "@/lib/lms";
 import { modCall, modErr, type CurUnit } from "@/lib/lmsMods";
+import type { Scores, Version } from "@/lib/lms";
+import { ScoreBadges } from "@/components/lms/QuranScores";
+import { VersionTimeline } from "@/components/lms/Versions";
+import { AudioClip } from "@/components/lms/Audio";
+import { MyRecord } from "@/components/lms/LmsAssessments";
 
 type Kid = { id: string; name: string; cls: string; section: string; avatar: string };
 type HwRow = Homework & { sub?: { status: string; grade?: string; liked?: boolean } | null; locked?: boolean; late?: boolean };
@@ -173,6 +178,8 @@ function Assess({ kid, ar }: { kid: Kid; ar: boolean }) {
         <h2 className="mb-2 text-lg font-bold">🧪 {tr("Assigned assessments", "التقييمات المسندة")}</h2>
         {!d.assigned.length ? <p className="opacity-70">{tr("None assigned.", "لا يوجد.")}</p> : <ul className="divide-y divide-black/10 dark:divide-white/10">{d.assigned.map((x) => <li key={x.id} className="flex justify-between gap-3 py-2"><span dir="auto" className="font-semibold">{x.title}</span>{x.due && <span className="text-sm opacity-70">{tr("Due", "التسليم")} {dt(x.due, ar)}</span>}</li>)}</ul>}
       </section>
+      <ParTrk kid={kid} />
+      <MyRecord items={d.assigned.map((x) => ({ id: x.id, quiz: x.id, title: x.title, mode: "individual", cls: "", section: "", students: [], due: x.due, by: "", created: 0 }))} name={(x) => x.title} tr={tr} lang={ar ? "ar" : "en"} child={kid.id} />
       <section className={card}>
         <h2 className="mb-2 text-lg font-bold">🏆 {tr("Results", "النتائج")}</h2>
         {!d.items.length ? <p className="opacity-70">{tr("No results yet.", "لا توجد نتائج بعد.")}</p> : (
@@ -242,6 +249,47 @@ function Beh({ kid, ar }: { kid: Kid; ar: boolean }) {
   );
 }
 
+/** t332: Assessment Tracker grades per term (EYFS / Primary only). */
+function ParTrk({ kid }: { kid: Kid }) {
+  const { tr } = useTr();
+  const { d } = useChild<{ applies: boolean; terms: { term: string; grade: unknown; target: unknown }[] }>("par-trk", kid.id);
+  if (!d?.applies || !d.terms.length) return null;
+  return (
+    <section className={card} data-testid="family-trk">
+      <h2 className="mb-2 text-lg font-bold">🎯 {tr("Assessment Tracker", "متتبع التقييم")}</h2>
+      <div className="flex flex-wrap gap-2">{d.terms.map((t) => <span key={t.term} className="rounded-2xl bg-sky-50 px-3 py-2 text-sm text-slate-900"><b>{t.term}</b>: {t.grade == null ? "—" : String(t.grade)}{t.target ? ` · ${tr("target", "الهدف")} ${String(t.target)}` : ""}</span>)}</div>
+    </section>
+  );
+}
+
+type ParSurah = { surah: number; rows: (TrackerRow & { marks?: { ayah: number; text: string; note: string }[] })[]; versions: Version[]; history: { from: number; to: number; grade: string; scores: Scores | null; at: number }[] };
+/** t332: per Surah — latest marks (incl. Memorisation), teacher's verse marks, version timeline with recordings, and grading history. */
+function ParQuran({ kid, ar }: { kid: Kid; ar: boolean }) {
+  const { tr } = useTr();
+  const { d } = useChild<{ surahs: ParSurah[] }>("par-quran", kid.id);
+  const ch = useChapters();
+  if (!d?.surahs.length) return null;
+  return (
+    <div className="space-y-3" data-testid="family-quran-surahs">
+      {d.surahs.map((s) => (
+        <section key={s.surah} className={card + " space-y-2"} data-testid="family-surah">
+          <h2 className="text-lg font-bold">📖 {ch.find((c) => c.id === s.surah)?.name_simple || `Surah ${s.surah}`}</h2>
+          {s.rows.map((r, i) => (
+            <div key={i} className="flex flex-wrap items-center gap-2 text-sm">
+              <span className="opacity-70">{r.from}–{r.to}</span>
+              <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${GRADE_STYLE[r.grade || ""] || ""}`}>{gradeLabel((r.grade || "") as never, tr)}</span>
+              <ScoreBadges s={r.scores as Scores} compact />
+              {(r.marks || []).length > 0 && <span className="text-xs" dir="auto" data-testid="family-marks">✏️ {(r.marks || []).map((m) => `${tr("v", "آية")}${m.ayah}: ${m.text}`).join(" · ")}</span>}
+            </div>
+          ))}
+          <VersionTimeline list={s.versions} audio={(id) => <AudioClip id={id} testId="family-version-clip" />} />
+          {s.history.length > 1 && <p className="text-xs opacity-70" data-testid="family-history">🕘 {tr("Grading history", "سجل التقييم")}: {s.history.map((h) => `${gradeLabel(h.grade as never, tr)} (${dt(h.at, ar)})`).join(" → ")}</p>}
+        </section>
+      ))}
+    </div>
+  );
+}
+
 function Quran({ kid, ar }: { kid: Kid; ar: boolean }) {
   const { tr } = useTr();
   const { d, bad } = useChild<Dash>("dashboard", kid.id);
@@ -252,6 +300,7 @@ function Quran({ kid, ar }: { kid: Kid; ar: boolean }) {
   const rows = d.tracker || [];
   return (
     <div className="space-y-4" data-testid="family-quran">
+      <ParQuran kid={kid} ar={ar} />
       {p && <div className="grid grid-cols-2 gap-3 lg:grid-cols-4"><Stat icon="🌟" label={tr("Stars", "نجوم")} value={p.stars} hot /><Stat icon="🔥" label={tr("Day streak", "أيام متتالية")} value={p.streak} /><Stat icon="🟢" label={tr("Green grades", "درجات خضراء")} value={p.greens} /><Stat icon="📖" label={tr("Surahs tracked", "سور في المتابعة")} value={rows.length} /></div>}
       {!rows.length ? <Empty t={tr("Approved Quran homework will appear here.", "سيظهر هنا واجب القرآن المقبول.")} /> : (
         <section className={card}><h2 className="mb-2 text-lg font-bold">📈 {tr("Quran tracker", "متابعة القرآن")}</h2>

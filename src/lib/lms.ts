@@ -282,6 +282,7 @@ export const lmsApi = {
   wallMod: (op: "delete" | "pin" | "unpin" | "delcom", id: string) => call<{ ok: true }>("wall-mod", { op, id }, { asAdmin: wallAdmin }),
   actPublish: (code: string, type: string, title: string, students: string[], locked = false) => call<{ ok: true; count: number }>("act-publish", { code, type, title, students, locked }),
   actLive: () => call<{ items: LiveActivity[] }>("act-live"),
+  permSwitch: (ids: string[], perm: "shareCorrect", on: boolean) => call<{ ok: true; changed: number }>("perm-switch", { ids, perm, on }, { asAdmin: true }),
   myAssess: () => call<{ items: (ResultRecord & { level?: number; label?: string })[] }>("my-assess"),
   assessList: (asAdmin = false) => call<{ items: Assignment[] }>("assess-list", undefined, { asAdmin }),
   assessAssign: (a: { quiz: string; title: string; mode: "individual" | "group"; cls?: string; section?: string; students?: string[]; due?: number | null }, asAdmin = false) => call<{ ok: true; id: string; sent: number }>("assess-assign", a, { asAdmin }),

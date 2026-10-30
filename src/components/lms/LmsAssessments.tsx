@@ -89,14 +89,14 @@ function StudentAssigned({ quizzes, tr, lang }: { quizzes: Quiz[]; tr: Tr; lang:
 }
 
 /** t329: the student's record — every assigned / completed assessment with its score, and a report for each attempt (per question + per Success Criterion). */
-function MyRecord({ items, name, tr, lang }: { items: Assignment[] | null; name: (a: Assignment) => string; tr: Tr; lang: string }) {
+export function MyRecord({ items, name, tr, lang, child }: { items: Assignment[] | null; name: (a: Assignment) => string; tr: Tr; lang: string; child?: string }) {
   const [res, setRes] = useState<(ResultRecord & { label?: string })[] | null>(null);
   const [units, setUnits] = useState<CurUnit[]>([]);
   const [open, setOpen] = useState<string | null>(null);
   useEffect(() => {
-    lmsApi.myAssess().then((r) => setRes(r.items)).catch(() => setRes([]));
-    modCall<{ items: CurUnit[] }>("cur-list", {}, false).then((r) => setUnits(r.items || [])).catch(() => undefined);
-  }, []);
+    (child ? modCall<{ items: (ResultRecord & { label?: string })[] }>("my-assess", { child }, false) : lmsApi.myAssess()).then((r) => setRes(r.items)).catch(() => setRes([]));
+    modCall<{ items: CurUnit[] }>("cur-list", child ? { child } : {}, false).then((r) => setUnits(r.items || [])).catch(() => undefined);
+  }, [child]);
   if (!res || !items) return null;
   const done = (q: string) => res.filter((r) => r.quizId === q || r.quizSlug === q);
   const pending = items.filter((a) => !done(a.quiz).length);
