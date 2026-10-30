@@ -386,14 +386,22 @@ export class LmsStore extends DurableObject<LmsEnv> {
 
   /** Teachers see students ONLY through admin groups assigned to them. Returns class/section tokens for fully-covered places plus individual ids. Never empty: a teacher with no groups gets a sentinel that matches nothing. */
   /** t346: the teacher's "Teaching assignment" (users.scope + users.subjects, set on Add/Edit Teacher) is the single source of which classes they see. subj = their subjects that students actually take (none match → no subject filter). */
+  // t353: per-instance cache (DO rows-read budget) — teacher scope is read on every request; 20 s TTL, cleared on writes.
+  private tsCache = new Map<string, { at: number; v: { scope: string[]; stu: string[]; subj: string[] } }>();
+  private stuSubsCache: { at: number; v: Set<string> } | null = null;
   private teacherScope(tid: string): { scope: string[]; stu: string[]; subj: string[] } {
+    const hit = this.tsCache.get(tid); if (hit && Date.now() - hit.at < 20000) return hit.v;
+    const v = this.teacherScopeRaw(tid); this.tsCache.set(tid, { at: Date.now(), v }); return v;
+  }
+  private teacherScopeRaw(tid: string): { scope: string[]; stu: string[]; subj: string[] } {
     const u = this.sql.exec(`SELECT scope, subjects FROM users WHERE id=?`, tid).toArray()[0];
     const raw = u ? (JSON.parse(String(u.scope || "[]")) as string[]).filter(Boolean) : [];
     // t349: "grp:<id>" = an admin group picked in Teaching assignment → its class/section tokens + its individual students.
     const scope = raw.filter((x) => !x.startsWith("grp:")), stu: string[] = [];
     for (const t of raw.filter((x) => x.startsWith("grp:"))) { const g = this.sql.exec(`SELECT students, classes FROM grp WHERE id=? AND admin=1`, t.slice(4)).toArray()[0]; if (!g) continue; scope.push(...(JSON.parse(String(g.classes || "[]")) as string[])); stu.push(...(JSON.parse(String(g.students || "[]")) as string[])); }
     const subs = u ? (JSON.parse(String(u.subjects || "[]")) as string[]) : [];
-    const stuSubs = new Set<string>(); for (const r of this.sql.exec(`SELECT DISTINCT subject FROM users WHERE role='student'`).toArray()) for (const x of subjList(r.subject)) stuSubs.add(x);
+    if (!this.stuSubsCache || Date.now() - this.stuSubsCache.at > 60000) { const ss = new Set<string>(); for (const r of this.sql.exec(`SELECT DISTINCT subject FROM users WHERE role='student'`).toArray()) for (const x of subjList(r.subject)) ss.add(x); this.stuSubsCache = { at: Date.now(), v: ss }; }
+    const stuSubs = this.stuSubsCache.v;
     return { scope: scope.length ? scope : ["\u0000"], stu: [...new Set(stu)], subj: subs.filter((x) => stuSubs.has(x)) };
   }
   /** t346 one-time: copy each teacher's group-based class access into their Teaching assignment so nobody loses access. Individual students in partly-covered sections add that section. Group subjects are added to the teacher's subjects. Teachers without groups keep their stored assignment. */
@@ -896,6 +904,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
   private adminSeen() { return Number(this.sql.exec(`SELECT v FROM settings WHERE k='seen:admin'`).toArray()[0]?.v || 0); }
 
   async handle(action: string, a: Actor, input: Json): Promise<Reply> {
+    if (/save|delete|assign|copy|catalog-|import|bulk/.test(action) || (action === "users" && input && (input as Json).users)) { this.tsCache.clear(); this.stuSubsCache = null; }
     if (!a.viewAs) this.presence(a);
     // Per-module Show/Hide for teachers ("hide:<module>" in perms). Hidden modules answer 403 on the server, not just in the menu.
     if (a.role === "teacher") {
