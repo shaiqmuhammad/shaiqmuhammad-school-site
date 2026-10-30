@@ -149,9 +149,9 @@ function PermissionsModal({ u, onClose, onSaved, asAdmin, catalog }: { catalog: 
   };
   return (
     <BodyPortal>
-    <div className="fixed inset-0 z-[2147483000] flex justify-end bg-black/40 backdrop-blur-[2px]" onMouseDown={(e) => e.target === e.currentTarget && onClose()} role="dialog" aria-modal="true" aria-label={tr("Permissions", "الصلاحيات")} data-testid="perm-modal">
-      <div className="h-full w-full overflow-y-auto bg-white p-4 text-[#1b2f44] shadow-2xl dark:bg-[#12273b] dark:text-white sm:max-w-2xl sm:p-6" data-testid="perm-panel">
-        <div className="sticky -top-4 z-10 -mx-4 -mt-4 mb-3 flex items-center gap-3 border-b border-black/10 bg-white px-4 py-3 dark:border-white/10 dark:bg-[#12273b] sm:-top-6 sm:-mx-6 sm:-mt-6 sm:px-6" data-testid="perm-panel-head"><h3 className="min-w-0 flex-1 text-lg font-extrabold">🔐 {tr("Permissions", "الصلاحيات")} — <span dir="auto">{u.name}</span></h3><button type="button" className={smallBtn} onClick={onClose} aria-label={tr("Close", "إغلاق")} data-testid="perm-panel-close">✕</button></div>
+    <div className="fixed inset-0 z-[2147483000] flex justify-end bg-black/40 backdrop-blur-[2px] dark:bg-black/80" onMouseDown={(e) => e.target === e.currentTarget && onClose()} role="dialog" aria-modal="true" aria-label={tr("Permissions", "الصلاحيات")} data-testid="perm-modal">
+      <div className="light-island perm-colour h-full w-full overflow-y-auto bg-gradient-to-b from-slate-50 to-white p-4 text-[#1b2f44] shadow-2xl sm:max-w-2xl sm:p-6" data-testid="perm-panel">
+        <div className="sticky -top-4 z-10 -mx-4 -mt-4 mb-3 flex items-center gap-3 bg-gradient-to-r from-indigo-600 via-sky-600 to-emerald-500 px-4 py-3 text-white shadow sm:-top-6 sm:-mx-6 sm:-mt-6 sm:px-6" data-testid="perm-panel-head"><h3 className="min-w-0 flex-1 text-lg font-extrabold">🔐 {tr("Permissions", "الصلاحيات")} — <span dir="auto">{u.name}</span></h3><button type="button" className={smallBtn} onClick={onClose} aria-label={tr("Close", "إغلاق")} data-testid="perm-panel-close">✕</button></div>
         <div className="space-y-3">
           <div className="rounded-2xl border border-dashed border-black/15 p-3 dark:border-white/20" data-testid="perm-subjects">
             <p className="mb-2 text-sm font-bold">📚 {tr("Subjects taught", "المواد")}</p>

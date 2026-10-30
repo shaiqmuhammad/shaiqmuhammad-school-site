@@ -3,7 +3,7 @@
 /* Class-based dark mode (next-themes sets class="dark" on <html>). */
 /* t314: inside LMS content, panels ("light islands") stay light in dark mode like the dashboard tiles; frame/rail/header stay dark.
    The dark: variant is switched off inside islands, and islands get the light palette. One shared rule — no per-page patches. */
-@custom-variant dark (&:where(.dark, .dark *):not(:where(:is(.lms-main,.pub-main) :is(.glass,.bg-card,.bg-card-solid,.bg-white,[class*="bg-white/6"],[class*="bg-white/7"],[class*="bg-white/8"],[class*="bg-white/9"],.bg-background,table,dialog,[role=dialog],input,select,textarea,[class*="dark:bg-white/"],[class*="dark:bg-slate-"],[class*="dark:bg-gray-"],[class*="dark:bg-neutral-"],[class*="dark:bg-zinc-"],[class*="dark:bg-black/"],[class*="dark:bg-card"],[class*="dark:bg-[#"]):not([data-frame],[data-frame] *), :is(.lms-main,.pub-main) :is(.glass,.bg-card,.bg-card-solid,.bg-white,[class*="bg-white/6"],[class*="bg-white/7"],[class*="bg-white/8"],[class*="bg-white/9"],.bg-background,table,dialog,[role=dialog],input,select,textarea,[class*="dark:bg-white/"],[class*="dark:bg-slate-"],[class*="dark:bg-gray-"],[class*="dark:bg-neutral-"],[class*="dark:bg-zinc-"],[class*="dark:bg-black/"],[class*="dark:bg-card"],[class*="dark:bg-[#"]):not([data-frame],[data-frame] *) *)));
+@custom-variant dark (&:where(.dark, .dark *):not(:where(.light-island, .light-island *)):not(:where(:is(.lms-main,.pub-main) :is(.glass,.bg-card,.bg-card-solid,.bg-white,[class*="bg-white/6"],[class*="bg-white/7"],[class*="bg-white/8"],[class*="bg-white/9"],.bg-background,table,dialog,[role=dialog],input,select,textarea,[class*="dark:bg-white/"],[class*="dark:bg-slate-"],[class*="dark:bg-gray-"],[class*="dark:bg-neutral-"],[class*="dark:bg-zinc-"],[class*="dark:bg-black/"],[class*="dark:bg-card"],[class*="dark:bg-[#"]):not([data-frame],[data-frame] *), :is(.lms-main,.pub-main) :is(.glass,.bg-card,.bg-card-solid,.bg-white,[class*="bg-white/6"],[class*="bg-white/7"],[class*="bg-white/8"],[class*="bg-white/9"],.bg-background,table,dialog,[role=dialog],input,select,textarea,[class*="dark:bg-white/"],[class*="dark:bg-slate-"],[class*="dark:bg-gray-"],[class*="dark:bg-neutral-"],[class*="dark:bg-zinc-"],[class*="dark:bg-black/"],[class*="dark:bg-card"],[class*="dark:bg-[#"]):not([data-frame],[data-frame] *) *)));
 
 :root {
   /* Palette from the classroom slides: navy bars, warm yellow pills, cream bands, teal eyebrows, coral step. */
@@ -299,6 +299,9 @@ a.glass:hover, button.glass:hover, li.glass:hover { transform: translateY(-2px);
   body.sm-print-report [data-report-root] { position: absolute; inset: 0 0 auto 0; width: 100%; padding: 0 8mm; color: #000; background: #fff; }
 }
 
+/* t341: .light-island = a light panel with dark text anywhere (also outside .lms-main, e.g. portals), in dark mode too. */
+.dark .light-island { --background: #ffffff; --foreground: #1b2f44; --heading: #1b3a57; --muted: #586a7d; --card: rgba(255,255,255,0.94); --card-solid: #ffffff; --card-border: rgba(27,58,87,0.12); --primary: #1b3a57; --primary-foreground: #ffffff; color: var(--foreground); color-scheme: light; }
+
 /* t314 light islands in dark mode (see @custom-variant dark above) */
 .dark :is(.lms-main,.pub-main) :is(.glass,.bg-card,.bg-card-solid,.bg-white,[class*="bg-white/6"],[class*="bg-white/7"],[class*="bg-white/8"],[class*="bg-white/9"],.bg-background,table,dialog,[role=dialog],input,select,textarea,[class*="dark:bg-white/"],[class*="dark:bg-slate-"],[class*="dark:bg-gray-"],[class*="dark:bg-neutral-"],[class*="dark:bg-zinc-"],[class*="dark:bg-black/"],[class*="dark:bg-card"],[class*="dark:bg-[#"]):not([data-frame],[data-frame] *) {
   --background: #ffffff; --foreground: #1b2f44; --heading: #1b3a57; --muted: #586a7d;
@@ -341,3 +344,16 @@ html:not(.dark) .admin-main { background: radial-gradient(1200px 500px at 100% 0
 .admin-main dl.grid > div:nth-child(6n+5) { background: linear-gradient(135deg,#fdeaf3,#fff) !important; box-shadow: inset 0 3px 0 #db2777; }
 .admin-main dl.grid > div:nth-child(6n) { background: linear-gradient(135deg,#e3f7ee,#fff) !important; box-shadow: inset 0 3px 0 #059669; }
 .admin-main [data-testid=admin-home-school] > *, .admin-main dl.grid > div { color: #1b2f44; }
+
+/* t341: Teachers → Permissions panel — each block gets its own colour (tinted card, coloured top edge and heading). */
+.perm-colour > .space-y-3 > * { border-style: solid !important; border-width: 1px !important; border-top-width: 4px !important; border-radius: 1rem; box-shadow: 0 1px 3px rgba(15,36,56,.08); }
+.perm-colour > .space-y-3 > *:nth-child(6n+1) { border-color: #2563eb !important; background: linear-gradient(135deg,#e8f0fe,#fff) !important; }
+.perm-colour > .space-y-3 > *:nth-child(6n+2) { border-color: #0d9488 !important; background: linear-gradient(135deg,#e3f6f3,#fff) !important; }
+.perm-colour > .space-y-3 > *:nth-child(6n+3) { border-color: #059669 !important; background: linear-gradient(135deg,#dcfce7,#fff) !important; }
+.perm-colour > .space-y-3 > *:nth-child(6n+4) { border-color: #7c3aed !important; background: linear-gradient(135deg,#f1ebfe,#fff) !important; }
+.perm-colour > .space-y-3 > *:nth-child(6n+5) { border-color: #d97706 !important; background: linear-gradient(135deg,#fdf3e1,#fff) !important; }
+.perm-colour > .space-y-3 > *:nth-child(6n+6) { border-color: #db2777 !important; background: linear-gradient(135deg,#fdeaf3,#fff) !important; }
+.perm-colour > .space-y-3 > * > p.font-bold:first-child, .perm-colour > .space-y-3 > * > p:first-child { font-weight: 800; color: #14263a; }
+.perm-colour > .space-y-3 > *:nth-child(6n+1) > p:first-child { color: #1e3a8a; } .perm-colour > .space-y-3 > *:nth-child(6n+2) > p:first-child { color: #134e4a; }
+.perm-colour > .space-y-3 > *:nth-child(6n+3) > p:first-child { color: #065f46; } .perm-colour > .space-y-3 > *:nth-child(6n+4) > p:first-child { color: #4c1d95; }
+.perm-colour > .space-y-3 > *:nth-child(6n+5) > p:first-child { color: #78350f; } .perm-colour > .space-y-3 > *:nth-child(6n+6) > p:first-child { color: #831843; }

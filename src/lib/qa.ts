@@ -74,11 +74,10 @@ export async function qaDocx(d: QaBody, rep: QaReportData) {
   const B12 = { style: D.BorderStyle.SINGLE, size: 12, color: "auto" }, B6 = { style: D.BorderStyle.SINGLE, size: 6, color: "auto" };
   const head = new D.Table({ borders: { top: B12, bottom: B12, left: B12, right: B12, insideHorizontal: B6, insideVertical: B6 }, columnWidths: [1955, 7040], rows: S.head.map(([k, v]) => new D.TableRow({ children: [new D.TableCell({ width: { size: 1955, type: D.WidthType.DXA }, children: [P(k, { bold: true })] }), new D.TableCell({ width: { size: 7040, type: D.WidthType.DXA }, children: [P(v || "")] })] })) });
   const blue = (t: string) => P(t, { bold: true, color: "0070C0" });
-  const thr = new D.Table({ width: { size: 5000, type: D.WidthType.PERCENTAGE }, borders, rows: [S.thr.head, ...S.thr.rows].map((r) => new D.TableRow({ children: r.map((v) => cell(v)) })) });
   const doc = new D.Document({ creator: "Shaiq Muhammad System", title: S.title, sections: [{ properties: { page: { size: { width: 11906, height: 16838 } } }, children: [
     new D.Paragraph({ children: [new D.TextRun({ text: S.title + " ", bold: true })] }), head, P(""),
     blue("Year Group Data "), table(S.att), ...(S.ovr.length ? [P(S.ovr.join("\n"), { size: 16 })] : []), P(""),
-    thr, ...narrOf(S).flatMap(([k, v]) => [P(""), P(k, { bold: true }), P(v)]),
+    ...narrOf(S).flatMap(([k, v]) => [P(""), P(k, { bold: true }), P(v)]),
   ] }] });
   downloadBlob(await D.Packer.toBlob(doc), `${fileBase(d)}.docx`);
 }
@@ -96,7 +95,6 @@ export async function qaXlsx(d: QaBody, rep: QaReportData) {
   add(S.att.head, { bold: true, border: true });
   for (const row of S.att.rows) add(row.map((v, i) => (i > 0 && /^\d+(\.\d+)?$/.test(v) ? Number(v) : i === 0 && /^\d+$/.test(v) ? Number(v) : v)), { border: true });
   for (const o of S.ovr) add([o], { size: 8 });
-  add([]); add(S.thr.head, { border: true }); for (const r of S.thr.rows) add(r, { border: true });
   for (const [k, v] of narrOf(S)) { add([]); add([k], { bold: true }); const r = add([v]); ws.mergeCells(r.number, 1, r.number, 4); r.height = Math.max(18, 14 * (v.split("\n").length + Math.floor(v.length / 80))); }
   downloadBlob(new Blob([await wb.xlsx.writeBuffer()], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), `${fileBase(d)}.xlsx`);
 }
@@ -120,7 +118,6 @@ export async function qaPdf(d: QaBody, rep: QaReportData) {
   for (const [k, v] of S.head) { need(22); pdf.rect(M, y, kw, 22); pdf.rect(M + kw, y, tw - kw, 22); pdf.setFont("helvetica", "bold"); pdf.setFontSize(10); pdf.text(k, M + 4, y + 15); pdf.setFont("helvetica", "normal"); pdf.text(v || "", M + kw + 4, y + 15); y += 22; }
   y += 24; text("Year Group Data", { b: true, c: "#0070C0" }); y += 2;
   table(S.att, tw * 0.63); for (const o of S.ovr) text(o, { s: 8 });
-  y += 6; table({ ...S.thr, title: undefined }, tw);
   for (const [k, v] of narrOf(S)) { y += 4; text(k, { b: true }); text(v); }
   downloadBlob(pdf.output("blob"), `${fileBase(d)}.pdf`);
 }
