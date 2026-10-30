@@ -30,6 +30,8 @@ export const phaseOf = (cls: string) => (/^(fs|eyfs|kg)/i.test(cls) ? "EYFS" : (
 export const deptOf = (subj: string) => subj.replace(/\s*[–-]?\s*\b[AB]$/u, "").trim() || subj;
 const str = (v: unknown, m: number) => String(v ?? "").replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, " ").trim().slice(0, m);
 const txt = (v: unknown, m = 4000) => String(v ?? "").replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, " ").slice(0, m);
+/** A teacher's subjects: from their groups, else from their profile. */
+const subjOfActor = (a: Actor) => (a.subj?.length ? a.subj : ((a as Actor & { subjects?: string[] }).subjects || []));
 const forbid = (e = "forbidden"): Reply => ({ status: 403, body: { error: e } });
 const F_KEYS = ["pc", "phase", "dept", "subject", "year", "section", "teacher"] as const;
 type Filters = Record<(typeof F_KEYS)[number], string>;
@@ -47,7 +49,7 @@ async function build(c: QaCtx, a: Actor, f: Filters) {
   if (!who) return null;
   const ys = yearSystems(sql).filter(({ cl }) => ["EYFS", "Primary"].includes(phaseOf(cl)) && (!f.phase || phaseOf(cl) === f.phase) && (!f.year || cl === f.year));
   const allSubj = c.subjects();
-  const mine = who.role === "admin" ? allSubj : (who.subj?.length ? who.subj : allSubj);
+  const mine = who.role === "admin" ? allSubj : subjOfActor(who);
   const subs = f.subject ? [f.subject] : f.dept ? mine.filter((x) => deptOf(x) === f.dept) : [""];
   const rows: Row[] = []; const sections = new Set<string>(); const years = new Set<string>(); let thresholds: number[] = [4, 5];
   for (const subject of subs) for (const { cl, s } of ys) {
@@ -73,7 +75,7 @@ async function build(c: QaCtx, a: Actor, f: Filters) {
       }
       const k1 = `${thresholds[0]}+`, k2 = `${thresholds[1] ?? thresholds[0]}+`;
       const pExp = wt ? (on / wt) * 100 : null, pAbove = wt ? (ab / wt) * 100 : null;
-      rows.push({ key: [subject, cl, sec].join("|"), label: sec || (/^Year \d+$/.test(cl) ? cl.slice(5) : cl), year: cl, section: sec, subject: g.subject || subject, students: res.length, graded: graded.length, n, pct,
+      rows.push({ key: [subject, cl, sec].join("|"), label: sec || (/^Year \d+$/.test(cl) ? cl.slice(5) : cl), year: cl, section: sec, subject: g.subject || subject || String((g as { curSubject?: string }).curSubject || g.sys.scope.subject || ""), students: res.length, graded: graded.length, n, pct,
         rating: rate(pct[k1], pct[k2], kh.att), withTarget: wt, onTarget: on, above: ab, pExp, pAbove, progRating: rate(pExp, pAbove, kh.prog), up, same, down, prevGraded: pg });
     }
   }
@@ -112,7 +114,7 @@ export async function qaHandle(c: QaCtx, a: Actor, action: string, input: Json):
     return { status: 200, body: { ok: true, khda: v } };
   }
   const f = normF(input.filters, a);
-  if (a.role !== "admin" && f.subject && a.subj?.length && !a.subj.includes(f.subject)) return forbid("not_your_subject");
+  if (a.role !== "admin" && f.subject && !subjOfActor(a).includes(f.subject)) return forbid("not_your_subject");
   const k = keyOf(f);
   const prev = sql.exec(`SELECT * FROM qa_rep WHERE k=?`, k).toArray()[0];
   if (action === "qa-save") {

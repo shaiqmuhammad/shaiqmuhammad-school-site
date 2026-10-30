@@ -21,7 +21,7 @@ export function QaReport({ asAdmin = false }: { asAdmin?: boolean }) {
   const [ovrOpen, setOvrOpen] = useState(""); const [khEdit, setKhEdit] = useState<Khda | null>(null);
   const load = useCallback(async (ff: QaFilters) => {
     setErr("");
-    try { const b = await qaCall<QaBody>("qa-get", { filters: ff }, asAdmin); setD(b); setRep({ ...blank(b.staff || b.options.teachers.find((t) => t.id === ff.teacher)?.name || ""), ...(b.report || {}) }); }
+    try { const b = await qaCall<QaBody>("qa-get", { filters: ff }, asAdmin); setD(b); const bl = blank(b.staff || b.options.teachers.find((t) => t.id === ff.teacher)?.name || ""); setRep({ ...bl, ...(b.report || {}), staff: b.report?.staff || bl.staff, date: b.report?.date || bl.date }); }
     catch (e) { setErr(String((e as Error).message)); setD(null); }
   }, [asAdmin]);
   useEffect(() => { load(f); }, [f, load]);
