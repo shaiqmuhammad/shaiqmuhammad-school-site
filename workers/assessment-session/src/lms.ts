@@ -336,6 +336,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     }
     this.migrateScopeToGroups();
     this.migrateSubjectPhase();
+    this.migrateGroupsToAssignment();
   }
 
   private catalog() {
@@ -377,7 +378,33 @@ export class LmsStore extends DurableObject<LmsEnv> {
   }
 
   /** Teachers see students ONLY through admin groups assigned to them. Returns class/section tokens for fully-covered places plus individual ids. Never empty: a teacher with no groups gets a sentinel that matches nothing. */
+  /** t346: the teacher's "Teaching assignment" (users.scope + users.subjects, set on Add/Edit Teacher) is the single source of which classes they see. subj = their subjects that students actually take (none match → no subject filter). */
   private teacherScope(tid: string): { scope: string[]; stu: string[]; subj: string[] } {
+    const u = this.sql.exec(`SELECT scope, subjects FROM users WHERE id=?`, tid).toArray()[0];
+    const scope = u ? (JSON.parse(String(u.scope || "[]")) as string[]).filter(Boolean) : [];
+    const subs = u ? (JSON.parse(String(u.subjects || "[]")) as string[]) : [];
+    const stuSubs = new Set<string>(); for (const r of this.sql.exec(`SELECT DISTINCT subject FROM users WHERE role='student'`).toArray()) for (const x of subjList(r.subject)) stuSubs.add(x);
+    return { scope: scope.length ? scope : ["\u0000"], stu: [], subj: subs.filter((x) => stuSubs.has(x)) };
+  }
+  /** t346 one-time: copy each teacher's group-based class access into their Teaching assignment so nobody loses access. Individual students in partly-covered sections add that section. Group subjects are added to the teacher's subjects. Teachers without groups keep their stored assignment. */
+  private migrateGroupsToAssignment() {
+    if (this.setting("mig:t346") === "1") return;
+    const log: unknown[] = [];
+    for (const t of this.sql.exec(`SELECT id, username, scope, subjects FROM users WHERE role='teacher'`).toArray()) {
+      const tid = String(t.id);
+      const gs = this.sql.exec(`SELECT teachers FROM grp WHERE admin=1`).toArray().filter((r) => (JSON.parse(String(r.teachers || "[]")) as string[]).includes(tid));
+      if (!gs.length) continue;
+      const old = this.legacyGroupScope(tid);
+      const sc = new Set(old.scope.filter((x) => x !== "\u0000"));
+      for (const sid of old.stu) { const r = this.userRow("id=? AND role='student'", sid); if (r && r.cls) sc.add(r.section ? `${String(r.cls)}|${String(r.section)}` : String(r.cls)); }
+      const subs = [...new Set([...(JSON.parse(String(t.subjects || "[]")) as string[]), ...old.subj])];
+      this.sql.exec(`UPDATE users SET scope=?, subjects=? WHERE id=?`, JSON.stringify([...sc].sort()), JSON.stringify(subs), tid);
+      log.push({ t: String(t.username), before: JSON.parse(String(t.scope || "[]")), after: [...sc].sort(), extraStu: old.stu.length, subs });
+    }
+    this.sql.exec(`INSERT INTO settings (k, v) VALUES ('mig:t346', '1') ON CONFLICT(k) DO UPDATE SET v='1'`);
+    this.sql.exec(`INSERT INTO settings (k, v) VALUES ('mig:t346:log', ?) ON CONFLICT(k) DO UPDATE SET v=excluded.v`, JSON.stringify(log));
+  }
+  private legacyGroupScope(tid: string): { scope: string[]; stu: string[]; subj: string[] } {
     const gs = this.sql.exec(`SELECT students, classes, teachers, subject FROM grp WHERE admin=1`).toArray().filter((r) => (JSON.parse(String(r.teachers || "[]")) as string[]).includes(tid));
     // Subject groups (e.g. Islamic A / Islamic B): the teacher only ever sees students who take one of those subjects.
     const subj = [...new Set(gs.map((g) => String(g.subject || "").trim()).filter(Boolean))];

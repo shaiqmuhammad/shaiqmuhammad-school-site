@@ -99,7 +99,7 @@ function PersonForm({ role, catalog, initial, onSave, submitLabel, testPrefix, s
           <div className="flex flex-wrap gap-1.5">
             {catalog.subjects.map((s) => <button key={s.id} type="button" aria-pressed={f.subjects.includes(s.name)} className={chip(f.subjects.includes(s.name))} onClick={() => toggle("subjects", s.name)} data-testid={`${testPrefix}-subject`}>{s.name}</button>)}
           </div></>}
-          {!initial && <p className="text-xs opacity-70" data-testid="grp-hint">{tr("Students can also come from Groups (Admin → Members → Groups); groups take priority over the classes picked here.", "يمكن أيضًا إسناد الطلاب من المجموعات؛ المجموعات لها الأولوية.")}</p>}
+          {!initial && <p className="text-xs opacity-70" data-testid="grp-hint">{tr("The classes and sections picked here decide which students this teacher sees.", "يمكن أيضًا إسناد الطلاب من المجموعات؛ المجموعات لها الأولوية.")}</p>}
 <p className="text-xs opacity-70" data-testid="perm-hint">{initial ? tr("Module and general permissions are set from the 🔐 Permissions button in the Teachers list.", "المواد ومجموعات الصفوف وكل الصلاحيات من زر 🔐 الصلاحيات في قائمة المعلمين.") : tr("After adding, use 🔐 Permissions in the Teachers list to set access.", "بعد الإضافة، استخدم 🔐 الصلاحيات في قائمة المعلمين لضبط الوصول.")}</p>
         </div>
       )}
@@ -145,7 +145,7 @@ function TeacherAssign<T extends AssignF>({ f, setF, catalog, testPrefix }: { f:
         </div>); })}
         {!classes.length && <span className="text-sm opacity-60">{tr("No classes for this phase — add them in Classes & Subjects.", "لا صفوف لهذه المرحلة.")}</span>}
       </div>
-      <p className="text-xs opacity-70" data-testid={`${testPrefix}-assign-sum`}>{f.scope.length ? f.scope.map(scopeLabel).join(", ") : tr("No classes picked = all classes", "بدون صفوف = كل الصفوف")}</p>
+      <p className="text-xs opacity-70" data-testid={`${testPrefix}-assign-sum`}>{f.scope.length ? f.scope.map(scopeLabel).join(", ") : tr("No classes picked = this teacher sees no students", "بدون صفوف = لا يرى المعلم أي طالب")}</p>
     </div>
   );
 }
@@ -172,7 +172,7 @@ function PermissionsModal({ u, onClose, onSaved, asAdmin, catalog }: { catalog: 
   const scope = u.scope || [];
   const [allGroups, setAllGroups] = useState<StudentGroup[] | null>(null);
   const [picked, setPicked] = useState<string[]>((u.groups || []).map((g) => g.id));
-  useEffect(() => { lmsApi.grpList(true).then((r) => setAllGroups(r.items.filter((g) => g.adminGroup))).catch(() => setAllGroups([])); }, []);
+  // t346: class groups no longer set access here (Teaching assignment is the source); allGroups stays null so save never changes groups.
   const [others, setOthers] = useState<LmsUser[]>([]);
   useEffect(() => { lmsApi.users(asAdmin).then((r) => setOthers(r.users.filter((x) => x.role === "teacher" && x.id !== u.id))).catch(() => undefined); }, [asAdmin, u.id]);
   const tog = (xs: string[], v: string) => (xs.includes(v) ? xs.filter((y) => y !== v) : [...xs, v]);
@@ -194,10 +194,7 @@ function PermissionsModal({ u, onClose, onSaved, asAdmin, catalog }: { catalog: 
           <div className="rounded-2xl border border-dashed border-black/15 p-3 dark:border-white/20" data-testid="perm-subjects">
             <p className="mb-2 text-sm font-bold">📚 {tr("Subjects taught", "المواد")}</p>
             <div className="flex flex-wrap gap-1.5">{catalog.subjects.map((x) => <button key={x.id} type="button" aria-pressed={subjects.includes(x.name)} className={chip(subjects.includes(x.name))} onClick={() => setSubjects((c) => tog(c, x.name))}>{x.name}</button>)}{!catalog.subjects.length && <span className="text-sm opacity-60">{tr("No subjects yet.", "لا توجد مواد.")}</span>}</div>
-            <p className="mb-2 mt-3 text-sm font-bold">👥 {tr("Class groups", "مجموعات الصفوف")}</p>
-            <div className="flex flex-wrap items-center gap-1.5" data-testid="perm-groups">{(allGroups || []).map((g) => <button key={g.id} type="button" aria-pressed={picked.includes(g.id)} className={chip(picked.includes(g.id))} onClick={() => setPicked((c) => tog(c, g.id))} data-testid="perm-group-chip" dir="auto">{picked.includes(g.id) ? "✓ " : ""}{grpLabel(g)}</button>)}{allGroups && !allGroups.length && <span className="text-xs opacity-70">{tr("No groups yet — create them in Admin → Members → Groups.", "لا توجد مجموعات — أنشئها من الإدارة ← الأعضاء ← المجموعات.")}</span>}{allGroups === null && <span className="text-xs opacity-60">…</span>}</div>
-            {!picked.length && allGroups !== null && <p className="mt-1 text-xs text-rose-700 dark:text-rose-300">{tr("No groups ticked — this teacher sees no students.", "لا توجد مجموعات — لا يرى المعلم أي طالب.")}</p>}
-            <a className="mt-1 inline-block text-xs font-bold underline" href="/admin#groups" data-testid="perm-groups-link">{tr("Manage groups in Admin → Members → Groups", "إدارة المجموعات من الإدارة ← الأعضاء ← المجموعات")}</a>
+            <p className="mt-2 text-xs opacity-75" data-testid="perm-assign-hint">🎯 {tr("Classes and sections are set in Teaching assignment — use ✏️ Edit on the teacher's row.", "الصفوف والشعب تُحدَّد في إسناد التدريس — استخدم ✏️ تعديل في صف المعلم.")}</p>
           </div>
           <ModuleAccess perms={perms} setPerms={setPerms} teachers={others} />
           <QaPermsTeacher perms={perms} setPerms={setPerms} />
