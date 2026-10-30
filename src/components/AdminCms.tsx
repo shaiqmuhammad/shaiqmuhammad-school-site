@@ -31,6 +31,7 @@ import { AdminReports } from "@/components/reports/AdminReports";
 import { AssessmentTracker } from "@/components/tracker/AssessmentTracker";
 import { PushSettings } from "@/components/lms/PushSettings";
 import { AttainmentSystems } from "@/components/tracker/AttainmentSystems";
+import { QaReport } from "@/components/qa/QaReport";
 import { WallBoard } from "@/components/lms/LmsWall";
 import { AdminActivities } from "@/components/AdminActivities";
 import { AdminVideoComments } from "@/components/AdminVideoComments";
@@ -65,8 +66,8 @@ import { AdminHome } from "@/components/AdminHome";
 import AdminSettings from "@/components/AdminSettings";
 import { useI18n } from "@/lib/i18n";
 
-type Tab = "logins" | "groups" | "downloads" | "parents" | "attendance" | "behaviour" | "curriculum" | "youtube" | "sitepages" | "home" | "pages" | "quizzes" | "certificate" | "banners" | "announcements" | "teacher" | "forum" | "results" | "activities" | "settings" | "students" | "teachers" | "setup" | "lmshw" | "classes" | "mail" | "homepage" | "staff" | "messages" | "notices" | "vcomments" | "reports" | "wall" | "tracker" | "asys";
-const HASH_TABS: Tab[] = ["logins", "groups", "downloads", "parents", "attendance", "behaviour", "curriculum", "youtube", "sitepages", "pages", "quizzes", "certificate", "banners", "announcements", "teacher", "forum", "results", "activities", "settings", "students", "teachers", "setup", "classes", "lmshw", "mail", "homepage", "staff", "messages", "notices", "vcomments", "reports", "wall", "tracker", "asys"];
+type Tab = "logins" | "groups" | "downloads" | "parents" | "attendance" | "behaviour" | "curriculum" | "youtube" | "sitepages" | "home" | "pages" | "quizzes" | "certificate" | "banners" | "announcements" | "teacher" | "forum" | "results" | "activities" | "settings" | "students" | "teachers" | "setup" | "lmshw" | "classes" | "mail" | "homepage" | "staff" | "messages" | "notices" | "vcomments" | "reports" | "wall" | "tracker" | "asys" | "qa";
+const HASH_TABS: Tab[] = ["logins", "groups", "downloads", "parents", "attendance", "behaviour", "curriculum", "youtube", "sitepages", "pages", "quizzes", "certificate", "banners", "announcements", "teacher", "forum", "results", "activities", "settings", "students", "teachers", "setup", "classes", "lmshw", "mail", "homepage", "staff", "messages", "notices", "vcomments", "reports", "wall", "tracker", "asys", "qa"];
 const emptyPage = (): ContentPage => ({ id: newId("page"), slug: "", title: "", excerpt: "", body: "", published: true, updatedAt: new Date().toISOString() });
 
 export default function AdminCms() {
@@ -371,6 +372,7 @@ export default function AdminCms() {
         {tab==="wall" && <WallBoard asAdmin />}
         {tab==="tracker" && <AssessmentTracker asAdmin />}
         {tab==="asys" && <AttainmentSystems />}
+        {tab==="qa" && <QaReport asAdmin />}
         {tab==="activities" && <AdminActivities />}
         {tab==="youtube" && <AdminYouTube />}
         {tab==="sitepages" && <AdminPageManager />}

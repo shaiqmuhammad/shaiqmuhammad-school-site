@@ -36,6 +36,7 @@
 import { makeVapid, sendPush, type Vapid } from "./push";
 import { textReplaceAll } from "./textfix";
 import { scoreFromPct, systems, trackerHandle, trkInit } from "./tracker";
+import { qaHandle } from "./qa";
 import { MP_PERM, mpAll, mpCfg, mpOf, mpSave } from "./modperm";
 import { buildFeedback, fromGrade, overallOf, parseScores, type Scores } from "./quranScore";
 import { DurableObject } from "cloudflare:workers";
@@ -98,6 +99,7 @@ function avatarOf(r: Record<string, unknown>): string {
 /** t302: push text per notification kind ({field} filled from the notification data). New kinds appear in the switches automatically. */
 const PUSH_TEXT: Record<string, [string, string]> = {
   child_progress: ["Child progress update", "{child}: {title} — {grade}"],
+  qa_ready: ["QA report ready / updated", "{by}: {title}"],
   hw_new: ["New homework", "{title}"], sub_new: ["Homework submitted", "{student}: {title}"], graded: ["Homework graded", "{title}"], approved: ["Homework approved", "{title}"],
   returned: ["Please try again", "{title}"], feedback: ["Teacher feedback", "{title}"], feedback_audio: ["Voice feedback", "{title}"], mistakes: ["Mistakes marked", "{title}"],
   message: ["New message", "{by}: {title}"], announcement: ["Announcement", "{title}"], reminder: ["Homework reminder", "{title}"], revise: ["Time to revise", "{title}"], test: ["Test notification", "Push notifications are working ✅"],
@@ -845,6 +847,16 @@ export class LmsStore extends DurableObject<LmsEnv> {
       return trackerHandle({ sql: this.sql as never, inScope: (x, c2, s2, i) => this.inScope(x, c2, s2, i), homework: () => this.allHomework().map((h) => ({ id: h.id, kind: h.kind, cls: String(h.cls || "") })),
         tagged: (ids, qids) => { const k = ids.join(",") + "/" + qids.join(","); if (!memo.has(k)) memo.set(k, RES ? (RES.get(RES.idFromName("main")) as unknown as { scTagged(i: string[], q: string[]): Promise<unknown> }).scTagged(ids, qids) : Promise.resolve([])); return memo.get(k) as never; } }, a, action, input);
     }
+    if (/^qa-/.test(action)) {
+      const RES = (this.env as unknown as { RESULTS?: DurableObjectNamespace }).RESULTS;
+      const memo = new Map<string, Promise<unknown>>();
+      return qaHandle({ sql: this.sql as never, inScope: (x, c2, s2, i) => this.inScope(x, c2, s2, i), homework: () => this.allHomework().map((h) => ({ id: h.id, kind: h.kind, cls: String(h.cls || "") })),
+        tagged: (ids, qids) => { const k = ids.join(",") + "/" + qids.join(","); if (!memo.has(k)) memo.set(k, RES ? (RES.get(RES.idFromName("main")) as unknown as { scTagged(i: string[], q: string[]): Promise<unknown> }).scTagged(ids, qids) : Promise.resolve([])); return memo.get(k) as never; },
+        actorOf: (uid) => { const r = this.userRow("id=?", uid); return r && String(r.role) === "teacher" ? this.mkActor(this.publicUser(r)) : null; },
+        teachers: () => this.sql.exec(`SELECT id, name FROM users WHERE role='teacher' AND COALESCE(disabled,0)=0 ORDER BY name`).toArray().map((r) => ({ id: String(r.id), name: String(r.name), subj: [] })),
+        subjects: () => this.sql.exec(`SELECT name FROM catalog WHERE kind='subject' ORDER BY ord, name`).toArray().map((r) => String(r.name)),
+        notify: (uids, data) => { this.ctx.waitUntil(this.pushOut(uids, "qa_ready", data).catch(() => undefined)); } }, a, action, input);
+    }
     if (/^pg-/.test(action)) return pageHandle({ sql: this.sql as never, acc: (x) => mpOf(this.sql as never, x as never, "lp"), subjectsOf: (uid) => { try { return JSON.parse(String(this.userRow("id=?", uid)?.subjects || "[]")) as string[]; } catch { return []; } } }, a as never, action, input);
     if (/^lp-/.test(action)) return packHandle(this.packCtx(), a as never, action, input);
     if (action === "att-tt-shared") return { status: 200, body: { shared: ttShared(this.sql as never, a as never) } };
@@ -1072,6 +1084,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         // Per-user switches per feature type (and, for the admin, the global switch per type).
         if (a.viewAs) return { status: 403, body: { error: "forbidden" } };
         this.sql.exec(`INSERT OR IGNORE INTO push_kind (kind, first, admin_off) VALUES ('child_progress', ?, 1)`, Date.now()); // t332: off until the admin turns it on
+        this.sql.exec(`INSERT OR IGNORE INTO push_kind (kind, first, admin_off) VALUES ('qa_ready', ?, 1)`, Date.now()); // t336: off until the admin turns it on
         for (const kk of Object.keys(PUSH_TEXT)) this.sql.exec(`INSERT OR IGNORE INTO push_kind (kind, first, admin_off) VALUES (?, ?, 0)`, kk, Date.now());
         if (input.kind) {
           const kd = str(input.kind, 40);

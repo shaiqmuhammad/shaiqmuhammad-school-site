@@ -17,7 +17,7 @@ export type TCell = { v: number | null; src: "quiz" | "quiz-all" | "quran" | "ov
 export type TStudent = { id: string; name: string; first: string; last: string; target: string; targetSrc: string; targetMode?: "profile" | "fixed" | "teacher"; isamsId: string };
 export type TUnit = { id: string; title: string; titleAr?: string; scAr?: string[]; term: string; wk: number; sc: string[]; quizzes?: string[]; std?: { codes: string[]; skill: number } };
 export type TResult = { id: string; avg: number | null; calc: number | null; grade: number | null; override: { by: string; at: number } | null; effort: string; effortManual?: boolean; effortAuto?: string; n: number };
-export type TGrid = { sys: ASys; cls: string; term: string; subject?: string; students: TStudent[]; units: TUnit[]; cells: Record<string, TCell>; results: TResult[]; access: TrkAccess; ops?: { add: boolean; edit: boolean; delete: boolean } };
+export type TGrid = { sys: ASys; cls: string; term: string; subject?: string; students: TStudent[]; units: TUnit[]; cells: Record<string, TCell>; results: TResult[]; access: TrkAccess; ops?: { add: boolean; edit: boolean; delete: boolean }; khda?: import("@/lib/qa").Khda };
 export const TERMS = ["Term 1", "Term 2", "Term 3"];
 
 let admin = false;

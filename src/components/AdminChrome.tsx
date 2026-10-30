@@ -10,7 +10,7 @@ import { LmsBell } from "@/components/lms/LmsBell";
 import { mailApi } from "@/lib/mail";
 import { useI18n } from "@/lib/i18n";
 
-type Tab = "logins" | "groups" | "downloads" | "parents" | "attendance" | "behaviour" | "curriculum" | "youtube" | "sitepages" | "home" | "pages" | "quizzes" | "certificate" | "banners" | "announcements" | "teacher" | "forum" | "results" | "activities" | "settings" | "students" | "teachers" | "setup" | "lmshw" | "classes" | "mail" | "homepage" | "staff" | "messages" | "notices" | "vcomments" | "reports" | "wall" | "tracker" | "asys";
+type Tab = "logins" | "groups" | "downloads" | "parents" | "attendance" | "behaviour" | "curriculum" | "youtube" | "sitepages" | "home" | "pages" | "quizzes" | "certificate" | "banners" | "announcements" | "teacher" | "forum" | "results" | "activities" | "settings" | "students" | "teachers" | "setup" | "lmshw" | "classes" | "mail" | "homepage" | "staff" | "messages" | "notices" | "vcomments" | "reports" | "wall" | "tracker" | "asys" | "qa";
 
 type Props = {
   busy: boolean;
@@ -30,7 +30,7 @@ const GROUPS: { id: string; en: string; ar: string; ids: Tab[] }[] = [
   { id: "site", en: "Settings", ar: "إعدادات الموقع", ids: ["homepage", "teacher", "banners", "announcements", "youtube", "sitepages", "settings"] },
   { id: "teach", en: "Teaching and Learning", ar: "التعليم والتعلّم", ids: ["setup", "curriculum", "pages", "classes"] },
   { id: "members", en: "Members", ar: "الأعضاء", ids: ["students", "teachers", "logins", "parents", "groups", "downloads", "staff", "attendance", "behaviour"] },
-  { id: "assess", en: "Assessment", ar: "التقييم", ids: ["quizzes", "lmshw", "certificate", "results", "tracker", "reports", "asys"] },
+  { id: "assess", en: "Assessment", ar: "التقييم", ids: ["quizzes", "lmshw", "certificate", "results", "tracker", "reports", "asys", "qa"] },
   { id: "tools", en: "Teaching Tools", ar: "أدوات التدريس", ids: ["activities"] },
   { id: "community", en: "Community", ar: "التواصل", ids: ["messages", "notices", "wall", "vcomments", "forum", "mail"] },
 ];
@@ -54,6 +54,7 @@ const DESC: Partial<Record<Tab, [string, string]>> = {
   lmshw: ["All homework and submissions across classes.", "كل الواجبات والتسليمات في جميع الصفوف."],
   results: ["Assessment results, exports and printouts.", "نتائج التقييمات والتصدير والطباعة."],
   tracker: ["Assessment Tracker: Success Criteria scores per class and term, Attainment Grade, exports and the iSAMS report file.", "متتبع التقييم: درجات معايير النجاح لكل صف وفصل ودرجة التحصيل والتصدير وملف iSAMS."],
+  qa: ["Progress Check QA (PC1–3): attainment & progress per year/class from the Assessment Trackers, KHDA rating, narrative and PDF / Word / Excel.", "ضمان جودة فحص التقدم: التحصيل والتقدم من المتتبعات وتصنيف KHDA."],
   asys: ["Attainment & Progress Systems: RIS Primary scales, cut-offs, grade bands, targets, effort list and permissions.", "أنظمة التحصيل والتقدّم: المقاييس والحدود والدرجات والأهداف والصلاحيات."],
   wall: ["Class Wall for every group: read, post to one or several groups, moderate.", "جدار الصف لكل مجموعة: اقرأ وانشر لمجموعة أو أكثر وراقب."],
   reports: ["Department report: attainment, progress, Quran, homework and curriculum coverage.", "تقرير القسم: التحصيل والتقدّم والقرآن والواجبات وتغطية المنهج."],
@@ -96,6 +97,7 @@ const ICONS: Record<Tab, ReactNode> = {
   quizzes: <><rect x="4" y="3" width="16" height="18" rx="2" /><path d="M8 8h8M8 12h8M8 16h5" /></>,
   results: <><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" /></>,
   tracker: <><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M9 3v18M14 14l2 2 3-4" /></>,
+  qa: <><path d="M9 11l3 3 8-8" /><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9" /></>,
   asys: <><circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1" /></>,
   wall: <><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M3 10h18M9 10v10M15 4v6" /></>,
   reports: <><circle cx="12" cy="12" r="9" /><path d="M12 3v9l6.4 6.4" /></>,
@@ -200,7 +202,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
   const drawerRef = useRef<HTMLDivElement>(null);
   const homeLabel = tr("Admin home — refresh content", "الرئيسية وتحديث المحتوى");
   const label = (id: Tab) =>
-    id === "home" ? tr("Dashboard", "لوحة التحكم") : id === "announcements" ? tr("Announcements", "الإعلانات") : id === "results" ? tr("Results", "النتائج") : id === "reports" ? tr("Department Report", "تقرير القسم") : id === "wall" ? tr("Class Wall", "جدار الصف") : id === "tracker" ? tr("Assessment Tracker", "متتبع التقييم") : id === "asys" ? tr("Attainment & Progress Systems", "أنظمة التحصيل والتقدّم") : id === "activities" ? tr("Activities", "الأنشطة") : id === "students" ? tr("Students", "الطلاب") : id === "teachers" ? tr("Teachers", "المعلمون") : id === "setup" ? tr("Classes & Subjects", "الصفوف والمواد") : id === "lmshw" ? tr("Homework", "الواجبات") : id === "mail" ? tr("Mail", "البريد") : id === "homepage" ? tr("Homepage", "الصفحة الرئيسية") : id === "logins" ? tr("Student Logins", "بيانات دخول الطلاب") : id === "groups" ? tr("Groups", "المجموعات") : id === "downloads" ? tr("Downloads", "التنزيلات") : id === "parents" ? tr("Parents", "أولياء الأمور") : id === "attendance" ? tr("Attendance", "الحضور") : id === "behaviour" ? tr("Behaviour", "السلوك") : id === "curriculum" ? tr("Curriculum", "المنهج") : id === "classes" ? tr("Classes", "الصفوف") : id === "staff" ? tr("Staff", "الموظفون") : id === "vcomments" ? tr("Video comments", "تعليقات الفيديو") : id === "messages" ? tr("Messages", "الرسائل") : id === "notices" ? tr("Class announcements", "إعلانات الصفوف") : id === "pages" ? tr("Learning Material", "المواد التعليمية") : id === "youtube" ? "YouTube" : id === "sitepages" ? tr("Pages & menu", "الصفحات والقوائم") : t(`admin.tab.${id}`);
+    id === "home" ? tr("Dashboard", "لوحة التحكم") : id === "announcements" ? tr("Announcements", "الإعلانات") : id === "results" ? tr("Results", "النتائج") : id === "reports" ? tr("Department Report", "تقرير القسم") : id === "wall" ? tr("Class Wall", "جدار الصف") : id === "tracker" ? tr("Assessment Tracker", "متتبع التقييم") : id === "asys" ? tr("Attainment & Progress Systems", "أنظمة التحصيل والتقدّم") : id === "qa" ? tr("Progress Check QA", "ضمان جودة فحص التقدم") : id === "activities" ? tr("Activities", "الأنشطة") : id === "students" ? tr("Students", "الطلاب") : id === "teachers" ? tr("Teachers", "المعلمون") : id === "setup" ? tr("Classes & Subjects", "الصفوف والمواد") : id === "lmshw" ? tr("Homework", "الواجبات") : id === "mail" ? tr("Mail", "البريد") : id === "homepage" ? tr("Homepage", "الصفحة الرئيسية") : id === "logins" ? tr("Student Logins", "بيانات دخول الطلاب") : id === "groups" ? tr("Groups", "المجموعات") : id === "downloads" ? tr("Downloads", "التنزيلات") : id === "parents" ? tr("Parents", "أولياء الأمور") : id === "attendance" ? tr("Attendance", "الحضور") : id === "behaviour" ? tr("Behaviour", "السلوك") : id === "curriculum" ? tr("Curriculum", "المنهج") : id === "classes" ? tr("Classes", "الصفوف") : id === "staff" ? tr("Staff", "الموظفون") : id === "vcomments" ? tr("Video comments", "تعليقات الفيديو") : id === "messages" ? tr("Messages", "الرسائل") : id === "notices" ? tr("Class announcements", "إعلانات الصفوف") : id === "pages" ? tr("Learning Material", "المواد التعليمية") : id === "youtube" ? "YouTube" : id === "sitepages" ? tr("Pages & menu", "الصفحات والقوائم") : t(`admin.tab.${id}`);
 
   useEffect(() => {
     try {

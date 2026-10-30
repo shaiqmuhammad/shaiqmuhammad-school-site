@@ -1,5 +1,6 @@
 "use client";
 
+import { rate, RATING_COLOR } from "@/lib/qa";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ARABIC_SUBJECTS, useTr } from "@/components/lms/useLms";
 import { useI18n } from "@/lib/i18n";
@@ -151,6 +152,8 @@ function Grid({ g, gridRef, sum, edit, set, setGrade, setTarget }: { g: TGrid; g
                 <tr><td colSpan={2} style={{ height: 14 }} /></tr>
               </Fragment>
             ))}
+            {/* t336: KHDA rating from the two summary %s (admin-editable thresholds in Progress Check QA). */}
+            {g.khda && sum.rows.length >= 2 && (() => { const r = rate(sum.rows[0].pct, sum.rows[1].pct, g.khda.att); return r ? <tr><td className="pe-4">KHDA</td><td data-testid="trk-sum-khda" style={{ fontWeight: 700, color: RATING_COLOR[r] }}>{r}</td></tr> : null; })()}
           </tbody></table>}
         </div>
       </div>

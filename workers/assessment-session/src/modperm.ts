@@ -6,14 +6,14 @@
  */
 type Sql = { exec: (q: string, ...b: unknown[]) => { toArray: () => Record<string, unknown>[] } };
 type Act = { role: string; perms?: string[]; subj?: string[] };
-export const MP_MODS = ["trk", "rep", "aps", "tt", "lp"] as const;
-export const MP_KEYS = ["show", "view", "add", "edit", "delete", "xlsx", "pdf", "isams", "share"] as const;
+export const MP_MODS = ["trk", "rep", "aps", "tt", "lp", "qa"] as const;
+export const MP_KEYS = ["show", "view", "add", "edit", "delete", "xlsx", "pdf", "isams", "share", "dl"] as const;
 export type MpMod = (typeof MP_MODS)[number];
 export type MpKey = (typeof MP_KEYS)[number];
 export type MpAcc = Record<MpKey, boolean>;
 type Part = Partial<Record<MpMod, Partial<MpAcc>>>;
 export type MpCfg = { global: Part; roles: Record<string, Part>; subjects: Record<string, Part> };
-export const MP_PERM = /^mp:(trk|rep|aps|tt|lp):(show|view|add|edit|delete|xlsx|pdf|isams|share):(on|off)$/;
+export const MP_PERM = /^mp:(trk|rep|aps|tt|lp|qa):(show|view|add|edit|delete|xlsx|pdf|isams|share|dl):(on|off)$/;
 const pick = (o: unknown): Part => {
   const out: Part = {}; const x = (o && typeof o === "object" ? o : {}) as Record<string, Record<string, unknown>>;
   for (const m of MP_MODS) { const r: Partial<MpAcc> = {}; for (const k of MP_KEYS) if (typeof x[m]?.[k] === "boolean") r[k] = x[m][k] as boolean; if (Object.keys(r).length) out[m] = r; }
@@ -37,6 +37,8 @@ export function mpSave(sql: Sql, raw: unknown): MpCfg {
 export function mpOf(sql: Sql, a: Act, mod: MpMod, cfg = mpCfg(sql)): MpAcc {
   const out = Object.fromEntries(MP_KEYS.map((k) => [k, true])) as MpAcc;
   if (a.role === "admin") return out;
+  // t336: Progress Check QA starts OFF for teachers (admin turns View / Add / Edit / Download on per teacher, role or subject).
+  if (mod === "qa") for (const k of MP_KEYS) out[k] = k === "show";
   Object.assign(out, cfg.global[mod] || {}, cfg.roles[a.role]?.[mod] || {});
   for (const k of MP_KEYS) { const vals = (a.subj || []).map((s) => cfg.subjects[s]?.[mod]?.[k]).filter((x) => typeof x === "boolean"); if (vals.length) out[k] = !vals.includes(false); }
   for (const p of a.perms || []) { const m = MP_PERM.exec(p); if (m && m[1] === mod) out[m[2] as MpKey] = m[3] === "on"; }

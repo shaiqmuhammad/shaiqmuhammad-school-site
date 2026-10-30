@@ -12,6 +12,7 @@
  */
 import { mpOf, type MpAcc } from "./modperm";
 import type { Actor } from "./lms";
+import { khdaCfg } from "./qa";
 
 type Json = Record<string, unknown>;
 /** t284: a subject that shares (links to, never copies) another subject's curriculum, topics, SCs and tracker structure. */
@@ -167,11 +168,11 @@ export function gradeOf(avg: number | null, target: string, sys: ASys, cls = "")
 }
 export const targetFromScaledSys = (v: number, sys: ASys) => { const r = sys.scaled.find(([a, b]) => v >= a && v <= b); return r ? String(r[2]) : ""; };
 
-const TERMS = ["Term 1", "Term 2", "Term 3"];
+export const TERMS = ["Term 1", "Term 2", "Term 3"];
 type Cell = { v: number | null; src: "quiz" | "quiz-all" | "quran" | "override" | ""; auto: number | null; autoSrc: string; by?: string; at?: number; note?: string };
 
 /** The grid for one class (and term, "" = whole year), limited to the students this actor may see. */
-async function grid(c: TrkCtx, a: Actor, cls: string, term: string, want = "", subjIn = "") {
+export async function grid(c: TrkCtx, a: Actor, cls: string, term: string, want = "", subjIn = "") {
   const sys = sysFor(c.sql, cls, want);
   if (!sys) return null;
   // Subject rows: explicit choice, else a one-subject teacher's own subject. Results only ever land on that subject's students.
@@ -185,7 +186,7 @@ async function grid(c: TrkCtx, a: Actor, cls: string, term: string, want = "", s
       if (rule.mode === "fixed" && rule.value) { t = rule.value; src = "rule"; }
       else if (rule.mode === "teacher") { t = String(s.target || ""); src = t ? "teacher" : ""; } // teacher judgment: never from the scaled score
       else { t = String(s.target || "") || (s.scaled ? targetFromScaledSys(Number(s.scaled), sys) : ""); src = s.target ? "profile" : t ? "scaled" : ""; }
-      return { id: String(s.id), name: String(s.name), first: String(s.first_name || ""), last: String(s.last_name || ""), target: t, targetSrc: src, targetMode: rule.mode, isamsId: String(s.isams_id || "") };
+      return { id: String(s.id), name: String(s.name), first: String(s.first_name || ""), last: String(s.last_name || ""), target: t, targetSrc: src, targetMode: rule.mode, isamsId: String(s.isams_id || ""), section: String(s.section || "") };
     });
   const curS = curSubj(subject || sys.scope.subject);
   const units = c.sql.exec(`SELECT id, title, title_ar, sc_ar, term, wk_from, sc, links, subject, quiz, std FROM cur WHERE yr=? ${curS ? "AND subject=?" : ""} ORDER BY term, wk_from, ord, title`, ...(curS ? [cls, curS] : [cls])).toArray()
@@ -250,7 +251,7 @@ async function grid(c: TrkCtx, a: Actor, cls: string, term: string, want = "", s
 }
 
 /** Each class once, with the system that applies to it (default for its phase). */
-const yearSystems = (sql: Sql) => { const seen = new Set<string>(); const out: { cl: string; s: ASys }[] = []; for (const s of systems(sql).filter((x) => x.active)) for (const cl of s.scope.years) { if (seen.has(cl)) continue; const d = sysFor(sql, cl); if (d) { seen.add(cl); out.push({ cl, s: d }); } } return out; };
+export const yearSystems = (sql: Sql) => { const seen = new Set<string>(); const out: { cl: string; s: ASys }[] = []; for (const s of systems(sql).filter((x) => x.active)) for (const cl of s.scope.years) { if (seen.has(cl)) continue; const d = sysFor(sql, cl); if (d) { seen.add(cl); out.push({ cl, s: d }); } } return out; };
 
 /** Years an assessment / Quran homework belongs to: its curriculum topic(s), else the given year. */
 function yearsOf(sql: Sql, id: string, year: unknown, hwCls?: string): string[] {
@@ -319,7 +320,7 @@ export async function trackerHandle(c: TrkCtx, a: Actor, action: string, input: 
       if (!g || (a.role !== "admin" && !g.students.length)) return forbid("not_your_class");
       // t294: the grid disables controls per Add / Edit / Delete (the server still refuses them on save).
       const ops = { add: acc.edit && mpt.add, edit: acc.edit && mpt.edit, delete: acc.edit && mpt.delete };
-      return { status: 200, body: { ...g, access: acc, ops, sys: g.sys } };
+      return { status: 200, body: { ...g, access: acc, ops, sys: g.sys, khda: khdaCfg(sql) } };
     }
     case "trk-target": {
       // Teacher-judgment years (e.g. Year 1): teacher with tracker Add/Edit, or admin, picks 1–7 ("" clears).
