@@ -735,6 +735,8 @@ export class LmsStore extends DurableObject<LmsEnv> {
     const r = this.sql.exec(`SELECT * FROM subs WHERE id=?`, str(q.sub, 40)).toArray()[0];
     if (!r) return { status: 404, body: { error: "not_found" } };
     await this.files.put(id, data, type);
+    // t337: a voice note for one verse mark (?mark=1) — stored for that submission, attached by "mistakes"; no comment, no push, the work stays in To review.
+    if (q.mark) { this.sql.exec(`INSERT INTO blobs (id, owner, sub, kind, mime, size, created) VALUES (?, ?, ?, 'mk', ?, ?, ?)`, id, a.id, String(r.id), type, data.byteLength, Date.now()); return { status: 200, body: { ok: true, id } }; }
     this.sql.exec(`INSERT INTO blobs (id, owner, sub, kind, mime, size, created) VALUES (?, ?, ?, 'fb', ?, ?, ?)`, id, a.id, String(r.id), type, data.byteLength, Date.now());
     const comments = JSON.parse(String(r.comments || "[]")) as Json[];
     comments.push({ by: a.name, text: "", audio: id, at: Date.now() });
@@ -2272,7 +2274,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         if (!can(a, "review")) return { status: 403, body: { error: "forbidden" } };
         const r = this.sql.exec(`SELECT * FROM subs WHERE id=?`, str(input.id, 40)).toArray()[0];
         if (!r) return { status: 404, body: { error: "not_found" } };
-        const list = (Array.isArray(input.mistakes) ? (input.mistakes as Json[]) : []).slice(0, 100).map((m) => ({ ayah: Math.trunc(Number(m.ayah)) || 0, word: Math.trunc(Number(m.word)), text: str(m.text, 80), note: str(m.note, 300) })).filter((m) => m.ayah > 0);
+        const list = (Array.isArray(input.mistakes) ? (input.mistakes as Json[]) : []).slice(0, 100).map((m) => ({ ayah: Math.trunc(Number(m.ayah)) || 0, word: Math.trunc(Number(m.word)), text: str(m.text, 80), note: str(m.note, 300), ...(m.audio ? { audio: str(m.audio, 60) } : {}) })).filter((m) => m.ayah > 0);
         this.sql.exec(`UPDATE subs SET mistakes=?, updated=? WHERE id=?`, JSON.stringify(list), Date.now(), String(r.id));
         this.sql.exec(`UPDATE tracker SET marks=? WHERE hw=? AND student=?`, JSON.stringify(list), String(r.hw), String(r.student)); // t332: verse marks flow to the tracker
         const h = this.allHomework(String(r.hw))[0];

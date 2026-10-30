@@ -91,6 +91,8 @@ export function QuranReader({ data, mistakes = [], onMarkWord }: { data: QuranDa
       );
     });
   const arNum = (n: number) => n.toLocaleString("ar-EG");
+  // t337: the teacher's voice notes on a verse mark, heard right on that verse.
+  const vnotes = (n: number) => { const ms = mistakes.filter((m) => m.ayah === n && m.audio); return ms.length ? <div className="flex flex-wrap gap-2 px-2" dir="ltr" data-testid="verse-notes">{ms.map((m) => <AudioClip key={m.audio} id={m.audio!} label={`🎙️ ${tr("Teacher note", "ملاحظة المعلم")} · ${m.text}`} testId="verse-note" />)}</div> : null; };
   const showBismillah = data.from === 1 && data.surah !== 1 && data.surah !== 9;
   return (
     <section className="space-y-3" data-testid="quran-reader">
@@ -132,6 +134,7 @@ export function QuranReader({ data, mistakes = [], onMarkWord }: { data: QuranDa
                   </button>
                   {data.translit && extras?.get(v.n)?.translit && <p className="px-2 text-left text-base italic opacity-80" dir="ltr" data-testid="quran-translit">{extras.get(v.n)!.translit}</p>}
                   {data.translation && extras?.get(v.n)?.translation && <p className={`px-2 text-sm opacity-75 ${lang === "ar" ? "text-right" : "text-left"}`} dir={lang === "ar" ? "rtl" : "ltr"} data-testid="quran-translation">{extras.get(v.n)!.translation}</p>}
+                  {!onMarkWord && vnotes(v.n)}
                 </li>
               ))}
             </ol>
@@ -144,6 +147,7 @@ export function QuranReader({ data, mistakes = [], onMarkWord }: { data: QuranDa
               ))}
             </p>
           )}
+          {!perVerse && !onMarkWord && mistakes.some((m) => m.audio) && <div className="mt-2 space-y-1" data-testid="verse-notes-flow">{[...new Set(mistakes.filter((m) => m.audio).map((m) => m.ayah))].map((n) => <div key={n} className="flex items-center gap-2 text-sm"><b>{tr("Verse", "آية")} {n}</b>{vnotes(n)}</div>)}</div>}
         </div>
       </div>
     </section>
@@ -343,12 +347,15 @@ function Review({ s, asAdmin, reload, quran, qdata, regrade = false, onGraded, p
         <div key={i} className="text-sm" dir="auto"><b>{x.by}:</b> {x.text}{x.audio && <AudioClip id={x.audio} asAdmin={asAdmin} label={"🎙️ " + tr("Voice feedback", "تعليق صوتي")} testId="fb-clip" onDelete={async () => { if (confirm(tr("Delete this voice feedback?", "حذف هذا التعليق الصوتي؟"))) { await lmsApi.audioDelete(x.audio!, asAdmin).catch(() => undefined); reload(); } }} />}</div>
       ))}
       {s.versions && s.versions.length > 0 ? <VersionTimeline list={s.versions} audio={(id) => <AudioClip id={id} asAdmin={asAdmin} testId="version-clip" />} /> : s.attempts && s.attempts.length > 0 && <Attempts list={s.attempts} asAdmin={asAdmin} />}
-      <AudioRecorder label={tr("Record voice feedback (up to 3 minutes)", "سجّل تعليقًا صوتيًا (حتى 3 دقائق)")} testId="rec-teacher" onSave={async (b) => { await lmsApi.audioUpload({ sub: s.id }, b, asAdmin); reload(); }} />
+      <AudioRecorder big autoSave light label={tr("Record voice feedback (up to 3 minutes)", "سجّل تعليقًا صوتيًا (حتى 3 دقائق)")} savedText={tr("Saved — the student will hear it. Tap the mic to record another.", "تم الحفظ — سيسمعه الطالب. اضغط الميكروفون لتسجيل آخر.")} testId="rec-teacher" onSave={async (b) => { await lmsApi.audioUpload({ sub: s.id }, b, asAdmin); reload(); }} />
       {quran && qdata && (
         <div className="space-y-2">
           <button type="button" className={smallBtn} aria-pressed={marking} onClick={() => setMarking(!marking)} data-testid="hw-mark-mistakes">✏️ {marking ? tr("Done marking", "إنهاء التحديد") : tr(`Mark mistakes${mistakes.length ? ` (${mistakes.length})` : ""}`, `حدّد الأخطاء${mistakes.length ? ` (${mistakes.length})` : ""}`)}</button>
           {marking && <><p className="text-sm opacity-70">{tr("Tap a word to mark it (tap again to remove).", "اضغط على كلمة لتحديدها (اضغط مجددًا للإزالة).")}</p><QuranReader data={qdata} mistakes={mistakes} onMarkWord={toggleWord} /></>}
-          {!marking && mistakes.length > 0 && <ul className="text-sm" dir="auto">{mistakes.map((m, i) => <li key={i}>✏️ {tr("Verse", "آية")} {m.ayah}: <b>{m.text}</b>{m.note ? ` — ${m.note}` : ""}</li>)}</ul>}
+          {!marking && mistakes.length > 0 && <ul className="space-y-1.5 text-sm" dir="auto" data-testid="mark-list">{mistakes.map((m, i) => <li key={`${m.ayah}:${m.word}`} className="flex flex-wrap items-center gap-2" data-testid="mark-item">✏️ {tr("Verse", "آية")} {m.ayah}: <b>{m.text}</b>{m.note ? ` — ${m.note}` : ""}
+            {/* t337: a short voice note on this verse mark (saved straight away; the student hears it on that verse). */}
+            {m.audio ? <AudioClip id={m.audio} asAdmin={asAdmin} label={"🎙️ " + tr("Verse note", "ملاحظة الآية")} testId="mark-clip" onDelete={async () => { await lmsApi.audioDelete(m.audio!, asAdmin).catch(() => undefined); const next = mistakes.map((x) => (x === m ? { ...x, audio: undefined } : x)); setMistakes(next); await lmsApi.saveMistakes(s.id, next, asAdmin).catch(() => undefined); }} />
+              : <AudioRecorder compact autoSave label={tr(`Record a voice note for verse ${m.ayah}`, `سجّل ملاحظة صوتية للآية ${m.ayah}`)} testId="mark-rec" onSave={async (b) => { const r = await lmsApi.audioUpload({ sub: s.id, mark: "1" }, b, asAdmin) as { id?: string }; if (!r?.id) return; const next = mistakes.map((x) => (x === m ? { ...x, audio: r.id } : x)); setMistakes(next); await lmsApi.saveMistakes(s.id, next, asAdmin); }} />}</li>)}</ul>}
         </div>
       )}
       {!(quran && s.status === "submitted") && <>{/* t335: while grading Quran work, comments are composed in the grader and sent with Save grade */}

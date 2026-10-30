@@ -1,18 +1,19 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTr } from "@/components/lms/useLms";
+import { QaCharts, KhdaBadge } from "./QaCharts";
 import { eff, fmt, qaCall, qaDocx, qaPdf, qaXlsx, rate, RATING_COLOR, thrText, type Khda, type QaBody, type QaFilters, type QaReportData } from "@/lib/qa";
 
 const EMPTY: QaFilters = { pc: "1", phase: "", dept: "", subject: "", year: "", section: "", teacher: "" };
 const blank = (staff: string): QaReportData => ({ staff, date: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }), strengths: "", afd: "", actions: "", comment: "", rowNotes: {}, ovr: {} });
 const inp = "w-full rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm text-slate-900";
-const selC = "rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900";
+const selC = "mt-1 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-sun/40";
 const btn = "rounded-full border border-slate-300 bg-white px-3 py-1.5 text-sm font-bold text-slate-900 hover:bg-slate-50 disabled:opacity-40";
 const th = "border border-slate-800 px-2 py-1.5 text-left font-bold";
 const td = "border border-slate-800 px-2 py-1 align-top";
 
 /** t336: Progress Check Quality Assurance (PC1–3 = Term 1–3). Numbers come from the Assessment Tracker; narrative is editable. */
-export function QaReport({ asAdmin = false }: { asAdmin?: boolean }) {
+export function QaReport({ asAdmin = false, term }: { asAdmin?: boolean; year?: string; term?: string }) {
   const { tr } = useTr();
   const [f, setF] = useState<QaFilters>(EMPTY);
   const [d, setD] = useState<QaBody | null>(null);
@@ -25,6 +26,8 @@ export function QaReport({ asAdmin = false }: { asAdmin?: boolean }) {
     catch (e) { setErr(String((e as Error).message)); setD(null); }
   }, [asAdmin]);
   useEffect(() => { load(f); }, [f, load]);
+  // t338: inside the Assessment Tracker the term pills pick the Progress Check (Term N = PCN).
+  useEffect(() => { const n = ["Term 1", "Term 2", "Term 3"].indexOf(term || ""); if (n >= 0) setF((x) => (x.pc === String(n + 1) ? x : { ...x, pc: String(n + 1) })); }, [term]);
   const set = (k: keyof QaFilters, v: string) => setF((x) => ({ ...x, [k]: v, ...(k === "year" ? { section: "" } : {}), ...(k === "dept" ? { subject: "" } : {}), ...(k === "phase" ? { year: "", section: "" } : {}) }));
   const can = d ? (d.report ? d.access.edit : d.access.add) : false;
   const save = async () => { if (!d) return; setBusy(true); try { await qaCall("qa-save", { filters: d.filters, data: rep }, asAdmin); setMsg(tr("Saved.", "تم الحفظ.")); await load(f); } catch (e) { setMsg(String((e as Error).message)); } setBusy(false); setTimeout(() => setMsg(""), 4000); };
@@ -36,9 +39,10 @@ export function QaReport({ asAdmin = false }: { asAdmin?: boolean }) {
       <select className={selC} value={f[k]} onChange={(e) => set(k, e.target.value)} data-testid={`qa-f-${k}`}>{all && <option value="">{tr("All", "الكل")}</option>}{opts.map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}</select></label>);
   const o = (xs: string[]) => xs.map((x) => ({ v: x, l: x }));
   return (
-    <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-3 text-slate-900 shadow-sm sm:p-5" data-testid="qa-report">
+    <section className="space-y-4 rounded-2xl border border-slate-200 bg-gradient-to-b from-white to-sky-50/40 p-3 text-slate-900 shadow-sm sm:p-5" data-testid="qa-report">
       <div className="flex flex-wrap items-end gap-2" data-testid="qa-filters">
-        {sel("pc", tr("Progress Check", "فحص التقدم"), [1, 2, 3].map((n) => ({ v: String(n), l: `PC${n} · Term ${n}` })), false)}
+        <div className="flex w-full flex-wrap gap-1.5" role="tablist" data-testid="qa-pcs">{[1, 2, 3].map((n) => <button key={n} type="button" role="tab" aria-selected={f.pc === String(n)} onClick={() => set("pc", String(n))} data-testid="qa-pc" className={`rounded-full border px-3 py-1.5 text-sm font-bold ${f.pc === String(n) ? "border-transparent bg-header text-sun" : "border-black/10 bg-white"}`}>PC{n} · {tr(`Term ${n}`, `الفصل ${n}`)}</button>)}</div>
+        <select hidden value={f.pc} onChange={(e) => set("pc", e.target.value)} data-testid="qa-f-pc">{[1, 2, 3].map((n) => <option key={n} value={String(n)}>{n}</option>)}</select>
         {sel("phase", tr("Phase", "المرحلة"), o(d?.options.phases || ["EYFS", "Primary"]))}
         {sel("dept", tr("Department", "القسم"), o(d?.options.depts || []))}
         {sel("subject", tr("Subject", "المادة"), o(d?.options.subjects || []))}
@@ -53,6 +57,7 @@ export function QaReport({ asAdmin = false }: { asAdmin?: boolean }) {
         <table className="w-full max-w-2xl border-2 border-slate-900 text-sm" data-testid="qa-head"><tbody>
           {([["staff", tr("Staff member", "الموظف")], ["subject", tr("Subject", "المادة")], ["date", tr("Date", "التاريخ")]] as const).map(([k, l]) => <tr key={k}><td className={td + " w-36 font-bold"}>{l}</td><td className={td}>{k === "subject" ? (d.filters.subject || d.filters.dept || d.rows[0]?.subject || tr("All subjects", "كل المواد")) : <input className={inp} value={rep[k]} disabled={!can} onChange={(e) => setRep({ ...rep, [k]: e.target.value })} data-testid={`qa-${k}`} />}</td></tr>)}
         </tbody></table>
+        {d.rows.length > 0 && <QaCharts d={d} rep={rep} />}
         <h3 className="text-sm font-extrabold text-[#0070C0]">Year Group Data</h3>
         {!d.rows.length ? <p className="text-sm text-slate-500" data-testid="qa-empty">{tr("No Assessment Tracker grades for this selection yet.", "لا توجد درجات في المتتبع لهذا الاختيار.")}</p> : <>
         <div className="overflow-x-auto"><table className="w-full min-w-[560px] max-w-3xl border-collapse text-sm" data-testid="qa-att"><thead>
@@ -63,19 +68,19 @@ export function QaReport({ asAdmin = false }: { asAdmin?: boolean }) {
               <td className={td + " font-semibold"}>{multi ? `${r.subject} · ` : ""}{r.label}</td>
               <td className={td} data-testid="qa-p4">{fmt(e.a)}{e.over && <b className="text-rose-600" title={tr(`Calculated ${fmt(r.pct[thr[0]])}`, "محسوب")}> *</b>}</td>
               <td className={td} data-testid="qa-p5">{fmt(e.b)}{e.over && <b className="text-rose-600" title={tr(`Calculated ${fmt(r.pct[thr[1]])}`, "محسوب")}> *</b>}</td>
-              <td className={td + " font-bold"} style={{ color: RATING_COLOR[rt] }} data-testid="qa-rating">{rt || "—"}</td>
+              <td className={td} data-testid="qa-rating" data-r={rt}><KhdaBadge r={rt} /></td>
               <td className={td + " text-xs text-slate-600"}>{r.graded}/{r.students}{can && <button type="button" className="ms-2 underline" onClick={() => setOvrOpen(ovrOpen === r.key ? "" : r.key)} data-testid="qa-ovr-btn">✎ {tr("override", "تعديل")}</button>}
                 {ovrOpen === r.key && <div className="mt-1 space-y-1 rounded-lg bg-slate-50 p-2" data-testid="qa-ovr">
                   {(["a", "b"] as const).map((k, i) => <label key={k} className="flex items-center gap-1">{thr[i]} % <input type="number" min={0} max={100} step="any" className={inp + " w-24"} value={ov?.[k] ?? ""} placeholder={fmt(r.pct[thr[i]])} onChange={(ev) => setRep({ ...rep, ovr: { ...rep.ovr, [r.key]: { ...(ov || { note: "", by: "", at: Date.now() }), [k]: ev.target.value === "" ? null : Number(ev.target.value) } } })} data-testid={`qa-ovr-${k}`} /></label>)}
                   <input className={inp} placeholder={tr("Reason (shown in the report)", "السبب")} value={ov?.note || ""} onChange={(ev) => setRep({ ...rep, ovr: { ...rep.ovr, [r.key]: { ...(ov || { a: null, b: null, by: "", at: Date.now(), note: "" }), note: ev.target.value } } })} data-testid="qa-ovr-note" />
                   {ov && <button type="button" className="text-xs underline" onClick={() => { const x = { ...rep.ovr }; delete x[r.key]; setRep({ ...rep, ovr: x }); }}>{tr("Use calculated values", "استخدم المحسوب")}</button>}</div>}</td>
               <td className={td}><textarea className={inp + " min-h-[2rem]"} rows={1} disabled={!can} value={rep.rowNotes[r.key] || ""} onChange={(ev) => setRep({ ...rep, rowNotes: { ...rep.rowNotes, [r.key]: ev.target.value } })} data-testid="qa-row-note" /></td></tr>); })}
-            {d.total && d.rows.length > 1 && <tr className="bg-slate-50 font-bold" data-testid="qa-att-total"><td className={td}>{tr("All", "الكل")}</td><td className={td}>{fmt(d.total.pct[thr[0]])}</td><td className={td}>{fmt(d.total.pct[thr[1]])}</td><td className={td} style={{ color: RATING_COLOR[d.total.rating] }}>{d.total.rating}</td><td className={td + " text-xs"}>{d.total.graded}/{d.total.students}</td><td className={td} /></tr>}
+            {d.total && d.rows.length > 1 && <tr className="bg-slate-50 font-bold" data-testid="qa-att-total"><td className={td}>{tr("All", "الكل")}</td><td className={td}>{fmt(d.total.pct[thr[0]])}</td><td className={td}>{fmt(d.total.pct[thr[1]])}</td><td className={td}><KhdaBadge r={d.total.rating} /></td><td className={td + " text-xs"}>{d.total.graded}/{d.total.students}</td><td className={td} /></tr>}
           </tbody></table></div>
         {Object.values(rep.ovr).some((x) => x.a != null || x.b != null) && <p className="text-xs italic text-rose-700" data-testid="qa-ovr-note-text">* {tr("Override — the calculated tracker value is kept and shown in the downloads.", "تعديل يدوي — تبقى القيمة المحسوبة ظاهرة في التنزيلات.")}</p>}
         <h3 className="text-sm font-extrabold text-[#0070C0]">Progress</h3>
         <div className="overflow-x-auto"><table className="w-full min-w-[560px] max-w-3xl border-collapse text-sm" data-testid="qa-prog"><thead><tr><th className={th}>{d.filters.year ? tr("Class", "الشعبة") : tr("Year", "السنة")}</th><th className={th}>% at / above target</th><th className={th}>% above target</th><th className={th}>KHDA rating</th><th className={th}>{d.filters.pc === "1" ? tr("With a target", "لديهم هدف") : `↑ / = / ↓ vs PC${Number(d.filters.pc) - 1}`}</th></tr></thead>
-          <tbody>{d.rows.map((r) => <tr key={r.key}><td className={td + " font-semibold"}>{multi ? `${r.subject} · ` : ""}{r.label}</td><td className={td}>{fmt(r.pExp)}</td><td className={td}>{fmt(r.pAbove)}</td><td className={td + " font-bold"} style={{ color: RATING_COLOR[r.progRating] }}>{r.progRating || "—"}</td><td className={td}>{d.filters.pc === "1" ? `${r.withTarget}/${r.graded}` : `${r.up} / ${r.same} / ${r.down}`}</td></tr>)}</tbody></table></div>
+          <tbody>{d.rows.map((r) => <tr key={r.key}><td className={td + " font-semibold"}>{multi ? `${r.subject} · ` : ""}{r.label}</td><td className={td}>{fmt(r.pExp)}</td><td className={td}>{fmt(r.pAbove)}</td><td className={td}><KhdaBadge r={r.progRating} /></td><td className={td}>{d.filters.pc === "1" ? `${r.withTarget}/${r.graded}` : `${r.up} / ${r.same} / ${r.down}`}</td></tr>)}</tbody></table></div>
         <details className="text-sm"><summary className="cursor-pointer font-bold text-slate-700">{tr("Tracker summary (the block at the bottom of each Assessment Tracker)", "ملخص المتتبع")}</summary>
           <div className="overflow-x-auto"><table className="mt-2 min-w-[480px] border-collapse text-sm" data-testid="qa-counts"><thead><tr><th className={th}>{tr("Year / class", "السنة")}</th><th className={th}>{thr[0]}</th><th className={th}>%</th><th className={th}>{thr[1]}</th><th className={th}>%</th><th className={th}>Students</th></tr></thead>
             <tbody>{d.rows.map((r) => <tr key={r.key}><td className={td}>{r.label}</td><td className={td}>{r.n[thr[0]] ?? 0}</td><td className={td}>{fmt(r.pct[thr[0]])}</td><td className={td}>{r.n[thr[1]] ?? 0}</td><td className={td}>{fmt(r.pct[thr[1]])}</td><td className={td}>{r.graded}</td></tr>)}</tbody></table></div></details>

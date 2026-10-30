@@ -31,7 +31,6 @@ import { AdminReports } from "@/components/reports/AdminReports";
 import { AssessmentTracker } from "@/components/tracker/AssessmentTracker";
 import { PushSettings } from "@/components/lms/PushSettings";
 import { AttainmentSystems } from "@/components/tracker/AttainmentSystems";
-import { QaReport } from "@/components/qa/QaReport";
 import { WallBoard } from "@/components/lms/LmsWall";
 import { AdminActivities } from "@/components/AdminActivities";
 import { AdminVideoComments } from "@/components/AdminVideoComments";
@@ -372,7 +371,7 @@ export default function AdminCms() {
         {tab==="wall" && <WallBoard asAdmin />}
         {tab==="tracker" && <AssessmentTracker asAdmin />}
         {tab==="asys" && <AttainmentSystems />}
-        {tab==="qa" && <QaReport asAdmin />}
+        {tab==="qa" && <AssessmentTracker asAdmin initialView="pc" />}
         {tab==="activities" && <AdminActivities />}
         {tab==="youtube" && <AdminYouTube />}
         {tab==="sitepages" && <AdminPageManager />}

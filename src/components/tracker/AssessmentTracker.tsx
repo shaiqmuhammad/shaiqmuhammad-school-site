@@ -1,6 +1,8 @@
 "use client";
 
 import { rate, RATING_COLOR } from "@/lib/qa";
+import { QaReport } from "@/components/qa/QaReport";
+import { useLmsActor } from "@/components/lms/useLms";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ARABIC_SUBJECTS, useTr } from "@/components/lms/useLms";
 import { useI18n } from "@/lib/i18n";
@@ -21,7 +23,9 @@ type SysLite = { id: string; name: string; version: string; active: boolean; isD
 type Sel = { years: string[]; access: TrkAccess; systems: SysLite[] };
 
 /** Assessment Tracker (Shaiq Muhammad System · RIS Primary Attainment and Progress System). Teachers: LMS token; admin: asAdmin. */
-export function AssessmentTracker({ asAdmin = false }: { asAdmin?: boolean }) {
+export function AssessmentTracker({ asAdmin = false, initialView = "grid" }: { asAdmin?: boolean; initialView?: "grid" | "pc" }) {
+  const { actor: me } = useLmsActor();
+  const qaOn = asAdmin || !!me?.mods?.qa?.view;
   const { tr } = useTr();
   setTrackerAdmin(asAdmin);
   const [sel, setSel] = useState<Sel | null>(null);
@@ -33,7 +37,7 @@ export function AssessmentTracker({ asAdmin = false }: { asAdmin?: boolean }) {
   const { lang } = useI18n();
   const [enOver, setEnOver] = useState(false);
   const [g, setG] = useState<TGrid | null>(null);
-  const [view, setView] = useState<"grid" | "isams" | "audit">("grid");
+  const [view, setView] = useState<"grid" | "pc" | "isams" | "audit">(initialView);
   const [msg, setMsg] = useState(""); const [bad, setBad] = useState(false);
   const [err, setErr] = useState("");
   const gridRef = useRef<HTMLDivElement>(null);
@@ -86,16 +90,17 @@ export function AssessmentTracker({ asAdmin = false }: { asAdmin?: boolean }) {
         <div className="flex flex-wrap gap-1.5" role="tablist" data-testid="trk-terms">{[...TERMS, ""].map((t) => <button key={t || "y"} type="button" role="tab" aria-selected={term === t} onClick={() => setTerm(t)} data-testid="trk-term" className={`rounded-full border px-3 py-1.5 text-sm font-bold ${term === t ? "border-transparent bg-header text-sun" : "border-black/10 bg-white/80 dark:border-white/15 dark:bg-white/10"}`}>{t || tr("Whole year", "السنة كاملة")}</button>)}</div>
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <Tabs testId="trk-view" value={view} onChange={setView} items={[["grid", tr("Tracker", "المتتبع")], ["isams", tr("iSAMS report", "تقرير iSAMS")], ...(asAdmin ? [["audit", tr("Audit", "السجل")] as ["audit", string]] : [])]} />
+        <Tabs testId="trk-view" value={view} onChange={setView} items={[["grid", tr("Tracker", "المتتبع")], ...(qaOn ? [["pc", tr("Progress Check", "فحص التقدم")] as ["pc", string]] : []), ["isams", tr("iSAMS report", "تقرير iSAMS")], ...(asAdmin ? [["audit", tr("Audit", "السجل")] as ["audit", string]] : [])]} />
         <span className="flex-1" />
-        {view !== "isams" && acc?.xlsx && <button type="button" className={btn} onClick={() => doExport("xlsx")} disabled={!g} data-testid="trk-xlsx">⬇ {tr("Tracker Excel", "إكسل المتتبع")}</button>}
-        {view !== "isams" && acc?.pdf && <button type="button" className={btn} onClick={() => doExport("pdf")} disabled={!g} data-testid="trk-pdf">⬇ PDF</button>}
+        {view === "grid" && acc?.xlsx && <button type="button" className={btn} onClick={() => doExport("xlsx")} disabled={!g} data-testid="trk-xlsx">⬇ {tr("Tracker Excel", "إكسل المتتبع")}</button>}
+        {view === "grid" && acc?.pdf && <button type="button" className={btn} onClick={() => doExport("pdf")} disabled={!g} data-testid="trk-pdf">⬇ PDF</button>}
       </div>
       {err && <p className="rounded-xl bg-amber-100 px-4 py-3 text-sm font-semibold text-amber-900" role="alert" data-testid="trk-error">{err}</p>}
       {arCtx && lang !== "ar" && <button type="button" className={btn} onClick={() => setEnOver((x) => !x)} data-testid="trk-lang-switch">{enOver ? "عرض بالعربية" : "Show in English"}</button>}
       {view === "grid" && g && <Grid g={arOf(g)} gridRef={gridRef} sum={sum} edit={!!acc?.edit} set={set} setGrade={setGrade} setTarget={setTarget} />}
       {view === "isams" && g && <IsamsPanel subject={g.subject || subject} g={g} access={acc!} setEffort={setEffort} asAdmin={asAdmin} note={note} />}
       {view === "audit" && asAdmin && <Audit />}
+      {view === "pc" && qaOn && <QaReport asAdmin={asAdmin} year={cls} term={term} />}
       {view === "grid" && g && <p className="text-xs opacity-70">{tr("Cell marks:", "علامات الخلايا:")} {Object.entries(SRC).map(([k, [m, c, t]]) => <span key={k} className="me-3"><b style={{ color: c }}>{m}</b> {t}</span>)}· {tr("Average and Attainment Grade recalculate on every change.", "يُعاد حساب المتوسط ودرجة التحصيل مع كل تغيير.")}</p>}
     </div>
   );

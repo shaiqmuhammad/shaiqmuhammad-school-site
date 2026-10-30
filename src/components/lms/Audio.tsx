@@ -33,7 +33,8 @@ async function encodeMp3(chunks: Float32Array[], rate: number): Promise<Blob> {
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 
 /** Record (max 3 min, ~24 kbps mono), listen back, then save. `onSave` uploads the blob. */
-export function AudioRecorder({ label, onSave, testId = "rec", saveLabel, big = false, autoSave = false }: { label: string; onSave: (b: Blob) => Promise<void>; testId?: string; saveLabel?: string; big?: boolean; autoSave?: boolean }) {
+export function AudioRecorder({ label, onSave, testId = "rec", saveLabel, big = false, autoSave = false, light = false, savedText, compact = false }: { label: string; onSave: (b: Blob) => Promise<void>; testId?: string; saveLabel?: string; big?: boolean; autoSave?: boolean; light?: boolean; savedText?: string; compact?: boolean }) {
+  const lvl = useRef(0); const [level, setLevel] = useState<number[]>([]);
   const { tr } = useTr();
   const [state, setState] = useState<"idle" | "rec" | "done" | "saving">("idle");
   const [secs, setSecs] = useState(0);
@@ -83,16 +84,16 @@ export function AudioRecorder({ label, onSave, testId = "rec", saveLabel, big = 
       const src = ctx.createMediaStreamSource(s);
       const proc = ctx.createScriptProcessor(4096, 1, 1);
       const chunks: Float32Array[] = [];
-      proc.onaudioprocess = (e) => { chunks.push(new Float32Array(e.inputBuffer.getChannelData(0))); };
+      proc.onaudioprocess = (e) => { const d = e.inputBuffer.getChannelData(0); chunks.push(new Float32Array(d)); let q = 0; for (let i = 0; i < d.length; i += 16) q += d[i] * d[i]; lvl.current = Math.min(1, Math.sqrt(q / (d.length / 16)) * 4); };
       src.connect(proc);
       proc.connect(ctx.destination);
       cap.current = { ctx, proc, src, chunks };
-      setSecs(0);
+      setSecs(0); setLevel([]);
       setState("rec");
       const t0 = Date.now();
       timer.current = setInterval(() => {
         const sec = (Date.now() - t0) / 1000;
-        setSecs(sec);
+        setSecs(sec); setLevel((x) => [...x.slice(-31), lvl.current]);
         if (sec >= MAX_SECONDS) stop();
       }, 250);
     } catch {
@@ -105,7 +106,7 @@ export function AudioRecorder({ label, onSave, testId = "rec", saveLabel, big = 
   if (big) {
     const rec = state === "rec";
     return (
-      <div className="flex flex-col items-center gap-3 rounded-3xl bg-gradient-to-br from-[#fff4d6] to-[#e3f4ef] p-5 text-center shadow-inner dark:from-white/5 dark:to-white/10" data-testid={testId}>
+      <div className={`flex flex-col items-center gap-3 rounded-3xl bg-gradient-to-br from-[#fff4d6] to-[#e3f4ef] p-5 text-center shadow-inner ${light ? "text-slate-900 ring-1 ring-black/5" : "dark:from-white/5 dark:to-white/10"}`} data-testid={testId}>
         <p className="text-base font-extrabold">🎙️ {label}</p>
         <div className="relative grid h-36 w-36 place-items-center">
           {rec && <span className="absolute inset-0 animate-ping rounded-full bg-rose-400/50" aria-hidden />}
@@ -118,19 +119,32 @@ export function AudioRecorder({ label, onSave, testId = "rec", saveLabel, big = 
         </div>
         {rec ? (
           <>
+            <div className="flex h-12 items-end justify-center gap-[3px]" aria-hidden data-testid={`${testId}-level`}>{Array.from({ length: 32 }, (_, i) => { const v = level[level.length - 32 + i] ?? 0; return <span key={i} className="w-1.5 rounded-full bg-rose-500" style={{ height: `${Math.max(6, v * 100)}%`, opacity: 0.35 + v * 0.65 }} />; })}</div>
             <p className="font-mono text-2xl font-black text-rose-600" aria-live="polite" data-testid={`${testId}-timer`}>⏺ {mmss(secs)} <span className="text-sm opacity-60">/ {mmss(MAX_SECONDS)}</span></p>
             <button type="button" onClick={stop} className="rounded-full bg-rose-600 px-8 py-3 text-lg font-extrabold text-white shadow-lg" data-testid={`${testId}-stop-btn`}>■ {tr("Stop", "إيقاف")}</button>
           </>
         ) : state === "saving" ? (
           <p className="text-lg font-extrabold" aria-live="polite">⏳ {tr("Saving your recording…", "جارٍ حفظ تسجيلك…")}</p>
         ) : state === "done" && !err ? (
-          <p className="rounded-full bg-emerald-100 px-4 py-2 font-extrabold text-emerald-900" role="status" data-testid={`${testId}-saved`}>✅ {tr("Saved as your draft! Tap the mic to record again.", "حُفظ كمسودة! اضغط الميكروفون لتسجيل جديد.")}</p>
+          <p className="rounded-full bg-emerald-100 px-4 py-2 font-extrabold text-emerald-900" role="status" data-testid={`${testId}-saved`}>✅ {savedText || tr("Saved as your draft! Tap the mic to record again.", "حُفظ كمسودة! اضغط الميكروفون لتسجيل جديد.")}</p>
         ) : (
           <p className="text-sm font-bold opacity-75">{tr("Tap the big button to start", "اضغط الزر الكبير للبدء")}</p>
         )}
         {url && state !== "rec" && <audio controls src={url} controlsList="nodownload" onContextMenu={(e) => e.preventDefault()} className="w-full max-w-sm" data-testid={`${testId}-preview`} />}
         {err && <p className="text-sm font-bold text-rose-700 dark:text-rose-300" role="alert">{err}</p>}
       </div>
+    );
+  }
+  if (compact) {
+    // t337: small inline recorder (e.g. one verse mark): tap to record, tap to stop — saved straight away.
+    const rec = state === "rec";
+    return (
+      <span className="inline-flex items-center gap-1.5" data-testid={testId}>
+        <button type="button" onClick={rec ? stop : start} disabled={state === "saving"} title={label} aria-label={rec ? tr("Stop recording", "إيقاف التسجيل") : label} className={`grid h-8 w-8 place-items-center rounded-full text-white shadow ${rec ? "animate-pulse bg-rose-600" : "bg-[#24857a]"}`} data-testid={`${testId}-btn`}>{rec ? "■" : "🎙️"}</button>
+        {rec && <span className="font-mono text-xs font-bold text-rose-600">{mmss(secs)}</span>}
+        {state === "saving" && <span className="text-xs">⏳</span>}
+        {err && <span className="text-xs text-rose-700" role="alert">{err}</span>}
+      </span>
     );
   }
   return (

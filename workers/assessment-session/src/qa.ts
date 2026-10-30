@@ -12,11 +12,11 @@ import { grid, yearSystems, TERMS, type TrkCtx } from "./tracker";
 type Json = Record<string, unknown>;
 type Reply = { status: number; body: unknown };
 export type QaCtx = TrkCtx & { actorOf: (uid: string) => Actor | null; teachers: () => { id: string; name: string; subj: string[] }[]; subjects: () => string[]; notify: (uids: string[], data: Json) => void };
-export const KHDA_LEVELS = ["Outstanding", "Very good", "Good", "Acceptable", "Weak", "Very weak"] as const;
+export const KHDA_LEVELS = ["Outstanding", "Very Good", "Good", "Acceptable", "Weak", "Very weak"] as const;
 export type KRule = { r: string; a: number; b: number };
 export type Khda = { att: KRule[]; prog: KRule[]; note: string };
 /** Defaults = the school's PC guidance table (4+ = expected, 5+ = above) mapped onto the KHDA six-point scale. */
-const DEF: KRule[] = [{ r: "Outstanding", a: 75, b: 75 }, { r: "Very good", a: 75, b: 61 }, { r: "Good", a: 75, b: 50 }, { r: "Acceptable", a: 75, b: 0 }, { r: "Weak", a: 50, b: 0 }, { r: "Very weak", a: 0, b: 0 }];
+const DEF: KRule[] = [{ r: "Outstanding", a: 75, b: 75 }, { r: "Very Good", a: 75, b: 61 }, { r: "Good", a: 75, b: 50 }, { r: "Acceptable", a: 75, b: 0 }, { r: "Weak", a: 50, b: 0 }, { r: "Very weak", a: 0, b: 0 }];
 type Sql = TrkCtx["sql"];
 const n01 = (v: unknown, d: number) => { const x = Number(v); return Number.isFinite(x) ? Math.max(0, Math.min(100, x)) : d; };
 const clean = (raw: unknown): KRule[] => KHDA_LEVELS.map((r, i) => { const x = (Array.isArray(raw) ? raw : []).find((y: Json) => y && y.r === r) as Json | undefined; return { r, a: n01(x?.a, DEF[i].a), b: n01(x?.b, DEF[i].b) }; });

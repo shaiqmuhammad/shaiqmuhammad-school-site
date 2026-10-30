@@ -57,7 +57,7 @@ export type Grade = "green" | "yellow" | "red";
 export type Attempt = { n: number; audio: string; grade: Grade; by: string; at: number; scores?: Scores };
 export type TrackerRow = { surah: number; from: number; to: number; approved: number; grade?: Grade; hw?: string; revCount?: number; revDue?: number; scores?: Scores | null };
 export type Progress = { stars: number; streak: number; greens: number; yellows: number; handed: number; badges: string[]; activeDays: number };
-export type Mistake = { ayah: number; word: number; text: string; note: string };
+export type Mistake = { ayah: number; word: number; text: string; note: string; audio?: string };
 export type MapRow = { id: string; name: string; cls: string; section: string; cells: Record<number, { grade: string; verses: number }> };
 
 /** Student-account switches. Legacy "Manage students" with none of the stu:* flags set means all four. */
@@ -301,7 +301,7 @@ export const lmsApi = {
   msgDelete: (id: string) => call<{ ok: true }>("msg-delete", { id }, { asAdmin: true }),
   audioDelete: (id: string, asAdmin = false) => call<{ ok: true }>("audio-delete", { id }, { asAdmin }),
   /** Uploads a recording: student → {hw}, teacher → {sub}. Raw body, so not via call(). */
-  async audioUpload(target: { hw?: string; sub?: string }, blob: Blob, asAdmin = false) {
+  async audioUpload(target: { hw?: string; sub?: string; mark?: string }, blob: Blob, asAdmin = false) {
     const tok = bearer(asAdmin);
     const q = new URLSearchParams(target as Record<string, string>).toString();
     let res: Response;
