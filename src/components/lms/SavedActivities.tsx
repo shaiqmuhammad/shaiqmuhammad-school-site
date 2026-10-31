@@ -5,9 +5,10 @@ import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
 import { useTr } from "@/components/lms/useLms";
 import { lmsApi, type SavedAct, type SavedRow } from "@/lib/lms";
 import { ACTIVITY_LABELS, type ActivityType } from "@/lib/activity";
+import { Cloud, type CloudWord } from "@/components/activity/WordCloud";
+import { qrImageUrl } from "@/lib/groupSession";
 
-const CARD = ["#fde68a", "#bae6fd", "#bbf7d0", "#fecdd3", "#ddd6fe", "#99f6e4", "#fed7aa", "#c7d2fe"];
-type Full = SavedAct & { prompt: string; rows: SavedRow[] };
+type Full = SavedAct & { prompt: string; tok?: string; rows: SavedRow[] };
 
 /** t370: saved activity results — list, and a colourful printable sheet (question, each answer with name, class). */
 export function SavedActivitiesPage() {
@@ -28,23 +29,7 @@ export function SavedActivitiesPage() {
       <div className="min-h-screen bg-white p-4 text-[#1b2f44] print:p-0" data-testid="saved-print">
         <style>{`@media print { @page { size: A4; margin: 10mm } .noprint { display:none } body { -webkit-print-color-adjust: exact; print-color-adjust: exact } }`}</style>
         <div className="noprint mb-4 flex gap-2"><a href="/lms/activities/saved" className="rounded-full border border-black/15 px-4 py-2 text-sm font-bold">← {tr("All saved results", "كل النتائج المحفوظة")}</a><button type="button" className="rounded-full bg-[#1b3a57] px-4 py-2 text-sm font-bold text-[#f5c542]" onClick={() => window.print()} data-testid="saved-print-btn">🖨 {tr("Print / save PDF", "طباعة / PDF")}</button></div>
-        <div className="mx-auto max-w-4xl overflow-hidden rounded-3xl border-4 border-[#1b3a57]">
-          <header className="bg-[#1b3a57] px-6 py-5 text-white" style={{ backgroundImage: "linear-gradient(135deg,#1b3a57,#2b5b85)" }}>
-            <p className="text-sm font-bold uppercase tracking-widest text-[#f5c542]">{l?.icon} {l ? (lang === "ar" ? l.ar : l.en) : one.type}{one.cls ? ` · ${one.cls}` : ""}</p>
-            <h1 className="mt-1 text-3xl font-extrabold" dir="auto">{one.prompt || one.title}</h1>
-            <p className="mt-1 text-sm opacity-80">{one.title} · {one.teacher} · {fmt(one.at)} · {tr(`${one.rows.length} answers`, `${one.rows.length} إجابة`)}</p>
-          </header>
-          <ul className="grid grid-cols-2 gap-3 bg-[#fffbea] p-5 sm:grid-cols-3">
-            {one.rows.map((r, i) => (
-              <li key={i} className="break-inside-avoid rounded-2xl p-3 shadow-sm" style={{ background: CARD[i % CARD.length], transform: `rotate(${(i % 3) - 1}deg)` }}>
-                <p className="whitespace-pre-wrap text-base font-bold leading-snug" dir="auto">{r.answer}</p>
-                <p className="mt-2 text-xs font-extrabold text-[#1b3a57]" dir="auto">— {r.name}{r.cls ? ` · ${r.cls}` : one.cls ? ` · ${one.cls}` : ""}</p>
-              </li>
-            ))}
-            {!one.rows.length && <li className="col-span-full text-center opacity-70">{tr("No answers were given.", "لم تُقدَّم إجابات.")}</li>}
-          </ul>
-          <footer className="bg-[#f5c542] px-6 py-2 text-center text-xs font-bold text-[#1b3a57]">shaiqmuhammad.com</footer>
-        </div>
+        <ResultSheet r={one} lang={lang} qr={one.tok ? `${window.location.origin}/result?t=${one.tok}` : ""} />
       </div>
     );
   }
@@ -67,5 +52,53 @@ export function SavedActivitiesPage() {
         )}
       </div>
     </AssessmentShell>
+  );
+}
+
+const BUB = ["#0284c7", "#d97706", "#059669", "#e11d48", "#7c3aed", "#0d9488", "#1b3a57", "#c026d3", "#ea580c", "#4f46e5"];
+/** t375: the printable / public sheet — answers as a packed word cloud (word cloud) or colourful cloud bubbles (other types). */
+export function ResultSheet({ r, lang, qr, names = true }: { r: { type: string; title: string; prompt: string; cls: string; at: number; teacher?: string; rows: { name?: string; answer: string; cls?: string }[] }; lang: string; qr?: string; names?: boolean }) {
+  const tr = (en: string, ar: string) => (lang === "ar" ? ar : en);
+  const l = ACTIVITY_LABELS[r.type as ActivityType];
+  const date = new Date(r.at).toLocaleString(lang === "ar" ? "ar" : "en-GB", { timeZone: "Asia/Dubai", dateStyle: "medium", timeStyle: "short" });
+  const words: CloudWord[] = (() => { const m = new Map<string, CloudWord>(); r.rows.forEach((x, i) => { const k = x.answer.toLocaleLowerCase(); const w = m.get(k) || { word: x.answer, count: 0, ids: [] }; w.count++; w.ids.push(String(i)); m.set(k, w); }); return [...m.values()].sort((a, b) => b.count - a.count); })();
+  return (
+    <div className="mx-auto max-w-4xl overflow-hidden rounded-3xl border-4 border-[#1b3a57] bg-white text-[#1b2f44]" data-testid="result-sheet">
+      <header className="flex items-start gap-4 px-6 py-5 text-white" style={{ backgroundImage: "linear-gradient(135deg,#1b3a57,#2b5b85)" }}>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-bold uppercase tracking-widest text-[#f5c542]">{l?.icon} {l ? (lang === "ar" ? l.ar : l.en) : r.type}{r.cls ? ` · ${r.cls}` : ""}</p>
+          <h1 className="mt-1 text-2xl font-extrabold sm:text-3xl" dir="auto">{r.prompt || r.title}</h1>
+          <p className="mt-1 text-sm opacity-80">{r.cls ? `👥 ${r.cls} · ` : ""}📅 {date}{r.teacher ? ` · ${r.teacher}` : ""} · {tr(`${r.rows.length} answers`, `${r.rows.length} إجابة`)}</p>
+        </div>
+        {qr && <div className="shrink-0 rounded-2xl bg-white p-1.5 text-center" data-testid="result-qr">{/* eslint-disable-next-line @next/next/no-img-element */}<img src={qrImageUrl(qr, 240)} alt={tr("QR code to view these results", "رمز QR لعرض النتائج")} width={88} height={88} className="h-20 w-20 sm:h-24 sm:w-24" /><p className="text-[10px] font-bold text-[#1b3a57]">{tr("Scan to view", "امسح للعرض")}</p></div>}
+      </header>
+      <div className="bg-[#fffbea] p-4">
+        {!r.rows.length ? <p className="py-8 text-center opacity-70">{tr("No answers were given.", "لم تُقدَّم إجابات.")}</p> : r.type === "wordcloud" ? <Cloud words={words} big /> : (
+          <div className="flex min-h-56 flex-wrap items-center justify-center gap-3 rounded-[28px] bg-white p-5" data-testid="result-bubbles">
+            {words.map((w, i) => { const short = w.word.length < 40; return (
+              <span key={i} className="max-w-full rounded-[2rem] px-4 py-2 font-extrabold text-white shadow-md" style={{ background: BUB[i % BUB.length], fontSize: `${Math.min(2.2, (short ? 1.15 : 0.95) + (w.count - 1) * 0.35)}rem`, transform: `rotate(${((i * 7) % 7) - 3}deg)` }} dir="auto" data-testid="result-bubble">{w.word}{w.count > 1 ? <sup className="ms-1 text-[0.5em] opacity-80">×{w.count}</sup> : null}</span>); })}
+          </div>
+        )}
+      </div>
+      {names && r.rows.length > 0 && (
+        <table className="w-full border-t-4 border-[#f5c542] text-sm" data-testid="result-list"><thead><tr className="bg-[#1b3a57] text-start text-xs uppercase text-[#f5c542]"><th className="px-4 py-1.5 text-start">{tr("Student", "الطالب")}</th><th className="px-4 py-1.5 text-start">{tr("Answer", "الإجابة")}</th></tr></thead>
+          <tbody>{r.rows.map((x, i) => <tr key={i} className={i % 2 ? "bg-[#f6f8fb]" : ""}><td className="px-4 py-1 font-bold" dir="auto">{x.name}</td><td className="px-4 py-1" dir="auto">{x.answer}</td></tr>)}</tbody></table>
+      )}
+      <footer className="bg-[#f5c542] px-6 py-2 text-center text-xs font-bold text-[#1b3a57]">shaiqmuhammad.com</footer>
+    </div>
+  );
+}
+
+/** t375: public, no-login, read-only view of one saved result (QR on the printed sheet). No student names. */
+export function PublicResultPage() {
+  const [r, setR] = useState<Awaited<ReturnType<typeof lmsApi.actResult>> | null>(null);
+  const [err, setErr] = useState(false);
+  const [lang, setLang] = useState("en");
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { try { setLang(document.documentElement.lang === "ar" ? "ar" : "en"); } catch { /* */ } const t = new URLSearchParams(window.location.search).get("t") || ""; lmsApi.actResult(t).then(setR).catch(() => setErr(true)); }, []);
+  return (
+    <div className="min-h-screen bg-[#0f1f30] p-3 sm:p-6" data-testid="public-result">
+      {err ? <p className="mx-auto max-w-md rounded-3xl bg-white p-8 text-center font-bold text-[#1b2f44]">{lang === "ar" ? "هذا الرابط غير صالح." : "This link isn't valid."}</p> : !r ? <p className="text-center text-white/80">…</p> : <ResultSheet r={r} lang={lang} names={false} />}
+    </div>
   );
 }

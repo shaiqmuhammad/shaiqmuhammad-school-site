@@ -315,6 +315,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     this.sql.exec(`CREATE TABLE IF NOT EXISTS wlike (post TEXT, by TEXT, PRIMARY KEY (post, by))`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS alive (code TEXT PRIMARY KEY, type TEXT, title TEXT, owner TEXT, owner_name TEXT, students TEXT, at INTEGER)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS actsave (id TEXT PRIMARY KEY, owner TEXT, owner_name TEXT, code TEXT, type TEXT, title TEXT, prompt TEXT, cls TEXT, n INTEGER, data TEXT, at INTEGER)`);
+    if (!cols("actsave").has("tok")) this.sql.exec(`ALTER TABLE actsave ADD COLUMN tok TEXT DEFAULT ''`);
     if (!cols("alive").has("locked")) this.sql.exec(`ALTER TABLE alive ADD COLUMN locked INTEGER DEFAULT 0`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS grp (id TEXT PRIMARY KEY, owner TEXT, name TEXT, students TEXT, updated INTEGER)`);
     for (const [c, d] of [["classes", "TEXT DEFAULT '[]'"], ["teachers", "TEXT DEFAULT '[]'"], ["admin", "INTEGER DEFAULT 0"], ["subject", "TEXT DEFAULT ''"]]) if (!cols("grp").has(c)) this.sql.exec(`ALTER TABLE grp ADD COLUMN ${c} ${d}`);
@@ -1318,9 +1319,10 @@ export class LmsStore extends DurableObject<LmsEnv> {
         const data = JSON.stringify(input.rows || []);
         if (data.length > 200000) return { status: 400, body: { error: "too_big" } };
         const code = str(input.code, 8).toUpperCase();
-        const prev = this.sql.exec(`SELECT id FROM actsave WHERE code=? AND owner=?`, code, a.id).toArray()[0];
+        const prev = this.sql.exec(`SELECT id, tok FROM actsave WHERE code=? AND owner=?`, code, a.id).toArray()[0];
         const id = prev ? String(prev.id) : crypto.randomUUID();
-        this.sql.exec(`INSERT OR REPLACE INTO actsave (id, owner, owner_name, code, type, title, prompt, cls, n, data, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, id, a.id, a.name, code, str(input.type, 12), str(input.title, 160), str(input.prompt, 600), str(input.cls, 120), Array.isArray(input.rows) ? (input.rows as unknown[]).length : 0, data, Date.now());
+        const tok = prev && prev.tok ? String(prev.tok) : b64url(crypto.getRandomValues(new Uint8Array(24)));
+        this.sql.exec(`INSERT OR REPLACE INTO actsave (id, tok, owner, owner_name, code, type, title, prompt, cls, n, data, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, id, tok, a.id, a.name, code, str(input.type, 12), str(input.title, 160), str(input.prompt, 600), str(input.cls, 120), Array.isArray(input.rows) ? (input.rows as unknown[]).length : 0, data, Date.now());
         return { status: 200, body: { ok: true, id } };
       }
       case "act-saved": {
@@ -1330,7 +1332,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         if (input.id) {
           const r = this.sql.exec(`SELECT * FROM actsave WHERE id=? AND ${own}`, str(input.id, 40), ...args).toArray()[0];
           if (!r) return { status: 404, body: { error: "not_found" } };
-          return { status: 200, body: { item: { id: String(r.id), type: String(r.type), title: String(r.title), prompt: String(r.prompt), cls: String(r.cls), teacher: String(r.owner_name), at: Number(r.at), rows: JSON.parse(String(r.data || "[]")) } } };
+          return { status: 200, body: { item: { id: String(r.id), type: String(r.type), title: String(r.title), prompt: String(r.prompt), cls: String(r.cls), teacher: String(r.owner_name), at: Number(r.at), tok: String(r.tok || ""), rows: JSON.parse(String(r.data || "[]")) } } };
         }
         if (input.del) { this.sql.exec(`DELETE FROM actsave WHERE id=? AND ${own}`, str(input.del, 40), ...args); }
         const items = this.sql.exec(`SELECT id, type, title, cls, n, at, owner_name FROM actsave WHERE ${own} ORDER BY at DESC LIMIT 200`, ...args).toArray().map((r) => ({ id: String(r.id), type: String(r.type), title: String(r.title), cls: String(r.cls), n: Number(r.n), at: Number(r.at), teacher: String(r.owner_name) }));
@@ -2930,6 +2932,14 @@ export class LmsStore extends DurableObject<LmsEnv> {
     const u = this.userRow("id=? AND role='student'", sid);
     return u ? [String(u.cls || ""), String(u.section || "")] : ["\u0000", "\u0000"];
   }
+  /** t375: public read-only saved activity result (unguessable token): question, answers, group/class, date — no student names. */
+  actResultView(token: string) {
+    if (!/^[A-Za-z0-9_-]{20,64}$/.test(token)) return { status: 404, body: { error: "not_found" } };
+    const r = this.sql.exec(`SELECT type, title, prompt, cls, data, at FROM actsave WHERE tok=?`, token).toArray()[0];
+    if (!r) return { status: 404, body: { error: "not_found" } };
+    const rows = (JSON.parse(String(r.data || "[]")) as { answer?: string }[]).map((x) => ({ answer: String(x.answer || "") }));
+    return { status: 200, body: { type: String(r.type), title: String(r.title), prompt: String(r.prompt), cls: String(r.cls), at: Number(r.at), rows } };
+  }
   /** Public parent report (token): only that student's points or Quran data, read-only. */
   reportView(token: string) {
     if (!/^[A-Za-z0-9_-]{20,64}$/.test(token)) return { status: 404, body: { error: "not_found" } };
@@ -3168,6 +3178,10 @@ export async function handleLms(request: Request, env: LmsEnv, action: string): 
   }
   if (action === "parent") {
     const r = (await store.parentView(str(new URL(request.url).searchParams.get("t") || body.t, 80))) as unknown as Reply;
+    return reply(origin, r.body, r.status);
+  }
+  if (action === "act-result") {
+    const r = (await store.actResultView(str(new URL(request.url).searchParams.get("t") || body.t, 80))) as unknown as Reply;
     return reply(origin, r.body, r.status);
   }
   if (action === "report") {
