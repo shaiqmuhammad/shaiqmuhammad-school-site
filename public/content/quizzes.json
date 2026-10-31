@@ -5328,6 +5328,1284 @@
         "title": "The Real Bankrupt",
         "titleAr": "المفلس الحقيقي"
       }
+    },
+    {
+      "id": "sow-year-2-kindness-to-animals",
+      "slug": "year-2-kindness-to-animals",
+      "title": "Year 2 – Kindness to Animals",
+      "description": "Animals are communities like us (Qur’an 6:38), the Hadith of the man who gave water to a thirsty dog (Sahih al-Bukhari 2363), and kind ways to care for animals. Based on the Year 2 lesson.",
+      "cardImage": "/covers/y2-kindness-to-animals.svg",
+      "timeLimitMinutes": 5,
+      "showAnswers": true,
+      "certificateIndividual": false,
+      "certificateGroup": false,
+      "visible": false,
+      "active": false,
+      "published": false,
+      "updatedAt": "2026-10-31T16:45:00.000Z",
+      "titleAr": "السنة ٢ – الرفق بالحيوان",
+      "descriptionAr": "الحيوانات أمم أمثالنا (الأنعام ٣٨)، وحديث الرجل الذي سقى الكلب العطشان (صحيح البخاري ٢٣٦٣)، وطرق الرفق بالحيوان. مبني على درس السنة الثانية.",
+      "year": 2,
+      "topic": "cu_mvdiwond02f9b94b",
+      "subject": "Islamic B",
+      "teacher": "u_mv1dcr34cce3ba672a",
+      "topicInfo": {
+        "yr": "Year 2",
+        "term": "Term 1",
+        "wk": 14,
+        "title": "Kindness to Animals",
+        "titleAr": "الرفق بالحيوان"
+      },
+      "questions": [
+        {
+          "id": "y2k-q1",
+          "type": "multiple_choice",
+          "prompt": "Who made the animals?",
+          "options": [
+            "Allah",
+            "People",
+            "The animals made themselves",
+            "Nobody"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "Allah made all the animals.",
+          "promptAr": "من خلق الحيوانات؟",
+          "optionsAr": [
+            "الله",
+            "الناس",
+            "خلقت نفسها",
+            "لا أحد"
+          ],
+          "explanationAr": "الله خلق كل الحيوانات."
+        },
+        {
+          "id": "y2k-q2",
+          "type": "multiple_choice",
+          "prompt": "Allah says animals and birds are … like you. (Qur’an 6:38)",
+          "options": [
+            "communities",
+            "toys",
+            "enemies",
+            "strangers"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "“There is no creature on the earth or bird that flies with its wings except that they are communities like you.” (6:38)",
+          "promptAr": "يقول الله إن الحيوانات والطيور … أمثالكم. (الأنعام ٣٨)",
+          "optionsAr": [
+            "أمم",
+            "ألعاب",
+            "أعداء",
+            "غرباء"
+          ],
+          "explanationAr": "﴿وَمَا مِن دَابَّةٍ فِي الْأَرْضِ وَلَا طَائِرٍ يَطِيرُ بِجَنَاحَيْهِ إِلَّا أُمَمٌ أَمْثَالُكُم﴾"
+        },
+        {
+          "id": "y2k-q3",
+          "type": "multi_select",
+          "prompt": "What do animals need? Select all that apply.",
+          "options": [
+            "Food",
+            "Water",
+            "Shade",
+            "Being tied up"
+          ],
+          "correct": [
+            0,
+            1,
+            2
+          ],
+          "points": 2,
+          "explanation": "Animals need food, water and shade.",
+          "promptAr": "ماذا تحتاج الحيوانات؟ اختر كل ما ينطبق.",
+          "optionsAr": [
+            "الطعام",
+            "الماء",
+            "الظل",
+            "أن تُربط"
+          ],
+          "explanationAr": "تحتاج الحيوانات إلى الطعام والماء والظل."
+        },
+        {
+          "id": "y2k-q4",
+          "type": "multiple_choice",
+          "prompt": "In the Hadith, what did the man use to carry water to the dog?",
+          "options": [
+            "His shoe",
+            "A bucket",
+            "A cup",
+            "His hands"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "He went down the well again, filled his shoe with water and gave the dog a drink (Sahih al-Bukhari 2363).",
+          "promptAr": "في الحديث، بماذا حمل الرجل الماء إلى الكلب؟",
+          "optionsAr": [
+            "حذاؤه",
+            "دلو",
+            "كوب",
+            "يداه"
+          ],
+          "explanationAr": "نزل البئر مرة أخرى وملأ خفّه ماءً وسقى الكلب (صحيح البخاري ٢٣٦٣)."
+        },
+        {
+          "id": "y2k-q5",
+          "type": "multiple_choice",
+          "prompt": "Why was the dog eating mud?",
+          "options": [
+            "It was very thirsty",
+            "It was playing",
+            "It was hungry for mud",
+            "It was sleepy"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "The dog was panting and eating mud because it was so thirsty.",
+          "promptAr": "لماذا كان الكلب يأكل الطين؟",
+          "optionsAr": [
+            "كان عطشانًا جدًا",
+            "كان يلعب",
+            "كان يحب الطين",
+            "كان نعسانًا"
+          ],
+          "explanationAr": "كان الكلب يلهث ويأكل الثرى من شدة العطش."
+        },
+        {
+          "id": "y2k-q6",
+          "type": "multiple_choice",
+          "prompt": "What did Allah give the man who gave water to the dog?",
+          "options": [
+            "Allah thanked him and forgave him",
+            "Nothing",
+            "A new shoe",
+            "Money"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "Allah thanked him and forgave him.",
+          "promptAr": "ماذا أعطى الله الرجل الذي سقى الكلب؟",
+          "optionsAr": [
+            "شكر الله له وغفر له",
+            "لا شيء",
+            "حذاءً جديدًا",
+            "مالًا"
+          ],
+          "explanationAr": "فشكر الله له فغفر له."
+        },
+        {
+          "id": "y2k-q7",
+          "type": "ordering",
+          "prompt": "Put the story in order.",
+          "options": [
+            "A thirsty man drank from a well",
+            "He saw a thirsty dog",
+            "He filled his shoe with water",
+            "Allah forgave him"
+          ],
+          "correct": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "points": 2,
+          "explanation": "Story order from the lesson: thirsty man → dog → shoe → forgiven.",
+          "promptAr": "رتّب القصة.",
+          "optionsAr": [
+            "رجل عطشان شرب من بئر",
+            "رأى كلبًا عطشان",
+            "ملأ خفه ماءً",
+            "غفر الله له"
+          ],
+          "explanationAr": "ترتيب القصة: رجل عطشان ← كلب ← الخف ← المغفرة."
+        },
+        {
+          "id": "y2k-q8",
+          "type": "true_false",
+          "prompt": "There is a reward for serving any living being.",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "True. “There is a reward for serving any living being.” (Sahih al-Bukhari 2363)",
+          "promptAr": "في كل كبد رطبة أجر.",
+          "optionsAr": [
+            "صح",
+            "خطأ"
+          ],
+          "explanationAr": "صح. «في كل كبد رطبة أجر» (صحيح البخاري ٢٣٦٣)."
+        },
+        {
+          "id": "y2k-q9",
+          "type": "multiple_choice",
+          "prompt": "Why was the woman punished in the Hadith (Sahih al-Bukhari 3318)?",
+          "options": [
+            "She tied up a cat with no food and did not let it eat",
+            "She fed a cat",
+            "She gave a cat water",
+            "She played with a cat"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "She tied the cat, neither giving it food nor setting it free to eat.",
+          "promptAr": "لماذا عوقبت المرأة في الحديث (صحيح البخاري ٣٣١٨)؟",
+          "optionsAr": [
+            "حبست هرة فلم تطعمها ولم تتركها تأكل",
+            "أطعمت هرة",
+            "سقت هرة",
+            "لعبت مع هرة"
+          ],
+          "explanationAr": "حبست الهرة فلا هي أطعمتها ولا تركتها تأكل."
+        },
+        {
+          "id": "y2k-q10",
+          "type": "matching",
+          "prompt": "Kind or unkind? Match each action.",
+          "options": [],
+          "correct": [],
+          "pairs": [
+            {
+              "left": "Give food and water",
+              "right": "Kind"
+            },
+            {
+              "left": "Hurt an animal",
+              "right": "Unkind"
+            },
+            {
+              "left": "Give shade",
+              "right": "Kind"
+            },
+            {
+              "left": "Make a pet scared",
+              "right": "Unkind"
+            }
+          ],
+          "points": 2,
+          "explanation": "Kind: food, water, shade, being gentle. Unkind: tying up, hurting, scaring.",
+          "promptAr": "رفق أم قسوة؟ طابق كل فعل.",
+          "explanationAr": "الرفق: الطعام والماء والظل واللين. القسوة: الحبس والإيذاء والتخويف."
+        },
+        {
+          "id": "y2k-q11",
+          "type": "multiple_choice",
+          "prompt": "A cat is waiting by your door on a hot day. What is the kind decision?",
+          "options": [
+            "Give it water and shade",
+            "Chase it away",
+            "Ignore it",
+            "Throw something at it"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "A good decision is being kind to animals.",
+          "promptAr": "هرة تنتظر عند بابك في يوم حار. ما القرار الرحيم؟",
+          "optionsAr": [
+            "أعطيها ماءً وظلًا",
+            "أطردها",
+            "أتجاهلها",
+            "أرميها بشيء"
+          ],
+          "explanationAr": "القرار الجيد هو الرفق بالحيوان."
+        },
+        {
+          "id": "y2k-q12",
+          "type": "fill_blank",
+          "prompt": "We must be ___ to animals.",
+          "options": [
+            "water",
+            "shoe"
+          ],
+          "correct": [],
+          "blanks": [
+            [
+              [
+                "kind",
+                "Kind"
+              ]
+            ]
+          ],
+          "points": 1,
+          "explanation": "We must be kind to animals.",
+          "explanationAr": "يجب أن نرفق بالحيوانات."
+        }
+      ]
+    },
+    {
+      "id": "sow-year-4-athan-and-iqamah",
+      "slug": "year-4-athan-and-iqamah",
+      "title": "Year 4 – Athan and Iqamah",
+      "description": "How the Athan began (Sahih al-Bukhari 604), the Athan said twice and the Iqamah once (Sahih al-Bukhari 605), and answering the Mu’adhin (Sahih Muslim 384). Based on the Year 4 lesson.",
+      "cardImage": "/covers/y4-athan-and-iqamah.svg",
+      "timeLimitMinutes": 5,
+      "showAnswers": true,
+      "certificateIndividual": false,
+      "certificateGroup": false,
+      "visible": false,
+      "active": false,
+      "published": false,
+      "updatedAt": "2026-10-31T16:45:00.000Z",
+      "titleAr": "السنة ٤ – الأذان والإقامة",
+      "descriptionAr": "كيف بدأ الأذان (صحيح البخاري ٦٠٤)، وشفع الأذان وإيتار الإقامة (صحيح البخاري ٦٠٥)، وإجابة المؤذن (صحيح مسلم ٣٨٤). مبني على درس السنة الرابعة.",
+      "year": 4,
+      "topic": "cu_mvdiwondbb9d3c41",
+      "subject": "Islamic B",
+      "teacher": "u_mv1dcr34cce3ba672a",
+      "topicInfo": {
+        "yr": "Year 4",
+        "term": "Term 1",
+        "wk": 14,
+        "title": "Athan and Iqamah",
+        "titleAr": "الأذان والإقامة"
+      },
+      "questions": [
+        {
+          "id": "y4a-q1",
+          "type": "multiple_choice",
+          "prompt": "Who was the first Mu’adhin?",
+          "options": [
+            "Bilal (R.A)",
+            "‘Umar (R.A)",
+            "Anas (R.A)",
+            "Abu Hurairah (R.A)"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "The Prophet ﷺ ordered Bilal (R.A) to call the Athan (Sahih al-Bukhari 604).",
+          "promptAr": "من أول مؤذن؟",
+          "optionsAr": [
+            "بلال رضي الله عنه",
+            "عمر رضي الله عنه",
+            "أنس رضي الله عنه",
+            "أبو هريرة رضي الله عنه"
+          ],
+          "explanationAr": "أمر النبي ﷺ بلالًا أن ينادي بالصلاة (صحيح البخاري ٦٠٤)."
+        },
+        {
+          "id": "y4a-q2",
+          "type": "multiple_choice",
+          "prompt": "Who suggested that a man should call the people to prayer?",
+          "options": [
+            "‘Umar (R.A)",
+            "Bilal (R.A)",
+            "Anas (R.A)",
+            "‘A’ishah (R.A)"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "Some suggested a bell, others a horn; ‘Umar (R.A) suggested a man should call.",
+          "promptAr": "من اقترح أن ينادي رجل بالصلاة؟",
+          "optionsAr": [
+            "عمر رضي الله عنه",
+            "بلال رضي الله عنه",
+            "أنس رضي الله عنه",
+            "عائشة رضي الله عنها"
+          ],
+          "explanationAr": "اقترح بعضهم ناقوسًا وبعضهم بوقًا، واقترح عمر أن ينادي رجل."
+        },
+        {
+          "id": "y4a-q3",
+          "type": "multi_select",
+          "prompt": "Before the Athan, what did some Muslims in Madinah suggest? Select all that apply.",
+          "options": [
+            "A bell",
+            "A horn",
+            "A drum",
+            "A flag"
+          ],
+          "correct": [
+            0,
+            1
+          ],
+          "points": 2,
+          "explanation": "Some suggested a bell, others a horn (Sahih al-Bukhari 604).",
+          "promptAr": "قبل الأذان، ماذا اقترح بعض المسلمين في المدينة؟ اختر كل ما ينطبق.",
+          "optionsAr": [
+            "ناقوس",
+            "بوق",
+            "طبل",
+            "راية"
+          ],
+          "explanationAr": "اقترح بعضهم ناقوسًا وبعضهم بوقًا."
+        },
+        {
+          "id": "y4a-q4",
+          "type": "multiple_choice",
+          "prompt": "How are the words of the Athan said?",
+          "options": [
+            "Twice",
+            "Once",
+            "Three times",
+            "Four times"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "Bilal was ordered to repeat the wording of the Adhan twice (Sahih al-Bukhari 605).",
+          "promptAr": "كيف تُقال كلمات الأذان؟",
+          "optionsAr": [
+            "مرتين",
+            "مرة واحدة",
+            "ثلاث مرات",
+            "أربع مرات"
+          ],
+          "explanationAr": "أُمر بلال أن يشفع الأذان (صحيح البخاري ٦٠٥)."
+        },
+        {
+          "id": "y4a-q5",
+          "type": "multiple_choice",
+          "prompt": "Which Iqamah phrase is said twice?",
+          "options": [
+            "Qad qamatis-salah",
+            "Allahu Akbar",
+            "Ash-hadu an la ilaha illallah",
+            "Hayya ‘alal-falah"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "Iqamah words are said once, except “Qad qamatis-salah”, which is said twice.",
+          "promptAr": "أي جملة في الإقامة تُقال مرتين؟",
+          "optionsAr": [
+            "قد قامت الصلاة",
+            "الله أكبر",
+            "أشهد أن لا إله إلا الله",
+            "حي على الفلاح"
+          ],
+          "explanationAr": "تُقال الإقامة وترًا إلا «قد قامت الصلاة»."
+        },
+        {
+          "id": "y4a-q6",
+          "type": "matching",
+          "prompt": "Match each key word with its meaning.",
+          "options": [],
+          "correct": [],
+          "pairs": [
+            {
+              "left": "Athan",
+              "right": "the call that the prayer time has come"
+            },
+            {
+              "left": "Iqamah",
+              "right": "the call to stand up for prayer"
+            },
+            {
+              "left": "Mu’adhin",
+              "right": "the person who calls the Athan"
+            },
+            {
+              "left": "Al-Wasilah",
+              "right": "a high rank in Paradise"
+            }
+          ],
+          "points": 2,
+          "explanation": "Key words from the lesson.",
+          "promptAr": "طابق كل كلمة بمعناها.",
+          "explanationAr": "كلمات الدرس: الأذان، الإقامة، المؤذن، الوسيلة."
+        },
+        {
+          "id": "y4a-q7",
+          "type": "true_false",
+          "prompt": "The Iqamah is said just before we stand to pray.",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "True. The Iqamah is said just before we stand to pray.",
+          "promptAr": "تُقال الإقامة قبل القيام للصلاة مباشرة.",
+          "optionsAr": [
+            "صح",
+            "خطأ"
+          ],
+          "explanationAr": "صح."
+        },
+        {
+          "id": "y4a-q8",
+          "type": "true_false",
+          "prompt": "The Iqamah words are said twice, like the Athan.",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correct": [
+            1
+          ],
+          "points": 1,
+          "explanation": "False. Athan words are said twice; Iqamah words are said once (except “Qad qamatis-salah”).",
+          "promptAr": "تُقال كلمات الإقامة مرتين مثل الأذان.",
+          "optionsAr": [
+            "صح",
+            "خطأ"
+          ],
+          "explanationAr": "خطأ. الأذان شفع والإقامة وتر إلا «قد قامت الصلاة»."
+        },
+        {
+          "id": "y4a-q9",
+          "type": "multiple_choice",
+          "prompt": "What should we do when we hear the Mu’adhin?",
+          "options": [
+            "Repeat what he says",
+            "Keep talking loudly",
+            "Turn up the music",
+            "Leave the room"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "“When you hear the Mu’adhin, repeat what he says…” (Sahih Muslim 384)",
+          "promptAr": "ماذا نفعل عندما نسمع المؤذن؟",
+          "optionsAr": [
+            "نقول مثل ما يقول",
+            "نستمر في الكلام بصوت عالٍ",
+            "نرفع صوت الموسيقى",
+            "نخرج من الغرفة"
+          ],
+          "explanationAr": "«إذا سمعتم المؤذن فقولوا مثل ما يقول» (صحيح مسلم ٣٨٤)."
+        },
+        {
+          "id": "y4a-q10",
+          "type": "ordering",
+          "prompt": "Put the steps of answering the Mu’adhin in order (Sahih Muslim 384).",
+          "options": [
+            "Repeat what the Mu’adhin says",
+            "Send blessings on the Prophet ﷺ",
+            "Ask Allah for al-Wasilah for the Prophet ﷺ"
+          ],
+          "correct": [
+            0,
+            1,
+            2
+          ],
+          "points": 2,
+          "explanation": "Repeat → send blessings → ask for al-Wasilah.",
+          "promptAr": "رتّب خطوات إجابة المؤذن (صحيح مسلم ٣٨٤).",
+          "optionsAr": [
+            "نقول مثل ما يقول المؤذن",
+            "نصلي على النبي ﷺ",
+            "نسأل الله الوسيلة للنبي ﷺ"
+          ],
+          "explanationAr": "الترديد ← الصلاة على النبي ← سؤال الوسيلة."
+        },
+        {
+          "id": "y4a-q11",
+          "type": "multiple_choice",
+          "prompt": "What is the reward for asking al-Wasilah for the Prophet ﷺ?",
+          "options": [
+            "He will have the Prophet’s ﷺ intercession",
+            "He will get a new house",
+            "Nothing",
+            "He will not need to pray"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "Whoever asks for al-Wasilah for the Prophet ﷺ will have his intercession.",
+          "promptAr": "ما جزاء من سأل الوسيلة للنبي ﷺ؟",
+          "optionsAr": [
+            "حلّت له شفاعة النبي ﷺ",
+            "يحصل على بيت جديد",
+            "لا شيء",
+            "لا يحتاج إلى الصلاة"
+          ],
+          "explanationAr": "من سأل للنبي ﷺ الوسيلة حلّت له الشفاعة."
+        },
+        {
+          "id": "y4a-q12",
+          "type": "multiple_choice",
+          "prompt": "You are winning a game when the Athan starts. Your friend says, “Finish first.” What is the right decision?",
+          "options": [
+            "Stop, listen and answer the Athan, then get ready for prayer",
+            "Finish the game first",
+            "Shout over the Athan",
+            "Ignore it"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "A good decision is answering the call to prayer.",
+          "promptAr": "أنت تفوز في لعبة عندما بدأ الأذان، وصديقك يقول: «أكمل أولًا». ما القرار الصحيح؟",
+          "optionsAr": [
+            "أتوقف وأستمع وأجيب الأذان ثم أستعد للصلاة",
+            "أكمل اللعبة أولًا",
+            "أصرخ فوق صوت الأذان",
+            "أتجاهله"
+          ],
+          "explanationAr": "القرار الجيد هو إجابة النداء إلى الصلاة."
+        }
+      ]
+    },
+    {
+      "id": "sow-year-5-making-sure-of-news",
+      "slug": "year-5-making-sure-of-news",
+      "title": "Year 5 – Making Sure of News",
+      "description": "The command of Tabayyun in Surah Al-Hujurat 49:6, the Hadith “It is enough of a lie for a man to narrate everything he hears” (Sahih Muslim, Introduction 5), and the four Tabayyun steps. Based on the Year 5 lesson.",
+      "cardImage": "/covers/y5-making-sure-of-news.svg",
+      "timeLimitMinutes": 5,
+      "showAnswers": true,
+      "certificateIndividual": false,
+      "certificateGroup": false,
+      "visible": false,
+      "active": false,
+      "published": false,
+      "updatedAt": "2026-10-31T16:45:00.000Z",
+      "titleAr": "السنة ٥ – التثبت من الأخبار",
+      "descriptionAr": "الأمر بالتبيّن في سورة الحجرات ٦، وحديث «كفى بالمرء كذبًا أن يحدّث بكل ما سمع» (مقدمة صحيح مسلم ٥)، وخطوات التبيّن الأربع. مبني على درس السنة الخامسة.",
+      "year": 5,
+      "topic": "cu_mvdiwond737c11ef",
+      "subject": "Islamic B",
+      "teacher": "u_mv1dcr34cce3ba672a",
+      "topicInfo": {
+        "yr": "Year 5",
+        "term": "Term 1",
+        "wk": 9,
+        "title": "Making Sure of News",
+        "titleAr": "التثبت من الأخبار"
+      },
+      "questions": [
+        {
+          "id": "y5n-q1",
+          "type": "multiple_choice",
+          "prompt": "What does Tabayyun mean?",
+          "options": [
+            "Checking that news is true",
+            "Sharing news quickly",
+            "Keeping a secret",
+            "Writing a story"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "Tabayyun means to check news carefully before believing or sharing it.",
+          "promptAr": "ما معنى التبيّن؟",
+          "optionsAr": [
+            "التأكد من صحة الخبر",
+            "نشر الخبر بسرعة",
+            "حفظ السر",
+            "كتابة قصة"
+          ],
+          "explanationAr": "التبيّن هو التحقق من الخبر قبل تصديقه أو نشره."
+        },
+        {
+          "id": "y5n-q2",
+          "type": "multiple_choice",
+          "prompt": "Which Surah and verse commands us to check news?",
+          "options": [
+            "Surah Al-Hujurat 49:6",
+            "Surah Al-Fatihah 1:1",
+            "Surah Al-Asr 103:2",
+            "Surah Al-Ikhlas 112:1"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "Qur’an 49:6: “…if there comes to you a disobedient one with information, investigate…”",
+          "promptAr": "أي سورة وآية تأمرنا بالتثبت من الأخبار؟",
+          "optionsAr": [
+            "الحجرات ٦",
+            "الفاتحة ١",
+            "العصر ٢",
+            "الإخلاص ١"
+          ],
+          "explanationAr": "﴿يَا أَيُّهَا الَّذِينَ آمَنُوا إِن جَاءَكُمْ فَاسِقٌ بِنَبَإٍ فَتَبَيَّنُوا﴾ (الحجرات ٦)."
+        },
+        {
+          "id": "y5n-q3",
+          "type": "multi_select",
+          "prompt": "According to 49:6, what can happen if we do not check news? Select all that apply.",
+          "options": [
+            "We may harm people out of ignorance",
+            "We may feel regret",
+            "We will always be right",
+            "Nothing will happen"
+          ],
+          "correct": [
+            0,
+            1
+          ],
+          "points": 2,
+          "explanation": "“…lest you harm a people out of ignorance and become, over what you have done, regretful.” (49:6)",
+          "promptAr": "حسب الآية ٦ من الحجرات، ماذا قد يحدث إن لم نتثبت؟ اختر كل ما ينطبق.",
+          "optionsAr": [
+            "قد نؤذي الناس بجهالة",
+            "قد نندم",
+            "سنكون دائمًا على حق",
+            "لن يحدث شيء"
+          ],
+          "explanationAr": "﴿أَن تُصِيبُوا قَوْمًا بِجَهَالَةٍ فَتُصْبِحُوا عَلَىٰ مَا فَعَلْتُمْ نَادِمِينَ﴾"
+        },
+        {
+          "id": "y5n-q4",
+          "type": "matching",
+          "prompt": "Match each key word with its meaning.",
+          "options": [],
+          "correct": [],
+          "pairs": [
+            {
+              "left": "Tabayyun",
+              "right": "checking that news is true"
+            },
+            {
+              "left": "Rumour",
+              "right": "news that is not confirmed"
+            },
+            {
+              "left": "Source",
+              "right": "where the news came from"
+            },
+            {
+              "left": "Regret",
+              "right": "feeling sorry after a mistake"
+            }
+          ],
+          "points": 2,
+          "explanation": "Key words from the lesson.",
+          "promptAr": "طابق كل كلمة بمعناها.",
+          "explanationAr": "كلمات الدرس: التبيّن، الإشاعة، المصدر، الندم."
+        },
+        {
+          "id": "y5n-q5",
+          "type": "fill_blank",
+          "prompt": "“It is enough of a ___ for a man to narrate everything he hears.”",
+          "options": [
+            "truth",
+            "gift"
+          ],
+          "correct": [],
+          "blanks": [
+            [
+              [
+                "lie",
+                "Lie"
+              ]
+            ]
+          ],
+          "points": 1,
+          "explanation": "Kafa bil-mar’i kadhiban an yuhaddhitha bi-kulli ma sami‘ (Sahih Muslim, Introduction 5).",
+          "explanationAr": "«كفى بالمرء كذبًا أن يحدّث بكل ما سمع» (مقدمة صحيح مسلم ٥)."
+        },
+        {
+          "id": "y5n-q6",
+          "type": "multiple_choice",
+          "prompt": "Who narrated the Hadith “It is enough of a lie…”?",
+          "options": [
+            "Abu Hurairah (R.A)",
+            "Anas (R.A)",
+            "‘Umar (R.A)",
+            "‘Uthman (R.A)"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "Narrated by Abu Hurairah (R.A), Sahih Muslim, Introduction 5.",
+          "promptAr": "من راوي حديث «كفى بالمرء كذبًا…»؟",
+          "optionsAr": [
+            "أبو هريرة رضي الله عنه",
+            "أنس رضي الله عنه",
+            "عمر رضي الله عنه",
+            "عثمان رضي الله عنه"
+          ],
+          "explanationAr": "رواه أبو هريرة رضي الله عنه."
+        },
+        {
+          "id": "y5n-q7",
+          "type": "multiple_choice",
+          "prompt": "Why is repeating everything you hear a kind of lie?",
+          "options": [
+            "Because some of what we hear is not true, and we pass it on without checking",
+            "Because talking is always wrong",
+            "Because news is always false",
+            "Because we must never speak"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "Passing on everything we hear, without checking, is a kind of lying.",
+          "promptAr": "لماذا يُعدّ نقل كل ما نسمع نوعًا من الكذب؟",
+          "optionsAr": [
+            "لأن بعض ما نسمعه غير صحيح فننقله دون تحقق",
+            "لأن الكلام دائمًا خطأ",
+            "لأن الأخبار دائمًا كاذبة",
+            "لأنه يجب ألا نتكلم أبدًا"
+          ],
+          "explanationAr": "نقل كل ما نسمعه دون تحقق نوع من الكذب."
+        },
+        {
+          "id": "y5n-q8",
+          "type": "ordering",
+          "prompt": "Put the Tabayyun steps in order.",
+          "options": [
+            "Stop: do not share straight away",
+            "Check the source: who said it?",
+            "Find proof: is there evidence?",
+            "Decide: is it true, kind and useful?"
+          ],
+          "correct": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "points": 2,
+          "explanation": "Stop → check the source → find proof → decide.",
+          "promptAr": "رتّب خطوات التبيّن.",
+          "optionsAr": [
+            "توقف: لا تنشر فورًا",
+            "تحقق من المصدر: من قاله؟",
+            "ابحث عن الدليل",
+            "قرر: هل هو صحيح ولطيف ومفيد؟"
+          ],
+          "explanationAr": "توقف ← المصدر ← الدليل ← القرار."
+        },
+        {
+          "id": "y5n-q9",
+          "type": "true_false",
+          "prompt": "A rumour spreads fast: one person tells three, they tell nine, and someone gets hurt.",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "True. This is how a rumour spreads in the lesson.",
+          "promptAr": "الإشاعة تنتشر بسرعة: شخص يخبر ثلاثة، وهم يخبرون تسعة، فيتأذى أحدهم.",
+          "optionsAr": [
+            "صح",
+            "خطأ"
+          ],
+          "explanationAr": "صح."
+        },
+        {
+          "id": "y5n-q10",
+          "type": "true_false",
+          "prompt": "If many people are sharing a message, it must be true.",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correct": [
+            1
+          ],
+          "points": 1,
+          "explanation": "False. We still check the source and find proof before believing or sharing.",
+          "promptAr": "إذا نشر كثير من الناس رسالة فلا بد أنها صحيحة.",
+          "optionsAr": [
+            "صح",
+            "خطأ"
+          ],
+          "explanationAr": "خطأ. نتحقق من المصدر والدليل قبل التصديق أو النشر."
+        },
+        {
+          "id": "y5n-q11",
+          "type": "multiple_choice",
+          "prompt": "A message says school is closed tomorrow, with no source. What should you do?",
+          "options": [
+            "Stop and check with a trusted source before sharing",
+            "Forward it to everyone",
+            "Add more details and share",
+            "Post it in the class chat"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "Use the Tabayyun steps: stop, check the source, find proof, then decide.",
+          "promptAr": "رسالة تقول إن المدرسة مغلقة غدًا بلا مصدر. ماذا تفعل؟",
+          "optionsAr": [
+            "أتوقف وأتحقق من مصدر موثوق قبل النشر",
+            "أرسلها للجميع",
+            "أضيف تفاصيل وأنشرها",
+            "أنشرها في مجموعة الصف"
+          ],
+          "explanationAr": "طبّق خطوات التبيّن: توقف، تحقق من المصدر، ابحث عن الدليل، ثم قرر."
+        },
+        {
+          "id": "y5n-q12",
+          "type": "multiple_choice",
+          "prompt": "Where does official news in the UAE come from (e.g. WAM)?",
+          "options": [
+            "Trusted sources",
+            "Anonymous forwarded messages",
+            "Rumours",
+            "Unknown accounts"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "Official news comes from trusted sources such as WAM.",
+          "promptAr": "من أين تأتي الأخبار الرسمية في الإمارات (مثل وام)؟",
+          "optionsAr": [
+            "مصادر موثوقة",
+            "رسائل مجهولة",
+            "إشاعات",
+            "حسابات مجهولة"
+          ],
+          "explanationAr": "الأخبار الرسمية تأتي من مصادر موثوقة مثل وام."
+        }
+      ]
+    },
+    {
+      "id": "sow-year-6-iqlab",
+      "slug": "year-6-iqlab",
+      "title": "Year 6 – Iqlab (Tajweed Rule)",
+      "description": "Noon sakinah or Tanween before Ba (ب), changing the Noon into a hidden Meem with ghunnah for two counts, and reciting with Tartil (Qur’an 73:4; Sahih al-Bukhari 5027). Based on the Year 6 lesson.",
+      "cardImage": "/covers/y6-iqlab.svg",
+      "timeLimitMinutes": 5,
+      "showAnswers": true,
+      "certificateIndividual": false,
+      "certificateGroup": false,
+      "visible": false,
+      "active": false,
+      "published": false,
+      "updatedAt": "2026-10-31T16:45:00.000Z",
+      "titleAr": "السنة ٦ – الإقلاب (حكم تجويدي)",
+      "descriptionAr": "النون الساكنة أو التنوين قبل الباء، وقلبها ميمًا مخفاة مع الغنة بمقدار حركتين، والقراءة بالترتيل (المزمل ٤؛ صحيح البخاري ٥٠٢٧). مبني على درس السنة السادسة.",
+      "year": 6,
+      "topic": "cu_mvdiwond1e7ffbef",
+      "subject": "Islamic B",
+      "teacher": "u_mv1dcr34cce3ba672a",
+      "topicInfo": {
+        "yr": "Year 6",
+        "term": "Term 1",
+        "wk": 9,
+        "title": "Al-Iqlab",
+        "titleAr": "الإقلاب"
+      },
+      "questions": [
+        {
+          "id": "y6i-q1",
+          "type": "multiple_choice",
+          "prompt": "What does Iqlab mean?",
+          "options": [
+            "Changing",
+            "Hiding",
+            "Merging",
+            "Showing clearly"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "Iqlab means “changing”.",
+          "promptAr": "ما معنى الإقلاب؟",
+          "optionsAr": [
+            "القلب (التغيير)",
+            "الإخفاء",
+            "الإدغام",
+            "الإظهار"
+          ],
+          "explanationAr": "الإقلاب لغةً: التحويل والتغيير."
+        },
+        {
+          "id": "y6i-q2",
+          "type": "multiple_choice",
+          "prompt": "Which letter causes Iqlab?",
+          "options": [
+            "Ba (ب)",
+            "Meem (م)",
+            "Noon (ن)",
+            "Laam (ل)"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "Iqlab happens when Noon sakinah or Tanween comes before Ba (ب).",
+          "promptAr": "ما الحرف الذي يسبب الإقلاب؟",
+          "optionsAr": [
+            "الباء (ب)",
+            "الميم (م)",
+            "النون (ن)",
+            "اللام (ل)"
+          ],
+          "explanationAr": "يقع الإقلاب إذا جاءت النون الساكنة أو التنوين قبل الباء."
+        },
+        {
+          "id": "y6i-q3",
+          "type": "multiple_choice",
+          "prompt": "In Iqlab, the Noon sound changes into a … sound.",
+          "options": [
+            "Meem",
+            "Ba",
+            "Laam",
+            "Raa"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "We change the Noon sound into a Meem sound.",
+          "promptAr": "في الإقلاب يتحول صوت النون إلى صوت …",
+          "optionsAr": [
+            "الميم",
+            "الباء",
+            "اللام",
+            "الراء"
+          ],
+          "explanationAr": "تُقلب النون ميمًا."
+        },
+        {
+          "id": "y6i-q4",
+          "type": "multiple_choice",
+          "prompt": "How many counts is the ghunnah in Iqlab?",
+          "options": [
+            "2",
+            "1",
+            "4",
+            "6"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "Hold the ghunnah for two counts.",
+          "promptAr": "كم حركة تُمدّ الغنة في الإقلاب؟",
+          "optionsAr": [
+            "٢",
+            "١",
+            "٤",
+            "٦"
+          ],
+          "explanationAr": "الغنة بمقدار حركتين."
+        },
+        {
+          "id": "y6i-q5",
+          "type": "multiple_choice",
+          "prompt": "What small sign is written above the Noon in the Mushaf to show Iqlab?",
+          "options": [
+            "A small Meem (م)",
+            "A small Ba (ب)",
+            "A sukun",
+            "A shaddah"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "In the Mushaf, a small Meem (م) is written above the Noon.",
+          "promptAr": "ما العلامة الصغيرة المكتوبة فوق النون في المصحف للدلالة على الإقلاب؟",
+          "optionsAr": [
+            "ميم صغيرة (م)",
+            "باء صغيرة",
+            "سكون",
+            "شدة"
+          ],
+          "explanationAr": "تُكتب ميم صغيرة فوق النون."
+        },
+        {
+          "id": "y6i-q6",
+          "type": "multi_select",
+          "prompt": "Which of these words or phrases contain Iqlab? Select all that apply.",
+          "options": [
+            "مِن بَعْدِ",
+            "كِرَامٍ بَرَرَةٍ",
+            "لَيُنبَذَنَّ",
+            "الْعَصْرِ"
+          ],
+          "correct": [
+            0,
+            1,
+            2
+          ],
+          "points": 2,
+          "explanation": "مِن بَعْدِ, كِرَامٍ بَرَرَةٍ (80:16) and لَيُنبَذَنَّ (104:4) all have Noon sakinah or Tanween + ب.",
+          "promptAr": "أي هذه الكلمات فيها إقلاب؟ اختر كل ما ينطبق.",
+          "optionsAr": [
+            "مِن بَعْدِ",
+            "كِرَامٍ بَرَرَةٍ",
+            "لَيُنبَذَنَّ",
+            "الْعَصْرِ"
+          ],
+          "explanationAr": "فيها نون ساكنة أو تنوين بعدها باء."
+        },
+        {
+          "id": "y6i-q7",
+          "type": "ordering",
+          "prompt": "Put the steps for saying Iqlab in order.",
+          "options": [
+            "Change the Noon to Meem",
+            "Lips close gently",
+            "Hold the ghunnah",
+            "Two counts"
+          ],
+          "correct": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "points": 2,
+          "explanation": "How to say Iqlab: change to Meem → lips close gently → hold the ghunnah → two counts.",
+          "promptAr": "رتّب خطوات نطق الإقلاب.",
+          "optionsAr": [
+            "اقلب النون ميمًا",
+            "أطبق الشفتين برفق",
+            "أظهر الغنة",
+            "بمقدار حركتين"
+          ],
+          "explanationAr": "قلب ← إطباق الشفتين برفق ← الغنة ← حركتان."
+        },
+        {
+          "id": "y6i-q8",
+          "type": "matching",
+          "prompt": "Match each key word with its meaning.",
+          "options": [],
+          "correct": [],
+          "pairs": [
+            {
+              "left": "Noon sakinah",
+              "right": "Noon with sukun (نْ)"
+            },
+            {
+              "left": "Tanween",
+              "right": "double vowel ً ٍ ٌ"
+            },
+            {
+              "left": "Ghunnah",
+              "right": "nasal sound, 2 counts"
+            },
+            {
+              "left": "Tartil",
+              "right": "slow, clear recitation"
+            }
+          ],
+          "points": 2,
+          "explanation": "Key words from the lesson.",
+          "promptAr": "طابق كل كلمة بمعناها.",
+          "explanationAr": "كلمات الدرس: النون الساكنة، التنوين، الغنة، الترتيل."
+        },
+        {
+          "id": "y6i-q9",
+          "type": "multiple_choice",
+          "prompt": "Where is the Iqlab in Surah 96:15 لَنَسْفَعًا بِالنَّاصِيَةِ?",
+          "options": [
+            "Tanween on لَنَسْفَعًا followed by ب in بِالنَّاصِيَةِ",
+            "The Laam at the start",
+            "The ص in النَّاصِيَةِ",
+            "There is no Iqlab"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "The Tanween at the end of لَنَسْفَعًا is followed by ب, so it is read with Iqlab.",
+          "promptAr": "أين الإقلاب في ﴿لَنَسْفَعًا بِالنَّاصِيَةِ﴾؟",
+          "optionsAr": [
+            "تنوين «لنسفعًا» وبعده باء «بالناصية»",
+            "اللام في البداية",
+            "الصاد في «الناصية»",
+            "لا يوجد إقلاب"
+          ],
+          "explanationAr": "التنوين في «لنسفعًا» بعده باء فيُقلب ميمًا."
+        },
+        {
+          "id": "y6i-q10",
+          "type": "multiple_choice",
+          "prompt": "According to Sahih al-Bukhari 5027, who are the best among you?",
+          "options": [
+            "Those who learn the Qur’an and teach it",
+            "Those who recite the fastest",
+            "Those who never make mistakes",
+            "Those who are oldest"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "“Khayrukum man ta‘allamal-Qur’ana wa ‘allamah” – narrated by ‘Uthman (R.A).",
+          "promptAr": "حسب صحيح البخاري ٥٠٢٧، من خيركم؟",
+          "optionsAr": [
+            "من تعلّم القرآن وعلّمه",
+            "من يقرأ أسرع",
+            "من لا يخطئ أبدًا",
+            "الأكبر سنًا"
+          ],
+          "explanationAr": "«خيركم من تعلّم القرآن وعلّمه» رواه عثمان رضي الله عنه."
+        },
+        {
+          "id": "y6i-q11",
+          "type": "fill_blank",
+          "prompt": "“And recite the Qur’an with measured ___.” (Qur’an 73:4)",
+          "options": [
+            "speed",
+            "silence"
+          ],
+          "correct": [],
+          "blanks": [
+            [
+              [
+                "recitation",
+                "Recitation"
+              ]
+            ]
+          ],
+          "points": 1,
+          "explanation": "Allah says: “And recite the Qur’an with measured recitation (Tartil).” (73:4)",
+          "explanationAr": "﴿وَرَتِّلِ الْقُرْآنَ تَرْتِيلًا﴾ (المزمل ٤)."
+        },
+        {
+          "id": "y6i-q12",
+          "type": "multiple_choice",
+          "prompt": "Your class is reciting fast to finish first. You know the Iqlab needs 2 counts. What is the right decision?",
+          "options": [
+            "Recite carefully and give the Iqlab its 2 counts",
+            "Recite fast to win",
+            "Skip the Iqlab",
+            "Stop reciting"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "A good decision is reciting the Qur’an carefully.",
+          "promptAr": "صفّك يقرأ بسرعة لينتهي أولًا، وأنت تعلم أن الإقلاب يحتاج حركتين. ما القرار الصحيح؟",
+          "optionsAr": [
+            "أقرأ بتأنٍّ وأعطي الإقلاب حركتين",
+            "أقرأ بسرعة لأفوز",
+            "أترك الإقلاب",
+            "أتوقف عن القراءة"
+          ],
+          "explanationAr": "القرار الجيد هو قراءة القرآن بتأنٍّ."
+        }
+      ]
     }
   ]
 }
