@@ -93,7 +93,7 @@ export function ElProps({ e, set, del, front, back }: { e: El; set: (p: Partial<
   return (
     <div className="space-y-2 rounded-2xl border border-sky-200 bg-sky-50/60 p-3 text-sm" data-testid="lp-props">
       {e.t === "text" && <>
-        <textarea className={inputCls + " !mt-0 min-h-20"} dir="auto" value={e.text} onChange={(ev) => set({ text: ev.target.value } as Partial<El>)} data-testid="lp-text-edit" />
+        <textarea className={inputCls + " !mt-0 min-h-20"} dir="auto" value={e.text} onChange={(ev) => set({ text: ev.target.value, html: "" } as Partial<El>)} data-testid="lp-text-edit" />{(e as { html?: string }).html ? <span className="text-[11px] opacity-70">{"Tip: click the text on the slide to edit with bold / italic / underline (Ctrl+B / I / U). Editing here removes that formatting."}</span> : null}
         <div className="flex flex-wrap items-center gap-1.5">
           <select className="rounded-lg border border-black/15 bg-white px-2 py-1" value={e.font} onChange={(ev) => set({ font: ev.target.value } as Partial<El>)} aria-label={tr("Font", "الخط")} data-testid="lp-font">{FONTS.map((f) => <option key={f} value={f} style={{ fontFamily: f }}>{f}</option>)}</select>
           <select className="rounded-lg border border-black/15 bg-white px-2 py-1" value={e.size} onChange={(ev) => set({ size: Number(ev.target.value) } as Partial<El>)} aria-label={tr("Size", "الحجم")} data-testid="lp-size">{[16, 20, 24, 28, 32, 40, 48, 56, 64, 80, 96, 120].map((n) => <option key={n} value={n}>{n}</option>)}</select>

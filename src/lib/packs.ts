@@ -6,7 +6,7 @@ import { getServerSession } from "@/lib/adminServer";
 import { modCall } from "@/lib/lmsMods";
 
 /** t315: Lesson Packs — white slides with elements. Positions/sizes are % of a 16:9 slide; text size is px on a 1600-wide slide. */
-export type ElText = { t: "text"; text: string; color: string; bg?: string; font: string; size: number; bold?: boolean; italic?: boolean; align?: "start" | "center" | "end" };
+export type ElText = { t: "text"; text: string; html?: string; color: string; bg?: string; font: string; size: number; bold?: boolean; italic?: boolean; align?: "start" | "center" | "end" };
 export type ElImg = { t: "img"; src: string };
 export type ElAudio = { t: "audio"; src: string };
 export type ElDraw = { t: "draw"; paths: { c: string; w: number; d: number[] }[] };

@@ -18,11 +18,45 @@ export function MediaAudio({ id, asAdmin }: { id: string; asAdmin: boolean }) {
   return <div className="flex h-full w-full items-center rounded-xl bg-amber-50 px-2"><span className="me-1 text-[2.5cqw]">🎙️</span>{u ? <audio controls src={u} className="h-[70%] w-full" controlsList="nodownload" /> : "…"}</div>;
 }
 
+/** t395: rich text kept to bold / italic / underline / line breaks (same on the editor canvas and the student player). */
+export function cleanHtml(h: string): string {
+  if (typeof DOMParser === "undefined") return "";
+  const doc = new DOMParser().parseFromString(`<div>${h}</div>`, "text/html");
+  const out = (n: Node): string => {
+    if (n.nodeType === 3) return (n.textContent || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    if (n.nodeType !== 1) return "";
+    const el = n as HTMLElement; const tag = el.tagName; const inner = [...el.childNodes].map(out).join("");
+    const st = el.getAttribute("style") || "";
+    let r = inner;
+    if (tag === "B" || tag === "STRONG" || /font-weight:\s*(bold|[6-9]00)/.test(st)) r = `<b>${r}</b>`;
+    if (tag === "I" || tag === "EM" || /font-style:\s*italic/.test(st)) r = `<i>${r}</i>`;
+    if (tag === "U" || /text-decoration[^;]*underline/.test(st)) r = `<u>${r}</u>`;
+    if (tag === "BR") return "<br>";
+    if ((tag === "DIV" || tag === "P") && el !== doc.body.firstChild) return `<br>${r}`;
+    return r;
+  };
+  return out(doc.body.firstChild as Node).replace(/^<br>/, "").slice(0, 8000);
+}
+function EditText({ e, onDone, onSize }: { e: Extract<El, { t: "text" }>; onDone: (html: string, text: string) => void; onSize: (d: number) => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => { const el = ref.current; if (!el) return; el.innerHTML = e.html ? cleanHtml(e.html) : (e.text || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/\n/g, "<br>"); el.focus(); const r = document.createRange(); r.selectNodeContents(el); r.collapse(false); const sel = window.getSelection(); sel?.removeAllRanges(); sel?.addRange(r); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const done = () => { const el = ref.current; if (el) onDone(cleanHtml(el.innerHTML), el.innerText); };
+  return <div ref={ref} contentEditable suppressContentEditableWarning dir="auto" className="h-full w-full overflow-auto whitespace-pre-wrap break-words leading-snug outline-none ring-2 ring-[#f5c542]" style={{ color: e.color, background: e.bg || "rgba(255,255,255,0.6)", fontFamily: e.font, fontSize: `${e.size / 16}cqw`, fontWeight: e.bold ? 800 : 400, fontStyle: e.italic ? "italic" : undefined, textAlign: e.align === "center" ? "center" : e.align === "end" ? "end" : "start", padding: "0.4cqw", cursor: "text" }}
+    onPointerDown={(ev) => ev.stopPropagation()} onBlur={done} data-testid="el-text-edit"
+    onKeyDown={(ev) => {
+      const mod = ev.ctrlKey || ev.metaKey;
+      if (ev.key === "Escape") { (ev.target as HTMLElement).blur(); return; }
+      if (!mod) return;
+      const k = ev.key.toLowerCase();
+      if (k === "b" || k === "i" || k === "u") { ev.preventDefault(); document.execCommand(k === "b" ? "bold" : k === "i" ? "italic" : "underline"); return; }
+      if (ev.shiftKey && (ev.key === ">" || ev.key === "." || ev.key === "<" || ev.key === ",")) { ev.preventDefault(); onSize(ev.key === ">" || ev.key === "." ? 4 : -4); }
+    }} />;
+}
 function Body({ e, asAdmin, live }: { e: El; asAdmin: boolean; live: boolean }) {
   const { tr } = useTr();
   switch (e.t) {
     case "text":
-      return <div dir="auto" className="h-full w-full overflow-hidden whitespace-pre-wrap break-words leading-snug" style={{ color: e.color, background: e.bg || undefined, fontFamily: e.font, fontSize: `${e.size / 16}cqw`, fontWeight: e.bold ? 800 : 400, fontStyle: e.italic ? "italic" : undefined, textAlign: e.align === "center" ? "center" : e.align === "end" ? "end" : "start", padding: "0.4cqw" }}>{e.text || " "}</div>;
+      return <div dir="auto" className="h-full w-full overflow-hidden whitespace-pre-wrap break-words leading-snug" style={{ color: e.color, background: e.bg || undefined, fontFamily: e.font, fontSize: `${e.size / 16}cqw`, fontWeight: e.bold ? 800 : 400, fontStyle: e.italic ? "italic" : undefined, textAlign: e.align === "center" ? "center" : e.align === "end" ? "end" : "start", padding: "0.4cqw" }}>{e.html ? <span dangerouslySetInnerHTML={{ __html: cleanHtml(e.html) }} /> : e.text || " "}</div>;
     case "img": return <MediaImg id={e.src} asAdmin={asAdmin} />;
     case "audio": return <MediaAudio id={e.src} asAdmin={asAdmin} />;
     case "yt": return live ? <iframe src={embed(e.vid)} title={e.title || "Video"} className="h-full w-full rounded-lg" allow="encrypted-media; picture-in-picture; fullscreen" allowFullScreen referrerPolicy="strict-origin-when-cross-origin" /> : <div className="grid h-full w-full place-items-center rounded-lg bg-slate-800 text-[2cqw] text-white">▶ {e.title || "YouTube"}</div>;
@@ -57,6 +91,7 @@ export function SlideView({ slide, layer = [], asAdmin, live = true, edit = null
   const box = useRef<HTMLDivElement>(null);
   const drag = useRef<{ id: string; mode: "move" | "size"; sx: number; sy: number; e: El } | null>(null);
   const [stroke, setStroke] = useState<number[] | null>(null);
+  const [editing, setEditing] = useState("");
   const pt = (ev: React.PointerEvent) => { const r = box.current!.getBoundingClientRect(); return [Math.round(((ev.clientX - r.left) / r.width) * 1000) / 10, Math.round(((ev.clientY - r.top) / r.height) * 1000) / 10]; };
   const down = (ev: React.PointerEvent, e: El, mode: "move" | "size") => {
     if (pen || !edit || (e.by || "t") !== edit) return;
@@ -77,8 +112,9 @@ export function SlideView({ slide, layer = [], asAdmin, live = true, edit = null
       onPointerDown={(ev) => { if (pen && edit) { (ev.target as Element).setPointerCapture?.(ev.pointerId); setStroke(pt(ev)); } else onSelect?.(""); }} onPointerMove={move} onPointerUp={up} onPointerCancel={up}>
       {all.map((e) => e.t === "draw" ? <Strokes key={e.by + e.id} e={e} /> : (
         <div key={e.by + e.id} className={`absolute ${edit && e.by === edit && !pen ? "cursor-move" : ""} ${selected === e.id && e.by === edit ? "outline outline-2 outline-offset-2 outline-sky-500" : ""}`} style={{ left: `${e.x}%`, top: `${e.y}%`, width: `${e.w}%`, height: `${e.h}%` }}
-          onPointerDown={(ev) => down(ev, e, "move")} data-testid={`el-${e.t}`}>
-          <div className={edit && e.by === edit && !pen && (e.t === "yt" || e.t === "act") ? "pointer-events-none h-full w-full" : "h-full w-full"}><Body e={e} asAdmin={asAdmin} live={live && !(edit && e.by === edit)} /></div>
+          onPointerDown={(ev) => { if (editing === e.id) return; down(ev, e, "move"); }} onDoubleClick={() => { if (e.t === "text" && edit && e.by === edit && !pen) setEditing(e.id); }} onClick={() => { if (e.t === "text" && edit && e.by === edit && !pen && selected === e.id && !drag.current) setEditing(e.id); }} data-testid={`el-${e.t}`}>
+          {editing === e.id && e.t === "text" ? <EditText e={e} onDone={(html, text) => { onMove?.(e.id, { html, text: text.slice(0, 4000) } as Partial<El>); setEditing(""); }} onSize={(d) => onMove?.(e.id, { size: Math.max(8, Math.min(160, e.size + d)) } as Partial<El>)} />
+            : <div className={edit && e.by === edit && !pen && (e.t === "yt" || e.t === "act") ? "pointer-events-none h-full w-full" : "h-full w-full"}><Body e={e} asAdmin={asAdmin} live={live && !(edit && e.by === edit)} /></div>}
           {selected === e.id && e.by === edit && !pen && <span className="absolute -bottom-2 -end-2 h-4 w-4 cursor-se-resize rounded-full border-2 border-white bg-sky-500" onPointerDown={(ev) => down(ev, e, "size")} data-testid="el-resize" />}
         </div>))}
       {stroke && pen && <Strokes e={{ id: "tmp", t: "draw", x: 0, y: 0, w: 100, h: 100, paths: [{ c: pen.c, w: pen.w, d: stroke }] }} />}

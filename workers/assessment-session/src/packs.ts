@@ -33,11 +33,13 @@ const FONTS = ["Nunito", "Arial", "Georgia", "Times New Roman", "Courier New", "
 const MEDIA = /^lpm_[a-z0-9_]{6,40}$/i;
 const YT = /^[A-Za-z0-9_-]{6,20}$/;
 
+/** t395: rich text — only <b> <i> <u> <br>, no attributes. */
+const richHtml = (v: unknown) => String(v ?? "").slice(0, 8000).replace(/<(\/?)(b|i|u|br)\b[^>]*>/gi, "\u0001$1$2\u0002").replace(/<[^>]*>/g, "").replace(/[<>]/g, "").replace(/\u0001/g, "<").replace(/\u0002/g, ">");
 /** Element sanitiser — positions in % of a 16:9 slide. */
 function el(e: Json, student = false): Json | null {
   const t = String(e.t || "");
   const base = { id: str(e.id, 30) || rid("e"), t, x: num(e.x, -20, 100), y: num(e.y, -20, 100), w: num(e.w, 1, 120, 30), h: num(e.h, 1, 120, 10), by: student ? "s" : "t" };
-  if (t === "text") return { ...base, text: str(e.text, 4000), color: color(e.color) || "#1b2f44", bg: color(e.bg), font: FONTS.includes(String(e.font)) ? String(e.font) : "Nunito", size: num(e.size, 8, 160, 28), bold: e.bold === true, italic: e.italic === true, align: ["start", "center", "end"].includes(String(e.align)) ? String(e.align) : "start" };
+  if (t === "text") return { ...base, ...(e.html ? { html: richHtml(e.html) } : {}), text: str(e.text, 4000), color: color(e.color) || "#1b2f44", bg: color(e.bg), font: FONTS.includes(String(e.font)) ? String(e.font) : "Nunito", size: num(e.size, 8, 160, 28), bold: e.bold === true, italic: e.italic === true, align: ["start", "center", "end"].includes(String(e.align)) ? String(e.align) : "start" };
   if (t === "img") return MEDIA.test(String(e.src)) ? { ...base, src: String(e.src) } : null;
   if (t === "audio") return MEDIA.test(String(e.src)) ? { ...base, src: String(e.src) } : null;
   if (t === "draw") {
