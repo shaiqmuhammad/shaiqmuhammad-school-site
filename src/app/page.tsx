@@ -3,7 +3,6 @@ import { BannerCarousel } from "@/components/BannerCarousel";
 import { EncyclopediaCards } from "@/components/EncyclopediaCards";
 import { TeacherProfileCard } from "@/components/TeacherProfileCard";
 import { Section } from "@/components/Section";
-import { LmsHomeCard } from "@/components/lms/LmsEntry";
 import { siteConfig } from "@/content/site";
 import {
 } from "@/lib/content";
@@ -30,12 +29,7 @@ export default function HomePage() {
       <BannerCarousel banners={banners} />
       );
       case "intro": return <IntroBlock s={sec} name={siteConfig.name} tagline={siteConfig.tagline} />;
-      case "lms": return (
-      <Section className="pt-0">
-        <LmsHomeCard />
-      </Section>
-
-      );
+      case "lms": return null; // t404: only the header "Login / My Area" tab remains
       case "assessments": return (<>
       {quizzes.length > 0 && (
         <Section id="assessments">

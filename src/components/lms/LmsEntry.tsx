@@ -43,11 +43,27 @@ export function LmsHeaderButton({ mobile = false, onPick }: { mobile?: boolean; 
       data-testid="header-lms-login"
       title={signedIn ? label : ar ? "دخول الطلاب والمعلمين" : "Student & Teacher Login"}
       aria-label={signedIn ? label : ar ? "دخول الطلاب والمعلمين" : "Student & Teacher Login"}
-      className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full bg-gradient-to-b from-[#ffd966] to-[#e0a800] px-3 text-sm font-extrabold text-[#1b2f44] shadow-[0_3px_12px_rgba(245,197,66,0.5)] ring-1 ring-white/40 transition hover:brightness-110"
+      className="inline-flex h-9 shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-full bg-gradient-to-b from-[#ffd966] to-[#e0a800] py-0 pe-2.5 ps-1 text-sm min-[400px]:gap-1.5 min-[400px]:pe-3 font-extrabold text-[#1b2f44] shadow-[0_3px_12px_rgba(245,197,66,0.5)] ring-1 ring-white/40 transition hover:brightness-110"
     >
-      <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden><circle cx="12" cy="8" r="4" /><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6" /></svg>
-      <span className="hidden min-[400px]:inline sm:hidden md:inline">{label}</span>
+      <MyAreaIcon />
+      <span className="text-[12px] leading-none min-[400px]:text-sm">{label}</span>
     </Link>
+  );
+}
+
+/** t404: "My Area" mark — a student in a graduation cap inside a home/door, navy #1b3a57 badge with gold. */
+export function MyAreaIcon({ className = "h-7 w-7" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 32 32" className={"shrink-0 " + className} aria-hidden focusable="false">
+      <circle cx="16" cy="16" r="15.5" fill="#1b3a57" />
+      <path d="M6.5 15.2 16 7.2l9.5 8" fill="none" stroke="#f5c542" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M9 14v11.2h14V14" fill="none" stroke="#f5c542" strokeWidth="1.8" strokeLinejoin="round" />
+      <circle cx="16" cy="18" r="2.6" fill="#fff7dc" />
+      <path d="M11.6 25.2c.5-2.6 2.3-4 4.4-4s3.9 1.4 4.4 4z" fill="#fff7dc" />
+      <path d="m11.3 14.6 4.7-2.1 4.7 2.1-4.7 2.1z" fill="#f5c542" stroke="#1b3a57" strokeWidth=".5" strokeLinejoin="round" />
+      <path d="M20 15v2.6" stroke="#f5c542" strokeWidth=".9" strokeLinecap="round" />
+      <circle cx="20" cy="17.9" r=".8" fill="#f5c542" />
+    </svg>
   );
 }
 

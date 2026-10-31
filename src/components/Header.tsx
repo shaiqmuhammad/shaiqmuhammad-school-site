@@ -12,7 +12,7 @@ import { InstallAppButton } from "@/components/PwaInstall";
 import { useI18n } from "@/lib/i18n";
 import { useDynNav } from "@/lib/dynNav";
 import { useLogoUrl } from "@/components/SiteBrand";
-import { LmsFloatButton, LmsHeaderButton } from "@/components/lms/LmsEntry";
+import { LmsHeaderButton } from "@/components/lms/LmsEntry";
 
 const samePath = (pathname: string, href: string) => pathname.replace(/\/$/, "") === href || pathname.startsWith(href + "/");
 
@@ -217,9 +217,6 @@ export function Header() {
             <ThemeToggle showLabel />
             <InstallAppButton variant="row" className="glass inline-flex h-9 items-center rounded-full px-3 text-sm font-bold" />
           </div>
-          <div className="mb-3">
-            <LmsHeaderButton mobile onPick={() => setOpen(false)} />
-          </div>
           <ul className="flex flex-col gap-1">
             {navLinks.map((link) =>
               link.menu ? (() => {
@@ -273,6 +270,6 @@ export function Header() {
           </ul>
         </nav>
       )}
-    <LmsFloatButton /></header>
+</header>
   );
 }
