@@ -12,7 +12,7 @@ import { InstallAppButton } from "@/components/PwaInstall";
 import { useI18n } from "@/lib/i18n";
 import { useDynNav } from "@/lib/dynNav";
 import { useLogoUrl } from "@/components/SiteBrand";
-import { LmsHeaderButton } from "@/components/lms/LmsEntry";
+import { LmsFloatButton, LmsHeaderButton } from "@/components/lms/LmsEntry";
 
 const samePath = (pathname: string, href: string) => pathname.replace(/\/$/, "") === href || pathname.startsWith(href + "/");
 
@@ -273,6 +273,6 @@ export function Header() {
           </ul>
         </nav>
       )}
-    </header>
+    <LmsFloatButton /></header>
   );
 }

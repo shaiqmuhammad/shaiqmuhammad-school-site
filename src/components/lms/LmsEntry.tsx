@@ -32,7 +32,7 @@ export function LmsHeaderButton({ mobile = false, onPick }: { mobile?: boolean; 
   const href = signedIn ? "/lms" : "/lms/login";
   if (mobile) {
     return (
-      <Link href={href} onClick={onPick} data-testid="mobile-lms-login" className="btn-glass flex w-full justify-center px-4 py-2 text-sm font-semibold">
+      <Link href={href} onClick={onPick} data-testid="mobile-lms-login" className="flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-b from-[#ffd966] to-[#e0a800] px-4 py-2.5 text-sm font-extrabold text-[#1b2f44] shadow-[0_4px_14px_rgba(245,197,66,0.45)]">
         🎓 {label}
       </Link>
     );
@@ -43,10 +43,10 @@ export function LmsHeaderButton({ mobile = false, onPick }: { mobile?: boolean; 
       data-testid="header-lms-login"
       title={signedIn ? label : ar ? "دخول الطلاب والمعلمين" : "Student & Teacher Login"}
       aria-label={signedIn ? label : ar ? "دخول الطلاب والمعلمين" : "Student & Teacher Login"}
-      className="pill-on-navy hidden h-9 min-w-9 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap !px-2 text-sm font-semibold sm:inline-flex xl:!px-3"
+      className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full bg-gradient-to-b from-[#ffd966] to-[#e0a800] px-3 text-sm font-extrabold text-[#1b2f44] shadow-[0_3px_12px_rgba(245,197,66,0.5)] ring-1 ring-white/40 transition hover:brightness-110"
     >
-      <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M2 9l10-5 10 5-10 5z" /><path d="M6 11v5c3 2.5 9 2.5 12 0v-5M22 9v6" /></svg>
-      <span className="hidden xl:inline">{label}</span>
+      <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden><circle cx="12" cy="8" r="4" /><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6" /></svg>
+      <span className="hidden min-[400px]:inline sm:hidden md:inline">{label}</span>
     </Link>
   );
 }
@@ -130,4 +130,14 @@ export function useMyAvatar(fallback = "") {
     return () => { window.removeEventListener("sm-avatar", load); document.removeEventListener("visibilitychange", vis); };
   }, []);
   return av || fallback;
+}
+
+/** t396: floating Login / My Area pill on phones (public site only). */
+export function LmsFloatButton() {
+  const { lang } = useI18n();
+  const signedIn = useLmsSignedIn();
+  const ar = lang === "ar";
+  return <Link href={signedIn ? "/lms" : "/lms/login"} data-testid="float-lms-login" className="fixed bottom-[calc(env(safe-area-inset-bottom)+1rem)] end-4 z-40 inline-flex items-center gap-2 rounded-full bg-gradient-to-b from-[#ffd966] to-[#e0a800] px-4 py-3 text-sm font-extrabold text-[#1b2f44] shadow-[0_6px_20px_rgba(0,0,0,0.3)] ring-2 ring-white/60 sm:hidden">
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden><circle cx="12" cy="8" r="4" /><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6" /></svg>
+    {signedIn ? (ar ? "منطقتي" : "My Area") : ar ? "تسجيل الدخول" : "Login"}</Link>;
 }
