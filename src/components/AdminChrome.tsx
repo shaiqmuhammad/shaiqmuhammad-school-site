@@ -1,6 +1,7 @@
 "use client";
 
 import { useLogoUrl } from "@/components/SiteBrand";
+import { FullscreenToggle } from "@/components/FullscreenToggle";
 import { GregPill, HijriPill } from "@/components/DatePills";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AdminToolbar } from "@/components/AdminToolbar";
@@ -387,6 +388,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
           <div className="-my-2 ms-auto flex min-w-0 items-center gap-2 overflow-x-auto px-1 py-2 [scrollbar-width:none]" data-testid="admin-top-icons">
           <MailIcon unread={mailUnread} onClick={() => onTab("mail")} label={tr("Mailbox", "البريد")} />
           <AdminToolbar variant="glass" onLogout={onLogout} msg={<MsgIcon variant="glass" asAdmin onClick={() => onTab("messages")} />} bell={<LmsBell asAdmin testId="admin-bell" variant={"glass"} extra={onBell ? { count: pendingCount, label: tr(`${pendingCount} forum post${pendingCount === 1 ? "" : "s"} waiting for approval`, `${pendingCount} مشاركة في المنتدى بانتظار الموافقة`), onClick: onBell } : undefined} />} />
+          <FullscreenToggle className="!text-[#b8860b] dark:!text-[#f5c542]" />
           </div>
         </div>
         <div className="flex items-center justify-between gap-2 border-t border-black/5 px-3 py-1.5 dark:border-white/10" data-testid="admin-date-row"><GregPill tone="light" compact /><HijriPill tone="light" compact /></div>
@@ -442,7 +444,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
                 {(DESC[tab] || MOD_DESC[tab]) && <p className="mt-1 max-w-3xl text-sm text-muted">{tr((DESC[tab] || MOD_DESC[tab])![0], (DESC[tab] || MOD_DESC[tab])![1])}</p>}
               </div>
               {star(tab, "!h-9 !w-9 border border-black/10 dark:border-white/15")}
-            </header>
+            <FullscreenToggle className="ml-auto !text-[#b8860b] dark:!text-[#f5c542]" /></header>
           )}
           <div className="admin-tab">{children}</div>
         </div>

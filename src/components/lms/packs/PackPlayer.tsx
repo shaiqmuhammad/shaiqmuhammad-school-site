@@ -8,7 +8,7 @@ import { AddTools, ElProps, withId, type Pen } from "./Tools";
 
 /** t315: student view of a pack — teacher slides + the student's own layer (type, draw, picture, record), auto-saved.
  *  Live packs follow the teacher's slide. `review` = teacher looking at one student's copy (read-only). */
-export function PackPlayer({ id, asAdmin = false, review, preview = false, locked = false, onWork }: { id: string; asAdmin?: boolean; review?: { student: string }; preview?: boolean; locked?: boolean; onWork?: () => void }) {
+export function PackPlayer({ id, asAdmin = false, review, preview = false, locked = false, onWork, autoFull = false }: { autoFull?: boolean; id: string; asAdmin?: boolean; review?: { student: string }; preview?: boolean; locked?: boolean; onWork?: () => void }) {
   const { tr } = useTr();
   const [pack, setPack] = useState<Pack | null>(null);
   const [work, setWork] = useState<Slide[]>([]);
@@ -18,7 +18,7 @@ export function PackPlayer({ id, asAdmin = false, review, preview = false, locke
   const [pen, setPen] = useState<Pen>(null);
   const [msg, setMsg] = useState("");
   const [dirty, setDirty] = useState(false);
-  const [full, setFull] = useState(false);
+  const [full, setFull] = useState(!!autoFull); // t396: opened from the list → full screen (document fullscreen from the click, else full-window)
   const box = useRef<HTMLElement | null>(null);
   // t389: real full screen (Fullscreen API; Esc exits). Falls back to a full-window overlay where the API is missing (e.g. iPhone).
   const toggleFull = async () => {
