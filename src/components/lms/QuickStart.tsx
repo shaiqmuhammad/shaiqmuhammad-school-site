@@ -7,7 +7,7 @@ import { lmsApi } from "@/lib/lms";
 import { activityApi, ACTIVITY_LABELS, saveHosted, type ActivityType } from "@/lib/activity";
 
 /** t370: start a live activity for the open class in one step — locked to those students, straight to the host screen. */
-export function QuickStart({ type, ids, label, onClose }: { type: ActivityType; ids: string[]; label: string; onClose: () => void }) {
+export function QuickStart({ type, ids, label, back, onClose }: { type: ActivityType; ids: string[]; label: string; back: string; onClose: () => void }) {
   const { tr, lang } = useTr();
   const l = ACTIVITY_LABELS[type];
   const [prompt, setPrompt] = useState("");
@@ -25,7 +25,7 @@ export function QuickStart({ type, ids, label, onClose }: { type: ActivityType; 
       await afterCreate(type, r.code, r.hostKey, prepared.options, prepared.images);
       await lmsApi.actPublish(r.code, type, r.title, ids, true).catch(() => undefined);
       saveHosted({ code: r.code, hostKey: r.hostKey, type, title: r.title, createdAt: r.createdAt, expiresAt: r.expiresAt });
-      try { localStorage.setItem(`sm-act-cls-${r.code}`, label); sessionStorage.setItem("sm-act-back", "/lms/classes"); } catch { /* */ }
+      try { localStorage.setItem(`sm-act-cls-${r.code}`, label); localStorage.setItem(`sm-act-back-${r.code}`, back); } catch { /* */ }
       window.location.assign(`/activities/host?code=${r.code}&new=1`);
     } catch { setErr(tr("Couldn't start the activity. Try again.", "تعذر بدء النشاط. حاول مجددًا.")); setBusy(false); }
   };

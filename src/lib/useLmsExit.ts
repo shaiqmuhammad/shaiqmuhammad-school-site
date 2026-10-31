@@ -16,6 +16,10 @@ export function useLmsExit(fallback: string): string {
     const p = window.location.pathname;
     const teacher = lmsSession()?.user.role === "teacher";
     // Teachers closing a classroom activity return to Classroom activities; a hosted assessment returns to Assessments.
+    // t376: started from a My Classes group → always back to that same group.
+    let back = "";
+    try { const code = new URLSearchParams(window.location.search).get("code") || ""; back = (code && localStorage.getItem(`sm-act-back-${code.toUpperCase()}`)) || (/^\/activities\/(wheel|randomiser)/.test(p) ? sessionStorage.getItem("sm-act-back") || "" : ""); } catch { /* */ }
+    if (teacher && back.startsWith("/lms/classes")) { setHref(back); return; }
     setHref(teacher && p.startsWith("/activities") ? "/lms/activities" : teacher && p.startsWith("/assessments") ? "/lms/assessments" : ownHome());
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [fallback]);

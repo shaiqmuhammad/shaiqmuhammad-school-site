@@ -54,7 +54,11 @@ export function LmsClassesPage() {
   const myPerms = lmsSession()?.user.role === "teacher" ? lmsSession()?.user.perms || [] : null;
   const actAllowed = (t: string) => !myPerms || (!myPerms.includes("hide:activities") && (myPerms.includes("act:*") || myPerms.includes(`act:${t}`)));
   const hostOk = !myPerms || myPerms.some((p) => p.startsWith("host:"));
-  const [view, setView] = useState<string>(""); // "cls|sec" | "g:<id>" | ""
+  const [view, setView] = useState<string>(""); // "g:<id>" | ""
+  // t376: coming back from an activity reopens the same group (#v=g:<id>).
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { const m = /#v=([^&]+)/.exec(window.location.hash); if (m) setView(decodeURIComponent(m[1])); }, []);
+  useEffect(() => { try { history.replaceState(null, "", view ? `#v=${encodeURIComponent(view)}` : window.location.pathname); } catch { /* */ } }, [view]);
   const [award, setAward] = useState<RosterStudent[] | null>(null); // students receiving
   const [whole, setWhole] = useState(false);
   const [editCats, setEditCats] = useState(false);
@@ -138,7 +142,7 @@ export function LmsClassesPage() {
   const viewName = view ? (view.startsWith("g:") ? groups.find((g) => g.id === view.slice(2))?.name || tr("this group", "هذه المجموعة") : label(view)) : tr("all my students", "كل طلابي");
   // t370: one tap from an open class starts the activity for that class — no two-option prompt, no All Activities page.
   const direct = (t: string, en: string) => {
-    if (t === "wheel" || t === "randomiser") { saveNames(shown.map((s) => s.name)); window.location.assign(`/activities/${t}`); return; }
+    if (t === "wheel" || t === "randomiser") { saveNames(shown.map((s) => s.name)); try { sessionStorage.setItem("sm-act-back", `/lms/classes#v=${encodeURIComponent(view)}`); } catch { /* */ } window.location.assign(`/activities/${t}`); return; }
     if (t === "classwall") { window.location.assign(view ? `/lms/wall#k=${encodeURIComponent(view)}` : "/lms/wall"); return; }
     if (t === "assess") { startWithClass("assess", shown.map((s) => s.id), viewName, `${en} · ${viewName}`); return; }
     setLaunch([t]);
@@ -242,17 +246,25 @@ export function LmsClassesPage() {
           <label className="mt-3 block text-sm font-bold">{tr("Reason (for Late / Absent)", "السبب (للتأخر / الغياب)")}<input className="mt-1 w-full rounded-xl border border-black/10 bg-white px-3 py-2 dark:border-white/15 dark:bg-white/5" value={reason} onChange={(e) => setReason(e.target.value)} maxLength={200} dir="auto" placeholder={tr("e.g. Doctor appointment", "مثال: موعد طبي")} data-testid="att-reason" /></label>
         </Modal>
       )}
-      {launch && <QuickStart type={launch[0] as ActivityType} ids={shown.map((x) => x.id)} label={viewName} onClose={() => setLaunch(null)} />}
-      {view &&       <nav className="fixed inset-x-0 bottom-0 z-[2000] border-t border-black/10 bg-white/95 pe-2 ps-[5.75rem] pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-6px_24px_rgba(0,0,0,0.08)] backdrop-blur dark:border-white/10 dark:bg-[#0f1f30]/95" aria-label={tr("Classroom tools", "أدوات الصف")} data-testid="cls-tray">
-        <div className="mx-auto flex max-w-5xl items-stretch gap-1 overflow-x-auto">
-          <button type="button" aria-pressed={attMode} onClick={() => setAttMode(!attMode)} className={`flex min-w-[4.5rem] flex-1 flex-col items-center gap-0.5 rounded-2xl px-2 py-1.5 text-[11px] font-bold ${attMode ? "bg-header text-white" : "hover:bg-sun/40"}`} data-testid="tray-att"><span className="text-3xl" aria-hidden>📋</span>{tr("Attendance", "الحضور")}</button>
-          {([["wheel", "🎡", "Spin", "العجلة"], ["randomiser", "🎲", "Randomiser", "اختيار عشوائي"], ["classwall", "🧱", "Class wall", "جدار الصف"], ["wall", "🖼️", "Shared Wall", "الجدار المشترك"], ["wordcloud", "☁️", "Word cloud", "سحابة كلمات"], ["poll", "📊", "Poll", "استطلاع"], ["survey", "📝", "Survey", "استبيان"], ["tps", "💭", "Think-Pair-Share", "فكّر-زاوج-شارك"], ["vote", "🗳️", "Vote", "تصويت"]] as const).filter(([t]) => actAllowed(t === "classwall" ? "wall" : t)).map(([t, ic, en, ar]) => (
-            <button type="button" key={t} onClick={() => direct(t, en)} className="flex min-w-[4.5rem] flex-1 flex-col items-center gap-0.5 rounded-2xl px-2 py-1.5 text-center text-[11px] font-bold hover:bg-sun/40" data-testid={`tray-${t}`}><span className="text-3xl" aria-hidden>{ic}</span>{tr(en, ar)}</button>
-          ))}
-          {hostOk && <button type="button" onClick={() => direct("assess", "Assessments")} className="flex min-w-[4.5rem] flex-1 flex-col items-center gap-0.5 rounded-2xl px-2 py-1.5 text-[11px] font-bold hover:bg-sun/40" data-testid="tray-assess"><span className="text-3xl" aria-hidden>🧩</span>{tr("Assessments", "التقييمات")}</button>}
+      {launch && <QuickStart type={launch[0] as ActivityType} ids={shown.map((x) => x.id)} label={viewName} back={`/lms/classes#v=${encodeURIComponent(view)}`} onClose={() => setLaunch(null)} />}
+      {view && <nav className="fixed inset-x-0 bottom-0 z-[2000] border-t border-white/40 bg-gradient-to-r from-[#1b3a57]/85 via-[#24507a]/80 to-[#1b3a57]/85 pe-2 ps-[5.75rem] pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-8px_30px_rgba(11,27,43,0.35)] backdrop-blur-xl" aria-label={tr("Classroom tools", "أدوات الصف")} data-testid="cls-tray">
+        <div className="mx-auto grid max-w-6xl grid-cols-4 gap-1.5 sm:grid-cols-6 lg:grid-cols-11">
+          {([["att", "📋", "Attendance", "الحضور", "#10b981"], ["wall", "🖼️", "Shared Wall", "الجدار المشترك", "#f5c542"], ["classwall", "🧱", "Class wall", "جدار الصف", "#fb923c"], ["wordcloud", "☁️", "Word cloud", "سحابة كلمات", "#38bdf8"], ["poll", "📊", "Poll", "استطلاع", "#a78bfa"], ["vote", "🗳️", "Vote", "تصويت", "#f472b6"], ["survey", "📝", "Survey", "استبيان", "#2dd4bf"], ["tps", "💭", "Think-Pair-Share", "فكّر-زاوج-شارك", "#facc15"], ["wheel", "🎡", "Spin", "العجلة", "#f87171"], ["randomiser", "🎲", "Randomiser", "اختيار عشوائي", "#60a5fa"], ["assess", "🧩", "Assessments", "التقييمات", "#4ade80"]] as const)
+            .filter(([t]) => (t === "att" ? true : t === "assess" ? hostOk : actAllowed(t === "classwall" ? "wall" : t)))
+            .map(([t, ic, en, ar, c]) => {
+              const on = t === "att" && attMode;
+              return (
+                <button type="button" key={t} onClick={() => (t === "att" ? setAttMode(!attMode) : direct(t, en))} aria-pressed={t === "att" ? attMode : undefined}
+                  className="group flex min-w-0 flex-col items-center gap-0.5 rounded-2xl border px-1 py-1.5 text-center text-[10px] font-extrabold leading-tight text-white shadow-sm backdrop-blur-md transition hover:-translate-y-0.5 hover:shadow-lg sm:text-[11px]"
+                  style={{ background: on ? c : `linear-gradient(160deg, ${c}66, ${c}26)`, borderColor: `${c}99` }} data-testid={`tray-${t}`}>
+                  <span className="grid h-9 w-9 place-items-center rounded-xl bg-white/85 text-2xl shadow-inner transition group-hover:scale-110" aria-hidden>{ic}</span>
+                  <span className="line-clamp-2 drop-shadow">{tr(en, ar)}</span>
+                </button>
+              );
+            })}
         </div>
       </nav>}
-      <div className="h-24" aria-hidden />
+      <div className="h-48 sm:h-32 lg:h-24" aria-hidden />
       {toast && (
         <div className="fixed inset-x-0 bottom-28 z-[2100] mx-auto flex w-fit max-w-[92vw] items-center gap-3 rounded-full bg-header px-5 py-2.5 text-sm font-semibold text-white shadow-2xl" role="status" data-testid="cls-toast">
           <span className="truncate">{toast}</span>{lastBatch && <button type="button" className="font-extrabold text-sun underline" onClick={undo}>{tr("Undo", "تراجع")}</button>}

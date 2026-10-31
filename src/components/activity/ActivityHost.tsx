@@ -294,6 +294,7 @@ export function ActivityHost() {
                   setBusy(true);
                   await finish(state);
                   setBusy(false);
+                  if (home.startsWith("/lms/classes")) { window.location.assign(home); return; }
                   reload();
                 }}
                 data-testid="host-end"
@@ -304,8 +305,7 @@ export function ActivityHost() {
             <button type="button" disabled={busy} className="inline-flex items-center gap-1.5 rounded-full bg-[#1b3a57] px-3 py-1.5 text-sm font-bold text-[#f5c542]" onClick={async () => {
               if (!state.ended && !confirm(tr("End and close this activity? Results are saved.", "إنهاء وإغلاق هذا النشاط؟ تُحفظ النتائج."))) return;
               setBusy(true); await finish(state); forgetHosted(code);
-              let back = home; try { back = sessionStorage.getItem("sm-act-back") || home; sessionStorage.removeItem("sm-act-back"); } catch { /* */ }
-              window.location.assign(back);
+              window.location.assign(home);
             }} data-testid="host-close">✕ {tr("End & close", "إنهاء وإغلاق")}</button>
           </section>
         )}
