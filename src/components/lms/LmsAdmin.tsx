@@ -1,5 +1,6 @@
 "use client";
 
+import BulkImport from "./BulkImport";
 import { BodyPortal } from "@/components/BodyPortal";
 import { ModulePermsTeacher , QaPermsTeacher } from "@/components/lms/ModulePerms";
 import { PresenceDot } from "@/components/lms/Presence";
@@ -452,7 +453,7 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
 
         {drawer && (<BodyPortal>
           <div className="fixed inset-0 z-[2147483000] flex justify-end bg-black/40 backdrop-blur-[2px]" onClick={() => setDrawer(null)} data-testid="lms-drawer-backdrop">
-            <aside role="dialog" aria-modal="true" aria-label={drawer === "add" ? tr("Add", "إضافة") : tr("Bulk add", "إضافة جماعية")} className="flex h-full w-full max-w-md flex-col overflow-y-auto bg-white p-5 shadow-2xl dark:bg-[#0f1a26] sm:rounded-s-3xl" onClick={(e) => e.stopPropagation()} data-testid="lms-drawer">
+            <aside role="dialog" aria-modal="true" aria-label={drawer === "add" ? tr("Add", "إضافة") : tr("Bulk add", "إضافة جماعية")} className={"flex h-full w-full " + (drawer === "bulk" && role === "student" && asAdmin ? "max-w-4xl" : "max-w-md") + " flex-col overflow-y-auto bg-white p-5 shadow-2xl dark:bg-[#0f1a26] sm:rounded-s-3xl"} onClick={(e) => e.stopPropagation()} data-testid="lms-drawer">
               <div className="mb-4 flex items-center gap-2">
                 <h3 className="flex-1 text-lg font-extrabold">{drawer === "add" ? (role === "teacher" ? tr("Add a teacher", "إضافة معلم") : tr("Add a student", "إضافة طالب")) : tr("Bulk add (Excel)", "إضافة جماعية (إكسل)")}</h3>
                 <button type="button" className={iconBtn} onClick={() => setDrawer(null)} aria-label={tr("Close", "إغلاق")} title={tr("Close", "إغلاق")} data-testid="lms-drawer-close">✕</button>
@@ -461,6 +462,7 @@ export function LmsAdmin({ role = "student", embedded = false, staff = false }: 
                 <PersonForm admin={asAdmin} staff={staff} role={role} catalog={scopedCatalog(catalog)} onSave={async (r) => { if (await saveMany([r])) setDrawer(null); }} submitLabel={"+ " + tr("Add", "إضافة")} testPrefix="lms-new" />
               ) : (
                 <div className="space-y-3">
+                  {asAdmin && role === "student" && <BulkImport catalog={catalog} tr={tr} onSaveRows={async (rows) => { await saveMany(rows as Row[]); return { failed: 0 }; }} />}
                   <p className="text-sm opacity-75">{tr("1. Download the template · 2. Fill one row per person · 3. Upload it here and check the preview.", "١. نزّل القالب · ٢. صف لكل شخص · ٣. ارفعه هنا وراجع المعاينة.")}</p>
           <div className="flex flex-wrap items-center gap-2">
                     <button type="button" className={smallBtn} onClick={() => downloadUsersTemplate(role, catalog)} data-testid="lms-template">⬇ {role === "teacher" ? tr("Teachers template", "قالب المعلمين") : tr("Students template", "قالب الطلاب")}</button>

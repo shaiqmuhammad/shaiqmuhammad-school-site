@@ -13,6 +13,7 @@
     "@breezystack/lamejs": "^1.2.7",
     "docx": "^9.8.1",
     "exceljs": "^4.4.0",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "html2canvas-pro": "^2.5.1",
     "jspdf": "^4.2.1",
     "jszip": "^3.10.1",
