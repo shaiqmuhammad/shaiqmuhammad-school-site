@@ -1,4 +1,5 @@
 "use client";
+import { TimetableManager } from "@/components/lms/Timetable";
 import { LessonPagesManager } from "@/components/LessonPages";
 import { pgApi } from "@/lib/lessonPages";
 import { AdminScopeBar } from "@/components/AdminScope";
@@ -65,8 +66,8 @@ import { AdminHome } from "@/components/AdminHome";
 import AdminSettings from "@/components/AdminSettings";
 import { useI18n } from "@/lib/i18n";
 
-type Tab = "logins" | "groups" | "downloads" | "parents" | "attendance" | "behaviour" | "curriculum" | "youtube" | "sitepages" | "home" | "pages" | "quizzes" | "certificate" | "banners" | "announcements" | "teacher" | "forum" | "results" | "activities" | "settings" | "students" | "teachers" | "setup" | "lmshw" | "classes" | "mail" | "homepage" | "staff" | "messages" | "notices" | "vcomments" | "reports" | "wall" | "tracker" | "asys" | "qa";
-const HASH_TABS: Tab[] = ["logins", "groups", "downloads", "parents", "attendance", "behaviour", "curriculum", "youtube", "sitepages", "pages", "quizzes", "certificate", "banners", "announcements", "teacher", "forum", "results", "activities", "settings", "students", "teachers", "setup", "classes", "lmshw", "mail", "homepage", "staff", "messages", "notices", "vcomments", "reports", "wall", "tracker", "asys", "qa"];
+type Tab = "timetable" | "logins" | "groups" | "downloads" | "parents" | "attendance" | "behaviour" | "curriculum" | "youtube" | "sitepages" | "home" | "pages" | "quizzes" | "certificate" | "banners" | "announcements" | "teacher" | "forum" | "results" | "activities" | "settings" | "students" | "teachers" | "setup" | "lmshw" | "classes" | "mail" | "homepage" | "staff" | "messages" | "notices" | "vcomments" | "reports" | "wall" | "tracker" | "asys" | "qa";
+const HASH_TABS: Tab[] = ["timetable", "logins", "groups", "downloads", "parents", "attendance", "behaviour", "curriculum", "youtube", "sitepages", "pages", "quizzes", "certificate", "banners", "announcements", "teacher", "forum", "results", "activities", "settings", "students", "teachers", "setup", "classes", "lmshw", "mail", "homepage", "staff", "messages", "notices", "vcomments", "reports", "wall", "tracker", "asys", "qa"];
 const emptyPage = (): ContentPage => ({ id: newId("page"), slug: "", title: "", excerpt: "", body: "", published: true, updatedAt: new Date().toISOString() });
 
 export default function AdminCms() {
@@ -371,6 +372,7 @@ export default function AdminCms() {
         {tab==="wall" && <WallBoard asAdmin />}
         {tab==="tracker" && <AssessmentTracker asAdmin />}
         {tab==="asys" && <AttainmentSystems />}
+        {tab==="timetable" && <TimetableManager asAdmin full />}
         {tab==="qa" && <AssessmentTracker asAdmin initialView="pc" />}
         {tab==="activities" && <AdminActivities />}
         {tab==="youtube" && <AdminYouTube />}
