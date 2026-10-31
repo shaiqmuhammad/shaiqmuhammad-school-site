@@ -6,7 +6,7 @@ import { cachedSiteSound, sfx } from "@/lib/actSound";
 import { useTr } from "@/components/lms/useLms";
 
 /** t380: teacher Timer / Stopwatch — floating glass widget, client-only. Stores timestamps (not a ticking count) in localStorage. */
-type St = { mode: "timer" | "stopwatch"; open: boolean; big: boolean; corner: "br" | "bl" | "tr" | "tl"; end: number | null; left: number; total: number; swStart: number | null; swAcc: number; laps: number[]; done: boolean };
+type St = { mode: "timer" | "stopwatch"; open: boolean; big: boolean; corner: "br" | "bl" | "tr" | "tl"; end: number | null; left: number; total: number; swStart: number | null; swAcc: number; laps: number[]; done: boolean; w?: number };
 const KEY = "sm-class-timer";
 const DEF: St = { mode: "timer", open: false, big: false, corner: "br", end: null, left: 0, total: 0, swStart: null, swAcc: 0, laps: [], done: false };
 const load = (): St => { try { return { ...DEF, ...JSON.parse(localStorage.getItem(KEY) || "{}") }; } catch { return DEF; } };
@@ -80,9 +80,21 @@ export function ClassTimer() {
     e.preventDefault(); window.addEventListener("pointerup", up);
   };
   const btn = "rounded-full px-3 py-1.5 text-sm font-extrabold shadow-sm transition hover:scale-105";
-  const digit = pip ? { fontSize: st.mode === "timer" ? "min(27vw, 42vh)" : "min(17vw, 34vh)", lineHeight: 1 } : undefined;
+  // t383: free resize (size remembered), digits scale with the widget; colours shift orange → red in the last 10 s.
+  const vw = typeof window === "undefined" ? 1280 : window.innerWidth;
+  const W = Math.round(Math.min(vw - 24, st.big ? Math.max(640, st.w || 400) : st.w || (vw < 640 ? 300 : 400)));
+  const last = st.mode === "timer" && !!st.end && left <= 10000;
+  const bg = st.done ? "linear-gradient(145deg,rgba(239,68,68,0.85),rgba(244,63,94,0.7))" : last ? (left <= 5000 ? "linear-gradient(145deg,rgba(239,68,68,0.82),rgba(249,115,22,0.7))" : "linear-gradient(145deg,rgba(249,115,22,0.8),rgba(251,191,36,0.7))") : st.mode === "timer" ? "linear-gradient(145deg,rgba(45,212,191,0.72),rgba(139,92,246,0.68))" : "linear-gradient(145deg,rgba(251,191,36,0.75),rgba(236,72,153,0.68))";
+  const glow = st.done || last ? "0 0 40px rgba(239,68,68,0.55), 0 12px 40px rgba(11,27,43,0.35)" : st.mode === "timer" ? "0 0 36px rgba(45,212,191,0.45), 0 12px 40px rgba(11,27,43,0.3)" : "0 0 36px rgba(236,72,153,0.4), 0 12px 40px rgba(11,27,43,0.3)";
+  const resize = (e: React.PointerEvent) => {
+    e.preventDefault(); e.stopPropagation(); const x0 = e.clientX, w0 = W, rightDock = st.corner.endsWith("r");
+    const mv = (ev: PointerEvent) => { const d = (ev.clientX - x0) * (rightDock ? -1 : 1); const nw = Math.max(240, Math.min(window.innerWidth - 24, w0 + d)); setSt((o) => ({ ...o, w: nw, big: false })); };
+    const up = () => { window.removeEventListener("pointermove", mv); window.removeEventListener("pointerup", up); setSt((o) => { try { localStorage.setItem(KEY, JSON.stringify(o)); } catch { /* */ } return o; }); };
+    window.addEventListener("pointermove", mv); window.addEventListener("pointerup", up);
+  };
+  const digit = pip ? { fontSize: st.mode === "timer" ? "min(27vw, 42vh)" : "min(17vw, 34vh)", lineHeight: 1, color: "#fff", textShadow: "0 3px 18px rgba(0,0,0,0.35)" } : { fontSize: Math.round(W * (st.mode === "timer" ? 0.24 : 0.15)), lineHeight: 1.05, color: "#fff", textShadow: "0 3px 18px rgba(0,0,0,0.35)" };
   const ui = (
-    <div className={`${pip ? "flex h-screen w-screen flex-col" : `fixed ${pos} z-[2500] ${st.big ? "w-[min(96vw,48rem)]" : "w-[min(80vw,22rem)]"}`} overflow-hidden rounded-3xl border border-white/50 text-[#1b2f44] shadow-[0_12px_40px_rgba(11,27,43,0.35)] backdrop-blur-xl`} style={{ background: st.done ? "linear-gradient(150deg,#fecaca,#fde68aee)" : st.mode === "timer" ? "linear-gradient(150deg,#bae6fdee,#ddd6fecc)" : "linear-gradient(150deg,#bbf7d0ee,#fde68acc)" }} data-testid="class-timer" role="region" aria-label={st.mode === "timer" ? tr("Timer", "المؤقت") : tr("Stopwatch", "ساعة الإيقاف")}>
+    <div className={`${pip ? "relative flex h-screen w-screen flex-col" : `fixed ${pos} z-[2500]`} overflow-hidden rounded-[2rem] border border-white/60 text-[#1b2f44] backdrop-blur-xl transition-[background,box-shadow] duration-500`} style={{ background: bg, boxShadow: glow, ...(pip ? {} : { width: W }) }} data-testid="class-timer" role="region" aria-label={st.mode === "timer" ? tr("Timer", "المؤقت") : tr("Stopwatch", "ساعة الإيقاف")}>
       <div className="flex cursor-grab touch-none items-center gap-1 bg-[#1b3a57]/90 px-3 py-1.5 text-white" onPointerDown={pip ? undefined : drag} title={tr("Drag to a corner", "اسحب إلى زاوية")}>
         <span className="flex-1 text-xs font-extrabold uppercase tracking-wider text-[#f5c542]">{st.mode === "timer" ? "⏱ " + tr("Timer", "المؤقت") : "⏲ " + tr("Stopwatch", "ساعة الإيقاف")}</span>
         <button type="button" onPointerDown={(e) => e.stopPropagation()} className="rounded-full px-1.5 text-sm" onClick={() => save({ ...st, mode: st.mode === "timer" ? "stopwatch" : "timer" })} aria-label={tr("Switch", "تبديل")} data-testid="timer-switch">⇄</button>
@@ -93,7 +105,7 @@ export function ClassTimer() {
       {pipMsg && !pip && <p className="bg-amber-100 px-3 py-1.5 text-xs font-bold text-amber-900" role="status" data-testid="timer-pip-msg">{pipMsg}</p>}
       <div className={pip ? "flex flex-1 flex-col justify-center p-3" : "p-3"}>
         {st.mode === "timer" ? (<>
-          <p className={`text-center font-mono font-black tabular-nums ${st.big ? "text-8xl sm:text-[10rem]" : "text-5xl sm:text-7xl"} ${left <= 10000 && st.end ? "text-rose-600" : "text-[#1b3a57]"}`} style={digit} data-testid="timer-display">{st.done ? tr("Time's up!", "انتهى الوقت!") : fmt(left > 0 ? left : st.end ? 0 : cm * 60000 + cs * 1000)}</p>
+          <p className={`text-center font-mono font-black tabular-nums `} style={digit} data-testid="timer-display">{st.done ? tr("Time's up!", "انتهى الوقت!") : fmt(left > 0 ? left : st.end ? 0 : cm * 60000 + cs * 1000)}</p>
           {st.total > 0 && <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/60"><div className="h-full rounded-full bg-gradient-to-r from-[#f5c542] to-[#f97316] transition-all" style={{ width: `${pct * 100}%` }} /></div>}
           {!st.end && st.left <= 0 && (<>
             <div className="mt-2 flex flex-wrap justify-center gap-1">{[1, 2, 3, 5, 10].map((m) => <button key={m} type="button" className={`${btn} bg-white/80`} onClick={() => startT(m * 60000)} data-testid={`timer-preset-${m}`}>{m}′</button>)}</div>
@@ -104,7 +116,7 @@ export function ClassTimer() {
             <button type="button" className={`${btn} bg-white/80`} onClick={resetT} data-testid="timer-reset">↺ {tr("Reset", "إعادة")}</button>
           </div>
         </>) : (<>
-          <p className={`text-center font-mono font-black tabular-nums text-[#1b3a57] ${st.big ? "text-7xl sm:text-[8rem]" : "text-4xl sm:text-6xl"}`} style={digit} data-testid="sw-display">{fmt(sw, true)}</p>
+          <p className={`text-center font-mono font-black tabular-nums`} style={digit} data-testid="sw-display">{fmt(sw, true)}</p>
           <div className="mt-2 flex flex-wrap justify-center gap-1.5">
             {st.swStart ? <button type="button" className={`${btn} bg-amber-400`} onClick={() => save({ ...st, swStart: null, swAcc: sw })} data-testid="sw-pause">⏸ {tr("Pause", "إيقاف")}</button> : <button type="button" className={`${btn} bg-[#1b3a57] text-[#f5c542]`} onClick={() => { sfx("start"); save({ ...st, swStart: Date.now() }); setNow(Date.now()); }} data-testid="sw-start">▶ {tr("Start", "ابدأ")}</button>}
             <button type="button" disabled={!st.swStart} className={`${btn} bg-white/80 disabled:opacity-50`} onClick={() => save({ ...st, laps: [sw, ...st.laps].slice(0, 30) })} data-testid="sw-lap">🏁 {tr("Lap", "لفة")}</button>
@@ -113,6 +125,7 @@ export function ClassTimer() {
           {st.laps.length > 0 && <ol className={`mt-2 space-y-0.5 overflow-y-auto rounded-2xl bg-white/60 px-3 py-1.5 font-mono text-xs ${st.big ? "max-h-40" : "max-h-20"}`} data-testid="sw-laps">{st.laps.map((l, i) => <li key={i} className="flex justify-between"><span>#{st.laps.length - i}</span><span>{fmt(l, true)}</span></li>)}</ol>}
         </>)}
       </div>
+      {!pip && <span onPointerDown={resize} className={`absolute bottom-1 ${st.corner.endsWith("r") ? "start-1 cursor-nesw-resize" : "end-1 cursor-nwse-resize"} grid h-6 w-6 touch-none place-items-center rounded-full bg-white/40 text-xs text-white`} title={tr("Drag to resize", "اسحب لتغيير الحجم")} aria-hidden data-testid="timer-resize">⤡</span>}
     </div>
   );
   if (pip) return <>{createPortal(ui, pip.document.body)}<button type="button" onClick={() => pip.close()} className="fixed bottom-28 end-3 z-[2500] rounded-full bg-[#1b3a57] px-4 py-2 text-sm font-extrabold text-[#f5c542] shadow-lg" data-testid="timer-pip-placeholder">⧉ {tr("Timer is in the pop-out window — tap to bring back", "المؤقت في النافذة العائمة — اضغط لإرجاعه")}</button></>;
