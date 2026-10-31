@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { embed } from "@/lib/yt";
-import { mediaUrl, type El, type Slide } from "@/lib/packs";
+import { mediaUrl, type El, type Slide , docViewer } from "@/lib/packs";
 import { useTr } from "@/components/lms/useLms";
 
 /** t315: one 16:9 white slide. Text size is relative to a 1600px-wide slide (container query units), so slides look the same on phone and desktop. */
@@ -30,6 +30,7 @@ function Body({ e, asAdmin, live }: { e: El; asAdmin: boolean; live: boolean }) 
       const src = e.code ? `/join?code=${encodeURIComponent(e.code)}` : `/assessments/${encodeURIComponent(e.quiz || "")}`;
       return live ? <iframe src={src} title={e.label || "Activity"} className="h-full w-full rounded-lg border border-slate-200 bg-white" /> : <div className="grid h-full w-full place-items-center rounded-lg bg-violet-100 text-[2cqw] font-bold text-violet-900">🎲 {e.label || e.code || e.quiz}</div>;
     }
+    case "doc": return <iframe src={docViewer(e.src, e.kind)} title={e.name || "Slides"} className={`h-full w-full rounded-lg border border-slate-200 bg-white ${live ? "" : "pointer-events-none"}`} allowFullScreen data-testid="lp-doc-frame" />;
     case "quran": return <div className="grid h-full w-full place-items-center rounded-xl border-2 border-amber-300 bg-amber-50 p-[1cqw] text-center text-[2.2cqw] font-bold text-amber-900">📖 {tr("Surah", "سورة")} {e.surah} · {e.from}–{e.to}{e.memorise ? ` · ${tr("memorise", "احفظ")}` : ""}</div>;
     default: return null;
   }

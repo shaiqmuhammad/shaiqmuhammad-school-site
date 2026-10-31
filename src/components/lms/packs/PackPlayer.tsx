@@ -19,6 +19,17 @@ export function PackPlayer({ id, asAdmin = false, review, preview = false, locke
   const [msg, setMsg] = useState("");
   const [dirty, setDirty] = useState(false);
   const [full, setFull] = useState(false);
+  const box = useRef<HTMLElement | null>(null);
+  // t389: real full screen (Fullscreen API; Esc exits). Falls back to a full-window overlay where the API is missing (e.g. iPhone).
+  const toggleFull = async () => {
+    if (document.fullscreenElement) { await document.exitFullscreen().catch(() => undefined); return; }
+    if (full) { setFull(false); return; }
+    const el = box.current;
+    if (el?.requestFullscreen) { try { await el.requestFullscreen(); setFull(true); return; } catch { /* fall back */ } }
+    setFull(true);
+  };
+  useEffect(() => { const f = () => { if (!document.fullscreenElement) setFull(false); }; document.addEventListener("fullscreenchange", f); return () => document.removeEventListener("fullscreenchange", f); }, []);
+  useEffect(() => { if (!full) return; const k = (e: KeyboardEvent) => { if (e.key === "Escape" && !document.fullscreenElement) setFull(false); }; window.addEventListener("keydown", k); return () => window.removeEventListener("keydown", k); }, [full]);
   const student = !review && !preview && !asAdmin;
   const load = useCallback(() => (review ? lp.work(id, review.student, asAdmin).then((r) => { setPack(r.pack || null); setWork(r.work || []); }) : lp.get(id, asAdmin).then((r) => { setPack(r.pack); setWork(r.work || []); })).catch((e) => setMsg(String((e as Error).message))), [id, asAdmin, review]);
   useEffect(() => { load(); }, [load]);
@@ -47,13 +58,13 @@ export function PackPlayer({ id, asAdmin = false, review, preview = false, locke
   const draw = () => layer.find((e) => e.t === "draw") as Extract<El, { t: "draw" }> | undefined;
   const selEl = layer.find((e) => e.id === sel);
   return (
-    <section className={`space-y-2 ${full ? "fixed inset-0 z-[2147483000] overflow-auto bg-slate-900/95 p-3" : "rounded-3xl bg-white p-3 shadow-sm ring-1 ring-black/5 sm:p-4"}`} data-testid="lp-player">
+    <section ref={box} className={`space-y-2 ${full ? "fixed inset-0 z-[2147483000] overflow-auto bg-slate-900/95 p-3" : "rounded-3xl bg-white p-3 shadow-sm ring-1 ring-black/5 sm:p-4"}`} data-testid="lp-player">
       <div className={`flex flex-wrap items-center gap-2 text-sm font-bold ${full ? "text-white" : ""}`}>
         <span data-testid="lp-player-count">{tr(`Slide ${cur + 1} of ${slides.length}`, `الشريحة ${cur + 1} من ${slides.length}`)}</span>
         {live && <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs text-violet-900" data-testid="lp-following">📡 {tr("Following your teacher", "تتابع معلمك")}</span>}
         {pack.topic?.title && <span className="rounded-full bg-sky-100 px-2 py-0.5 text-xs text-sky-900" dir="auto">🎯 {pack.topic.title}</span>}
         <span className="flex-1" />
-        <button type="button" className={smallBtn} onClick={() => setFull(!full)} data-testid="lp-full">{full ? "✕" : "⛶"} {full ? tr("Close", "إغلاق") : tr("Full screen", "ملء الشاشة")}</button>
+        <button type="button" className={smallBtn} onClick={toggleFull} title={tr("Full screen (Esc to exit)", "ملء الشاشة (Esc للخروج)")} data-testid="lp-full">{full ? "✕" : "⛶"} {full ? tr("Exit full screen", "إنهاء ملء الشاشة") : tr("Full screen", "ملء الشاشة")}</button>
       </div>
       {editable && <AddTools add={(e) => { const el = withId({ ...e, ...(e.t === "text" ? { y: Math.min(80, 40 + layer.filter((x) => x.t === "text").length * 8) } : {}), by: "s" } as Omit<El, "id">); setLayer((l) => [...l, el]); setSel(el.id); }} pen={pen} setPen={setPen} asAdmin={false} teacher={false} onErr={setMsg}
         onUndoStroke={() => { const d = draw(); if (d) setLayer((l) => l.map((e) => (e === d ? { ...d, paths: d.paths.slice(0, -1) } : e))); }} onClearDraw={() => { const d = draw(); if (d) setLayer((l) => l.filter((e) => e !== d)); }} />}

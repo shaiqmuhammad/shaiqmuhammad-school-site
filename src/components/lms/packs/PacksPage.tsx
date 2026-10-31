@@ -24,6 +24,7 @@ export function PacksPage() {
   const staff = actor?.role === "teacher" || asAdmin;
   const [items, setItems] = useState<Pack[] | null>(null);
   const [acc, setAcc] = useState<Acc | null>(null);
+  const [ntype, setNtype] = useState<PackType>("lesson");
   const [edit, setEdit] = useState<Pack | null>(null);
   const [open, setOpen] = useState("");
   const [msg, setMsg] = useState("");
@@ -50,12 +51,14 @@ export function PacksPage() {
           {msg && <p className="text-sm font-semibold" role="status">{msg}</p>}
           {staff && acc?.add && <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-white p-3 shadow-sm ring-1 ring-black/5" data-testid="lp-new">
             <b className="text-sm">➕ {tr("New", "جديد")}:</b>
-            {(Object.keys(TYPE_LABEL) as PackType[]).map((k) => <button key={k} type="button" className={smallBtn} onClick={() => newPack(k, k === "material" ? "lesson" : "hw")} data-testid={`lp-new-${k}`}>{TYPE_LABEL[k][0]} {tr(TYPE_LABEL[k][1], TYPE_LABEL[k][2])}</button>)}
+            <label className="text-sm font-bold">{tr("Type", "النوع")} <select className="rounded-xl border border-black/10 bg-white px-2 py-1 text-sm" value={ntype} onChange={(e) => setNtype(e.target.value as PackType)} data-testid="lp-new-type">{(["lesson", "activity", "homework", "quran"] as PackType[]).map((k) => <option key={k} value={k}>{TYPE_LABEL[k][0]} {tr(TYPE_LABEL[k][1], TYPE_LABEL[k][2])}</option>)}</select></label>
+            <button type="button" className="rounded-full bg-[#1b3a57] px-4 py-1.5 text-sm font-extrabold text-[#f5c542]" onClick={() => newPack(ntype, ntype === "lesson" ? "lesson" : "hw")} data-testid="lp-new-go">➕ {tr("Create", "إنشاء")}</button>
+            {([] as PackType[]).map((k) => <button key={k} type="button" className={smallBtn} onClick={() => newPack(k, "hw")} data-testid={`lp-new-${k}`}>{TYPE_LABEL[k][0]} {tr(TYPE_LABEL[k][1], TYPE_LABEL[k][2])}</button>)}
             <span className="text-xs opacity-60">{tr("Templates:", "القوالب:")}</span>
             {TEMPLATES.map(([k, en, ar]) => <button key={k} type="button" className={smallBtn} onClick={() => newPack(k === "hw" ? "homework" : "material", k)} data-testid={`lp-tpl-${k}`}>{tr(en, ar)}</button>)}
           </div>}
           {staff && !acc?.view && items && <p className="text-sm">{tr("This module is hidden for your account.", "هذه الوحدة مخفية لحسابك.")}</p>}
-          <div className="flex flex-wrap gap-1.5">{(["", "material", "homework", "quran"] as const).map((k) => <button key={k} type="button" aria-pressed={filter === k} className={`rounded-full px-3 py-1 text-sm font-bold ring-1 ring-black/10 ${filter === k ? "bg-header text-sun" : "bg-white text-[#1b2f44]"}`} onClick={() => setFilter(k)}>{k ? `${TYPE_LABEL[k][0]} ${tr(TYPE_LABEL[k][1], TYPE_LABEL[k][2])}` : tr("All", "الكل")}</button>)}</div>
+          <div className="flex flex-wrap gap-1.5">{(["", "lesson", "activity", "homework", "quran", "material"] as const).map((k) => <button key={k} type="button" aria-pressed={filter === k} className={`rounded-full px-3 py-1 text-sm font-bold ring-1 ring-black/10 ${filter === k ? "bg-header text-sun" : "bg-white text-[#1b2f44]"}`} onClick={() => setFilter(k)}>{k ? `${TYPE_LABEL[k][0]} ${tr(TYPE_LABEL[k][1], TYPE_LABEL[k][2])}` : tr("All", "الكل")}</button>)}</div>
           <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" data-testid="lp-list">
             {items === null ? <li>…</li> : list.length === 0 ? <li className="glass rounded-3xl p-4 text-sm opacity-80">{staff ? tr("No packs yet — start with a template above.", "لا توجد حزم بعد — ابدأ بقالب.") : tr("Nothing here yet.", "لا شيء هنا بعد.")}</li> : list.map((x) => (
               <li key={x.id} className="glass space-y-2 rounded-3xl p-4" data-testid="lp-item">
@@ -63,8 +66,8 @@ export function PacksPage() {
                   {staff && <p className="text-xs opacity-70">{x.status === "published" ? (x.assignAt > Date.now() ? "⏰ " + tr("Scheduled", "مجدول") : "✅ " + tr("Published", "منشور")) : "📝 " + tr("Draft", "مسودة")}{x.due ? ` · ${tr("due", "التسليم")} ${new Date(x.due).toLocaleDateString(lang === "ar" ? "ar-AE" : "en-GB", { timeZone: "Asia/Dubai" })}` : ""}{x.tpl ? ` · ${tr("template", "قالب")}` : ""}{x.mode === "live" ? " · 📡" : ""}</p>}</div></div>
                 <div className="flex flex-wrap gap-1.5">
                   {staff && (x.owner === actor?.id || asAdmin) && <button type="button" className={smallBtn} onClick={() => lp.get(x.id, asAdmin).then((r) => setEdit(r.pack))} data-testid="lp-edit">✏️ {acc?.edit ? tr("Edit", "تعديل") : tr("View", "عرض")}</button>}
-                  {(!staff || x.type === "material") && <button type="button" className={smallBtn} onClick={() => setOpen(x.id)} data-testid="lp-open">▶ {tr("Open", "فتح")}</button>}
-                  {!staff && x.hw && <a className={smallBtn} href={`/lms/homework?id=${encodeURIComponent(x.hw)}`} data-testid="lp-open-hw">📝 {tr("Open homework", "افتح الواجب")}</a>}
+                  {(!staff || x.type === "material" || x.type === "lesson") && <button type="button" className={smallBtn} onClick={() => setOpen(x.id)} data-testid="lp-open">▶ {tr("Open", "فتح")}</button>}
+                  {!staff && x.hw && <a className={smallBtn} href={`/lms/homework?id=${encodeURIComponent(x.hw)}`} data-testid="lp-open-hw">📝 {x.type === "activity" ? tr("Open activity & hand in", "افتح النشاط وسلّم") : tr("Open homework", "افتح الواجب")}</a>}
                   {staff && acc?.add && <button type="button" className={smallBtn} onClick={() => lp.dup(x.id, asAdmin).then(load).catch((e) => setMsg(modErr(e, tr)))} data-testid="lp-dup">⧉ {tr("Duplicate", "تكرار")}</button>}
                   {staff && acc?.delete && (x.owner === actor?.id || asAdmin) && <button type="button" className={smallBtn + " !text-rose-700"} onClick={() => { if (confirm(tr("Delete this pack? Its homework and the students' work are deleted too.", "حذف هذه الحزمة؟ يُحذف واجبها وأعمال الطلاب أيضًا."))) lp.del(x.id, asAdmin).then(load).catch((e) => setMsg(modErr(e, tr))); }} data-testid="lp-delete">🗑</button>}
                 </div>
