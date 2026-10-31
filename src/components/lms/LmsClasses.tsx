@@ -250,20 +250,24 @@ export function LmsClassesPage() {
       )}
       {launch && <QuickStart type={launch[0] as ActivityType} ids={shown.map((x) => x.id)} label={viewName} back={`/lms/classes#v=${encodeURIComponent(view)}`} onClose={() => setLaunch(null)} />}
       {view && <nav className="fixed inset-x-0 bottom-0 z-[2000] border-t border-white/40 bg-gradient-to-r from-[#1b3a57]/85 via-[#24507a]/80 to-[#1b3a57]/85 pe-2 ps-[5.75rem] pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-8px_30px_rgba(11,27,43,0.35)] backdrop-blur-xl" aria-label={tr("Classroom tools", "أدوات الصف")} data-testid="cls-tray">
-        <div className="mx-auto grid max-w-6xl grid-cols-4 gap-1.5 sm:grid-cols-6 lg:grid-cols-13">
+        {/* t385: phones = one swipeable row with snap and an edge fade; sm+ = wrapped grid. */}
+        <div className="relative mx-auto max-w-6xl">
+        <div className="pointer-events-none absolute inset-y-0 end-0 z-10 w-8 bg-gradient-to-l from-[#1b3a57] to-transparent sm:hidden rtl:bg-gradient-to-r" aria-hidden data-testid="tray-fade" />
+        <div className="flex snap-x snap-mandatory gap-1.5 overflow-x-auto pe-8 [scrollbar-width:none] sm:grid sm:grid-cols-6 sm:overflow-visible sm:pe-0 lg:grid-cols-13 [&::-webkit-scrollbar]:hidden" data-testid="tray-row">
           {([["att", "📋", "Attendance", "الحضور", "#10b981"], ["wall", "🖼️", "Shared Wall", "الجدار المشترك", "#f5c542"], ["classwall", "🧱", "Class wall", "جدار الصف", "#fb923c"], ["wordcloud", "☁️", "Word cloud", "سحابة كلمات", "#38bdf8"], ["poll", "📊", "Poll", "استطلاع", "#a78bfa"], ["vote", "🗳️", "Vote", "تصويت", "#f472b6"], ["survey", "📝", "Survey", "استبيان", "#2dd4bf"], ["tps", "💭", "Think-Pair-Share", "فكّر-زاوج-شارك", "#facc15"], ["wheel", "🎡", "Spin", "العجلة", "#f87171"], ["randomiser", "🎲", "Randomiser", "اختيار عشوائي", "#60a5fa"], ["timer", "⏱️", "Timer", "المؤقت", "#22d3ee"], ["stopwatch", "⏲️", "Stopwatch", "ساعة الإيقاف", "#e879f9"], ["assess", "🧩", "Assessments", "التقييمات", "#4ade80"]] as const)
             .filter(([t]) => (t === "att" || t === "timer" || t === "stopwatch" ? true : t === "assess" ? hostOk : actAllowed(t === "classwall" ? "wall" : t)))
             .map(([t, ic, en, ar, c]) => {
               const on = t === "att" && attMode;
               return (
                 <button type="button" key={t} onClick={() => (t === "att" ? setAttMode(!attMode) : t === "timer" || t === "stopwatch" ? openClassTimer(t) : direct(t, en))} aria-pressed={t === "att" ? attMode : undefined}
-                  className="group flex min-w-0 flex-col items-center gap-0.5 rounded-2xl border px-1 py-1.5 text-center text-[10px] font-extrabold leading-tight text-white shadow-sm backdrop-blur-md transition hover:-translate-y-0.5 hover:shadow-lg sm:text-[11px]"
+                  className="group flex w-[4.6rem] shrink-0 snap-start min-w-0 flex-col items-center gap-0.5 rounded-2xl border px-1 sm:w-auto sm:shrink py-1.5 text-center text-[10px] font-extrabold leading-tight text-white shadow-sm backdrop-blur-md transition hover:-translate-y-0.5 hover:shadow-lg sm:text-[11px]"
                   style={{ background: on ? c : `linear-gradient(160deg, ${c}66, ${c}26)`, borderColor: `${c}99` }} data-testid={`tray-${t}`}>
                   <span className="grid h-9 w-9 place-items-center rounded-xl bg-white/85 text-2xl shadow-inner transition group-hover:scale-110" aria-hidden>{ic}</span>
                   <span className="line-clamp-2 drop-shadow">{tr(en, ar)}</span>
                 </button>
               );
             })}
+        </div>
         </div>
       </nav>}
       <div className="h-48 sm:h-32 lg:h-24" aria-hidden />
