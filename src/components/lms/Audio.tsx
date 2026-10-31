@@ -111,7 +111,7 @@ export function AudioRecorder({ label, onSave, testId = "rec", saveLabel, big = 
         <div className="relative grid h-36 w-36 place-items-center">
           {rec && <span className="absolute inset-0 animate-ping rounded-full bg-rose-400/50" aria-hidden />}
           {rec && <span className="absolute -inset-2 animate-pulse rounded-full bg-rose-300/40" aria-hidden />}
-          <button type="button" onClick={rec ? stop : start} disabled={state === "saving"} aria-label={rec ? tr("Stop recording", "إيقاف التسجيل") : tr("Start recording", "ابدأ التسجيل")} className={`relative grid h-32 w-32 place-items-center rounded-full text-white shadow-2xl ring-8 transition active:scale-95 disabled:opacity-60 ${rec ? "bg-rose-600 ring-rose-200" : "bg-[#24857a] ring-[#cdebe4] hover:scale-105"}`} data-testid={rec ? `${testId}-stop` : `${testId}-start`}>
+          <button type="button" onClick={rec ? stop : start} disabled={state === "saving"} aria-label={rec ? tr("Stop recording", "إيقاف التسجيل") : tr("Start recording", "ابدأ التسجيل")} className={`relative grid h-32 w-32 place-items-center rounded-full text-white shadow-2xl ring-8 transition active:scale-95 disabled:opacity-60 ${rec ? "bg-rose-600 ring-rose-200" : "bg-[#1d6f66] ring-[#cdebe4] hover:scale-105"}`} data-testid={rec ? `${testId}-stop` : `${testId}-start`}>
             {rec ? <span className="h-11 w-11 rounded-xl bg-white" aria-hidden /> : (
               <svg viewBox="0 0 24 24" className="h-16 w-16" fill="currentColor" aria-hidden><path d="M12 15a3.5 3.5 0 0 0 3.5-3.5v-6a3.5 3.5 0 1 0-7 0v6A3.5 3.5 0 0 0 12 15zm6-3.5a1 1 0 1 0-2 0 4 4 0 0 1-8 0 1 1 0 1 0-2 0 6 6 0 0 0 5 5.9V20H8.5a1 1 0 1 0 0 2h7a1 1 0 1 0 0-2H13v-2.6a6 6 0 0 0 5-5.9z" /></svg>
             )}
@@ -140,7 +140,7 @@ export function AudioRecorder({ label, onSave, testId = "rec", saveLabel, big = 
     const rec = state === "rec";
     return (
       <span className="inline-flex items-center gap-1.5" data-testid={testId}>
-        <button type="button" onClick={rec ? stop : start} disabled={state === "saving"} title={label} aria-label={rec ? tr("Stop recording", "إيقاف التسجيل") : label} className={`grid h-8 w-8 place-items-center rounded-full text-white shadow ${rec ? "animate-pulse bg-rose-600" : "bg-[#24857a]"}`} data-testid={`${testId}-btn`}>{rec ? "■" : "🎙️"}</button>
+        <button type="button" onClick={rec ? stop : start} disabled={state === "saving"} title={label} aria-label={rec ? tr("Stop recording", "إيقاف التسجيل") : label} className={`grid h-8 w-8 place-items-center rounded-full text-white shadow ${rec ? "animate-pulse bg-rose-600" : "bg-[#1d6f66]"}`} data-testid={`${testId}-btn`}>{rec ? "■" : "🎙️"}</button>
         {rec && <span className="font-mono text-xs font-bold text-rose-600">{mmss(secs)}</span>}
         {state === "saving" && <span className="text-xs">⏳</span>}
         {err && <span className="text-xs text-rose-700" role="alert">{err}</span>}

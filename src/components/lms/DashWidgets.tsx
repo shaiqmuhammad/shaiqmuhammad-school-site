@@ -8,7 +8,7 @@ export type Widget = { icon: string; title: string; value?: string | number; sub
 
 const TONE: Record<Tone, string> = {
   sun: "bg-sun text-[#1b3a57]",
-  teal: "bg-[#24857a] text-white",
+  teal: "bg-[#1d6f66] text-white",
   coral: "bg-coral text-[#3b1710]",
   navy: "bg-header text-white dark:bg-[#1f4a73]",
   sky: "bg-[#bfdff3] text-[#1b3a57]",

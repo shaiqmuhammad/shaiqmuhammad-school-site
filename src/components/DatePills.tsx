@@ -30,7 +30,7 @@ export function HijriPill({ tone = "navy", compact = false }: { tone?: "navy" | 
   const d = useToday();
   const { tr } = useTr();
   if (!d?.hijri) return null;
-  return <span className={`${base} ${tone === "navy" ? "bg-[#24857a] text-white ring-1 ring-white/20" : "bg-[#cdebe4] text-[#0f4a42] dark:bg-[#24857a] dark:text-white"}`} title={tr("Hijri date (Umm al-Qura)", "التاريخ الهجري (أم القرى)")} data-testid="date-hijri"><span aria-hidden>🌙</span>{compact ? d.hijriShort : d.hijri}</span>;
+  return <span className={`${base} ${tone === "navy" ? "bg-[#1d6f66] text-white ring-1 ring-white/20" : "bg-[#cdebe4] text-[#0f4a42] dark:bg-[#1d6f66] dark:text-white"}`} title={tr("Hijri date (Umm al-Qura)", "التاريخ الهجري (أم القرى)")} data-testid="date-hijri"><span aria-hidden>🌙</span>{compact ? d.hijriShort : d.hijri}</span>;
 }
 export function GregPill({ tone = "navy", compact = false }: { tone?: "navy" | "light"; compact?: boolean }) {
   const d = useToday();
