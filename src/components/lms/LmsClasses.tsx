@@ -17,6 +17,7 @@ import { grpLabel, lmsApi, lmsErrorText, lmsSession, type PointCat, type PointRo
 const pill = "inline-flex items-center gap-1.5 rounded-full border border-black/10 bg-white/80 px-3 py-1.5 text-sm font-bold transition hover:bg-white dark:border-white/15 dark:bg-white/10";
 const inp = "w-full rounded-xl border border-black/10 bg-white px-3 py-2 text-sm dark:border-white/15 dark:bg-white/5";
 const DAY = 86400000;
+const PASTEL = ["#bae6fd", "#fde68a", "#bbf7d0", "#fbcfe8", "#ddd6fe", "#99f6e4", "#fed7aa", "#c7d2fe"];
 
 function Gate({ title, children }: { title: string; children: React.ReactNode }) {
   const { tr } = useTr();
@@ -203,7 +204,7 @@ export function LmsClassesPage() {
           <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6" data-testid="cls-grid">
             {shown.map((s) => (
               <li key={s.id} className="group relative" data-testid="cls-card">
-                <button type="button" onPointerDown={() => pressStart(s)} onPointerUp={pressEnd} onPointerLeave={pressEnd} onContextMenu={(e) => { if (attMode) e.preventDefault(); }} onClick={() => { if (attMode) { if (lp.current.fired) { lp.current.fired = false; return; } mark(s, "P"); return; } setWhole(false); setAward([s]); }} className="glass relative flex w-full flex-col items-center gap-2 rounded-3xl p-4 pt-5 text-center transition hover:-translate-y-1 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sun" aria-label={tr(`Award points to ${s.name}`, `منح نقاط لـ ${s.name}`)}>
+                <button type="button" onPointerDown={() => pressStart(s)} onPointerUp={pressEnd} onPointerLeave={pressEnd} onContextMenu={(e) => { if (attMode) e.preventDefault(); }} onClick={() => { if (attMode) { if (lp.current.fired) { lp.current.fired = false; return; } mark(s, "P"); return; } setWhole(false); setAward([s]); }} className="relative flex w-full flex-col items-center gap-2 rounded-[1.75rem] border border-white/70 p-4 pt-5 text-center text-[#1b2f44] shadow-[0_6px_20px_rgba(27,58,87,0.12)] backdrop-blur-md transition hover:-translate-y-1 hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sun" style={{ background: `linear-gradient(155deg, ${PASTEL[shown.indexOf(s) % PASTEL.length]}e6, rgba(255,255,255,0.72))` }} aria-label={tr(`Award points to ${s.name}`, `منح نقاط لـ ${s.name}`)}>
                   <span className="relative"><Avatar code={s.avatar} size={72} className="ring-4 ring-white shadow dark:ring-white/10" /><PresenceDot seen={s.seen} className="absolute bottom-1 end-0" /></span>
                   <span className="line-clamp-2 min-h-[2.5rem] text-sm font-bold leading-tight" dir="auto" data-testid="cls-name">{s.name}</span>
                   {attMode && <span className={`rounded-full px-2.5 py-0.5 text-xs font-extrabold ${att[s.id]?.status === "P" ? "bg-emerald-100 text-emerald-900" : att[s.id]?.status === "L" ? "bg-amber-100 text-amber-900" : att[s.id]?.status === "A" ? "bg-rose-100 text-rose-900" : "bg-black/10"}`} data-testid="cls-att">{att[s.id]?.status === "P" ? tr("Present", "حاضر") : att[s.id]?.status === "L" ? tr("Late", "متأخر") : att[s.id]?.status === "A" ? tr("Absent", "غائب") : att[s.id]?.status === "E" ? tr("Excused", "بعذر") : tr("Not marked", "غير مسجّل")}</span>}
