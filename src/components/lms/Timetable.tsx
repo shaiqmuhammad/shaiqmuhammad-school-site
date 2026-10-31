@@ -64,6 +64,29 @@ export function useTimetable(asAdmin = false) {
   return { d, err, load };
 }
 
+/** t390: dashboard timetable: Day / Week toggle and Mon–Fri tabs (today first), navy & gold, glass lesson cards. */
+export function TtDash({ rows, times, now, testId = "tt-dash" }: { rows: TtRow[]; times: TtData["times"]; now: TtData["now"]; testId?: string }) {
+  const { tr } = useTr();
+  const [view, setView] = useState<"day" | "week">("day");
+  const [day, setDay] = useState(now.dow >= 1 && now.dow <= 5 ? now.dow : 1);
+  const tab = (on: boolean) => `rounded-full px-3 py-1 text-sm font-bold ${on ? "bg-[#f5c542] text-[#1b3a57]" : "text-white/85"}`;
+  return (
+    <div className="space-y-2" data-testid={testId}>
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="inline-flex rounded-full bg-[#1b3a57] p-1" role="tablist">{(["day", "week"] as const).map((v) => <button key={v} type="button" role="tab" aria-selected={view === v} className={tab(view === v)} onClick={() => setView(v)} data-testid={`${testId}-view-${v}`}>{v === "day" ? tr("Day", "يوم") : tr("Week", "أسبوع")}</button>)}</div>
+        {view === "day" && <div className="inline-flex flex-wrap rounded-full bg-[#1b3a57] p-1">{[1, 2, 3, 4, 5].map((x) => <button key={x} type="button" aria-pressed={day === x} className={tab(day === x)} onClick={() => setDay(x)} data-testid={`${testId}-day-${x}`}>{tr(DOW[x][0], DOW[x][1])}{x === now.dow ? " •" : ""}</button>)}</div>}
+      </div>
+      {view === "day" ? <GlassStrip rows={rows} times={times} now={now} dow={day} testId={`${testId}-strip`} /> : (
+        <div className="grid gap-2 overflow-x-auto rounded-3xl bg-gradient-to-r from-sky-300/60 via-fuchsia-300/50 to-amber-200/60 p-2 sm:grid-cols-5 dark:from-[#1b3a57] dark:via-[#24476b] dark:to-[#3a3216]" data-testid={`${testId}-week`}>
+          {[1, 2, 3, 4, 5].map((x) => { const l = rows.filter((r) => r.dow === x).sort((a, b) => (seOf(a, times).s || "").localeCompare(seOf(b, times).s || "")); return (
+            <div key={x} className="space-y-1.5"><p className={`rounded-full px-2 py-0.5 text-center text-xs font-extrabold ${x === now.dow ? "bg-[#f5c542] text-[#1b3a57]" : "bg-[#1b3a57] text-white"}`}>{tr(DOW[x][0], DOW[x][1])}</p>
+              {l.map((r) => <div key={r.id} className="rounded-2xl border border-white/60 bg-white/70 px-2 py-1.5 text-xs text-[#1b2f44] shadow backdrop-blur-md" style={{ backgroundImage: `linear-gradient(135deg, ${r.color || "#ffffffcc"}cc, #ffffffaa)` }} data-testid="tt-week-card"><b>{seOf(r, times).s}</b> {r.title || r.subject}<br /><span className="opacity-75">{secTxt(r)}{r.teacherName ? ` · ${r.teacherName}` : ""}</span></div>)}
+              {!l.length && <p className="rounded-2xl bg-white/50 px-2 py-1 text-center text-xs text-[#1b2f44]/70">—</p>}</div>); })}
+        </div>)}
+    </div>
+  );
+}
+
 /** t304: "Today's lessons" strip for the top of the dashboard (hidden when there is no timetable or it is switched off). */
 export function TodayLessons() {
   const { tr } = useTr();
@@ -73,7 +96,7 @@ export function TodayLessons() {
   return (
     <section className={card + " !p-3"} data-testid="today-lessons">
       <div className="mb-2 flex items-center gap-2"><h2 className="text-base font-extrabold">🗓️ {tr("Today's lessons", "حصص اليوم")}</h2><span className="text-xs opacity-60">{tr(DOW[d.now.dow][0], DOW[d.now.dow][1])} · {d.now.hm}</span><span className="flex-1" /><a href="/lms/timetable" className="text-sm font-bold text-header underline dark:text-sun" data-testid="today-full">{tr("Full timetable", "الجدول كاملًا")} →</a></div>
-      <GlassStrip rows={[...d.timetable, ...obsRows(d.obs, lmsSession()?.user?.id || "", tr)]} times={d.times} now={d.now} dow={d.now.dow} testId="today-list" />
+      <TtDash rows={[...d.timetable, ...obsRows(d.obs, lmsSession()?.user?.id || "", tr)]} times={d.times} now={d.now} testId="today-list" />
     </section>
   );
 }
@@ -101,7 +124,7 @@ export function TimetableManager({ asAdmin, full = false }: { asAdmin: boolean; 
   const { d, err, load } = useTimetable(asAdmin);
   const [f, setF] = useState({ phase: "", dept: "", teacher: "", subject: "", cls: "", sec: "" });
   const [msg, setMsg] = useState("");
-  const [view, setView] = useState<"strip" | "day" | "week">(asAdmin ? "week" : "strip");
+  const [view, setView] = useState<"day" | "week">(asAdmin ? "week" : "day");
   const [day, setDay] = useState<number | null>(null);
   const [src, setSrc] = useState("");
   const [peer, setPeer] = useState<{ rows: TtRow[]; obs: TtObs[] } | null>(null);
@@ -163,7 +186,7 @@ export function TimetableManager({ asAdmin, full = false }: { asAdmin: boolean; 
         {canAdd && <button type="button" className="rounded-full bg-sun px-4 py-1.5 text-sm font-bold text-[#0b1b2b]" onClick={() => setEd({ ...EMPTY, teacher: asAdmin ? "" : d.teachers[0]?.id || "" })} data-testid="tt-new">+ {tr("Add Event", "إضافة حدث")}</button>}
       </div>
       <div className="flex flex-wrap items-center gap-2" data-testid="tt-views">
-        <div className="inline-flex overflow-hidden rounded-full bg-[#1b3a57] p-1" role="tablist">{(["strip", "day", "week"] as const).map((v) => <button key={v} type="button" role="tab" aria-selected={view === v} onClick={() => setView(v)} className={`rounded-full px-4 py-1.5 text-sm font-bold ${view === v ? "bg-[#f5c542] text-[#1b3a57]" : "text-white/85"}`} data-testid={`tt-view-${v}`}>{v === "strip" ? tr("Strip", "شريط") : v === "day" ? tr("Day", "يوم") : tr("Week", "أسبوع")}</button>)}</div>
+        <div className="inline-flex overflow-hidden rounded-full bg-[#1b3a57] p-1" role="tablist">{(["day", "week"] as const).map((v) => <button key={v} type="button" role="tab" aria-selected={view === v} onClick={() => setView(v)} className={`rounded-full px-4 py-1.5 text-sm font-bold ${view === v ? "bg-[#f5c542] text-[#1b3a57]" : "text-white/85"}`} data-testid={`tt-view-${v}`}>{v === "day" ? tr("Day", "يوم") : tr("Week", "أسبوع")}</button>)}</div>
         {view !== "week" && <div className="flex flex-wrap gap-1">{days.map((x) => <button key={x} type="button" aria-pressed={dSel === x} onClick={() => setDay(x)} className={`${pill} ${dSel === x ? "!bg-[#1b3a57] !text-[#f5c542]" : ""}`} data-testid={`tt-day-${x}`}>{tr(DOW[x][0], DOW[x][1])}</button>)}</div>}
         <span className="flex-1" />
         {!asAdmin && !!d.peers?.length && (d.acc.peers || d.acc.observe) && <select className={fld + " !w-auto"} value={src} onChange={(e) => setSrc(e.target.value)} aria-label={tr("Whose timetable", "جدول من")} data-testid="tt-src"><option value="">{tr("My timetable", "جدولي")}</option>{d.peers.filter((p) => p.same || d.acc.observe).map((p) => <option key={p.id} value={p.id}>{p.name}{p.same ? "" : " ·"}</option>)}</select>}
@@ -195,7 +218,6 @@ export function TimetableManager({ asAdmin, full = false }: { asAdmin: boolean; 
         </div>
       )}
       <TtTools d={d} rows={rows} asAdmin={asAdmin} filt={[f.phase, f.dept, d.teachers.find((t) => t.id === f.teacher)?.name || "", f.subject, f.cls].filter(Boolean).join(" · ")} />
-      {view === "strip" && <GlassStrip rows={rows} times={d.times} now={d.now} dow={dSel} onPick={ro && d.acc.observe ? (r) => askObs(r) : undefined} />}
       {view === "day" && <div className="space-y-2" data-testid="tt-dayview">{rows.filter((r) => r.dow === dSel).sort((a, b) => (seOf(a, d.times).s || "").localeCompare(seOf(b, d.times).s || "")).map((r) => <div key={r.id} className="flex items-start gap-3"><span className="w-24 shrink-0 pt-2 text-sm font-bold opacity-75">{seOf(r, d.times).s}–{seOf(r, d.times).e}</span><div className="flex-1">{cell(r)}{ro && d.acc.observe && <button type="button" className="mt-1 rounded-full bg-[#1b3a57] px-2 py-0.5 text-xs font-bold text-[#f5c542]" onClick={() => askObs(r)} data-testid="tt-obs-ask">👀 {tr("Request to observe", "طلب ملاحظة")}</button>}</div></div>)}{!rows.some((r) => r.dow === dSel) && <p className="py-6 text-center opacity-60">{tr("No lessons on this day.", "لا توجد حصص في هذا اليوم.")}</p>}</div>}
       {view === "week" && <>
       <div className="hidden overflow-x-auto md:block"><table className="w-full table-fixed border-separate border-spacing-1 text-sm" data-testid="tt-table"><thead><tr><th className="w-24 text-xs opacity-60">{tr("Time", "الوقت")}</th>{days.map((x) => <th key={x} className={`text-sm ${x === d.now.dow ? "text-emerald-600" : ""}`}>{tr(DOW[x][0], DOW[x][1])}</th>)}</tr></thead>
@@ -374,7 +396,7 @@ export function AdminTtWidget({ onOpen }: { onOpen: () => void }) {
       <div className="flex flex-wrap items-center gap-2"><h2 className="text-lg font-extrabold">🗓️ {tr("Today's timetable", "جدول اليوم")}</h2><span className="text-xs opacity-60">{tr(DOW[d.now.dow][0], DOW[d.now.dow][1])} · {d.now.hm}</span><span className="flex-1" />
         <select className="rounded-xl border border-black/10 bg-white px-2 py-1 text-sm" value={t} onChange={(e) => setT(e.target.value)} aria-label={tr("Teacher", "المعلم")} data-testid="admin-tt-teacher"><option value="">{tr("All teachers", "كل المعلمين")}</option>{names.map(([id, n]) => <option key={id} value={id}>{n}</option>)}</select>
         <button type="button" onClick={onOpen} className="rounded-full bg-[#1b3a57] px-4 py-1.5 text-sm font-bold text-[#f5c542]" data-testid="admin-tt-open">{tr("Full timetable", "الجدول كاملًا")} →</button></div>
-      <GlassStrip rows={rows} times={d.times} now={d.now} dow={d.now.dow} testId="admin-tt-strip" />
+      <TtDash rows={rows} times={d.times} now={d.now} testId="admin-tt-strip" />
     </section>
   );
 }
