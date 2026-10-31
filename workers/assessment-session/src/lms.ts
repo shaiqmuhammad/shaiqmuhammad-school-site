@@ -217,6 +217,8 @@ const qhwOf = (a: Actor) => {
   const view = show && (has("view") || has("add") || has("edit") || has("delete"));
   return { set: true, show, view, add: show && has("add"), edit: show && has("edit"), del: show && has("delete") };
 };
+/** t369: general (non-Quran) homework is visible to teachers only with "Assign homework" (assign). */
+const genOk = (a: Actor) => a.role !== "teacher" || a.perms.includes("assign");
 const PASS = Symbol("parent-pass");
 const isStaff = (a: Actor) => a.role === "admin" || a.role === "teacher";
 
@@ -1782,8 +1784,9 @@ export class LmsStore extends DurableObject<LmsEnv> {
       }
 
       case "notes": {
-        const items = this.sql.exec(`SELECT * FROM notes WHERE uid=? ORDER BY created DESC LIMIT 30`, a.id).toArray().map((r) => ({ id: String(r.id), kind: String(r.kind), data: JSON.parse(String(r.data || "{}")) as Json, created: Number(r.created), read: Boolean(r.read) }));
-        const unread = Number(this.sql.exec(`SELECT COUNT(*) AS n FROM notes WHERE uid=? AND read=0`, a.id).one().n);
+        const kindOf = new Map<string, string>(); const gen = (d: Json) => { if (genOk(a) || !d.hw) return false; const id = String(d.hw); if (!kindOf.has(id)) kindOf.set(id, String(this.sql.exec(`SELECT kind FROM homework WHERE id=?`, id).toArray()[0]?.kind || "")); return kindOf.get(id) === "general"; };
+        const items = this.sql.exec(`SELECT * FROM notes WHERE uid=? ORDER BY created DESC LIMIT 30`, a.id).toArray().map((r) => ({ id: String(r.id), kind: String(r.kind), data: JSON.parse(String(r.data || "{}")) as Json, created: Number(r.created), read: Boolean(r.read) })).filter((n) => !gen(n.data));
+        const unread = genOk(a) ? Number(this.sql.exec(`SELECT COUNT(*) AS n FROM notes WHERE uid=? AND read=0`, a.id).one().n) : items.filter((x) => !x.read).length;
         return { status: 200, body: { items, unread } };
       }
 
@@ -1935,6 +1938,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
           const prevKind = input.id ? String(this.sql.exec(`SELECT kind FROM homework WHERE id=?`, str(input.id, 40)).toArray()[0]?.kind || "") : "";
           const touchesQ = kind === "quran" || prevKind === "quran";
           if (a.role === "teacher" && touchesQ && q.set && !(input.id ? q.edit : q.add)) return { status: 403, body: { error: "quran_not_allowed" } };
+          if (a.role === "teacher" && kind !== "quran" && !genOk(a)) return { status: 403, body: { error: "general_hw_not_allowed" } };
           if (!can(a, "assign") && !(a.role === "teacher" && touchesQ && q.set)) return { status: 403, body: { error: "forbidden" } };
         }
         const title = str(input.title, 160);
@@ -2003,7 +2007,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
           return { status: 200, body: { homework: hw, tracker: this.trackerOf(a.id), progress: this.progressOf(a.id), leaderboard: this.setting("leaderboard", "off") !== "off" } };
         }
         const qd = qhwOf(a);
-        const all = this.allHomework().filter((h) => a.role === "admin" || this.va(a, h.createdBy) || h.createdBy === a.id || this.sharedTo(h, a.id)).filter((h) => h.kind !== "quran" || (qd.show && qd.view));
+        const all = this.allHomework().filter((h) => a.role === "admin" || this.va(a, h.createdBy) || h.createdBy === a.id || this.sharedTo(h, a.id)).filter((h) => (h.kind !== "quran" || (qd.show && qd.view)) && (h.kind === "quran" || genOk(a)));
         const counts = new Map<string, Record<string, number>>();
         for (const s of this.sql.exec(`SELECT hw, status, COUNT(*) AS n FROM subs GROUP BY hw, status`).toArray()) {
           const c = counts.get(String(s.hw)) || {};
@@ -2042,14 +2046,16 @@ export class LmsStore extends DurableObject<LmsEnv> {
         const fbOf = (r: Record<string, unknown>) => { const cm = JSON.parse(String(r.comments || "[]")) as { by: string; at?: number }[]; const after = cm.filter((x) => Number(x.at || 0) > Number(r.submitted_at || 0)); const mk = (JSON.parse(String(r.mistakes || "[]")) as unknown[]).length; return { after, mk }; };
         const items = this.sql.exec(`SELECT * FROM subs WHERE (grade != '' AND status IN ('approved','returned')) OR status='submitted' ORDER BY updated DESC LIMIT 2000`).toArray().filter((r) => {
           if (!hws.has(String(r.hw))) return false;
-          const fb = String(r.status) === "submitted" ? fbOf(r) : null;
+          const graded = String(r.grade || "") !== "" && (JSON.parse(String(r.attempts || "[]")) as unknown[]).length > 0;
+          const fb = String(r.status) === "submitted" && !graded ? fbOf(r) : null;
           if (fb && !fb.after.length && !fb.mk) return false;
           return mine(hws.get(String(r.hw))!, r) || !!(fb && fb.after.some((x) => x.by === a.name));
         }).slice(0, 1000).map((r) => {
           const h = hws.get(String(r.hw))!; const at = JSON.parse(String(r.attempts || "[]")) as { at: number; by: string }[]; const last = at[at.length - 1];
           const u = names.get(String(r.student));
-          const fb = String(r.status) === "submitted" ? fbOf(r) : null; const lc = fb?.after[fb.after.length - 1];
-          return { id: String(r.id), hw: h.id, title: h.title, data: h.data, student: String(r.student), name: u?.name ?? "?", cls: u?.cls ?? "", section: u?.section ?? "", grade: String(r.grade || ""), status: fb ? "feedback" : String(r.status), scores: r.scores ? JSON.parse(String(r.scores)) : null, gradedAt: fb ? Number(lc?.at || r.updated) : last?.at || Number(r.updated), by: fb ? lc?.by || "" : last?.by || "", setBy: names.get(h.createdBy)?.name || "" };
+          const re = String(r.status) === "submitted" && String(r.grade || "") !== "" && at.length > 0;
+          const fb = String(r.status) === "submitted" && !re ? fbOf(r) : null; const lc = fb?.after[fb.after.length - 1];
+          return { id: String(r.id), hw: h.id, title: h.title, data: h.data, student: String(r.student), name: u?.name ?? "?", cls: u?.cls ?? "", section: u?.section ?? "", grade: String(r.grade || ""), status: fb ? "feedback" : re ? "resubmitted" : String(r.status), scores: r.scores ? JSON.parse(String(r.scores)) : null, gradedAt: fb ? Number(lc?.at || r.updated) : last?.at || Number(r.updated), by: fb ? lc?.by || "" : last?.by || "", setBy: names.get(h.createdBy)?.name || "" };
         });
         return { status: 200, body: { items } };
       }
@@ -2062,6 +2068,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
           return { status: 200, body: { homework: { ...h, locked: this.lockedFor(h, a.id), lockedBy: this.lockInfo(h, a.id) }, sub: this.sub(h.id, a.id) } };
         }
         if (h.kind === "quran" && a.role === "teacher") { const qv = qhwOf(a); if (!(qv.show && qv.view)) return { status: 403, body: { error: "quran_not_allowed" } }; }
+        if (h.kind !== "quran" && !genOk(a)) return { status: 403, body: { error: "general_hw_not_allowed" } };
         // t347: teachers open only their own, shared, or picked teachers' homework (View all homework → selected teachers).
         if (a.role === "teacher" && h.createdBy !== a.id && !this.va(a, h.createdBy) && !this.sharedTo(h, a.id)) return { status: 403, body: { error: "forbidden" } };
         const names = new Map(this.sql.exec(`SELECT id, name, cls FROM users`).toArray().map((r) => [String(r.id), { name: String(r.name), cls: String(r.cls || "") }]));
@@ -2095,6 +2102,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         if (!r) return { status: 404, body: { error: "not_found" } };
         { const hs = this.allHomework(String(r.hw))[0]; if (hs && a.role === "teacher" && hs.createdBy !== a.id && !this.va(a, hs.createdBy) && !this.sharedTo(hs, a.id)) return { status: 403, body: { error: "forbidden" } }; }
         { const hs = this.allHomework(String(r.hw))[0]; if (hs && a.role === "teacher" && hs.createdBy !== a.id && !this.va(a, hs.createdBy) && this.sharedTo(hs, a.id) && !this.shareCanCorrect(hs, a)) return { status: 403, body: { error: "share_view_only" } }; }
+        { const hg = this.allHomework(String(r.hw))[0]; if (hg && hg.kind !== "quran" && !genOk(a)) return { status: 403, body: { error: "general_hw_not_allowed" } }; }
         { const hq0 = this.allHomework(String(r.hw))[0]; if (hq0?.kind === "quran" && a.role === "teacher") { const qv = qhwOf(a); if (!(qv.show && qv.view)) return { status: 403, body: { error: "quran_not_allowed" } }; } }
         const comments = JSON.parse(String(r.comments || "[]")) as { by: string; text: string; at: number }[];
         const c = str(input.comment, 1000);
@@ -2389,7 +2397,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
       case "export": {
         if (!isStaff(a)) return { status: 403, body: { error: "forbidden" } };
         if (!this.dlOf(a, "export")) return { status: 403, body: { error: "download_not_allowed" } };
-        const hw = this.allHomework().filter((h) => a.role === "admin" || this.va(a, h.createdBy) || h.createdBy === a.id || this.sharedTo(h, a.id));
+        const hw = this.allHomework().filter((h) => a.role === "admin" || this.va(a, h.createdBy) || h.createdBy === a.id || this.sharedTo(h, a.id)).filter((h) => h.kind === "quran" || genOk(a));
         const ids = new Set(hw.map((h) => h.id));
         const users = this.sql.exec(`SELECT id, username, name, role, cls, section FROM users`).toArray().map((r) => ({ id: String(r.id), username: String(r.username), name: String(r.name), role: String(r.role), cls: String(r.cls || ""), section: String(r.section || "") }));
         const subs = this.sql.exec(`SELECT * FROM subs ORDER BY updated`).toArray().filter((r) => ids.has(String(r.hw))).map((r) => ({ ...this.subOut(r), hw: String(r.hw), student: String(r.student) }));

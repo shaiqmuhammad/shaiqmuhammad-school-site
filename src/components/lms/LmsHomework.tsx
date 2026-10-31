@@ -311,13 +311,29 @@ function Review({ s, asAdmin, reload, quran, qdata, regrade = false, onGraded, p
     await lmsApi.saveMistakes(s.id, next, asAdmin).catch(() => undefined);
   };
   const [c, setC] = useState("");
-  const act = async (patch: Parameters<typeof lmsApi.review>[1]) => {
-    await lmsApi.review(s.id, patch, asAdmin).catch(() => undefined);
+  // t369: never look saved unless the server confirmed it — no optimistic moves; errors stay on screen.
+  const [saving, setSaving] = useState(false);
+  const [saveErr, setSaveErr] = useState("");
+  const act = async (patch: Parameters<typeof lmsApi.review>[1], strict = false) => {
+    setSaveErr("");
+    if (strict) setSaving(true);
+    try {
+      await lmsApi.review(s.id, patch, asAdmin);
+    } catch (e) {
+      const m = lmsErrorText(e, tr);
+      setSaveErr(strict ? tr(`❌ Grade NOT saved — ${m}. Please try again.`, `❌ لم يُحفظ التقييم — ${m}. حاول مرة أخرى.`) : m);
+      setSaving(false);
+      return false;
+    }
+    setSaving(false);
     setC("");
     reload();
+    return true;
   };
   return (
     <li className={card + " space-y-2"} data-testid="hw-sub">
+      {saving && <p className="rounded-xl bg-sky-100 px-3 py-1.5 text-sm font-bold text-sky-900" role="status" data-testid="grade-saving">⏳ {tr("Saving grade…", "جارٍ حفظ التقييم…")}</p>}
+      {saveErr && <p className="rounded-xl bg-rose-100 px-3 py-1.5 text-sm font-bold text-rose-900" role="alert" data-testid="grade-save-error">{saveErr}</p>}
       <div className="flex flex-wrap items-center gap-2">
         <b dir="auto">{s.name}</b>
         <span className="text-sm opacity-60">{s.cls}</span>
@@ -327,9 +343,11 @@ function Review({ s, asAdmin, reload, quran, qdata, regrade = false, onGraded, p
         <span className="flex-1" />
         <button type="button" className={smallBtn} onClick={() => act({ like: !s.liked })} aria-pressed={s.liked} data-testid="hw-like">{s.liked ? "❤️" : "🤍"} {tr("Like", "إعجاب")}</button>
         {s.grade && <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${GRADE_STYLE[s.grade]}`} data-testid="hw-sub-grade">{gradeLabel(s.grade, tr)}</span>}
+        {quran && s.grade === "red" && s.status === "returned" && <span className="rounded-full bg-rose-100 px-2.5 py-1 text-xs font-bold text-rose-900" data-testid="hw-sub-sentback">🔁 {tr("Sent back for practice", "أُعيد للتدرّب")}</span>}
+        {quran && s.grade && s.status === "submitted" && <span className="rounded-full bg-sky-100 px-2.5 py-1 text-xs font-bold text-sky-900" data-testid="hw-sub-resub">📥 {tr("Resubmitted — correct again", "أُعيد تسليمه — صحّحه مجددًا")}</span>}
         {quran ? (
           s.status === "submitted" || editGrade ? (
-            <ScoreGrader asAdmin={asAdmin} onSubmit={async ({ comment, ...sc }) => { await act({ scores: sc, ...(comment ? { comment } : {}) }); setEditGrade(false); onGraded?.(); }} />
+            <ScoreGrader asAdmin={asAdmin} busy={saving} onSubmit={async ({ comment, ...sc }) => { if (saving) return; if (await act({ scores: sc, ...(comment ? { comment } : {}) }, true)) { setEditGrade(false); onGraded?.(); } }} />
           ) : regrade ? (
             <span className="flex flex-wrap gap-2">
               <button type="button" className={smallBtn} onClick={() => setEditGrade(true)} data-testid="hw-edit-grade">✎ {tr("Edit grade", "تعديل التقييم")}</button>
@@ -478,11 +496,12 @@ export function LmsHomework() {
                 {(() => {
                   const quran = d.homework.kind === "quran";
                   // Quran: a graded submission (Save grade) moves to "Corrected"; likes/comments never move it. Stable order (by submit time).
-                  const isCorr = (s: NonNullable<Data["subs"]>[number]) => quran && !!s.grade && (s.status === "approved" || s.status === "returned");
+                  const isCorr = (s: NonNullable<Data["subs"]>[number]) => quran && !!s.grade && (s.status === "approved" || s.status === "returned" || (s.status === "submitted" && (s.attempts || []).length > 0)); // t369: graded work stays in Corrected; a resubmission ALSO shows in To review
                   const all = [...(d?.subs || [])].sort((x, y) => (y.submittedAt || 0) - (x.submittedAt || 0) || x.name.localeCompare(y.name));
                   // t302: commented after the last submit = waiting for the student; it leaves the review list until they respond.
                   const waits = (s: NonNullable<Data["subs"]>[number]) => !quran && s.status === "submitted" && (s.comments || []).some((m) => (m.at || 0) > (s.submittedAt || 0)); // t335: Quran work stays in "To review" until Save grade
-                  const list = all.filter((s) => (subTab === "corr") === isCorr(s) && (subTab === "corr" || !waits(s)));
+                  const toRev = (s: NonNullable<Data["subs"]>[number]) => !isCorr(s) || s.status === "submitted";
+                  const list = all.filter((s) => (subTab === "corr" ? isCorr(s) : toRev(s) && !waits(s)));
                   const waiting = all.filter(waits);
                   const nCorr = all.filter(isCorr).length;
                   return (
@@ -490,7 +509,7 @@ export function LmsHomework() {
                       <h2 className="text-xl font-bold">{tr("Submissions", "التسليمات")} ({all.length})</h2>
                       {quran && (
                         <div className="flex flex-wrap gap-2" role="tablist">
-                          <button type="button" role="tab" aria-selected={subTab === "cur"} onClick={() => setSubTab("cur")} className={`rounded-full px-4 py-1.5 text-sm font-extrabold ${subTab === "cur" ? "bg-header text-white" : "bg-black/5 dark:bg-white/10"}`} data-testid="subs-tab-current">📥 {tr("To review", "للمراجعة")} ({all.length - nCorr})</button>
+                          <button type="button" role="tab" aria-selected={subTab === "cur"} onClick={() => setSubTab("cur")} className={`rounded-full px-4 py-1.5 text-sm font-extrabold ${subTab === "cur" ? "bg-header text-white" : "bg-black/5 dark:bg-white/10"}`} data-testid="subs-tab-current">📥 {tr("To review", "للمراجعة")} ({all.filter(toRev).length})</button>
                           <button type="button" role="tab" aria-selected={subTab === "corr"} onClick={() => setSubTab("corr")} className={`rounded-full px-4 py-1.5 text-sm font-extrabold ${subTab === "corr" ? "bg-header text-white" : "bg-black/5 dark:bg-white/10"}`} data-testid="subs-tab-corrected">✅ {tr("Corrected", "المصحَّح")} ({nCorr})</button>
                         </div>
                       )}
