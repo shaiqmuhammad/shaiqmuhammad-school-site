@@ -115,6 +115,7 @@ const PUSH_TEXT: Record<string, [string, string]> = {
 const DEFAULT_CATS: [string, number, string][] = [["Helping", 1, "🤝"], ["Teamwork", 1, "👥"], ["Recitation", 1, "📖"], ["Respect", 1, "🌟"], ["Hard work", 1, "💪"], ["Off-task", -1, "💤"], ["Disrespect", -1, "⚠️"]];
 /** Spaced revision after a pass: 1, 3, 7, 14, 30, then every 60 days. */
 const REVISION_DAYS = [1, 3, 7, 14, 30, 60];
+const h12w = (hm: string) => { if (!hm) return ""; const [h, m] = hm.split(":").map(Number); return `${((h + 11) % 12) + 1}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`; };
 const PPTX_MIME = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
 const MAX_AUDIO = 1_600_000; // ~3 min at 24 kbps + container overhead, with headroom
 const USER_AUDIO_CAP = 30_000_000;
@@ -758,7 +759,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         const k = `${day}|${r.id}|${uid}`;
         if (this.sql.exec(`SELECT 1 FROM tt_sent WHERE k=?`, k).toArray().length) continue;
         this.sql.exec(`INSERT INTO tt_sent (k, at) VALUES (?, ?)`, k, nowMs);
-        this.notify([uid], "lesson", { subject: r.subject || "Lesson", cls: classLabel(r.cls, r.sections, secMap[r.cls] || []), title: r.title, time: r.st.s, period: r.period, mins: lead });
+        this.notify([uid], "lesson", { subject: r.subject || "Lesson", cls: classLabel(r.cls, r.sections, secMap[r.cls] || []), title: r.title, time: h12w(r.st.s), period: r.period, mins: lead });
         sent++;
       }
     }

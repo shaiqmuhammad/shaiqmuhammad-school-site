@@ -577,6 +577,7 @@ function ttObsRows(sql: SqlStorage, uid: string | null) {
   return sql.exec(`SELECT * FROM ttobs WHERE day >= ? ORDER BY day, s LIMIT 300`, today).toArray().filter((r) => !uid || r.req === uid || r.target === uid)
     .map((r) => ({ id: String(r.id), req: String(r.req), reqName: String(r.req_name), target: String(r.target), targetName: String(r.target_name), day: String(r.day), dow: Number(r.dow), s: String(r.s), e: String(r.e), cls: String(r.cls || ""), subject: String(r.subject || ""), note: String(r.note || ""), status: String(r.status) }));
 }
+const hm12 = (hm: string) => { const [h, m] = hm.split(":").map(Number); return `${((h + 11) % 12) + 1}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`; };
 export const ttFor = (r: TtRow, cls: string, section: string) => r.cls === cls && (!r.sections.length || r.sections.includes(section));
 const dubaiNow = () => { const d = new Date(Date.now() + 4 * 3600e3); return { dow: d.getUTCDay(), hm: d.toISOString().slice(11, 16), day: d.toISOString().slice(0, 10) }; };
 function ttHandle(c: ModCtx, a: Actor, action: string, input: Json): { status: number; body: Json } {
@@ -654,7 +655,7 @@ function ttHandle(c: ModCtx, a: Actor, action: string, input: Json): { status: n
     const dow = new Date(day + "T12:00:00Z").getUTCDay();
     const id = rid("obs");
     sql.exec(`INSERT INTO ttobs (id, req, req_name, target, target_name, day, dow, s, e, cls, subject, note, status, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`, id, a.id, a.name, target, String(tu.name), day, dow, s0, e0, str(input.cls, 80), str(input.subject, 80), str(input.note, 300), Date.now());
-    c.notify?.([target], "tt_observe_req", { by: a.name, day, time: s0, cls: str(input.cls, 80) });
+    c.notify?.([target], "tt_observe_req", { by: a.name, day, time: hm12(s0), cls: str(input.cls, 80) });
     return { status: 200, body: { ok: true, id } };
   }
   if (action === "att-tt-obs-reply" || action === "att-tt-obs-del") {
@@ -664,7 +665,7 @@ function ttHandle(c: ModCtx, a: Actor, action: string, input: Json): { status: n
     if (String(o.target) !== a.id || String(o.status) !== "pending") return forbid();
     const status = input.approve ? "approved" : "declined";
     sql.exec(`UPDATE ttobs SET status=? WHERE id=?`, status, String(o.id));
-    c.notify?.([String(o.req)], "tt_observe_reply", { by: a.name, day: String(o.day), time: String(o.s), status });
+    c.notify?.([String(o.req)], "tt_observe_reply", { by: a.name, day: String(o.day), time: hm12(String(o.s)), status });
     return { status: 200, body: { ok: true, status } };
   }
   if (action === "att-tt-shared") return { status: 200, body: { shared: ttShared(sql, a) } };
