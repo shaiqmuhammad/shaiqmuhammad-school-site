@@ -157,18 +157,33 @@ export function LmsClassesPage() {
           {view && <button type="button" disabled={!shown.length} className="rounded-full bg-sun px-4 py-2 text-sm font-bold text-[#0b1b2b] disabled:opacity-50" onClick={() => { setWhole(true); setAward(shown); }} data-testid="cls-whole">⭐ {tr("Whole class", "كل الصف")}</button>}
         </div>
         {!view ? (
-          <div className="space-y-4" data-testid="cls-landing">
-            <p className="text-sm font-semibold opacity-75">{tr("Tap a group to open it.", "اضغط على مجموعة لفتحها.")}</p>
-            {roster === null ? <p className="opacity-70">{tr("Loading…", "جارٍ التحميل…")}</p> : !groups.length ? <p className="glass rounded-3xl p-8 text-center opacity-80" data-testid="cls-no-groups">{tr("No groups are assigned to you yet. The admin creates groups in Admin → Groups.", "لم تُسند إليك مجموعات بعد. تنشئ الإدارة المجموعات من الإدارة ← المجموعات.")}</p> : (
-              <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5" data-testid="cls-cards">
-                {groups.map((g, gi) => ({ k: "g:" + g.id, name: g.name, sub: g.subject || tr("Group", "مجموعة"), icon: ["👥", "🌟", "🚀", "🌈", "📚", "🦁", "🌙", "🎨"][gi % 8], n: g.students.filter((id) => (roster || []).some((s) => s.id === id)).length })).map((c, i) => (
-                  <li key={c.k}><button type="button" onClick={() => setView(c.k)} className="flex w-full flex-col items-center gap-2 rounded-3xl bg-white p-5 text-center text-[#1b2f44] shadow-md ring-1 ring-black/5 transition hover:-translate-y-1 hover:shadow-xl" data-testid="cls-card-class">
-                    <span className={`grid h-16 w-16 place-items-center rounded-2xl text-3xl shadow-inner ${["bg-sky-100", "bg-amber-100", "bg-emerald-100", "bg-rose-100", "bg-violet-100", "bg-teal-100"][i % 6]}`} aria-hidden>{c.icon}</span>
-                    <span className="text-lg font-extrabold leading-tight" dir="auto">{c.name}</span>
-                    <span className="text-xs font-semibold opacity-70" dir="auto">{c.sub}</span>
-                    <span className="rounded-full bg-[#1b3a57] px-3 py-0.5 text-xs font-bold text-[#f5c542]">{tr(`${c.n} students`, `${c.n} طالبًا`)}</span>
-                  </button></li>
-                ))}
+          <div className="space-y-5" data-testid="cls-landing">
+            <div className="relative overflow-hidden rounded-[28px] bg-gradient-to-br from-[#1b3a57] via-[#24507a] to-[#1b3a57] px-6 py-6 text-white shadow-xl" data-testid="cls-banner">
+              <span className="pointer-events-none absolute -end-6 -top-8 text-[9rem] leading-none opacity-10" aria-hidden>🏫</span>
+              <p className="text-sm font-bold uppercase tracking-widest text-[#f5c542]">✨ {tr("My groups", "مجموعاتي")}</p>
+              <h2 className="mt-1 text-2xl font-extrabold sm:text-3xl">{tr("Ready for a great lesson!", "جاهز لدرس رائع!")}</h2>
+              <p className="mt-1 text-sm text-white/80">{tr("Tap a group to see its students and start an activity.", "اضغط على مجموعة لرؤية طلابها وبدء نشاط.")}</p>
+              <div className="mt-3 flex flex-wrap gap-2"><span className="rounded-full bg-[#f5c542] px-3 py-1 text-xs font-extrabold text-[#1b3a57]">👥 {tr(`${groups.length} groups`, `${groups.length} مجموعات`)}</span><span className="rounded-full bg-white/15 px-3 py-1 text-xs font-bold">🎓 {tr(`${new Set(groups.flatMap((g) => g.students.filter((id) => (roster || []).some((s) => s.id === id)))).size} students`, `${new Set(groups.flatMap((g) => g.students.filter((id) => (roster || []).some((s) => s.id === id)))).size} طالبًا`)}</span></div>
+            </div>
+            {roster === null ? <p className="opacity-70">{tr("Loading…", "جارٍ التحميل…")}</p> : !groups.length ? <p className="rounded-3xl bg-white p-8 text-center text-[#1b2f44] shadow" data-testid="cls-no-groups">{tr("No groups are assigned to you yet. The admin creates groups in Admin → Groups.", "لم تُسند إليك مجموعات بعد. تنشئ الإدارة المجموعات من الإدارة ← المجموعات.")}</p> : (
+              <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4 xl:grid-cols-5" data-testid="cls-cards">
+                {groups.map((g, i) => {
+                  const G = [["#38bdf8", "#2563eb", "🌟"], ["#fbbf24", "#f97316", "🚀"], ["#34d399", "#0d9488", "🌱"], ["#f472b6", "#e11d48", "🎨"], ["#a78bfa", "#7c3aed", "🌙"], ["#2dd4bf", "#0891b2", "🐬"], ["#fb923c", "#dc2626", "🦁"], ["#a3e635", "#16a34a", "📚"]][i % 8];
+                  const n = g.students.filter((id) => (roster || []).some((s) => s.id === id)).length;
+                  return (
+                    <li key={g.id}><button type="button" onClick={() => setView("g:" + g.id)} className="group w-full overflow-hidden rounded-3xl bg-white text-center text-[#1b2f44] shadow-md ring-1 ring-black/5 transition hover:-translate-y-1 hover:shadow-2xl" data-testid="cls-card-class">
+                      <span className="relative block h-24 sm:h-28" style={{ background: `linear-gradient(135deg, ${G[0]}, ${G[1]})` }}>
+                        <span className="absolute -start-4 -top-4 h-16 w-16 rounded-full bg-white/20" aria-hidden /><span className="absolute -bottom-6 end-3 h-14 w-14 rounded-full bg-white/15" aria-hidden />
+                        <span className="absolute inset-x-0 bottom-0 mx-auto grid h-16 w-16 translate-y-1/2 place-items-center rounded-2xl bg-white text-4xl shadow-lg ring-4 ring-white transition group-hover:scale-110" aria-hidden>{G[2]}</span>
+                      </span>
+                      <span className="block px-3 pb-4 pt-10">
+                        <span className="block text-base font-extrabold leading-tight sm:text-lg" dir="auto">{g.name}</span>
+                        {g.subject && <span className="mt-0.5 block text-xs font-semibold opacity-70" dir="auto">{g.subject}</span>}
+                        <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-[#1b3a57] px-3 py-1 text-xs font-bold text-[#f5c542]">🎓 {tr(`${n} students`, `${n} طالبًا`)}</span>
+                      </span>
+                    </button></li>
+                  );
+                })}
               </ul>
             )}
           </div>
