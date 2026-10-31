@@ -285,6 +285,11 @@ export const lmsApi = {
   wallLike: (post: string, key?: string) => call<{ ok: true }>("wall-like", key ? { post, key } : { post }, { asAdmin: wallAdmin }),
   wallMod: (op: "delete" | "pin" | "unpin" | "delcom", id: string) => call<{ ok: true }>("wall-mod", { op, id }, { asAdmin: wallAdmin }),
   actPublish: (code: string, type: string, title: string, students: string[], locked = false) => call<{ ok: true; count: number }>("act-publish", { code, type, title, students, locked }),
+  actUnpublish: (code: string) => call<{ ok: true }>("act-unpublish", { code }, { asAdmin: !lmsSession() }),
+  actSound: (on?: boolean) => (on === undefined ? call<{ on: boolean }>("act-sound") : call<{ on: boolean }>("act-sound", { on }, { asAdmin: true })),
+  actSave: (v: { code: string; type: string; title: string; prompt: string; cls: string; rows: SavedRow[] }) => call<{ ok: true; id: string }>("act-save", v, { asAdmin: !lmsSession() }),
+  actSoundAdmin: () => call<{ on: boolean }>("act-sound", undefined, { asAdmin: true }),
+  actSaved: (q: { id?: string; del?: string } = {}) => call<{ items?: SavedAct[]; item?: SavedAct & { prompt: string; rows: SavedRow[] } }>("act-saved", q, { asAdmin: !lmsSession() }),
   actLive: () => call<{ items: LiveActivity[] }>("act-live"),
   permSwitch: (ids: string[], perm: "shareCorrect", on: boolean) => call<{ ok: true; changed: number }>("perm-switch", { ids, perm, on }, { asAdmin: true }),
   myAssess: () => call<{ items: (ResultRecord & { level?: number; label?: string })[] }>("my-assess"),
@@ -428,3 +433,6 @@ export const homeworkUrl = (id: string) => `${typeof window !== "undefined" ? wi
 
 /** Group name with its subject, for pickers and tabs. */
 export const grpLabel = (g: { name: string; subject?: string }) => (g.subject ? `${g.name} · ${g.subject}` : g.name);
+
+export type SavedRow = { name: string; answer: string; cls?: string };
+export type SavedAct = { id: string; type: string; title: string; cls: string; n?: number; at: number; teacher: string };
