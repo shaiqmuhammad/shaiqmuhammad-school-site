@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { lmsSession } from "@/lib/lms";
 import { cachedSiteSound, sfx } from "@/lib/actSound";
 import { useTr } from "@/components/lms/useLms";
@@ -19,6 +20,24 @@ export function ClassTimer() {
   const [ok, setOk] = useState(false);
   const [cm, setCm] = useState(1); const [cs, setCs] = useState(0);
   const lastTick = useRef(-1);
+  // t382: pop-out window that stays on top of other apps (Document Picture-in-Picture, Chrome/Edge 116+).
+  const [pip, setPip] = useState<Window | null>(null);
+  const [pipMsg, setPipMsg] = useState("");
+  useEffect(() => () => { try { pip?.close(); } catch { /* */ } }, [pip]);
+  const popOut = async () => {
+    const dpip = (window as unknown as { documentPictureInPicture?: { requestWindow: (o: { width: number; height: number }) => Promise<Window>; window?: Window | null } }).documentPictureInPicture;
+    if (!dpip) { setPipMsg(tr("Pop-out needs Chrome or Edge (version 116 or newer).", "النافذة العائمة تحتاج كروم أو إيدج (116 أو أحدث).")); return; }
+    try {
+      if (dpip.window) { dpip.window.focus(); return; }
+      const w = await dpip.requestWindow({ width: 360, height: 260 });
+      for (const el of Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))) w.document.head.appendChild(el.cloneNode(true));
+      w.document.documentElement.className = document.documentElement.className.replace(/\bdark\b/, "");
+      w.document.body.style.margin = "0";
+      w.document.title = tr("Class timer", "مؤقت الصف");
+      w.addEventListener("pagehide", () => setPip(null));
+      setPip(w); setPipMsg("");
+    } catch { setPipMsg(tr("The browser blocked the pop-out window.", "منع المتصفح النافذة العائمة.")); }
+  };
   const title = useRef("");
   const save = (n: St) => { setSt(n); try { localStorage.setItem(KEY, JSON.stringify(n)); } catch { /* */ } };
   useEffect(() => {
@@ -30,7 +49,8 @@ export function ClassTimer() {
     return () => { window.removeEventListener("sm-timer-open", on); window.removeEventListener("storage", sync); };
   }, []);
   const running = st.mode === "timer" ? !!st.end : !!st.swStart;
-  useEffect(() => { if (!running && !st.done) return; const t = setInterval(() => setNow(Date.now()), 200); return () => clearInterval(t); }, [running, st.done]);
+  // The pop-out window is visible, so tick from it (the minimised main page is throttled by the browser).
+  useEffect(() => { if (!running && !st.done) return; const w = pip || window; const t = w.setInterval(() => setNow(Date.now()), 200); return () => w.clearInterval(t); }, [running, st.done, pip]);
   const left = st.end ? st.end - now : st.left;
   // last-10-second ticks, finish chime, tab title + desktop notification
   useEffect(() => {
@@ -60,17 +80,20 @@ export function ClassTimer() {
     e.preventDefault(); window.addEventListener("pointerup", up);
   };
   const btn = "rounded-full px-3 py-1.5 text-sm font-extrabold shadow-sm transition hover:scale-105";
-  return (
-    <div className={`fixed ${pos} z-[2500] ${st.big ? "w-[min(96vw,48rem)]" : "w-[min(80vw,22rem)]"} overflow-hidden rounded-3xl border border-white/50 text-[#1b2f44] shadow-[0_12px_40px_rgba(11,27,43,0.35)] backdrop-blur-xl`} style={{ background: st.done ? "linear-gradient(150deg,#fecaca,#fde68aee)" : st.mode === "timer" ? "linear-gradient(150deg,#bae6fdee,#ddd6fecc)" : "linear-gradient(150deg,#bbf7d0ee,#fde68acc)" }} data-testid="class-timer" role="region" aria-label={st.mode === "timer" ? tr("Timer", "المؤقت") : tr("Stopwatch", "ساعة الإيقاف")}>
-      <div className="flex cursor-grab touch-none items-center gap-1 bg-[#1b3a57]/90 px-3 py-1.5 text-white" onPointerDown={drag} title={tr("Drag to a corner", "اسحب إلى زاوية")}>
+  const digit = pip ? { fontSize: st.mode === "timer" ? "min(27vw, 42vh)" : "min(17vw, 34vh)", lineHeight: 1 } : undefined;
+  const ui = (
+    <div className={`${pip ? "flex h-screen w-screen flex-col" : `fixed ${pos} z-[2500] ${st.big ? "w-[min(96vw,48rem)]" : "w-[min(80vw,22rem)]"}`} overflow-hidden rounded-3xl border border-white/50 text-[#1b2f44] shadow-[0_12px_40px_rgba(11,27,43,0.35)] backdrop-blur-xl`} style={{ background: st.done ? "linear-gradient(150deg,#fecaca,#fde68aee)" : st.mode === "timer" ? "linear-gradient(150deg,#bae6fdee,#ddd6fecc)" : "linear-gradient(150deg,#bbf7d0ee,#fde68acc)" }} data-testid="class-timer" role="region" aria-label={st.mode === "timer" ? tr("Timer", "المؤقت") : tr("Stopwatch", "ساعة الإيقاف")}>
+      <div className="flex cursor-grab touch-none items-center gap-1 bg-[#1b3a57]/90 px-3 py-1.5 text-white" onPointerDown={pip ? undefined : drag} title={tr("Drag to a corner", "اسحب إلى زاوية")}>
         <span className="flex-1 text-xs font-extrabold uppercase tracking-wider text-[#f5c542]">{st.mode === "timer" ? "⏱ " + tr("Timer", "المؤقت") : "⏲ " + tr("Stopwatch", "ساعة الإيقاف")}</span>
         <button type="button" onPointerDown={(e) => e.stopPropagation()} className="rounded-full px-1.5 text-sm" onClick={() => save({ ...st, mode: st.mode === "timer" ? "stopwatch" : "timer" })} aria-label={tr("Switch", "تبديل")} data-testid="timer-switch">⇄</button>
-        <button type="button" onPointerDown={(e) => e.stopPropagation()} className="rounded-full px-1.5 text-sm" onClick={() => save({ ...st, big: !st.big })} aria-label={st.big ? tr("Make small", "تصغير") : tr("Make big", "تكبير")} data-testid="timer-size">{st.big ? "▭" : "⛶"}</button>
-        <button type="button" onPointerDown={(e) => e.stopPropagation()} className="rounded-full px-1.5 text-sm" onClick={() => { resetT(); save({ ...load(), open: false, end: null, left: 0, done: false, swStart: null, swAcc: 0, laps: [] }); }} aria-label={tr("Close", "إغلاق")} data-testid="timer-close">✕</button>
+        <button type="button" onPointerDown={(e) => e.stopPropagation()} className="rounded-full px-1.5 text-sm" onClick={() => save({ ...st, big: !st.big })} hidden={!!pip} aria-label={st.big ? tr("Make small", "تصغير") : tr("Make big", "تكبير")} data-testid="timer-size">{st.big ? "▭" : "⛶"}</button>
+        <button type="button" onPointerDown={(e) => e.stopPropagation()} className="rounded-full px-1.5 text-sm" onClick={() => (pip ? pip.close() : popOut())} title={pip ? tr("Back to the page", "العودة إلى الصفحة") : tr("Pop out (stays on top)", "نافذة عائمة (فوق التطبيقات)")} aria-label={pip ? tr("Back to the page", "العودة إلى الصفحة") : tr("Pop out (stays on top)", "نافذة عائمة")} data-testid="timer-popout">{pip ? "↩" : "⧉"}</button>
+        <button type="button" onPointerDown={(e) => e.stopPropagation()} className="rounded-full px-1.5 text-sm" onClick={() => { try { pip?.close(); } catch { /* */ } resetT(); save({ ...load(), open: false, end: null, left: 0, done: false, swStart: null, swAcc: 0, laps: [] }); }} aria-label={tr("Close", "إغلاق")} data-testid="timer-close">✕</button>
       </div>
-      <div className="p-3">
+      {pipMsg && !pip && <p className="bg-amber-100 px-3 py-1.5 text-xs font-bold text-amber-900" role="status" data-testid="timer-pip-msg">{pipMsg}</p>}
+      <div className={pip ? "flex flex-1 flex-col justify-center p-3" : "p-3"}>
         {st.mode === "timer" ? (<>
-          <p className={`text-center font-mono font-black tabular-nums ${st.big ? "text-8xl sm:text-[10rem]" : "text-5xl sm:text-7xl"} ${left <= 10000 && st.end ? "text-rose-600" : "text-[#1b3a57]"}`} data-testid="timer-display">{st.done ? tr("Time's up!", "انتهى الوقت!") : fmt(left > 0 ? left : st.end ? 0 : cm * 60000 + cs * 1000)}</p>
+          <p className={`text-center font-mono font-black tabular-nums ${st.big ? "text-8xl sm:text-[10rem]" : "text-5xl sm:text-7xl"} ${left <= 10000 && st.end ? "text-rose-600" : "text-[#1b3a57]"}`} style={digit} data-testid="timer-display">{st.done ? tr("Time's up!", "انتهى الوقت!") : fmt(left > 0 ? left : st.end ? 0 : cm * 60000 + cs * 1000)}</p>
           {st.total > 0 && <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/60"><div className="h-full rounded-full bg-gradient-to-r from-[#f5c542] to-[#f97316] transition-all" style={{ width: `${pct * 100}%` }} /></div>}
           {!st.end && st.left <= 0 && (<>
             <div className="mt-2 flex flex-wrap justify-center gap-1">{[1, 2, 3, 5, 10].map((m) => <button key={m} type="button" className={`${btn} bg-white/80`} onClick={() => startT(m * 60000)} data-testid={`timer-preset-${m}`}>{m}′</button>)}</div>
@@ -81,7 +104,7 @@ export function ClassTimer() {
             <button type="button" className={`${btn} bg-white/80`} onClick={resetT} data-testid="timer-reset">↺ {tr("Reset", "إعادة")}</button>
           </div>
         </>) : (<>
-          <p className={`text-center font-mono font-black tabular-nums text-[#1b3a57] ${st.big ? "text-7xl sm:text-[8rem]" : "text-4xl sm:text-6xl"}`} data-testid="sw-display">{fmt(sw, true)}</p>
+          <p className={`text-center font-mono font-black tabular-nums text-[#1b3a57] ${st.big ? "text-7xl sm:text-[8rem]" : "text-4xl sm:text-6xl"}`} style={digit} data-testid="sw-display">{fmt(sw, true)}</p>
           <div className="mt-2 flex flex-wrap justify-center gap-1.5">
             {st.swStart ? <button type="button" className={`${btn} bg-amber-400`} onClick={() => save({ ...st, swStart: null, swAcc: sw })} data-testid="sw-pause">⏸ {tr("Pause", "إيقاف")}</button> : <button type="button" className={`${btn} bg-[#1b3a57] text-[#f5c542]`} onClick={() => { sfx("start"); save({ ...st, swStart: Date.now() }); setNow(Date.now()); }} data-testid="sw-start">▶ {tr("Start", "ابدأ")}</button>}
             <button type="button" disabled={!st.swStart} className={`${btn} bg-white/80 disabled:opacity-50`} onClick={() => save({ ...st, laps: [sw, ...st.laps].slice(0, 30) })} data-testid="sw-lap">🏁 {tr("Lap", "لفة")}</button>
@@ -92,4 +115,6 @@ export function ClassTimer() {
       </div>
     </div>
   );
+  if (pip) return <>{createPortal(ui, pip.document.body)}<button type="button" onClick={() => pip.close()} className="fixed bottom-28 end-3 z-[2500] rounded-full bg-[#1b3a57] px-4 py-2 text-sm font-extrabold text-[#f5c542] shadow-lg" data-testid="timer-pip-placeholder">⧉ {tr("Timer is in the pop-out window — tap to bring back", "المؤقت في النافذة العائمة — اضغط لإرجاعه")}</button></>;
+  return ui;
 }
