@@ -119,7 +119,7 @@ export function AdminActivities({ allowed }: { allowed?: string[] } = {}) {
     <div className="space-y-6" data-testid="admin-activities">
       {!allowed && <SoundSwitch />}
       <section className="rounded-3xl bg-gradient-to-br from-sky-50 via-white to-amber-50 p-5 text-[#1b2f44] shadow-md ring-1 ring-black/5">
-        <h2 className="text-xl font-bold">{tr("Classroom activities", "أنشطة الصف")}</h2>
+        <h2 className="text-xl font-bold text-[#1b2f44]">{tr("Classroom activities", "أنشطة الصف")}</h2>
         <p className="mt-1 text-sm opacity-80">
           {tr(
             "Create an activity, show the QR code / 5-letter code on the projector, and students join at /join on their phones. Activities expire after 7 days. Everything can be exported to Excel from the host screen.",
@@ -203,7 +203,7 @@ export function AdminActivities({ allowed }: { allowed?: string[] } = {}) {
         </div>
       )}
       <section className="rounded-3xl bg-gradient-to-br from-emerald-50 via-white to-teal-50 p-5 text-[#1b2f44] shadow-md ring-1 ring-black/5">
-        <h2 className="text-lg font-bold">{tr("Teacher tools (no join code)", "أدوات المعلم (بدون رمز)")}</h2>
+        <h2 className="text-lg font-bold text-[#1b2f44]">{tr("Teacher tools (no join code)", "أدوات المعلم (بدون رمز)")}</h2>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           {tools.map((t) => (
             <a key={t.href} href={t.href} className="flex items-start gap-3 rounded-2xl border border-card-border bg-card-solid p-4 transition hover:border-sun-border" data-testid={`tool-${t.href.split("/").pop()}`}>
@@ -224,7 +224,7 @@ export function AdminActivities({ allowed }: { allowed?: string[] } = {}) {
       </section>
 
       <section className="rounded-3xl bg-gradient-to-br from-violet-50 via-white to-rose-50 p-5 text-[#1b2f44] shadow-md ring-1 ring-black/5">
-        <h2 className="text-lg font-bold">{tr("Running / my activities", "أنشطتي الجارية")}</h2>
+        <h2 className="text-lg font-bold text-[#1b2f44]">{tr("Running / my activities", "أنشطتي الجارية")}</h2>
         {hosted.length === 0 ? (
           <p className="mt-2 text-sm opacity-70">{tr("None yet.", "لا يوجد بعد.")}</p>
         ) : (
