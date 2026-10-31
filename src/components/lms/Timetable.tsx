@@ -35,6 +35,8 @@ let SECMAP: Record<string, string[]> = {};
 export const h12 = (hm?: string) => { if (!hm) return ""; const [h, m] = hm.split(":").map(Number); return `${((h + 11) % 12) + 1}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`; };
 const span12 = (t: { s: string; e: string }) => (t.s ? `${h12(t.s)} – ${h12(t.e)}` : "");
 const secTxt = (r: TtRow) => classLabel(r.cls, r.sections, SECMAP[r.cls] || []);
+/** t405: event title shown at the same size as the class label (only when it differs from it). */
+const ttlOf = (r: TtRow) => (!r.obs && r.title && r.title !== secTxt(r) ? r.title : "");
 /** t384: approved observations shown as extra (read-only) rows on both teachers' timetables. */
 const obsRows = (obs: TtObs[] | undefined, me: string, tr: (en: string, ar: string) => string): TtRow[] => (obs || []).filter((o) => o.status === "approved").map((o) => ({ id: "obs-" + o.id + "-" + (o.req === me ? "r" : "t"), dow: o.dow, period: "", cls: o.cls, sections: [], teacher: o.req === me ? o.req : o.target, teacherName: "", subject: o.subject, phase: "", dept: "", s: o.s, e: o.e, color: "#fef3c7", title: o.req === me ? tr(`👀 Observing ${o.targetName} (${o.day})`, `👀 ملاحظة ${o.targetName} (${o.day})`) : tr(`👀 Observed by ${o.reqName} (${o.day})`, `👀 ملاحظة من ${o.reqName} (${o.day})`), obs: o.id }));
 const nextDate = (dow: number) => { const d = new Date(Date.now() + 4 * 3600e3); const add = (dow - d.getUTCDay() + 7) % 7 || 7; return new Date(d.getTime() + add * 864e5).toISOString().slice(0, 10); };
@@ -49,8 +51,9 @@ export function GlassStrip({ rows, times, now, dow, onPick, testId = "tt-strip",
           {list.map((r) => { const t = seOf(r, times); const isToday = dow === now.dow; const live = isToday && !!t.s && t.s <= now.hm && now.hm < t.e; const past = isToday && !!t.e && t.e <= now.hm; return (
             <li key={r.id} className={`min-w-[10rem] shrink-0 rounded-2xl border border-white/60 bg-white/65 px-3 py-2 text-[#1b2f44] shadow-lg backdrop-blur-md ${live ? "ring-4 ring-emerald-400" : ""} ${past ? "opacity-55" : ""}`} style={{ backgroundImage: `linear-gradient(135deg, ${r.color || "#ffffffcc"}cc, #ffffffaa)` }} data-testid="tt-strip-item">
               <p className="text-xs font-extrabold">{span12(t)}{live ? ` · ${tr("Now", "الآن")}` : ""}</p>
-              <p className="text-2xl font-black leading-tight" dir="auto">{r.obs ? r.title : secTxt(r) || r.title}</p>
-              <p className="text-xs opacity-80" dir="auto">{[r.teacherName, r.subject, !r.obs && r.title && r.title !== secTxt(r) ? r.title : ""].filter(Boolean).join(" · ")}</p>
+              <p className="text-[21px] font-black leading-tight" dir="auto">{r.obs ? r.title : secTxt(r) || r.title}</p>
+              {ttlOf(r) && secTxt(r) && <p className="text-[21px] font-black leading-tight" dir="auto" data-testid="tt-title">{ttlOf(r)}</p>}
+              <p className="text-xs opacity-80" dir="auto">{[r.teacherName, r.subject].filter(Boolean).join(" · ")}</p>
               {onPick && <button type="button" className="mt-1 rounded-full bg-[#1b3a57] px-2 py-0.5 text-[11px] font-bold text-[#f5c542]" onClick={() => onPick(r)} data-testid="tt-obs-ask">👀 {tr("Request to observe", "طلب ملاحظة")}</button>}
             </li>); })}
         </ol>)}
@@ -83,7 +86,7 @@ export function TtDash({ rows, times, now, testId = "tt-dash" }: { rows: TtRow[]
         <div className="grid gap-2 overflow-x-auto rounded-3xl bg-gradient-to-r from-sky-300/60 via-fuchsia-300/50 to-amber-200/60 p-2 sm:grid-cols-5 dark:from-[#1b3a57] dark:via-[#24476b] dark:to-[#3a3216]" data-testid={`${testId}-week`}>
           {[1, 2, 3, 4, 5].map((x) => { const l = rows.filter((r) => r.dow === x).sort((a, b) => (seOf(a, times).s || "").localeCompare(seOf(b, times).s || "")); return (
             <div key={x} className="space-y-1.5"><p className={`rounded-full px-2 py-0.5 text-center text-xs font-extrabold ${x === now.dow ? "bg-[#f5c542] text-[#1b3a57]" : "bg-[#1b3a57] text-white"}`}>{tr(DOW[x][0], DOW[x][1])}</p>
-              {l.map((r) => <div key={r.id} className="rounded-2xl border border-white/60 bg-white/70 px-2 py-1.5 text-xs text-[#1b2f44] shadow backdrop-blur-md" style={{ backgroundImage: `linear-gradient(135deg, ${r.color || "#ffffffcc"}cc, #ffffffaa)` }} data-testid="tt-week-card"><b className="block">{span12(seOf(r, times))}</b><span className="block text-base font-black leading-tight">{r.obs ? r.title : secTxt(r)}</span><span className="opacity-80">{[r.teacherName, r.subject].filter(Boolean).join(" · ")}</span></div>)}
+              {l.map((r) => <div key={r.id} className="rounded-2xl border border-white/60 bg-white/70 px-2 py-1.5 text-xs text-[#1b2f44] shadow backdrop-blur-md" style={{ backgroundImage: `linear-gradient(135deg, ${r.color || "#ffffffcc"}cc, #ffffffaa)` }} data-testid="tt-week-card"><b className="block">{span12(seOf(r, times))}</b><span className="block text-[14px] font-black leading-tight">{r.obs ? r.title : secTxt(r)}</span>{ttlOf(r) && <span className="block text-[14px] font-black leading-tight" dir="auto" data-testid="tt-title">{ttlOf(r)}</span>}<span className="opacity-80">{[r.teacherName, r.subject].filter(Boolean).join(" · ")}</span></div>)}
               {!l.length && <p className="rounded-2xl bg-white/50 px-2 py-1 text-center text-xs text-[#1b2f44]/70">—</p>}</div>); })}
         </div>)}
     </div>
@@ -166,7 +169,7 @@ export function TimetableManager({ asAdmin, full = false }: { asAdmin: boolean; 
   );
   const cell = (r: TtRow) => (
     <div key={r.id} style={r.color ? { background: r.color } : undefined} className={`rounded-xl bg-gradient-to-br ${r.color ? "" : tone(r.subject)} px-2 py-1.5 text-start text-xs text-[#1b2f44]`} data-testid="tt-cell">
-      <p className="font-extrabold" data-testid="tt-cell-time">{span12(seOf(r, d.times))}</p><p className="text-lg font-black leading-tight" dir="auto">{r.obs ? r.title : secTxt(r)}</p><p className="opacity-80" dir="auto">{[r.teacherName, r.subject, !r.obs && r.title && r.title !== secTxt(r) ? r.title : ""].filter(Boolean).join(" · ")}</p>
+      <p className="font-extrabold" data-testid="tt-cell-time">{span12(seOf(r, d.times))}</p><p className="text-base font-black leading-tight" dir="auto">{r.obs ? r.title : secTxt(r)}</p>{ttlOf(r) && <p className="text-base font-black leading-tight" dir="auto" data-testid="tt-title">{ttlOf(r)}</p>}<p className="opacity-80" dir="auto">{[r.teacherName, r.subject].filter(Boolean).join(" · ")}</p>
       {(canEdit || canDel) && !r.obs && <p className="mt-1 flex gap-1">{canEdit && <button type="button" className="rounded-full bg-white/70 px-1.5" onClick={() => { const t = seOf(r, d.times); setEd({ title: r.title || "", tAuto: !r.title, id: r.id, dows: [r.dow], period: "", cls: r.cls, sections: r.sections, teacher: r.teacher, subject: r.subject, phase: r.phase, dept: r.dept, same: true, s: t.s || "08:00", e: t.e || "08:45", per: {}, color: r.color || "" }); }} aria-label={tr("Edit", "تعديل")} data-testid="tt-edit">✎</button>}{canDel && <button type="button" className="rounded-full bg-white/70 px-1.5" onClick={() => del(r)} aria-label={tr("Delete", "حذف")} data-testid="tt-del">🗑</button>}</p>}
     </div>
   );
