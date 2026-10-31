@@ -12,6 +12,7 @@ import { useI18n } from "@/lib/i18n";
 
 const input = "mt-1 w-full rounded-xl border border-card-border bg-card-solid px-3 py-2 text-sm outline-none focus:border-sun-border focus:ring-2 focus:ring-sun/40";
 const btnGhost = "btn-glass px-3 py-1.5 text-sm disabled:opacity-60";
+const TINT = ["#e0f2fe", "#fef3c7", "#dcfce7", "#fce7f3", "#ede9fe", "#ccfbf1"];
 const TYPES: ActivityType[] = ["wall", "wordcloud", "poll", "survey", "tps", "vote"];
 /** Teacher-only tools that run entirely in the browser (no join code). */
 const TOOLS = [
@@ -78,9 +79,13 @@ export function AdminActivities({ allowed }: { allowed?: string[] } = {}) {
 
   const ready = READY_TYPES.includes(type);
 
-  async function create(e: React.FormEvent) {
-    e.preventDefault();
+  const [pick, setPick] = useState(false);
+  async function create(e?: React.FormEvent) {
+    e?.preventDefault();
     if (busy || !ready) return;
+    // t378: teachers choose the students only in the start step (dialog), not on the page.
+    if (allowed && !pick) { setPick(true); return; }
+    setPick(false);
     setBusy(true);
     setError("");
     try {
@@ -112,7 +117,7 @@ export function AdminActivities({ allowed }: { allowed?: string[] } = {}) {
   return (
     <div className="space-y-6" data-testid="admin-activities">
       {!allowed && <SoundSwitch />}
-      <section className="glass rounded-3xl p-5">
+      <section className="rounded-3xl bg-gradient-to-br from-sky-50 via-white to-amber-50 p-5 text-[#1b2f44] shadow-md ring-1 ring-black/5">
         <h2 className="text-xl font-bold">{tr("Classroom activities", "أنشطة الصف")}</h2>
         <p className="mt-1 text-sm opacity-80">
           {tr(
@@ -133,7 +138,8 @@ export function AdminActivities({ allowed }: { allowed?: string[] } = {}) {
                   role="radio"
                   aria-checked={type === t}
                   onClick={() => { setType(t); setOptions({}); }}
-                  className={`rounded-2xl border p-3 text-start transition ${type === t ? "border-sun-border bg-sun text-navy shadow" : "border-card-border bg-card-solid hover:border-sun-border"} ${ok ? "" : "opacity-60"}`}
+                  className={`rounded-2xl border p-3 text-start text-[#1b2f44] transition hover:-translate-y-0.5 hover:shadow-md ${type === t ? "border-[#1b3a57] bg-[#1b3a57] !text-[#f5c542] shadow-lg" : "border-black/5"} ${ok ? "" : "opacity-60"}`}
+                  style={type === t ? undefined : { background: `linear-gradient(150deg, ${TINT[types.indexOf(t) % TINT.length]}, #ffffff)` }}
                   data-testid={`activity-type-${t}`}
                 >
                   <span className="text-2xl" aria-hidden>{l.icon}</span>
@@ -158,9 +164,8 @@ export function AdminActivities({ allowed }: { allowed?: string[] } = {}) {
 
           <ActivityOptionsEditor type={type} options={options} setOptions={setOptions} />
 
-          {allowed && preNote && <p className="rounded-2xl bg-emerald-100 px-4 py-2 text-sm font-bold text-emerald-900" data-testid="act-prefill">👥 {tr(`Starting with ${preNote} — they'll see it on their dashboard and join automatically.`, `البدء مع ${preNote} — سيظهر لهم في لوحتهم وينضمون تلقائيًا.`)}</p>}
-          {allowed && <AudiencePicker value={audience} onChange={setAudience} />}
-          {allowed && audience.length > 0 && <label className="flex items-center gap-2 text-sm font-semibold" data-testid="act-lock-label"><input type="checkbox" className="h-5 w-5" checked={lockAud} onChange={(e) => setLockAud(e.target.checked)} data-testid="act-lock" /> 🔒 {tr("Only these students — they join straight in under their own name (no typing); anyone else is refused", "فقط هؤلاء الطلاب — ينضمون مباشرة بأسمائهم (دون كتابة)؛ ويُرفض غيرهم")}</label>}
+          {false && preNote && <p className="rounded-2xl bg-emerald-100 px-4 py-2 text-sm font-bold text-emerald-900" data-testid="act-prefill">👥 {tr(`Starting with ${preNote} — they'll see it on their dashboard and join automatically.`, `البدء مع ${preNote} — سيظهر لهم في لوحتهم وينضمون تلقائيًا.`)}</p>}
+          {false && <label className="flex items-center gap-2 text-sm font-semibold" data-testid="act-lock-label"><input type="checkbox" className="h-5 w-5" checked={lockAud} onChange={(e) => setLockAud(e.target.checked)} data-testid="act-lock" /> 🔒 {tr("Only these students — they join straight in under their own name (no typing); anyone else is refused", "فقط هؤلاء الطلاب — ينضمون مباشرة بأسمائهم (دون كتابة)؛ ويُرفض غيرهم")}</label>}
           <fieldset className="flex flex-wrap gap-x-5 gap-y-2 text-sm">
             <legend className="mb-1 text-sm font-semibold">{tr("Settings (can be changed live)", "الإعدادات (يمكن تغييرها أثناء النشاط)")}</legend>
             {(type === "wall" || type === "tps") && (
@@ -185,7 +190,18 @@ export function AdminActivities({ allowed }: { allowed?: string[] } = {}) {
         </form>
       </section>
 
-      <section className="glass rounded-3xl p-5">
+      {pick && allowed && (
+        <div className="fixed inset-0 z-[3000] grid place-items-center bg-black/40 p-3" onClick={() => setPick(false)} role="presentation">
+          <div className="max-h-[90dvh] w-full max-w-lg space-y-3 overflow-y-auto rounded-3xl bg-white p-5 text-[#1b2f44] shadow-2xl" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={tr("Who is it for?", "لمن هذا النشاط؟")} data-testid="act-start-dialog">
+            <div className="flex items-center gap-2"><p className="flex-1 text-lg font-extrabold">▶ {tr("Who is it for?", "لمن هذا النشاط؟")}</p><button type="button" className="grid h-9 w-9 place-items-center rounded-full bg-black/5" onClick={() => setPick(false)} aria-label={tr("Close", "إغلاق")}>✕</button></div>
+            <p className="text-sm opacity-80">{tr("Pick any students, or leave empty to let anyone join with the code / QR.", "اختر أي طلاب، أو اتركه فارغًا ليتمكن أي شخص من الانضمام بالرمز.")}</p>
+            <AudiencePicker value={audience} onChange={setAudience} />
+            {audience.length > 0 && <label className="flex items-center gap-2 text-sm font-semibold" data-testid="act-lock-label"><input type="checkbox" className="h-5 w-5" checked={lockAud} onChange={(e) => setLockAud(e.target.checked)} data-testid="act-lock" /> 🔒 {tr("Only these students", "فقط هؤلاء الطلاب")}</label>}
+            <button type="button" disabled={busy} onClick={() => create()} className="w-full rounded-full bg-[#1b3a57] px-5 py-3 font-extrabold text-[#f5c542]" data-testid="act-start-go">{busy ? "…" : audience.length ? tr("Start for the chosen students", "ابدأ للطلاب المختارين") : tr("Start with a code / QR", "ابدأ برمز / QR")}</button>
+          </div>
+        </div>
+      )}
+      <section className="rounded-3xl bg-gradient-to-br from-emerald-50 via-white to-teal-50 p-5 text-[#1b2f44] shadow-md ring-1 ring-black/5">
         <h2 className="text-lg font-bold">{tr("Teacher tools (no join code)", "أدوات المعلم (بدون رمز)")}</h2>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           {tools.map((t) => (
@@ -200,7 +216,7 @@ export function AdminActivities({ allowed }: { allowed?: string[] } = {}) {
         </div>
       </section>
 
-      <section className="glass rounded-3xl p-5">
+      <section className="rounded-3xl bg-gradient-to-br from-violet-50 via-white to-rose-50 p-5 text-[#1b2f44] shadow-md ring-1 ring-black/5">
         <h2 className="text-lg font-bold">{tr("Running / my activities", "أنشطتي الجارية")}</h2>
         {hosted.length === 0 ? (
           <p className="mt-2 text-sm opacity-70">{tr("None yet.", "لا يوجد بعد.")}</p>
