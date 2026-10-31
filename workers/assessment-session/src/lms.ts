@@ -59,7 +59,13 @@ export interface LmsEnv extends AdminEnv, StorageEnv, MailEnv {
 
 type Json = Record<string, unknown>;
 /** Actions allowed in admin read-only "view as" mode. */
-const VIEW_AS_READ = new Set(["my-assess", "dl-policy", "dl-grant", "dashboard", "hw", "progress", "quran-map", "leaderboard", "notes", "catalog", "me", "ann-list", "msg-threads", "msg-thread", "msg-contacts", "assess-list", "cur-list", "cur-for", "tquiz-get", "tquiz-list", "class-roster", "pcat-list", "pts-list", "grp-list", "report-log"]);
+// t402: full read-only view of a student's / teacher's account (dashboard, homework, Quran, assessments, learning material,
+// results, timetable, wall, tracker…). Messages / mailbox / chat are NEVER readable in view-as (blocked here and in the UI).
+const VIEW_AS_READ = new Set(["my-assess", "dl-policy", "dl-grant", "dashboard", "hw", "progress", "quran-map", "leaderboard", "notes", "catalog", "me", "ann-list", "assess-list", "cur-list", "cur-for", "tquiz-get", "tquiz-list", "class-roster", "pcat-list", "pts-list", "grp-list", "report-log",
+  "lp-access", "lp-list", "lp-get", "lp-work", "act-live", "act-saved", "wall-classes", "wall-list", "wall-media", "trk-get", "trk-summary", "att-history", "att-overview", "att-roster", "att-report", "att-times", "att-tt-view", "att-tt-shared", "beh-list", "cur-link-options", "cur-sc", "cur-std", "asys-list", "qpre-get", "report-student", "assess-results", "users", "par-results", "results"]);
+const VIEW_AS_BLOCKED = /^(msg-|parent-|pm-|chat|mail)/;
+/** t402 (Shaiq): the ADMIN's view-as may READ the user's messages + parent mailbox (never send, never marks read). Teachers never. */
+const VIEW_AS_ADMIN_MSG = new Set(["msg-threads", "msg-thread", "msg-contacts", "parent-contacts", "parent-threads", "parent-thread"]);
 
 /** Which LMS notifications also go out by email (when the user has an email and mail is configured). */
 const EMAIL_KINDS: Record<string, [string, string]> = {
@@ -73,7 +79,7 @@ const EMAIL_KINDS: Record<string, [string, string]> = {
 };
 type Reply = { status: number; body: unknown };
 export type Role = "student" | "teacher" | "parent";
-export type Actor = { id: string; role: Role | "admin"; name: string; cls: string; perms: string[]; scope?: string[]; stu?: string[]; viewAs?: boolean; subj?: string[]; nameAr?: string };
+export type Actor = { id: string; role: Role | "admin"; name: string; cls: string; perms: string[]; scope?: string[]; stu?: string[]; viewAs?: boolean; vaAdmin?: boolean; subj?: string[]; nameAr?: string };
 /** A student's subjects ("Islamic A, Islamic B" → ["Islamic A", "Islamic B"]). */
 export const subjList = (v: unknown) => String(v || "").split(/\s*,\s*/).map((x) => x.trim()).filter(Boolean);
 type CatKind = "phase" | "dept" | "subject" | "class" | "section";
@@ -103,7 +109,7 @@ const PUSH_TEXT: Record<string, [string, string]> = {
   qa_ready: ["QA report ready / updated", "{by}: {title}"],
   hw_new: ["New homework", "{title}"], sub_new: ["Homework submitted", "{student}: {title}"], graded: ["Homework graded", "{title}"], approved: ["Homework approved", "{title}"],
   returned: ["Please try again", "{title}"], feedback: ["Teacher feedback", "{title}"], feedback_audio: ["Voice feedback", "{title}"], mistakes: ["Mistakes marked", "{title}"],
-  message: ["New message", "{by}: {title}"], announcement: ["Announcement", "{title}"], reminder: ["Homework reminder", "{title}"], revise: ["Time to revise", "{title}"], test: ["Test notification", "Push notifications are working ✅"],
+  message: ["New message", "{by}: {title}"], announcement: ["Announcement", "{title}"], reminder: ["Homework reminder", "{title}"], hw_reminder: ["Homework reminder", "{by}: please complete and submit {title}"], revise: ["Time to revise", "{title}"], test: ["Test notification", "Push notifications are working ✅"],
   lesson: ["Lesson in {mins} min", "{subject} · {cls} at {time}"],
   tt_shared: ["Timetable shared", "{by}: {title}"],
   lp_activity: ["New class activity", "{by}: {title}"],
@@ -1739,7 +1745,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
 
       // ---- Parent mail: teachers see only the parent's NAME; address stays server-side. ----
       case "parent-contacts": {
-        if (!isStaff(a) || a.viewAs) return { status: 403, body: { error: "forbidden" } };
+        if (!isStaff(a) || (a.viewAs && !a.vaAdmin)) return { status: 403, body: { error: "forbidden" } };
         const items = this.sql.exec(`SELECT id, name, cls, section, email, parent_name FROM users WHERE role='student' AND disabled=0 ORDER BY cls, section, name`).toArray()
           .filter((r) => this.inScope(a, String(r.cls || ""), String(r.section || ""), String(r.id)))
           .map((r) => ({ student: String(r.id), studentName: String(r.name), cls: [r.cls, r.section].filter(Boolean).join(" "), parentName: String(r.parent_name || ""), canMail: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(r.email || "")) }));
@@ -1769,8 +1775,8 @@ export class LmsStore extends DurableObject<LmsEnv> {
         return { status: 200, body: { ok: true, thread: token } };
       }
       case "parent-threads": {
-        if (!isStaff(a) || a.viewAs) return { status: 403, body: { error: "forbidden" } };
-        if (input.sync) await this.syncParentMail();
+        if (!isStaff(a) || (a.viewAs && !a.vaAdmin)) return { status: 403, body: { error: "forbidden" } };
+        if (input.sync && !a.viewAs) await this.syncParentMail();
         const rows = this.sql.exec(`SELECT t.thread, t.student, t.teacher, MAX(m.created) AS last, COUNT(m.id) AS n, SUM(CASE WHEN m.dir='in' AND m.read=0 THEN 1 ELSE 0 END) AS unread FROM pthreads t JOIN pmsg m ON m.thread=t.thread GROUP BY t.thread ORDER BY last DESC LIMIT 300`).toArray()
           .filter((r) => a.role === "admin" || String(r.teacher) === a.id);
         const items = rows.map((r) => {
@@ -1781,11 +1787,11 @@ export class LmsStore extends DurableObject<LmsEnv> {
         return { status: 200, body: { items, unread: items.reduce((x, t) => x + t.unread, 0) } };
       }
       case "parent-thread": {
-        if (!isStaff(a) || a.viewAs) return { status: 403, body: { error: "forbidden" } };
+        if (!isStaff(a) || (a.viewAs && !a.vaAdmin)) return { status: 403, body: { error: "forbidden" } };
         const th = this.sql.exec(`SELECT * FROM pthreads WHERE thread=?`, str(input.thread, 20)).toArray()[0];
         if (!th || (a.role !== "admin" && String(th.teacher) !== a.id)) return { status: 403, body: { error: "forbidden" } };
         const items = this.sql.exec(`SELECT id, dir, subject, body, created FROM pmsg WHERE thread=? ORDER BY created LIMIT 500`, String(th.thread)).toArray().map((r) => ({ id: String(r.id), dir: String(r.dir), subject: String(r.subject), body: String(r.body), created: Number(r.created) }));
-        this.sql.exec(`UPDATE pmsg SET read=1 WHERE thread=? AND dir='in'`, String(th.thread));
+        if (!a.viewAs) this.sql.exec(`UPDATE pmsg SET read=1 WHERE thread=? AND dir='in'`, String(th.thread));
         return { status: 200, body: { items } };
       }
       case "parent-log": {
@@ -2148,6 +2154,28 @@ export class LmsStore extends DurableObject<LmsEnv> {
         const subs = this.sql.exec(`SELECT * FROM subs WHERE hw=? ORDER BY updated DESC`, h.id).toArray().map((r) => ({ ...this.withVersions(this.subOut(r), r), student: String(r.student), name: names.get(String(r.student))?.name ?? "?", cls: names.get(String(r.student))?.cls ?? "" }));
         const pending = this.assignees(h).filter((id) => !subs.some((s) => s.student === id)).map((id) => ({ id, name: names.get(id)?.name ?? "?" }));
         return { status: 200, body: { homework: h, subs, notStarted: pending } };
+      }
+
+      case "hw-remind": {
+        // t402: bell on an assigned homework pack (general / Learning Material homework / Quran). Reminds ONLY the assigned students
+        // who have not submitted (no submission, draft or returned). GET/no confirm = count only; confirm=true sends. 3-hour cooldown per homework.
+        if (!isStaff(a) || a.viewAs) return { status: 403, body: { error: "forbidden" } };
+        const h = this.allHomework(str(input.hw, 40))[0];
+        if (!h) return { status: 404, body: { error: "not_found" } };
+        if (h.kind === "quran" && a.role === "teacher") { const qv = qhwOf(a); if (!(qv.show && qv.view)) return { status: 403, body: { error: "quran_not_allowed" } }; }
+        if (h.kind !== "quran" && !genOk(a)) return { status: 403, body: { error: "general_hw_not_allowed" } };
+        if (a.role === "teacher" && h.createdBy !== a.id && !this.va(a, h.createdBy) && !this.sharedTo(h, a.id)) return { status: 403, body: { error: "forbidden" } };
+        const done = new Set(this.sql.exec(`SELECT student FROM subs WHERE hw=? AND status IN ('submitted','approved')`, h.id).toArray().map((r) => String(r.student)));
+        const pending = this.assignees(h).filter((sid) => !done.has(sid) && (a.role === "admin" || this.inScope(a, ...this.placeOf(sid), sid)));
+        const key = `hwrem:${h.id}`, COOL = 3 * 3600e3, now = Date.now();
+        const last = Number(this.sql.exec(`SELECT v FROM settings WHERE k=?`, key).toArray()[0]?.v || 0);
+        const wait = Math.max(0, last + COOL - now);
+        if (input.confirm !== true) return { status: 200, body: { count: pending.length, assigned: this.assignees(h).length, wait, last } };
+        if (wait > 0) return { status: 429, body: { error: "cooldown", wait } };
+        if (!pending.length) return { status: 200, body: { sent: 0 } };
+        this.sql.exec(`INSERT INTO settings (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v=excluded.v`, key, String(now));
+        this.notify(pending, "hw_reminder", { title: h.title, by: a.name, hw: h.id });
+        return { status: 200, body: { sent: pending.length } };
       }
 
       case "sub-save": {
@@ -3019,7 +3047,8 @@ export class LmsStore extends DurableObject<LmsEnv> {
   /** t329: a teacher with the viewAsStudent permission opens a student in their scope (read-only, logged). */
   async teacherViewAs(tid: string, pv: string, sid: string): Promise<Actor | null> {
     const t = await this.actor(tid, pv);
-    if (!t || t.role !== "teacher" || !t.perms.includes("viewAsStudent")) return null;
+    // t402: on by default for the teacher's OWN students (teacher-student scope below); no permission change needed.
+    if (!t || t.role !== "teacher") return null;
     const u = this.userRow("id=?", sid);
     if (!u || String(u.role) !== "student" || !this.inScope(t, ...this.placeOf(sid), sid)) return null;
     const s = await this.actor(sid);
@@ -3239,7 +3268,7 @@ export async function handleLms(request: Request, env: LmsEnv, action: string): 
   }
   const actor = await lmsActor(request, env, store);
   if (!actor) return reply(origin, { error: "unauthorized" }, 401);
-  if (actor.viewAs && !VIEW_AS_READ.has(action)) return reply(origin, { error: "read_only" }, 403);
+  if (actor.viewAs && !(actor.vaAdmin && VIEW_AS_ADMIN_MSG.has(action)) && (VIEW_AS_BLOCKED.test(action) || !VIEW_AS_READ.has(action) || (action === "users" && (body as Json).users))) return reply(origin, { error: "read_only" }, 403);
   const url = new URL(request.url);
   const input: Json = { ...Object.fromEntries(url.searchParams), ...body, __method: request.method };
   if (action === "refresh") {
@@ -3302,7 +3331,7 @@ async function lmsActor(request: Request, env: LmsEnv, store: DurableObjectStub<
       const u = (await store.actor(as)) as unknown as Actor | null;
       if (!u) return null;
       await store.logViewAs(as);
-      return { ...u, viewAs: true };
+      return { ...u, viewAs: true, vaAdmin: true };
     }
     return { id: "admin", role: "admin", name: "Admin", cls: "", perms: [...PERMS] };
   }

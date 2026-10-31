@@ -194,6 +194,9 @@ async function call<T>(action: string, body?: unknown, opts: { asAdmin?: boolean
 let wallAdmin = false;
 export const setWallAdmin = (v: boolean) => { wallAdmin = v; };
 
+/** t402: homework reminder bell — confirm=false returns the count only. */
+export const hwRemind = (hw: string, confirm: boolean, asAdmin = false) => call<{ count?: number; assigned?: number; wait?: number; sent?: number }>("hw-remind", { hw, confirm }, { asAdmin });
+
 export const lmsApi = {
   hwLocks: (hw: string, opts: { student?: string; unlock?: boolean } = {}, asAdmin = false) => (opts.student ? call<{ locks: { student: string; name: string; section: string; lockedBy: Homework["lockedBy"]; unlocked: boolean }[] }>("hw-unlock", { hw, ...opts }, { asAdmin }) : call<{ locks: { student: string; name: string; section: string; lockedBy: Homework["lockedBy"]; unlocked: boolean }[] }>("hw-unlock", undefined, { asAdmin, query: { hw } })),
   qrLinks: (hw: string, opts: { student?: string; reset?: boolean; revoke?: boolean } = {}, asAdmin = false) => (opts.student ? call<{ links: QrLink[]; teacher: string }>("qr-links", { hw, ...opts }, { asAdmin }) : call<{ links: QrLink[]; teacher: string }>("qr-links", undefined, { asAdmin, query: { hw } })),

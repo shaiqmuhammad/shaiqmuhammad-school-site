@@ -4,6 +4,7 @@ import { TrkLink } from "@/components/tracker/TrkLink";
 import { useCallback, useEffect, useState } from "react";
 import { AssessmentShell } from "@/components/assessment/AssessmentShell";
 import { HomeworkEditor } from "@/components/lms/HomeworkEditor";
+import { HwRemindBell } from "@/components/lms/HwRemind";
 import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
 import { btn, btnCta, cardCls, Head, Toast } from "@/components/lms/mods/ModUi";
 import { useLmsActor, useTr } from "@/components/lms/useLms";
@@ -61,6 +62,7 @@ export function QuranHomework() {
               <p className="mt-1 text-xs opacity-70">{[h.cls, h.section].filter(Boolean).join(" · ") || tr("Selected students", "طلاب محددون")}{h.due ? ` · ⏰ ${new Date(h.due).toLocaleDateString(lang === "ar" ? "ar" : "en-GB")}` : ""}</p>
               <p className="mt-2 flex flex-wrap gap-1.5 text-xs font-bold"><span className="rounded-full bg-slate-200 px-2 py-0.5 text-slate-800 dark:bg-white/10 dark:text-white">{tr("Assigned", "مُسند")} {h.assigned ?? 0}</span><span className="rounded-full bg-amber-100 px-2 py-0.5 text-amber-900">{tr("Submitted", "مُسلَّم")} {c.submitted || 0}</span><span className="rounded-full bg-emerald-100 px-2 py-0.5 text-emerald-900">{tr("Approved", "مقبول")} {c.approved || 0}</span></p>
               <div className="mt-3 flex flex-wrap gap-2">
+                <HwRemindBell hw={h.id} title={h.title} />
                 <a className={btn + " !py-1"} href={`/lms/homework?id=${h.id}`} data-testid="qhw-open">{tr("Open / review", "فتح / مراجعة")}</a>
                 {q.edit && !(actor?.role === "teacher" && h.createdBy !== actor.id && ((h.data as { share?: { teachers?: string[] } }).share?.teachers || []).includes(actor.id)) && <button type="button" className={btn + " !py-1"} onClick={() => setEditor(h)} data-testid="qhw-edit">✎ {tr("Edit", "تعديل")}</button>}
                 {q.del && !(actor?.role === "teacher" && h.createdBy !== actor.id && ((h.data as { share?: { teachers?: string[] } }).share?.teachers || []).includes(actor.id)) && <button type="button" className={btn + " !py-1"} onClick={() => del(h)} data-testid="qhw-del">🗑</button>}
