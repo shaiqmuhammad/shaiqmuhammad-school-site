@@ -8,12 +8,12 @@
     {
       "id": "intro",
       "kind": "intro",
-      "hidden": false
+      "hidden": true
     },
     {
       "id": "lms",
       "kind": "lms",
-      "hidden": false
+      "hidden": true
     },
     {
       "id": "libraries",
