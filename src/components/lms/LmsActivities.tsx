@@ -29,6 +29,7 @@ export function LmsActivitiesPage() {
           : !allActs.length ? <p className="rounded-2xl bg-black/5 px-4 py-3 dark:bg-white/10" data-testid="lms-activities-none">{tr("Your admin hasn't given you access to classroom activities or assessments yet.", "لم يمنحك المسؤول صلاحية الأنشطة الصفية أو التقييمات بعد.")}</p>
           : <>
             {allActs.length > 0 && <section><h2 className="mb-3 flex items-center gap-2 text-xl font-extrabold"><span className="h-5 w-1.5 rounded-full bg-sun" aria-hidden />{tr("Classroom activities", "الأنشطة الصفية")}</h2><AdminActivities allowed={allActs} /></section>}
+            <a href="/lms/activities/saved" className="inline-flex rounded-full bg-[#1b3a57] px-4 py-2 font-bold text-[#f5c542]" data-testid="act-saved-link">💾 {tr("Saved activity results", "نتائج الأنشطة المحفوظة")}</a>
           </>}
       </div>
     </AssessmentShell>

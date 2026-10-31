@@ -1,11 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { fieldCls, primaryBtn } from "@/components/assessment/AssessmentShell";
 import { actErr, useTr } from "@/components/activity/common";
 import { activityApi, type ActivityState, type Who } from "@/lib/activity";
 
-const CLOUD_COLORS = ["text-sky-600 dark:text-sky-300", "text-amber-600 dark:text-amber-300", "text-emerald-600 dark:text-emerald-300", "text-rose-600 dark:text-rose-300", "text-violet-600 dark:text-violet-300", "text-teal-600 dark:text-teal-300", "text-navy dark:text-sun"];
 
 export type CloudWord = { word: string; count: number; ids: string[] };
 
@@ -23,32 +22,56 @@ export function cloudWords(state: ActivityState): CloudWord[] {
   return [...map.values()].sort((a, b) => b.count - a.count || a.word.localeCompare(b.word));
 }
 
+const HEX = ["#0284c7", "#d97706", "#059669", "#e11d48", "#7c3aed", "#0d9488", "#1b3a57", "#c026d3", "#ea580c", "#4f46e5"];
+type Placed = { w: CloudWord; x: number; y: number; size: number; rot: boolean; color: string; bw: number; bh: number };
+
+/** t370: a real packed word cloud — bigger = more frequent, varied colours, some words turned 90°, spiral placement. */
+function layout(words: CloudWord[], W: number, H: number, big: boolean): Placed[] {
+  if (typeof document === "undefined" || !W) return [];
+  const cv = document.createElement("canvas").getContext("2d");
+  if (!cv) return [];
+  const max = words[0]?.count || 1, min = words[words.length - 1]?.count || 1;
+  const lo = big ? 20 : 15, hi = Math.min(big ? 96 : 64, W / 5);
+  const boxes: { x: number; y: number; w: number; h: number }[] = [];
+  const out: Placed[] = [];
+  const hit = (b: { x: number; y: number; w: number; h: number }) => b.x < 0 || b.y < 0 || b.x + b.w > W || b.y + b.h > H || boxes.some((o) => b.x < o.x + o.w && b.x + b.w > o.x && b.y < o.y + o.h && b.y + b.h > o.y);
+  words.slice(0, 120).forEach((w, i) => {
+    const k = max > min ? (w.count - min) / (max - min) : 1;
+    let size = lo + Math.sqrt(k) * (hi - lo);
+    for (let attempt = 0; attempt < 4; attempt++, size *= 0.8) {
+      cv.font = `800 ${size}px system-ui, sans-serif`;
+      const tw = cv.measureText(w.word).width + 8, th = size * 1.1;
+      const rot = i > 0 && i % 3 === 1 && tw < H * 0.8;
+      const bw = rot ? th : tw, bh = rot ? tw : th;
+      for (let t = 0; t < 2400; t++) {
+        const ang = t * 0.35, rad = 2.2 * Math.sqrt(t) * 3;
+        const cx = W / 2 + rad * Math.cos(ang) * (W / H > 1 ? 1.4 : 1), cy = H / 2 + rad * Math.sin(ang);
+        const b = { x: cx - bw / 2, y: cy - bh / 2, w: bw, h: bh };
+        if (!hit(b)) { boxes.push(b); out.push({ w, x: cx, y: cy, size, rot, color: HEX[i % HEX.length], bw, bh }); return; }
+      }
+    }
+  });
+  return out;
+}
+
 export function Cloud({ words, big = false, onDelete }: { words: CloudWord[]; big?: boolean; onDelete?: (w: CloudWord) => void }) {
   const { tr } = useTr();
+  const box = useRef<HTMLDivElement>(null);
+  const [W, setW] = useState(0);
+  useEffect(() => { const el = box.current; if (!el) return; const ro = new ResizeObserver(() => setW(el.clientWidth)); ro.observe(el); setW(el.clientWidth); return () => ro.disconnect(); }, [words.length > 0]);
+  const H = Math.max(big ? 420 : 260, Math.min(big ? 640 : 420, W * 0.6));
+  const placed = useMemo(() => layout(words, W, H, big), [words, W, H, big]);
   if (!words.length) return <p className="glass rounded-3xl px-6 py-12 text-center text-lg opacity-80" data-testid="cloud-empty">{tr("No words yet…", "لا توجد كلمات بعد…")}</p>;
-  const max = words[0].count;
-  // Biggest in the middle: interleave so the cloud looks balanced.
-  const ordered: CloudWord[] = [];
-  words.forEach((w, i) => (i % 2 ? ordered.push(w) : ordered.unshift(w)));
   return (
-    <div className={`glass flex flex-wrap items-center justify-center gap-x-5 gap-y-2 rounded-[28px] px-4 py-8 ${big ? "min-h-[50vh]" : "min-h-56"}`} data-testid="word-cloud">
-      {ordered.map((w) => {
-        const k = max > 1 ? (w.count - 1) / (max - 1) : 1;
-        const rem = (big ? 1.4 : 1.1) + k * (big ? 4.2 : 2.6);
-        // Colour by popularity rank so neighbouring words always differ.
-        const color = CLOUD_COLORS[words.indexOf(w) % CLOUD_COLORS.length];
-        return (
-          <span key={w.word} className={`group relative inline-flex items-center font-extrabold leading-tight ${color}`} style={{ fontSize: `${rem}rem` }} dir="auto" data-testid="cloud-word" data-count={w.count}>
-            {w.word}
-            {w.count > 1 && <sup className="ms-0.5 text-[0.35em] opacity-60">{w.count}</sup>}
-            {onDelete && (
-              <button type="button" className="ms-1 rounded-full bg-rose-600 px-1.5 text-xs leading-5 text-white opacity-25 transition group-hover:opacity-100 focus:opacity-100" onClick={() => onDelete(w)} aria-label={tr(`Delete ${w.word}`, `حذف ${w.word}`)} data-testid="cloud-delete">
-                ✕
-              </button>
-            )}
-          </span>
-        );
-      })}
+    <div ref={box} className="relative w-full overflow-hidden rounded-[28px] bg-white shadow-inner ring-1 ring-black/5" style={{ height: H }} data-testid="word-cloud">
+      {placed.map((p) => (
+        <span key={p.w.word} className="group absolute flex items-center justify-center whitespace-nowrap font-extrabold leading-none transition-all duration-500" style={{ left: p.x, top: p.y, fontSize: p.size, color: p.color, transform: `translate(-50%, -50%)${p.rot ? " rotate(-90deg)" : ""}` }} dir="auto" data-testid="cloud-word" data-count={p.w.count} title={`${p.w.word} × ${p.w.count}`}>
+          {p.w.word}
+          {onDelete && (
+            <button type="button" className="ms-1 rounded-full bg-rose-600 px-1.5 text-xs leading-5 text-white opacity-0 transition group-hover:opacity-100 focus:opacity-100" style={{ fontSize: 12 }} onClick={() => onDelete(p.w)} aria-label={tr(`Delete ${p.w.word}`, `حذف ${p.w.word}`)} data-testid="cloud-delete">✕</button>
+          )}
+        </span>
+      ))}
     </div>
   );
 }

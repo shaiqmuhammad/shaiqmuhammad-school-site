@@ -2,7 +2,9 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useLmsExit } from "@/lib/useLmsExit";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { lmsApi, type SavedRow } from "@/lib/lms";
+import { savePrefs, setSiteSound, sfx, soundPrefs, startMusic, stopMusic } from "@/lib/actSound";
 import { AssessmentShell, ghostBtn, panelCls, primaryBtn } from "@/components/assessment/AssessmentShell";
 import { ActivityHostView } from "@/components/activity/ActivityViews";
 import { WallBoard, WallComposer } from "@/components/activity/WallBoard";
@@ -58,6 +60,20 @@ export async function exportActivityXlsx(state: ActivityState) {
   downloadBlob(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), `${safeFileName(state.title || state.type)}-${state.code}.xlsx`);
 }
 
+/** t370: one row per student answer (name, answer) for the saved / printable results. */
+export function activityRows(state: ActivityState): SavedRow[] {
+  const names = new Map(state.participants.map((p) => [p.id, p.name]));
+  const ch = Array.isArray(state.settings.options.choices) ? (state.settings.options.choices as unknown[]).map((c) => (typeof c === "string" ? c : String((c as { text?: string })?.text ?? ""))) : [];
+  const qs = Array.isArray(state.settings.options.questions) ? (state.settings.options.questions as { q: string; choices?: string[] }[]) : [];
+  return state.items.filter((i) => i.kind !== "optimg").map((i) => {
+    let answer = i.data.text || i.data.word || "";
+    if (!answer && i.data.picks) answer = i.data.picks.map((n) => ch[n] || `#${n + 1}`).join(", ");
+    if (!answer && i.data.answers) { const ans = i.data.answers as unknown; answer = Array.isArray(ans) ? ans.map((x, k) => `${qs[k]?.q ? qs[k].q + ": " : ""}${typeof x === "number" && qs[k]?.choices ? qs[k].choices![x] : String(x)}`).join(" · ") : JSON.stringify(ans); }
+    if (!answer && i.data.link) answer = i.data.link;
+    return { name: i.pid === "host" ? "Teacher" : names.get(i.pid) || i.author || "", answer: String(answer).slice(0, 1000) };
+  }).filter((r) => r.answer);
+}
+
 /** Teacher / projector screen for one activity: join QR, participants, moderation, timer, end. */
 export function ActivityHost() {
   const { lang } = useI18n();
@@ -79,12 +95,42 @@ export function ActivityHost() {
   const [copied, setCopied] = useState(false);
   const [full, setFull] = useState(false);
   const [busy, setBusy] = useState(false);
+  // t370: music + sound effects (teacher mute / volume; admin can switch off site-wide).
+  const [snd, setSnd] = useState({ muted: false, vol: 0.5 });
+  const [siteSnd, setSiteSnd] = useState(true);
+  const [music, setMusic] = useState(false);
+  const [savedId, setSavedId] = useState("");
+  const seen = useRef<{ p: number; i: number; ended: boolean } | null>(null);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { setSnd(soundPrefs()); }, []);
+  useEffect(() => { lmsApi.actSound().then((r) => { setSiteSnd(r.on); setSiteSound(r.on); }).catch(() => undefined); return () => stopMusic(); }, []);
+  useEffect(() => {
+    if (!siteSnd) return;
+    // Try to start the music at once; browsers that block autoplay start it on the first tap anywhere.
+    startMusic();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMusic(true); sfx("start");
+    const kick = () => { startMusic(); document.removeEventListener("pointerdown", kick); };
+    document.addEventListener("pointerdown", kick);
+    return () => document.removeEventListener("pointerdown", kick);
+  }, [siteSnd]);
 
   useEffect(() => {
     const on = () => setFull(!!document.fullscreenElement);
     document.addEventListener("fullscreenchange", on);
     return () => document.removeEventListener("fullscreenchange", on);
   }, []);
+
+  useEffect(() => {
+    if (!state) return;
+    const cur = { p: state.participants.filter((p) => !p.removed).length, i: state.items.length, ended: !!state.ended };
+    const prev = seen.current; seen.current = cur;
+    if (!prev || !siteSnd) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (cur.ended && !prev.ended) { stopMusic(); setMusic(false); sfx("end"); return; }
+    if (cur.p > prev.p) sfx("join");
+    else if (cur.i > prev.i) sfx("submit");
+  }, [state, siteSnd]);
 
   if (hosted === undefined) return null;
   if (!hosted || error === "not_found" || error === "host_only") {
@@ -103,6 +149,16 @@ export function ActivityHost() {
   }
 
   const hostKey = hosted.hostKey;
+  const clsLabel = (() => { try { return localStorage.getItem(`sm-act-cls-${code}`) || ""; } catch { return ""; } })();
+  const saveResults = async (st: ActivityState) => {
+    try { const r = await lmsApi.actSave({ code, type: st.type, title: st.title || hosted.title, prompt: st.prompt || "", cls: clsLabel, rows: activityRows(st) }); setSavedId(r.id); return r.id; } catch { return ""; }
+  };
+  const finish = async (st: ActivityState) => {
+    if (!st.ended) await activityApi.end(code, hostKey).catch(() => undefined);
+    await lmsApi.actUnpublish(code).catch(() => undefined);
+    stopMusic(); setMusic(false);
+    return saveResults(st);
+  };
   const url = joinUrl(code);
   const label = ACTIVITY_LABELS[hosted.type];
   const title = state?.title || hosted.title || (lang === "ar" ? label.ar : label.en);
@@ -215,6 +271,14 @@ export function ActivityHost() {
               </button>
             )}
             <span className="flex-1" />
+            {siteSnd && (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-black/10 bg-white px-2 py-1 text-sm font-bold text-[#1b2f44]" data-testid="host-sound">
+                <button type="button" className="rounded-full px-1.5" onClick={() => { if (music) { stopMusic(); setMusic(false); } else { startMusic(); setMusic(true); } }} aria-pressed={music} title={tr("Music", "الموسيقى")} data-testid="host-music">{music ? "🎵" : "🎶"}<span className="ms-1 text-xs">{music ? tr("Music on", "الموسيقى تعمل") : tr("Music off", "الموسيقى متوقفة")}</span></button>
+                <button type="button" className="rounded-full px-1.5" onClick={() => { const n = { ...snd, muted: !snd.muted }; setSnd(n); savePrefs(n); }} aria-pressed={snd.muted} aria-label={snd.muted ? tr("Unmute", "إلغاء الكتم") : tr("Mute", "كتم")} data-testid="host-mute">{snd.muted ? "🔇" : "🔊"}</button>
+                <input type="range" min={0} max={1} step={0.05} value={snd.vol} onChange={(e) => { const n = { ...snd, vol: Number(e.target.value), muted: false }; setSnd(n); savePrefs(n); }} className="w-20 accent-[#1b3a57]" aria-label={tr("Volume", "مستوى الصوت")} data-testid="host-volume" />
+              </span>
+            )}
+            <button type="button" className={chip(false)} onClick={async () => { const id = await saveResults(state); if (id) window.open(`/lms/activities/saved?id=${id}&print=1`, "_blank"); }} data-testid="host-save">💾 {savedId ? tr("Saved ✓ · Print", "محفوظ ✓ · طباعة") : tr("Save & print", "حفظ وطباعة")}</button>
             <button type="button" className={chip(false)} onClick={() => exportActivityXlsx(state)} data-testid="host-export">⬇ Excel</button>
             {state.ended ? (
               <button type="button" className={chip(false)} onClick={async () => { await activityApi.settings(code, hostKey, { reopen: true }).catch(() => undefined); reload(); }} data-testid="host-reopen">
@@ -228,7 +292,7 @@ export function ActivityHost() {
                 onClick={async () => {
                   if (!confirm(tr("End this activity for everyone?", "إنهاء هذا النشاط للجميع؟"))) return;
                   setBusy(true);
-                  await activityApi.end(code, hostKey).catch(() => undefined);
+                  await finish(state);
                   setBusy(false);
                   reload();
                 }}
@@ -237,6 +301,12 @@ export function ActivityHost() {
                 ■ {tr("End", "إنهاء")}
               </button>
             )}
+            <button type="button" disabled={busy} className="inline-flex items-center gap-1.5 rounded-full bg-[#1b3a57] px-3 py-1.5 text-sm font-bold text-[#f5c542]" onClick={async () => {
+              if (!state.ended && !confirm(tr("End and close this activity? Results are saved.", "إنهاء وإغلاق هذا النشاط؟ تُحفظ النتائج."))) return;
+              setBusy(true); await finish(state); forgetHosted(code);
+              let back = home; try { back = sessionStorage.getItem("sm-act-back") || home; sessionStorage.removeItem("sm-act-back"); } catch { /* */ }
+              window.location.assign(back);
+            }} data-testid="host-close">✕ {tr("End & close", "إنهاء وإغلاق")}</button>
           </section>
         )}
 
