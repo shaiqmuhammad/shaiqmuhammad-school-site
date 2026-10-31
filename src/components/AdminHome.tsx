@@ -5,8 +5,9 @@ import { useEffect, useState } from "react";
 import { useI18n } from "@/lib/i18n";
 import { lmsApi } from "@/lib/lms";
 import { mailApi } from "@/lib/mail";
+import { AdminTtWidget } from "@/components/lms/Timetable";
 
-export type AdminHomeTab = "pages" | "quizzes" | "certificate" | "banners" | "announcements" | "teacher" | "forum" | "settings" | "students" | "teachers" | "lmshw" | "mail" | "activities" | "classes";
+export type AdminHomeTab = "pages" | "quizzes" | "certificate" | "banners" | "announcements" | "teacher" | "forum" | "settings" | "students" | "teachers" | "lmshw" | "mail" | "activities" | "classes" | "timetable";
 
 type Stat = { label: string; value: string; tab: AdminHomeTab };
 
@@ -100,6 +101,8 @@ export function AdminHome({ counts, refreshedAt, refreshing, hasToken, onTab }: 
           </button>
         </div>
       )}
+
+      <AdminTtWidget onOpen={() => onTab("timetable")} />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" data-testid="admin-home-school">
         {(school ? big : Array.from({ length: 4 }, () => null)).map((b, i) => b ? (

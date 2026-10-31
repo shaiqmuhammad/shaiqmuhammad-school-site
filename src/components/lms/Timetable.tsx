@@ -359,3 +359,22 @@ function ObsPanel({ d, onChange }: { d: TtData; onChange: () => void }) {
     </section>
   );
 }
+
+/** t388: admin Dashboard widget — today's glass strip for all teachers (or one), plus a link to the full Timetable page. */
+export function AdminTtWidget({ onOpen }: { onOpen: () => void }) {
+  const { tr } = useTr();
+  const { d } = useTimetable(true);
+  const [t, setT] = useState("");
+  if (!d) return null;
+  SECMAP = d.secMap || SECMAP;
+  const rows = d.timetable.filter((r) => !t || r.teacher === t);
+  const names = [...new Map(d.timetable.filter((r) => r.teacher).map((r) => [r.teacher, r.teacherName || r.teacher])).entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  return (
+    <section className="space-y-2 rounded-3xl bg-white/85 p-4 text-[#1b2f44] shadow-sm ring-1 ring-black/5" data-testid="admin-tt-widget">
+      <div className="flex flex-wrap items-center gap-2"><h2 className="text-lg font-extrabold">🗓️ {tr("Today's timetable", "جدول اليوم")}</h2><span className="text-xs opacity-60">{tr(DOW[d.now.dow][0], DOW[d.now.dow][1])} · {d.now.hm}</span><span className="flex-1" />
+        <select className="rounded-xl border border-black/10 bg-white px-2 py-1 text-sm" value={t} onChange={(e) => setT(e.target.value)} aria-label={tr("Teacher", "المعلم")} data-testid="admin-tt-teacher"><option value="">{tr("All teachers", "كل المعلمين")}</option>{names.map(([id, n]) => <option key={id} value={id}>{n}</option>)}</select>
+        <button type="button" onClick={onOpen} className="rounded-full bg-[#1b3a57] px-4 py-1.5 text-sm font-bold text-[#f5c542]" data-testid="admin-tt-open">{tr("Full timetable", "الجدول كاملًا")} →</button></div>
+      <GlassStrip rows={rows} times={d.times} now={d.now} dow={d.now.dow} testId="admin-tt-strip" />
+    </section>
+  );
+}
