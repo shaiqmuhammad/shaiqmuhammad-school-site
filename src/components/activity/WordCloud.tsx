@@ -36,7 +36,7 @@ function layout(words: CloudWord[], W: number, H: number, big: boolean): Placed[
   const out: Placed[] = [];
   const hit = (b: { x: number; y: number; w: number; h: number }) => b.x < 0 || b.y < 0 || b.x + b.w > W || b.y + b.h > H || boxes.some((o) => b.x < o.x + o.w && b.x + b.w > o.x && b.y < o.y + o.h && b.y + b.h > o.y);
   words.slice(0, 120).forEach((w, i) => {
-    const k = max > min ? (w.count - min) / (max - min) : 1;
+    const k = max > min ? (w.count - min) / (max - min) : 0.55;
     let size = lo + Math.sqrt(k) * (hi - lo);
     for (let attempt = 0; attempt < 4; attempt++, size *= 0.8) {
       cv.font = `800 ${size}px system-ui, sans-serif`;
