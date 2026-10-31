@@ -156,7 +156,7 @@ export function Header() {
             height={40}
             className="h-9 w-9 shrink-0 rounded-full border-2 border-sun bg-white object-cover shadow-sm sm:h-10 sm:w-10"
           />
-          <span className="min-w-0 leading-tight max-[374px]:sr-only">
+          <span className="min-w-0 leading-tight max-[419px]:sr-only">
             <span className="block text-[13px] font-extrabold tracking-tight text-white group-hover:text-sun sm:whitespace-nowrap sm:text-base">
               {siteConfig.name}
             </span>
