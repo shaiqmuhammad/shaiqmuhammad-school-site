@@ -32,8 +32,9 @@ export function ViewAsBanner() {
   }, [va, tr]);
   if (!va) return null;
   return (
-    <div role="status" className="sticky top-0 z-[60] flex flex-wrap items-center justify-center gap-3 bg-sun px-4 py-2 text-center text-sm font-bold text-header shadow" data-testid="viewas-banner">
-      <span>👁 {tr(`Viewing as ${va.name} (read-only — you can't send messages or post as them)`, `عرض كـ ${va.name} (للعرض فقط — لا يمكنك المراسلة أو النشر باسمه)`)}</span>
+    <div role="status" className="sticky top-0 z-[60] flex flex-wrap items-center justify-center gap-3 border-b-2 border-header bg-sun px-4 py-2 text-center text-sm font-bold text-header shadow" data-testid="viewas-banner">
+      {va.by === "t" && <style>{`a[href^="/lms/messages"],a[href="/admin#messages"],[data-testid="lms-msg-icon"],[data-testid="chat-widget"]{display:none!important}`}</style>}
+      <span>👁 {tr(`Viewing as ${va.name}`, `عرض كـ ${va.name}`)} <span className="font-semibold opacity-80">· {(va.by === "t" ? tr("read-only · messages hidden · access logged", "للعرض فقط · الرسائل مخفية · الدخول مسجَّل") : tr("read-only · messages visible (read-only, not marked read) · access logged", "للعرض فقط · الرسائل للقراءة فقط · الدخول مسجَّل"))}</span></span>
       <button type="button" className="rounded-full bg-header px-3 py-1 text-white" onClick={() => { exitViewAs(); window.close(); window.location.href = va.by === "t" ? "/lms/students" : "/admin#students"; }} data-testid="viewas-exit">{tr("Exit", "خروج")}</button>
     </div>
   );

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { lmsApi } from "@/lib/lms";
+import { lmsApi, viewAs } from "@/lib/lms";
 
 export type Tone = "sun" | "teal" | "coral" | "navy" | "sky" | "mint" | "peach";
 export type Widget = { icon: string; title: string; value?: string | number; sub?: string; href?: string; tone: Tone; badge?: number };
@@ -20,7 +20,7 @@ const TONE: Record<Tone, string> = {
 export function useUnreadMsgs() {
   const [n, setN] = useState(0);
   useEffect(() => {
-    const load = () => { if (!document.hidden) lmsApi.msgThreads(false).then((r) => setN(r.unread || 0)).catch(() => undefined); };
+    const load = () => { if (viewAs()?.by === "t") return; if (!document.hidden) lmsApi.msgThreads(false).then((r) => setN(r.unread || 0)).catch(() => undefined); };
     load();
     const t = setInterval(load, 60_000);
     return () => clearInterval(t);

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { PresenceDot } from "@/components/lms/Presence";
-import { grpLabel, lmsApi, lmsErrorText, type Announcement, type Catalog, type Msg, type MsgContact, type MsgThread, type StudentGroup } from "@/lib/lms";
+import { grpLabel, lmsApi, lmsErrorText, type Announcement, type Catalog, type Msg, type MsgContact, type MsgThread, type StudentGroup, viewAs } from "@/lib/lms";
 import { useTr } from "@/components/lms/useLms";
 import { ParentMailPanel } from "@/components/lms/ParentMail";
 
@@ -14,7 +14,7 @@ export function MsgIcon({ asAdmin = false, href, onClick, variant = "navy" }: { 
   const { tr } = useTr();
   const [n, setN] = useState(0);
   useEffect(() => {
-    const load = () => { if (!document.hidden) lmsApi.msgThreads(asAdmin).then((r) => setN(asAdmin ? r.items.filter((t) => t.mine).reduce((x, t) => x + t.unread, 0) : r.unread)).catch(() => undefined); };
+    const load = () => { if (!asAdmin && viewAs()?.by === "t") return; if (!document.hidden) lmsApi.msgThreads(asAdmin).then((r) => setN(asAdmin ? r.items.filter((t) => t.mine).reduce((x, t) => x + t.unread, 0) : r.unread)).catch(() => undefined); };
     load();
     const t = setInterval(load, 60_000);
     return () => clearInterval(t);
@@ -32,6 +32,12 @@ export function MsgIcon({ asAdmin = false, href, onClick, variant = "navy" }: { 
 
 /** 1:1 messages. Students → their teachers + admin; teachers → their students + admin; admin sees and moderates every thread. */
 export function MessagesPanel({ asAdmin = false }: { asAdmin?: boolean }) {
+  const [va] = useState(() => !asAdmin && typeof window !== "undefined" && viewAs()?.by === "t"); // t402: teacher view-as only; admin view-as reads messages (read-only)
+  if (va) return <p className="rounded-2xl bg-amber-100 px-4 py-3 font-semibold text-amber-900" data-testid="viewas-no-msgs">🔒 Messages are not available while viewing as another account. · الرسائل غير متاحة أثناء العرض كمستخدم آخر.</p>;
+  return <MessagesPanelInner asAdmin={asAdmin} />;
+}
+function MessagesPanelInner({ asAdmin = false }: { asAdmin?: boolean }) {
+  // t402: messages / chat are never shown while viewing as someone (the server blocks them too).
   const { tr } = useTr();
   const [tab, setTab] = useState<"chats" | "parents">("chats");
   const [canParents, setCanParents] = useState(false);
