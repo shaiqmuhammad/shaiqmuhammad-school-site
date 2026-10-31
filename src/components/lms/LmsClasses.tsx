@@ -158,11 +158,10 @@ export function LmsClassesPage() {
         </div>
         {!view ? (
           <div className="space-y-4" data-testid="cls-landing">
-            <p className="text-sm font-semibold opacity-75">{tr("Tap a class or group to open it.", "اضغط على صف أو مجموعة لفتحه.")}</p>
-            {roster === null ? <p className="opacity-70">{tr("Loading…", "جارٍ التحميل…")}</p> : (!classTabs.length && !groups.length) ? <p className="glass rounded-3xl p-8 text-center opacity-80">{tr("No classes are assigned to you yet.", "لم تُسند إليك صفوف بعد.")}</p> : (
+            <p className="text-sm font-semibold opacity-75">{tr("Tap a group to open it.", "اضغط على مجموعة لفتحها.")}</p>
+            {roster === null ? <p className="opacity-70">{tr("Loading…", "جارٍ التحميل…")}</p> : !groups.length ? <p className="glass rounded-3xl p-8 text-center opacity-80" data-testid="cls-no-groups">{tr("No groups are assigned to you yet. The admin creates groups in Admin → Groups.", "لم تُسند إليك مجموعات بعد. تنشئ الإدارة المجموعات من الإدارة ← المجموعات.")}</p> : (
               <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5" data-testid="cls-cards">
-                {[...classTabs.map((c) => ({ k: c, name: c.includes("|") ? c.split("|")[1] : c, sub: c.includes("|") ? c.split("|")[0] : tr("Whole year", "السنة كلها"), icon: c.includes("|") ? "🏫" : "🎓", n: (roster || []).filter((s) => s.cls === c.split("|")[0] && (!c.includes("|") || s.section === c.split("|")[1])).length })),
-                  ...groups.map((g) => ({ k: "g:" + g.id, name: g.name, sub: g.subject || tr("Group", "مجموعة"), icon: "👥", n: g.students.filter((id) => (roster || []).some((s) => s.id === id)).length }))].map((c, i) => (
+                {groups.map((g, gi) => ({ k: "g:" + g.id, name: g.name, sub: g.subject || tr("Group", "مجموعة"), icon: ["👥", "🌟", "🚀", "🌈", "📚", "🦁", "🌙", "🎨"][gi % 8], n: g.students.filter((id) => (roster || []).some((s) => s.id === id)).length })).map((c, i) => (
                   <li key={c.k}><button type="button" onClick={() => setView(c.k)} className="flex w-full flex-col items-center gap-2 rounded-3xl bg-white p-5 text-center text-[#1b2f44] shadow-md ring-1 ring-black/5 transition hover:-translate-y-1 hover:shadow-xl" data-testid="cls-card-class">
                     <span className={`grid h-16 w-16 place-items-center rounded-2xl text-3xl shadow-inner ${["bg-sky-100", "bg-amber-100", "bg-emerald-100", "bg-rose-100", "bg-violet-100", "bg-teal-100"][i % 6]}`} aria-hidden>{c.icon}</span>
                     <span className="text-lg font-extrabold leading-tight" dir="auto">{c.name}</span>
