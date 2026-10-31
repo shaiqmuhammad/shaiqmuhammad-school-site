@@ -47,7 +47,7 @@ const TEACHER: Tab[] = [
 ];
 // Child-friendly look: one emoji per area, each on its own theme-coloured disc.
 const EMOJI: Record<string, string> = { tt: "⏰", std: "📘", lib: "📚", rep: "📈", dash: "🏠", hw: "📝", assess: "✅", msg: "💬", wall: "🧱", quran: "📖", qhw: "📖", cls: "🏫", act: "🎲", res: "📊", att: "🗓️", beh: "🌟", cur: "📚", logins: "🔑", acct: "🙂", stu: "👥", map: "🗺️", pts: "🏆", fcur: "📚", fassess: "✅", corr: "💯" };
-const DISC = ["bg-sun text-[#0b1b2b]", "bg-[#2e9c8f] text-white", "bg-coral text-[#3b1710]", "bg-[#bfdff3] text-header", "bg-[#cdebe4] text-[#0f4a42]", "bg-[#fde0d9] text-[#6b2b1d]"];
+const DISC = ["bg-white/15 text-white ring-1 ring-white/25"];
 
 /**
  * The ONE navigation of the LMS (student, teacher and parent): a colourful LEFT icon rail on every screen size
