@@ -40,7 +40,7 @@ export function DashCarousel({ items, testId = "lms-widgets" }: { items: Widget[
             <span className="mt-3 block min-w-0">
               {w.value !== undefined && <span className="block text-3xl font-extrabold leading-none" data-testid="widget-value">{w.value}</span>}
               <span className="mt-1 block text-lg font-extrabold leading-tight">{w.title}</span>
-              {w.sub && <span className="mt-0.5 block text-sm font-bold opacity-80" dir="auto">{w.sub}</span>}
+              {w.sub && <span className="mt-0.5 block text-sm font-bold opacity-95" dir="auto">{w.sub}</span>}
             </span>
           </>
         );
