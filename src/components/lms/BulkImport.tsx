@@ -32,7 +32,7 @@ const N = (s: unknown) => String(s ?? "").toLowerCase().replace(/[^a-z0-9\u0600-
 const slug = (s: string) => s.toLowerCase().normalize("NFKD").replace(/[^a-z]/g, "");
 
 type Sheet = { name: string; grid: unknown[][]; hi: number };
-type Out = { i: number; surname: string; forename: string; dob: string; form: string; year: string; gender: string; cls: string; section: string; status: "ok" | "unmatched" | "dup-system" | "dup-file" };
+type Out = { i: number; sh: number; surname: string; forename: string; dob: string; form: string; year: string; gender: string; cls: string; section: string; status: "ok" | "unmatched" | "dup-system" | "dup-file" };
 
 async function readBook(f: File): Promise<Sheet[]> {
   const X = await import("xlsx");
@@ -48,7 +48,9 @@ const hdrs = (s: Sheet) => (s.grid[s.hi] || []).map((v) => String(v).trim());
 
 export default function BulkImport({ catalog, onSaveRows, tr }: { catalog: Catalog | null; onSaveRows: (rows: Partial<LmsUser>[]) => Promise<unknown>; tr: (en: string, ar: string) => string }) {
   const [sheets, setSheets] = useState<Sheet[] | null>(null);
-  const [pick, setPick] = useState<string>("all");
+  const [selSh, setSelSh] = useState<Set<number> | null>(null);
+  const [tick, setTick] = useState<Record<number, boolean>>({});
+  const [q, setQ] = useState(""), [showEmpty, setShowEmpty] = useState(false);
   const [cmap, setCmap] = useState<Record<string, Field | "">>({});
   const [fCls, setFCls] = useState(""), [fSec, setFSec] = useState(""), [mode, setMode] = useState<"fallback" | "all">("fallback");
   const [all, setAll] = useState<LmsUser[] | null>(null);
@@ -56,7 +58,8 @@ export default function BulkImport({ catalog, onSaveRows, tr }: { catalog: Catal
   const [fix, setFix] = useState<Record<number, string>>({});
   const [busy, setBusy] = useState(""), [err, setErr] = useState(""), [summary, setSummary] = useState<{ added: number; dup: number; unmatched: number; failed: number } | null>(null);
   const cat = catalog;
-  const active = useMemo(() => (sheets || []).filter((x, i) => pick === "all" || String(i) === pick), [sheets, pick]);
+  const isSel = (i: number) => (selSh ? selSh.has(i) : true);
+  const active = useMemo(() => (sheets || []).filter((x, i) => isSel(i)), [sheets, selSh]); // eslint-disable-line react-hooks/exhaustive-deps
   const headers = useMemo(() => [...new Set(active.flatMap(hdrs).filter(Boolean))], [active]);
   const setHi = (i: number, hi: number) => setSheets((ss) => ss && ss.map((x, j) => (j === i ? { ...x, hi: Math.max(0, hi) } : x)));
   const remap = (h: string, f: Field | "") => { const n = { ...cmap, [h]: f }; setCmap(n); try { localStorage.setItem(MEM, JSON.stringify({ ...loadMem(), [h.toLowerCase()]: f })); } catch { /* */ } };
@@ -69,7 +72,7 @@ export default function BulkImport({ catalog, onSaveRows, tr }: { catalog: Catal
       if (!sh.length) { setErr(tr("The file is empty.", "الملف فارغ.")); return; }
       const mem = loadMem(); const m: Record<string, Field | ""> = {};
       for (const h of new Set(sh.flatMap(hdrs).filter(Boolean))) m[h] = (h.toLowerCase() in mem ? mem[h.toLowerCase()] : autoField(h)) as Field | "";
-      setCmap(m); setSheets(sh); setPick("all");
+      setCmap(m); setSheets(sh); setSelSh(null); setTick({}); setQ("");
       if (!all) { const r = await lmsApi.users(true); setAll(r.users); }
     } catch { setErr(tr("That file couldn't be read.", "تعذّرت قراءة الملف.")); }
   }
@@ -90,7 +93,7 @@ export default function BulkImport({ catalog, onSaveRows, tr }: { catalog: Catal
     const res: Out[] = []; const seen = new Set<string>();
     const stu = (all || []).filter((u) => u.role === "student");
     let i = 0;
-    for (const s of active) {
+    for (const [si, s] of (sheets || []).entries()) {
       const H = hdrs(s);
       const col = (k: Field) => H.findIndex((h) => h && cmap[h] === k);
       const g = (r: unknown[], k: Field) => { const c = col(k); return c < 0 ? "" : String(r[c] ?? "").trim(); };
@@ -108,16 +111,25 @@ export default function BulkImport({ catalog, onSaveRows, tr }: { catalog: Catal
         const nm = N(forename) + N(surname);
         const key = nm + "|" + (dob || m?.section || "");
         let status: Out["status"] = m ? "ok" : "unmatched";
-        if (seen.has(key)) status = "dup-file";
+        if (isSel(si) && seen.has(key)) status = "dup-file";
         else if (stu.some((u) => (N((u.firstName || "") + (u.lastName || "")) === nm || N(u.name) === nm) && (dob && u.dob ? u.dob === dob : !!m && u.cls === m.cls && u.section === m.section))) status = "dup-system";
-        seen.add(key);
-        res.push({ i, surname, forename, dob, form, year, gender: gr.startsWith("M") || gr.startsWith("B") ? "b" : gr.startsWith("F") || gr.startsWith("G") ? "g" : "", cls: m?.cls || "", section: m?.section || "", status });
+        if (isSel(si)) seen.add(key);
+        res.push({ i, sh: si, surname, forename, dob, form, year, gender: gr.startsWith("M") || gr.startsWith("B") ? "b" : gr.startsWith("F") || gr.startsWith("G") ? "g" : "", cls: m?.cls || "", section: m?.section || "", status });
       }
     }
     return res;
-  }, [active, cmap, all, fix, cat, fCls, fSec, mode]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [sheets, selSh, cmap, all, fix, cat, fCls, fSec, mode]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const count = (s: Out["status"]) => rows.filter((r) => r.status === s).length;
+  const perSheet = (si: number) => rows.filter((r) => r.sh === si);
+  const sheetCls = (si: number) => { const c: Record<string, number> = {}; for (const r of perSheet(si)) if (r.cls) { const k = r.section ? `${r.cls} · ${r.section}` : r.cls; c[k] = (c[k] || 0) + 1; } const ks = Object.keys(c).sort((a, b) => c[b] - c[a]); return ks.length > 2 ? `${ks.slice(0, 2).join(", ")} +${ks.length - 2}` : ks.join(", "); };
+  const vis = rows.filter((r) => isSel(r.sh));
+  const ticked = (r: Out) => r.status !== "unmatched" && (tick[r.i] ?? r.status === "ok");
+  const count = (s: Out["status"]) => vis.filter((r) => r.status === s).length;
+  const nTick = vis.filter(ticked).length;
+  const shown = vis.filter((r) => !q || N(r.forename + r.surname).includes(N(q)) || N(r.cls + r.section).includes(N(q)));
+  const groups = [...new Set(shown.map((r) => (r.cls ? `${r.cls} · ${r.section || "—"}` : tr("No class yet", "بدون صف"))))];
+  const setMany = (rs: Out[], v: boolean) => setTick((t) => { const n = { ...t }; for (const r of rs) if (r.status !== "unmatched") n[r.i] = v; return n; });
+  const toggleSheet = (si: number, v: boolean) => setSelSh((cur) => { const n = new Set(cur ?? (sheets || []).map((_, i) => i).filter((i) => perSheet(i).length)); if (v) n.add(si); else n.delete(si); return n; });
   const phases = cat?.phases || [];
   const ph = phases.find((p) => p.name === phase);
   const depts = (cat?.depts || []).filter((d) => !ph || d.phaseId === ph.id);
@@ -126,7 +138,7 @@ export default function BulkImport({ catalog, onSaveRows, tr }: { catalog: Catal
   const teachers = (all || []).filter((u) => u.role === "teacher" && !u.disabled).sort((a, b) => a.name.localeCompare(b.name));
 
   async function doImport() {
-    const ok = rows.filter((r) => r.status === "ok");
+    const ok = vis.filter(ticked);
     const taken = new Set((all || []).map((u) => u.username));
     const out = ok.map((r) => {
       const base = `${slug(r.forename.split(/\s+/)[0]) || "pupil"}.${slug(r.surname.split(/\s+/).pop() || "") || "x"}`.slice(0, 36);
@@ -144,7 +156,7 @@ export default function BulkImport({ catalog, onSaveRows, tr }: { catalog: Catal
         if (add.length || subj !== t.subjects) { try { await lmsApi.saveUsers([{ ...t, scope: [...t.scope, ...add], subjects: subj }], true); } catch { setErr(tr("Pupils added, but the teacher's classes couldn't be updated.", "أضيف الطلاب لكن تعذّر تحديث صفوف المعلم.")); } }
       }
     }
-    setBusy(""); setSummary({ added: out.length - failed, dup: count("dup-system") + count("dup-file"), unmatched: count("unmatched"), failed }); setSheets(null); setAll(null);
+    setBusy(""); setSummary({ added: out.length - failed, dup: vis.filter((r) => r.status.startsWith("dup") && !ticked(r)).length, unmatched: count("unmatched"), failed }); setSheets(null); setAll(null);
   }
 
   const sel = "mt-1 w-full rounded-lg border border-black/15 bg-white px-2 py-1.5 text-sm dark:border-white/20 dark:bg-[#132233]";
@@ -152,20 +164,32 @@ export default function BulkImport({ catalog, onSaveRows, tr }: { catalog: Catal
   const lbl: Record<Out["status"], string> = { ok: tr("Will add", "سيضاف"), unmatched: tr("No class match", "لا يوجد صف مطابق"), "dup-system": tr("Already in system", "موجود مسبقًا"), "dup-file": tr("Duplicate in file", "مكرر في الملف") };
 
   return (
-    <div className="space-y-3 rounded-2xl border border-indigo-200 bg-indigo-50/60 p-3 dark:border-indigo-400/30 dark:bg-indigo-950/30" data-testid="bi-root">
+    <div className="space-y-3 rounded-2xl border border-[#1b3a57]/20 bg-[#f4f7fb] p-3 text-[#1b2f44]" data-testid="bi-root">
       <h4 className="font-extrabold">{tr("Import pupils from a school Excel / CSV", "استيراد الطلاب من ملف المدرسة")}</h4>
       <p className="text-xs opacity-75">{tr("Any student list works: pick the sheet and header row, then say what each column is. Unknown columns are ignored. Pupils already in the system are skipped.", "يُقرأ كل الأوراق. يتم تخطي الطلاب الموجودين.")}</p>
-      <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-bold text-white hover:bg-indigo-700">
+      <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-[#1b3a57] px-3 py-1.5 text-sm font-bold text-white hover:bg-[#17344f]">
         ⬆ {tr("Choose .xlsx / .xls / .csv", "اختر ملف")}
         <input type="file" accept=".xlsx,.xls,.csv" className="sr-only" data-testid="bi-file" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void onFile(f); }} />
       </label>
       {err && <p className="text-sm text-rose-700 dark:text-rose-300">{err}</p>}
       {summary && <p className="rounded-lg bg-emerald-100 p-2 text-sm font-semibold text-emerald-900 dark:bg-emerald-900/50 dark:text-emerald-100" data-testid="bi-summary">✓ {tr(`Added ${summary.added} · skipped duplicates ${summary.dup} · unmatched ${summary.unmatched}${summary.failed ? ` · failed ${summary.failed}` : ""}`, `أضيف ${summary.added} · مكرر ${summary.dup} · غير مطابق ${summary.unmatched}`)}</p>}
       {sheets && (<>
-        <div className="flex flex-wrap items-end gap-2 text-xs font-bold">
-          <label>{tr("Sheet", "الورقة")}<select className={sel} value={pick} onChange={(e) => setPick(e.target.value)} data-testid="bi-sheet"><option value="all">{tr(`All sheets (${sheets.length})`, "كل الأوراق")}</option>{sheets.map((x, i) => <option key={i} value={i}>{x.name}</option>)}</select></label>
-          {sheets.map((x, i) => (pick === "all" ? i === 0 : String(i) === pick) && <label key={i}>{tr("Header row", "صف العناوين")}{pick === "all" && sheets.length > 1 ? ` (${x.name})` : ""}<input type="number" min={1} className={sel + " w-20"} value={x.hi + 1} onChange={(e) => setHi(i, Number(e.target.value) - 1)} data-testid="bi-hrow" /></label>)}
-        </div>
+        <fieldset className="rounded-xl border border-[#1b3a57]/15 bg-white p-2" data-testid="bi-sheets">
+          <legend className="px-1 text-sm font-bold">{tr("Classes in this file (sheet tabs)", "الصفوف في الملف")}</legend>
+          <div className="mb-2 flex flex-wrap gap-2 text-xs">
+            <button type="button" className="rounded-full border border-[#1b3a57]/20 px-3 py-1 font-bold" onClick={() => setSelSh(new Set((sheets || []).map((_, i) => i).filter((i) => perSheet(i).length)))} data-testid="bi-sh-all">{tr("Select all", "تحديد الكل")}</button>
+            <button type="button" className="rounded-full border border-[#1b3a57]/20 px-3 py-1 font-bold" onClick={() => setSelSh(new Set())} data-testid="bi-sh-none">{tr("None", "لا شيء")}</button>
+            {sheets.some((_, i) => !perSheet(i).length) && <label className="ms-auto flex items-center gap-1"><input type="checkbox" checked={showEmpty} onChange={(e) => setShowEmpty(e.target.checked)} />{tr(`Show ${sheets.filter((_, i) => !perSheet(i).length).length} sheets with no pupils`, "إظهار الأوراق الفارغة")}</label>}
+          </div>
+          <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
+            {sheets.map((x, i) => { const n = perSheet(i).length; if (!n && !showEmpty) return null; const on = isSel(i) && (selSh !== null || n > 0); return (
+              <label key={i} className={"flex items-start gap-2 rounded-lg border p-2 text-sm " + (on ? "border-[#1b3a57]/40 bg-[#eef3f8]" : "border-black/10 opacity-70")} data-testid="bi-sheet">
+                <input type="checkbox" className="mt-1" checked={on} onChange={(e) => toggleSheet(i, e.target.checked)} aria-label={x.name} />
+                <span className="min-w-0 flex-1"><b className="block truncate">{x.name}</b><span className="block truncate text-xs opacity-75">{sheetCls(i) || tr("no class match", "لا يوجد صف")} · {n} {tr("pupils", "طالب")}</span></span>
+                <span className="text-[10px] font-bold opacity-70">{tr("Header row", "صف العناوين")}<input type="number" min={1} className="ms-1 w-12 rounded border border-black/15 px-1" value={x.hi + 1} onChange={(e) => setHi(i, Number(e.target.value) - 1)} data-testid="bi-hrow" /></span>
+              </label>); })}
+          </div>
+        </fieldset>
         <fieldset className="grid gap-2 sm:grid-cols-2" data-testid="bi-cols">
           <legend className="mb-1 text-sm font-bold">{tr("Columns found — tick to use, change what each one is", "الأعمدة الموجودة")}</legend>
           {headers.map((h) => (
@@ -192,22 +216,24 @@ export default function BulkImport({ catalog, onSaveRows, tr }: { catalog: Catal
           <label className="text-xs font-bold">{tr("Use the chosen class", "استخدام الصف المختار")}<select className={sel} value={mode} onChange={(e) => setMode(e.target.value as "fallback" | "all")} disabled={!fCls} data-testid="bi-mode"><option value="fallback">{tr("Only when the file has none", "فقط إن لم يوجد في الملف")}</option><option value="all">{tr("For all rows", "لكل الصفوف")}</option></select></label>
         </div>
         {teacher && <p className="text-xs opacity-70">{tr("The matched classes/sections (and subject) will be added to this teacher's assignment. Nothing is removed.", "ستُضاف الصفوف المطابقة إلى إسناد المعلم دون حذف شيء.")}</p>}
-        <p className="text-sm font-semibold" data-testid="bi-counts">{rows.length} {tr("rows", "صف")} · <span className="text-emerald-700 dark:text-emerald-300">{count("ok")} {tr("to add", "للإضافة")}</span> · {count("dup-system") + count("dup-file")} {tr("duplicates", "مكرر")} · <span className="text-amber-700 dark:text-amber-300">{count("unmatched")} {tr("unmatched", "غير مطابق")}</span></p>
-        <div className="max-h-80 overflow-auto rounded-xl border border-black/10 bg-white dark:border-white/15 dark:bg-[#0f1a26]">
+        <p className="text-sm font-semibold" data-testid="bi-counts">{vis.length} {tr("pupils in ticked classes", "طالب")} · <b>{nTick} {tr("ticked", "محدد")}</b> · <span className="text-emerald-700 dark:text-emerald-300">{count("ok")} {tr("to add", "للإضافة")}</span> · {count("dup-system") + count("dup-file")} {tr("duplicates", "مكرر")} · <span className="text-amber-700 dark:text-amber-300">{count("unmatched")} {tr("unmatched", "غير مطابق")}</span></p>
+        <input className={sel + " mt-0 sm:max-w-xs"} placeholder={tr("Search pupils or class…", "ابحث…")} value={q} onChange={(e) => setQ(e.target.value)} data-testid="bi-search" aria-label={tr("Search pupils", "بحث")} />
+        <div className="max-h-96 overflow-auto rounded-xl border border-black/10 bg-white dark:border-white/15 dark:bg-[#0f1a26]">
           <table className="w-full text-xs sm:text-sm" data-testid="bi-preview">
-            <thead className="sticky top-0 bg-slate-100 text-start dark:bg-slate-800"><tr><th className="p-1.5 text-start">{tr("Name", "الاسم")}</th><th className="p-1.5 text-start">DOB</th><th className="p-1.5 text-start">{tr("Year / Form", "السنة / الشعبة")}</th><th className="p-1.5 text-start">{tr("Class · Section", "الصف · الشعبة")}</th><th className="p-1.5 text-start">{tr("Status", "الحالة")}</th></tr></thead>
-            <tbody>{rows.map((r) => (
-              <tr key={r.i} className="border-t border-black/5 dark:border-white/10">
+            <thead className="sticky top-0 z-[1] bg-[#eef3f8] text-start text-[#1b3a57]"><tr><th className="w-8 p-1.5"><input type="checkbox" aria-label={tr("Tick all shown", "تحديد الكل")} checked={shown.length > 0 && shown.filter((r) => r.status !== "unmatched").every(ticked)} onChange={(e) => setMany(shown, e.target.checked)} data-testid="bi-tick-all" /></th><th className="p-1.5 text-start">{tr("Name", "الاسم")}</th><th className="p-1.5 text-start">DOB</th><th className="p-1.5 text-start">{tr("Year / Form", "السنة / الشعبة")}</th><th className="p-1.5 text-start">{tr("Class · Section", "الصف · الشعبة")}</th><th className="p-1.5 text-start">{tr("Status", "الحالة")}</th></tr></thead>
+            <tbody>{groups.map((gname) => { const gr = shown.filter((r) => (r.cls ? `${r.cls} · ${r.section || "—"}` : tr("No class yet", "بدون صف")) === gname); return [<tr key={"g" + gname} className="bg-[#1b3a57] text-white"><td className="p-1.5"><input type="checkbox" aria-label={gname} checked={gr.filter((r) => r.status !== "unmatched").length > 0 && gr.filter((r) => r.status !== "unmatched").every(ticked)} onChange={(e) => setMany(gr, e.target.checked)} data-testid="bi-tick-group" /></td><td colSpan={5} className="p-1.5 text-xs font-extrabold">{gname} · {gr.filter(ticked).length}/{gr.length}</td></tr>, ...gr.map((r) => (
+              <tr key={r.i} className={"border-t border-black/5 " + (ticked(r) ? "" : "opacity-60")}>
+                <td className="p-1.5"><input type="checkbox" checked={ticked(r)} disabled={r.status === "unmatched"} onChange={(e) => setTick({ ...tick, [r.i]: e.target.checked })} aria-label={tr("Import this pupil", "استيراد")} data-testid="bi-tick" /></td>
                 <td className="p-1.5" dir="auto">{r.forename} {r.surname}</td><td className="p-1.5 whitespace-nowrap">{r.dob || "—"}</td><td className="p-1.5">{r.year || "—"} / {r.form || "—"}</td>
                 <td className="p-1.5">{r.status === "unmatched" || fix[r.i] ? (
                   <select className={sel + " mt-0 min-w-[8rem]"} value={fix[r.i] || ""} onChange={(e) => setFix({ ...fix, [r.i]: e.target.value })} aria-label={tr("Pick class and section", "اختر الصف والشعبة")} data-testid="bi-fix"><option value="">{tr("Pick…", "اختر…")}</option>{secOpts.map((o) => <option key={o.v} value={o.v}>{o.cls} · {o.name}</option>)}</select>
                 ) : r.cls ? `${r.cls} · ${r.section}` : "—"}</td>
                 <td className="p-1.5"><span className={"rounded-full px-2 py-0.5 text-xs font-bold whitespace-nowrap " + badge[r.status]}>{lbl[r.status]}</span></td>
-              </tr>))}</tbody>
+              </tr>))]; })}</tbody>
           </table>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button type="button" className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50" disabled={!!busy || !count("ok")} onClick={() => void doImport()} data-testid="bi-import">{busy ? tr("Adding…", "جارٍ الإضافة…") : tr(`Add ${count("ok")} pupils`, `إضافة ${count("ok")} طالب`)}</button>
+          <button type="button" className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50" disabled={!!busy || !nTick} onClick={() => void doImport()} data-testid="bi-import">{busy ? tr("Adding…", "جارٍ الإضافة…") : tr(`Add ${nTick} ticked pupils`, `إضافة ${nTick} طالب`)}</button>
           <button type="button" className="rounded-lg border border-black/15 px-3 py-2 text-sm dark:border-white/20" onClick={() => { setSheets(null); setFix({}); }}>{tr("Cancel", "إلغاء")}</button>
         </div>
       </>)}

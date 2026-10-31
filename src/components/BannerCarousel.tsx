@@ -89,7 +89,7 @@ export function BannerCarousel({ banners }: { banners: Banner[] }) {
               >
                 <span className="rtl:rotate-180" aria-hidden>›</span>
               </button>
-              <div className="absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 gap-2" role="tablist" aria-label={ar ? "الشرائح" : "Slides"}>
+              <div className="absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 gap-2" role="tablist" data-notheme aria-label={ar ? "الشرائح" : "Slides"}>
                 {slides.map((s, i) => (
                   <button
                     key={s.id}
