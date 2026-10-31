@@ -552,7 +552,7 @@ export function classLabel(cls: string, sections: string[], all: string[] = []):
   const letter = (x: string) => (pre && x.startsWith(pre) ? x.slice(pre.length) : x).trim();
   const simple = all.filter((x) => letter(x).length === 1);
   const use = !sections.length || (simple.length > 0 && simple.every((x) => sections.includes(x))) ? (sections.length ? sections : simple) : sections;
-  return pre + [...new Set(use.map(letter).join("").split(""))].join("");
+  return pre + [...new Set(use.map(letter).join("").split(""))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).join(""); // t399: sections always sorted (2ABCD, never 2DBAC)
 }
 export function ttSecMap(sql: SqlStorage): Record<string, string[]> {
   const cat = sql.exec(`SELECT id, kind, name, parent FROM catalog WHERE kind IN ('class','section')`).toArray();

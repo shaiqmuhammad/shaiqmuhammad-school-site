@@ -125,6 +125,7 @@ const EMPTY: Draft = { title: "", tAuto: true, dows: [1], period: "", cls: "", s
 export function TimetableManager({ asAdmin, full = false }: { asAdmin: boolean; full?: boolean }) {
   const { tr } = useTr();
   const { d, err, load } = useTimetable(asAdmin);
+  const { roster: grRoster, groups: grAll } = useRosterData(); // t399: pick an event from an admin group
   const [f, setF] = useState({ phase: "", dept: "", teacher: "", subject: "", cls: "", sec: "" });
   const [msg, setMsg] = useState("");
   const [view, setView] = useState<"today" | "day" | "week">("today");
@@ -213,6 +214,15 @@ export function TimetableManager({ asAdmin, full = false }: { asAdmin: boolean; 
           <label className="text-sm font-bold">{tr("Department", "القسم")}<input className={fld + " mt-1"} list="tt-depts" value={ed.dept} onChange={(e) => setEd({ ...ed, dept: e.target.value })} placeholder={tr("Choose or type", "اختر أو اكتب")} data-testid="tt-dept" /><datalist id="tt-depts">{d.depts.map((x) => <option key={x} value={x} />)}</datalist></label>
           <label className="text-sm font-bold">{tr("Subject", "المادة")}<SubjectPick className={fld + " mt-1"} value={ed.subject} onChange={onTtSubject} mine={asAdmin ? [] : mySubj} all={subjects} admin={asAdmin} testId="tt-subject" /></label>
           {asAdmin ? <label className="text-sm font-bold">{tr("Teacher", "المعلم")}<select className={fld + " mt-1"} value={ed.teacher} onChange={(e) => { const t = d.teachers.find((x) => x.id === e.target.value); setEd({ ...ed, teacher: e.target.value, subject: ed.subject || t?.subject?.split(",")[0] || "", phase: ed.phase || t?.phase || "" }); }} data-testid="tt-teacher"><option value="">—</option>{d.teachers.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</select></label> : null}
+          {grAll.length > 0 && <label className="text-sm font-bold sm:col-span-2">{tr("From a group (optional)", "من مجموعة (اختياري)")}<select className={fld + " mt-1"} value="" data-testid="tt-group" onChange={(e) => {
+            const g = grAll.find((x) => x.id === e.target.value); if (!g) return;
+            const kids = (grRoster || []).filter((st) => g.students.includes(st.id));
+            const cnt: Record<string, number> = {}; kids.forEach((k) => { cnt[k.cls] = (cnt[k.cls] || 0) + 1; });
+            const cls = Object.keys(cnt).sort((x, y) => cnt[y] - cnt[x])[0] || ed.cls;
+            const secs = [...new Set(kids.filter((k) => k.cls === cls && k.section).map((k) => k.section))].sort((x, y) => x.localeCompare(y, undefined, { numeric: true }));
+            const lab = autoT(cls, secs); const custom = g.name.replace(/\s+/g, "").toUpperCase() !== lab.replace(/\s+/g, "").toUpperCase();
+            setEd({ ...ed, cls, sections: secs, subject: ed.subject || g.subject || "", tAuto: !custom, title: custom ? g.name : "" });
+          }}><option value="">{tr("— choose a group —", "— اختر مجموعة —")}</option>{grAll.filter((g) => !asAdmin || !ed.teacher || !g.teachers?.length || g.teachers.includes(ed.teacher)).map((g) => <option key={g.id} value={g.id}>{g.name}{g.subject ? " · " + g.subject : ""}</option>)}</select></label>}
           <label className="text-sm font-bold">{tr("Class", "الصف")}<select className={fld + " mt-1"} value={ed.cls} onChange={(e) => setEd({ ...ed, cls: e.target.value, sections: [], ...(ed.tAuto ? {} : {}) })} data-testid="tt-cls"><option value="">—</option>{uniq([...classes.map((c) => c.name), ed.cls]).map((x) => <option key={x}>{x}</option>)}</select></label>
           <fieldset className="sm:col-span-2"><legend className="text-sm font-bold">{tr("Sections (choose one or more; none = whole class)", "الشعب (واحدة أو أكثر؛ بلا اختيار = الصف كله)")}</legend>
             <div className="mt-1 flex flex-wrap gap-1.5" data-testid="tt-sections">{clsSections.length ? clsSections.map((x) => <button key={x} type="button" aria-pressed={ed.sections.includes(x)} onClick={() => setEd({ ...ed, sections: ed.sections.includes(x) ? ed.sections.filter((y) => y !== x) : [...ed.sections, x] })} className={`${pill} ${ed.sections.includes(x) ? "!bg-sun !text-[#0b1b2b]" : ""}`} data-testid="tt-sec">{x}</button>) : <span className="text-xs opacity-60">{ed.cls ? tr("This class has no sections.", "لا توجد شعب لهذا الصف.") : tr("Choose a class first.", "اختر الصف أولًا.")}</span>}</div>
