@@ -1,5 +1,7 @@
 "use client";
-import { LaunchChooser, LOCK_TYPES } from "@/components/lms/ClassLaunch";
+import { startWithClass } from "@/components/lms/ClassLaunch";
+import { QuickStart } from "@/components/lms/QuickStart";
+import type { ActivityType } from "@/lib/activity";
 import { saveNames } from "@/components/activity/ClassNames";
 
 import { dlGrant } from "@/lib/dl";
@@ -134,16 +136,12 @@ export function LmsClassesPage() {
   // t304: activity launcher — start with this class, or with random people (code / QR via the site's Join button).
   const [launch, setLaunch] = useState<string[] | null>(null);
   const viewName = view ? (view.startsWith("g:") ? groups.find((g) => g.id === view.slice(2))?.name || tr("this group", "هذه المجموعة") : label(view)) : tr("all my students", "كل طلابي");
-  const startClass = (t: string, en: string) => {
+  // t370: one tap from an open class starts the activity for that class — no two-option prompt, no All Activities page.
+  const direct = (t: string, en: string) => {
     if (t === "wheel" || t === "randomiser") { saveNames(shown.map((s) => s.name)); window.location.assign(`/activities/${t}`); return; }
-    if (t === "wall") { window.location.assign(view ? `/lms/wall#k=${encodeURIComponent(view)}` : "/lms/wall"); return; }
-    try { sessionStorage.setItem("sm-act-prefill", JSON.stringify({ audience: shown.map((s) => s.id), title: `${en} · ${viewName}`, label: viewName })); } catch { /* */ }
-    window.location.assign(`/lms/activities#t=${t}`);
-  };
-  const startRandom = (t: string) => {
-    if (t === "wheel" || t === "randomiser") { window.location.assign(`/activities/${t}?lobby=1`); return; }
-    try { sessionStorage.removeItem("sm-act-prefill"); } catch { /* */ }
-    window.location.assign(`/lms/activities#t=${t}`);
+    if (t === "classwall") { window.location.assign(view ? `/lms/wall#k=${encodeURIComponent(view)}` : "/lms/wall"); return; }
+    if (t === "assess") { startWithClass("assess", shown.map((s) => s.id), viewName, `${en} · ${viewName}`); return; }
+    setLaunch([t]);
   };
   const maxPts = Math.max(1, ...shown.map((s) => s.points));
   return (
@@ -153,24 +151,37 @@ export function LmsClassesPage() {
           <h1 className="me-auto text-2xl font-extrabold">{tr("My classes", "صفوفي")}</h1>
           <button type="button" className={pill} onClick={() => setEditCats(true)} data-testid="cls-cats">🏷 {tr("Skills", "المهارات")}</button>
           <button type="button" className={pill} onClick={undo} data-testid="cls-undo">↶ {tr("Undo last", "تراجع")}</button>
+          <a className={pill} href="/lms/activities/saved" data-testid="cls-saved">💾 {tr("Saved results", "النتائج المحفوظة")}</a>
           <a className={pill} href="/lms/points" data-testid="cls-reports">📊 {tr("Points report", "تقرير النقاط")}</a>
           {canManage && <a className={pill} href="/lms/students">👥 {tr("Manage students", "إدارة الطلاب")}</a>}
-          <button type="button" disabled={!shown.length} className="rounded-full bg-sun px-4 py-2 text-sm font-bold text-[#0b1b2b] disabled:opacity-50" onClick={() => { setWhole(true); setAward(shown); }} data-testid="cls-whole">⭐ {tr("Whole class", "كل الصف")}</button>
+          {view && <button type="button" disabled={!shown.length} className="rounded-full bg-sun px-4 py-2 text-sm font-bold text-[#0b1b2b] disabled:opacity-50" onClick={() => { setWhole(true); setAward(shown); }} data-testid="cls-whole">⭐ {tr("Whole class", "كل الصف")}</button>}
         </div>
-        <div className="space-y-2" data-testid="cls-tabs">
-          <div className="flex flex-wrap items-center gap-2" data-testid="cls-tabs-groups">
-            <span className="text-xs font-bold uppercase opacity-70">👥 {tr("Student groups", "مجموعات الطلاب")}</span>
-            <button type="button" aria-pressed={!view} onClick={() => setView("")} className={`${pill} ${!view ? "!bg-header !text-sun" : ""}`}>{tr("All", "الكل")} ({roster?.length ?? 0})</button>
-            {groups.map((g) => <button key={g.id} type="button" aria-pressed={view === "g:" + g.id} onClick={() => setView("g:" + g.id)} className={`${pill} ${view === "g:" + g.id ? "!bg-header !text-sun" : ""}`} data-testid="cls-group-tab" title={g.assigned ? tr("Assigned by admin", "مُسندة من الإدارة") : undefined}>{g.assigned ? "📌" : "👥"} {grpLabel(g)}</button>)}
+        {!view ? (
+          <div className="space-y-4" data-testid="cls-landing">
+            <p className="text-sm font-semibold opacity-75">{tr("Tap a class or group to open it.", "اضغط على صف أو مجموعة لفتحه.")}</p>
+            {roster === null ? <p className="opacity-70">{tr("Loading…", "جارٍ التحميل…")}</p> : (!classTabs.length && !groups.length) ? <p className="glass rounded-3xl p-8 text-center opacity-80">{tr("No classes are assigned to you yet.", "لم تُسند إليك صفوف بعد.")}</p> : (
+              <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5" data-testid="cls-cards">
+                {[...classTabs.map((c) => ({ k: c, name: c.includes("|") ? c.split("|")[1] : c, sub: c.includes("|") ? c.split("|")[0] : tr("Whole year", "السنة كلها"), icon: c.includes("|") ? "🏫" : "🎓", n: (roster || []).filter((s) => s.cls === c.split("|")[0] && (!c.includes("|") || s.section === c.split("|")[1])).length })),
+                  ...groups.map((g) => ({ k: "g:" + g.id, name: g.name, sub: g.subject || tr("Group", "مجموعة"), icon: "👥", n: g.students.filter((id) => (roster || []).some((s) => s.id === id)).length }))].map((c, i) => (
+                  <li key={c.k}><button type="button" onClick={() => setView(c.k)} className="flex w-full flex-col items-center gap-2 rounded-3xl bg-white p-5 text-center text-[#1b2f44] shadow-md ring-1 ring-black/5 transition hover:-translate-y-1 hover:shadow-xl" data-testid="cls-card-class">
+                    <span className={`grid h-16 w-16 place-items-center rounded-2xl text-3xl shadow-inner ${["bg-sky-100", "bg-amber-100", "bg-emerald-100", "bg-rose-100", "bg-violet-100", "bg-teal-100"][i % 6]}`} aria-hidden>{c.icon}</span>
+                    <span className="text-lg font-extrabold leading-tight" dir="auto">{c.name}</span>
+                    <span className="text-xs font-semibold opacity-70" dir="auto">{c.sub}</span>
+                    <span className="rounded-full bg-[#1b3a57] px-3 py-0.5 text-xs font-bold text-[#f5c542]">{tr(`${c.n} students`, `${c.n} طالبًا`)}</span>
+                  </button></li>
+                ))}
+              </ul>
+            )}
           </div>
-          {classTabs.length > 0 && <div className="flex flex-wrap items-center gap-2" data-testid="cls-tabs-classes">
-            <span className="text-xs font-bold uppercase opacity-70">🏫 {tr("Classes & sections", "الصفوف والشعب")}</span>
-            {classTabs.map((c) => <button key={c} type="button" aria-pressed={view === c} onClick={() => setView(c)} className={`${pill} ${view === c ? "!bg-header !text-sun" : ""}`} data-testid="cls-tab">{c.includes("|") ? c.split("|")[1] : `${label(c)} · ${tr("all", "الكل")}`}</button>)}
-          </div>}
-        </div>
+        ) : (
+          <div className="flex flex-wrap items-center gap-2" data-testid="cls-open">
+            <button type="button" className={pill} onClick={() => { setView(""); setAttMode(false); }} data-testid="cls-back">← {tr("All my classes", "كل صفوفي")}</button>
+            <span className="rounded-full bg-[#1b3a57] px-4 py-1.5 text-sm font-extrabold text-[#f5c542]" data-testid="cls-open-name">{viewName} · {shown.length}</span>
+          </div>
+        )}
         {err && <p className="rounded-2xl bg-rose-100 px-4 py-2 text-sm text-rose-800">{err}</p>}
         {attMode && <div className="flex flex-wrap items-center gap-2 rounded-3xl bg-emerald-50 px-4 py-2 text-sm text-emerald-950 dark:bg-emerald-900/30 dark:text-emerald-50" data-testid="att-bar"><span className="me-auto font-bold">📋 {attDay} · {attPeriod === "Day" ? tr("Whole day", "اليوم كله") : tr(`Period ${attPeriod.slice(1)}`, `الحصة ${attPeriod.slice(1)}`)} — {tr("tap = Present · hold or ⋯ = Late / Absent", "نقرة = حاضر · ضغط مطوّل أو ⋯ = متأخر / غائب")}</span><button type="button" className="rounded-full bg-emerald-600 px-4 py-1.5 font-bold text-white" onClick={markAll} data-testid="att-all">✅ {tr("Mark all present", "تسجيل حضور الجميع")}</button><a className="rounded-full border border-emerald-700/30 px-3 py-1.5 font-bold" href="/lms/attendance#history" data-testid="att-history-link">🗂 {tr("History", "السجل")}</a></div>}
-        {roster === null ? <p className="opacity-70">{tr("Loading…", "جارٍ التحميل…")}</p> : !shown.length ? <p className="glass rounded-3xl p-8 text-center opacity-80">{tr("No students here yet.", "لا يوجد طلاب هنا بعد.")}</p> : (
+        {!view ? null : roster === null ? <p className="opacity-70">{tr("Loading…", "جارٍ التحميل…")}</p> : !shown.length ? <p className="glass rounded-3xl p-8 text-center opacity-80">{tr("No students here yet.", "لا يوجد طلاب هنا بعد.")}</p> : (
           <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6" data-testid="cls-grid">
             {shown.map((s) => (
               <li key={s.id} className="group relative" data-testid="cls-card">
@@ -217,25 +228,16 @@ export function LmsClassesPage() {
           <label className="mt-3 block text-sm font-bold">{tr("Reason (for Late / Absent)", "السبب (للتأخر / الغياب)")}<input className="mt-1 w-full rounded-xl border border-black/10 bg-white px-3 py-2 dark:border-white/15 dark:bg-white/5" value={reason} onChange={(e) => setReason(e.target.value)} maxLength={200} dir="auto" placeholder={tr("e.g. Doctor appointment", "مثال: موعد طبي")} data-testid="att-reason" /></label>
         </Modal>
       )}
-      {launch && LOCK_TYPES.includes(launch[0]) && <LaunchChooser type={launch[0]} icon={launch[1]} title={tr(launch[2], launch[3])} defaultKeys={view ? [view] : []} given={{ roster, groups }} onClose={() => setLaunch(null)} />}
-      {launch && !LOCK_TYPES.includes(launch[0]) && (
-        <Modal onClose={() => setLaunch(null)} label={tr(launch[2], launch[3])}>
-          <p className="mb-3 text-lg font-extrabold"><span aria-hidden>{launch[1]}</span> {tr(launch[2], launch[3])}</p>
-          <div className="grid gap-2" data-testid="launch">
-            <button type="button" disabled={!shown.length} className="rounded-2xl bg-sun px-4 py-4 text-start font-extrabold text-[#0b1b2b] disabled:opacity-50" onClick={() => startClass(launch[0], launch[2])} data-testid="launch-class">👥 {tr(`Start with ${viewName}`, `ابدأ مع ${viewName}`)}<span className="block text-xs font-semibold opacity-75">{launch[0] === "wheel" || launch[0] === "randomiser" ? tr(`${shown.length} names loaded`, `${shown.length} اسمًا`) : launch[0] === "wall" ? tr("Opens this class's wall", "يفتح جدار هذا الصف") : tr(`${shown.length} students join automatically`, `${shown.length} طالبًا ينضمون تلقائيًا`)}</span></button>
-            <button type="button" className="rounded-2xl bg-header px-4 py-4 text-start font-extrabold text-white" onClick={() => startRandom(launch[0])} data-testid="launch-random">🙋 {tr("Start with random people", "ابدأ مع أشخاص عشوائيين")}<span className="block text-xs font-semibold opacity-75">{tr("Show a code / QR — people join with the Join button on the website", "اعرض رمزًا / QR — ينضم الأشخاص بزر انضم في الموقع")}</span></button>
-          </div>
-        </Modal>
-      )}
-      <nav className="fixed inset-x-0 bottom-0 z-[2000] border-t border-black/10 bg-white/95 pe-2 ps-[5.75rem] pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-6px_24px_rgba(0,0,0,0.08)] backdrop-blur dark:border-white/10 dark:bg-[#0f1f30]/95" aria-label={tr("Classroom tools", "أدوات الصف")} data-testid="cls-tray">
+      {launch && <QuickStart type={launch[0] as ActivityType} ids={shown.map((x) => x.id)} label={viewName} onClose={() => setLaunch(null)} />}
+      {view &&       <nav className="fixed inset-x-0 bottom-0 z-[2000] border-t border-black/10 bg-white/95 pe-2 ps-[5.75rem] pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-6px_24px_rgba(0,0,0,0.08)] backdrop-blur dark:border-white/10 dark:bg-[#0f1f30]/95" aria-label={tr("Classroom tools", "أدوات الصف")} data-testid="cls-tray">
         <div className="mx-auto flex max-w-5xl items-stretch gap-1 overflow-x-auto">
           <button type="button" aria-pressed={attMode} onClick={() => setAttMode(!attMode)} className={`flex min-w-[4.5rem] flex-1 flex-col items-center gap-0.5 rounded-2xl px-2 py-1.5 text-[11px] font-bold ${attMode ? "bg-header text-white" : "hover:bg-sun/40"}`} data-testid="tray-att"><span className="text-3xl" aria-hidden>📋</span>{tr("Attendance", "الحضور")}</button>
-          {([["wheel", "🎡", "Spin", "العجلة"], ["randomiser", "🎲", "Randomiser", "اختيار عشوائي"], ["wall", "🧱", "Wall", "الجدار"], ["wordcloud", "☁️", "Word cloud", "سحابة كلمات"], ["poll", "📊", "Poll", "استطلاع"], ["survey", "📝", "Survey", "استبيان"], ["tps", "💭", "Think-Pair-Share", "فكّر-زاوج-شارك"], ["vote", "🗳️", "Vote", "تصويت"]] as const).filter(([t]) => actAllowed(t)).map(([t, ic, en, ar]) => (
-            <button type="button" key={t} onClick={() => setLaunch([t, ic, en, ar])} className="flex min-w-[4.5rem] flex-1 flex-col items-center gap-0.5 rounded-2xl px-2 py-1.5 text-center text-[11px] font-bold hover:bg-sun/40" data-testid={`tray-${t}`}><span className="text-3xl" aria-hidden>{ic}</span>{tr(en, ar)}</button>
+          {([["wheel", "🎡", "Spin", "العجلة"], ["randomiser", "🎲", "Randomiser", "اختيار عشوائي"], ["classwall", "🧱", "Class wall", "جدار الصف"], ["wall", "🖼️", "Shared Wall", "الجدار المشترك"], ["wordcloud", "☁️", "Word cloud", "سحابة كلمات"], ["poll", "📊", "Poll", "استطلاع"], ["survey", "📝", "Survey", "استبيان"], ["tps", "💭", "Think-Pair-Share", "فكّر-زاوج-شارك"], ["vote", "🗳️", "Vote", "تصويت"]] as const).filter(([t]) => actAllowed(t === "classwall" ? "wall" : t)).map(([t, ic, en, ar]) => (
+            <button type="button" key={t} onClick={() => direct(t, en)} className="flex min-w-[4.5rem] flex-1 flex-col items-center gap-0.5 rounded-2xl px-2 py-1.5 text-center text-[11px] font-bold hover:bg-sun/40" data-testid={`tray-${t}`}><span className="text-3xl" aria-hidden>{ic}</span>{tr(en, ar)}</button>
           ))}
-          {hostOk && <button type="button" onClick={() => setLaunch(["assess", "🧩", "Assessments", "التقييمات"])} className="flex min-w-[4.5rem] flex-1 flex-col items-center gap-0.5 rounded-2xl px-2 py-1.5 text-[11px] font-bold hover:bg-sun/40" data-testid="tray-assess"><span className="text-3xl" aria-hidden>🧩</span>{tr("Assessments", "التقييمات")}</button>}
+          {hostOk && <button type="button" onClick={() => direct("assess", "Assessments")} className="flex min-w-[4.5rem] flex-1 flex-col items-center gap-0.5 rounded-2xl px-2 py-1.5 text-[11px] font-bold hover:bg-sun/40" data-testid="tray-assess"><span className="text-3xl" aria-hidden>🧩</span>{tr("Assessments", "التقييمات")}</button>}
         </div>
-      </nav>
+      </nav>}
       <div className="h-24" aria-hidden />
       {toast && (
         <div className="fixed inset-x-0 bottom-28 z-[2100] mx-auto flex w-fit max-w-[92vw] items-center gap-3 rounded-full bg-header px-5 py-2.5 text-sm font-semibold text-white shadow-2xl" role="status" data-testid="cls-toast">

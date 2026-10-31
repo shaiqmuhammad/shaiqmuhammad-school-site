@@ -314,6 +314,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     this.sql.exec(`CREATE TABLE IF NOT EXISTS wcom (id TEXT PRIMARY KEY, post TEXT, by TEXT, name TEXT, role TEXT, text TEXT, at INTEGER)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS wlike (post TEXT, by TEXT, PRIMARY KEY (post, by))`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS alive (code TEXT PRIMARY KEY, type TEXT, title TEXT, owner TEXT, owner_name TEXT, students TEXT, at INTEGER)`);
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS actsave (id TEXT PRIMARY KEY, owner TEXT, owner_name TEXT, code TEXT, type TEXT, title TEXT, prompt TEXT, cls TEXT, n INTEGER, data TEXT, at INTEGER)`);
     if (!cols("alive").has("locked")) this.sql.exec(`ALTER TABLE alive ADD COLUMN locked INTEGER DEFAULT 0`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS grp (id TEXT PRIMARY KEY, owner TEXT, name TEXT, students TEXT, updated INTEGER)`);
     for (const [c, d] of [["classes", "TEXT DEFAULT '[]'"], ["teachers", "TEXT DEFAULT '[]'"], ["admin", "INTEGER DEFAULT 0"], ["subject", "TEXT DEFAULT ''"]]) if (!cols("grp").has(c)) this.sql.exec(`ALTER TABLE grp ADD COLUMN ${c} ${d}`);
@@ -1296,6 +1297,44 @@ export class LmsStore extends DurableObject<LmsEnv> {
         // t312: locked = only these students may join (signed in, under their account name); everyone else is refused.
         this.sql.exec(`INSERT OR REPLACE INTO alive (code, type, title, owner, owner_name, students, at, locked) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, code, str(input.type, 12), str(input.title, 120), a.id, a.name, JSON.stringify(ids), Date.now(), input.locked === true ? 1 : 0);
         return { status: 200, body: { ok: true, count: ids.length, locked: input.locked === true } };
+      }
+      case "act-unpublish": {
+        // t370: the teacher ended / closed the activity — it disappears from students' dashboards straight away.
+        if (!isStaff(a) || a.viewAs) return { status: 403, body: { error: "forbidden" } };
+        this.sql.exec(`DELETE FROM alive WHERE code=? AND (owner=? OR ?='admin')`, str(input.code, 8).toUpperCase(), a.id, a.role);
+        return { status: 200, body: { ok: true } };
+      }
+      case "act-sound": {
+        // t370: admin switch for activity music + sound effects (site-wide). Default on.
+        if (input.__method === "POST") {
+          if (a.role !== "admin" || a.viewAs) return { status: 403, body: { error: "admin_only" } };
+          this.sql.exec(`INSERT OR REPLACE INTO settings (k, v) VALUES ('act_sound', ?)`, input.on === false ? "off" : "on");
+        }
+        return { status: 200, body: { on: this.setting("act_sound", "on") !== "off" } };
+      }
+      case "act-save": {
+        // t370: keep an activity's results after it ends (question, answers with names, class) for printing.
+        if (!isStaff(a) || a.viewAs) return { status: 403, body: { error: "forbidden" } };
+        const data = JSON.stringify(input.rows || []);
+        if (data.length > 200000) return { status: 400, body: { error: "too_big" } };
+        const code = str(input.code, 8).toUpperCase();
+        const prev = this.sql.exec(`SELECT id FROM actsave WHERE code=? AND owner=?`, code, a.id).toArray()[0];
+        const id = prev ? String(prev.id) : crypto.randomUUID();
+        this.sql.exec(`INSERT OR REPLACE INTO actsave (id, owner, owner_name, code, type, title, prompt, cls, n, data, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, id, a.id, a.name, code, str(input.type, 12), str(input.title, 160), str(input.prompt, 600), str(input.cls, 120), Array.isArray(input.rows) ? (input.rows as unknown[]).length : 0, data, Date.now());
+        return { status: 200, body: { ok: true, id } };
+      }
+      case "act-saved": {
+        if (!isStaff(a)) return { status: 403, body: { error: "forbidden" } };
+        const own = a.role === "admin" ? "1=1" : "owner=?";
+        const args = a.role === "admin" ? [] : [a.id];
+        if (input.id) {
+          const r = this.sql.exec(`SELECT * FROM actsave WHERE id=? AND ${own}`, str(input.id, 40), ...args).toArray()[0];
+          if (!r) return { status: 404, body: { error: "not_found" } };
+          return { status: 200, body: { item: { id: String(r.id), type: String(r.type), title: String(r.title), prompt: String(r.prompt), cls: String(r.cls), teacher: String(r.owner_name), at: Number(r.at), rows: JSON.parse(String(r.data || "[]")) } } };
+        }
+        if (input.del) { this.sql.exec(`DELETE FROM actsave WHERE id=? AND ${own}`, str(input.del, 40), ...args); }
+        const items = this.sql.exec(`SELECT id, type, title, cls, n, at, owner_name FROM actsave WHERE ${own} ORDER BY at DESC LIMIT 200`, ...args).toArray().map((r) => ({ id: String(r.id), type: String(r.type), title: String(r.title), cls: String(r.cls), n: Number(r.n), at: Number(r.at), teacher: String(r.owner_name) }));
+        return { status: 200, body: { items } };
       }
       case "act-live": {
         if (a.role !== "student") return { status: 200, body: { items: [] } };

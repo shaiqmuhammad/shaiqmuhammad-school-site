@@ -111,6 +111,7 @@ export function AdminActivities({ allowed }: { allowed?: string[] } = {}) {
 
   return (
     <div className="space-y-6" data-testid="admin-activities">
+      {!allowed && <SoundSwitch />}
       <section className="glass rounded-3xl p-5">
         <h2 className="text-xl font-bold">{tr("Classroom activities", "أنشطة الصف")}</h2>
         <p className="mt-1 text-sm opacity-80">
@@ -245,5 +246,22 @@ export function AdminActivities({ allowed }: { allowed?: string[] } = {}) {
         )}
       </section>
     </div>
+  );
+}
+
+/** t370: admin switch — music + sound effects on every activity host screen (site-wide). */
+function SoundSwitch() {
+  const { lang } = useI18n();
+  const tr = (en: string, ar: string) => (lang === "ar" ? ar : en);
+  const [on, setOn] = useState<boolean | null>(null);
+  const [msg, setMsg] = useState("");
+  useEffect(() => { lmsApi.actSoundAdmin().then((r) => setOn(r.on)).catch(() => setOn(true)); }, []);
+  return (
+    <section className="glass flex flex-wrap items-center gap-3 rounded-3xl p-4" data-testid="admin-act-sound">
+      <span className="text-2xl" aria-hidden>🎵</span>
+      <span className="min-w-0 flex-1"><b className="block">{tr("Activity music & sound effects", "موسيقى ومؤثرات الأنشطة")}</b><span className="text-sm opacity-80">{tr("Background music at the start of activities, plus sounds when students join, submit and when it ends. Teachers can mute or lower it.", "موسيقى في بداية الأنشطة ومؤثرات عند الانضمام والإرسال والانتهاء. يمكن للمعلم الكتم أو خفض الصوت.")}</span></span>
+      <label className="inline-flex items-center gap-2 font-bold"><input type="checkbox" className="h-5 w-5" disabled={on === null} checked={on !== false} onChange={async (e) => { const v = e.target.checked; try { const r = await lmsApi.actSound(v); setOn(r.on); setMsg(tr("Saved ✓", "تم الحفظ ✓")); } catch { setMsg(tr("Couldn't save.", "تعذر الحفظ.")); } }} data-testid="admin-act-sound-toggle" />{on === false ? tr("Off", "متوقف") : tr("On", "يعمل")}</label>
+      {msg && <span className="text-sm">{msg}</span>}
+    </section>
   );
 }
