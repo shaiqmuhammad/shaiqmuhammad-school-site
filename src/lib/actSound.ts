@@ -10,7 +10,9 @@ type Prefs = { muted: boolean; vol: number };
 export function soundPrefs(): Prefs {
   try { return { muted: false, vol: 0.5, ...JSON.parse(localStorage.getItem(KEY) || "{}") }; } catch { return { muted: false, vol: 0.5 }; }
 }
-export function setSiteSound(on: boolean) { siteOn = on; if (!on) stopMusic(); }
+export function setSiteSound(on: boolean) { siteOn = on; try { localStorage.setItem("sm-act-site-sound", on ? "on" : "off"); } catch { /* */ } if (!on) stopMusic(); }
+/** Last known admin switch (cached on the device, no server read). */
+export function cachedSiteSound() { try { siteOn = localStorage.getItem("sm-act-site-sound") !== "off"; } catch { /* */ } return siteOn; }
 function ac(): AudioContext | null {
   if (typeof window === "undefined" || !siteOn) return null;
   if (!ctx) {
@@ -50,10 +52,12 @@ export function startMusic() {
 }
 export function stopMusic() { if (loop) clearInterval(loop); loop = null; }
 export function musicPlaying() { return !!loop; }
-export function sfx(kind: "join" | "submit" | "end" | "start") {
+export function sfx(kind: "join" | "submit" | "end" | "start" | "tick" | "chime") {
   const c = ac(); if (!c) return; const t = c.currentTime + 0.02;
   if (kind === "join") { tone(659.3, t, 0.15, "sine", 0.3); tone(987.8, t + 0.1, 0.25, "sine", 0.3); }
   else if (kind === "submit") { tone(880, t, 0.08, "square", 0.08); tone(1318.5, t + 0.06, 0.2, "triangle", 0.2); }
+  else if (kind === "tick") { tone(1046.5, t, 0.09, "square", 0.12); }
+  else if (kind === "chime") { [523.3, 659.3, 784, 1046.5, 784, 1046.5].forEach((f, i) => tone(f, t + i * 0.18, 0.6, "triangle", 0.28)); }
   else if (kind === "start") { [523.3, 659.3, 784, 1046.5].forEach((f, i) => tone(f, t + i * 0.09, 0.3, "triangle", 0.22)); }
   else { [784, 659.3, 523.3].forEach((f, i) => tone(f, t + i * 0.16, 0.35, "triangle", 0.25)); tone(261.6, t + 0.5, 0.9, "sine", 0.25); tone(392, t + 0.5, 0.9, "sine", 0.2); }
 }

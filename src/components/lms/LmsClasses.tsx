@@ -1,6 +1,7 @@
 "use client";
 import { startWithClass } from "@/components/lms/ClassLaunch";
 import { QuickStart } from "@/components/lms/QuickStart";
+import { openClassTimer } from "@/components/lms/ClassTimer";
 import type { ActivityType } from "@/lib/activity";
 import { saveNames } from "@/components/activity/ClassNames";
 
@@ -249,13 +250,13 @@ export function LmsClassesPage() {
       )}
       {launch && <QuickStart type={launch[0] as ActivityType} ids={shown.map((x) => x.id)} label={viewName} back={`/lms/classes#v=${encodeURIComponent(view)}`} onClose={() => setLaunch(null)} />}
       {view && <nav className="fixed inset-x-0 bottom-0 z-[2000] border-t border-white/40 bg-gradient-to-r from-[#1b3a57]/85 via-[#24507a]/80 to-[#1b3a57]/85 pe-2 ps-[5.75rem] pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-8px_30px_rgba(11,27,43,0.35)] backdrop-blur-xl" aria-label={tr("Classroom tools", "أدوات الصف")} data-testid="cls-tray">
-        <div className="mx-auto grid max-w-6xl grid-cols-4 gap-1.5 sm:grid-cols-6 lg:grid-cols-11">
-          {([["att", "📋", "Attendance", "الحضور", "#10b981"], ["wall", "🖼️", "Shared Wall", "الجدار المشترك", "#f5c542"], ["classwall", "🧱", "Class wall", "جدار الصف", "#fb923c"], ["wordcloud", "☁️", "Word cloud", "سحابة كلمات", "#38bdf8"], ["poll", "📊", "Poll", "استطلاع", "#a78bfa"], ["vote", "🗳️", "Vote", "تصويت", "#f472b6"], ["survey", "📝", "Survey", "استبيان", "#2dd4bf"], ["tps", "💭", "Think-Pair-Share", "فكّر-زاوج-شارك", "#facc15"], ["wheel", "🎡", "Spin", "العجلة", "#f87171"], ["randomiser", "🎲", "Randomiser", "اختيار عشوائي", "#60a5fa"], ["assess", "🧩", "Assessments", "التقييمات", "#4ade80"]] as const)
-            .filter(([t]) => (t === "att" ? true : t === "assess" ? hostOk : actAllowed(t === "classwall" ? "wall" : t)))
+        <div className="mx-auto grid max-w-6xl grid-cols-4 gap-1.5 sm:grid-cols-6 lg:grid-cols-13">
+          {([["att", "📋", "Attendance", "الحضور", "#10b981"], ["wall", "🖼️", "Shared Wall", "الجدار المشترك", "#f5c542"], ["classwall", "🧱", "Class wall", "جدار الصف", "#fb923c"], ["wordcloud", "☁️", "Word cloud", "سحابة كلمات", "#38bdf8"], ["poll", "📊", "Poll", "استطلاع", "#a78bfa"], ["vote", "🗳️", "Vote", "تصويت", "#f472b6"], ["survey", "📝", "Survey", "استبيان", "#2dd4bf"], ["tps", "💭", "Think-Pair-Share", "فكّر-زاوج-شارك", "#facc15"], ["wheel", "🎡", "Spin", "العجلة", "#f87171"], ["randomiser", "🎲", "Randomiser", "اختيار عشوائي", "#60a5fa"], ["timer", "⏱️", "Timer", "المؤقت", "#22d3ee"], ["stopwatch", "⏲️", "Stopwatch", "ساعة الإيقاف", "#e879f9"], ["assess", "🧩", "Assessments", "التقييمات", "#4ade80"]] as const)
+            .filter(([t]) => (t === "att" || t === "timer" || t === "stopwatch" ? true : t === "assess" ? hostOk : actAllowed(t === "classwall" ? "wall" : t)))
             .map(([t, ic, en, ar, c]) => {
               const on = t === "att" && attMode;
               return (
-                <button type="button" key={t} onClick={() => (t === "att" ? setAttMode(!attMode) : direct(t, en))} aria-pressed={t === "att" ? attMode : undefined}
+                <button type="button" key={t} onClick={() => (t === "att" ? setAttMode(!attMode) : t === "timer" || t === "stopwatch" ? openClassTimer(t) : direct(t, en))} aria-pressed={t === "att" ? attMode : undefined}
                   className="group flex min-w-0 flex-col items-center gap-0.5 rounded-2xl border px-1 py-1.5 text-center text-[10px] font-extrabold leading-tight text-white shadow-sm backdrop-blur-md transition hover:-translate-y-0.5 hover:shadow-lg sm:text-[11px]"
                   style={{ background: on ? c : `linear-gradient(160deg, ${c}66, ${c}26)`, borderColor: `${c}99` }} data-testid={`tray-${t}`}>
                   <span className="grid h-9 w-9 place-items-center rounded-xl bg-white/85 text-2xl shadow-inner transition group-hover:scale-110" aria-hidden>{ic}</span>
