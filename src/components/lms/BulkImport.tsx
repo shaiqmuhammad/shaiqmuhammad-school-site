@@ -154,7 +154,7 @@ export default function BulkImport({ catalog, onSaveRows, tr }: { catalog: Catal
   return (
     <div className="space-y-3 rounded-2xl border border-indigo-200 bg-indigo-50/60 p-3 dark:border-indigo-400/30 dark:bg-indigo-950/30" data-testid="bi-root">
       <h4 className="font-extrabold">{tr("Import pupils from a school Excel / CSV", "استيراد الطلاب من ملف المدرسة")}</h4>
-      <p className="text-xs opacity-75">{tr("Any sheet with Surname, Forename, Date of Birth, Form, Year Group… All sheets are read. Pupils already in the system are skipped.", "يُقرأ كل الأوراق. يتم تخطي الطلاب الموجودين.")}</p>
+      <p className="text-xs opacity-75">{tr("Any student list works: pick the sheet and header row, then say what each column is. Unknown columns are ignored. Pupils already in the system are skipped.", "يُقرأ كل الأوراق. يتم تخطي الطلاب الموجودين.")}</p>
       <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-bold text-white hover:bg-indigo-700">
         ⬆ {tr("Choose .xlsx / .xls / .csv", "اختر ملف")}
         <input type="file" accept=".xlsx,.xls,.csv" className="sr-only" data-testid="bi-file" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void onFile(f); }} />
@@ -172,7 +172,7 @@ export default function BulkImport({ catalog, onSaveRows, tr }: { catalog: Catal
             <div key={h} className="flex items-center gap-2 rounded-lg bg-white/80 p-1.5 text-sm dark:bg-white/5">
               <input type="checkbox" checked={!!cmap[h]} onChange={(e) => remap(h, e.target.checked ? autoField(h) || "fullname" : "")} aria-label={h} />
               <span className="min-w-0 flex-1 truncate font-semibold" title={h}>{h}</span>
-              <select className={sel + " mt-0 w-36"} value={cmap[h] || ""} onChange={(e) => remap(h, e.target.value as Field | "")} aria-label={h + " → field"}>
+              <select className={sel.replace("w-full", "w-40 shrink-0") + " mt-0"} value={cmap[h] || ""} onChange={(e) => remap(h, e.target.value as Field | "")} aria-label={h + " → field"}>
                 <option value="">{tr("Ignore", "تجاهل")}</option>{FIELDS.map((F) => <option key={F.k} value={F.k}>{F.label}</option>)}
               </select>
             </div>
