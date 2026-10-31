@@ -26,7 +26,7 @@ export type PackCtx = {
 const str = (v: unknown, max: number) => String(v ?? "").replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, " ").slice(0, max);
 const rid = (p: string) => `${p}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 9)}`;
 const forbid = (e = "forbidden"): Reply => ({ status: 403, body: { error: e } });
-const TYPES = ["material", "homework", "quran"];
+const TYPES = ["lesson", "activity", "material", "homework", "quran"];
 const num = (v: unknown, lo: number, hi: number, d = 0) => { const n = Number(v); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d; };
 const color = (v: unknown) => (/^#[0-9a-f]{3,8}$/i.test(String(v || "")) ? String(v) : "");
 const FONTS = ["Nunito", "Arial", "Georgia", "Times New Roman", "Courier New", "Comic Sans MS", "Amiri", "Tajawal", "Verdana"];
@@ -47,6 +47,7 @@ function el(e: Json, student = false): Json | null {
   if (student) return null; // students can't add videos, activities or Quran blocks
   if (t === "yt") return YT.test(String(e.vid)) ? { ...base, vid: String(e.vid), title: str(e.title, 160) } : null;
   if (t === "act") { const code = str(e.code, 12).toUpperCase().replace(/[^A-Z0-9]/g, ""); const quiz = str(e.quiz, 80).replace(/[^a-z0-9-]/gi, ""); return code || quiz ? { ...base, code, quiz, label: str(e.label, 160) } : null; }
+  if (t === "doc") return MEDIA.test(String(e.src)) ? { ...base, src: String(e.src), kind: e.kind === "pdf" ? "pdf" : "pptx", name: str(e.name, 160) } : null;
   if (t === "quran") { const surah = Math.trunc(num(e.surah, 1, 114, 1)), from = Math.trunc(num(e.from, 1, 286, 1)); return { ...base, surah, from, to: Math.max(from, Math.trunc(num(e.to, 1, 286, from))), reciter: str(e.reciter, 60) || "Alafasy_128kbps", memorise: e.memorise === true, memoAudio: e.memoAudio !== false, translit: e.translit === true, translation: e.translation === true, notes: str(e.notes, 1000) }; }
   return null;
 }
@@ -64,7 +65,7 @@ const row = (r: Record<string, unknown>, full = true) => ({
   ...(full ? { slides: JSON.parse(String(r.slides || "[]")) } : { count: (JSON.parse(String(r.slides || "[]")) as unknown[]).length }),
 });
 const mine = (a: Actor, r: Record<string, unknown>) => a.role === "admin" || String(r.owner) === a.id;
-const forStudent = (a: Actor, r: Record<string, unknown>) => String(r.status) === "published" && Number(r.assign_at || 0) <= Date.now() && (JSON.parse(String(r.students || "[]")) as string[]).includes(a.id);
+const forStudent = (a: Actor, r: Record<string, unknown>) => String(r.type) !== "lesson" && String(r.status) === "published" && Number(r.assign_at || 0) <= Date.now() && (JSON.parse(String(r.students || "[]")) as string[]).includes(a.id);
 
 /** Lazy scheduler (runs at most once a minute from any request): release scheduled packs and send due-soon reminders. */
 let lastSweep = 0;
@@ -74,9 +75,9 @@ export function packSweep(c: PackCtx) {
   lastSweep = now;
   for (const r of c.sql.exec(`SELECT * FROM lpack WHERE status='published' AND notified=0 AND assign_at<=?`, now).toArray()) {
     c.sql.exec(`UPDATE lpack SET notified=1 WHERE id=?`, String(r.id));
-    c.notify(JSON.parse(String(r.students || "[]")), "lp_new", { title: String(r.title), by: String(r.owner_name || ""), ...(r.hw ? { hw: String(r.hw) } : {}) });
+    c.notify(JSON.parse(String(r.students || "[]")), String(r.type) === "activity" ? "lp_activity" : "lp_new", { title: String(r.title), by: String(r.owner_name || ""), ...(r.hw ? { hw: String(r.hw) } : {}) });
   }
-  for (const r of c.sql.exec(`SELECT * FROM lpack WHERE status='published' AND type!='material' AND due_notified=0 AND due>? AND due<?`, now, now + 24 * 3600e3).toArray()) {
+  for (const r of c.sql.exec(`SELECT * FROM lpack WHERE status='published' AND type NOT IN ('material','lesson') AND due_notified=0 AND due>? AND due<?`, now, now + 24 * 3600e3).toArray()) {
     c.sql.exec(`UPDATE lpack SET due_notified=1 WHERE id=?`, String(r.id));
     const left = (JSON.parse(String(r.students || "[]")) as string[]).filter((s) => { const sb = r.hw ? c.subOf(String(r.hw), s) : null; return !sb || sb.status === "draft" || sb.status === "returned"; });
     if (left.length && Number(r.assign_at || 0) <= now) c.notify(left, "lp_due", { title: String(r.title), ...(r.hw ? { hw: String(r.hw) } : {}) });
@@ -147,6 +148,7 @@ export async function packHandle(c: PackCtx, a: Actor, action: string, input: Js
       if (!r || !mine(a, r)) return { status: 404, body: { error: "not_found" } };
       if (!acc.edit && !acc.add) return forbid("lp_edit_not_allowed");
       if (input.off === true) { if (r.hw) await c.hwDelete(a, String(r.hw)); sql.exec(`UPDATE lpack SET status='draft', hw='', notified=0, due_notified=0 WHERE id=?`, id); return { status: 200, body: { ok: true, pack: row(get()!) } }; }
+      if (String(r.type) === "lesson") return { status: 400, body: { error: "lesson_not_assignable" } };
       if (!(JSON.parse(String(r.students || "[]")) as unknown[]).length) return { status: 400, body: { error: "no_students" } };
       sql.exec(`UPDATE lpack SET status='published' WHERE id=?`, id);
       const rr = await publish(c, a, id);
@@ -215,13 +217,13 @@ async function publish(c: PackCtx, a: Actor, id: string): Promise<Reply> {
   const r = c.sql.exec(`SELECT * FROM lpack WHERE id=?`, id).toArray()[0];
   if (!r) return { status: 404, body: { error: "not_found" } };
   const type = String(r.type);
-  if (type === "material") { if (r.hw) { await c.hwDelete(a, String(r.hw)); c.sql.exec(`UPDATE lpack SET hw='' WHERE id=?`, id); } return { status: 200, body: { ok: true } }; }
+  if (type === "material" || type === "lesson") { if (r.hw) { await c.hwDelete(a, String(r.hw)); c.sql.exec(`UPDATE lpack SET hw='' WHERE id=?`, id); } return { status: 200, body: { ok: true } }; }
   const sl = JSON.parse(String(r.slides || "[]")) as { els: Json[] }[];
   const q = sl.flatMap((s) => s.els).find((e) => e.t === "quran");
   if (type === "quran" && !q) return { status: 400, body: { error: "lp_needs_quran_slide" } };
   const students = JSON.parse(String(r.students || "[]")) as string[];
   const assignAt = Number(r.assign_at || 0);
-  const data = type === "quran" ? { surah: q!.surah, from: q!.from, to: q!.to, reciter: q!.reciter, memorise: q!.memorise === true, memoAudio: q!.memoAudio !== false, translit: q!.translit === true, translation: q!.translation === true, notes: String(q!.notes || ""), pack: id, assignAt } : { slides: [], question: "", pack: id, assignAt };
+  const data = type === "quran" ? { surah: q!.surah, from: q!.from, to: q!.to, reciter: q!.reciter, memorise: q!.memorise === true, memoAudio: q!.memoAudio !== false, translit: q!.translit === true, translation: q!.translation === true, notes: String(q!.notes || ""), pack: id, assignAt } : { slides: [], question: "", pack: id, assignAt, ...(type === "activity" ? { activity: true } : {}) };
   const rr = await c.hwSave(a, { id: String(r.hw || "") || undefined, kind: type === "quran" ? "quran" : "general", title: String(r.title), cls: "", section: "", students, due: Number(r.due || 0) || null, data, quiet: true });
   if (rr.status !== 200) return rr;
   const hw = String((rr.body as { id?: string }).id || r.hw || "");

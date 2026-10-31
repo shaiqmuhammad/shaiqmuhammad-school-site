@@ -12,16 +12,20 @@ export type ElAudio = { t: "audio"; src: string };
 export type ElDraw = { t: "draw"; paths: { c: string; w: number; d: number[] }[] };
 export type ElYt = { t: "yt"; vid: string; title?: string };
 export type ElAct = { t: "act"; code?: string; quiz?: string; label?: string };
+export type ElDoc = { t: "doc"; src: string; kind: "pptx" | "pdf"; name?: string };
 export type ElQuran = { t: "quran"; surah: number; from: number; to: number; reciter?: string; memorise?: boolean; memoAudio?: boolean; translit?: boolean; translation?: boolean; notes?: string };
-export type El = { id: string; x: number; y: number; w: number; h: number; by?: "t" | "s" } & (ElText | ElImg | ElAudio | ElDraw | ElYt | ElAct | ElQuran);
+export type El = { id: string; x: number; y: number; w: number; h: number; by?: "t" | "s" } & (ElText | ElImg | ElAudio | ElDraw | ElYt | ElAct | ElQuran | ElDoc);
 export type Slide = { id: string; bg: string; els: El[] };
-export type PackType = "material" | "homework" | "quran";
+export type PackType = "lesson" | "activity" | "homework" | "quran" | "material";
 export type Topic = { cur?: string; title?: string; yr?: string; term?: string; std?: string[] };
 export type Pack = { id: string; owner: string; ownerName: string; title: string; type: PackType; subject: string; aud: string[]; students: string[]; topic: Topic; mode: "self" | "live"; assignAt: number; due: number; status: "draft" | "published"; hw: string; live: number; tpl: boolean; created: number; updated: number; slides?: Slide[]; count?: number };
 export type Acc = { show: boolean; view: boolean; add: boolean; edit: boolean; delete: boolean };
 export type Progress = { student: string; seen: number; total: number; updated: number; status: string };
 export const FONTS = ["Nunito", "Arial", "Georgia", "Times New Roman", "Courier New", "Comic Sans MS", "Amiri", "Tajawal", "Verdana"];
-export const TYPE_LABEL: Record<PackType, [string, string, string]> = { material: ["📚", "Learning Material", "مادة تعليمية"], homework: ["📝", "Homework", "واجب"], quran: ["📖", "Quran Homework", "واجب القرآن"] };
+export const TYPE_LABEL: Record<PackType, [string, string, string]> = { lesson: ["🎤", "Lesson", "درس"], activity: ["✏️", "Activity", "نشاط"], homework: ["📝", "Homework", "واجب"], quran: ["📖", "Quran Homework", "واجب القرآن"], material: ["📚", "Library material", "مادة المكتبة"] };
+/** t389: public link for an uploaded PowerPoint / PDF (rendered by the free Office / browser viewer). */
+export const docUrl = (id: string) => `${ASSESSMENT_API_BASE}/api/lms/lp-doc?id=${encodeURIComponent(id)}`;
+export const docViewer = (id: string, kind: "pptx" | "pdf") => (kind === "pdf" ? docUrl(id) : `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(docUrl(id))}`);
 export const uid = (p = "e") => `${p}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
 export const blankSlide = (): Slide => ({ id: uid("s"), bg: "#ffffff", els: [] });
 

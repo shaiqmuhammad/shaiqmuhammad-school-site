@@ -106,6 +106,7 @@ const PUSH_TEXT: Record<string, [string, string]> = {
   message: ["New message", "{by}: {title}"], announcement: ["Announcement", "{title}"], reminder: ["Homework reminder", "{title}"], revise: ["Time to revise", "{title}"], test: ["Test notification", "Push notifications are working ✅"],
   lesson: ["Lesson in {mins} min", "{subject} · {cls} at {time}"],
   tt_shared: ["Timetable shared", "{by}: {title}"],
+  lp_activity: ["New class activity", "{by}: {title}"],
   tt_observe_req: ["Observation request", "{by} would like to observe your lesson on {day} at {time}"],
   tt_observe_reply: ["Observation {status}", "{by}: {day} at {time}"],
   hw_shared: ["Homework shared with you", "{by}: {title}"],
@@ -114,6 +115,7 @@ const PUSH_TEXT: Record<string, [string, string]> = {
 const DEFAULT_CATS: [string, number, string][] = [["Helping", 1, "🤝"], ["Teamwork", 1, "👥"], ["Recitation", 1, "📖"], ["Respect", 1, "🌟"], ["Hard work", 1, "💪"], ["Off-task", -1, "💤"], ["Disrespect", -1, "⚠️"]];
 /** Spaced revision after a pass: 1, 3, 7, 14, 30, then every 60 days. */
 const REVISION_DAYS = [1, 3, 7, 14, 30, 60];
+const PPTX_MIME = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
 const MAX_AUDIO = 1_600_000; // ~3 min at 24 kbps + container overhead, with headroom
 const USER_AUDIO_CAP = 30_000_000;
 const TOTAL_AUDIO_CAP = 1_500_000_000;
@@ -874,9 +876,11 @@ export class LmsStore extends DurableObject<LmsEnv> {
   async lpMediaUpload(a: Actor, data: ArrayBuffer, mime: string): Promise<Reply> {
     const type = mime.split(";")[0];
     const img = /^image\/(png|jpeg|webp|gif)$/.test(type), aud = AUDIO_TYPES.test(mime);
-    if (!img && !aud) return { status: 415, body: { error: "media_type" } };
+    const doc = type === PPTX_MIME || type === "application/pdf";
+    if (doc && a.role === "student") return { status: 403, body: { error: "staff_only" } };
+    if (!img && !aud && !doc) return { status: 415, body: { error: "media_type" } };
     if (!data.byteLength) return { status: 400, body: { error: "empty" } };
-    if (data.byteLength > (img ? 2_500_000 : MAX_AUDIO)) return { status: 413, body: { error: "too_large" } };
+    if (data.byteLength > (img || doc ? 2_500_000 : MAX_AUDIO)) return { status: 413, body: { error: "too_large" } };
     if (a.role === "teacher" && !mpOf(this.sql as never, a as never, "lp").view) return { status: 403, body: { error: "module_hidden" } };
     const used = Number(this.sql.exec(`SELECT COALESCE(SUM(size),0) AS n FROM blobs WHERE owner=?`, a.id).one().n);
     const total = Number(this.sql.exec(`SELECT COALESCE(SUM(size),0) AS n FROM blobs`).one().n);
@@ -886,6 +890,13 @@ export class LmsStore extends DurableObject<LmsEnv> {
     await this.files.put(id, data, type);
     this.sql.exec(`INSERT INTO blobs (id, owner, sub, kind, mime, size, created) VALUES (?, ?, '', 'lpm', ?, ?, ?)`, id, a.id, type, data.byteLength, Date.now());
     return { status: 200, body: { ok: true, id } };
+  }
+  /** t389: public, unguessable link for an uploaded PowerPoint / PDF so the free Office / PDF web viewer can render it. */
+  async lpDocPublic(id: string): Promise<{ status: number; mime?: string; data?: ArrayBuffer }> {
+    const b = this.sql.exec(`SELECT * FROM blobs WHERE id=? AND kind='lpm'`, id).toArray()[0];
+    if (!b || (String(b.mime) !== PPTX_MIME && String(b.mime) !== "application/pdf")) return { status: 404 };
+    const f = await this.files.get(id); if (!f) return { status: 404 };
+    return { status: 200, mime: String(b.mime), data: f.body instanceof ArrayBuffer ? f.body : await new Response(f.body).arrayBuffer() };
   }
   async lpMediaGet(a: Actor, id: string): Promise<{ status: number; mime?: string; data?: ArrayBuffer; error?: string }> {
     const b = this.sql.exec(`SELECT * FROM blobs WHERE id=? AND kind='lpm'`, id).toArray()[0];
@@ -2064,7 +2075,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
       case "dashboard": {
         if (a.role === "student") {
           if (!a.viewAs) { this.touch(a.id); this.remind(a); }
-          const hw = this.assignedTo(a).map((h) => { const sb = this.sub(h.id, a.id); return { ...h, sub: sb, locked: this.lockedFor(h, a.id), lockedBy: this.lockInfo(h, a.id), late: !!(h.due && ((sb?.submittedAt || 0) > h.due || (!(sb?.submittedAt) && h.due < Date.now()))) }; });
+          const hw = this.assignedTo(a).filter((h) => !(h.data as { activity?: boolean } | undefined)?.activity).map((h) => { const sb = this.sub(h.id, a.id); return { ...h, sub: sb, locked: this.lockedFor(h, a.id), lockedBy: this.lockInfo(h, a.id), late: !!(h.due && ((sb?.submittedAt || 0) > h.due || (!(sb?.submittedAt) && h.due < Date.now()))) }; });
           return { status: 200, body: { homework: hw, tracker: this.trackerOf(a.id), progress: this.progressOf(a.id), leaderboard: this.setting("leaderboard", "off") !== "off" } };
         }
         const qd = qhwOf(a);
@@ -3130,6 +3141,13 @@ export async function handleLms(request: Request, env: LmsEnv, action: string): 
     const r = (await store.qrAudio(str(q.get("t"), 80), str(q.get("id"), 40))) as unknown as { status: number; mime?: string; data?: ArrayBuffer };
     if (r.status !== 200 || !r.data) return reply(origin, { error: "not_found" }, 404);
     return new Response(r.data, { headers: { ...corsHeaders(origin), "Content-Type": r.mime || "audio/mpeg", "Cache-Control": "private, max-age=3600", "X-Robots-Tag": "noindex" } });
+  }
+  if (action === "lp-doc") {
+    const id = str(new URL(request.url).searchParams.get("id"), 60);
+    if (!/^lpm_[a-z0-9_]{6,40}$/i.test(id)) return reply(origin, { error: "not_found" }, 404);
+    const r = await store.lpDocPublic(id) as unknown as { status: number; mime?: string; data?: ArrayBuffer };
+    if (r.status !== 200 || !r.data) return reply(origin, { error: "not_found" }, 404);
+    return new Response(r.data, { headers: { ...corsHeaders(origin), "Content-Type": r.mime || "application/octet-stream", "Cache-Control": "public, max-age=86400", "X-Robots-Tag": "noindex", "Content-Disposition": `inline; filename="${r.mime === "application/pdf" ? "slides.pdf" : "slides.pptx"}"` } });
   }
   if (action === "lp-media-upload" || action === "lp-media") {
     const a = await lmsActor(request, env, store);
