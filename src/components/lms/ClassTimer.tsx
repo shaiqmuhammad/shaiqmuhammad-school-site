@@ -10,6 +10,20 @@ type St = { mode: "timer" | "stopwatch"; open: boolean; big: boolean; corner: "b
 const KEY = "sm-class-timer";
 const DEF: St = { mode: "timer", open: false, big: false, corner: "br", end: null, left: 0, total: 0, swStart: null, swAcc: 0, laps: [], done: false };
 const load = (): St => { try { return { ...DEF, ...JSON.parse(localStorage.getItem(KEY) || "{}") }; } catch { return DEF; } };
+/** t386/t387: timer looks — navy & gold by default; per-device choice (localStorage), client-side only. */
+type Look = { theme: string; style: "glass" | "solid" | "outline"; font: "rounded" | "led"; accent: string };
+const LOOK_KEY = "sm_timer_look_v1";
+const THEMES: Record<string, { name: [string, string]; a: string; b: string; fg: string; acc: string; light?: boolean }> = {
+  navy: { name: ["Navy & Gold", "كحلي وذهبي"], a: "#1b3a57", b: "#0b1b2b", fg: "#f5c542", acc: "#f5c542" },
+  dark: { name: ["Classic dark", "داكن كلاسيكي"], a: "#27272a", b: "#09090b", fg: "#fafafa", acc: "#a1a1aa" },
+  ocean: { name: ["Ocean glass", "زجاج المحيط"], a: "#0e7490", b: "#1e3a8a", fg: "#e0f2fe", acc: "#7dd3fc" },
+  emerald: { name: ["Emerald", "زمردي"], a: "#065f46", b: "#022c22", fg: "#d1fae5", acc: "#34d399" },
+  sunset: { name: ["Sunset", "غروب"], a: "#9a3412", b: "#4c0519", fg: "#ffedd5", acc: "#fb923c" },
+  light: { name: ["Light minimal", "فاتح بسيط"], a: "#ffffff", b: "#e2e8f0", fg: "#1b2f44", acc: "#1b3a57", light: true },
+  contrast: { name: ["High contrast", "تباين عالٍ"], a: "#000000", b: "#000000", fg: "#ffff00", acc: "#ffff00" },
+};
+const LOOK0: Look = { theme: "navy", style: "glass", font: "rounded", accent: "" };
+const loadLook = (): Look => { try { return { ...LOOK0, ...JSON.parse(localStorage.getItem(LOOK_KEY) || "{}") }; } catch { return LOOK0; } };
 export function openClassTimer(mode: "timer" | "stopwatch") { window.dispatchEvent(new CustomEvent("sm-timer-open", { detail: mode })); }
 const fmt = (ms: number, cs = false) => { const t = Math.max(0, ms); const m = Math.floor(t / 60000), s = Math.floor((t % 60000) / 1000); return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}${cs ? "." + String(Math.floor((t % 1000) / 10)).padStart(2, "0") : ""}`; };
 
@@ -23,6 +37,10 @@ export function ClassTimer() {
   // t382: pop-out window that stays on top of other apps (Document Picture-in-Picture, Chrome/Edge 116+).
   const [pip, setPip] = useState<Window | null>(null);
   const [pipMsg, setPipMsg] = useState("");
+  const [look, setLook] = useState<Look>(LOOK0);
+  const [pick, setPick] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setLook(loadLook()), 0); return () => clearTimeout(t); }, []);
+  const saveLook = (l: Look) => { setLook(l); try { localStorage.setItem(LOOK_KEY, JSON.stringify(l)); } catch { /* */ } };
   useEffect(() => () => { try { pip?.close(); } catch { /* */ } }, [pip]);
   const popOut = async () => {
     const dpip = (window as unknown as { documentPictureInPicture?: { requestWindow: (o: { width: number; height: number }) => Promise<Window>; window?: Window | null } }).documentPictureInPicture;
@@ -84,45 +102,57 @@ export function ClassTimer() {
   const vw = typeof window === "undefined" ? 1280 : window.innerWidth;
   const W = Math.round(Math.min(vw - 24, st.big ? Math.max(640, st.w || 400) : st.w || (vw < 640 ? 300 : 400)));
   const last = st.mode === "timer" && !!st.end && left <= 10000;
-  const bg = st.done ? "linear-gradient(145deg,rgba(239,68,68,0.85),rgba(244,63,94,0.7))" : last ? (left <= 5000 ? "linear-gradient(145deg,rgba(239,68,68,0.82),rgba(249,115,22,0.7))" : "linear-gradient(145deg,rgba(249,115,22,0.8),rgba(251,191,36,0.7))") : st.mode === "timer" ? "linear-gradient(145deg,rgba(45,212,191,0.72),rgba(139,92,246,0.68))" : "linear-gradient(145deg,rgba(251,191,36,0.75),rgba(236,72,153,0.68))";
-  const glow = st.done || last ? "0 0 40px rgba(239,68,68,0.55), 0 12px 40px rgba(11,27,43,0.35)" : st.mode === "timer" ? "0 0 36px rgba(45,212,191,0.45), 0 12px 40px rgba(11,27,43,0.3)" : "0 0 36px rgba(236,72,153,0.4), 0 12px 40px rgba(11,27,43,0.3)";
+  const T = THEMES[look.theme] || THEMES.navy; const acc = look.accent || T.acc; const al = (c: string, x: string) => c + x;
+  const bg = st.done ? "linear-gradient(145deg,rgba(220,38,38,0.92),rgba(127,29,29,0.9))" : look.style === "solid" ? `linear-gradient(145deg,${T.a},${T.b})` : look.style === "outline" ? (T.light ? "rgba(255,255,255,0.55)" : "rgba(11,27,43,0.35)") : `linear-gradient(145deg,${al(T.a, "d9")},${al(T.b, "cc")})`;
+  const glow = st.done ? "0 0 44px rgba(239,68,68,0.65), 0 12px 40px rgba(11,27,43,0.35)" : last ? `0 0 52px ${al(acc, "cc")}, 0 12px 40px rgba(11,27,43,0.35)` : `0 0 30px ${al(acc, "55")}, 0 12px 40px rgba(11,27,43,0.35)`;
+  const digitColor = st.done ? "#fff" : look.style === "outline" && !T.light ? acc : T.fg === T.acc || !look.accent ? (last ? "#ffe066" : T.fg) : T.fg;
+  const fontFam = look.font === "led" ? "'Orbitron','DS-Digital','Courier New',ui-monospace,monospace" : "'Nunito','Arial Rounded MT Bold',ui-rounded,system-ui,sans-serif";
+  const gbtn = { background: acc, color: T.light ? "#fff" : "#1b2f44" };
+  const sbtn = { background: T.light ? "rgba(27,58,87,0.08)" : "rgba(255,255,255,0.12)", color: T.light ? "#1b2f44" : T.fg, border: `1px solid ${al(acc, "88")}` };
   const resize = (e: React.PointerEvent) => {
     e.preventDefault(); e.stopPropagation(); const x0 = e.clientX, w0 = W, rightDock = st.corner.endsWith("r");
     const mv = (ev: PointerEvent) => { const d = (ev.clientX - x0) * (rightDock ? -1 : 1); const nw = Math.max(240, Math.min(window.innerWidth - 24, w0 + d)); setSt((o) => ({ ...o, w: nw, big: false })); };
     const up = () => { window.removeEventListener("pointermove", mv); window.removeEventListener("pointerup", up); setSt((o) => { try { localStorage.setItem(KEY, JSON.stringify(o)); } catch { /* */ } return o; }); };
     window.addEventListener("pointermove", mv); window.addEventListener("pointerup", up);
   };
-  const digit = pip ? { fontSize: st.mode === "timer" ? "min(27vw, 42vh)" : "min(17vw, 34vh)", lineHeight: 1, color: "#fff", textShadow: "0 3px 18px rgba(0,0,0,0.35)" } : { fontSize: Math.round(W * (st.mode === "timer" ? 0.24 : 0.15)), lineHeight: 1.05, color: "#fff", textShadow: "0 3px 18px rgba(0,0,0,0.35)" };
+  const digit = pip ? { fontSize: st.mode === "timer" ? "min(27vw, 42vh)" : "min(17vw, 34vh)", lineHeight: 1, color: digitColor, fontFamily: fontFam, letterSpacing: look.font === "led" ? "0.06em" : undefined, textShadow: `0 0 18px ${al(acc, "77")}` } : { fontSize: Math.round(W * (st.mode === "timer" ? 0.24 : 0.15)), lineHeight: 1.05, color: digitColor, fontFamily: fontFam, letterSpacing: look.font === "led" ? "0.06em" : undefined, textShadow: `0 0 18px ${al(acc, "77")}` };
   const ui = (
-    <div className={`${pip ? "relative flex h-screen w-screen flex-col" : `fixed ${pos} z-[2500]`} overflow-hidden rounded-[2rem] border border-white/60 text-[#1b2f44] backdrop-blur-xl transition-[background,box-shadow] duration-500`} style={{ background: bg, boxShadow: glow, ...(pip ? {} : { width: W }) }} data-testid="class-timer" role="region" aria-label={st.mode === "timer" ? tr("Timer", "المؤقت") : tr("Stopwatch", "ساعة الإيقاف")}>
-      <div className="flex cursor-grab touch-none items-center gap-1 bg-[#1b3a57]/90 px-3 py-1.5 text-white" onPointerDown={pip ? undefined : drag} title={tr("Drag to a corner", "اسحب إلى زاوية")}>
-        <span className="flex-1 text-xs font-extrabold uppercase tracking-wider text-[#f5c542]">{st.mode === "timer" ? "⏱ " + tr("Timer", "المؤقت") : "⏲ " + tr("Stopwatch", "ساعة الإيقاف")}</span>
+    <div className={`${pip ? "relative flex h-screen w-screen flex-col" : `fixed ${pos} z-[2500]`} overflow-hidden rounded-[2rem] border-2 backdrop-blur-xl transition-[background,box-shadow] duration-500`} style={{ background: bg, boxShadow: glow, borderColor: look.style === "outline" ? acc : al(acc, "66"), color: T.light ? "#1b2f44" : T.fg, ...(pip ? {} : { width: W }) }} data-testid="class-timer" role="region" aria-label={st.mode === "timer" ? tr("Timer", "المؤقت") : tr("Stopwatch", "ساعة الإيقاف")}>
+      <div className="flex cursor-grab touch-none items-center gap-1 bg-black/25 px-3 py-1.5" style={{ color: T.light ? "#1b2f44" : T.fg }} onPointerDown={pip ? undefined : drag} title={tr("Drag to a corner", "اسحب إلى زاوية")}>
+        <span className="flex-1 text-xs font-extrabold uppercase tracking-wider" style={{ color: acc }}>{st.mode === "timer" ? "⏱ " + tr("Timer", "المؤقت") : "⏲ " + tr("Stopwatch", "ساعة الإيقاف")}</span>
+        <button type="button" onPointerDown={(e) => e.stopPropagation()} className="rounded-full px-1.5 text-sm" onClick={() => setPick(!pick)} aria-label={tr("Timer look", "مظهر المؤقت")} aria-expanded={pick} data-testid="timer-look">🎨</button>
         <button type="button" onPointerDown={(e) => e.stopPropagation()} className="rounded-full px-1.5 text-sm" onClick={() => save({ ...st, mode: st.mode === "timer" ? "stopwatch" : "timer" })} aria-label={tr("Switch", "تبديل")} data-testid="timer-switch">⇄</button>
         <button type="button" onPointerDown={(e) => e.stopPropagation()} className="rounded-full px-1.5 text-sm" onClick={() => save({ ...st, big: !st.big })} hidden={!!pip} aria-label={st.big ? tr("Make small", "تصغير") : tr("Make big", "تكبير")} data-testid="timer-size">{st.big ? "▭" : "⛶"}</button>
         <button type="button" onPointerDown={(e) => e.stopPropagation()} className="rounded-full px-1.5 text-sm" onClick={() => (pip ? pip.close() : popOut())} title={pip ? tr("Back to the page", "العودة إلى الصفحة") : tr("Pop out (stays on top)", "نافذة عائمة (فوق التطبيقات)")} aria-label={pip ? tr("Back to the page", "العودة إلى الصفحة") : tr("Pop out (stays on top)", "نافذة عائمة")} data-testid="timer-popout">{pip ? "↩" : "⧉"}</button>
         <button type="button" onPointerDown={(e) => e.stopPropagation()} className="rounded-full px-1.5 text-sm" onClick={() => { try { pip?.close(); } catch { /* */ } resetT(); save({ ...load(), open: false, end: null, left: 0, done: false, swStart: null, swAcc: 0, laps: [] }); }} aria-label={tr("Close", "إغلاق")} data-testid="timer-close">✕</button>
       </div>
+      {pick && <div className="space-y-2 bg-white/95 px-3 py-2 text-xs text-[#1b2f44]" data-testid="timer-look-panel">
+        <div className="flex flex-wrap gap-1">{Object.entries(THEMES).map(([k, t]) => <button key={k} type="button" aria-pressed={look.theme === k} onClick={() => saveLook({ ...look, theme: k })} className={`flex items-center gap-1 rounded-full border px-2 py-1 font-bold ${look.theme === k ? "border-[#1b3a57] ring-2 ring-[#f5c542]" : "border-black/10"}`} data-testid={`look-theme-${k}`}><span className="h-3.5 w-3.5 rounded-full" style={{ background: `linear-gradient(135deg,${t.a},${t.acc})` }} />{tr(...t.name)}</button>)}</div>
+        <div className="flex flex-wrap items-center gap-1"><b>{tr("Style", "النمط")}</b>{(["glass", "solid", "outline"] as const).map((x) => <button key={x} type="button" aria-pressed={look.style === x} onClick={() => saveLook({ ...look, style: x })} className={`rounded-full px-2 py-0.5 font-bold ${look.style === x ? "bg-[#1b3a57] text-[#f5c542]" : "bg-black/5"}`} data-testid={`look-style-${x}`}>{x === "glass" ? tr("Glass", "زجاجي") : x === "solid" ? tr("Solid", "مصمت") : tr("Outline", "إطار")}</button>)}
+          <b className="ms-2">{tr("Digits", "الأرقام")}</b>{(["rounded", "led"] as const).map((x) => <button key={x} type="button" aria-pressed={look.font === x} onClick={() => saveLook({ ...look, font: x })} className={`rounded-full px-2 py-0.5 font-bold ${look.font === x ? "bg-[#1b3a57] text-[#f5c542]" : "bg-black/5"}`} data-testid={`look-font-${x}`}>{x === "rounded" ? tr("Bold rounded", "مستدير عريض") : tr("Digital / LED", "رقمي")}</button>)}
+          <label className="ms-2 flex items-center gap-1 font-bold">{tr("Accent", "لون مميز")}<input type="color" value={look.accent || T.acc} onChange={(e) => saveLook({ ...look, accent: e.target.value })} data-testid="look-accent" /></label>{look.accent && <button type="button" className="underline" onClick={() => saveLook({ ...look, accent: "" })}>{tr("Reset", "إعادة")}</button>}</div>
+      </div>}
       {pipMsg && !pip && <p className="bg-amber-100 px-3 py-1.5 text-xs font-bold text-amber-900" role="status" data-testid="timer-pip-msg">{pipMsg}</p>}
       <div className={pip ? "flex flex-1 flex-col justify-center p-3" : "p-3"}>
         {st.mode === "timer" ? (<>
-          <p className={`text-center font-mono font-black tabular-nums `} style={digit} data-testid="timer-display">{st.done ? tr("Time's up!", "انتهى الوقت!") : fmt(left > 0 ? left : st.end ? 0 : cm * 60000 + cs * 1000)}</p>
-          {st.total > 0 && <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/60"><div className="h-full rounded-full bg-gradient-to-r from-[#f5c542] to-[#f97316] transition-all" style={{ width: `${pct * 100}%` }} /></div>}
+          <p className={`text-center font-black tabular-nums ${last && !st.done ? "animate-pulse" : ""}`} style={digit} data-testid="timer-display">{st.done ? tr("Time's up!", "انتهى الوقت!") : fmt(left > 0 ? left : st.end ? 0 : cm * 60000 + cs * 1000)}</p>
+          {st.total > 0 && <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/60"><div className="h-full rounded-full transition-all" style={{ width: `${pct * 100}%`, background: acc }} /></div>}
           {!st.end && st.left <= 0 && (<>
-            <div className="mt-2 flex flex-wrap justify-center gap-1">{[1, 2, 3, 5, 10].map((m) => <button key={m} type="button" className={`${btn} bg-white/80`} onClick={() => startT(m * 60000)} data-testid={`timer-preset-${m}`}>{m}′</button>)}</div>
-            {<div className="mt-2 flex items-center justify-center gap-1 text-sm font-bold"><input type="number" min={0} max={180} value={cm} onChange={(e) => setCm(Math.max(0, Number(e.target.value)))} className="w-16 rounded-xl border border-black/10 bg-white px-2 py-1 text-center" aria-label={tr("Minutes", "دقائق")} data-testid="timer-min" />:<input type="number" min={0} max={59} value={cs} onChange={(e) => setCs(Math.min(59, Math.max(0, Number(e.target.value))))} className="w-16 rounded-xl border border-black/10 bg-white px-2 py-1 text-center" aria-label={tr("Seconds", "ثوانٍ")} data-testid="timer-sec" /></div>}
+            <div className="mt-2 flex flex-wrap justify-center gap-1">{[1, 2, 3, 5, 10].map((m) => <button key={m} type="button" className={btn} style={sbtn} onClick={() => startT(m * 60000)} data-testid={`timer-preset-${m}`}>{m}′</button>)}</div>
+            {<div className="mt-2 flex items-center justify-center gap-1 text-sm font-bold"><input type="number" min={0} max={180} value={cm} onChange={(e) => setCm(Math.max(0, Number(e.target.value)))} className="w-16 rounded-xl border border-black/10 bg-white px-2 py-1 text-center text-[#1b2f44]" aria-label={tr("Minutes", "دقائق")} data-testid="timer-min" />:<input type="number" min={0} max={59} value={cs} onChange={(e) => setCs(Math.min(59, Math.max(0, Number(e.target.value))))} className="w-16 rounded-xl border border-black/10 bg-white px-2 py-1 text-center text-[#1b2f44]" aria-label={tr("Seconds", "ثوانٍ")} data-testid="timer-sec" /></div>}
           </>)}
           <div className="mt-2 flex flex-wrap justify-center gap-1.5">
-            {st.end ? <button type="button" className={`${btn} bg-amber-400`} onClick={pauseT} data-testid="timer-pause">⏸ {tr("Pause", "إيقاف")}</button> : !st.done && <button type="button" className={`${btn} bg-[#1b3a57] text-[#f5c542]`} onClick={() => startT()} data-testid="timer-start">▶ {st.left > 0 ? tr("Resume", "استئناف") : tr("Start", "ابدأ")}</button>}
-            <button type="button" className={`${btn} bg-white/80`} onClick={resetT} data-testid="timer-reset">↺ {tr("Reset", "إعادة")}</button>
+            {st.end ? <button type="button" className={btn} style={gbtn} onClick={pauseT} data-testid="timer-pause">⏸ {tr("Pause", "إيقاف")}</button> : !st.done && <button type="button" className={btn} style={gbtn} onClick={() => startT()} data-testid="timer-start">▶ {st.left > 0 ? tr("Resume", "استئناف") : tr("Start", "ابدأ")}</button>}
+            <button type="button" className={btn} style={sbtn} onClick={resetT} data-testid="timer-reset">↺ {tr("Reset", "إعادة")}</button>
           </div>
         </>) : (<>
-          <p className={`text-center font-mono font-black tabular-nums`} style={digit} data-testid="sw-display">{fmt(sw, true)}</p>
+          <p className={`text-center font-black tabular-nums`} style={digit} data-testid="sw-display">{fmt(sw, true)}</p>
           <div className="mt-2 flex flex-wrap justify-center gap-1.5">
-            {st.swStart ? <button type="button" className={`${btn} bg-amber-400`} onClick={() => save({ ...st, swStart: null, swAcc: sw })} data-testid="sw-pause">⏸ {tr("Pause", "إيقاف")}</button> : <button type="button" className={`${btn} bg-[#1b3a57] text-[#f5c542]`} onClick={() => { sfx("start"); save({ ...st, swStart: Date.now() }); setNow(Date.now()); }} data-testid="sw-start">▶ {tr("Start", "ابدأ")}</button>}
-            <button type="button" disabled={!st.swStart} className={`${btn} bg-white/80 disabled:opacity-50`} onClick={() => save({ ...st, laps: [sw, ...st.laps].slice(0, 30) })} data-testid="sw-lap">🏁 {tr("Lap", "لفة")}</button>
-            <button type="button" className={`${btn} bg-white/80`} onClick={() => save({ ...st, swStart: null, swAcc: 0, laps: [] })} data-testid="sw-reset">↺ {tr("Reset", "إعادة")}</button>
+            {st.swStart ? <button type="button" className={btn} style={gbtn} onClick={() => save({ ...st, swStart: null, swAcc: sw })} data-testid="sw-pause">⏸ {tr("Pause", "إيقاف")}</button> : <button type="button" className={btn} style={gbtn} onClick={() => { sfx("start"); save({ ...st, swStart: Date.now() }); setNow(Date.now()); }} data-testid="sw-start">▶ {tr("Start", "ابدأ")}</button>}
+            <button type="button" disabled={!st.swStart} className={`${btn} disabled:opacity-50`} style={sbtn} onClick={() => save({ ...st, laps: [sw, ...st.laps].slice(0, 30) })} data-testid="sw-lap">🏁 {tr("Lap", "لفة")}</button>
+            <button type="button" className={btn} style={sbtn} onClick={() => save({ ...st, swStart: null, swAcc: 0, laps: [] })} data-testid="sw-reset">↺ {tr("Reset", "إعادة")}</button>
           </div>
-          {st.laps.length > 0 && <ol className={`mt-2 space-y-0.5 overflow-y-auto rounded-2xl bg-white/60 px-3 py-1.5 font-mono text-xs ${st.big ? "max-h-40" : "max-h-20"}`} data-testid="sw-laps">{st.laps.map((l, i) => <li key={i} className="flex justify-between"><span>#{st.laps.length - i}</span><span>{fmt(l, true)}</span></li>)}</ol>}
+          {st.laps.length > 0 && <ol className={`mt-2 space-y-0.5 overflow-y-auto rounded-2xl bg-black/20 px-3 py-1.5 font-mono text-xs ${st.big ? "max-h-40" : "max-h-20"}`} data-testid="sw-laps">{st.laps.map((l, i) => <li key={i} className="flex justify-between"><span>#{st.laps.length - i}</span><span>{fmt(l, true)}</span></li>)}</ol>}
         </>)}
       </div>
       {!pip && <span onPointerDown={resize} className={`absolute bottom-1 ${st.corner.endsWith("r") ? "start-1 cursor-nesw-resize" : "end-1 cursor-nwse-resize"} grid h-6 w-6 touch-none place-items-center rounded-full bg-white/40 text-xs text-white`} title={tr("Drag to resize", "اسحب لتغيير الحجم")} aria-hidden data-testid="timer-resize">⤡</span>}
