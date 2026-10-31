@@ -86,11 +86,11 @@ export function LessonPagesManager({ asAdmin }: { asAdmin?: boolean }) {
       {msg && <p className="rounded-xl bg-sky-50 px-3 py-2 text-sm font-semibold text-[#1b2f44]" role="status" data-testid="pg-msg">{msg}</p>}
       {editor}
       {!data.items.length ? <p className="opacity-70">{tr("No lesson pages yet.", "لا توجد صفحات دروس بعد.")}</p> :
-        <div className="grid gap-4 sm:grid-cols-2">{data.items.map((p) => (
-          <div key={p.id} className="glass rounded-2xl p-4" data-testid="pg-card">
-            <button type="button" className="block w-full text-start" onClick={() => open(p.slug)}><h3 className="font-bold" dir="auto">{p.title}</h3><p className="mt-1 text-sm text-muted" dir="auto">{p.excerpt}</p></button>
+        <div className="grid gap-4 sm:grid-cols-2">{data.items.map((p, i) => (
+          <div key={p.id} className={`rounded-3xl border p-4 text-[#1b2f44] shadow-lg backdrop-blur-md transition hover:-translate-y-0.5 ${["border-sky-200/80 bg-gradient-to-br from-sky-100/90 via-white/70 to-cyan-100/80", "border-violet-200/80 bg-gradient-to-br from-violet-100/90 via-white/70 to-fuchsia-100/80", "border-amber-200/80 bg-gradient-to-br from-amber-100/90 via-white/70 to-rose-100/80", "border-emerald-200/80 bg-gradient-to-br from-emerald-100/90 via-white/70 to-teal-100/80"][i % 4]}`} data-testid="pg-card">
+            <button type="button" className="block w-full text-start" onClick={() => open(p.slug)}><h3 className="font-bold" dir="auto">{p.title}</h3><p className="mt-1 text-sm text-[#1b2f44]/75" dir="auto">{p.excerpt}</p></button>
             <p className="mt-2 text-xs opacity-70">{p.published ? tr("Published", "منشور") : tr("Draft", "مسودة")}{p.subject ? ` · ${p.subject}` : ""} · {p.ownerName}</p>
-            {(p.canEdit || p.canDelete) && <div className="mt-2 flex gap-3 text-sm">{p.canEdit && <button type="button" className="font-bold text-primary underline" onClick={() => edit(p)} data-testid="pg-edit">{tr("Edit", "تعديل")}</button>}{p.canDelete && <button type="button" className="font-bold text-rose-700 underline" onClick={() => del(p)} data-testid="pg-del">{tr("Delete", "حذف")}</button>}</div>}
+            {(p.canEdit || p.canDelete) && <div className="mt-2 flex gap-3 text-sm">{p.canEdit && <button type="button" className="font-bold text-[#1b3a57] underline" onClick={() => edit(p)} data-testid="pg-edit">{tr("Edit", "تعديل")}</button>}{p.canDelete && <button type="button" className="font-bold text-rose-700 underline" onClick={() => del(p)} data-testid="pg-del">{tr("Delete", "حذف")}</button>}</div>}
           </div>))}</div>}
     </section>
   );
