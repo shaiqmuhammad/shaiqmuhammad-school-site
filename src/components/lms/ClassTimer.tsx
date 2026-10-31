@@ -47,7 +47,7 @@ export function ClassTimer() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [now]);
-  useEffect(() => { if (st.mode === "timer" && st.end && !st.done) { if (!title.current) title.current = document.title; document.title = `⏱ ${fmt(left)}`; } else if (!st.done && title.current) { document.title = title.current; title.current = ""; } });
+  useEffect(() => { if (st.mode === "timer" && st.end && !st.done && left > 0) { if (!title.current) title.current = document.title; document.title = `⏱ ${fmt(left)}`; } else if (!st.done && title.current) { document.title = title.current; title.current = ""; } });
   if (!ok || !st.open) return null;
   const startT = (ms?: number) => { const l = ms ?? (st.left > 0 ? st.left : cm * 60000 + cs * 1000); if (l <= 0) return; sfx("start"); try { if ("Notification" in window && Notification.permission === "default") Notification.requestPermission().catch(() => undefined); } catch { /* */ } save({ ...st, end: Date.now() + l, left: l, total: ms ?? (st.total || l), done: false }); setNow(Date.now()); };
   const pauseT = () => save({ ...st, end: null, left: Math.max(0, left) });
