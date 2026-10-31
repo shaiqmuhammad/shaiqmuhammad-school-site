@@ -58,7 +58,7 @@ export function PackPlayer({ id, asAdmin = false, review, preview = false, locke
   const draw = () => layer.find((e) => e.t === "draw") as Extract<El, { t: "draw" }> | undefined;
   const selEl = layer.find((e) => e.id === sel);
   return (
-    <section ref={box} className={`space-y-2 ${full ? "fixed inset-0 z-[2147483000] overflow-auto bg-slate-900/95 p-3" : "rounded-3xl bg-white p-3 shadow-sm ring-1 ring-black/5 sm:p-4"}`} data-testid="lp-player">
+    <section ref={box} className={`space-y-2 ${full ? "fixed inset-0 z-[2147483000] overflow-auto bg-slate-900/95 p-3" : "rounded-3xl border border-white/60 bg-gradient-to-br from-sky-100/85 via-white/80 to-violet-100/80 p-3 text-[#1b2f44] shadow-lg backdrop-blur-md sm:p-4"}`} data-testid="lp-player">
       <div className={`flex flex-wrap items-center gap-2 text-sm font-bold ${full ? "text-white" : ""}`}>
         <span data-testid="lp-player-count">{tr(`Slide ${cur + 1} of ${slides.length}`, `الشريحة ${cur + 1} من ${slides.length}`)}</span>
         {live && <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs text-violet-900" data-testid="lp-following">📡 {tr("Following your teacher", "تتابع معلمك")}</span>}

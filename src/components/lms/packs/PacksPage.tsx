@@ -17,6 +17,15 @@ const TEMPLATES: [string, string, string, (ar: boolean) => Pack["slides"]][] = [
 ];
 
 /** t315: Learning Material — Lesson Packs list (admin + teachers) and the student list (from the Learning Libraries). */
+/** t391: frosted tints and badges per type. */
+const TINT: Record<PackType, string> = {
+  lesson: "border-[#1b3a57]/25 bg-gradient-to-br from-[#dbe7f3]/90 via-white/75 to-[#fdf0c4]/85",
+  activity: "border-violet-200/80 bg-gradient-to-br from-violet-100/90 via-white/70 to-fuchsia-100/80",
+  homework: "border-amber-200/80 bg-gradient-to-br from-amber-100/90 via-white/70 to-rose-100/80",
+  quran: "border-emerald-200/80 bg-gradient-to-br from-emerald-100/90 via-white/70 to-teal-100/80",
+  material: "border-sky-200/80 bg-gradient-to-br from-sky-100/90 via-white/70 to-cyan-100/80",
+};
+const BADGE: Record<PackType, string> = { lesson: "bg-[#1b3a57] text-[#f5c542]", activity: "bg-violet-600 text-white", homework: "bg-amber-500 text-[#1b2f44]", quran: "bg-emerald-600 text-white", material: "bg-sky-600 text-white" };
 export function PacksPage() {
   const { tr, lang } = useTr();
   const { actor, ready } = useLmsActor();
@@ -44,12 +53,12 @@ export function PacksPage() {
         {edit && acc ? <PackEditor key={edit.id || "new"} initial={edit} acc={acc} asAdmin={asAdmin} subjects={asAdmin ? ["Islamic A", "Islamic B", ...(actor?.subj || [])].filter((x, i, a) => a.indexOf(x) === i)   : teacherSubjects(actor as never)} onClose={() => { setEdit(null); load(); }} />
         : open ? <div className="space-y-2"><button type="button" className={smallBtn} onClick={() => setOpen("")} data-testid="lp-close">← {tr("Back", "رجوع")}</button><PackPlayer id={open} asAdmin={asAdmin} preview={staff} /></div>
         : <>
-          <div className="rounded-3xl bg-gradient-to-br from-[#1d4a6e] to-header p-5 text-white">
+          <div className="relative overflow-hidden rounded-3xl border border-white/30 bg-gradient-to-br from-[#1b3a57]/90 via-[#24507a]/85 to-[#1b3a57]/90 p-5 text-white shadow-[0_12px_40px_-12px_rgba(11,27,43,0.6)] backdrop-blur-xl"><div aria-hidden className="pointer-events-none absolute -end-10 -top-10 h-40 w-40 rounded-full bg-[#f5c542]/30 blur-3xl" />
             <h1 className="text-2xl font-extrabold !text-white">📚 {title}</h1>
             <p className="text-sm opacity-90">{staff ? tr("Build slide lessons and homework: text, pictures, drawing, audio, your YouTube videos, activities and Quran — then assign by year group, class, section or group.", "أنشئ دروسًا وواجبات بالشرائح: نصوص وصور ورسم وصوت وفيديوهاتك وأنشطة وقرآن — ثم أسندها.") : tr("Lessons from your teachers. Open one, then type, draw or record on the slides.", "دروس من معلميك. افتح درسًا واكتب أو ارسم أو سجّل على الشرائح.")}</p>
           </div>
           {msg && <p className="text-sm font-semibold" role="status">{msg}</p>}
-          {staff && acc?.add && <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-white p-3 shadow-sm ring-1 ring-black/5" data-testid="lp-new">
+          {staff && acc?.add && <div className="flex flex-wrap items-center gap-2 rounded-3xl border border-white/60 bg-gradient-to-r from-sky-100/80 via-white/75 to-amber-100/80 p-3 text-[#1b2f44] shadow-lg backdrop-blur-md" data-testid="lp-new">
             <b className="text-sm">➕ {tr("New", "جديد")}:</b>
             <label className="text-sm font-bold">{tr("Type", "النوع")} <select className="rounded-xl border border-black/10 bg-white px-2 py-1 text-sm" value={ntype} onChange={(e) => setNtype(e.target.value as PackType)} data-testid="lp-new-type">{(["lesson", "activity", "homework", "quran"] as PackType[]).map((k) => <option key={k} value={k}>{TYPE_LABEL[k][0]} {tr(TYPE_LABEL[k][1], TYPE_LABEL[k][2])}</option>)}</select></label>
             <button type="button" className="rounded-full bg-[#1b3a57] px-4 py-1.5 text-sm font-extrabold text-[#f5c542]" onClick={() => newPack(ntype, ntype === "lesson" ? "lesson" : "hw")} data-testid="lp-new-go">➕ {tr("Create", "إنشاء")}</button>
@@ -58,11 +67,11 @@ export function PacksPage() {
             {TEMPLATES.map(([k, en, ar]) => <button key={k} type="button" className={smallBtn} onClick={() => newPack(k === "hw" ? "homework" : "material", k)} data-testid={`lp-tpl-${k}`}>{tr(en, ar)}</button>)}
           </div>}
           {staff && !acc?.view && items && <p className="text-sm">{tr("This module is hidden for your account.", "هذه الوحدة مخفية لحسابك.")}</p>}
-          <div className="flex flex-wrap gap-1.5">{(["", "lesson", "activity", "homework", "quran", "material"] as const).map((k) => <button key={k} type="button" aria-pressed={filter === k} className={`rounded-full px-3 py-1 text-sm font-bold ring-1 ring-black/10 ${filter === k ? "bg-header text-sun" : "bg-white text-[#1b2f44]"}`} onClick={() => setFilter(k)}>{k ? `${TYPE_LABEL[k][0]} ${tr(TYPE_LABEL[k][1], TYPE_LABEL[k][2])}` : tr("All", "الكل")}</button>)}</div>
+          <div className="flex flex-wrap gap-1.5">{(["", "lesson", "activity", "homework", "quran", "material"] as const).map((k) => <button key={k} type="button" aria-pressed={filter === k} className={`rounded-full px-3 py-1 text-sm font-bold ring-1 ring-black/10 ${filter === k ? "bg-[#1b3a57] text-[#f5c542]" : "bg-white/80 text-[#1b2f44] backdrop-blur"}`} onClick={() => setFilter(k)}>{k ? `${TYPE_LABEL[k][0]} ${tr(TYPE_LABEL[k][1], TYPE_LABEL[k][2])}` : tr("All", "الكل")}</button>)}</div>
           <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" data-testid="lp-list">
-            {items === null ? <li>…</li> : list.length === 0 ? <li className="glass rounded-3xl p-4 text-sm opacity-80">{staff ? tr("No packs yet — start with a template above.", "لا توجد حزم بعد — ابدأ بقالب.") : tr("Nothing here yet.", "لا شيء هنا بعد.")}</li> : list.map((x) => (
-              <li key={x.id} className="glass space-y-2 rounded-3xl p-4" data-testid="lp-item">
-                <div className="flex items-start gap-2"><span className="text-2xl">{TYPE_LABEL[x.type][0]}</span><div className="min-w-0 flex-1"><p className="font-extrabold" dir="auto">{x.title}</p><p className="text-xs opacity-70">{tr(TYPE_LABEL[x.type][1], TYPE_LABEL[x.type][2])} · {x.count} {tr("slides", "شرائح")}{x.subject ? ` · ${x.subject}` : ""}{x.topic?.title ? ` · ${x.topic.title}` : ""}</p>
+            {items === null ? <li>…</li> : list.length === 0 ? <li className="rounded-3xl border border-white/60 bg-white/75 p-4 text-sm text-[#1b2f44] backdrop-blur-md">{staff ? tr("No packs yet — start with a template above.", "لا توجد حزم بعد — ابدأ بقالب.") : tr("Nothing here yet.", "لا شيء هنا بعد.")}</li> : list.map((x) => (
+              <li key={x.id} className={`space-y-2 rounded-3xl border p-4 text-[#1b2f44] shadow-lg backdrop-blur-md transition hover:-translate-y-0.5 ${TINT[x.type]}`} data-testid="lp-item">
+                <div className="flex items-start gap-2"><span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-white/80 text-2xl shadow-inner">{TYPE_LABEL[x.type][0]}</span><div className="min-w-0 flex-1"><p className="font-extrabold" dir="auto">{x.title}</p><span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-extrabold ${BADGE[x.type]}`} data-testid="lp-badge">{tr(TYPE_LABEL[x.type][1], TYPE_LABEL[x.type][2])}</span><p className="text-xs opacity-70">{tr(TYPE_LABEL[x.type][1], TYPE_LABEL[x.type][2])} · {x.count} {tr("slides", "شرائح")}{x.subject ? ` · ${x.subject}` : ""}{x.topic?.title ? ` · ${x.topic.title}` : ""}</p>
                   {staff && <p className="text-xs opacity-70">{x.status === "published" ? (x.assignAt > Date.now() ? "⏰ " + tr("Scheduled", "مجدول") : "✅ " + tr("Published", "منشور")) : "📝 " + tr("Draft", "مسودة")}{x.due ? ` · ${tr("due", "التسليم")} ${new Date(x.due).toLocaleDateString(lang === "ar" ? "ar-AE" : "en-GB", { timeZone: "Asia/Dubai" })}` : ""}{x.tpl ? ` · ${tr("template", "قالب")}` : ""}{x.mode === "live" ? " · 📡" : ""}</p>}</div></div>
                 <div className="flex flex-wrap gap-1.5">
                   {staff && (x.owner === actor?.id || asAdmin) && <button type="button" className={smallBtn} onClick={() => lp.get(x.id, asAdmin).then((r) => setEdit(r.pack))} data-testid="lp-edit">✏️ {acc?.edit ? tr("Edit", "تعديل") : tr("View", "عرض")}</button>}
