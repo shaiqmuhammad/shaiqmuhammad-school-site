@@ -43,7 +43,7 @@ import { buildFeedback, fromGrade, overallOf, parseScores, type Scores } from ".
 import { DurableObject } from "cloudflare:workers";
 import { corsHeaders, reply, verifyToken, type AdminEnv } from "./admin";
 import { fetchParentReplies, sendAuto, sendParentMail, type MailEnv } from "./mail/mailbox";
-import { ttFor, ttRows, ttSE, ttShared, ttTimes } from "./lmsmods";
+import { classLabel, ttFor, ttRows, ttSE, ttSecMap, ttShared, ttTimes } from "./lmsmods";
 import { pageHandle, pagesInit } from "./lpages";
 import { initMods, modHandle, pubQuizzes, tquizTopics, today as modToday } from "./lmsmods";
 import { reportHandle } from "./reports";
@@ -106,6 +106,8 @@ const PUSH_TEXT: Record<string, [string, string]> = {
   message: ["New message", "{by}: {title}"], announcement: ["Announcement", "{title}"], reminder: ["Homework reminder", "{title}"], revise: ["Time to revise", "{title}"], test: ["Test notification", "Push notifications are working ✅"],
   lesson: ["Lesson in {mins} min", "{subject} · {cls} at {time}"],
   tt_shared: ["Timetable shared", "{by}: {title}"],
+  tt_observe_req: ["Observation request", "{by} would like to observe your lesson on {day} at {time}"],
+  tt_observe_reply: ["Observation {status}", "{by}: {day} at {time}"],
   hw_shared: ["Homework shared with you", "{by}: {title}"],
   lp_new: ["New learning material", "{by}: {title}"], lp_due: ["Due soon", "{title} is due within 24 hours"], lp_feedback: ["Teacher feedback on your slides", "{title}"],
 };
@@ -707,17 +709,34 @@ export class LmsStore extends DurableObject<LmsEnv> {
   }
   /** t304: lesson reminders. While a timetable exists, the store wakes once a minute and sends "lesson" notifications
    *  to the lesson's teacher and students at each person's chosen lead time (default 5 minutes, 0 = off). */
-  async planTT() {
-    const has = Number(this.sql.exec(`SELECT COUNT(*) AS n FROM tt`).one().n) > 0 && Object.keys(ttTimes(this.sql)).length > 0;
-    if (!has) { await this.ctx.storage.deleteAlarm(); return; }
-    const cur = await this.ctx.storage.getAlarm();
-    if (!cur || cur < Date.now()) await this.ctx.storage.setAlarm(Math.ceil((Date.now() + 1000) / 60000) * 60000 + 2000);
-  }
-  async alarm() {
-    try { this.ttTick(); } finally {
-      const has = Number(this.sql.exec(`SELECT COUNT(*) AS n FROM tt`).one().n) > 0;
-      if (has) await this.ctx.storage.setAlarm(Math.ceil((Date.now() + 1000) / 60000) * 60000 + 2000);
+  /** t384: wake only at the next minute a reminder is due (was: every minute, and only when period times were saved,
+   *  so lessons with their own times never got reminders). */
+  ttNext(nowMs = Date.now()): number {
+    const times = ttTimes(this.sql), rows = ttRows(this.sql);
+    if (!rows.length) return 0;
+    const leads = new Set<number>([5]);
+    for (const r of this.sql.exec(`SELECT v FROM settings WHERE k LIKE 'ttlead:%'`).toArray()) { const n = Number(r.v); if (n > 0) leads.add(n); }
+    let best = 0;
+    for (let off = 0; off < 8; off++) {
+      const d = new Date(nowMs + 4 * 3600e3 + off * 864e5); const dow = d.getUTCDay();
+      const base = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) - 4 * 3600e3;
+      for (const r of rows) {
+        if (r.dow !== dow) continue; const st = ttSE(r, times); if (!st.s) continue;
+        const [h, m] = st.s.split(":").map(Number); const start = base + (h * 60 + m) * 60000;
+        for (const L of leads) { const t = start - L * 60000; if (t > nowMs + 1000 && (!best || t < best)) best = t; }
+      }
+      if (best) break;
     }
+    return best;
+  }
+  async planTT() {
+    const n = this.ttNext();
+    if (!n) { await this.ctx.storage.deleteAlarm(); return; }
+    await this.ctx.storage.setAlarm(n + 2000);
+  }
+  private ttPlanned = false;
+  async alarm() {
+    try { this.ttTick(); } finally { await this.planTT(); }
   }
   ttTick(nowMs = Date.now(), zzOnly = false) {
     const times = ttTimes(this.sql), rows = ttRows(this.sql);
@@ -725,6 +744,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     this.sql.exec(`CREATE TABLE IF NOT EXISTS tt_sent (k TEXT PRIMARY KEY, at INTEGER)`);
     this.sql.exec(`DELETE FROM tt_sent WHERE at < ?`, nowMs - 3 * 864e5);
     const leadOf = (uid: string) => { const r = this.sql.exec(`SELECT v FROM settings WHERE k=?`, `ttlead:${uid}`).toArray()[0]; return r ? Number(r.v) : 5; };
+    const secMap = ttSecMap(this.sql as never);
     let sent = 0;
     for (const r of rows.map((x) => ({ ...x, st: ttSE(x, times) })).filter((x) => x.dow === dow && x.st.s && (!zzOnly || /^zz\./.test(String(this.userRow("id=?", x.teacher)?.username || ""))))) {
       const [h, m] = r.st.s.split(":").map(Number); const start = h * 60 + m;
@@ -736,7 +756,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         const k = `${day}|${r.id}|${uid}`;
         if (this.sql.exec(`SELECT 1 FROM tt_sent WHERE k=?`, k).toArray().length) continue;
         this.sql.exec(`INSERT INTO tt_sent (k, at) VALUES (?, ?)`, k, nowMs);
-        this.notify([uid], "lesson", { subject: r.subject || "Lesson", cls: `${r.cls} ${r.sections.join("")}`.trim(), time: r.st.s, period: r.period, mins: lead });
+        this.notify([uid], "lesson", { subject: r.subject || "Lesson", cls: classLabel(r.cls, r.sections, secMap[r.cls] || []), title: r.title, time: r.st.s, period: r.period, mins: lead });
         sent++;
       }
     }
@@ -948,7 +968,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     if (/^pg-/.test(action)) return pageHandle({ sql: this.sql as never, acc: (x) => mpOf(this.sql as never, x as never, "lp"), subjectsOf: (uid) => { try { return JSON.parse(String(this.userRow("id=?", uid)?.subjects || "[]")) as string[]; } catch { return []; } } }, a as never, action, input);
     if (/^lp-/.test(action)) return packHandle(this.packCtx(), a as never, action, input);
     if (action === "att-tt-shared") return { status: 200, body: { shared: ttShared(this.sql as never, a as never) } };
-    if (/^(att|beh|cur)-/.test(action) || action === "quiz-topics-sync") return modHandle({ sql: this.sql, hwList: () => this.allHomework().map((h) => ({ id: h.id, title: h.title, kind: h.kind, cls: h.cls, section: h.section, students: h.students, createdBy: h.createdBy })), inScope: (x, c, s, i) => this.inScope(x, c, s, i), userRow: (w, g) => this.userRow(w, g), mp: (x, m) => mpOf(this.sql as never, x, m), ttChanged: () => { this.ctx.waitUntil(this.planTT()); }, notify: (u, k, d) => this.notify(u, k, d), canReach: (x, ids) => this.packCtx().inScopeIds(x as never, ids.filter((i) => String(this.userRow("id=?", i)?.role || "") === "student")) }, action, a, input);
+    if (/^(att|beh|cur)-/.test(action) || action === "quiz-topics-sync") return modHandle({ sql: this.sql, hwList: () => this.allHomework().map((h) => ({ id: h.id, title: h.title, kind: h.kind, cls: h.cls, section: h.section, students: h.students, createdBy: h.createdBy })), inScope: (x, c, s, i) => this.inScope(x, c, s, i), userRow: (w, g) => this.userRow(w, g), mp: (x, m) => mpOf(this.sql as never, x, m), ttChanged: () => { this.ctx.waitUntil(this.planTT()); }, ttEnsure: () => { if (!this.ttPlanned) { this.ttPlanned = true; this.ctx.waitUntil(this.planTT()); } }, notify: (u, k, d) => this.notify(u, k, d), canReach: (x, ids) => this.packCtx().inScopeIds(x as never, ids.filter((i) => String(this.userRow("id=?", i)?.role || "") === "student")) }, action, a, input);
     switch (action) {
       case "dl-policy": return { status: 200, body: { audio: this.dlOf(a, "audio"), export: this.dlOf(a, "export") } };
       case "dl-grant": {
