@@ -5601,7 +5601,25 @@
           "points": 2,
           "explanation": "Kind: food, water, shade, being gentle. Unkind: tying up, hurting, scaring.",
           "promptAr": "رفق أم قسوة؟ طابق كل فعل.",
-          "explanationAr": "الرفق: الطعام والماء والظل واللين. القسوة: الحبس والإيذاء والتخويف."
+          "explanationAr": "الرفق: الطعام والماء والظل واللين. القسوة: الحبس والإيذاء والتخويف.",
+          "pairsAr": [
+            {
+              "left": "تقديم الطعام والماء",
+              "right": "رفق"
+            },
+            {
+              "left": "إيذاء الحيوان",
+              "right": "قسوة"
+            },
+            {
+              "left": "توفير الظل",
+              "right": "رفق"
+            },
+            {
+              "left": "تخويف الحيوان الأليف",
+              "right": "قسوة"
+            }
+          ]
         },
         {
           "id": "y2k-q11",
@@ -5646,7 +5664,18 @@
           ],
           "points": 1,
           "explanation": "We must be kind to animals.",
-          "explanationAr": "يجب أن نرفق بالحيوانات."
+          "explanationAr": "يجب أن نرفق بالحيوانات.",
+          "promptAr": "يجب أن نكون ___ بالحيوانات.",
+          "blanksAr": [
+            [
+              "رحماء",
+              "رفقاء"
+            ]
+          ],
+          "optionsAr": [
+            "ماء",
+            "حذاء"
+          ]
         }
       ]
     },
@@ -5826,7 +5855,25 @@
           "points": 2,
           "explanation": "Key words from the lesson.",
           "promptAr": "طابق كل كلمة بمعناها.",
-          "explanationAr": "كلمات الدرس: الأذان، الإقامة، المؤذن، الوسيلة."
+          "explanationAr": "كلمات الدرس: الأذان، الإقامة، المؤذن، الوسيلة.",
+          "pairsAr": [
+            {
+              "left": "الأذان",
+              "right": "الإعلام بدخول وقت الصلاة"
+            },
+            {
+              "left": "الإقامة",
+              "right": "النداء للقيام إلى الصلاة"
+            },
+            {
+              "left": "المؤذن",
+              "right": "الشخص الذي يؤذن"
+            },
+            {
+              "left": "الوسيلة",
+              "right": "منزلة عالية في الجنة"
+            }
+          ]
         },
         {
           "id": "y4a-q7",
@@ -6094,7 +6141,25 @@
           "points": 2,
           "explanation": "Key words from the lesson.",
           "promptAr": "طابق كل كلمة بمعناها.",
-          "explanationAr": "كلمات الدرس: التبيّن، الإشاعة، المصدر، الندم."
+          "explanationAr": "كلمات الدرس: التبيّن، الإشاعة، المصدر، الندم.",
+          "pairsAr": [
+            {
+              "left": "التبيّن",
+              "right": "التحقق من صحة الخبر"
+            },
+            {
+              "left": "الإشاعة",
+              "right": "خبر غير مؤكد"
+            },
+            {
+              "left": "المصدر",
+              "right": "من أين جاء الخبر"
+            },
+            {
+              "left": "الندم",
+              "right": "الشعور بالأسف بعد الخطأ"
+            }
+          ]
         },
         {
           "id": "y5n-q5",
@@ -6115,7 +6180,18 @@
           ],
           "points": 1,
           "explanation": "Kafa bil-mar’i kadhiban an yuhaddhitha bi-kulli ma sami‘ (Sahih Muslim, Introduction 5).",
-          "explanationAr": "«كفى بالمرء كذبًا أن يحدّث بكل ما سمع» (مقدمة صحيح مسلم ٥)."
+          "explanationAr": "«كفى بالمرء كذبًا أن يحدّث بكل ما سمع» (مقدمة صحيح مسلم ٥).",
+          "promptAr": "«كفى بالمرء ___ أن يحدّث بكل ما سمع.»",
+          "blanksAr": [
+            [
+              "كذبًا",
+              "كذبا"
+            ]
+          ],
+          "optionsAr": [
+            "صدقًا",
+            "هدية"
+          ]
         },
         {
           "id": "y5n-q6",
@@ -6510,7 +6586,25 @@
           "points": 2,
           "explanation": "Key words from the lesson.",
           "promptAr": "طابق كل كلمة بمعناها.",
-          "explanationAr": "كلمات الدرس: النون الساكنة، التنوين، الغنة، الترتيل."
+          "explanationAr": "كلمات الدرس: النون الساكنة، التنوين، الغنة، الترتيل.",
+          "pairsAr": [
+            {
+              "left": "النون الساكنة",
+              "right": "نون عليها سكون (نْ)"
+            },
+            {
+              "left": "التنوين",
+              "right": "حركتان: ً ٍ ٌ"
+            },
+            {
+              "left": "الغنة",
+              "right": "صوت من الأنف بمقدار حركتين"
+            },
+            {
+              "left": "الترتيل",
+              "right": "القراءة المتأنية الواضحة"
+            }
+          ]
         },
         {
           "id": "y6i-q9",
@@ -6579,7 +6673,19 @@
           ],
           "points": 1,
           "explanation": "Allah says: “And recite the Qur’an with measured recitation (Tartil).” (73:4)",
-          "explanationAr": "﴿وَرَتِّلِ الْقُرْآنَ تَرْتِيلًا﴾ (المزمل ٤)."
+          "explanationAr": "﴿وَرَتِّلِ الْقُرْآنَ تَرْتِيلًا﴾ (المزمل ٤).",
+          "promptAr": "﴿وَرَتِّلِ الْقُرْآنَ ___﴾ (المزمل ٤)",
+          "blanksAr": [
+            [
+              "تَرْتِيلًا",
+              "ترتيلا",
+              "ترتيلًا"
+            ]
+          ],
+          "optionsAr": [
+            "سريعًا",
+            "سكوتًا"
+          ]
         },
         {
           "id": "y6i-q12",
@@ -6604,6 +6710,353 @@
             "أتوقف عن القراءة"
           ],
           "explanationAr": "القرار الجيد هو قراءة القرآن بتأنٍّ."
+        }
+      ]
+    },
+    {
+      "id": "sow-year-3-i-pray-salatul-fajr",
+      "slug": "year-3-i-pray-salatul-fajr",
+      "title": "Year 3 – I Pray: Salatul Fajr",
+      "description": "The time and rak‘ahs of Salatul Fajr, its virtues from the Qur’an and Hadith (Qur’an 17:78; Sahih Muslim 725a and 657a), and a morning routine to pray Fajr on time. Based on the Year 3 lesson.",
+      "cardImage": "/covers/y3-salatul-fajr.svg",
+      "timeLimitMinutes": 5,
+      "showAnswers": true,
+      "certificateIndividual": false,
+      "certificateGroup": false,
+      "visible": false,
+      "active": false,
+      "published": false,
+      "updatedAt": "2026-10-31T16:45:00.000Z",
+      "titleAr": "السنة ٣ – أنا أصلي: صلاة الفجر",
+      "descriptionAr": "وقت صلاة الفجر وعدد ركعاتها، وفضلها من القرآن والسنة (الإسراء ٧٨؛ صحيح مسلم ٧٢٥ و٦٥٧)، وخطة صباحية لأداء الفجر في وقتها. مبني على درس السنة الثالثة.",
+      "year": 3,
+      "topic": "cu_mvdiwondd3f32c7a",
+      "subject": "Islamic B",
+      "teacher": "u_mv1dcr34cce3ba672a",
+      "topicInfo": {
+        "yr": "Year 3",
+        "term": "Term 1",
+        "wk": 12,
+        "title": "I Pray",
+        "titleAr": "أنا أصلي"
+      },
+      "questions": [
+        {
+          "id": "y3f-q1",
+          "type": "multiple_choice",
+          "prompt": "What does Fajr mean?",
+          "options": [
+            "Dawn",
+            "Night",
+            "Noon",
+            "Sunset"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "Fajr means dawn; it is the first prayer of the day.",
+          "promptAr": "ما معنى الفجر؟",
+          "optionsAr": [
+            "أول ضوء الصباح",
+            "الليل",
+            "الظهيرة",
+            "الغروب"
+          ],
+          "explanationAr": "الفجر هو أول ضوء النهار، وصلاة الفجر أول صلاة في اليوم."
+        },
+        {
+          "id": "y3f-q2",
+          "type": "multiple_choice",
+          "prompt": "How many fard rak‘ahs does Fajr have?",
+          "options": [
+            "2",
+            "3",
+            "4",
+            "1"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "Fajr has 2 rak‘ahs fard.",
+          "promptAr": "كم ركعة فرض في صلاة الفجر؟",
+          "optionsAr": [
+            "٢",
+            "٣",
+            "٤",
+            "١"
+          ],
+          "explanationAr": "صلاة الفجر ركعتان فرض."
+        },
+        {
+          "id": "y3f-q3",
+          "type": "multiple_choice",
+          "prompt": "When does the time of Fajr end?",
+          "options": [
+            "At sunrise",
+            "At noon",
+            "At sunset",
+            "At midnight"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "Fajr time starts at dawn and ends at sunrise.",
+          "promptAr": "متى ينتهي وقت صلاة الفجر؟",
+          "optionsAr": [
+            "عند طلوع الشمس",
+            "عند الظهر",
+            "عند الغروب",
+            "في منتصف الليل"
+          ],
+          "explanationAr": "يبدأ وقت الفجر عند طلوع الفجر وينتهي بطلوع الشمس."
+        },
+        {
+          "id": "y3f-q4",
+          "type": "true_false",
+          "prompt": "In Fajr we recite Al-Fatihah and a Surah aloud.",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "True. In Fajr we recite Al-Fatihah and a Surah aloud.",
+          "promptAr": "في صلاة الفجر نقرأ الفاتحة وسورة جهرًا.",
+          "optionsAr": [
+            "صح",
+            "خطأ"
+          ],
+          "explanationAr": "صح. القراءة في الفجر جهرية."
+        },
+        {
+          "id": "y3f-q5",
+          "type": "multiple_choice",
+          "prompt": "Which verse says “Indeed, the recitation of dawn is ever witnessed”?",
+          "options": [
+            "Qur’an 17:78",
+            "Qur’an 1:1",
+            "Qur’an 103:1",
+            "Qur’an 112:1"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "“Indeed, the recitation of dawn is ever witnessed.” (Qur’an 17:78)",
+          "promptAr": "أي آية فيها ﴿إِنَّ قُرْآنَ الْفَجْرِ كَانَ مَشْهُودًا﴾؟",
+          "optionsAr": [
+            "الإسراء ٧٨",
+            "الفاتحة ١",
+            "العصر ١",
+            "الإخلاص ١"
+          ],
+          "explanationAr": "﴿إِنَّ قُرْآنَ الْفَجْرِ كَانَ مَشْهُودًا﴾ (الإسراء ٧٨)."
+        },
+        {
+          "id": "y3f-q6",
+          "type": "multiple_choice",
+          "prompt": "The two rak‘ahs (Sunnah) of Fajr are better than…",
+          "options": [
+            "this world and what it contains",
+            "one day of fasting",
+            "a new toy",
+            "nothing"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "“The two rak‘ahs at dawn are better than this world and what it contains.” (Sahih Muslim 725a)",
+          "promptAr": "ركعتا الفجر (السنة) خير من…",
+          "optionsAr": [
+            "الدنيا وما فيها",
+            "صيام يوم",
+            "لعبة جديدة",
+            "لا شيء"
+          ],
+          "explanationAr": "«ركعتا الفجر خير من الدنيا وما فيها» (صحيح مسلم ٧٢٥)."
+        },
+        {
+          "id": "y3f-q7",
+          "type": "multiple_choice",
+          "prompt": "Who narrated the Hadith “The two rak‘ahs at dawn are better than this world”?",
+          "options": [
+            "‘A’ishah (R.A)",
+            "Abu Hurairah (R.A)",
+            "Anas (R.A)",
+            "‘Umar (R.A)"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "Narrated by ‘A’ishah (R.A), Sahih Muslim 725a.",
+          "promptAr": "من راوي حديث «ركعتا الفجر خير من الدنيا وما فيها»؟",
+          "optionsAr": [
+            "عائشة رضي الله عنها",
+            "أبو هريرة رضي الله عنه",
+            "أنس رضي الله عنه",
+            "عمر رضي الله عنه"
+          ],
+          "explanationAr": "روته عائشة رضي الله عنها (صحيح مسلم ٧٢٥)."
+        },
+        {
+          "id": "y3f-q8",
+          "type": "multiple_choice",
+          "prompt": "What happens to the one who prays the morning (Fajr) prayer? (Sahih Muslim 657a)",
+          "options": [
+            "He is under the protection of Allah",
+            "He does not need to pray again",
+            "He gets a gift",
+            "Nothing"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "“He who prayed the morning prayer is under the protection of Allah.” (Sahih Muslim 657a)",
+          "promptAr": "ماذا يكون لمن صلى صلاة الصبح؟ (صحيح مسلم ٦٥٧)",
+          "optionsAr": [
+            "يكون في ذمة الله",
+            "لا يحتاج إلى الصلاة مرة أخرى",
+            "يحصل على هدية",
+            "لا شيء"
+          ],
+          "explanationAr": "«من صلى صلاة الصبح فهو في ذمة الله» (صحيح مسلم ٦٥٧)."
+        },
+        {
+          "id": "y3f-q9",
+          "type": "ordering",
+          "prompt": "Put the Fajr plan in order.",
+          "options": [
+            "Sleep early",
+            "Set an alarm",
+            "Make Wudu",
+            "Pray 2 Sunnah then 2 fard"
+          ],
+          "correct": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "points": 2,
+          "explanation": "To pray Fajr on time: sleep early, set an alarm, make Wudu, pray 2 Sunnah then 2 fard.",
+          "promptAr": "رتّب خطة صلاة الفجر.",
+          "optionsAr": [
+            "أنام مبكرًا",
+            "أضبط المنبّه",
+            "أتوضأ",
+            "أصلي ركعتي السنة ثم ركعتي الفرض"
+          ],
+          "explanationAr": "النوم مبكرًا ← المنبّه ← الوضوء ← السنة ثم الفرض."
+        },
+        {
+          "id": "y3f-q10",
+          "type": "matching",
+          "prompt": "Match each key word with its meaning.",
+          "options": [],
+          "correct": [],
+          "pairs": [
+            {
+              "left": "Fajr",
+              "right": "dawn; the first prayer of the day"
+            },
+            {
+              "left": "Rak‘ah",
+              "right": "one unit of prayer"
+            },
+            {
+              "left": "Fard",
+              "right": "compulsory prayer"
+            },
+            {
+              "left": "Sunnah",
+              "right": "what the Prophet ﷺ did"
+            }
+          ],
+          "points": 2,
+          "explanation": "Key words from the lesson.",
+          "promptAr": "طابق كل كلمة بمعناها.",
+          "explanationAr": "كلمات الدرس: الفجر، الركعة، الفرض، السنة.",
+          "pairsAr": [
+            {
+              "left": "الفجر",
+              "right": "أول ضوء النهار وأول صلاة في اليوم"
+            },
+            {
+              "left": "الركعة",
+              "right": "وحدة من الصلاة"
+            },
+            {
+              "left": "الفرض",
+              "right": "الصلاة الواجبة"
+            },
+            {
+              "left": "السنة",
+              "right": "ما فعله النبي ﷺ"
+            }
+          ]
+        },
+        {
+          "id": "y3f-q11",
+          "type": "multiple_choice",
+          "prompt": "Your alarm rings for Fajr but your bed is warm and you are sleepy. What is the right decision?",
+          "options": [
+            "Get up, make Wudu and pray Fajr",
+            "Switch off the alarm and sleep",
+            "Pray after the sun is high",
+            "Wait until school"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "A good decision is waking up for Fajr.",
+          "promptAr": "رنّ المنبّه لصلاة الفجر وفراشك دافئ وأنت نعسان. ما القرار الصحيح؟",
+          "optionsAr": [
+            "أقوم وأتوضأ وأصلي الفجر",
+            "أطفئ المنبّه وأنام",
+            "أصلي بعد ارتفاع الشمس",
+            "أنتظر حتى المدرسة"
+          ],
+          "explanationAr": "القرار الجيد هو الاستيقاظ لصلاة الفجر."
+        },
+        {
+          "id": "y3f-q12",
+          "type": "fill_blank",
+          "prompt": "The 2 rak‘ahs of Fajr are better than the ___ and what it contains.",
+          "options": [
+            "alarm",
+            "sunrise"
+          ],
+          "correct": [],
+          "blanks": [
+            [
+              [
+                "world",
+                "World"
+              ]
+            ]
+          ],
+          "points": 1,
+          "explanation": "“…better than this world and what it contains.” (Sahih Muslim 725a)",
+          "explanationAr": "«ركعتا الفجر خير من الدنيا وما فيها» (صحيح مسلم ٧٢٥).",
+          "promptAr": "ركعتا الفجر خير من ___ وما فيها.",
+          "blanksAr": [
+            [
+              "الدنيا"
+            ]
+          ],
+          "optionsAr": [
+            "المنبّه",
+            "الشروق"
+          ]
         }
       ]
     }
