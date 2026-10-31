@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ActivityOptionsEditor, READY_TYPES, afterCreate, prepareOptions } from "@/components/activity/ActivityViews";
 import { AudiencePicker } from "@/components/lms/Audience";
+import { openClassTimer } from "@/components/lms/ClassTimer";
 import { lmsApi } from "@/lib/lms";
 import { getServerSession } from "@/lib/adminServer";
 import { activityApi, ACTIVITY_LABELS, ActivityError, forgetHosted, loadHosted, saveHosted, type ActivitySettings, type ActivityType, type HostedActivity } from "@/lib/activity";
@@ -212,6 +213,12 @@ export function AdminActivities({ allowed }: { allowed?: string[] } = {}) {
                 <span className="block text-sm opacity-80">{lang === "ar" ? t.hintAr : t.hintEn}</span>
               </span>
             </a>
+          ))}
+          {allowed && (["timer", "stopwatch"] as const).map((m) => (
+            <button key={m} type="button" onClick={() => openClassTimer(m)} className="flex items-start gap-3 rounded-2xl border border-card-border bg-card-solid p-4 text-start transition hover:border-sun-border" data-testid={`tool-${m}`}>
+              <span className="text-3xl" aria-hidden>{m === "timer" ? "⏱️" : "⏲️"}</span>
+              <span><span className="block font-bold">{m === "timer" ? tr("Timer", "المؤقت") : tr("Stopwatch", "ساعة الإيقاف")}</span><span className="block text-sm opacity-80">{m === "timer" ? tr("Countdown with presets, ticks for the last 10 seconds and a finish chime.", "عدّ تنازلي مع إعدادات سريعة وصوت في آخر 10 ثوانٍ.") : tr("Start, pause, laps and reset.", "تشغيل وإيقاف ولفات وإعادة.")}</span></span>
+            </button>
           ))}
         </div>
       </section>
