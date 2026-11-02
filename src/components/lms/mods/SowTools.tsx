@@ -6,6 +6,7 @@ import { ARABIC_SUBJECTS, useTr } from "@/components/lms/useLms";
 import { downloadBlob } from "@/lib/exportUtils";
 import { dlGrant } from "@/lib/dl";
 import { modCall, modErr, type CurUnit } from "@/lib/lmsMods";
+import { domainName } from "@/lib/standards";
 import { buildSowPptx, parseSowPptx, sowTemplateBlob, yearLabelAr, type SowFile, type SowLang, type SowUnit } from "@/lib/sowPptx";
 
 const TERMS = ["Term 1", "Term 2", "Term 3"];
@@ -25,6 +26,9 @@ export function unitToSow(u: CurUnit, lang: SowLang): SowUnit {
     know: (ar ? s.knowAr : s.know) || obj.slice(1).join(ar ? "، " : ", "),
     assess: (ar ? s.assessAr : s.assess) || (ar ? "" : noteLine(u.notes || "", /^Assessment opportunities:\s*/i)),
     vocab: (ar ? s.vocabAr : s.vocab) || (ar ? "" : noteLine(u.notes || "", /^Key vocabulary:\s*/i)),
+    sc: (ar && u.scAr?.length ? u.scAr : u.sc) || [],
+    skill: u.std?.skill ? `${u.std.skill}. ${domainName(u.std.skill, ar ? "ar" : "en")}` : "",
+    codes: u.std?.codes || [],
   };
 }
 
@@ -33,9 +37,10 @@ export function sowRows(file: SowFile, yr: string, subject: string) {
   const ar = file.lang === "ar";
   return file.units.map((u) => {
     const objectives = [u.intent.trim(), ...splitList(u.know, ar)].filter(Boolean).join("\n");
+    const scx = u.sc?.length ? (ar ? { scAr: u.sc } : { sc: u.sc }) : {};
     return ar
-      ? { source: "sow", subject, yr, term: u.term, wkFrom: u.wk, wkTo: u.wk, title: u.title, keepTitle: true, titleAr: u.title, objectivesAr: objectives, sow: { knowAr: u.know, assessAr: u.assess, vocabAr: u.vocab } }
-      : { source: "sow", subject, yr, term: u.term, wkFrom: u.wk, wkTo: u.wk, title: u.title, objectives, notes: `Key vocabulary: ${u.vocab}\nAssessment opportunities: ${u.assess}`, sow: { know: u.know, assess: u.assess, vocab: u.vocab } };
+      ? { ...scx, source: "sow", subject, yr, term: u.term, wkFrom: u.wk, wkTo: u.wk, title: u.title, keepTitle: true, titleAr: u.title, objectivesAr: objectives, sow: { knowAr: u.know, assessAr: u.assess, vocabAr: u.vocab } }
+      : { ...scx, source: "sow", subject, yr, term: u.term, wkFrom: u.wk, wkTo: u.wk, title: u.title, objectives, notes: `Key vocabulary: ${u.vocab}\nAssessment opportunities: ${u.assess}`, sow: { know: u.know, assess: u.assess, vocab: u.vocab } };
   });
 }
 
@@ -45,8 +50,8 @@ async function sowXlsx(lang: SowLang, subject: string, yr: string, term: string,
   const ar = lang === "ar";
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet(ar ? "المخطط الدراسي" : "Scheme of work", { views: [{ state: "frozen", ySplit: 3, rightToLeft: ar }] });
-  const H = ar ? ["الفصل", "الأسبوع", "عنوان الموضوع", "الهدف التعليمي", "المعارف والمهارات الأساسية", "فرص التقييم", "المفردات الأساسية"] : ["Term", "Week", "Topic title", "Curriculum intent", "Key knowledge and skills", "Key assessment opportunities", "Key vocabulary"];
-  ws.columns = [10, 9, 30, 46, 46, 40, 34].map((width) => ({ width }));
+  const H = ar ? ["الفصل", "الأسبوع", "عنوان الموضوع", "الهدف التعليمي", "المعارف والمهارات الأساسية", "فرص التقييم", "المفردات الأساسية", "المهارة الرئيسة", "المعايير", "معايير النجاح"] : ["Term", "Week", "Topic title", "Curriculum intent", "Key knowledge and skills", "Key assessment opportunities", "Key vocabulary", "Main skill", "Standards", "Success criteria"];
+  ws.columns = [10, 9, 30, 46, 46, 40, 34, 26, 22, 50].map((width) => ({ width }));
   ws.mergeCells(1, 1, 1, H.length);
   const t = ws.getCell(1, 1);
   t.value = `${ar ? "المخطط الدراسي" : "Scheme of work"} · ${subject} · ${ar ? yearLabelAr(yr) : yr}${term ? ` · ${ar ? term.replace("Term", "الفصل") : term}` : ""}`;
@@ -56,7 +61,7 @@ async function sowXlsx(lang: SowLang, subject: string, yr: string, term: string,
   hr.eachCell((c) => { c.font = { bold: true, color: { argb: "FFFFFFFF" } }; c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF24507A" } }; c.alignment = { vertical: "middle", horizontal: "center", wrapText: true }; });
   const band: Record<string, string> = { "Term 1": "FFEAF4FF", "Term 2": "FFFFF7E0", "Term 3": "FFEAF8EF" };
   rows.forEach((u) => {
-    const r = ws.addRow([ar ? u.term.replace("Term", "الفصل") : u.term, u.wk, u.title, u.intent, u.know, u.assess, u.vocab]);
+    const r = ws.addRow([ar ? u.term.replace("Term", "الفصل") : u.term, u.wk, u.title, u.intent, u.know, u.assess, u.vocab, u.skill || "", (u.codes || []).join("\n"), (u.sc || []).map((x) => `• ${x}`).join("\n")]);
     r.eachCell({ includeEmpty: true }, (c, k) => { c.alignment = { vertical: "top", wrapText: true, horizontal: k <= 2 ? "center" : ar ? "right" : "left" }; c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: band[u.term] || "FFFFFFFF" } }; c.border = { top: { style: "thin", color: { argb: "FFD0D7E2" } }, bottom: { style: "thin", color: { argb: "FFD0D7E2" } }, left: { style: "thin", color: { argb: "FFD0D7E2" } }, right: { style: "thin", color: { argb: "FFD0D7E2" } } }; });
     r.getCell(3).font = { bold: true, color: { argb: "FF1B3A57" } };
   });
@@ -127,7 +132,7 @@ export function SowTools({ items, subjects, years, f, asAdmin, canImport, canDow
 export function SowGrid({ units, lang }: { units: CurUnit[]; lang: SowLang }) {
   const { tr } = useTr();
   const ar = lang === "ar";
-  const L = ar ? ["الهدف التعليمي", "المعارف والمهارات", "فرص التقييم", "المفردات"] : ["Intent", "Knowledge & skills", "Assessment", "Vocabulary"];
+  const L = ar ? ["الهدف التعليمي", "المعارف والمهارات", "فرص التقييم", "المفردات", "المهارة الرئيسة", "معايير النجاح"] : ["Intent", "Knowledge & skills", "Assessment", "Vocabulary", "Main skill", "Success criteria"];
   const COL = ["#0284c7", "#d97706", "#059669"];
   return (
     <div className="space-y-5" data-testid="sow-grid" dir={ar ? "rtl" : "ltr"}>
@@ -145,7 +150,7 @@ export function SowGrid({ units, lang }: { units: CurUnit[]; lang: SowLang }) {
                     <p className="min-w-0 flex-1 truncate font-extrabold text-white" dir="auto">{s.title}</p>
                   </div>
                   <dl className="space-y-1.5 px-4 py-3 text-sm">
-                    {[s.intent, s.know, s.assess, s.vocab].map((v, k) => v ? <div key={k}><dt className="text-[11px] font-extrabold uppercase tracking-wide opacity-60">{L[k]}</dt><dd dir="auto">{v}</dd></div> : null)}
+                    {[s.intent, s.know, s.assess, s.vocab, s.skill, (s.sc || []).map((x) => `• ${x}`).join("\n")].map((v, k) => v ? <div key={k}><dt className="text-[11px] font-extrabold uppercase tracking-wide opacity-60">{L[k]}</dt><dd dir="auto" className="whitespace-pre-line">{v}</dd></div> : null)}
                   </dl>
                 </article>
               ); })}

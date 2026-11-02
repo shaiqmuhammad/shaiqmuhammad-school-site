@@ -6,7 +6,19 @@
  * Arabic layout (Islamic A) runs right-to-left (labels in the right column); English layout (Islamic B) left-to-right.
  */
 export type SowLang = "ar" | "en";
-export type SowUnit = { term: string; wk: number; title: string; intent: string; know: string; assess: string; vocab: string };
+export type SowUnit = { term: string; wk: number; title: string; intent: string; know: string; assess: string; vocab: string; sc?: string[]; skill?: string; codes?: string[] };
+/** SC + main skill ride in the assessment cell after a marker line, so the PPTX stays re-uploadable. */
+const SC_MARK = /\n?(?:Main skill|المهارة الرئيسة)\s*:/;
+export function assessWithSc(u: SowUnit, ar: boolean) {
+  if (!u.sc?.length && !u.skill) return u.assess;
+  const head = `${ar ? "المهارة الرئيسة" : "Main skill"}: ${u.skill || "—"}${u.codes?.length ? ` (${u.codes.join(", ")})` : ""}`;
+  return [u.assess, head, ar ? "معايير النجاح:" : "Success criteria:", ...(u.sc || []).map((x) => `• ${x}`)].filter(Boolean).join("\n");
+}
+export function splitAssess(cell: string): { assess: string; sc: string[] } {
+  const m = SC_MARK.exec(cell); if (!m) return { assess: cell, sc: [] };
+  const rest = cell.slice(m.index).split("\n");
+  return { assess: cell.slice(0, m.index).trim(), sc: rest.filter((l) => /^\s*[•\-]\s*/.test(l)).map((l) => l.replace(/^\s*[•\-]\s*/, "").trim()).filter(Boolean) };
+}
 export type SowFile = { lang: SowLang; yearLabel: string; yr: string; units: SowUnit[] };
 
 const AR_TERM: Record<string, string> = { "الأول": "Term 1", "الثاني": "Term 2", "الثالث": "Term 3" };
@@ -57,7 +69,7 @@ export async function parseSowPptx(buf: ArrayBuffer): Promise<SowFile> {
     for (let c = 1; c < R[1].length; c++) {
       const wk = Number(/\d+/.exec(R[1][c] || "")?.[0] || 0), title = (R[2][c] || "").replace(/\s*\n\s*/g, " ").trim();
       if (!wk || !title || /^[-\s]+$/.test(title) || !term) continue;
-      units.push({ term, wk, title, intent: R[3][c] || "", know: R[4][c] || "", assess: R[5][c] || "", vocab: R[6][c] || "" });
+      const sa = splitAssess(R[5][c] || ""); units.push({ term, wk, title, intent: R[3][c] || "", know: R[4][c] || "", assess: sa.assess, vocab: R[6][c] || "", sc: sa.sc });
     }
   }
   return { lang, yearLabel, yr: yrFromLabel(yearLabel), units };
@@ -111,7 +123,7 @@ export async function buildSowPptx(lang: SowLang, yr: string, units: SowUnit[]):
       if (!wk) return;
       const u = units.find((x) => x.term === term && x.wk === wk);
       if (!u) return;
-      [u.title, u.intent, u.know, u.assess, u.vocab].forEach((v, k) => { const c = rows[2 + k]?.[ci]; if (c) setCell(doc, c, v); });
+      [u.title, u.intent, u.know, assessWithSc(u, lang === "ar"), u.vocab].forEach((v, k) => { const c = rows[2 + k]?.[ci]; if (c) setCell(doc, c, v); });
     });
     zip.file(n, ser.serializeToString(doc));
   }
