@@ -205,7 +205,7 @@ export function ActivityHost() {
       >
         {full ? "⤡" : "⤢"}
       </button>
-      <FocusToggle className="pill-on-navy h-9 px-3 text-sm font-bold" label={tr("Focus", "تركيز")} />
+      <FocusToggle className="pill-on-navy h-9 whitespace-nowrap px-3 text-sm font-bold" label={tr("Focus", "تركيز")} />
     </>
   );
 

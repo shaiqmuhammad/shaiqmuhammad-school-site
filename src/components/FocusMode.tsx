@@ -63,7 +63,7 @@ export function FullscreenKeeper() {
   }, []);
   if (!want || on || typeof document === "undefined" || !document.fullscreenEnabled) return null;
   return (
-    <div className="fixed inset-x-0 bottom-20 z-[5000] flex justify-center px-3" data-testid="fs-return">
+    <div className="fixed inset-x-0 top-14 z-[5000] flex justify-center px-3 pointer-events-none [&>*]:pointer-events-auto" data-testid="fs-return">
       <div className="flex items-center gap-2 rounded-full bg-[#1b3a57] p-1.5 ps-4 text-sm font-bold text-white shadow-2xl ring-2 ring-[#f5c542]">
         <button type="button" onClick={() => enterFullscreen()} className="flex items-center gap-2" data-testid="fs-return-go">⛶ Return to full screen · العودة إلى ملء الشاشة</button>
         <button type="button" onClick={() => { ss.set(FS, false); emit(); }} className="grid h-7 w-7 place-items-center rounded-full bg-white/15" aria-label="Dismiss">✕</button>
