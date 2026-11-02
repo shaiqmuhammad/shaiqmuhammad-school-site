@@ -9,8 +9,8 @@ import { codeSkill, STD_DOMAINS, STD_OUTCOMES } from "@/lib/standards";
 
 type Doc = { subject: string; name: string; lang: string; size: number };
 const GRADES = ["K1", "K2", ...Array.from({ length: 12 }, (_, i) => `G${i + 1}`)];
-const yearOf = (g: string) => (g === "K1" ? "KG1" : g === "K2" ? "Year 1 · KG2" : `Year ${Number(g.slice(1)) + 1} · Grade ${g.slice(1)}`);
-const yearOfAr = (g: string) => (g === "K1" ? "روضة 1" : g === "K2" ? "Year 1 · روضة 2" : `Year ${Number(g.slice(1)) + 1} · الصف ${g.slice(1)}`);
+const yearOf = (g: string) => (g === "K1" ? "FS2 · KG1" : g === "K2" ? "Year 1 · KG2" : `Year ${Number(g.slice(1)) + 1} · Grade ${g.slice(1)}`);
+const yearOfAr = (g: string) => (g === "K1" ? "FS2 · روضة 1" : g === "K2" ? "Year 1 · روضة 2" : `Year ${Number(g.slice(1)) + 1} · الصف ${g.slice(1)}`);
 const gradeOf = (code: string) => code.split(".").pop() || "";
 
 /** t304: teachers' Standards smart book — structured UAE Islamic Education standards (searchable, by field and year) plus the uploaded original document. Islamic A reads in Arabic, Islamic B in English. */

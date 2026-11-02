@@ -9,8 +9,8 @@ export const STD_OUTCOMES = data.outcomes as Record<string, StdOutcome>;
 export const domainOf = (n: number) => STD_DOMAINS.find((d) => d.n === n);
 export const domainName = (n: number, lang: string) => { const d = domainOf(n); return d ? (lang === "ar" ? d.ar : d.en) : ""; };
 export const outcomeText = (code: string, lang: string) => { const o = STD_OUTCOMES[code]; return o ? (lang === "ar" ? o.ar || o.en : o.en || o.ar) : ""; };
-/** School Year → UAE grade suffix used in the codes (Year 1 = KG2, Year n = Grade n−1). */
-export const gradeOfYear = (yr: string) => { const n = Number(/Year (\d+)/.exec(yr)?.[1]); return !n ? "" : n === 1 ? "K2" : `G${n - 1}`; };
+/** School Year → UAE grade suffix used in the codes (FS2 = KG1, Year 1 = KG2, Year n = Grade n−1). */
+export const gradeOfYear = (yr: string) => { if (/^FS ?2$|^KG ?1$/i.test(yr.trim())) return "K1"; const n = Number(/Year (\d+)/.exec(yr)?.[1]); return !n ? "" : n === 1 ? "K2" : `G${n - 1}`; };
 export const outcomesFor = (yr: string) => { const g = gradeOfYear(yr); return Object.keys(STD_OUTCOMES).filter((c) => !g || c.endsWith(`.${g}`)).sort((a, b) => a.split(".")[3].localeCompare(b.split(".")[3]) || a.localeCompare(b)); };
 export const codeSkill = (code: string) => Number(code.split(".")[3]) || 0;
 export const parseStdCell = (codes: string, skill: string): UnitStd => ({ codes: [...new Set(codes.split(/[\s,;]+/).map((x) => x.trim()).filter((x) => /^[1-9]\.\d{1,2}\.\d{1,2}\.[1-6]\.(G\d{1,2}|K[12])$/.test(x)))], skill: Number(/^\s*(\d)/.exec(skill)?.[1]) || 0 });
