@@ -683,7 +683,7 @@ function Stat({ label, value, tone, onClick, active, small }: { label: string; v
   );
 }
 
-const ACTS: [string, string, string][] = [["wall", "Shared Wall", "الجدار المشترك"], ["wheel", "Wheel", "العجلة"], ["randomiser", "Randomiser", "العشوائي"], ["wordcloud", "Word Cloud", "سحابة الكلمات"], ["poll", "Poll", "استطلاع"], ["survey", "Survey", "استبيان"], ["tps", "Think/Pair/Share", "فكّر/شارك"], ["vote", "Vote", "تصويت"]];
+const ACTS: [string, string, string][] = [["wall", "Shared Wall", "الجدار المشترك"], ["wheel", "Wheel", "العجلة"], ["randomiser", "Randomiser", "العشوائي"], ["wordcloud", "Word Cloud", "سحابة الكلمات"], ["poll", "Poll", "استطلاع"], ["survey", "Survey", "استبيان"], ["tps", "Think/Pair/Share", "فكّر/شارك"], ["vote", "Vote", "تصويت"], ["mindmap", "Mind map", "خريطة ذهنية"], ["compare", "Compare & contrast", "قارن وميّز"]];
 
 /** Admin → teacher form: per-module View / Add-Edit switches (own classes only; enforced on the server). */
 const MOD_TOKEN = /^(hide:|att:|beh:|cur:|qhw:|nodl:)/;

@@ -1,4 +1,5 @@
 "use client";
+import { spaNav } from "@/components/FocusMode";
 import { LaunchChooser } from "@/components/lms/ClassLaunch";
 import { useAssessFilter, useFacets } from "@/components/lms/AssessFilter";
 
@@ -159,7 +160,7 @@ function TeacherAssess({ quizzes, tr }: { quizzes: Quiz[]; tr: Tr }) {
   useEffect(() => { try { const v = JSON.parse(sessionStorage.getItem("sm-host-roster") || "null"); if (v && Date.now() - v.at < 30 * 60e3) setPending(v); } catch { /* */ } }, []);
   const prep = async (id: string) => { if (id.startsWith("tq_")) { const q = await loadAnyQuiz(id); if (q) sessionStorage.setItem(HOST_DRAFT_KEY, JSON.stringify({ ...q, active: true })); } };
   const host = async (id: string, title = "") => {
-    if (pending) { await prep(id); window.location.assign(`/assessments/host?quiz=${encodeURIComponent(id)}`); return; }
+    if (pending) { await prep(id); spaNav(`/assessments/host?quiz=${encodeURIComponent(id)}`); return; }
     setLaunchFor({ id, title });
   };
   // t329: filter by class/year, section, subject, topic.
@@ -182,7 +183,7 @@ function TeacherAssess({ quizzes, tr }: { quizzes: Quiz[]; tr: Tr }) {
   );
   return (
     <>
-      {launchFor && <LaunchChooser type="assess" icon="🧩" title={launchFor.title || tr("Assessment", "تقييم")} quiz={launchFor.id} onClose={() => setLaunchFor(null)} onClass={async (ids, label) => { await prep(launchFor.id); try { sessionStorage.setItem("sm-host-roster", JSON.stringify({ ids, label, at: Date.now() })); } catch { /* */ } window.location.assign(`/assessments/host?quiz=${encodeURIComponent(launchFor.id)}`); }} />}
+      {launchFor && <LaunchChooser type="assess" icon="🧩" title={launchFor.title || tr("Assessment", "تقييم")} quiz={launchFor.id} onClose={() => setLaunchFor(null)} onClass={async (ids, label) => { await prep(launchFor.id); try { sessionStorage.setItem("sm-host-roster", JSON.stringify({ ids, label, at: Date.now() })); } catch { /* */ } spaNav(`/assessments/host?quiz=${encodeURIComponent(launchFor.id)}`); }} />}
       {pending && <p className="rounded-2xl bg-emerald-100 px-4 py-2 text-sm font-bold text-emerald-900" data-testid="assess-pending">👥 {tr(`Pick an assessment to start with ${pending.label} (${pending.ids.length} students).`, `اختر تقييمًا للبدء مع ${pending.label} (${pending.ids.length} طالبًا).`)} <button type="button" className="underline" onClick={() => { sessionStorage.removeItem("sm-host-roster"); setPending(null); }}>{tr("Cancel", "إلغاء")}</button></p>}
       {flt.ui}
       <section>

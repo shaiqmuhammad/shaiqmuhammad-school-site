@@ -1,12 +1,13 @@
 "use client";
 
+import { spaNav } from "@/components/FocusMode";
 import { useEffect, useMemo, useState } from "react";
 import { BodyPortal } from "@/components/BodyPortal";
 import { useTr } from "@/components/lms/useLms";
 import { lmsApi, lmsSession, type RosterStudent, type StudentGroup } from "@/lib/lms";
 
 /** t312: pick the year group(s) / class(es) / section(s) / groups a live activity or assessment starts with. Keys: "Year 3" | "Year 3|3A" | "g:<id>". */
-export const LOCK_TYPES = ["assess", "wordcloud", "poll", "survey", "tps", "vote"];
+export const LOCK_TYPES = ["assess", "wordcloud", "poll", "survey", "tps", "vote", "mindmap", "compare"];
 export function useRosterData(given?: { roster: RosterStudent[] | null; groups: StudentGroup[] }) {
   const [roster, setRoster] = useState<RosterStudent[] | null>(null);
   const [groups, setGroups] = useState<StudentGroup[]>([]);
@@ -56,15 +57,15 @@ export function RosterPicker({ value, onChange, roster, groups: allGroups, subje
 export function startWithClass(type: string, ids: string[], label: string, title: string, quiz?: string) {
   if (type === "assess") {
     try { sessionStorage.setItem("sm-host-roster", JSON.stringify({ ids, label, at: Date.now() })); } catch { /* */ }
-    window.location.assign(quiz ? `/assessments/host?quiz=${encodeURIComponent(quiz)}` : "/lms/assessments#pick");
+    spaNav(quiz ? `/assessments/host?quiz=${encodeURIComponent(quiz)}` : "/lms/assessments#pick");
     return;
   }
   try { sessionStorage.setItem("sm-act-prefill", JSON.stringify({ audience: ids, title, label, locked: true })); } catch { /* */ }
-  window.location.assign(`/lms/activities#t=${type}`);
+  spaNav(`/lms/activities#t=${type}`);
 }
 export function startRandom(type: string, quiz?: string) {
   try { sessionStorage.removeItem("sm-act-prefill"); sessionStorage.removeItem("sm-host-roster"); } catch { /* */ }
-  window.location.assign(type === "assess" ? (quiz ? `/assessments/host?quiz=${encodeURIComponent(quiz)}` : "/lms/assessments") : `/lms/activities#t=${type}`);
+  spaNav(type === "assess" ? (quiz ? `/assessments/host?quiz=${encodeURIComponent(quiz)}` : "/lms/assessments") : `/lms/activities#t=${type}`);
 }
 
 /** The two-option launcher: (a) start with a class / year group (picker, defaulting to the open class) or (b) random people with a code / QR. */
