@@ -12,6 +12,7 @@ import { useAdminScope } from "@/components/AdminScope";
 const CUR_LINK: Record<string, string> = { "Islamic A": "Islamic B" };
 import { btn, btnCta, cardCls, field, Head, Modal, ModPage, Tabs, Toast } from "@/components/lms/mods/ModUi";
 import { downloadBlob } from "@/lib/exportUtils";
+import { SowGrid, SowTools } from "@/components/lms/mods/SowTools";
 import { modCall, modErr, modPerm, pdfTable, xlsxTable, type Cat, type CurLink, type CurUnit } from "@/lib/lmsMods";
 import { loadQuizzesData } from "@/lib/quiz";
 import { StdEditor, StdView } from "@/components/tracker/StdFields";
@@ -77,7 +78,7 @@ export function Curriculum({ asAdmin, student = false }: { asAdmin: boolean; stu
   const [cat, setCat] = useState<Cat | null>(null);
   const [links, setLinks] = useState<{ quizzes: { slug: string; title: string }[]; pages: { slug: string; title: string }[] }>({ quizzes: [], pages: [] });
   const [f, setF] = useState({ subject: "", yr: "", term: "", status: "", q: "" });
-  const [view, setView] = useState<"units" | "pacing">("units");
+  const [view, setView] = useState<"units" | "pacing" | "sow">("units");
   const [edit, setEdit] = useState<Partial<CurUnit> | null>(null);
   const [msg, setMsg] = useState(""); const [bad, setBad] = useState(false);
   const file = useRef<HTMLInputElement>(null);
@@ -133,6 +134,7 @@ export function Curriculum({ asAdmin, student = false }: { asAdmin: boolean; stu
       {student && <p className="mb-3 text-2xl font-extrabold">📚 {tr("My curriculum", "منهجي")} <span className="text-base font-bold opacity-60">· {year}</span></p>}
       {!student && !canEdit && items && <p className="mb-3 rounded-xl bg-sky-100 px-3 py-2 text-sm font-semibold text-sky-900" data-testid="cur-viewonly">{tr("View only — you can read the scheme of work but not change it.", "للعرض فقط — يمكنك قراءة المخطط دون تعديله.")}</p>}
       <Toast msg={msg} bad={bad} />
+      {!student && items && <SowTools items={items} subjects={subjects} years={years} f={f} asAdmin={asAdmin} canImport={asAdmin || !!actor?.perms?.includes("cur:import")} canDownload={asAdmin || perm.view} reload={load} note={note} />}
       <div className={cardCls + (student ? " mb-4 grid gap-2 sm:grid-cols-3" : " mb-4 grid gap-2 sm:grid-cols-3 lg:grid-cols-6")}>
         {arCtx && lang !== "ar" && <button type="button" className={field + " !w-auto font-bold"} onClick={() => setEnOver((x) => !x)} data-testid="cur-lang-switch">{enOver ? "عرض بالعربية" : "Show in English"}</button>}
         <select className={field} hidden={false} value={f.subject} onChange={(e) => setF({ ...f, subject: e.target.value })} aria-label={tr("Subject", "المادة")} data-testid="cur-f-subject"><option value="">{tr("All subjects", "كل المواد")}</option>{subjects.map((s) => <option key={s}>{s}</option>)}</select>
@@ -143,7 +145,7 @@ export function Curriculum({ asAdmin, student = false }: { asAdmin: boolean; stu
       </div>
       {items && <div className="mb-3 flex flex-wrap gap-1.5" role="tablist" aria-label={tr("Terms", "الفصول")} data-testid="cur-terms">{(["", ...TERMS] as string[]).map((t) => { const inT = (items || []).filter((i) => (!f.subject || i.subject === f.subject) && (!f.yr || i.yr === f.yr) && (!t || i.term === t)); const on = f.term === t; return <button key={t || "all"} type="button" role="tab" aria-selected={on} aria-pressed={on} data-testid="cur-term-tab" onClick={() => setF({ ...f, term: t })} className={`rounded-full border px-3 py-1.5 text-sm font-bold ${on ? "border-transparent bg-header text-sun" : "border-black/10 bg-white/80 dark:border-white/15 dark:bg-white/10"}`}>{t ? tr(t, t.replace("Term", "الفصل")) : tr("All terms", "كل الفصول")} <span className="text-xs opacity-70">({inT.length} · {inT.reduce((n, i) => n + (i.sc?.length || 0), 0)} SC)</span></button>; })}</div>}
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <Tabs testId="cur-view" value={view} onChange={setView} items={[["units", tr("Units", "الوحدات")], ["pacing", tr("Pacing by week", "التوزيع الأسبوعي")]]} />
+        <Tabs testId="cur-view" value={view} onChange={setView} items={[["units", tr("Units", "الوحدات")], ["sow", tr("Weekly SOW", "المخطط الأسبوعي")], ["pacing", tr("Pacing by week", "التوزيع الأسبوعي")]]} />
         <span className="flex-1" />
         {!student && <><DlGate kind="export"><button type="button" className={btn} onClick={exportX} disabled={!shown.length} data-testid="cur-xlsx">⬇ Excel</button>
         <button type="button" className={btn} onClick={exportP} disabled={!shown.length} data-testid="cur-pdf">⬇ PDF</button></DlGate>
@@ -159,7 +161,7 @@ export function Curriculum({ asAdmin, student = false }: { asAdmin: boolean; stu
               {TERMS.filter((t) => ts.has(t)).concat([...ts.keys()].filter((t) => !TERMS.includes(t))).map((t) => (
                 <div key={t} className="mb-3">
                   <p className="mb-1 text-xs font-bold uppercase tracking-wide opacity-60" data-testid="cur-term-head">{t} <span className="normal-case opacity-80">· {ts.get(t)!.length} {tr("units", "وحدات")} · {ts.get(t)!.reduce((n, u) => n + (u.sc?.length || 0), 0)} {tr("success criteria", "معايير نجاح")}</span></p>
-                  {view === "pacing" ? (
+                  {view === "sow" ? <SowGrid units={ts.get(t)!} lang={arCur ? "ar" : "en"} /> : view === "pacing" ? (
                     <div className={cardCls + " overflow-x-auto !p-3"} data-testid="cur-pacing">
                       <div className="min-w-[640px]"><div className="grid gap-px text-center text-[10px] opacity-60" style={{ gridTemplateColumns: `10rem repeat(${WEEKS}, 1fr)` }}><span />{Array.from({ length: WEEKS }, (_, i) => <span key={i}>{i + 1}</span>)}</div>
                         {ts.get(t)!.map((u) => <div key={u.id} className="mt-1 grid items-center gap-px" style={{ gridTemplateColumns: `10rem repeat(${WEEKS}, 1fr)` }}><span className="truncate pe-2 text-xs font-semibold" dir="auto">{(arCur && u.titleAr) || u.title}</span>{Array.from({ length: WEEKS }, (_, i) => { const w = i + 1; const on = u.wkFrom && w >= u.wkFrom && w <= u.wkTo; return <span key={i} className={`h-5 ${on ? (u.status === "taught" ? "bg-emerald-600" : u.status === "in_progress" ? "bg-amber-500" : "bg-slate-400 dark:bg-slate-500") : "bg-black/5 dark:bg-white/5"} ${on && w === u.wkFrom ? "rounded-s" : ""} ${on && w === u.wkTo ? "rounded-e" : ""}`} />; })}</div>)}</div>

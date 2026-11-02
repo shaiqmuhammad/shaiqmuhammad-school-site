@@ -694,11 +694,12 @@ function ModuleAccess({ perms, setPerms, teachers }: { perms: string[]; setPerms
   const has = (m: string, op: string) => perms.includes(`${m}:${op}`);
   const viewOn = (m: string) => has(m, "view") || has(m, "edit") || has(m, "delete");
   // Add/Edit and Delete each imply Show; hiding the module switches them off too.
-  const set = (m: string, op: "view" | "edit" | "delete", on: boolean) => {
+  const set = (m: string, op: "view" | "edit" | "delete" | "import", on: boolean) => {
     const next = new Set(perms.filter((p) => !p.startsWith(`${m}:`)));
-    const cur = { view: viewOn(m), edit: has(m, "edit"), delete: has(m, "delete") };
-    if (op === "view") { cur.view = on; if (!on) { cur.edit = false; cur.delete = false; } } else { cur[op] = on; if (on) cur.view = true; }
-    for (const k of ["view", "edit", "delete"] as const) if (cur[k]) next.add(`${m}:${k}`);
+    // t406: cur:import (bulk SOW upload) is off by default and needs Add / Edit.
+    const cur = { view: viewOn(m), edit: has(m, "edit"), delete: has(m, "delete"), import: has(m, "import") };
+    if (op === "view") { cur.view = on; if (!on) { cur.edit = false; cur.delete = false; cur.import = false; } } else { cur[op] = on; if (on) { cur.view = true; if (op === "import") cur.edit = true; } else if (op === "edit") cur.import = false; }
+    for (const k of ["view", "edit", "delete", "import"] as const) if (cur[k]) next.add(`${m}:${k}`);
     setPerms([...next]);
   };
   // Simple modules: shown unless "hide:<module>" is present (so existing teachers keep their current access).
@@ -759,7 +760,7 @@ function ModuleAccess({ perms, setPerms, teachers }: { perms: string[]; setPerms
         {fine.map(([m, en, ar, del]) => (
           <div key={m} className="space-y-1.5 rounded-xl bg-black/[0.03] px-3 py-2 dark:bg-white/5" data-testid={`perm-mod-${m}`}>
             <div className="flex items-center justify-between gap-2"><span className="text-sm font-semibold">{tr(en, ar)}</span>{show(viewOn(m), (v) => set(m, "view", v), `perm-${m}-view`)}</div>
-            {sub(viewOn(m), <>{cb(has(m, "edit"), (v) => set(m, "edit", v), tr("Add / Edit", "إضافة / تعديل"), `perm-${m}-edit`)}{del && cb(has(m, "delete"), (v) => set(m, "delete", v), tr("Delete", "حذف"), "perm-cur-delete")}</>)}
+            {sub(viewOn(m), <>{cb(has(m, "edit"), (v) => set(m, "edit", v), tr("Add / Edit", "إضافة / تعديل"), `perm-${m}-edit`)}{del && cb(has(m, "delete"), (v) => set(m, "delete", v), tr("Delete", "حذف"), "perm-cur-delete")}{m === "cur" && cb(has(m, "import"), (v) => set(m, "import", v), tr("Bulk upload SOW (PPTX)", "رفع المخطط (PPTX)"), "perm-cur-import")}</>)}
           </div>
         ))}
         <div className="space-y-1.5 rounded-xl bg-black/[0.03] px-3 py-2 dark:bg-white/5" data-testid="perm-qhw">
