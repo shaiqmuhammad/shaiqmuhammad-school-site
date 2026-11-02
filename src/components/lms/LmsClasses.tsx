@@ -1,4 +1,5 @@
 "use client";
+import { spaNav } from "@/components/FocusMode";
 import { startWithClass } from "@/components/lms/ClassLaunch";
 import { QuickStart } from "@/components/lms/QuickStart";
 import { openClassTimer } from "@/components/lms/ClassTimer";
@@ -144,8 +145,8 @@ export function LmsClassesPage() {
   const viewName = view ? (view.startsWith("g:") ? groups.find((g) => g.id === view.slice(2))?.name || tr("this group", "هذه المجموعة") : label(view)) : tr("all my students", "كل طلابي");
   // t370: one tap from an open class starts the activity for that class — no two-option prompt, no All Activities page.
   const direct = (t: string, en: string) => {
-    if (t === "wheel" || t === "randomiser") { saveNames(shown.map((s) => s.name)); try { sessionStorage.setItem("sm-act-back", `/lms/classes#v=${encodeURIComponent(view)}`); } catch { /* */ } window.location.assign(`/activities/${t}`); return; }
-    if (t === "classwall") { window.location.assign(view ? `/lms/wall#k=${encodeURIComponent(view)}` : "/lms/wall"); return; }
+    if (t === "wheel" || t === "randomiser") { saveNames(shown.map((s) => s.name)); try { sessionStorage.setItem("sm-act-back", `/lms/classes#v=${encodeURIComponent(view)}`); } catch { /* */ } spaNav(`/activities/${t}`); return; }
+    if (t === "classwall") { spaNav(view ? `/lms/wall#k=${encodeURIComponent(view)}` : "/lms/wall"); return; }
     if (t === "assess") { startWithClass("assess", shown.map((s) => s.id), viewName, `${en} · ${viewName}`); return; }
     setLaunch([t]);
   };
@@ -253,8 +254,8 @@ export function LmsClassesPage() {
         {/* t385: phones = one swipeable row with snap and an edge fade; sm+ = wrapped grid. */}
         <div className="relative mx-auto max-w-6xl">
         <div className="pointer-events-none absolute inset-y-0 end-0 z-10 w-8 bg-gradient-to-l from-[#1b3a57] to-transparent sm:hidden rtl:bg-gradient-to-r" aria-hidden data-testid="tray-fade" />
-        <div className="flex snap-x snap-mandatory gap-1.5 overflow-x-auto pe-8 [scrollbar-width:none] sm:grid sm:grid-cols-6 sm:overflow-visible sm:pe-0 lg:grid-cols-13 [&::-webkit-scrollbar]:hidden" data-testid="tray-row">
-          {([["att", "📋", "Attendance", "الحضور", "#10b981"], ["wall", "🖼️", "Shared Wall", "الجدار المشترك", "#f5c542"], ["classwall", "🧱", "Class wall", "جدار الصف", "#fb923c"], ["wordcloud", "☁️", "Word cloud", "سحابة كلمات", "#38bdf8"], ["poll", "📊", "Poll", "استطلاع", "#a78bfa"], ["vote", "🗳️", "Vote", "تصويت", "#f472b6"], ["survey", "📝", "Survey", "استبيان", "#2dd4bf"], ["tps", "💭", "Think-Pair-Share", "فكّر-زاوج-شارك", "#facc15"], ["wheel", "🎡", "Spin", "العجلة", "#f87171"], ["randomiser", "🎲", "Randomiser", "اختيار عشوائي", "#60a5fa"], ["timer", "⏱️", "Timer", "المؤقت", "#22d3ee"], ["stopwatch", "⏲️", "Stopwatch", "ساعة الإيقاف", "#e879f9"], ["assess", "🧩", "Assessments", "التقييمات", "#4ade80"]] as const)
+        <div className="flex snap-x snap-mandatory gap-1.5 overflow-x-auto pe-8 [scrollbar-width:none] sm:grid sm:grid-cols-8 sm:overflow-visible sm:pe-0 lg:grid-cols-15 [&::-webkit-scrollbar]:hidden" data-testid="tray-row">
+          {([["att", "📋", "Attendance", "الحضور", "#10b981"], ["wall", "🖼️", "Shared Wall", "الجدار المشترك", "#f5c542"], ["classwall", "🧱", "Class wall", "جدار الصف", "#fb923c"], ["wordcloud", "☁️", "Word cloud", "سحابة كلمات", "#38bdf8"], ["poll", "📊", "Poll", "استطلاع", "#a78bfa"], ["vote", "🗳️", "Vote", "تصويت", "#f472b6"], ["survey", "📝", "Survey", "استبيان", "#2dd4bf"], ["tps", "💭", "Think-Pair-Share", "فكّر-زاوج-شارك", "#facc15"], ["mindmap", "🧠", "Mind map", "خريطة ذهنية", "#34d399"], ["compare", "⚖️", "Compare", "قارن وميّز", "#fb7185"], ["wheel", "🎡", "Spin", "العجلة", "#f87171"], ["randomiser", "🎲", "Randomiser", "اختيار عشوائي", "#60a5fa"], ["timer", "⏱️", "Timer", "المؤقت", "#22d3ee"], ["stopwatch", "⏲️", "Stopwatch", "ساعة الإيقاف", "#e879f9"], ["assess", "🧩", "Assessments", "التقييمات", "#4ade80"]] as const)
             .filter(([t]) => (t === "att" || t === "timer" || t === "stopwatch" ? true : t === "assess" ? hostOk : actAllowed(t === "classwall" ? "wall" : t)))
             .map(([t, ic, en, ar, c]) => {
               const on = t === "att" && attMode;

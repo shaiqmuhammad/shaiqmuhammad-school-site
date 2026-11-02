@@ -5,7 +5,7 @@ import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
 import { useTr } from "@/components/lms/useLms";
 import { lmsApi, type SavedAct, type SavedRow } from "@/lib/lms";
 import { ACTIVITY_LABELS, type ActivityType } from "@/lib/activity";
-import { Cloud, type CloudWord } from "@/components/activity/WordCloud";
+
 import { qrImageUrl } from "@/lib/groupSession";
 
 type Full = SavedAct & { prompt: string; tok?: string; rows: SavedRow[] };
@@ -57,33 +57,61 @@ export function SavedActivitiesPage() {
 
 const BUB = ["#0284c7", "#d97706", "#059669", "#e11d48", "#7c3aed", "#0d9488", "#1b3a57", "#c026d3", "#ea580c", "#4f46e5"];
 /** t375: the printable / public sheet — answers as a packed word cloud (word cloud) or colourful cloud bubbles (other types). */
-export function ResultSheet({ r, lang, qr, names = true }: { r: { type: string; title: string; prompt: string; cls: string; at: number; teacher?: string; rows: { name?: string; answer: string; cls?: string }[] }; lang: string; qr?: string; names?: boolean }) {
+export function ResultSheet({ r, lang, qr, names = true }: { r: { type: string; title: string; prompt: string; cls: string; subject?: string; topic?: string; at: number; teacher?: string; rows: { name?: string; answer: string; cls?: string; group?: string; ok?: boolean }[] }; lang: string; qr?: string; names?: boolean }) {
   const tr = (en: string, ar: string) => (lang === "ar" ? ar : en);
   const l = ACTIVITY_LABELS[r.type as ActivityType];
   const date = new Date(r.at).toLocaleString(lang === "ar" ? "ar" : "en-GB", { timeZone: "Asia/Dubai", dateStyle: "medium", timeStyle: "short" });
-  const words: CloudWord[] = (() => { const m = new Map<string, CloudWord>(); r.rows.forEach((x, i) => { const k = x.answer.toLocaleLowerCase(); const w = m.get(k) || { word: x.answer, count: 0, ids: [] }; w.count++; w.ids.push(String(i)); m.set(k, w); }); return [...m.values()].sort((a, b) => b.count - a.count); })();
+  // t409: every answer is a colourful bubble with the student's name in small text right beside it (no separate list).
+  type Bub = { answer: string; names: string[]; ok?: boolean };
+  const bubbles = (rows: typeof r.rows): Bub[] => {
+    if (r.type !== "wordcloud") return rows.map((x) => ({ answer: x.answer, names: x.name ? [x.name] : [], ok: x.ok }));
+    const m = new Map<string, Bub>();
+    rows.forEach((x) => { const k = x.answer.toLocaleLowerCase(); const b = m.get(k) || { answer: x.answer, names: [] }; if (x.name) b.names.push(x.name); else b.names.push(""); m.set(k, b); });
+    return [...m.values()].sort((a, b) => b.names.length - a.names.length);
+  };
+  const groups: [string, typeof r.rows][] = (() => {
+    if (!r.rows.some((x) => x.group)) return [["", r.rows]];
+    const m = new Map<string, typeof r.rows>();
+    r.rows.forEach((x) => { const g = x.group || ""; m.set(g, [...(m.get(g) || []), x]); });
+    return [...m.entries()];
+  })();
+  let n = 0;
+  const bubble = (b: Bub) => {
+    const i = n++;
+    const count = r.type === "wordcloud" ? b.names.length : 1;
+    const who = names ? b.names.filter(Boolean) : [];
+    return (
+      <span key={i} className="inline-flex max-w-full items-baseline gap-1.5 rounded-[2rem] px-4 py-2 font-extrabold text-white shadow-md" style={{ background: b.ok === undefined ? BUB[i % BUB.length] : b.ok ? "#059669" : "#e11d48", fontSize: `${Math.min(2.2, (b.answer.length < 40 ? 1.1 : 0.95) + (count - 1) * 0.3)}rem`, transform: `rotate(${((i * 7) % 5) - 2}deg)` }} dir="auto" data-testid="result-answer">
+        {b.ok !== undefined && <span aria-label={b.ok ? tr("correct", "صحيح") : tr("not correct", "غير صحيح")}>{b.ok ? "✓" : "✗"}</span>}
+        <span className="whitespace-pre-wrap break-words">{b.answer}</span>
+        {r.type === "wordcloud" && count > 1 && <span className="text-[0.6em] opacity-90">×{count}</span>}
+        {who.length > 0 && <span className="text-[11px] font-semibold leading-none text-white/85" data-testid="result-name">— {who.join(", ")}</span>}
+      </span>
+    );
+  };
+  const meta: [string, string][] = [[tr("Class", "الصف"), r.cls], [tr("Subject", "المادة"), r.subject || ""], [tr("Topic", "الموضوع"), r.topic || r.title]];
   return (
     <div className="mx-auto max-w-4xl overflow-hidden rounded-3xl border-4 border-[#1b3a57] bg-white text-[#1b2f44]" data-testid="result-sheet">
       <header className="flex items-start gap-4 px-6 py-5 text-white" style={{ backgroundImage: "linear-gradient(135deg,#1b3a57,#2b5b85)" }}>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-bold uppercase tracking-widest text-[#f5c542]">{l?.icon} {l ? (lang === "ar" ? l.ar : l.en) : r.type}{r.cls ? ` · ${r.cls}` : ""}</p>
-          <h1 className="mt-1 text-2xl font-extrabold text-white sm:text-3xl" style={{ color: "#ffffff" }} dir="auto" data-testid="result-question">{r.prompt || r.title}</h1>
-          <p className="mt-1 text-sm text-white opacity-90" style={{ color: "#ffffff" }}>{r.cls ? `👥 ${r.cls} · ` : ""}📅 {date}{r.teacher ? ` · ${r.teacher}` : ""} · {tr(`${r.rows.length} answers`, `${r.rows.length} إجابة`)}</p>
+          <p className="text-sm font-bold uppercase tracking-widest text-[#f5c542]">{l?.icon} {l ? (lang === "ar" ? l.ar : l.en) : r.type}</p>
+          <p className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5 text-sm text-white" style={{ color: "#ffffff" }} data-testid="result-meta">
+            {meta.filter(([, v]) => v).map(([k, v]) => <span key={k}><b className="text-[#f5c542]">{k}:</b> <span dir="auto">{v}</span></span>)}
+          </p>
+          <p className="mt-2 text-xs font-bold uppercase tracking-widest text-[#f5c542]">{tr("Question", "السؤال")}</p>
+          <h1 className="text-2xl font-extrabold text-white sm:text-3xl" style={{ color: "#ffffff" }} dir="auto" data-testid="result-question">{r.prompt || r.title}</h1>
+          <p className="mt-1 text-sm text-white opacity-90" style={{ color: "#ffffff" }}>📅 {date}{r.teacher ? ` · ${r.teacher}` : ""} · {tr(`${r.rows.length} answers`, `${r.rows.length} إجابة`)}</p>
         </div>
-        {qr && <div className="shrink-0 rounded-2xl bg-white p-1.5 text-center" data-testid="result-qr">{/* eslint-disable-next-line @next/next/no-img-element */}<img src={qrImageUrl(qr, 240)} alt={tr("QR code to view these results", "رمز QR لعرض النتائج")} width={88} height={88} className="h-20 w-20 sm:h-24 sm:w-24" /><p className="text-[10px] font-bold text-[#1b3a57]">{tr("Scan to view", "امسح للعرض")}</p></div>}
+        {qr && <div className="shrink-0 rounded-2xl bg-white p-1.5 text-center" data-testid="result-qr">{/* eslint-disable-next-line @next/next/no-img-element */}<img src={qrImageUrl(qr, 240)} alt={tr("QR code to view these results", "رمز QR لعرض النتائج")} width={110} height={110} className="h-[110px] w-[110px]" /><p className="text-[10px] font-bold text-[#1b3a57]">{tr("Scan to view", "امسح للعرض")}</p></div>}
       </header>
-      <div className="bg-[#fffbea] p-4">
-        {!r.rows.length ? <p className="py-8 text-center opacity-70">{tr("No answers were given.", "لم تُقدَّم إجابات.")}</p> : r.type === "wordcloud" ? <Cloud words={words} big /> : (
-          <div className="flex min-h-56 flex-wrap items-center justify-center gap-3 rounded-[28px] bg-white p-5" data-testid="result-bubbles">
-            {words.map((w, i) => { const short = w.word.length < 40; return (
-              <span key={i} className="max-w-full rounded-[2rem] px-4 py-2 font-extrabold text-white shadow-md" style={{ background: BUB[i % BUB.length], fontSize: `${Math.min(2.2, (short ? 1.15 : 0.95) + (w.count - 1) * 0.35)}rem`, transform: `rotate(${((i * 7) % 7) - 3}deg)` }} dir="auto" data-testid="result-bubble">{w.word}{w.count > 1 ? <sup className="ms-1 text-[0.5em] opacity-80">×{w.count}</sup> : null}</span>); })}
-          </div>
-        )}
+      <div className="space-y-3 bg-[#fffbea] p-4">
+        {!r.rows.length ? <p className="py-8 text-center opacity-70">{tr("No answers were given.", "لم تُقدَّم إجابات.")}</p> : groups.map(([g, rows]) => (
+          <section key={g || "all"} className="rounded-[28px] bg-white p-4" data-testid="result-bubbles">
+            {g && <h2 className="mb-2 inline-block rounded-full bg-[#1b3a57] px-4 py-1 text-sm font-extrabold text-[#f5c542]" dir="auto">{g}</h2>}
+            <div className="flex min-h-24 flex-wrap items-center justify-center gap-3">{bubbles(rows).map(bubble)}</div>
+          </section>
+        ))}
       </div>
-      {names && r.rows.length > 0 && (
-        <table className="w-full border-t-4 border-[#f5c542] text-sm" data-testid="result-list"><thead><tr className="bg-[#1b3a57] text-start text-xs uppercase text-[#f5c542]"><th className="px-4 py-1.5 text-start">{tr("Student", "الطالب")}</th><th className="px-4 py-1.5 text-start">{tr("Answer", "الإجابة")}</th></tr></thead>
-          <tbody>{r.rows.map((x, i) => <tr key={i} className={i % 2 ? "bg-[#f6f8fb]" : ""}><td className="px-4 py-1 font-bold" dir="auto">{x.name}</td><td className="px-4 py-1" dir="auto">{x.answer}</td></tr>)}</tbody></table>
-      )}
       <footer className="bg-[#f5c542] px-6 py-2 text-center text-xs font-bold text-[#1b3a57]">shaiqmuhammad.com</footer>
     </div>
   );
