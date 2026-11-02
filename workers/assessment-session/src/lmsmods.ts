@@ -55,7 +55,7 @@ export function initMods(sql: SqlStorage) {
   sql.exec(`CREATE TABLE IF NOT EXISTS beh (id TEXT PRIMARY KEY, student TEXT, cls TEXT, section TEXT, day TEXT, kind TEXT, category TEXT, severity INTEGER DEFAULT 1, note TEXT DEFAULT '', action TEXT DEFAULT '', follow TEXT DEFAULT 'none', follow_note TEXT DEFAULT '', sensitive INTEGER DEFAULT 0, by TEXT, by_name TEXT, at INTEGER, updated INTEGER)`);
   sql.exec(`CREATE INDEX IF NOT EXISTS beh_student ON beh (student, day)`);
   sql.exec(`CREATE TABLE IF NOT EXISTS cur (id TEXT PRIMARY KEY, subject TEXT, yr TEXT, term TEXT, title TEXT, objectives TEXT DEFAULT '', lessons TEXT DEFAULT '[]', resources TEXT DEFAULT '[]', wk_from INTEGER DEFAULT 0, wk_to INTEGER DEFAULT 0, status TEXT DEFAULT 'planned', quiz TEXT DEFAULT '', page TEXT DEFAULT '', ord INTEGER DEFAULT 0, by_name TEXT, updated INTEGER)`);
-  for (const col of ["links TEXT DEFAULT '[]'", "notes TEXT DEFAULT ''", "sc TEXT DEFAULT '[]'", "std TEXT DEFAULT '{}'", "title_ar TEXT DEFAULT ''", "sc_ar TEXT DEFAULT '[]'", "obj_ar TEXT DEFAULT ''", "ar_review INTEGER DEFAULT 0"]) { try { sql.exec(`ALTER TABLE cur ADD COLUMN ${col}`); } catch { /* already there */ } }
+  for (const col of ["links TEXT DEFAULT '[]'", "notes TEXT DEFAULT ''", "sc TEXT DEFAULT '[]'", "std TEXT DEFAULT '{}'", "title_ar TEXT DEFAULT ''", "sc_ar TEXT DEFAULT '[]'", "obj_ar TEXT DEFAULT ''", "ar_review INTEGER DEFAULT 0", "sow TEXT DEFAULT '{}'"]) { try { sql.exec(`ALTER TABLE cur ADD COLUMN ${col}`); } catch { /* already there */ } }
 }
 
 type Link = { t: "hw" | "quiz"; id: string };
@@ -445,8 +445,20 @@ export async function modHandle(c: ModCtx, action: string, a: Actor, input: Json
       const subs: string[] = me ? JSON.parse(String(me.subjects || "[]")) : [];
       const rows = (Array.isArray(input.rows) ? input.rows : []).slice(0, 1000) as Json[];
       let added = 0, updated = 0; const errors: { row: number; error: string }[] = [];
+      // t406: SOW bulk upload (PPTX) is its own permission, off by default for teachers.
+      const sowMode = input.source === "sow";
+      if (sowMode && a.role !== "admin" && !a.perms.includes("cur:import")) return forbid();
       for (const [i, r] of rows.entries()) {
-        const ex = sql.exec(`SELECT id FROM cur WHERE subject=? AND yr=? AND term=? AND title=?`, str(r.subject, 60), str(r.yr, 60), str(r.term, 20), str(r.title, 160)).toArray()[0];
+        let ex = sql.exec(`SELECT id, title FROM cur WHERE subject=? AND yr=? AND term=? AND title=?`, str(r.subject, 60), str(r.yr, 60), str(r.term, 20), str(r.title, 160)).toArray()[0];
+        // SOW rows match the same week (so the Arabic file fills the Arabic side of the English unit and vice versa).
+        if (sowMode && !ex && Number(r.wkFrom)) ex = sql.exec(`SELECT id, title FROM cur WHERE subject=? AND yr=? AND term=? AND wk_from=?`, str(r.subject, 60), str(r.yr, 60), str(r.term, 20), Math.round(Number(r.wkFrom))).toArray()[0];
+        if (sowMode && ex) {
+          // Keep everything the SOW does not carry (status, lessons, links, SC, standards…).
+          const full = curRow(sql.exec(`SELECT * FROM cur WHERE id=?`, String(ex.id)).toArray()[0]) as unknown as Json;
+          for (const k of Object.keys(full)) if (r[k] === undefined && !["id", "sow"].includes(k)) r[k] = full[k];
+          if (r.keepTitle) r.title = String(ex.title);
+          delete r.links;
+        }
         const res = curUpsert(c, a, subs, { ...r, id: ex ? String(ex.id) : "" });
         if (res.error) errors.push({ row: i + 1, error: res.error }); else if (ex) updated++; else added++;
       }
@@ -481,8 +493,18 @@ export function parseStd(v: unknown): { codes: string[]; skill: number } {
   const skill = Math.round(Number(o.skill)); return { codes, skill: skill >= 1 && skill <= 6 ? skill : 0 };
 }
 function curRow(r: Record<string, unknown>) {
-  return { id: String(r.id), subject: String(r.subject), yr: String(r.yr), term: String(r.term), title: String(r.title), titleAr: String(r.title_ar || ""), objectives: String(r.objectives || ""), sc: parseSc(r.sc), scAr: parseSc(r.sc_ar), objectivesAr: String(r.obj_ar || ""), arReview: !!Number(r.ar_review || 0), std: parseStd(r.std), lessons: JSON.parse(String(r.lessons || "[]")), resources: JSON.parse(String(r.resources || "[]")), wkFrom: Number(r.wk_from), wkTo: Number(r.wk_to), notes: String(r.notes || ""), status: String(r.status), quiz: String(r.quiz || ""), page: String(r.page || ""), ord: Number(r.ord), by: String(r.by_name || ""), updated: Number(r.updated) };
+  return { id: String(r.id), subject: String(r.subject), yr: String(r.yr), term: String(r.term), title: String(r.title), titleAr: String(r.title_ar || ""), objectives: String(r.objectives || ""), sc: parseSc(r.sc), scAr: parseSc(r.sc_ar), objectivesAr: String(r.obj_ar || ""), arReview: !!Number(r.ar_review || 0), sow: parseSow(r.sow), std: parseStd(r.std), lessons: JSON.parse(String(r.lessons || "[]")), resources: JSON.parse(String(r.resources || "[]")), wkFrom: Number(r.wk_from), wkTo: Number(r.wk_to), notes: String(r.notes || ""), status: String(r.status), quiz: String(r.quiz || ""), page: String(r.page || ""), ord: Number(r.ord), by: String(r.by_name || ""), updated: Number(r.updated) };
 }
+/** t406: the SOW (bulk-upload PPTX) fields in both languages. */
+const SOW_KEYS = ["know", "knowAr", "assess", "assessAr", "vocab", "vocabAr"] as const;
+function curExtra(c: ModCtx, id: string, input: Json, prev: Record<string, unknown> | undefined) {
+  if (input.sow !== undefined && typeof input.sow === "object" && input.sow) {
+    const merged = { ...parseSow(prev?.sow), ...Object.fromEntries(SOW_KEYS.filter((k) => (input.sow as Json)[k] !== undefined).map((k) => [k, String((input.sow as Json)[k] ?? "").slice(0, 2000)])) };
+    c.sql.exec(`UPDATE cur SET sow=? WHERE id=?`, JSON.stringify(merged), id);
+  }
+  if (typeof input.objectivesAr === "string") c.sql.exec(`UPDATE cur SET obj_ar=? WHERE id=?`, input.objectivesAr.replace(/\r/g, "").slice(0, 4000), id);
+}
+function parseSow(v: unknown): Record<string, string> { try { const o = JSON.parse(String(v || "{}")) as Json; return Object.fromEntries(SOW_KEYS.filter((k) => o[k]).map((k) => [k, String(o[k])])); } catch { return {}; } }
 function curUpsert(c: ModCtx, a: Actor, subs: string[], input: Json): { id?: string; error?: string } {
   const subject = str(input.subject, 60), yr = str(input.yr, 60), term = str(input.term, 20) || "Term 1", title = str(input.title, 160);
   if (!subject || !yr || !title) return { error: "missing_fields" };
@@ -520,10 +542,12 @@ function curUpsert(c: ModCtx, a: Actor, subs: string[], input: Json): { id?: str
   const notes = input.notes === undefined ? String(prev?.notes || "") : String(input.notes ?? "").replace(/\r/g, "").slice(0, 3000);
   if (prev) {
     c.sql.exec(`UPDATE cur SET subject=?, yr=?, term=?, title=?, objectives=?, lessons=?, resources=?, wk_from=?, wk_to=?, status=?, quiz=?, page=?, links=?, notes=?, sc=?, std=?, title_ar=?, sc_ar=?, by_name=?, updated=? WHERE id=?`, subject, yr, term, title, objectives, JSON.stringify(lessons), JSON.stringify(resources), wf, wt, status, quiz2, page, JSON.stringify(links), notes, sc, std, titleAr, scAr, a.name, now, id);
+    curExtra(c, id, input, prev);
     return { id };
   }
   const nid = rid("cu");
   c.sql.exec(`INSERT INTO cur (id, subject, yr, term, title, objectives, lessons, resources, wk_from, wk_to, status, quiz, page, links, notes, sc, std, title_ar, sc_ar, ord, by_name, updated) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, nid, subject, yr, term, title, objectives, JSON.stringify(lessons), JSON.stringify(resources), wf, wt, status, quiz2, page, JSON.stringify(links), notes, sc, std, titleAr, scAr, Number(input.ord) || 0, a.name, now);
+  curExtra(c, nid, input, undefined);
   return { id: nid };
 }
 
