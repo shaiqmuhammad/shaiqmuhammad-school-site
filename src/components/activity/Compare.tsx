@@ -69,7 +69,7 @@ function Board({ state, big, mineOnly, onDrop, onPickZone }: { state: ActivitySt
       onClick={() => onPickZone?.(z)}
       data-testid={`cmp-zone-${z}`}
     >
-      <p className={`font-extrabold ${big ? "text-lg" : "text-sm"} ${z === "both" && !venn ? "text-[#1b3a57]" : "text-white drop-shadow"}`}>{zoneLabel(state, z, tr)}</p>
+      <p className={`font-extrabold ${big ? "text-lg" : "text-sm"} ${z === "both" && !venn ? "text-[#1b3a57]" : "text-white"}`} {...(venn ? { "data-venn-label": z } : {})} style={venn ? { color: "#ffffff", textShadow: "0 1px 3px rgba(0,0,0,.55)" } : undefined} data-testid={`cmp-label-${z}`}>{zoneLabel(state, z, tr)}</p>
       <div className="flex flex-wrap justify-center gap-1.5">{inZone(z)}</div>
     </div>
   );

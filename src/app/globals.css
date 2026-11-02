@@ -401,3 +401,6 @@ html:not(.dark) .admin-main { background: radial-gradient(1200px 500px at 100% 0
 /* t409: Focus mode — only the activity (and its timer) stays on screen. */
 html.focus-mode [data-focus-hide] { display: none !important; }
 html.focus-mode .pub-main, html.focus-mode .lms-main { padding-top: 0 !important; }
+
+/* t413: Venn zone labels (incl. the middle "Both" / "كلاهما") stay white on every surface, light + dark. */
+html [data-venn-label], html.dark [data-venn-label], html .dark [data-venn-label] { color: #ffffff !important; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55) !important; }
