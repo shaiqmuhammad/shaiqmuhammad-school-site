@@ -67,8 +67,8 @@ export function ResultSheet({ r, lang, qr, names = true }: { r: { type: string; 
       <header className="flex items-start gap-4 px-6 py-5 text-white" style={{ backgroundImage: "linear-gradient(135deg,#1b3a57,#2b5b85)" }}>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-bold uppercase tracking-widest text-[#f5c542]">{l?.icon} {l ? (lang === "ar" ? l.ar : l.en) : r.type}{r.cls ? ` · ${r.cls}` : ""}</p>
-          <h1 className="mt-1 text-2xl font-extrabold sm:text-3xl" dir="auto">{r.prompt || r.title}</h1>
-          <p className="mt-1 text-sm opacity-80">{r.cls ? `👥 ${r.cls} · ` : ""}📅 {date}{r.teacher ? ` · ${r.teacher}` : ""} · {tr(`${r.rows.length} answers`, `${r.rows.length} إجابة`)}</p>
+          <h1 className="mt-1 text-2xl font-extrabold text-white sm:text-3xl" style={{ color: "#ffffff" }} dir="auto" data-testid="result-question">{r.prompt || r.title}</h1>
+          <p className="mt-1 text-sm text-white opacity-90" style={{ color: "#ffffff" }}>{r.cls ? `👥 ${r.cls} · ` : ""}📅 {date}{r.teacher ? ` · ${r.teacher}` : ""} · {tr(`${r.rows.length} answers`, `${r.rows.length} إجابة`)}</p>
         </div>
         {qr && <div className="shrink-0 rounded-2xl bg-white p-1.5 text-center" data-testid="result-qr">{/* eslint-disable-next-line @next/next/no-img-element */}<img src={qrImageUrl(qr, 240)} alt={tr("QR code to view these results", "رمز QR لعرض النتائج")} width={88} height={88} className="h-20 w-20 sm:h-24 sm:w-24" /><p className="text-[10px] font-bold text-[#1b3a57]">{tr("Scan to view", "امسح للعرض")}</p></div>}
       </header>
