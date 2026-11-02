@@ -14,7 +14,7 @@ import { useI18n } from "@/lib/i18n";
 const input = "mt-1 w-full rounded-xl border border-card-border bg-card-solid px-3 py-2 text-sm outline-none focus:border-sun-border focus:ring-2 focus:ring-sun/40";
 const btnGhost = "btn-glass px-3 py-1.5 text-sm disabled:opacity-60";
 const TINT = ["#e0f2fe", "#fef3c7", "#dcfce7", "#fce7f3", "#ede9fe", "#ccfbf1"];
-const TYPES: ActivityType[] = ["wall", "wordcloud", "poll", "survey", "tps", "vote"];
+const TYPES: ActivityType[] = ["wall", "wordcloud", "poll", "survey", "tps", "vote", "mindmap", "compare"];
 /** Teacher-only tools that run entirely in the browser (no join code). */
 const TOOLS = [
   { href: "/activities/wheel", icon: "🎡", en: "Spinning wheel", ar: "العجلة الدوارة", hintEn: "Names typed or pulled from a live activity; sound; remove winner.", hintAr: "أسماء مكتوبة أو من نشاط مباشر؛ صوت؛ إزالة الفائز." },
