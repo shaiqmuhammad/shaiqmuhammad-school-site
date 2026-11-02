@@ -1,5 +1,7 @@
 "use client";
 
+import { CompareHost, CompareOptions, CompareStudent, type CmpCard } from "@/components/activity/Compare";
+import { MindMapHost, MindMapOptions, MindMapStudent } from "@/components/activity/MindMap";
 import { PollHost, PollOptions, PollStudent } from "@/components/activity/Poll";
 import { SurveyHost, SurveyOptions, SurveyStudent, type SurveyQuestion } from "@/components/activity/Survey";
 import { TpsHost, TpsOptions, TpsStudent } from "@/components/activity/ThinkPairShare";
@@ -22,6 +24,10 @@ export function ActivityStudentView(props: { code: string; who: Who; state: Acti
       return <SurveyStudent {...props} />;
     case "tps":
       return <TpsStudent {...props} />;
+    case "mindmap":
+      return <MindMapStudent {...props} />;
+    case "compare":
+      return <CompareStudent {...props} />;
   }
   return <p className="glass rounded-3xl p-8 text-center text-lg">{lang === "ar" ? "هذا النشاط قادم قريبًا." : "This activity is coming soon."}</p>;
 }
@@ -40,12 +46,16 @@ export function ActivityHostView(props: { code: string; hostKey: string; state: 
       return <SurveyHost {...props} />;
     case "tps":
       return <TpsHost {...props} />;
+    case "mindmap":
+      return <MindMapHost {...props} />;
+    case "compare":
+      return <CompareHost {...props} />;
   }
   return <p className="glass rounded-3xl p-8 text-center text-lg">{lang === "ar" ? "هذا النشاط قادم قريبًا." : "This activity is coming soon."}</p>;
 }
 
 /** Activity types whose screens are live (the admin create form only enables these). */
-export const READY_TYPES: ActivityType[] = ["wall", "wordcloud", "poll", "survey", "tps", "vote"];
+export const READY_TYPES: ActivityType[] = ["wall", "wordcloud", "poll", "survey", "tps", "vote", "mindmap", "compare"];
 
 /** Type-specific options in the admin create form (poll choices, survey questions, …). */
 export function ActivityOptionsEditor(props: { type: ActivityType; options: Record<string, unknown>; setOptions: (o: Record<string, unknown>) => void }) {
@@ -60,6 +70,10 @@ export function ActivityOptionsEditor(props: { type: ActivityType; options: Reco
       return <SurveyOptions {...props} />;
     case "tps":
       return <TpsOptions {...props} />;
+    case "mindmap":
+      return <MindMapOptions {...props} />;
+    case "compare":
+      return <CompareOptions {...props} />;
   }
   return null;
 }
@@ -98,11 +112,22 @@ export function prepareOptions(type: ActivityType, raw: Record<string, unknown>)
   }
   if (type === "wordcloud") return { options: { maxPerStudent: Math.min(5, Math.max(1, Number(o.maxPerStudent) || 3)) }, images: {} };
   if (type === "tps") return { options: { stage: "think", minutes: o.minutes || { think: 2, pair: 3, share: 5 } }, images: {} };
+  if (type === "mindmap") return { options: { starters: (Array.isArray(o.starters) ? (o.starters as string[]) : []).map((x) => String(x).trim()).filter(Boolean).slice(0, 8), hints: o.hints === true, recall: false, hidden: [] }, images: {} };
+  if (type === "compare") {
+    const cards = (Array.isArray(o.cards) ? (o.cards as CmpCard[]) : []).map((c) => ({ text: String(c.text || "").trim(), zone: c.zone, ...(c.why?.trim() ? { why: c.why.trim() } : {}) })).filter((c) => c.text);
+    if (!String(o.a || "").trim() || !String(o.b || "").trim()) return null;
+    return { options: { a: String(o.a).trim(), b: String(o.b).trim(), cards, layout: o.layout === "columns" ? "columns" : "venn", play: ["team", "vote"].includes(String(o.play)) ? o.play : "individual", check: false, own: true }, images: {} };
+  }
   return { options: {}, images: {} };
 }
 
 /** After create: uploads vote option pictures as hidden teacher items and links them to the options. */
 export async function afterCreate(type: ActivityType, code: string, hostKey: string, options: Record<string, unknown>, images: Record<number, string>) {
+  if (type === "mindmap") {
+    // Starter branches are posted by the teacher so they appear on the map.
+    for (const text of (options.starters as string[]) || []) await activityApi.post(code, { hostKey }, { text }).catch(() => undefined);
+    return;
+  }
   if (type !== "vote" || !Object.keys(images).length) return;
   const choices = [...(options.choices as VoteChoice[])];
   for (const [k, image] of Object.entries(images)) {
