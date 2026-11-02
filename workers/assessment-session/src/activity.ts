@@ -29,7 +29,7 @@ export interface ActivityEnv extends AdminEnv {
   ACTIVITIES: DurableObjectNamespace<ClassActivity>;
 }
 
-export const ACTIVITY_TYPES = ["wall", "wordcloud", "poll", "survey", "tps", "vote"] as const;
+export const ACTIVITY_TYPES = ["wall", "wordcloud", "poll", "survey", "tps", "vote", "mindmap", "compare"] as const;
 export type ActivityType = (typeof ACTIVITY_TYPES)[number];
 
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -284,7 +284,10 @@ export class ClassActivity extends DurableObject<ActivityEnv> {
         const id = rand(12);
         const status = isHost || m.settings.moderation === "live" ? "approved" : "pending";
         const kind = str(input.kind, 20) || "post";
-        const data = { text, link, youtube: yt, stage: str(input.stage, 20) };
+        const data: Json = { text, link, youtube: yt, stage: str(input.stage, 20) };
+        // t409: mind map (branch → leaf via parent, optional group) and compare (zone a | b | both).
+        if (m.type === "mindmap") { const par = str(input.parent, 20); if (par && !this.sql.exec(`SELECT 1 FROM items WHERE id=?`, par).toArray().length) return { status: 400, body: { error: "no_parent" } }; data.parent = par; data.group = str(input.group, 30); }
+        if (m.type === "compare") { const z = str(input.zone, 6); if (!["a", "b", "both"].includes(z)) return { status: 400, body: { error: "bad_zone" } }; data.zone = z; }
         this.sql.exec(`INSERT INTO items (id, pid, kind, data, status, created, img) VALUES (?, ?, ?, ?, ?, ?, ?)`, id, me.id, kind, JSON.stringify(data), status, Date.now(), imgId);
         this.bump();
         return { status: 200, body: { ok: true, id, status } };
@@ -304,6 +307,12 @@ export class ClassActivity extends DurableObject<ActivityEnv> {
           const nItems = Number(this.sql.exec(`SELECT COUNT(*) AS n FROM items`).one().n);
           if (nItems >= MAX_ITEMS) return { status: 409, body: { error: "full" } };
           this.sql.exec(`INSERT INTO items (id, pid, kind, data, status, created) VALUES (?, ?, 'word', ?, 'approved', ?)`, rand(12), me.id, JSON.stringify(r), Date.now());
+        } else if (m.type === "compare" || m.type === "mindmap") {
+          // t409: compare = one placement per student per teacher card; mind map recall = one answer per student per hidden leaf.
+          const kind = m.type === "compare" ? "place" : "recall";
+          const key = m.type === "compare" ? String((r as Json).card) : String((r as Json).leaf);
+          for (const x of this.sql.exec(`SELECT id, data FROM items WHERE pid=? AND kind=?`, me.id, kind).toArray()) { const d = JSON.parse(String(x.data || "{}")) as Json; if (String(m.type === "compare" ? d.card : d.leaf) === key) this.sql.exec(`DELETE FROM items WHERE id=?`, String(x.id)); }
+          this.sql.exec(`INSERT INTO items (id, pid, kind, data, status, created) VALUES (?, ?, ?, ?, 'approved', ?)`, rand(12), me.id, kind, JSON.stringify(r), Date.now());
         } else if (m.type === "tps") {
           // Private "think" note: one per student, visible to the student, their partner and the teacher.
           this.sql.exec(`DELETE FROM items WHERE pid=? AND kind='think'`, me.id);
@@ -357,6 +366,23 @@ export class ClassActivity extends DurableObject<ActivityEnv> {
         else if (act === "pin" || act === "unpin") this.sql.exec(`UPDATE items SET pinned=? WHERE id=?`, act === "pin" ? Date.now() : 0, id);
         else if (act === "highlight" || act === "unhighlight") this.sql.exec(`UPDATE items SET highlight=? WHERE id=?`, act === "highlight" ? 1 : 0, id);
         else if (act === "color") this.sql.exec(`UPDATE items SET color=? WHERE id=?`, COLORS.includes(String(input.color)) ? String(input.color) : "", id);
+        else if (act === "move" || act === "zone" || act === "regroup") {
+          // t409: teacher drags a mind-map idea / compare card (x,y 0..1), moves it to another zone, or groups it.
+          const row = this.sql.exec(`SELECT data FROM items WHERE id=?`, id).toArray()[0];
+          if (!row) return { status: 404, body: { error: "no_item" } };
+          const d = JSON.parse(String(row.data || "{}")) as Json;
+          if (act === "move") { d.x = Math.max(0, Math.min(1, Number(input.x) || 0)); d.y = Math.max(0, Math.min(1, Number(input.y) || 0)); }
+          if (act === "zone") { const z = str(input.zone, 6); if (["a", "b", "both"].includes(z)) d.zone = z; }
+          if (act === "regroup") { d.group = str(input.group, 30); if (typeof input.parent === "string") d.parent = str(input.parent, 20); }
+          this.sql.exec(`UPDATE items SET data=? WHERE id=?`, JSON.stringify(d), id);
+        } else if (act === "merge") {
+          // t409: merge a duplicate idea into another: its likes move over, its leaves re-attach, then it is removed.
+          const into = str(input.into, 20);
+          if (!into || into === id || !this.sql.exec(`SELECT 1 FROM items WHERE id=?`, into).toArray().length) return { status: 400, body: { error: "bad_merge" } };
+          this.sql.exec(`INSERT OR IGNORE INTO likes (item, pid) SELECT ?, pid FROM likes WHERE item=?`, into, id);
+          for (const ch of this.sql.exec(`SELECT id, data FROM items`).toArray()) { const d = JSON.parse(String(ch.data || "{}")) as Json; if (d.parent === id) { d.parent = into; this.sql.exec(`UPDATE items SET data=? WHERE id=?`, JSON.stringify(d), String(ch.id)); } }
+          this.deleteItems(`id=?`, id);
+        }
         else if (act === "approve-all") this.sql.exec(`UPDATE items SET status='approved' WHERE status='pending'`);
         else if (act === "clear") this.deleteItems(`kind=?`, str(input.kind, 20) || "response");
         else return { status: 400, body: { error: "bad_action" } };
@@ -454,6 +480,19 @@ export class ClassActivity extends DurableObject<ActivityEnv> {
       });
       return { answers: out };
     }
+    if (m.type === "compare") {
+      const n = Array.isArray(opts.cards) ? (opts.cards as unknown[]).length : 0;
+      const card = Number(d.card), zone = str(d.zone, 6);
+      if (!Number.isInteger(card) || card < 0 || card >= n || !["a", "b", "both"].includes(zone)) return { error: "bad_choice" };
+      return { card, zone };
+    }
+    if (m.type === "mindmap") {
+      const leaf = str(d.leaf, 20), text = str(d.text, 120);
+      const hidden = Array.isArray(opts.hidden) ? (opts.hidden as unknown[]).map(String) : [];
+      if (!hidden.includes(leaf) || !text) return { error: "bad_choice" };
+      if (isProfane(text)) return { error: "language" };
+      return { leaf, text };
+    }
     if (m.type === "tps") {
       const text = str(d.text, 600);
       if (!text) return { error: "empty" };
@@ -506,13 +545,14 @@ export class ClassActivity extends DurableObject<ActivityEnv> {
       .filter((r) => isHost || r.status === "approved" || r.pid === meId)
       .filter((r) => isHost || r.kind !== "response" || r.pid === meId)
       .filter((r) => isHost || r.kind !== "think" || partners.has(String(r.pid)))
+      .filter((r) => isHost || r.kind !== "recall" || r.pid === meId)
       .map((r) => ({
         id: String(r.id),
         pid: anonymous && r.kind === "response" && r.pid !== meId ? "" : String(r.pid),
         mine: r.pid === meId,
         author: anonymous && r.kind === "response" ? "Anonymous" : r.pid === "host" ? "Teacher" : nameOf.get(String(r.pid)) ?? "Student",
         kind: String(r.kind),
-        data: JSON.parse(String(r.data || "{}")),
+        data: ((d: Json) => (!isHost && m.type === "mindmap" && opts.recall === true && Array.isArray(opts.hidden) && (opts.hidden as unknown[]).map(String).includes(String(r.id)) ? { ...d, text: "", hidden: true } : d))(JSON.parse(String(r.data || "{}")) as Json),
         status: String(r.status),
         created: Number(r.created),
         pinned: Number(r.pinned) || 0,

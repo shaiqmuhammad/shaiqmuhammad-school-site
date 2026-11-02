@@ -7,7 +7,7 @@ import { getServerSession } from "@/lib/adminServer";
 import { ASSESSMENT_API_BASE } from "@/lib/groupSession";
 
 /** Classroom activities (see workers/assessment-session/src/activity.ts). Join codes have 5 characters. */
-export type ActivityType = "wall" | "wordcloud" | "poll" | "survey" | "tps" | "vote";
+export type ActivityType = "wall" | "wordcloud" | "poll" | "survey" | "tps" | "vote" | "mindmap" | "compare";
 
 export const ACTIVITY_CODE_LENGTH = 5;
 export const isActivityCode = (code: string) => code.length === ACTIVITY_CODE_LENGTH;
@@ -42,7 +42,7 @@ export type ActivityItem = {
   mine: boolean;
   author: string;
   kind: string;
-  data: { text?: string; link?: string; youtube?: string; stage?: string; word?: string; picks?: number[]; answers?: unknown[] };
+  data: { text?: string; link?: string; youtube?: string; stage?: string; word?: string; picks?: number[]; answers?: unknown[]; parent?: string; group?: string; zone?: "a" | "b" | "both"; x?: number; y?: number; card?: number; leaf?: string; hidden?: boolean };
   status: "approved" | "pending";
   created: number;
   pinned: number;
@@ -108,7 +108,7 @@ export const activityApi = {
   info: (code: string) => call<ActivityInfo>(code),
   join: (code: string, name: string, deviceId: string) => call<ActivityInfo & { pid: string; token: string; name: string }>(`${code}/join`, { name, deviceId, ...(studentLoginToken() ? { lmsToken: studentLoginToken() } : {}) }),
   state: (code: string, who: Who, since?: number) => call<ActivityState | { same: true; rev: number; now: number }>(`${code}/state${q({ ...who, since })}`),
-  post: (code: string, who: Who, p: { text?: string; link?: string; youtube?: string; image?: string; kind?: string; stage?: string }) =>
+  post: (code: string, who: Who, p: { text?: string; link?: string; youtube?: string; image?: string; kind?: string; stage?: string; parent?: string; group?: string; zone?: string }) =>
     call<{ ok: true; id: string; status: string }>(`${code}/post`, { ...who, ...p }),
   respond: (code: string, who: Who, data: unknown) => call<{ ok: true }>(`${code}/respond`, { ...who, data }),
   like: (code: string, who: Who, id: string) => call<{ ok: true; liked: boolean }>(`${code}/like`, { ...who, id }),
@@ -208,4 +208,6 @@ export const ACTIVITY_LABELS: Record<ActivityType, { en: string; ar: string; ico
   survey: { en: "Survey", ar: "استبيان", icon: "📝", hintEn: "Choice, 1–5 rating, emoji scale and short text; Excel export.", hintAr: "اختيار، تقييم ١–٥، مقياس وجوه ونص قصير؛ تصدير إكسل." },
   tps: { en: "Think · Pair · Share", ar: "فكّر · زاوج · شارك", icon: "🤝", hintEn: "Timed stages, random pairs and a share wall.", hintAr: "مراحل بمؤقت، أزواج عشوائية وجدار للمشاركة." },
   vote: { en: "Vote", ar: "تصويت", icon: "🗳️", hintEn: "Options with pictures, live results and a winner celebration.", hintAr: "خيارات بصور، نتائج مباشرة واحتفال بالفائز." },
+  mindmap: { en: "Mind map", ar: "خريطة ذهنية", icon: "🧠", hintEn: "A central topic; students grow branches and ideas live. Recall mode hides leaves to fill in.", hintAr: "موضوع رئيسي؛ يضيف الطلاب الفروع والأفكار مباشرة. وضع التذكّر يخفي الأفكار ليكملها الطلاب." },
+  compare: { en: "Compare & contrast", ar: "قارن وميّز", icon: "⚖️", hintEn: "Venn or two columns: sort cards into only A, only B or both, then check.", hintAr: "مخطط فن أو عمودان: صنّف البطاقات إلى (أ) فقط أو (ب) فقط أو كليهما ثم تحقّق." },
 };
