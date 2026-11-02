@@ -1,5 +1,6 @@
 "use client";
 
+import { FocusCorner, FocusToggle, PushedFocus } from "@/components/FocusMode";
 import { useEffect, useRef, useState } from "react";
 import { AssessmentShell, fieldCls, panelCls, primaryBtn } from "@/components/assessment/AssessmentShell";
 import { WallBoard, WallComposer, errorText } from "@/components/activity/WallBoard";
@@ -146,6 +147,9 @@ export function ActivityJoin({ code }: { code: string }) {
   return (
     <AssessmentShell title={title} exitHref="/" secondsLeft={state?.ended ? null : left}>
       <div className="mx-auto w-full max-w-5xl flex-1 px-3 py-5 sm:px-6" data-testid="activity-student">
+        <PushedFocus pushed={state?.settings.options.focus === true} />
+        <FocusCorner secondsLeft={state?.ended ? null : left} exitLabel={tr("Exit focus mode", "الخروج من وضع التركيز")} />
+        <div className="mb-2 flex justify-end" data-focus-hide><FocusToggle className="rounded-full bg-[#1b3a57] px-3 py-1.5 text-sm font-bold text-[#f5c542]" label={tr("Focus mode", "وضع التركيز")} /></div>
         {offline && <p className="mb-3 rounded-xl bg-amber-100 px-4 py-2 text-sm font-semibold text-amber-900 dark:bg-amber-900/40 dark:text-amber-100">{tr("Reconnecting…", "جارٍ إعادة الاتصال…")}</p>}
         {!state ? (
           <p className="p-10 text-center text-lg opacity-70">{tr("Loading…", "جارٍ التحميل…")}</p>

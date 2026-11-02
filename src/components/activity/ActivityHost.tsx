@@ -1,5 +1,7 @@
 "use client";
 
+import { FocusCorner, FocusToggle, toggleFullscreen } from "@/components/FocusMode";
+import { saveOptions } from "@/components/activity/common";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useLmsExit } from "@/lib/useLmsExit";
 import { useEffect, useRef, useState } from "react";
@@ -36,6 +38,7 @@ export async function exportActivityXlsx(state: ActivityState) {
   ];
   ws.getRow(1).font = { bold: true };
   const names = new Map(state.participants.map((p) => [p.id, p.name]));
+  const byId = new Map(state.items.map((i) => [i.id, i]));
   for (const i of state.items) {
     ws.addRow({
       time: new Date(i.created).toLocaleString(),
@@ -63,6 +66,7 @@ export async function exportActivityXlsx(state: ActivityState) {
 /** t370: one row per student answer (name, answer) for the saved / printable results. */
 export function activityRows(state: ActivityState): SavedRow[] {
   const names = new Map(state.participants.map((p) => [p.id, p.name]));
+  const byId = new Map(state.items.map((i) => [i.id, i]));
   const ch = Array.isArray(state.settings.options.choices) ? (state.settings.options.choices as unknown[]).map((c) => (typeof c === "string" ? c : String((c as { text?: string })?.text ?? ""))) : [];
   const qs = Array.isArray(state.settings.options.questions) ? (state.settings.options.questions as { q: string; choices?: string[] }[]) : [];
   return state.items.filter((i) => i.kind !== "optimg").map((i) => {
@@ -70,7 +74,17 @@ export function activityRows(state: ActivityState): SavedRow[] {
     if (!answer && i.data.picks) answer = i.data.picks.map((n) => ch[n] || `#${n + 1}`).join(", ");
     if (!answer && i.data.answers) { const ans = i.data.answers as unknown; answer = Array.isArray(ans) ? ans.map((x, k) => `${qs[k]?.q ? qs[k].q + ": " : ""}${typeof x === "number" && qs[k]?.choices ? qs[k].choices![x] : String(x)}`).join(" · ") : JSON.stringify(ans); }
     if (!answer && i.data.link) answer = i.data.link;
-    return { name: i.pid === "host" ? "Teacher" : names.get(i.pid) || i.author || "", answer: String(answer).slice(0, 1000) };
+    // t409: mind map leaves keep their branch, compare cards keep their zone (and whether it was right).
+    let group = "", ok: boolean | undefined;
+    const o = state.settings.options;
+    const zl = (z?: string) => (z === "a" ? `Only ${o.a || "A"}` : z === "b" ? `Only ${o.b || "B"}` : z === "both" ? "Both" : "");
+    if (state.type === "mindmap") { const p = i.data.parent ? byId.get(i.data.parent) : undefined; group = p ? p.data.text || "" : i.kind === "recall" ? `Recall: ${byId.get(String(i.data.leaf))?.data.text || ""}` : "Branch"; }
+    if (state.type === "compare") {
+      const cards = Array.isArray(o.cards) ? (o.cards as { text: string; zone: string }[]) : [];
+      if (i.kind === "place") { const c = cards[Number(i.data.card)]; answer = c?.text || ""; ok = c ? c.zone === i.data.zone : undefined; }
+      group = zl(i.data.zone);
+    }
+    return { name: i.pid === "host" ? "Teacher" : names.get(i.pid) || i.author || "", answer: String(answer).slice(0, 1000), ...(group ? { group } : {}), ...(ok !== undefined ? { ok } : {}) };
   }).filter((r) => r.answer);
 }
 
@@ -150,8 +164,9 @@ export function ActivityHost() {
 
   const hostKey = hosted.hostKey;
   const clsLabel = (() => { try { return localStorage.getItem(`sm-act-cls-${code}`) || ""; } catch { return ""; } })();
+  const meta = (() => { try { return JSON.parse(localStorage.getItem(`sm-act-meta-${code}`) || "{}") as { subject?: string; topic?: string }; } catch { return {}; } })();
   const saveResults = async (st: ActivityState) => {
-    try { const r = await lmsApi.actSave({ code, type: st.type, title: st.title || hosted.title, prompt: st.prompt || "", cls: clsLabel, rows: activityRows(st) }); setSavedId(r.id); return r.id; } catch { return ""; }
+    try { const r = await lmsApi.actSave({ code, type: st.type, title: st.title || hosted.title, prompt: st.prompt || "", cls: clsLabel, ...meta, rows: activityRows(st) }); setSavedId(r.id); return r.id; } catch { return ""; }
   };
   const finish = async (st: ActivityState) => {
     if (!st.ended) await activityApi.end(code, hostKey).catch(() => undefined);
@@ -185,11 +200,12 @@ export function ActivityHost() {
         className="pill-on-navy h-9 w-9 justify-center"
         aria-label={full ? tr("Exit full screen", "إنهاء ملء الشاشة") : tr("Full screen", "ملء الشاشة")}
         title={full ? tr("Exit full screen", "إنهاء ملء الشاشة") : tr("Full screen", "ملء الشاشة")}
-        onClick={() => (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.())?.catch(() => undefined)}
+        onClick={() => toggleFullscreen()}
         data-testid="host-fullscreen"
       >
         {full ? "⤡" : "⤢"}
       </button>
+      <FocusToggle className="pill-on-navy h-9 px-3 text-sm font-bold" label={tr("Focus", "تركيز")} />
     </>
   );
 
@@ -198,8 +214,16 @@ export function ActivityHost() {
       <div className="mx-auto w-full max-w-[1800px] flex-1 px-3 py-4 sm:px-6" data-testid="activity-host">
         {offline && <p className="mb-3 rounded-xl bg-amber-100 px-4 py-2 text-sm font-semibold text-amber-900 dark:bg-amber-900/40 dark:text-amber-100">{tr("Reconnecting…", "جارٍ إعادة الاتصال…")}</p>}
 
+        <FocusCorner secondsLeft={state?.ended ? null : left} exitLabel={tr("Exit focus mode", "الخروج من وضع التركيز")} />
+        {state && (
+          <div className="mb-2 flex justify-end" data-focus-keep>
+            <button type="button" className={chip(state.settings.options.focus === true)} onClick={async () => { await saveOptions(code, hostKey, state, { focus: state.settings.options.focus !== true }).catch(() => undefined); reload(); }} aria-pressed={state.settings.options.focus === true} data-testid="host-push-focus">
+              📲 {state.settings.options.focus === true ? tr("Focus mode on student screens ✓", "وضع التركيز على شاشات الطلاب ✓") : tr("Push focus mode to students", "تفعيل وضع التركيز للطلاب")}
+            </button>
+          </div>
+        )}
         {/* Join strip */}
-        <section className="glass mb-4 flex flex-wrap items-center gap-4 rounded-3xl p-4">
+        <section data-focus-hide className="glass mb-4 flex flex-wrap items-center gap-4 rounded-3xl p-4">
           <button type="button" onClick={() => setShowJoin(true)} className="shrink-0 rounded-2xl bg-white p-1.5" aria-label={tr("Show big QR code", "إظهار رمز QR كبير")}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={qrImageUrl(url, 240)} alt="" width={84} height={84} className="h-20 w-20" />
@@ -229,7 +253,7 @@ export function ActivityHost() {
 
         {/* Controls */}
         {state && (
-          <section className="mb-4 flex flex-wrap items-center gap-2" aria-label={tr("Controls", "التحكم")}>
+          <section data-focus-hide className="mb-4 flex flex-wrap items-center gap-2" aria-label={tr("Controls", "التحكم")}>
             <button type="button" className={chip(state.settings.hideNames)} onClick={() => set({ hideNames: !state.settings.hideNames })} aria-pressed={state.settings.hideNames} data-testid="host-hide-names">
               {state.settings.hideNames ? "🙈" : "👀"} {state.settings.hideNames ? tr("Names hidden", "الأسماء مخفية") : tr("Names shown", "الأسماء ظاهرة")}
             </button>
@@ -294,7 +318,7 @@ export function ActivityHost() {
                   setBusy(true);
                   await finish(state);
                   setBusy(false);
-                  if (home.startsWith("/lms/classes")) { window.location.assign(home); return; }
+                  if (home.startsWith("/lms/classes")) { router.push(home); return; }
                   reload();
                 }}
                 data-testid="host-end"
@@ -305,14 +329,14 @@ export function ActivityHost() {
             <button type="button" disabled={busy} className="inline-flex items-center gap-1.5 rounded-full bg-[#1b3a57] px-3 py-1.5 text-sm font-bold text-[#f5c542]" onClick={async () => {
               if (!state.ended && !confirm(tr("End and close this activity? Results are saved.", "إنهاء وإغلاق هذا النشاط؟ تُحفظ النتائج."))) return;
               setBusy(true); await finish(state); forgetHosted(code);
-              window.location.assign(home);
+              router.push(home);
             }} data-testid="host-close">✕ {tr("End & close", "إنهاء وإغلاق")}</button>
           </section>
         )}
 
         {/* Participants */}
         {showPeople && state && (
-          <section className="glass mb-4 rounded-3xl p-4" data-testid="host-people">
+          <section data-focus-hide className="glass mb-4 rounded-3xl p-4" data-testid="host-people">
             <h2 className="text-lg font-bold">{tr("Participants", "المشاركون")} ({active.length})</h2>
             {state.participants.length === 0 ? (
               <p className="mt-2 opacity-70">{tr("Waiting for students to join…", "بانتظار انضمام الطلاب…")}</p>

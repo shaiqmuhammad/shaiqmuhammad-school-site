@@ -1,5 +1,6 @@
 "use client";
 
+import { spaNav } from "@/components/FocusMode";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AssessmentShell, fieldCls, panelCls, primaryBtn, ghostBtn } from "@/components/assessment/AssessmentShell";
@@ -268,7 +269,7 @@ export function GroupJoin() {
               const c = cleanCode(codeInput);
               if (c.length === 5) {
                 // Classroom activities use 5-character codes (see JoinRouter).
-                window.location.assign(`/join?code=${c}`);
+                spaNav(`/join?code=${c}`);
                 return;
               }
               if (c.length >= 4) {
