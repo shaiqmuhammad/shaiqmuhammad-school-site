@@ -5,6 +5,7 @@ import { Footer } from "@/components/Footer";
 import { Header } from "@/components/Header";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { ChatWidget } from "@/components/ChatWidget";
+import { FullscreenKeeper } from "@/components/FocusMode";
 import { PwaInstall } from "@/components/PwaInstall";
 import { siteConfig } from "@/content/site";
 import { langInitScript } from "@/lib/langStorage";
@@ -84,10 +85,10 @@ export default function RootLayout({
         <ThemeProvider>
           <SiteBrandProvider brand={brand} social={settings.social}>
             <AnnouncementTicker />
-            <Header />
+            <div data-focus-hide className="contents"><Header /></div>
             <main className="pub-main flex-1">{children}</main>
-            <Footer />
-            <ChatWidget />
+            <div data-focus-hide className="contents"><Footer /><ChatWidget /></div>
+            <FullscreenKeeper />
             <PwaInstall />
           </SiteBrandProvider>
         </ThemeProvider>
