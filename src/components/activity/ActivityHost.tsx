@@ -216,7 +216,7 @@ export function ActivityHost() {
 
         <FocusCorner secondsLeft={state?.ended ? null : left} exitLabel={tr("Exit focus mode", "الخروج من وضع التركيز")} />
         {state && (
-          <div className="mb-2 flex justify-end" data-focus-keep>
+          <div className="mb-2 flex justify-end" data-focus-hide>
             <button type="button" className={chip(state.settings.options.focus === true)} onClick={async () => { await saveOptions(code, hostKey, state, { focus: state.settings.options.focus !== true }).catch(() => undefined); reload(); }} aria-pressed={state.settings.options.focus === true} data-testid="host-push-focus">
               📲 {state.settings.options.focus === true ? tr("Focus mode on student screens ✓", "وضع التركيز على شاشات الطلاب ✓") : tr("Push focus mode to students", "تفعيل وضع التركيز للطلاب")}
             </button>

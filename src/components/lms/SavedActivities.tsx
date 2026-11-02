@@ -107,7 +107,7 @@ export function ResultSheet({ r, lang, qr, names = true }: { r: { type: string; 
       <div className="space-y-3 bg-[#fffbea] p-4">
         {!r.rows.length ? <p className="py-8 text-center opacity-70">{tr("No answers were given.", "لم تُقدَّم إجابات.")}</p> : groups.map(([g, rows]) => (
           <section key={g || "all"} className="rounded-[28px] bg-white p-4" data-testid="result-bubbles">
-            {g && <h2 className="mb-2 inline-block rounded-full bg-[#1b3a57] px-4 py-1 text-sm font-extrabold text-[#f5c542]" dir="auto">{g}</h2>}
+            {g && <p className="mb-2 inline-block rounded-full bg-[#1b3a57] px-4 py-1 text-sm font-extrabold text-[#f5c542]" style={{ color: "#f5c542" }} dir="auto" data-testid="result-group">{g}</p>}
             <div className="flex min-h-24 flex-wrap items-center justify-center gap-3">{bubbles(rows).map(bubble)}</div>
           </section>
         ))}
