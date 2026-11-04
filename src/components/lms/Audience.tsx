@@ -30,7 +30,7 @@ export function RosterLoader({ onNames }: { onNames: (names: string[]) => void }
   const opts = new Map<string, string[]>();
   data.groups.forEach((g) => opts.set(`g:${g.id}`, names(g.students)));
   return (
-    <select className="mt-3 w-full rounded-full border border-black/10 bg-white/80 px-3 py-1.5 text-sm dark:border-white/15 dark:bg-black/30" value="" onChange={(e) => { const n = opts.get(e.target.value); if (n) onNames(n); }} aria-label={tr("Load names from my groups", "تحميل الأسماء من مجموعاتي")} data-testid="roster-loader">
+    <select className="mt-3 w-full rounded-full border border-black/10 bg-white/80 px-3 py-1.5 text-sm dark:border-white/15 dark:bg-black/30" value="" onChange={(e) => { const n = opts.get(e.target.value); if (n) { const g = data.groups.find((x) => `g:${x.id}` === e.target.value); try { localStorage.setItem("sm_class_ids_v1", JSON.stringify(Object.fromEntries((g?.students || []).filter((id) => byId.has(id)).map((id) => [byId.get(id), id])))); } catch { /* */ } onNames(n); } }} aria-label={tr("Load names from my groups", "تحميل الأسماء من مجموعاتي")} data-testid="roster-loader">
       <option value="">{tr("Load names from my groups…", "تحميل الأسماء من مجموعاتي…")}</option>
       {data.groups.map((g) => <option key={g.id} value={`g:${g.id}`}>{grpLabel(g)} ({opts.get(`g:${g.id}`)?.length})</option>)}
     </select>

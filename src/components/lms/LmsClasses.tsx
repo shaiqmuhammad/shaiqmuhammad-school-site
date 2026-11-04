@@ -1,5 +1,7 @@
 "use client";
 import { spaNav } from "@/components/FocusMode";
+import { SfxToggle } from "@/components/activity/SfxToggle";
+import { sfxPoints } from "@/lib/sfx";
 import { startWithClass } from "@/components/lms/ClassLaunch";
 import { QuickStart } from "@/components/lms/QuickStart";
 import { openClassTimer } from "@/components/lms/ClassTimer";
@@ -101,6 +103,7 @@ export function LmsClassesPage() {
     try {
       const r = await lmsApi.ptsAward(c.id, who.map((s) => s.id));
       setLastBatch(r.batch);
+      sfxPoints(c.pts);
       setFlash(Object.fromEntries(who.map((s) => [s.id, c.pts])));
       setRoster((rs) => (rs || []).map((s) => (who.some((w) => w.id === s.id) ? { ...s, points: s.points + c.pts } : s)));
       setToast(`${c.icon} ${c.label} ${c.pts > 0 ? "+" : ""}${c.pts} → ${who.length === 1 ? who[0].name : tr(`${who.length} students`, `${who.length} طلاب`)}`);
@@ -159,6 +162,7 @@ export function LmsClassesPage() {
           <button type="button" className={pill} onClick={() => setEditCats(true)} data-testid="cls-cats">🏷 {tr("Skills", "المهارات")}</button>
           <button type="button" className={pill} onClick={undo} data-testid="cls-undo">↶ {tr("Undo last", "تراجع")}</button>
           <a className={pill} href="/lms/activities/saved" data-testid="cls-saved">💾 {tr("Saved results", "النتائج المحفوظة")}</a>
+          <SfxToggle />
           <a className={pill} href="/lms/points" data-testid="cls-reports">📊 {tr("Points report", "تقرير النقاط")}</a>
           {canManage && <a className={pill} href="/lms/students">👥 {tr("Manage students", "إدارة الطلاب")}</a>}
           {view && <button type="button" disabled={!shown.length} className="rounded-full bg-sun px-4 py-2 text-sm font-bold text-[#0b1b2b] disabled:opacity-50" onClick={() => { setWhole(true); setAward(shown); }} data-testid="cls-whole">⭐ {tr("Whole class", "كل الصف")}</button>}

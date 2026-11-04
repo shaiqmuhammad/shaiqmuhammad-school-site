@@ -4,6 +4,10 @@ import { useEffect, useState } from "react";
 import { AssessmentShell, primaryBtn } from "@/components/assessment/AssessmentShell";
 import { ClassNames, loadNames, randInt, shuffled } from "@/components/activity/ClassNames";
 import { useI18n } from "@/lib/i18n";
+import { sfxChime, sfxDrum } from "@/lib/sfx";
+import { SfxToggle } from "@/components/activity/SfxToggle";
+import { PickedAward } from "@/components/activity/PickedAward";
+import { FocusCorner, FocusToggle, useFocus } from "@/components/FocusMode";
 
 type Mode = "pick" | "groups" | "number";
 const GROUP_COLORS = ["bg-sky-100 dark:bg-sky-900/40", "bg-amber-100 dark:bg-amber-900/40", "bg-emerald-100 dark:bg-emerald-900/40", "bg-rose-100 dark:bg-rose-900/40", "bg-violet-100 dark:bg-violet-900/40", "bg-teal-100 dark:bg-teal-900/40"];
@@ -19,6 +23,8 @@ export function Randomiser() {
   const [used, setUsed] = useState<string[]>([]);
   const [picked, setPicked] = useState<string | null>(null);
   const [rolling, setRolling] = useState(false);
+  const focus = useFocus();
+  const [reveal, setReveal] = useState<string | null>(null);
   // groups
   const [sizeText, setSizeText] = useState("4");
   const size = Math.max(1, Math.min(100, Math.trunc(Number(sizeText)) || 1));
@@ -43,9 +49,11 @@ export function Randomiser() {
     let i = 0;
     const iv = setInterval(() => {
       flash();
+      sfxDrum();
       if (++i >= 14) {
         clearInterval(iv);
         final();
+        sfxChime();
         setRolling(false);
       }
     }, 70);
@@ -57,6 +65,7 @@ export function Randomiser() {
     animate(
       () => {
         setPicked(choice);
+        setReveal(choice);
         if (noRepeat) setUsed((u) => [...u, choice]);
       },
       () => setPicked(pool[randInt(pool.length)]),
@@ -91,9 +100,10 @@ export function Randomiser() {
 
   return (
     <AssessmentShell title={tr("Randomiser", "الاختيار العشوائي")} exitHref="/admin" wide>
-      <div className="mx-auto grid w-full max-w-[1500px] flex-1 gap-6 px-3 py-5 sm:px-6 lg:grid-cols-[1fr_360px]" data-testid="randomiser-page">
+      <div className={`mx-auto grid w-full max-w-[1500px] flex-1 gap-6 px-3 py-5 sm:px-6 ${focus ? "" : "lg:grid-cols-[1fr_360px]"}`} data-testid="randomiser-page">
+        <FocusCorner exitLabel={tr("Exit focus mode", "الخروج من وضع التركيز")} />
         <div className="flex min-w-0 flex-col gap-5">
-          <div className="flex flex-wrap gap-2" role="tablist">
+          <div className="flex flex-wrap items-center gap-2" role="tablist">
             {tabs.map((t) => (
               <button
                 key={t.id}
@@ -107,6 +117,8 @@ export function Randomiser() {
                 {t.icon} {t.label}
               </button>
             ))}
+            <SfxToggle className="ms-auto" />
+            <FocusToggle className="rounded-full bg-header px-3 py-1.5 text-sm font-bold text-sun" label={tr("Focus", "تركيز")} />
           </div>
 
           {mode === "pick" && (
@@ -180,10 +192,20 @@ export function Randomiser() {
             </section>
           )}
         </div>
-        <aside>
+        <aside data-focus-hide>
           <ClassNames names={names} setNames={(l) => { setNames(l); setUsed((u) => u.filter((x) => l.includes(x))); }} />
         </aside>
       </div>
+      {reveal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-header/90 p-6" role="dialog" aria-modal="true" aria-label={tr("Picked student", "الطالب المختار")} onClick={() => setReveal(null)} data-testid="rand-reveal">
+          <div className="relative max-w-[92vw] rounded-[28px] bg-white px-8 py-10 text-center shadow-2xl ring-4 ring-sun dark:bg-[#10263b]">
+            <p className="text-lg font-bold uppercase tracking-widest text-teal-700 dark:text-teal-300">🎯 {tr("It's your turn…", "حان دورك…")}</p>
+            <p className="mt-3 break-words text-6xl font-black text-navy dark:text-sun sm:text-7xl" dir="auto">{reveal}</p>
+            <PickedAward name={reveal} />
+            <button type="button" className={`${primaryBtn} mt-8`} onClick={() => setReveal(null)} data-testid="rand-reveal-close">{tr("Continue", "متابعة")}</button>
+          </div>
+        </div>
+      )}
     </AssessmentShell>
   );
 }

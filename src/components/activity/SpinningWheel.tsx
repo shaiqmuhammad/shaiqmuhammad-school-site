@@ -4,38 +4,14 @@ import { useEffect, useRef, useState } from "react";
 import { AssessmentShell, primaryBtn } from "@/components/assessment/AssessmentShell";
 import { ClassNames, loadNames, randInt, saveNames } from "@/components/activity/ClassNames";
 import { useI18n } from "@/lib/i18n";
+import { sfxChime, sfxTick } from "@/lib/sfx";
+import { SfxToggle } from "@/components/activity/SfxToggle";
+import { PickedAward } from "@/components/activity/PickedAward";
+import { FocusCorner, FocusToggle, useFocus } from "@/components/FocusMode";
 
 const COLORS = ["#16324f", "#f2c14e", "#2a9d8f", "#e76f51", "#3a86ff", "#8e7dbe", "#90be6d", "#f4a261"];
 const TEXT_ON = (c: string) => (c === "#f2c14e" || c === "#90be6d" || c === "#f4a261" ? "#16324f" : "#ffffff");
 const SPIN_MS = 5200;
-
-function tick(ctx: AudioContext | null) {
-  if (!ctx) return;
-  const o = ctx.createOscillator();
-  const g = ctx.createGain();
-  o.type = "triangle";
-  o.frequency.value = 1100;
-  g.gain.setValueAtTime(0.12, ctx.currentTime);
-  g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.05);
-  o.connect(g).connect(ctx.destination);
-  o.start();
-  o.stop(ctx.currentTime + 0.06);
-}
-function fanfare(ctx: AudioContext | null) {
-  if (!ctx) return;
-  [523, 659, 784, 1047].forEach((f, i) => {
-    const o = ctx.createOscillator();
-    const g = ctx.createGain();
-    o.frequency.value = f;
-    const t = ctx.currentTime + i * 0.12;
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(0.15, t + 0.02);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
-    o.connect(g).connect(ctx.destination);
-    o.start(t);
-    o.stop(t + 0.4);
-  });
-}
 
 /** Teacher-only spinning wheel: names typed or pulled from a live activity; sound; optional remove-winner. */
 export function SpinningWheel() {
@@ -45,11 +21,10 @@ export function SpinningWheel() {
   const [rotation, setRotation] = useState(0);
   const [spinning, setSpinning] = useState(false);
   const [winner, setWinner] = useState<string | null>(null);
-  const [sound, setSound] = useState(true);
   const [removeWinner, setRemoveWinner] = useState(false);
   const [history, setHistory] = useState<string[]>([]);
   const wheelRef = useRef<SVGGElement>(null);
-  const audio = useRef<AudioContext | null>(null);
+  const focus = useFocus();
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -61,13 +36,6 @@ export function SpinningWheel() {
 
   function spin() {
     if (spinning || n < 2) return;
-    if (sound && !audio.current) {
-      try {
-        audio.current = new AudioContext();
-      } catch {
-        audio.current = null;
-      }
-    }
     const w = randInt(n);
     const base = rotation - (rotation % 360);
     const target = base + 360 * (6 + randInt(3)) + (360 - (w + 0.5) * seg) + (randInt(1000) / 1000 - 0.5) * seg * 0.7;
@@ -79,7 +47,7 @@ export function SpinningWheel() {
     let last = -1;
     const loop = () => {
       const el = wheelRef.current;
-      if (el && sound) {
+      if (el) {
         const m = getComputedStyle(el).transform;
         if (m && m !== "none") {
           const [a, b] = m.slice(m.indexOf("(") + 1, -1).split(",").map(Number);
@@ -87,7 +55,7 @@ export function SpinningWheel() {
           const idx = Math.floor(deg / seg);
           if (idx !== last) {
             last = idx;
-            tick(audio.current);
+            sfxTick();
           }
         }
       }
@@ -98,7 +66,7 @@ export function SpinningWheel() {
       setSpinning(false);
       setWinner(names[w]);
       setHistory((h) => [names[w], ...h].slice(0, 20));
-      if (sound) fanfare(audio.current);
+      sfxChime();
     }, SPIN_MS + 80);
   }
 
@@ -117,9 +85,23 @@ export function SpinningWheel() {
 
   return (
     <AssessmentShell title={tr("Spinning wheel", "العجلة الدوارة")} exitHref="/admin" wide>
-      <div className="mx-auto grid w-full max-w-[1500px] flex-1 gap-6 px-3 py-5 sm:px-6 lg:grid-cols-[1fr_360px]" data-testid="wheel-page">
+      <div className={`mx-auto grid w-full max-w-[1500px] flex-1 gap-6 px-3 py-5 sm:px-6 ${focus ? "" : "lg:grid-cols-[1fr_360px]"}`} data-testid="wheel-page">
         <div className="flex flex-col items-center gap-5">
-          <div className="relative w-full max-w-[min(78vh,640px)]">
+          <FocusCorner exitLabel={tr("Exit focus mode", "الخروج من وضع التركيز")} />
+          <div className="flex w-full flex-wrap items-center justify-end gap-2" data-focus-hide>
+            <SfxToggle />
+            <FocusToggle className="rounded-full bg-header px-3 py-1.5 text-sm font-bold text-sun" label={tr("Focus", "تركيز")} />
+          </div>
+          <div
+            className={`relative w-full ${focus ? "max-w-[min(88vh,960px)]" : "max-w-[min(78vh,640px)]"} ${n >= 2 && !spinning ? "cursor-pointer" : ""} rounded-full outline-none focus-visible:ring-4 focus-visible:ring-sun`}
+            role="button"
+            tabIndex={0}
+            aria-disabled={spinning || n < 2}
+            aria-label={tr("Tap the wheel to spin", "اضغط على العجلة لتدور")}
+            onClick={spin}
+            onKeyDown={(e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); spin(); } }}
+            data-testid="wheel-spin"
+          >
             <div className="absolute start-1/2 top-0 z-10 -translate-x-1/2 -translate-y-1 rtl:translate-x-1/2" aria-hidden>
               <svg width="44" height="52" viewBox="0 0 44 52"><path d="M22 52L2 8a20 20 0 0 1 40 0z" fill="#e63946" stroke="#fff" strokeWidth="3" /></svg>
             </div>
@@ -168,19 +150,16 @@ export function SpinningWheel() {
               </text>
             </svg>
           </div>
-          <button type="button" className={`${primaryBtn} px-12 text-2xl`} onClick={spin} disabled={spinning || n < 2} data-testid="wheel-spin">
-            {spinning ? tr("Spinning…", "تدور…") : tr("Spin!", "أدِر!")}
-          </button>
+          <p className={`rounded-full bg-header px-5 py-2 text-lg font-extrabold text-sun shadow ${spinning ? "opacity-60" : "animate-pulse"}`} aria-live="polite" data-testid="wheel-hint">
+            {spinning ? tr("Spinning…", "تدور…") : n >= 2 ? `👆 ${tr("Tap the wheel to spin", "اضغط على العجلة لتدور")}` : tr("Add names to spin", "أضف أسماء للتدوير")}
+          </p>
           {n < 2 && <p className="text-sm opacity-75">{tr("Add at least two names to spin.", "أضف اسمين على الأقل للتدوير.")}</p>}
         </div>
 
-        <aside className="space-y-4">
+        <aside className="space-y-4" data-focus-hide>
           <ClassNames names={names} setNames={setNames} />
           <div className="glass flex flex-col gap-2 rounded-3xl p-4 text-sm">
-            <label className="inline-flex items-center gap-2 font-semibold">
-              <input type="checkbox" checked={sound} onChange={(e) => setSound(e.target.checked)} data-testid="wheel-sound" /> 🔊 {tr("Sound", "الصوت")}
-            </label>
-            <label className="inline-flex items-center gap-2 font-semibold">
+                        <label className="inline-flex items-center gap-2 font-semibold">
               <input type="checkbox" checked={removeWinner} onChange={(e) => setRemoveWinner(e.target.checked)} data-testid="wheel-remove-winner" /> ✂️ {tr("Remove the winner after each spin", "إزالة الفائز بعد كل دورة")}
             </label>
           </div>
@@ -209,6 +188,7 @@ export function SpinningWheel() {
           <div className="relative rounded-[28px] bg-white px-10 py-10 text-center shadow-2xl dark:bg-[#10263b]">
             <p className="text-lg font-bold uppercase tracking-widest text-teal-700 dark:text-teal-300">{tr("And the winner is…", "والفائز هو…")}</p>
             <p className="mt-3 break-words text-6xl font-black text-navy dark:text-sun sm:text-7xl" dir="auto">{winner}</p>
+            <PickedAward name={winner} />
             <button type="button" className={`${primaryBtn} mt-8`} onClick={closeWinner}>
               {removeWinner ? tr("Remove & continue", "إزالة ومتابعة") : tr("Continue", "متابعة")}
             </button>
