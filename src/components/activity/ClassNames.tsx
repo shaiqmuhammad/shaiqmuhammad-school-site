@@ -7,6 +7,12 @@ import { RosterLoader } from "@/components/lms/Audience";
 import { useI18n } from "@/lib/i18n";
 
 const NAMES_KEY = "sm_class_names_v1";
+const IDS_KEY = "sm_class_ids_v1";
+/** t420: roster student id for a name loaded from "my groups" (null for typed / lobby names). */
+export function rosterIdFor(name: string): string | null {
+  try { const m = JSON.parse(localStorage.getItem(IDS_KEY) || "{}"); return typeof m[name] === "string" ? m[name] : null; } catch { return null; }
+}
+export function clearRosterIds() { try { localStorage.removeItem(IDS_KEY); } catch { /* */ } }
 
 export function loadNames(): string[] {
   try {
@@ -75,7 +81,7 @@ export function ClassNames({ names, setNames }: { names: string[]; setNames: (n:
     try {
       const r = await activityApi.create({ type: "wall", title: tr("Join the class list", "انضم إلى قائمة الصف"), prompt: tr("Type your name to join", "اكتب اسمك للانضمام") });
       saveHosted({ code: r.code, hostKey: r.hostKey, type: "wall", title: r.title, createdAt: r.createdAt, expiresAt: r.expiresAt });
-      setLobby({ code: r.code, hostKey: r.hostKey }); apply([]); setText("");
+      setLobby({ code: r.code, hostKey: r.hostKey }); clearRosterIds(); apply([]); setText("");
     } catch { setMsg(tr("Couldn't open a join code — sign in as a teacher first.", "تعذر فتح رمز الانضمام — سجّل الدخول كمعلم أولًا.")); }
   };
   useEffect(() => {
@@ -163,7 +169,7 @@ export function ClassNames({ names, setNames }: { names: string[]; setNames: (n:
         <button type="button" className="rounded-full border border-black/10 px-3 py-1 dark:border-white/15" onClick={() => { const l = shuffled(names); apply(l); setText(l.join("\n")); }}>
           🔀 {tr("Shuffle", "خلط")}
         </button>
-        <button type="button" className="rounded-full border border-black/10 px-3 py-1 text-rose-600 dark:border-white/15" onClick={() => { if (confirm(tr("Clear all names?", "مسح كل الأسماء؟"))) { apply([]); setText(""); } }}>
+        <button type="button" className="rounded-full border border-black/10 px-3 py-1 text-rose-600 dark:border-white/15" onClick={() => { if (confirm(tr("Clear all names?", "مسح كل الأسماء؟"))) { clearRosterIds(); apply([]); setText(""); } }}>
           {tr("Clear", "مسح")}
         </button>
       </div>
