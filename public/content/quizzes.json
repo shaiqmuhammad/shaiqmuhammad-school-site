@@ -2029,9 +2029,9 @@
       "showAnswers": true,
       "certificateIndividual": false,
       "certificateGroup": false,
-      "visible": false,
-      "active": false,
-      "published": false,
+      "visible": true,
+      "active": true,
+      "published": true,
       "updatedAt": "2026-10-31T16:45:00.000Z",
       "questions": [
         {
