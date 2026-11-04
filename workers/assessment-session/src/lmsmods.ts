@@ -602,7 +602,8 @@ function ttObsRows(sql: SqlStorage, uid: string | null) {
     .map((r) => ({ id: String(r.id), req: String(r.req), reqName: String(r.req_name), target: String(r.target), targetName: String(r.target_name), day: String(r.day), dow: Number(r.dow), s: String(r.s), e: String(r.e), cls: String(r.cls || ""), subject: String(r.subject || ""), note: String(r.note || ""), status: String(r.status) }));
 }
 const hm12 = (hm: string) => { const [h, m] = hm.split(":").map(Number); return `${((h + 11) % 12) + 1}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`; };
-export const ttFor = (r: TtRow, cls: string, section: string) => r.cls === cls && (!r.sections.length || r.sections.includes(section));
+export const ttFor = (r: TtRow, cls: string, section: string) => !!r.cls && r.cls === cls && // t420: class-less events are staff-only
+  (!r.sections.length || r.sections.includes(section));
 const dubaiNow = () => { const d = new Date(Date.now() + 4 * 3600e3); return { dow: d.getUTCDay(), hm: d.toISOString().slice(11, 16), day: d.toISOString().slice(0, 10) }; };
 function ttHandle(c: ModCtx, a: Actor, action: string, input: Json): { status: number; body: Json } {
   const sql = c.sql;
@@ -741,7 +742,8 @@ function ttHandle(c: ModCtx, a: Actor, action: string, input: Json): { status: n
   const color = /^#[0-9a-f]{6}$/i.test(String(input.color || "")) ? String(input.color) : "";
   if (!dows.length || !(PIDS.includes(period) || days.every((d) => d.s))) return { status: 400, body: { error: "bad_input" } };
   const tid = a.role === "admin" ? str(input.teacher, 40) : a.id; const tu = tid ? c.userRow("id=? AND role='teacher'", tid) : undefined;
-  const sections = (Array.isArray(input.sections) ? input.sections.map((x) => str(x, 40)) : secList(input.section)).filter(Boolean).slice(0, 20);
+  // t420: class is optional (staff events, duties, meetings); sections only make sense with a class.
+  const sections = !str(input.cls, 80) ? [] : (Array.isArray(input.sections) ? input.sections.map((x) => str(x, 40)) : secList(input.section)).filter(Boolean).slice(0, 20);
   const title = str(input.title, 120);
   const vals = [str(input.cls, 80), sections.join(","), tu ? tid : "", tu ? String(tu.name) : "", str(input.subject, 80), str(input.phase, 40), str(input.dept, 80)];
   const ids: string[] = [];

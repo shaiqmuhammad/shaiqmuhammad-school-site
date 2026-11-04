@@ -1,6 +1,7 @@
 "use client";
 
 import { DlGate } from "@/components/lms/DlGate";
+import { sfxPoints } from "@/lib/sfx";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLmsActor, useTr } from "@/components/lms/useLms";
 import { btn, btnCta, ClassSelect, cardCls, field, Head, Modal, ModPage, td, th, Tabs, Toast, useRoster } from "@/components/lms/mods/ModUi";
@@ -157,7 +158,7 @@ function Editor({ init, cats, students, asAdmin, onClose, onSaved }: { init: Par
   const list = cats[kind];
   const save = async () => {
     setBusy(true); setErr("");
-    try { await modCall("beh-save", { ...x, followNote: x.followNote, category: x.category || list[0] }, asAdmin); onSaved(); } catch (e) { setErr(modErr(e, tr)); }
+    try { await modCall("beh-save", { ...x, followNote: x.followNote, category: x.category || list[0] }, asAdmin); if (!x.id && x.points) sfxPoints(kind === "positive" ? 1 : -1); onSaved(); } catch (e) { setErr(modErr(e, tr)); }
     setBusy(false);
   };
   const lab = "block text-sm font-bold";
