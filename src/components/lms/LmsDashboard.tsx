@@ -1,4 +1,5 @@
 "use client";
+import { RewardCardsTile } from "@/components/lms/Rewards";
 import { PackDash } from "@/components/lms/packs/PackDash";
 import { HwMeta, hwAud } from "@/components/lms/HwMeta";
 import { applyPref, MenuEditor, useMyPages, useUiPrefs } from "@/components/lms/MenuPrefs";
@@ -105,7 +106,9 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
   const myPages = useMyPages();
   const canAssign = actor?.role === "admin" || actor?.perms.includes("assign");
 
-  const QUICK: string[][] = (staff ? [["/lms/timetable", "⏰", "Timetable", "الجدول", "from-lime-100 to-lime-200"], ["/lms/classes", "🧑‍🏫", "My classes", "صفوفي", "from-sky-100 to-sky-200"], ["/lms/homework", "📚", "Homeworks", "الواجبات", "from-amber-100 to-amber-200"], ["/lms/attendance", "📋", "Attendance", "الحضور", "from-emerald-100 to-emerald-200"], ["/lms/activities", "🎡", "Activities", "الأنشطة", "from-violet-100 to-violet-200"], ["/lms/assessments", "🧩", "Assessments", "التقييمات", "from-rose-100 to-rose-200"], ["/lms/messages", "💬", "Messages", "الرسائل", "from-cyan-100 to-cyan-200"]] : [["/lms/timetable", "⏰", "Timetable", "الجدول", "from-lime-100 to-lime-200"], ["/lms/homework", "✏️", "Homework", "الواجبات", "from-amber-100 to-amber-200"], ["/lms/assessments", "🧩", "Assessments", "التقييمات", "from-rose-100 to-rose-200"], ["/lms/library", "📚", "Libraries", "المكتبات", "from-emerald-100 to-emerald-200"], ["/lms#tracker", "📖", "Quran Tracker", "متابعة الحفظ", "from-sky-100 to-sky-200"], ["/lms/messages", "💬", "Messages", "الرسائل", "from-cyan-100 to-cyan-200"], ["/lms/account", "🦸", "My character", "شخصيتي", "from-violet-100 to-violet-200"]]);
+  const QUICK: string[][] = (staff ? [["/lms/timetable", "⏰", "Timetable", "الجدول", "from-lime-100 to-lime-200"], ["/lms/classes", "🧑‍🏫", "My classes", "صفوفي", "from-sky-100 to-sky-200"], ["/lms/homework", "📚", "Homeworks", "الواجبات", "from-amber-100 to-amber-200"], ["/lms/attendance", "📋", "Attendance", "الحضور", "from-emerald-100 to-emerald-200"], ["/lms/activities", "🎡", "Activities", "الأنشطة", "from-violet-100 to-violet-200"], ["/lms/assessments", "🧩", "Assessments", "التقييمات", "from-rose-100 to-rose-200"], ["/lms/messages", "💬", "Messages", "الرسائل", "from-cyan-100 to-cyan-200"]] : [["/lms/timetable", "⏰", "Timetable", "الجدول", "from-lime-100 to-lime-200"], ["/lms/homework", "✏️", "Homework", "الواجبات", "from-amber-100 to-amber-200"], ["/lms/assessments", "🧩", "Assessments", "التقييمات", "from-rose-100 to-rose-200"], ["/lms/library", "📚", "Libraries", "المكتبات", "from-emerald-100 to-emerald-200"], ["/lms#tracker", "📖", "Quran Tracker", "متابعة الحفظ", "from-sky-100 to-sky-200"], ["/lms/rewards", "🃏", "Reward Cards", "بطاقات المكافآت", "from-amber-100 to-yellow-300"], ["/lms/messages", "💬", "Messages", "الرسائل", "from-cyan-100 to-cyan-200"], ["/lms/account", "🦸", "My character", "شخصيتي", "from-violet-100 to-violet-200"]]);
+  // t441: Reward Cards tile for staff with the Rewards permission (admin always).
+  if (staff && (actor?.role === "admin" || actor?.mods?.rw?.view)) QUICK.push(["/lms/rewards", "🃏", "Reward Cards", "بطاقات المكافآت", "from-amber-100 to-yellow-300"]);
   // t350: hide the Activities tile when the teacher has no activity/assessment permission.
   const actOk = !staff || (!actor?.perms?.includes("hide:activities") && (actor?.perms || []).some((p) => p.startsWith("act:") || p.startsWith("host:")));
   if (!actOk) QUICK.splice(0, QUICK.length, ...QUICK.filter((q) => q[0] !== "/lms/activities"));
@@ -158,6 +161,7 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
         ) : !staff ? (
           <>
             {!hwOnly && <PackDash />}
+            {!hwOnly && <RewardCardsTile />}
             {dash.progress && !hwOnly && <ProgressCard p={dash.progress} />}
             {!hwOnly && <RevisionList tracker={dash.tracker || []} onChange={(t) => setDash({ ...dash, tracker: t })} />}
             <section id="homework" className="scroll-mt-28">

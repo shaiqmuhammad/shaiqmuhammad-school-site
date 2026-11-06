@@ -95,6 +95,7 @@ export function LmsTabs() {
     ...(staff && mpShown(actor, "tt") ? [{ id: "tt", href: "/lms/timetable", en: "Timetable", ar: "الجدول", icon: "", lvl: 3 } as Tab] : []),
     ...((staff && mpShown(actor, "lp")) || actor.role === "admin" ? [{ id: "lp", href: "/lms/material", en: "Lesson Builder", ar: "منشئ الدروس", icon: I.lb, lvl: 3 } as Tab] : []),
     ...(staff ? [{ id: "std", href: "/lms/standards", en: "Standards book", ar: "كتاب المعايير", icon: "", lvl: 3 } as Tab] : []),
+    ...((staff && (actor.role === "admin" || !!actor.mods?.rw?.view)) || actor.role === "student" ? [{ id: "rc", href: "/lms/rewards", en: "Reward Cards", ar: "بطاقات المكافآت", icon: "", lvl: 3 } as Tab] : []),
     ...(staff ? [{ id: "pts", href: "/lms/points", en: "Points", ar: "النقاط", icon: "", lvl: 3 } as Tab] : []),
     ...(staff && !actor.perms?.includes("trk:view:off") && mpShown(actor, "trk") ? [{ id: "trk", href: "/lms/tracker", en: "Assessment Tracker", ar: "متتبع التقييم", icon: "", lvl: 3 } as Tab] : []),
     ...(staff && actor.role === "teacher" && actor.mods?.qa?.view ? [{ id: "qa", href: "/lms/qa", en: "Progress Check", ar: "فحص التقدم", icon: "", lvl: 3 } as Tab] : []),
