@@ -38,6 +38,7 @@ import { makeVapid, sendPush, type Vapid } from "./push";
 import { textReplaceAll } from "./textfix";
 import { scoreFromPct, systems, trackerHandle, trkInit } from "./tracker";
 import { qaHandle } from "./qa";
+import { rcHandle, rcInit, rcSync, type RcCtx } from "./rewards";
 import { MP_PERM, mpAll, mpCfg, mpOf, mpSave } from "./modperm";
 import { buildFeedback, fromGrade, overallOf, parseScores, type Scores } from "./quranScore";
 import { DurableObject } from "cloudflare:workers";
@@ -323,6 +324,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     this.sql.exec(`CREATE TABLE IF NOT EXISTS pcat (id TEXT PRIMARY KEY, owner TEXT, label TEXT, pts INTEGER, icon TEXT, pos INTEGER)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS pts (id TEXT PRIMARY KEY, student TEXT, cat TEXT, label TEXT, pts INTEGER, icon TEXT, by TEXT, owner TEXT, batch TEXT, at INTEGER)`);
     this.sql.exec(`CREATE INDEX IF NOT EXISTS pts_student ON pts(student, at)`);
+    rcInit(this.sql as never);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS wall (id TEXT PRIMARY KEY, wkey TEXT, by TEXT, name TEXT, text TEXT, image TEXT, audio TEXT, pinned INTEGER DEFAULT 0, at INTEGER)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS wcom (id TEXT PRIMARY KEY, post TEXT, by TEXT, name TEXT, role TEXT, text TEXT, at INTEGER)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS wlike (post TEXT, by TEXT, PRIMARY KEY (post, by))`);
@@ -997,6 +999,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     if (/^pg-/.test(action)) return pageHandle({ sql: this.sql as never, acc: (x) => mpOf(this.sql as never, x as never, "lp"), subjectsOf: (uid) => { try { return JSON.parse(String(this.userRow("id=?", uid)?.subjects || "[]")) as string[]; } catch { return []; } } }, a as never, action, input);
     if (/^lp-/.test(action)) return packHandle(this.packCtx(), a as never, action, input);
     if (action === "att-tt-shared") return { status: 200, body: { shared: ttShared(this.sql as never, a as never) } };
+    if (/^rc-/.test(action)) return rcHandle(this.rcCtx(), a as never, action, input as Record<string, unknown>);
     if (/^(att|beh|cur)-/.test(action) || action === "quiz-topics-sync") return modHandle({ sql: this.sql, hwList: () => this.allHomework().map((h) => ({ id: h.id, title: h.title, kind: h.kind, cls: h.cls, section: h.section, students: h.students, createdBy: h.createdBy })), inScope: (x, c, s, i) => this.inScope(x, c, s, i), userRow: (w, g) => this.userRow(w, g), mp: (x, m) => mpOf(this.sql as never, x, m), ttChanged: () => { this.ctx.waitUntil(this.planTT()); }, ttEnsure: () => { if (!this.ttPlanned) { this.ttPlanned = true; this.ctx.waitUntil(this.planTT()); } }, notify: (u, k, d) => this.notify(u, k, d), canReach: (x, ids) => this.packCtx().inScopeIds(x as never, ids.filter((i) => String(this.userRow("id=?", i)?.role || "") === "student")) }, action, a, input);
     switch (action) {
       case "dl-policy": return { status: 200, body: { audio: this.dlOf(a, "audio"), export: this.dlOf(a, "export") } };
@@ -2207,6 +2210,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         else this.sql.exec(`INSERT INTO subs (id, hw, student, status, text, practised, updated) VALUES (?, ?, ?, ?, ?, ?, ?)`, rid("s"), h.id, a.id, status, text, practised, Date.now());
         this.touch(a.id);
         if (status === "submitted") this.sql.exec(`UPDATE subs SET submitted_at=? WHERE hw=? AND student=?`, Date.now(), h.id, a.id);
+        if (status === "submitted") this.ctx.waitUntil(rcSync(this.rcCtx(), a.id).catch(() => undefined));
         if (status === "submitted") this.notify([h.createdBy, "admin"], "sub_new", { hw: h.id, title: h.title, student: a.name });
         return { status: 200, body: { ok: true, sub: this.sub(h.id, a.id) } };
       }
@@ -2261,6 +2265,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
             }
           }
         }
+        if (grade || status === "approved") this.ctx.waitUntil(rcSync(this.rcCtx(), String(r.student)).catch(() => undefined));
         return { status: 200, body: { ok: true } };
       }
 
@@ -2633,6 +2638,12 @@ export class LmsStore extends DurableObject<LmsEnv> {
   }
 
   /** Stars, streak and badges, computed from grades/submissions/activity. */
+  /** t441: Reward Cards context (wallet, auto-earn, shop). */
+  private rcCtx(): RcCtx {
+    const RES = (this.env as unknown as { RESULTS?: DurableObjectNamespace }).RESULTS;
+    return { sql: this.sql as never, acc: (x) => mpOf(this.sql as never, x as never, "rw"), inScope: (x, sid) => this.inScope(x as never, ...this.placeOf(sid), sid),
+      results: RES ? (sid) => (RES.get(RES.idFromName("main")) as unknown as { byStudent(i: string): Promise<Record<string, unknown>[]> }).byStudent(sid) : undefined };
+  }
   private progressOf(student: string, since = 0) {
     const subs = this.sql.exec(`SELECT status, grade, updated FROM subs WHERE student=?`, student).toArray().filter((r) => Number(r.updated) >= since);
     const greens = subs.filter((r) => r.grade === "green").length;
