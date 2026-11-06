@@ -94,7 +94,7 @@ const ICONS: Record<Tab, ReactNode> = {
   downloads: <><path d="M12 4v11M7 11l5 5 5-5M5 20h14" /></>,
   parents: <><circle cx="9" cy="8" r="3.2" /><path d="M3 20a6 6 0 0 1 12 0M16 5a3 3 0 0 1 0 6M18 20a5 5 0 0 0-3-4.6" /></>,
   behaviour: <><path d="M12 21s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.6-7 10-7 10z" /></>,
-  curriculum: <><path d="M4 5h6a2 2 0 0 1 2 2v13a2 2 0 0 0-2-2H4zM20 5h-6a2 2 0 0 0-2 2v13a2 2 0 0 1 2-2h6z" /></>,
+  curriculum: <><path d="M3 8h7l2 2h9v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8z" /><path d="M3 8V6a1 1 0 0 1 1-1h4l2 2" /><path d="M8 14h8M8 17h5" /></>,
   home: <path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" />,
   quizzes: <><rect x="4" y="3" width="16" height="18" rx="2" /><path d="M8 8h8M8 12h8M8 16h5" /></>,
   results: <><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" /></>,

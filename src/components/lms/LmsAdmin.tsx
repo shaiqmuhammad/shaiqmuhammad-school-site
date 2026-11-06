@@ -736,7 +736,7 @@ function ModuleAccess({ perms, setPerms, teachers }: { perms: string[]; setPerms
   const sub = (on: boolean, kids: React.ReactNode) => on ? <div className="ms-4 flex flex-wrap gap-x-4 gap-y-1 border-s-2 border-black/10 ps-3 text-sm dark:border-white/15">{kids}</div> : null;
   const cb = (checked: boolean, onChange: (v: boolean) => void, label: string, id: string) => <label className="flex items-center gap-1.5"><input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} data-testid={id} /> {label}</label>;
   const simple: [string, string, string][] = [["messaging", "💬 Messaging", "💬 الرسائل"], ["wall", "🧱 Class Wall", "🧱 جدار الصف"], ["activities", "🎲 Activities", "🎲 الأنشطة"], ["homework", "📝 Homework", "📝 الواجبات"], ["assessments", "✅ Assessments", "✅ التقييمات"], ["results", "📊 Assessment Results", "📊 نتائج التقييمات"]];
-  const fine: [string, string, string, boolean][] = [["att", "🗓️ Attendance Register", "🗓️ سجل الحضور", false], ["beh", "🌟 Behaviour", "🌟 السلوك", false], ["cur", "📚 Curriculum", "📚 المنهج", true]];
+  const fine: [string, string, string, boolean][] = [["att", "🗓️ Attendance Register", "🗓️ سجل الحضور", false], ["beh", "🌟 Behaviour", "🌟 السلوك", false], ["cur", "🗂️ Curriculum", "🗂️ المنهج", true]];
   const qOps: ["view" | "add" | "edit" | "delete", string, string][] = [["view", "View", "عرض"], ["add", "Add", "إضافة"], ["edit", "Edit", "تعديل"], ["delete", "Delete", "حذف"]];
   return (
     <div className="space-y-3 rounded-2xl border border-dashed border-black/15 p-3 dark:border-white/20" data-testid="lms-module-access">
