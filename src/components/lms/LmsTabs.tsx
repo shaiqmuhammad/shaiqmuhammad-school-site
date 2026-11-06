@@ -48,7 +48,7 @@ const TEACHER: Tab[] = [
 ];
 // Child-friendly look: one emoji per area, each on its own theme-coloured disc.
 // t449/t450: every LMS module a unique icon — Homework 📝 · Libraries 📚 · Curriculum 🗂️ · Assessments 🧩 · Quran Tracker 📖 · Quran Homework 🎙️ · Attendance 🗓️ · Activities 🎲 · Results 🧾 · Timetable ⏰ · Tracker 📋 · Progress Check 📊 · Lesson Builder 📑 · Reward Cards 🃏
-const EMOJI: Record<string, string> = { tt: "⏰", std: "📘", lib: "📚", rep: "📈", dash: "🏠", hw: "📝", assess: "🧩", msg: "💬", wall: "🧱", quran: "📖", qhw: "🎙️", cls: "🏫", act: "🎲", res: "🧾", att: "🗓️", beh: "🌟", cur: "🗂️", logins: "🔑", acct: "🙂", stu: "👥", map: "🗺️", pts: "🏆", fcur: "🗂️", fassess: "🧩", corr: "💯", lp: "📑", qa: "📊", rc: "🃏", trk: "📋" };
+const EMOJI: Record<string, string> = { tt: "⏰", std: "📘", lib: "📚", rep: "📈", dash: "🏠", hw: "📝", assess: "🧩", msg: "💬", wall: "🧱", quran: "📖", qhw: "🎙️", cls: "🏫", act: "🎲", res: "🧾", att: "🗓️", beh: "🌟", cur: "🗂️", logins: "🔑", acct: "🦸", stu: "👥", map: "🗺️", pts: "🏆", fcur: "🗂️", fassess: "🧩", corr: "💯", lp: "📑", qa: "📊", rc: "🃏", trk: "📋" };
 const DISC = ["bg-white/15 text-white ring-1 ring-white/25"];
 
 /**
