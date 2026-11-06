@@ -1,11 +1,12 @@
 "use client";
 
+import { rememberForget, rememberOn, rememberSave } from "@/lib/remember";
 import { useEffect, useState } from "react";
 import { AssessmentShell } from "@/components/assessment/AssessmentShell";
 import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
 import { StudentLogins } from "@/components/lms/StudentLogins";
 import { useLmsActor, useTr } from "@/components/lms/useLms";
-import { lmsApi, lmsErrorText, stuUi } from "@/lib/lms";
+import { lmsApi, lmsErrorText, lmsSession, stuUi } from "@/lib/lms";
 import { ANIMALS, Avatar } from "@/components/lms/Avatar";
 import { PushSettings } from "@/components/lms/PushSettings";
 import { modCall } from "@/lib/lmsMods";
@@ -116,7 +117,7 @@ export function AccountPage() {
     <AssessmentShell title={tr("My account", "حسابي")} exitHref="/lms" toolbar={<LmsStaffToolbar />}>
       <div className="mx-auto w-full max-w-xl flex-1 px-4 py-8">
         {!ready ? null : !can ? <p className="rounded-2xl bg-amber-100 px-4 py-3 text-amber-900">{tr("Please sign in.", "سجّل الدخول.")} <a className="font-bold underline" href="/lms/login/">{tr("Sign in", "دخول")}</a></p> : (
-          <>{(actor?.role === "student" || actor?.role === "teacher") && <CharacterPicker />}{actor?.role !== "parent" && <PushSettings />}<form onSubmit={submit} className="space-y-3 rounded-3xl bg-white/80 p-5 shadow-sm dark:bg-white/5" data-testid="pin-form">
+          <>{(actor?.role === "student" || actor?.role === "teacher") && <CharacterPicker />}{actor?.role !== "parent" && <PushSettings />}{actor?.role === "student" && !actor.viewAs && <DevicePanel />}<form onSubmit={submit} className="space-y-3 rounded-3xl bg-white/80 p-5 shadow-sm dark:bg-white/5" data-testid="pin-form">
             <h2 className="text-xl font-extrabold">🔑 {tr("Change my password / PIN", "تغيير كلمة المرور")}</h2>
             <p className="text-sm opacity-70">{actor?.name}</p>
             <input className={inp} type="password" autoComplete="new-password" autoCapitalize="none" maxLength={64} placeholder={tr("New password / PIN (6–64 characters)", "كلمة المرور الجديدة (6–64 حرفًا)")} value={n1} onChange={(e) => setN1(e.target.value)} data-testid="pin-new" />
@@ -127,5 +128,25 @@ export function AccountPage() {
         )}
       </div>
     </AssessmentShell>
+  );
+}
+
+/** t422: Remember this iPad — status + turn on / forget (students only). */
+function DevicePanel() {
+  const { tr } = useTr();
+  const [on, setOn] = useState(false);
+  const [msg, setMsg] = useState("");
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => setOn(rememberOn()), []);
+  const enable = async () => { const s = lmsSession(); if (!s) return; if (!confirm(tr("Only on YOUR OWN iPad. Remember this device?", "فقط على آيبادك الخاص. تذكّر هذا الجهاز؟"))) return; const ok = await rememberSave(s.token); setOn(ok); setMsg(ok ? tr("This iPad will stay signed in.", "سيبقى هذا الآيباد مسجّلًا.") : tr("Could not turn it on. Try again.", "تعذّر التفعيل. حاول مجددًا.")); };
+  const forget = async () => { await rememberForget(); setOn(false); setMsg(tr("This iPad is forgotten. You'll need your PIN after you log out.", "تم نسيان هذا الآيباد.")); };
+  return (
+    <section className="mb-4 space-y-2 rounded-3xl bg-white/80 p-5 shadow-sm dark:bg-white/5" data-testid="device-panel">
+      <h2 className="text-xl font-extrabold">📱 {tr("This iPad", "هذا الآيباد")}</h2>
+      <p className="text-sm">{on ? "✅ " + tr("Remembered — you stay signed in on this iPad.", "مُتذكَّر — تبقى مسجّلًا على هذا الآيباد.") : tr("Not remembered — you sign in with your PIN.", "غير مُتذكَّر — تسجّل الدخول برقمك السري.")}</p>
+      <p className="text-xs opacity-75">{tr("Safe: kept in a protected cookie only this website can use. Changing your PIN signs every remembered iPad out.", "آمن: محفوظ في ملف حماية لا يستخدمه إلا هذا الموقع. تغيير الرقم السري يُخرج كل الأجهزة.")}</p>
+      {on ? <button type="button" className="rounded-full bg-rose-600 px-4 py-2 text-sm font-bold text-white" onClick={forget} data-testid="device-forget">🧹 {tr("Forget this iPad", "انسَ هذا الآيباد")}</button> : <button type="button" className="rounded-full bg-[#1b3a57] px-4 py-2 text-sm font-bold text-[#f5c542]" onClick={enable} data-testid="device-remember">📱 {tr("Remember this iPad", "تذكّر هذا الآيباد")}</button>}
+      {msg && <p className="text-sm font-semibold" role="status">{msg}</p>}
+    </section>
   );
 }

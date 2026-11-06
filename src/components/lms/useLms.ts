@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { clearServerSession, getServerSession } from "@/lib/adminServer";
-import { lmsApi, lmsRenew, lmsSession, viewAs, type Actor } from "@/lib/lms";
+import { lmsApi, lmsRenew, lmsSession, viewAs, type Actor, lmsRestoreRemembered } from "@/lib/lms";
 import { useI18n } from "@/lib/i18n";
 import { LANG_STORAGE_KEY } from "@/lib/langStorage";
 /** Subjects delivered in Arabic (they share another subject's curriculum, shown in Arabic by default). */
@@ -27,6 +27,11 @@ export function useLmsActor(): { actor: Actor | null; asAdmin: false; ready: boo
     // eslint-disable-next-line react-hooks/set-state-in-effect -- storage is only readable after hydration
     if (va) { setSt({ actor: { id: va.id, role: va.role, name: va.name, cls: va.cls, perms: va.role === "teacher" ? ["assign", "review"] : [], viewAs: true } as Actor, asAdmin: false, ready: true, adminElsewhere: false }); return; }
     // eslint-disable-next-line react-hooks/set-state-in-effect -- storage is only readable after hydration
+    if (!lmsSession() && !getServerSession()) {
+      // t422: a remembered student iPad that lost its storage signs back in by itself.
+      lmsRestoreRemembered().then((ok) => setSt({ actor: ok ? lmsSession()?.user ?? null : null, asAdmin: false, ready: true, adminElsewhere: false })).catch(() => setSt({ actor: null, asAdmin: false, ready: true, adminElsewhere: false }));
+      return;
+    }
     setSt({ actor: lmsSession()?.user ?? null, asAdmin: false, ready: true, adminElsewhere: !!getServerSession() });
     // Permissions can change while a teacher is signed in: refresh the cached actor so buttons match the server.
     const cur = lmsSession();

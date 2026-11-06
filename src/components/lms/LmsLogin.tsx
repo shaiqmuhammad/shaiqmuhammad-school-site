@@ -1,10 +1,10 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AssessmentShell, fieldCls, panelCls, primaryBtn } from "@/components/assessment/AssessmentShell";
 import { useTr } from "@/components/lms/useLms";
-import { lmsApi, lmsErrorText, lmsSession } from "@/lib/lms";
+import { lmsApi, lmsErrorText, lmsRestoreRemembered, lmsSession } from "@/lib/lms";
 
 /** Student / teacher sign-in: username + PIN. */
 export function LmsLogin() {
@@ -16,8 +16,17 @@ export function LmsLogin() {
   const [who, setWho] = useState<"school" | "parent">("school");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  // t422: "Remember this iPad" (students only; opt-in; never for teachers/admin/parents).
+  const [remember, setRemember] = useState(false);
+  const [restoring, setRestoring] = useState(true);
+  useEffect(() => {
+    let live = true;
+    lmsRestoreRemembered().then((ok) => { if (!live) return; if (ok) router.replace(next && next.startsWith("/lms") ? next : "/lms"); else setRestoring(false); }).catch(() => setRestoring(false));
+    return () => { live = false; };
+  }, [router, next]);
   return (
     <AssessmentShell title={tr("Sign in", "تسجيل الدخول")} exitHref="/">
+      {restoring && <p className="sr-only" role="status">{tr("Checking this device…", "جارٍ التحقق من الجهاز…")}</p>}
       <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-4 py-10">
         <form
           className={panelCls}
@@ -27,7 +36,7 @@ export function LmsLogin() {
             setBusy(true);
             setErr("");
             try {
-              await lmsApi.login(username.trim(), pin.trim());
+              await lmsApi.login(username.trim(), pin.trim(), who === "school" && remember);
               const isParent = lmsSession()?.user.role === "parent";
               router.push(isParent ? "/lms/family" : next && next.startsWith("/lms") ? next : "/lms");
             } catch (x) {
@@ -54,6 +63,15 @@ export function LmsLogin() {
             {tr("Password / PIN", "كلمة المرور / الرقم السري")}
             <input className={fieldCls + " text-xl tracking-[0.15em]"} value={pin} onChange={(e) => setPin(e.target.value.slice(0, 64))} type="password" autoCapitalize="none" autoCorrect="off" spellCheck={false} maxLength={64} autoComplete="current-password" dir="ltr" data-testid="lms-pin" />
           </label>
+          {who === "school" && (
+            <div className="mt-4 rounded-2xl bg-[#1b3a57]/5 p-3 dark:bg-white/10" data-testid="lms-remember-box">
+              <label className="flex items-start gap-3 font-bold">
+                <input type="checkbox" className="mt-1 h-5 w-5 accent-[#1b3a57]" checked={remember} onChange={(e) => setRemember(e.target.checked)} data-testid="lms-remember" />
+                <span>📱 {tr("Remember this iPad (students)", "تذكّر هذا الآيباد (للطلاب)")}<span className="block text-xs font-normal opacity-80">{tr("Stay signed in on your own school iPad — no password each time.", "ابقَ مسجّلًا على آيبادك المدرسي — بدون كلمة مرور كل مرة.")}</span></span>
+              </label>
+              {remember && <p className="mt-2 rounded-xl bg-amber-100 px-3 py-2 text-xs font-semibold text-amber-900" role="note" data-testid="lms-remember-warn">⚠️ {tr("Only tick this on YOUR OWN iPad. Never on a shared or family device. Tap Log out to forget this iPad.", "اختر هذا فقط على آيبادك الخاص. لا تختره على جهاز مشترك. اضغط تسجيل الخروج لنسيان هذا الآيباد.")}</p>}
+            </div>
+          )}
           {err && <p className="mt-3 rounded-xl bg-rose-100 px-4 py-2 text-rose-800 dark:bg-rose-900/40 dark:text-rose-100" role="alert" data-testid="lms-login-error">{err}</p>}
           <button type="submit" className={`${primaryBtn} mt-6 w-full`} disabled={busy || !username.trim() || pin.length < 4} data-testid="lms-login-submit">
             {busy ? "…" : tr("Sign in", "دخول")} →

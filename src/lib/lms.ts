@@ -3,6 +3,7 @@
 import { getServerSession } from "@/lib/adminServer";
 import { ASSESSMENT_API_BASE } from "@/lib/groupSession";
 import { sortBy } from "@/lib/classSort";
+import { rememberForget, rememberOn, rememberSave, rememberedToken } from "@/lib/remember";
 
 /** LMS phase 1 client (see workers/assessment-session/src/lms.ts). */
 export type Role = "student" | "teacher" | "parent";
@@ -100,7 +101,24 @@ function storeSession(r: { token: string; exp: number; user: LmsUser }): Session
   localStorage.setItem("sm_lms_login_at", String(Date.now()));
   localStorage.setItem("sm_lms_renew_at", String(Date.now()));
   writeSessionCookie(s);
+  // t422: keep a remembered iPad's cookie fresh (sliding 180 days; also picks up a new token after a PIN change).
+  if (r.user.role === "student" && rememberOn()) void rememberSave(r.token);
   return s;
+}
+/** t422: restore a remembered student session on this device (after the browser cleared its storage). */
+export async function lmsRestoreRemembered(): Promise<boolean> {
+  if (typeof window === "undefined" || lmsSession()) return !!lmsSession();
+  const token = await rememberedToken();
+  if (!token) return false;
+  try {
+    const res = await fetch(`${ASSESSMENT_API_BASE}/api/lms/refresh`, { method: "POST", cache: "no-store", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: "{}" });
+    if (!res.ok) { if (res.status === 401 || res.status === 403) void rememberForget(); return false; }
+    const r = (await res.json()) as { token: string; exp: number; user: LmsUser };
+    if (r.user.role !== "student") { void rememberForget(); return false; }
+    try { localStorage.setItem("sm_rem_on", "1"); } catch { /* */ }
+    storeSession(r);
+    return true;
+  } catch { return false; }
 }
 function writeSessionCookie(s: Session | null) {
   try {
@@ -128,6 +146,8 @@ export async function lmsRenew(force = false) {
 export function lmsSignOut() {
   localStorage.removeItem(SESSION_KEY);
   writeSessionCookie(null);
+  // t422: signing out (or a session ended on the server) also forgets this device.
+  if (rememberOn()) void rememberForget();
 }
 
 /** Admin read-only "view as" (this browser tab only; never touches the user's real LMS session). */
@@ -218,8 +238,9 @@ export const lmsApi = {
   qpreSave: (presets: Record<string, [string, string][]>) => call<{ ok: true }>("qpre-save", { presets }, { asAdmin: true }),
   qrAudioUrl: (t: string, id: string, dl = false) => `${ASSESSMENT_API_BASE}/api/lms/qr-audio?t=${encodeURIComponent(t)}&id=${encodeURIComponent(id)}${dl ? "&dl=1" : ""}`,
   viewAsLog: () => call<{ items: { uid: string; name: string; role: string; at: number; by?: string }[] }>("viewas-log", undefined, { asAdmin: true }),
-  async login(username: string, pin: string) {
+  async login(username: string, pin: string, remember = false) {
     const r = await call<{ token: string; exp: number; user: LmsUser }>("login", { username, pin });
+    if (r.user.role === "student" && remember) await rememberSave(r.token);
     return storeSession(r);
   },
   me: () => call<{ user: Actor }>("me"),
@@ -266,7 +287,7 @@ export const lmsApi = {
   pinsView: (ids?: string[], asAdmin = true) => call<{ pins: Record<string, string | null> }>("pins-view", { ids }, { asAdmin }),
   loginsList: (asAdmin = false) => call<{ items: LoginCard[] }>("logins-list", undefined, { asAdmin }),
   loginTokenReset: (id: string, asAdmin = false) => call<{ token: string }>("login-token-reset", { id }, { asAdmin }),
-  changePin: async (next: string) => { const r = await call<{ ok: true; token?: string; exp?: number }>("pin-change", { next }); const s = lmsSession(); if (r.token && r.exp && s) localStorage.setItem(SESSION_KEY, JSON.stringify({ ...s, token: r.token, exp: r.exp })); return { ok: true as const }; },
+  changePin: async (next: string) => { const r = await call<{ ok: true; token?: string; exp?: number }>("pin-change", { next }); const s = lmsSession(); if (r.token && r.exp && s) { localStorage.setItem(SESSION_KEY, JSON.stringify({ ...s, token: r.token, exp: r.exp })); if (s.user.role === "student" && rememberOn()) void rememberSave(r.token); } return { ok: true as const }; },
   async qrLogin(t: string) {
     const r = await call<{ token: string; exp: number; user: LmsUser }>("qr-login", { t });
     return storeSession(r);
