@@ -167,8 +167,9 @@ function activityPages(r: { type: string; title: string; prompt: string; rows: S
     let cur: ActivityItem[] = [], nB = 0;
     for (const b of branches) {
       const fam = [b, ...leaves(b.id)];
-      if (cur.length && (nB >= maxB || cur.length + fam.length > maxIdeas)) { groupsOf.push(cur); cur = []; nB = 0; }
-      cur.push(...fam); nB++;
+      const wgt = fam.length > 1 ? 1 : 0.34; // a lone branch takes little room
+      if (cur.length && (nB + wgt > maxB + 0.01 || cur.length + fam.length > maxIdeas)) { groupsOf.push(cur); cur = []; nB = 0; }
+      cur.push(...fam); nB += wgt;
     }
     if (cur.length || !groupsOf.length) groupsOf.push(cur);
     const recall = r.rows.filter((x) => x.kind === "recall");
