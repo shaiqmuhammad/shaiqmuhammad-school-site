@@ -109,7 +109,7 @@ export function HomeworkEditor({ initial, classes, students, catalog, scope = []
       data-testid="hw-editor"
     >
       <div className="flex flex-wrap items-center gap-2" role="radiogroup">
-        {!initial && <a href="/lms/material?new=homework" className="rounded-full bg-sun px-4 py-2 font-extrabold text-[#1b2f44]" data-testid="hw-kind-pack">📚 {tr("Homework as slides (Lesson Pack)", "واجب بالشرائح (حزمة درس)")}</a>}
+        {!initial && <a href="/lms/material?new=homework" className="rounded-full bg-sun px-4 py-2 font-extrabold text-[#1b2f44]" data-testid="hw-kind-pack">📑 {tr("Homework as slides (Lesson Pack)", "واجب بالشرائح (حزمة درس)")}</a>}
         {kinds.map((k) => (
           <button key={k} type="button" role="radio" aria-checked={kind === k} onClick={() => setKind(k)} className={`rounded-full px-4 py-2 font-bold ${kind === k ? "bg-header text-sun" : "glass"}`} data-testid={`hw-kind-${k}`}>
             {k === "quran" ? "📖 " + tr("Quran", "قرآن") : "📝 " + tr("General", "عام")}
