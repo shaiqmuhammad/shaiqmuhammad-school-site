@@ -304,7 +304,7 @@ export function TimetableManager({ asAdmin, full = false }: { asAdmin: boolean; 
         {sel("cls", tr("All classes", "كل الصفوف"), uniq([...classOpts.map((c) => c.name), ...(scope ? [] : d.timetable.map((r) => r.cls))]).sort(clsCmp).map((x) => [x, x]), "tt-f-cls")}
         {(asAdmin || full) && f.cls && sel("sec", tr("All sections", "كل الشعب"), (classes.find((c) => c.name === f.cls)?.sections || []).map((x) => [x, x]), "tt-f-sec")}
         {canAdd && <button type="button" className="rounded-full bg-sun px-4 py-1.5 text-sm font-bold text-[#0b1b2b]" onClick={() => setEd({ ...EMPTY, teacher: asAdmin ? "" : d.teachers[0]?.id || "" })} data-testid="tt-new">+ {tr("Add Event", "إضافة حدث")}</button>}
-        {(canAdd || canEdit || canDel) && <button type="button" className="rounded-full bg-rose-100 px-4 py-1.5 text-sm font-bold text-rose-900" onClick={() => setCoverOpen(true)} data-testid="tt-cover-open">🛟 {tr("Assign Cover", "تعيين احتياط")}</button>}
+        {(asAdmin || canAdd || canEdit || canDel || d.acc.view) && <button type="button" className="rounded-full bg-rose-100 px-4 py-1.5 text-sm font-bold text-rose-900" onClick={() => setCoverOpen(true)} data-testid="tt-cover-open">🛟 {tr("Assign Cover", "تعيين احتياط")}</button>}
       </div>
       <div className="flex flex-wrap items-center gap-2" data-testid="tt-views">
         <div className="inline-flex overflow-hidden rounded-full bg-[#1b3a57] p-1" role="tablist">{(["today", "day", "timeline", "week", "year"] as const).map((v) => <button key={v} type="button" role="tab" aria-selected={view === v} onClick={() => setView(v)} className={`rounded-full px-3 py-1.5 text-sm font-bold ${view === v ? "bg-[#f5c542] text-[#1b3a57]" : "text-white/85"}`} data-testid={`tt-view-${v}`}>{v === "today" ? tr("Today", "اليوم") : v === "day" ? tr("Day", "يوم") : v === "timeline" ? tr("Timeline", "خط زمني") : v === "week" ? tr("Week", "أسبوع") : tr("Year", "سنة")}</button>)}</div>
@@ -316,9 +316,11 @@ export function TimetableManager({ asAdmin, full = false }: { asAdmin: boolean; 
         </div>
         <span className="flex-1" />
         {!asAdmin && !!d.peers?.length && (d.acc.peers || d.acc.observe) && <select className={fld + " !w-auto"} value={src} onChange={(e) => setSrc(e.target.value)} aria-label={tr("Whose timetable", "جدول من")} data-testid="tt-src"><option value="">{tr("My timetable", "جدولي")}</option>{d.peers.filter((p) => p.same || d.acc.observe).map((p) => <option key={p.id} value={p.id}>{p.name}{p.same ? "" : " ·"}</option>)}</select>}
+        {!asAdmin && <button type="button" className="rounded-full bg-[#f5c542] px-4 py-1.5 text-sm font-bold text-[#1b3a57]" onClick={() => { const p = (d.peers || []).find((x) => x.same || d.acc.observe); if (!p) { setMsg(tr("No colleagues in your department are available to observe yet.", "لا يوجد زملاء في قسمك متاحون للملاحظة بعد.")); return; } if (!src) setSrc(p.id); setView("day"); setMsg(tr("Choose a colleague above, then press “Request to observe” on a lesson.", "اختر زميلًا أعلاه ثم اضغط «طلب ملاحظة» على حصة.")); }} data-testid="tt-obs-request">👀 {tr("Request peer observation", "طلب ملاحظة زميل")}</button>}
         {(asAdmin || (d.acc.compare && !!d.peers?.length)) && <button type="button" className="rounded-full bg-[#1b3a57] px-4 py-1.5 text-sm font-bold text-[#f5c542]" onClick={() => setCmp(!cmp)} data-testid="tt-compare-btn">⚖️ {tr("Compare teachers", "مقارنة المعلمين")}</button>}
       </div>
       {ro && <p className="rounded-xl bg-sky-100 px-3 py-2 text-sm font-bold text-sky-900" data-testid="tt-ro">👁️ {tr(`Viewing ${d.peers?.find((p) => p.id === src)?.name || ""}'s timetable (read-only).`, `عرض جدول ${d.peers?.find((p) => p.id === src)?.name || ""} (للقراءة فقط).`)}</p>}
+      {coverOpen && <CoverPanel d={d} asAdmin={asAdmin} day0={weekOf} onClose={() => setCoverOpen(false)} onSaved={load} />}
       {cmp && <ComparePanel d={d} asAdmin={asAdmin} />}
       {!asAdmin && <ObsPanel d={d} onChange={load} />}
       {msg && <p className="rounded-xl bg-emerald-100 px-3 py-2 text-sm font-bold text-emerald-900" role="status" data-testid="tt-msg">{msg}</p>}
@@ -575,18 +577,20 @@ function CoverPanel({ d, asAdmin, day0, onClose, onSaved }: { d: TtData; asAdmin
   const [data, setData] = useState<{ lessons: (TtRow & { free: { id: string; name: string }[] })[]; covers: { id: string; s: string; e: string; absentName: string; coverName: string }[] } | null>(null);
   const [msg, setMsg] = useState("");
   const [pick, setPick] = useState<Record<string, string>>({});
-  const teachers = d.staff?.length ? d.staff : d.teachers;
-  const load = async (ids: string[]) => {
-    try { setData(await modCall<{ lessons: (TtRow & { free: { id: string; name: string }[] })[]; covers: { id: string; s: string; e: string; absentName: string; coverName: string }[] }>("att-tt-cover", { day, absent: ids }, asAdmin)); setMsg(""); }
+  const [srvT, setSrvT] = useState<{ id: string; name: string }[]>([]);
+  const teachers = srvT.length ? srvT : d.staff?.length ? d.staff : d.teachers;
+  const load = async (ids: string[], dy = day) => {
+    try { const r = await modCall<{ teachers?: { id: string; name: string }[]; lessons: (TtRow & { free: { id: string; name: string }[] })[]; covers: { id: string; s: string; e: string; absentName: string; coverName: string }[] }>("att-tt-cover", { day: dy, absent: ids }, asAdmin); if (r.teachers?.length) setSrvT(r.teachers); setData(r); setMsg(""); }
     catch (e) { setMsg(modErr(e, tr)); }
   };
+  useEffect(() => { load(absent, day); }, [day]); // eslint-disable-line react-hooks/exhaustive-deps
   const assign = async (lesson: TtRow & { free: { id: string; name: string }[] }) => {
     const cover = pick[lesson.id]; if (!cover) { setMsg(tr("Choose a cover teacher.", "اختر معلم الاحتياط.")); return; }
     const tm = seOf(lesson, d.times);
     try {
       await modCall("att-tt-cover-save", { day, ttId: lesson.id, absent: lesson.teacher, cover, s: tm.s, e: tm.e, cls: lesson.cls, section: lesson.sections.join(","), subject: lesson.subject, title: lesson.title || secTxt(lesson) }, asAdmin);
       setMsg(tr("Cover assigned and teacher notified.", "تم تعيين الاحتياط وإشعار المعلم."));
-      await load(absent); onSaved();
+      setPick({ ...pick, [lesson.id]: "" }); await load(absent); onSaved();
     } catch (e) { setMsg(modErr(e, tr)); }
   };
   return (
@@ -612,7 +616,7 @@ function CoverPanel({ d, asAdmin, day0, onClose, onSaved }: { d: TtData; asAdmin
                 <b>{span12(tm)}</b><span>{r.teacherName}</span><span className="font-bold">{secTxt(r)}</span><span>{r.subject}</span>
                 <select className={fld + " !w-auto"} value={pick[r.id] || ""} onChange={(e) => setPick({ ...pick, [r.id]: e.target.value })} data-testid="tt-cover-pick">
                   <option value="">{tr("Free teacher…", "معلم متاح…")}</option>
-                  {r.free.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+                  {!r.free.length && <option value="" disabled>{tr("No free teacher at this time", "لا يوجد معلم متاح")}</option>}{r.free.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
                 </select>
                 <button type="button" className="rounded-full bg-[#1b3a57] px-3 py-1 font-bold text-[#f5c542]" onClick={() => assign(r)} data-testid="tt-cover-save">{tr("Assign", "تعيين")}</button>
               </li>

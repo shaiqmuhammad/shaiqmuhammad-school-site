@@ -735,7 +735,7 @@ function ttHandle(c: ModCtx, a: Actor, action: string, input: Json): { status: n
   if (action === "att-tt-cover") {
     // List absent teachers' lessons for a day + free cover candidates (permission: add/edit/delete).
     if (a.role !== "admin" && a.role !== "teacher") return forbid();
-    if (!(acc.add || acc.edit || acc.delete)) return forbid("not_allowed");
+    if (!acc.view || a.viewAs) return forbid("not_allowed");
     const day = /^\d{4}-\d{2}-\d{2}$/.test(str(input.day, 10)) ? str(input.day, 10) : dubaiNow().day;
     const dow = new Date(day + "T12:00:00Z").getUTCDay();
     const times = ttTimes(sql);
@@ -752,8 +752,7 @@ function ttHandle(c: ModCtx, a: Actor, action: string, input: Json): { status: n
   }
   if (action === "att-tt-cover-save") {
     if (a.role !== "admin" && a.role !== "teacher") return forbid();
-    if (!(acc.add || acc.edit)) return forbid("not_allowed");
-    if (a.viewAs) return forbid();
+    if (!acc.view || a.viewAs) return forbid("not_allowed");
     const day = str(input.day, 10), s0 = str(input.s, 5), e0 = str(input.e, 5), absent = str(input.absent, 40), cover = str(input.cover, 40);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !ttOverlap(s0, e0, s0, e0) || !absent || !cover || absent === cover) return { status: 400, body: { error: "bad_input" } };
     const au = c.userRow("id=? AND role='teacher'", absent), cu = c.userRow("id=? AND role='teacher'", cover);
@@ -771,7 +770,7 @@ function ttHandle(c: ModCtx, a: Actor, action: string, input: Json): { status: n
     return { status: 200, body: { ok: true, id } };
   }
   if (action === "att-tt-cover-del") {
-    if (!(acc.delete || acc.edit) || a.viewAs) return forbid();
+    if (!acc.view || a.viewAs) return forbid();
     const id = str(input.id, 40);
     const row = sql.exec(`SELECT * FROM ttcover WHERE id=?`, id).toArray()[0];
     if (!row) return { status: 404, body: { error: "not_found" } };

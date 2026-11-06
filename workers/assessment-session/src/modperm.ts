@@ -40,7 +40,7 @@ export function mpOf(sql: Sql, a: Act, mod: MpMod, cfg = mpCfg(sql)): MpAcc {
   // t336: Progress Check QA starts OFF for teachers (admin turns View / Add / Edit / Download on per teacher, role or subject).
   if (mod === "qa") for (const k of MP_KEYS) out[k] = k === "show";
   // t384: viewing other teachers' timetables, comparing and peer observation start OFF for every teacher.
-  if (mod === "tt") { out.peers = false; out.compare = false; out.observe = false; }
+  // t438: peer view / compare / observation now default ON for teachers (admin can still switch them off).
   Object.assign(out, cfg.global[mod] || {}, cfg.roles[a.role]?.[mod] || {});
   for (const k of MP_KEYS) { const vals = (a.subj || []).map((s) => cfg.subjects[s]?.[mod]?.[k]).filter((x) => typeof x === "boolean"); if (vals.length) out[k] = !vals.includes(false); }
   for (const p of a.perms || []) { const m = MP_PERM.exec(p); if (m && m[1] === mod) out[m[2] as MpKey] = m[3] === "on"; }
