@@ -28,7 +28,7 @@ export type Pack = { id: string; owner: string; ownerName: string; title: string
 export type Acc = { show: boolean; view: boolean; add: boolean; edit: boolean; delete: boolean };
 export type Progress = { student: string; seen: number; total: number; updated: number; status: string };
 export const FONTS = ["Nunito", "Arial", "Georgia", "Times New Roman", "Courier New", "Comic Sans MS", "Amiri", "Tajawal", "Verdana"];
-export const TYPE_LABEL: Record<PackType, [string, string, string]> = { lesson: ["🎤", "Lesson", "درس"], activity: ["✏️", "Activity", "نشاط"], homework: ["📝", "Homework", "واجب"], quran: ["📖", "Quran Homework", "واجب القرآن"], material: ["📚", "Library material", "مادة المكتبة"] };
+export const TYPE_LABEL: Record<PackType, [string, string, string]> = { lesson: ["🎤", "Lesson", "درس"], activity: ["✏️", "Activity", "نشاط"], homework: ["📝", "Homework", "واجب"], quran: ["🎙️", "Quran Homework", "واجب القرآن"], material: ["📚", "Library material", "مادة المكتبة"] };
 /** t429: product name + icon (user-facing; the route stays /lms/material). */
 export const LB_EN = "Lesson Builder", LB_AR = "منشئ الدروس", LB_ICON = "📑";
 /** t389: public link for an uploaded PowerPoint / PDF (rendered by the free Office / browser viewer). */
