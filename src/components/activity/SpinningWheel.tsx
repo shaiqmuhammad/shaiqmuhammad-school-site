@@ -79,6 +79,13 @@ export function SpinningWheel() {
     setWinner(null);
   }
 
+  useEffect(() => {
+    if (!winner) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") closeWinner(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [winner, removeWinner, names]);
+
   const R = 200;
   const showLabels = n <= 60;
   const baseFont = n <= 8 ? 20 : n <= 16 ? 16 : n <= 30 ? 12 : 9;
@@ -189,12 +196,9 @@ export function SpinningWheel() {
               </span>
             ))}
           </div>
-          <div className="relative rounded-[28px] bg-white px-10 py-10 text-center shadow-2xl dark:bg-[#10263b]">
+          <div className="relative rounded-[28px] bg-white px-10 py-10 text-center shadow-2xl dark:bg-[#10263b]" onClick={(e) => e.stopPropagation()}>
             <p className="break-words text-6xl font-black text-navy dark:text-sun sm:text-7xl" dir="auto">{winner}</p>
             <PickedAward name={winner} />
-            <button type="button" className={`${primaryBtn} mt-8`} onClick={closeWinner}>
-              {tr("Continue", "متابعة")}
-            </button>
           </div>
         </div>
       )}

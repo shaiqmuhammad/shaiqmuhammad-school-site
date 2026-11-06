@@ -42,6 +42,13 @@ export function Randomiser() {
     setNames(loadNames());
   }, []);
 
+  useEffect(() => {
+    if (!reveal) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setReveal(null); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [reveal]);
+
   const pool = noRepeat ? names.filter((x) => !used.includes(x)) : names;
 
   function animate(final: () => void, flash: () => void) {
@@ -198,11 +205,10 @@ export function Randomiser() {
       </div>
       {reveal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-header/90 p-6" role="dialog" aria-modal="true" aria-label={tr("Picked student", "الطالب المختار")} onClick={() => setReveal(null)} data-testid="rand-reveal">
-          <div className="relative max-w-[92vw] rounded-[28px] bg-white px-8 py-10 text-center shadow-2xl ring-4 ring-sun dark:bg-[#10263b]">
+          <div className="relative max-w-[92vw] rounded-[28px] bg-white px-8 py-10 text-center shadow-2xl ring-4 ring-sun dark:bg-[#10263b]" onClick={(e) => e.stopPropagation()}>
             <p className="text-lg font-bold uppercase tracking-widest text-teal-700 dark:text-teal-300">🎯 {tr("It's your turn…", "حان دورك…")}</p>
             <p className="mt-3 break-words text-6xl font-black text-navy dark:text-sun sm:text-7xl" dir="auto">{reveal}</p>
             <PickedAward name={reveal} />
-            <button type="button" className={`${primaryBtn} mt-8`} onClick={() => setReveal(null)} data-testid="rand-reveal-close">{tr("Continue", "متابعة")}</button>
           </div>
         </div>
       )}

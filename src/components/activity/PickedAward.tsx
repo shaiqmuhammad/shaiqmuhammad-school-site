@@ -8,7 +8,7 @@ import { useI18n } from "@/lib/i18n";
 type Cat = { id: string; label: string; pts: number; icon: string };
 let catCache: Cat[] | null = null;
 
-/** t420/t432: +1 / −1 point buttons for the student picked by the Randomiser or the Spinning wheel.
+/** t420/t432/t434: thumbs-up / thumbs-down point buttons for the student picked by the Randomiser or Spin.
  *  Shown for teachers/admin when the name maps to a roster id (My Classes / group load), or when a
  *  live class-roster lookup finds an exact name match. Plays sfxPoints on award. */
 export function PickedAward({ name }: { name: string }) {
@@ -60,14 +60,14 @@ export function PickedAward({ name }: { name: string }) {
       <p className="text-sm font-bold text-white/80">{tr("Give a point", "امنح نقطة")}</p>
       <div className="flex flex-wrap justify-center gap-3">
         <button type="button" disabled={busy} onClick={() => give(1)} className="rounded-full bg-emerald-600 px-6 py-3 text-xl font-extrabold text-white shadow-lg ring-2 ring-sun transition hover:scale-105 disabled:opacity-60" data-testid="picked-plus" aria-label={tr("Give +1 point", "امنح +1 نقطة")}>
-          <span className="inline-block animate-spin [animation-duration:3s]">⭐</span> +1 {tr("Point", "نقطة")}
+          👍 +1 {tr("Point", "نقطة")}
         </button>
         <button type="button" disabled={busy} onClick={() => give(-1)} className="rounded-full bg-rose-600 px-6 py-3 text-xl font-extrabold text-white shadow-lg transition hover:scale-105 disabled:opacity-60" data-testid="picked-minus" aria-label={tr("Give −1 point", "امنح −1 نقطة")}>
           👎 −1 {tr("Point", "نقطة")}
         </button>
       </div>
       {done !== null && (
-        <p key={tick} className={`text-xl font-extrabold ${done > 0 ? "text-emerald-300" : "text-rose-300"}`} role="status" data-testid="picked-done" style={{ animation: done > 0 ? "pa-pop .5s ease-out" : "pa-shake .5s ease-in-out" }}>
+        <p key={tick} className={`text-xl font-extrabold ${done > 0 ? "text-emerald-900 dark:text-emerald-400" : "text-rose-700 dark:text-rose-300"}`} role="status" data-testid="picked-done" style={{ animation: done > 0 ? "pa-pop .5s ease-out" : "pa-shake .5s ease-in-out" }}>
           {done > 0 ? `🌟 +${done} ${tr("point given!", "نقطة مُنحت!")}` : `🔻 ${done} ${tr("point", "نقطة")}`}
         </p>
       )}
