@@ -7,10 +7,11 @@ import { lmsSession } from "@/lib/lms";
 import { AssessmentShell } from "@/components/assessment/AssessmentShell";
 import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
 import { useLmsActor, useTr } from "@/components/lms/useLms";
-import { modCall, modErr, pdfTable, xlsxTable } from "@/lib/lmsMods";
+import { modCall, modErr, pdfTable } from "@/lib/lmsMods";
 import { classLabel } from "@/lib/classLabel";
 import { RosterPicker, rosterIds, useRosterData } from "@/components/lms/ClassLaunch";
 import { qrImageUrl } from "@/lib/groupSession";
+import { ttGridDocx, ttGridPdf, ttGridXlsx, type TtGrid } from "@/lib/ttPrint";
 
 export type TtRow = { id: string; dow: number; period: string; cls: string; sections: string[]; teacher: string; teacherName: string; subject: string; phase: string; dept: string; s?: string; e?: string; color?: string; title?: string; obs?: string };
 export type TtShare = { id: string; by: string; byName: string; title: string; rows: TtRow[]; n: number; mine: boolean; at: number };
@@ -349,7 +350,7 @@ export function TimetableManager({ asAdmin, full = false }: { asAdmin: boolean; 
           <div className="flex items-end gap-2 sm:col-span-2 lg:col-span-4"><button type="button" className="rounded-full bg-sun px-5 py-2 text-sm font-bold text-[#0b1b2b] disabled:opacity-50" disabled={!ed.dows.length} onClick={save} data-testid="tt-add-btn">{ed.id ? tr("Save changes", "حفظ التغييرات") : tr(`Add ${ed.dows.length > 1 ? `${ed.dows.length} events` : "Event"}`, "إضافة")}</button><button type="button" className={pill} onClick={() => setEd(null)}>{tr("Cancel", "إلغاء")}</button></div>
         </div>
       )}
-      <TtTools d={d} rows={rows} asAdmin={asAdmin} filt={[f.phase, f.dept, d.teachers.find((t) => t.id === f.teacher)?.name || "", f.subject, f.cls].filter(Boolean).join(" · ")} />
+      <TtTools d={d} rows={rows} asAdmin={asAdmin} studentsOf={studentsOf} filt={[f.phase, f.dept, d.teachers.find((t) => t.id === f.teacher)?.name || "", f.subject, f.cls].filter(Boolean).join(" · ")} />
       {view === "today" && <GlassStrip rows={rows} times={d.times} now={d.now} dow={d.now.dow} testId="tt-today" onPick={ro && d.acc.observe ? (r) => askObs(r) : undefined} empty={tr("No events today 🌿 Enjoy your day!", "لا توجد أحداث اليوم 🌿 يومًا سعيدًا!")} canEdit={canEdit} canDel={canDel} onEdit={(r) => { const t = seOf(r, d.times); setEd({ title: r.title || "", tAuto: !r.title, id: r.id, dows: [r.dow], period: r.period || "", cls: r.cls, sections: r.sections, teacher: r.teacher, subject: r.subject, phase: r.phase, dept: r.dept, same: true, s: t.s || "08:00", e: t.e || "08:45", per: {}, color: r.color || "" }); }} onDel={del} />}
       {view === "day" && <div className="space-y-2" data-testid="tt-dayview">{rows.filter((r) => r.dow === dSel).sort((a, b) => (seOf(a, d.times).s || "").localeCompare(seOf(b, d.times).s || "")).map((r) => <div key={r.id} className="flex items-start gap-3"><span className="w-28 shrink-0 pt-2 text-sm font-extrabold">{h12(seOf(r, d.times).s)}<br />{h12(seOf(r, d.times).e)}</span><div className="flex-1">{cell(r)}{ro && d.acc.observe && <button type="button" className="mt-1 rounded-full bg-[#1b3a57] px-2 py-0.5 text-xs font-bold text-[#f5c542]" onClick={() => askObs(r)} data-testid="tt-obs-ask">👀 {tr("Request to observe", "طلب ملاحظة")}</button>}</div></div>)}{!rows.some((r) => r.dow === dSel) && <p className="py-6 text-center opacity-60">{tr("No lessons on this day.", "لا توجد حصص في هذا اليوم.")}</p>}</div>}
       {view === "week" && <>
@@ -386,7 +387,7 @@ export function TimetablePage() {
 
 const rowsOut = (rows: TtRow[], times: TtData["times"], tr: (en: string, ar: string) => string) => [...rows].sort((a, b) => ((a.dow + 6) % 7) - ((b.dow + 6) % 7) || (seOf(a, times).s || a.period).localeCompare(seOf(b, times).s || b.period));
 /** t317: one-click PDF / Excel of the timetable shown (filters respected, EN or AR as the page) and Share. */
-function TtTools({ d, rows, asAdmin, filt }: { d: TtData; rows: TtRow[]; asAdmin: boolean; filt: string }) {
+function TtTools({ d, rows, asAdmin, filt, studentsOf }: { d: TtData; rows: TtRow[]; asAdmin: boolean; filt: string; studentsOf?: (r: TtRow) => number }) {
   const { tr, lang } = useTr();
   const [share, setShare] = useState(false);
   const ar = lang === "ar";
@@ -396,13 +397,35 @@ function TtTools({ d, rows, asAdmin, filt }: { d: TtData; rows: TtRow[]; asAdmin
   const colors = out.map((r) => r.color || undefined);
   const title = `${tr("Timetable", "الجدول الدراسي")}${filt ? ` — ${filt}` : ""}`;
   const okX = d.acc.xlsx !== false, okP = d.acc.pdf !== false, okS = d.acc.share !== false && (asAdmin || d.acc.add || d.acc.edit);
+  // t437: period × day grid like the school sample
+  const grid = (): TtGrid => {
+    const lbl = (k: string) => /^P\d+$/.test(k) ? k.slice(1) : k;
+    const cols = new Map<string, { label: string; s: string; e: string }>();
+    Object.entries(d.times).filter(([, t]) => t.s && t.e).forEach(([k, t]) => cols.set(`${t.s}-${t.e}`, { label: lbl(k), s: t.s, e: t.e }));
+    rows.forEach((r) => { const t = seOf(r, d.times); const k = t.s ? `${t.s}-${t.e}` : r.period; if (!cols.has(k)) cols.set(k, { label: r.period && !r.s ? lbl(r.period) : (t.s ? h12(t.s) : lbl(r.period)), s: t.s, e: t.e }); });
+    const keys = [...cols.keys()].sort((a, b) => (cols.get(a)!.s || a).localeCompare(cols.get(b)!.s || b));
+    const dset = [...new Set([1, 2, 3, 4, 5, ...rows.map((r) => r.dow)])].sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7));
+    const useDays = rows.some((r) => r.dow === 0) && !rows.some((r) => r.dow === 5) ? dset.filter((x) => x !== 5) : dset;
+    const txt = (r: TtRow) => { if (r.obs || (!r.cls && r.title)) return r.title || r.subject; const n = studentsOf?.(r) || 0; const base = secTxt(r).replace(/\s+/g, ""); return `${base}${n ? `(${n})` : ""}${ttlOf(r) ? `\n${ttlOf(r)}` : ""}`; };
+    let tot = 0;
+    const dayRows = useDays.map((x) => { const l = rows.filter((r) => r.dow === x); const cnt = l.filter((r) => r.cls && !r.obs).length; tot += cnt;
+      return { name: tr(DOW[x][0], DOW[x][1]), count: cnt, cells: keys.map((k) => { const hit = l.filter((r) => { const t = seOf(r, d.times); return (t.s ? `${t.s}-${t.e}` : r.period) === k; }); return hit.length ? { text: hit.map(txt).join("\n"), color: hit[0].color || undefined } : null; }) }; });
+    const keyed = new Map<string, number>(); rows.forEach((r) => { if (r.cls && !r.obs) keyed.set(`${r.cls}|${[...r.sections].sort().join("")}`, studentsOf?.(r) || 0); });
+    const totalStudents = [...keyed.values()].reduce((a, b) => a + b, 0);
+    const teachers = [...new Set(rows.map((r) => r.teacherName).filter(Boolean))];
+    const subj = [...new Set(rows.map((r) => r.subject).filter(Boolean))];
+    return { title: `${subj.length === 1 ? subj[0] + " – " : ""}${tr("Timetable", "الجدول الدراسي")} 2026 – 27`, subtitle: `${teachers.length === 1 ? tr("Teacher: ", "المعلم: ") + teachers[0] + "  |  " : filt ? filt + "  |  " : ""}${tr("Raffles International School, Dubai", "مدرسة رافلز الدولية، دبي")}`,
+      cols: keys.map((k) => { const c = cols.get(k)!; return { label: c.label, s: c.s ? h12(c.s).replace(/\s?[AP]M/i, "") : "", e: c.e ? h12(c.e).replace(/\s?[AP]M/i, "") : "" }; }), days: dayRows, totalLessons: tot, totalStudents, rtl: ar,
+      L: { period: tr("Period", "الحصة"), days: tr("Days", "الأيام"), lessons: tr("Lessons", "حصص"), totalL: tr("Total Lessons", "مجموع الحصص"), totalS: tr("Total Students", "مجموع الطلاب") } };
+  };
   if (!rows.length) return null;
   const btn = "rounded-full border border-black/10 bg-white px-3 py-1.5 text-sm font-bold text-[#1b2f44] hover:bg-sky-50";
   return (
     <div className="space-y-2" data-testid="tt-tools">
       <div className="flex flex-wrap items-center gap-2">
-        {okP && <button type="button" className={btn} onClick={() => pdfTable({ title, subtitle: tr(`${rows.length} lessons`, `${rows.length} حصة`), headers: ar ? [...heads].reverse() : heads, rows: ar ? data.map((x) => [...x].reverse()) : data, filename: `timetable${ar ? "-ar" : ""}.pdf`, rtl: ar, rowColors: colors })} data-testid="tt-pdf">⬇️ PDF</button>}
-        {okX && <button type="button" className={btn} onClick={() => xlsxTable(tr("Timetable", "الجدول"), heads, data, `timetable${ar ? "-ar" : ""}.xlsx`, [12, 9, 9, 22, 14, 22], colors, ar)} data-testid="tt-xlsx">⬇️ Excel</button>}
+        {okP && <button type="button" className={btn} onClick={() => ttGridPdf(grid(), `timetable${ar ? "-ar" : ""}.pdf`)} data-testid="tt-pdf">⬇️ PDF</button>}
+        {okP && <button type="button" className={btn} onClick={() => ttGridDocx(grid(), `timetable${ar ? "-ar" : ""}.docx`)} data-testid="tt-docx">⬇️ Word</button>}
+        {okX && <button type="button" className={btn} onClick={() => ttGridXlsx(grid(), `timetable${ar ? "-ar" : ""}.xlsx`)} data-testid="tt-xlsx">⬇️ Excel</button>}
         {okS && <button type="button" className={btn} onClick={() => setShare(!share)} data-testid="tt-share">📤 {tr("Share", "مشاركة")}</button>}
         <img src={qrImageUrl("https://www.shaiqmuhammad.com/lms/timetable", 56)} alt="QR" className="ms-auto h-12 w-12 rounded-lg ring-1 ring-black/10" data-testid="tt-qr" />
       </div>
