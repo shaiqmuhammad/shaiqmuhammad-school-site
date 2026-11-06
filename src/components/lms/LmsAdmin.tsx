@@ -683,7 +683,7 @@ function Stat({ label, value, tone, onClick, active, small }: { label: string; v
   );
 }
 
-const ACTS: [string, string, string][] = [["wall", "Shared Wall", "الجدار المشترك"], ["wheel", "Wheel", "العجلة"], ["randomiser", "Randomiser", "العشوائي"], ["wordcloud", "Word Cloud", "سحابة الكلمات"], ["poll", "Poll", "استطلاع"], ["survey", "Survey", "استبيان"], ["tps", "Think/Pair/Share", "فكّر/شارك"], ["vote", "Vote", "تصويت"], ["mindmap", "Mind map", "خريطة ذهنية"], ["compare", "Compare & contrast", "قارن وميّز"], ["whiteboard", "Whiteboard (new — off until ticked)", "السبورة البيضاء (جديد — مغلق حتى التفعيل)"]];
+const ACTS: [string, string, string][] = [["wall", "Shared Wall", "الجدار المشترك"], ["wheel", "Wheel", "العجلة"], ["randomiser", "Randomiser", "العشوائي"], ["wordcloud", "Word Cloud", "سحابة الكلمات"], ["poll", "Poll", "استطلاع"], ["survey", "Survey", "استبيان"], ["tps", "Think/Pair/Share", "فكّر/شارك"], ["vote", "Vote", "تصويت"], ["mindmap", "Mind map", "خريطة ذهنية"], ["compare", "Compare & contrast", "قارن وميّز"], ["whiteboard", "✏️ Whiteboard", "✏️ السبورة البيضاء"]];
 
 /** Admin → teacher form: per-module View / Add-Edit switches (own classes only; enforced on the server). */
 const MOD_TOKEN = /^(hide:|att:|beh:|cur:|qhw:|nodl:)/;
@@ -803,7 +803,12 @@ function ClassroomAccess({ perms, toggle, chip }: { perms: string[]; toggle: (v:
       <p className="text-sm font-bold">🎲 {tr("Classroom access", "صلاحيات الصف")}</p>
       <div className="flex flex-wrap gap-1.5">
         <button type="button" aria-pressed={allA} className={chip(allA)} onClick={() => toggle("act:*")} data-testid="lms-act-all">{tr("All activities", "كل الأنشطة")}</button>
-        {ACTS.map(([k, en, ar]) => <button key={k} type="button" disabled={allA} aria-pressed={allA || perms.includes(`act:${k}`)} className={chip(allA || perms.includes(`act:${k}`)) + " disabled:opacity-60"} onClick={() => toggle(`act:${k}`)} data-testid={`lms-act-${k}`}>{tr(en, ar)}</button>)}
+        {ACTS.filter(([k]) => k !== "whiteboard").map(([k, en, ar]) => <button key={k} type="button" disabled={allA} aria-pressed={allA || perms.includes(`act:${k}`)} className={chip(allA || perms.includes(`act:${k}`)) + " disabled:opacity-60"} onClick={() => toggle(`act:${k}`)} data-testid={`lms-act-${k}`}>{tr(en, ar)}</button>)}
+        <label className={chip(perms.includes("act:whiteboard")) + " inline-flex items-center gap-2 cursor-pointer"}>
+          <input type="checkbox" checked={perms.includes("act:whiteboard")} onChange={() => toggle("act:whiteboard")} data-testid="lms-act-whiteboard" />
+          {tr("✏️ Whiteboard", "✏️ السبورة البيضاء")}
+        </label>
+        <p className="w-full text-xs opacity-75" data-testid="whiteboard-permission-hint">{tr("Whiteboard is off by default. Enable it separately, even when All activities is on.", "السبورة البيضاء مغلقة افتراضيًا. فعّلها بشكل مستقل حتى عند تشغيل كل الأنشطة.")}</p>
       </div>
       <div className="flex flex-wrap gap-1.5">
         <button type="button" aria-pressed={allH} className={chip(allH)} onClick={() => toggle("host:*")} data-testid="lms-host-all">{tr("Host all assessments", "استضافة كل التقييمات")}</button>

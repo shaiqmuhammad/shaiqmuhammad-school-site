@@ -213,7 +213,7 @@ export function ActivityHost() {
   );
 
   return (
-    <AssessmentShell title={title} exitHref="/admin" alarm secondsLeft={state?.ended ? null : left} actions={actions} wide>
+    <AssessmentShell title={title} exitHref={state?.ended ? "/lms/activities/saved" : "/admin"} alarm secondsLeft={state?.ended ? null : left} actions={actions} wide>
       <div className="mx-auto w-full max-w-[1800px] flex-1 px-3 py-4 sm:px-6" data-testid="activity-host">
         {offline && <p className="mb-3 rounded-xl bg-amber-100 px-4 py-2 text-sm font-semibold text-amber-900 dark:bg-amber-900/40 dark:text-amber-100">{tr("Reconnecting…", "جارٍ إعادة الاتصال…")}</p>}
 
@@ -332,7 +332,7 @@ export function ActivityHost() {
             <button type="button" disabled={busy} className="inline-flex items-center gap-1.5 rounded-full bg-[#1b3a57] px-3 py-1.5 text-sm font-bold text-[#f5c542]" onClick={async () => {
               if (!state.ended && !confirm(tr("End and close this activity? Results are saved.", "إنهاء وإغلاق هذا النشاط؟ تُحفظ النتائج."))) return;
               setBusy(true); await finish(state); forgetHosted(code);
-              router.push(home);
+              router.push("/lms/activities/saved");
             }} data-testid="host-close">✕ {tr("End & close", "إنهاء وإغلاق")}</button>
           </section>
         )}

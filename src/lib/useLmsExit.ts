@@ -12,6 +12,8 @@ export function useLmsExit(fallback: string): string {
   const [href, setHref] = useState(fallback);
   useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect -- storage is only readable after hydration */
+    // Saved/ended staff activity results have an explicit destination, not the launching class.
+    if (fallback === "/lms/activities/saved") { setHref(fallback); return; }
     if (actingAs() !== "lms") { setHref(fallback); return; }
     const p = window.location.pathname;
     const teacher = lmsSession()?.user.role === "teacher";
