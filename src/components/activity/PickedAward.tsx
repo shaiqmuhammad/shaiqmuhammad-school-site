@@ -16,6 +16,7 @@ export function PickedAward({ name }: { name: string }) {
   const [sid, setSid] = useState<string | null>(null);
   const [done, setDone] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
+  const [tick, setTick] = useState(0);
   const [err, setErr] = useState("");
   useEffect(() => {
     const role = lmsSession()?.user.role;
@@ -34,7 +35,7 @@ export function PickedAward({ name }: { name: string }) {
       if (!cat) throw new Error("no_cat");
       await lmsApi.ptsAward(cat.id, [sid]);
       sfxPoints(cat.pts);
-      setDone(cat.pts);
+      setDone(cat.pts); setTick((t) => t + 1);
     } catch {
       setErr(tr("Couldn't give the point.", "تعذر منح النقطة."));
     }
@@ -42,14 +43,15 @@ export function PickedAward({ name }: { name: string }) {
   };
   return (
     <div className="mt-6 flex flex-col items-center gap-3" onClick={(e) => e.stopPropagation()} data-testid="picked-award">
-      {done === null ? (
+      {(
         <div className="flex flex-wrap justify-center gap-3">
-          <button type="button" disabled={busy} onClick={() => give(1)} className="rounded-full bg-emerald-600 px-6 py-3 text-xl font-extrabold text-white shadow-lg ring-2 ring-sun transition hover:scale-105 disabled:opacity-60" data-testid="picked-plus">⭐ +1 {tr("Point", "نقطة")}</button>
-          <button type="button" disabled={busy} onClick={() => give(-1)} className="rounded-full bg-rose-600 px-6 py-3 text-xl font-extrabold text-white shadow-lg transition hover:scale-105 disabled:opacity-60" data-testid="picked-minus">−1 {tr("Point", "نقطة")}</button>
+          <button type="button" disabled={busy} onClick={() => give(1)} className="rounded-full bg-emerald-600 px-6 py-3 text-xl font-extrabold text-white shadow-lg ring-2 ring-sun transition hover:scale-105 disabled:opacity-60" data-testid="picked-plus"><span className="inline-block animate-spin [animation-duration:3s]">⭐</span> +1 {tr("Point", "نقطة")}</button>
+          <button type="button" disabled={busy} onClick={() => give(-1)} className="rounded-full bg-rose-600 px-6 py-3 text-xl font-extrabold text-white shadow-lg transition hover:scale-105 disabled:opacity-60" data-testid="picked-minus">👎 −1 {tr("Point", "نقطة")}</button>
         </div>
-      ) : (
-        <p className={`text-xl font-extrabold ${done > 0 ? "text-emerald-700 dark:text-emerald-300" : "text-rose-700 dark:text-rose-300"}`} role="status" data-testid="picked-done">
-          {done > 0 ? `🌟 +${done} ${tr("point given!", "نقطة مُنحت!")}` : `${done} ${tr("point", "نقطة")}`}
+      )}
+      {done !== null && (
+        <p key={tick} className={`text-xl font-extrabold ${done > 0 ? "text-emerald-700 dark:text-emerald-300" : "text-rose-700 dark:text-rose-300"}`} role="status" data-testid="picked-done" style={{ animation: done > 0 ? "pa-pop .5s ease-out" : "pa-shake .5s ease-in-out" }}>
+          {done > 0 ? `🌟 +${done} ${tr("point given!", "نقطة مُنحت!")}` : `🔻 ${done} ${tr("point", "نقطة")}`}
         </p>
       )}
       {done !== null && done > 0 && (
@@ -59,6 +61,7 @@ export function PickedAward({ name }: { name: string }) {
           ))}
         </div>
       )}
+      <style>{`@keyframes pa-pop{0%{transform:scale(.3)}70%{transform:scale(1.25)}100%{transform:scale(1)}}@keyframes pa-shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-10px)}75%{transform:translateX(10px)}}`}</style>
       {err && <p className="text-sm font-semibold text-rose-600" role="alert">{err}</p>}
     </div>
   );

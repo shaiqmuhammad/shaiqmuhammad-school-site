@@ -6,7 +6,7 @@ import { mailApi } from "@/lib/mail";
 import { lmsApi, type Note } from "@/lib/lms";
 import { useI18n } from "@/lib/i18n";
 
-const ICON: Record<Note["kind"], string> = { hw_new: "📚", sub_new: "📥", feedback: "💬", feedback_audio: "🎙️", approved: "✅", returned: "↺", graded: "🚦", reminder: "⏰", revise: "🔁", mistakes: "📝", announcement: "📣", message: "💬", act_mindmap: "🧠", act_compare: "⚖️" };
+const ICON: Record<Note["kind"], string> = { hw_new: "📚", sub_new: "📥", feedback: "💬", feedback_audio: "🎙️", approved: "✅", returned: "↺", graded: "🚦", reminder: "⏰", revise: "🔁", mistakes: "📝", announcement: "📣", message: "💬", act_mindmap: "🧠", act_compare: "⚖️", act_whiteboard: "✏️" };
 
 /**
  * Notification bell with dropdown. Students: new homework, feedback, approved, try again. Teachers: new submissions.
@@ -65,6 +65,7 @@ export function LmsBell({ asAdmin = false, variant = "navy", extra, testId = "lm
       case "announcement": return tr(`Announcement: ${t}`, `إعلان: ${t}`);
       case "message": return tr(`New message from ${n.data.by}`, `رسالة جديدة من ${n.data.by}`);
       case "approved": return tr(`${t} was approved`, `تم قبول ${t}`);
+      case "act_whiteboard": return tr(`${n.data.by} started a whiteboard: ${t}`, `بدأ ${n.data.by} سبورة بيضاء: ${t}`);
       case "act_mindmap": return tr(`${n.data.by} started a mind map: ${t}`, `بدأ ${n.data.by} خريطة ذهنية: ${t}`);
       case "act_compare": return tr(`${n.data.by} started compare & contrast: ${t}`, `بدأ ${n.data.by} نشاط المقارنة: ${t}`);
       case "returned": return tr(`${t}: please try again`, `${t}: حاول مرة أخرى`);
@@ -77,7 +78,7 @@ export function LmsBell({ asAdmin = false, variant = "navy", extra, testId = "lm
     const h = Math.round(m / 60);
     return h < 24 ? tr(`${h} h ago`, `قبل ${h} س`) : new Date(ts).toLocaleDateString(ar ? "ar" : "en-GB", { day: "numeric", month: "short" });
   };
-  const href = (n: Note) => ((n.kind === "act_mindmap" || n.kind === "act_compare") && n.data.code ? `/join?code=${n.data.code}` : n.kind === "message" ? (asAdmin ? "/admin#messages" : "/lms/messages") : n.kind === "announcement" && !asAdmin ? "/lms" : asAdmin ? "/admin#lmshw" : n.kind === "revise" ? "/lms#revision" : n.data.hw ? `/lms/homework?id=${encodeURIComponent(n.data.hw)}` : "/lms");
+  const href = (n: Note) => ((n.kind === "act_mindmap" || n.kind === "act_compare" || n.kind === "act_whiteboard") && n.data.code ? `/join?code=${n.data.code}` : n.kind === "message" ? (asAdmin ? "/admin#messages" : "/lms/messages") : n.kind === "announcement" && !asAdmin ? "/lms" : asAdmin ? "/admin#lmshw" : n.kind === "revise" ? "/lms#revision" : n.data.hw ? `/lms/homework?id=${encodeURIComponent(n.data.hw)}` : "/lms");
   const label = total ? tr(`${total} new notifications`, `${total} إشعارات جديدة`) : tr("Notifications", "الإشعارات");
   const btn = `relative inline-flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/30 ${variant === "navy" ? "pill-on-navy !p-0" : "glass text-heading hover:ring-2 hover:ring-[var(--yellow-border)]"}`;
 

@@ -29,7 +29,7 @@ export interface ActivityEnv extends AdminEnv {
   ACTIVITIES: DurableObjectNamespace<ClassActivity>;
 }
 
-export const ACTIVITY_TYPES = ["wall", "wordcloud", "poll", "survey", "tps", "vote", "mindmap", "compare"] as const;
+export const ACTIVITY_TYPES = ["wall", "wordcloud", "poll", "survey", "tps", "vote", "mindmap", "compare", "whiteboard"] as const;
 export type ActivityType = (typeof ACTIVITY_TYPES)[number];
 
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -42,7 +42,7 @@ const MAX_IMAGES = 60;
 const MAX_IMAGE_BYTES = 200 * 1024;
 const MAX_TEXT = 1000;
 const MAX_BODY = 400_000;
-const RATE: Record<string, [number, number]> = { post: [8, 60_000], respond: [20, 60_000], like: [60, 60_000], join: [5, 60_000] };
+const RATE: Record<string, [number, number]> = { post: [8, 60_000], respond: [20, 60_000], like: [60, 60_000], join: [5, 60_000], stroke: [90, 60_000] };
 
 type Reply = { status: number; body: unknown };
 type Json = Record<string, unknown>;
@@ -260,6 +260,36 @@ export class ClassActivity extends DurableObject<ActivityEnv> {
         const me = who();
         if (!me) return { status: 403, body: { error: "removed" } };
         if (!isHost && !open()) return { status: 409, body: { error: "closed" } };
+        // t423: whiteboard strokes / notes / undo (students only when the teacher allows drawing).
+        if (m.type === "whiteboard" && ["stroke", "note", "undo"].includes(str(input.kind, 20))) {
+          const k = str(input.kind, 20);
+          if (!isHost && (m.settings.options as Json).draw !== true) return { status: 403, body: { error: "no_draw" } };
+          if (!isHost && this.limited(me.id, "stroke")) return { status: 429, body: { error: "slow_down" } };
+          if (k === "undo") {
+            const last = this.sql.exec(`SELECT id FROM items WHERE pid=? AND kind IN ('stroke','note') ORDER BY created DESC LIMIT 1`, me.id).toArray()[0];
+            if (last) { this.deleteItems(`id=?`, String(last.id)); this.bump(); }
+            return { status: 200, body: { ok: true, id: last ? String(last.id) : "", status: "approved" } };
+          }
+          const nW = Number(this.sql.exec(`SELECT COUNT(*) AS n FROM items`).one().n);
+          if (nW >= 2500) return { status: 409, body: { error: "full" } };
+          const col = /^#[0-9a-fA-F]{6}$/.test(str(input.c, 7)) ? str(input.c, 7) : "#1b3a57";
+          const d: Json = { c: col };
+          if (k === "stroke") {
+            const raw = Array.isArray(input.pts) ? (input.pts as unknown[]) : [];
+            const pts = raw.slice(0, 1600).map((v) => Math.round(Math.max(0, Math.min(1, Number(v) || 0)) * 10000) / 10000);
+            if (pts.length < 2 || pts.length % 2) return { status: 400, body: { error: "empty" } };
+            d.pts = pts; d.w = Math.max(1, Math.min(60, Number(input.w) || 4)); d.hl = input.hl === true; d.er = input.er === true;
+          } else {
+            const t = str(input.text, 200);
+            if (!t) return { status: 400, body: { error: "empty" } };
+            if (!isHost && isProfane(t)) return { status: 400, body: { error: "language" } };
+            d.text = t; d.x = Math.max(0, Math.min(1, Number(input.x) || 0)); d.y = Math.max(0, Math.min(1, Number(input.y) || 0)); d.w = Math.max(10, Math.min(80, Number(input.w) || 22));
+          }
+          const id = rand(12);
+          this.sql.exec(`INSERT INTO items (id, pid, kind, data, status, created) VALUES (?, ?, ?, ?, 'approved', ?)`, id, me.id, k, JSON.stringify(d), Date.now());
+          this.bump();
+          return { status: 200, body: { ok: true, id, status: "approved" } };
+        }
         if (!isHost && this.limited(me.id, "post")) return { status: 429, body: { error: "slow_down" } };
         const nItems = Number(this.sql.exec(`SELECT COUNT(*) AS n FROM items`).one().n);
         if (nItems >= MAX_ITEMS) return { status: 409, body: { error: "full" } };

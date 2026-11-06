@@ -51,7 +51,7 @@ export type ParentContact = { student: string; studentName: string; cls: string;
 export type ParentThread = { thread: string; student: string; studentName: string; cls: string; parentName: string; teacherName: string; last: number; count: number; unread: number; preview: string; lastDir: string };
 export type ParentMsg = { id: string; dir: "in" | "out"; subject: string; body: string; created: number };
 export type Msg = { id: string; sender: string; body: string; created: number; mine: boolean };
-export type Note = { id: string; kind: "hw_new" | "sub_new" | "feedback" | "feedback_audio" | "approved" | "returned" | "graded" | "reminder" | "revise" | "mistakes" | "announcement" | "message" | "act_mindmap" | "act_compare"; data: { code?: string; hw?: string; title?: string; by?: string; student?: string; grade?: Grade; overdue?: boolean; count?: number; surah?: number }; created: number; read: boolean };
+export type Note = { id: string; kind: "hw_new" | "sub_new" | "feedback" | "feedback_audio" | "approved" | "returned" | "graded" | "reminder" | "revise" | "mistakes" | "announcement" | "message" | "act_mindmap" | "act_compare" | "act_whiteboard"; data: { code?: string; hw?: string; title?: string; by?: string; student?: string; grade?: Grade; overdue?: boolean; count?: number; surah?: number }; created: number; read: boolean };
 export type Level = 1 | 2 | 3;
 /** Makharij / Tajweed / Recitation levels (1 Needs practice · 2 Good · 3 Excellent) + generated feedback. */
 export type Scores = { m: Level; t: Level; r: Level; h?: Level; notes?: { m?: string; t?: string; r?: string; h?: string }; fb?: { en: string; ar: string } };
@@ -470,5 +470,5 @@ export const homeworkUrl = (id: string) => `${typeof window !== "undefined" ? wi
 /** Group name with its subject, for pickers and tabs. */
 export const grpLabel = (g: { name: string; subject?: string }) => (g.subject ? `${g.name} · ${g.subject}` : g.name);
 
-export type SavedRow = { name?: string; answer: string; cls?: string; group?: string; ok?: boolean };
+export type SavedRow = { name?: string; answer: string; cls?: string; group?: string; ok?: boolean; id?: string; pid?: string; kind?: string; parent?: string; x?: number; y?: number; color?: string; pinned?: number; highlight?: boolean; likes?: number; wb?: Record<string, unknown> };
 export type SavedAct = { id: string; type: string; title: string; cls: string; n?: number; at: number; teacher: string };

@@ -81,7 +81,10 @@ export function SpinningWheel() {
 
   const R = 200;
   const showLabels = n <= 60;
-  const fontSize = n <= 8 ? 20 : n <= 16 ? 16 : n <= 30 ? 12 : 9;
+  const baseFont = n <= 8 ? 20 : n <= 16 ? 16 : n <= 30 ? 12 : 9;
+  // t423: never clip names — shrink each label to fit the radius (≈150 units from hub to rim) and the slice height.
+  const sliceH = 2 * (R - 60) * Math.sin(Math.min(seg, 120) * Math.PI / 360);
+  const fitFont = (label: string) => Math.max(5, Math.min(baseFont, 150 / Math.max(1, label.length * 0.56), sliceH * 0.8));
 
   return (
     <AssessmentShell title={tr("Spinning wheel", "العجلة الدوارة")} exitHref="/admin" wide>
@@ -129,10 +132,11 @@ export function SpinningWheel() {
                             textAnchor="end"
                             dominantBaseline="middle"
                             fill={TEXT_ON(color)}
-                            fontSize={fontSize}
+                            fontSize={fitFont(name)}
                             fontWeight={700}
                           >
-                            {name.length > 18 ? name.slice(0, 17) + "…" : name}
+                            <title>{name}</title>
+                            {name}
                           </text>
                         )}
                       </g>
@@ -186,11 +190,10 @@ export function SpinningWheel() {
             ))}
           </div>
           <div className="relative rounded-[28px] bg-white px-10 py-10 text-center shadow-2xl dark:bg-[#10263b]">
-            <p className="text-lg font-bold uppercase tracking-widest text-teal-700 dark:text-teal-300">{tr("And the winner is…", "والفائز هو…")}</p>
-            <p className="mt-3 break-words text-6xl font-black text-navy dark:text-sun sm:text-7xl" dir="auto">{winner}</p>
+            <p className="break-words text-6xl font-black text-navy dark:text-sun sm:text-7xl" dir="auto">{winner}</p>
             <PickedAward name={winner} />
             <button type="button" className={`${primaryBtn} mt-8`} onClick={closeWinner}>
-              {removeWinner ? tr("Remove & continue", "إزالة ومتابعة") : tr("Continue", "متابعة")}
+              {tr("Continue", "متابعة")}
             </button>
           </div>
         </div>

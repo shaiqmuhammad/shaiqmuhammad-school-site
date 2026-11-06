@@ -69,7 +69,7 @@ export function activityRows(state: ActivityState): SavedRow[] {
   const byId = new Map(state.items.map((i) => [i.id, i]));
   const ch = Array.isArray(state.settings.options.choices) ? (state.settings.options.choices as unknown[]).map((c) => (typeof c === "string" ? c : String((c as { text?: string })?.text ?? ""))) : [];
   const qs = Array.isArray(state.settings.options.questions) ? (state.settings.options.questions as { q: string; choices?: string[] }[]) : [];
-  return state.items.filter((i) => i.kind !== "optimg").map((i) => {
+  return state.items.filter((i) => i.kind !== "optimg").map((i): SavedRow => {
     let answer = i.data.text || i.data.word || "";
     if (!answer && i.data.picks) answer = i.data.picks.map((n) => ch[n] || `#${n + 1}`).join(", ");
     if (!answer && i.data.answers) { const ans = i.data.answers as unknown; answer = Array.isArray(ans) ? ans.map((x, k) => `${qs[k]?.q ? qs[k].q + ": " : ""}${typeof x === "number" && qs[k]?.choices ? qs[k].choices![x] : String(x)}`).join(" · ") : JSON.stringify(ans); }
@@ -84,8 +84,11 @@ export function activityRows(state: ActivityState): SavedRow[] {
       if (i.kind === "place") { const c = cards[Number(i.data.card)]; answer = c?.text || ""; ok = c ? c.zone === i.data.zone : undefined; }
       group = zl(i.data.zone);
     }
-    return { name: i.pid === "host" ? "Teacher" : names.get(i.pid) || i.author || "", answer: String(answer).slice(0, 1000), ...(group ? { group } : {}), ...(ok !== undefined ? { ok } : {}) };
-  }).filter((r) => r.answer);
+    // t423: keep what the printable needs to redraw the live design (mind-map tree, wall card colours/pins, whiteboard strokes).
+    const look = { id: i.id, pid: i.pid === "host" ? "host" : i.pid, kind: i.kind, ...(i.data.parent ? { parent: String(i.data.parent) } : {}), ...(i.color ? { color: i.color } : {}), ...(i.pinned ? { pinned: i.pinned } : {}), ...(i.highlight ? { highlight: true } : {}), ...(i.likes ? { likes: i.likes } : {}) };
+    if (state.type === "whiteboard") return { name: i.pid === "host" ? "Teacher" : names.get(i.pid) || i.author || "", answer: i.kind === "note" ? String(i.data.text || "") : "✏️", ...look, wb: i.data as Record<string, unknown> };
+    return { name: i.pid === "host" ? "Teacher" : names.get(i.pid) || i.author || "", answer: String(answer).slice(0, 1000), ...(group ? { group } : {}), ...(ok !== undefined ? { ok } : {}), ...look };
+  }).filter((r) => r.answer).concat(state.type === "whiteboard" ? [{ name: "", answer: "layout", kind: "bg", wb: { bg: String(state.settings.options.bg || "blank"), labels: state.settings.options.labels !== false } } as SavedRow] : []);
 }
 
 /** Teacher / projector screen for one activity: join QR, participants, moderation, timer, end. */

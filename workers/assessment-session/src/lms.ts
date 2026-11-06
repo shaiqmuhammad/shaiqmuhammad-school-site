@@ -109,7 +109,7 @@ const PUSH_TEXT: Record<string, [string, string]> = {
   qa_ready: ["QA report ready / updated", "{by}: {title}"],
   hw_new: ["New homework", "{title}"], sub_new: ["Homework submitted", "{student}: {title}"], graded: ["Homework graded", "{title}"], approved: ["Homework approved", "{title}"],
   returned: ["Please try again", "{title}"], feedback: ["Teacher feedback", "{title}"], feedback_audio: ["Voice feedback", "{title}"], mistakes: ["Mistakes marked", "{title}"],
-  act_mindmap: ["New mind map activity", "{by}: {title}"], act_compare: ["New compare & contrast activity", "{by}: {title}"],
+  act_mindmap: ["New mind map activity", "{by}: {title}"], act_compare: ["New compare & contrast activity", "{by}: {title}"], act_whiteboard: ["New whiteboard activity", "{by}: {title}"],
   message: ["New message", "{by}: {title}"], announcement: ["Announcement", "{title}"], reminder: ["Homework reminder", "{title}"], hw_reminder: ["Homework reminder", "{by}: please complete and submit {title}"], revise: ["Time to revise", "{title}"], test: ["Test notification", "Push notifications are working ✅"],
   lesson: ["Lesson in {mins} min", "{subject} · {cls} at {time}"],
   tt_shared: ["Timetable shared", "{by}: {title}"],
@@ -1338,7 +1338,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
       case "act-publish": {
         // Teacher started a live activity for chosen students: it shows up on their LMS home with a one-tap Join (no code to type).
         if (!isStaff(a) || a.viewAs) return { status: 403, body: { error: "forbidden" } };
-        { const ty = str(input.type, 12); if (a.role === "teacher" && (a.perms.includes("hide:activities") || !(a.perms.includes("act:*") || a.perms.includes(`act:${ty}`) || (ty === "assess" && a.perms.some((p) => p.startsWith("host:")))))) return { status: 403, body: { error: "activity_not_allowed" } }; }
+        { const ty = str(input.type, 12); if (a.role === "teacher" && (a.perms.includes("hide:activities") || !((a.perms.includes("act:*") && ty !== "whiteboard") || a.perms.includes(`act:${ty}`) || (ty === "assess" && a.perms.some((p) => p.startsWith("host:")))))) return { status: 403, body: { error: "activity_not_allowed" } }; }
         const code = str(input.code, 8).toUpperCase();
         const ids = strList(input.students, 300).filter((sid) => this.inScope(a, ...this.placeOf(sid), sid));
         if (!/^[A-Z0-9]{4,8}$/.test(code) || !ids.length) return { status: 400, body: { error: "bad" } };
@@ -1346,7 +1346,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         // t312: locked = only these students may join (signed in, under their account name); everyone else is refused.
         this.sql.exec(`INSERT OR REPLACE INTO alive (code, type, title, owner, owner_name, students, at, locked) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, code, str(input.type, 12), str(input.title, 120), a.id, a.name, JSON.stringify(ids), Date.now(), input.locked === true ? 1 : 0);
         // t409: mind map + compare have their own notification types (students get a one-tap Join).
-        { const ty = str(input.type, 12); if (ty === "mindmap" || ty === "compare") this.notify(ids, `act_${ty}`, { title: str(input.title, 120), by: a.name, code }); }
+        { const ty = str(input.type, 12); if (ty === "mindmap" || ty === "compare" || ty === "whiteboard") this.notify(ids, `act_${ty}`, { title: str(input.title, 120), by: a.name, code }); }
         return { status: 200, body: { ok: true, count: ids.length, locked: input.locked === true } };
       }
       case "act-unpublish": {
@@ -1367,7 +1367,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         // t370: keep an activity's results after it ends (question, answers with names, class) for printing.
         if (!isStaff(a) || a.viewAs) return { status: 403, body: { error: "forbidden" } };
         const data = JSON.stringify(input.rows || []);
-        if (data.length > 200000) return { status: 400, body: { error: "too_big" } };
+        if (data.length > 900000) return { status: 400, body: { error: "too_big" } };
         const code = str(input.code, 8).toUpperCase();
         const prev = this.sql.exec(`SELECT id, tok FROM actsave WHERE code=? AND owner=?`, code, a.id).toArray()[0];
         const id = prev ? String(prev.id) : crypto.randomUUID();
@@ -3350,6 +3350,8 @@ export async function teacherWithPerm(request: Request, env: LmsEnv, perm: strin
   if (!u || u.role !== "teacher") return false;
   if (perm.startsWith("act:") && u.perms.includes("hide:activities")) return false;
   if (perm === "act:any") return u.perms.some((p) => p.startsWith("act:"));
+  // t423: the whiteboard is a new activity — it starts OFF and is not covered by "act:*" until admin ticks it.
+  if (perm === "act:whiteboard") return u.perms.includes(perm);
   return u.perms.includes(perm) || u.perms.includes(perm.split(":")[0] + ":*");
 }
 

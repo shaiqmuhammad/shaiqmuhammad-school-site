@@ -1,6 +1,7 @@
 "use client";
 
 import { CompareHost, CompareOptions, CompareStudent, type CmpCard } from "@/components/activity/Compare";
+import { WhiteboardHost, WhiteboardOptions, WhiteboardStudent } from "@/components/activity/Whiteboard";
 import { MindMapHost, MindMapOptions, MindMapStudent } from "@/components/activity/MindMap";
 import { PollHost, PollOptions, PollStudent } from "@/components/activity/Poll";
 import { SurveyHost, SurveyOptions, SurveyStudent, type SurveyQuestion } from "@/components/activity/Survey";
@@ -28,6 +29,8 @@ export function ActivityStudentView(props: { code: string; who: Who; state: Acti
       return <MindMapStudent {...props} />;
     case "compare":
       return <CompareStudent {...props} />;
+    case "whiteboard":
+      return <WhiteboardStudent {...props} />;
   }
   return <p className="glass rounded-3xl p-8 text-center text-lg">{lang === "ar" ? "هذا النشاط قادم قريبًا." : "This activity is coming soon."}</p>;
 }
@@ -50,12 +53,14 @@ export function ActivityHostView(props: { code: string; hostKey: string; state: 
       return <MindMapHost {...props} />;
     case "compare":
       return <CompareHost {...props} />;
+    case "whiteboard":
+      return <WhiteboardHost {...props} />;
   }
   return <p className="glass rounded-3xl p-8 text-center text-lg">{lang === "ar" ? "هذا النشاط قادم قريبًا." : "This activity is coming soon."}</p>;
 }
 
 /** Activity types whose screens are live (the admin create form only enables these). */
-export const READY_TYPES: ActivityType[] = ["wall", "wordcloud", "poll", "survey", "tps", "vote", "mindmap", "compare"];
+export const READY_TYPES: ActivityType[] = ["wall", "wordcloud", "poll", "survey", "tps", "vote", "mindmap", "compare", "whiteboard"];
 
 /** Type-specific options in the admin create form (poll choices, survey questions, …). */
 export function ActivityOptionsEditor(props: { type: ActivityType; options: Record<string, unknown>; setOptions: (o: Record<string, unknown>) => void }) {
@@ -74,6 +79,8 @@ export function ActivityOptionsEditor(props: { type: ActivityType; options: Reco
       return <MindMapOptions {...props} />;
     case "compare":
       return <CompareOptions {...props} />;
+    case "whiteboard":
+      return <WhiteboardOptions {...props} />;
   }
   return null;
 }
@@ -118,6 +125,7 @@ export function prepareOptions(type: ActivityType, raw: Record<string, unknown>)
     if (!String(o.a || "").trim() || !String(o.b || "").trim()) return null;
     return { options: { a: String(o.a).trim(), b: String(o.b).trim(), cards, layout: o.layout === "columns" ? "columns" : "venn", play: ["team", "vote"].includes(String(o.play)) ? o.play : "individual", check: false, own: true }, images: {} };
   }
+  if (type === "whiteboard") return { options: { bg: String(o.bg || "blank"), draw: o.draw !== false, labels: o.labels !== false }, images: {} };
   return { options: {}, images: {} };
 }
 

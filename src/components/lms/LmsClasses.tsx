@@ -58,7 +58,7 @@ export function LmsClassesPage() {
   const [assigned, setAssigned] = useState<string[]>([]);
   // t350: the bottom launch bar shows only the activities / assessments the admin allowed this teacher.
   const myPerms = lmsSession()?.user.role === "teacher" ? lmsSession()?.user.perms || [] : null;
-  const actAllowed = (t: string) => !myPerms || (!myPerms.includes("hide:activities") && (myPerms.includes("act:*") || myPerms.includes(`act:${t}`)));
+  const actAllowed = (t: string) => !myPerms || (!myPerms.includes("hide:activities") && ((myPerms.includes("act:*") && t !== "whiteboard") || myPerms.includes(`act:${t}`)));
   const hostOk = !myPerms || myPerms.some((p) => p.startsWith("host:"));
   const [view, setView] = useState<string>(""); // "g:<id>" | ""
   // t376: coming back from an activity reopens the same group (#v=g:<id>).
@@ -259,8 +259,8 @@ export function LmsClassesPage() {
         {/* t385: phones = one swipeable row with snap and an edge fade; sm+ = wrapped grid. */}
         <div className="relative mx-auto max-w-6xl">
         <div className="pointer-events-none absolute inset-y-0 end-0 z-10 w-8 bg-gradient-to-l from-[#1b3a57] to-transparent sm:hidden rtl:bg-gradient-to-r" aria-hidden data-testid="tray-fade" />
-        <div className="flex snap-x snap-mandatory gap-1.5 overflow-x-auto pe-8 [scrollbar-width:none] sm:grid sm:grid-cols-8 sm:overflow-visible sm:pe-0 lg:grid-cols-15 [&::-webkit-scrollbar]:hidden" data-testid="tray-row">
-          {([["att", "📋", "Attendance", "الحضور", "#10b981"], ["wall", "🖼️", "Shared Wall", "الجدار المشترك", "#f5c542"], ["classwall", "🧱", "Class wall", "جدار الصف", "#fb923c"], ["wordcloud", "☁️", "Word cloud", "سحابة كلمات", "#38bdf8"], ["poll", "📊", "Poll", "استطلاع", "#a78bfa"], ["vote", "🗳️", "Vote", "تصويت", "#f472b6"], ["survey", "📝", "Survey", "استبيان", "#2dd4bf"], ["tps", "💭", "Think-Pair-Share", "فكّر-زاوج-شارك", "#facc15"], ["mindmap", "🧠", "Mind map", "خريطة ذهنية", "#34d399"], ["compare", "⚖️", "Compare", "قارن وميّز", "#fb7185"], ["wheel", "🎡", "Spin", "العجلة", "#f87171"], ["randomiser", "🎲", "Randomiser", "اختيار عشوائي", "#60a5fa"], ["timer", "⏱️", "Timer", "المؤقت", "#22d3ee"], ["stopwatch", "⏲️", "Stopwatch", "ساعة الإيقاف", "#e879f9"], ["assess", "🧩", "Assessments", "التقييمات", "#4ade80"]] as const)
+        <div className="flex snap-x snap-mandatory gap-1.5 overflow-x-auto pe-8 [scrollbar-width:none] sm:grid sm:grid-cols-8 sm:overflow-visible sm:pe-0 lg:grid-cols-16 [&::-webkit-scrollbar]:hidden" data-testid="tray-row">
+          {([["att", "📋", "Attendance", "الحضور", "#10b981"], ["wall", "🖼️", "Shared Wall", "الجدار المشترك", "#f5c542"], ["classwall", "🧱", "Class wall", "جدار الصف", "#fb923c"], ["wordcloud", "☁️", "Word cloud", "سحابة كلمات", "#38bdf8"], ["poll", "📊", "Poll", "استطلاع", "#a78bfa"], ["vote", "🗳️", "Vote", "تصويت", "#f472b6"], ["survey", "📝", "Survey", "استبيان", "#2dd4bf"], ["tps", "💭", "Think-Pair-Share", "فكّر-زاوج-شارك", "#facc15"], ["mindmap", "🧠", "Mind map", "خريطة ذهنية", "#34d399"], ["compare", "⚖️", "Compare", "قارن وميّز", "#fb7185"], ["whiteboard", "✏️", "Whiteboard", "السبورة", "#93c5fd"], ["wheel", "🎡", "Spin", "العجلة", "#f87171"], ["randomiser", "🎲", "Randomiser", "اختيار عشوائي", "#60a5fa"], ["timer", "⏱️", "Timer", "المؤقت", "#22d3ee"], ["stopwatch", "⏲️", "Stopwatch", "ساعة الإيقاف", "#e879f9"], ["assess", "🧩", "Assessments", "التقييمات", "#4ade80"]] as const)
             .filter(([t]) => (t === "att" || t === "timer" || t === "stopwatch" ? true : t === "assess" ? hostOk : actAllowed(t === "classwall" ? "wall" : t)))
             .map(([t, ic, en, ar, c]) => {
               const on = t === "att" && attMode;

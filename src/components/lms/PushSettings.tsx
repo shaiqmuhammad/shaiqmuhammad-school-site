@@ -5,7 +5,7 @@ import { useTr } from "@/components/lms/useLms";
 import { modCall } from "@/lib/lmsMods";
 
 type K = { kind: string; label: string; adminOn: boolean; on: boolean };
-const AR: Record<string, string> = { act_mindmap: "خريطة ذهنية جديدة", act_compare: "نشاط مقارنة جديد", hw_new: "واجب جديد", sub_new: "تسليم واجب", graded: "تقييم الواجب", approved: "اعتماد الواجب", returned: "أعد المحاولة", feedback: "ملاحظات المعلم", feedback_audio: "ملاحظة صوتية", mistakes: "تحديد الأخطاء", message: "رسالة جديدة", announcement: "إعلان", reminder: "تذكير بالواجب", revise: "وقت المراجعة", test: "إشعار تجريبي", lesson: "تذكير بالحصة" };
+const AR: Record<string, string> = { act_mindmap: "خريطة ذهنية جديدة", act_compare: "نشاط مقارنة جديد", act_whiteboard: "سبورة بيضاء جديدة", hw_new: "واجب جديد", sub_new: "تسليم واجب", graded: "تقييم الواجب", approved: "اعتماد الواجب", returned: "أعد المحاولة", feedback: "ملاحظات المعلم", feedback_audio: "ملاحظة صوتية", mistakes: "تحديد الأخطاء", message: "رسالة جديدة", announcement: "إعلان", reminder: "تذكير بالواجب", revise: "وقت المراجعة", test: "إشعار تجريبي", lesson: "تذكير بالحصة" };
 const EN: Record<string, string> = { lesson: "Lesson reminder (timetable)" };
 
 const b64ToU8 = (s: string) => { const t = s.replace(/-/g, "+").replace(/_/g, "/"); const b = atob(t + "===".slice((t.length + 3) % 4)); return Uint8Array.from(b, (c) => c.charCodeAt(0)); };

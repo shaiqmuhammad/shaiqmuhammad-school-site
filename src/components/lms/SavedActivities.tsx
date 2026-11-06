@@ -7,6 +7,10 @@ import { lmsApi, type SavedAct, type SavedRow } from "@/lib/lms";
 import { ACTIVITY_LABELS, type ActivityType } from "@/lib/activity";
 
 import { qrImageUrl } from "@/lib/groupSession";
+import { MapBoard, mapNodes } from "@/components/activity/MindMap";
+import { BoardArt, type WbStroke } from "@/components/activity/Whiteboard";
+import type { ActivityItem, ActivityState } from "@/lib/activity";
+import type { ReactNode } from "react";
 
 type Full = SavedAct & { prompt: string; tok?: string; rows: SavedRow[] };
 
@@ -16,6 +20,7 @@ export function SavedActivitiesPage() {
   const [items, setItems] = useState<SavedAct[] | null>(null);
   const [one, setOne] = useState<Full | null>(null);
   const [err, setErr] = useState("");
+  const [paper, setPaper] = useState<"A4" | "A3">("A4");
   const id = typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("id") || "";
   useEffect(() => {
     if (id) lmsApi.actSaved({ id }).then((r) => { setOne(r.item as Full); if (new URLSearchParams(window.location.search).get("print")) setTimeout(() => window.print(), 600); }).catch(() => setErr(tr("Couldn't load this result.", "تعذر تحميل النتيجة.")));
@@ -27,9 +32,10 @@ export function SavedActivitiesPage() {
     const l = lab(one.type);
     return (
       <div className="min-h-screen bg-white p-4 text-[#1b2f44] print:p-0" data-testid="saved-print">
-        <style>{`@media print { @page { size: A4; margin: 10mm } .noprint { display:none } body { -webkit-print-color-adjust: exact; print-color-adjust: exact } }`}</style>
-        <div className="noprint mb-4 flex gap-2"><a href="/lms/activities/saved" className="rounded-full border border-black/15 px-4 py-2 text-sm font-bold">← {tr("All saved results", "كل النتائج المحفوظة")}</a><button type="button" className="rounded-full bg-[#1b3a57] px-4 py-2 text-sm font-bold text-[#f5c542]" onClick={() => window.print()} data-testid="saved-print-btn">🖨 {tr("Print / save PDF", "طباعة / PDF")}</button></div>
-        <ResultSheet r={one} lang={lang} qr={one.tok ? `${window.location.origin}/result?t=${one.tok}` : ""} />
+        <style>{`@media print { @page { size: ${paper} portrait; margin: 8mm } .noprint { display:none } body { -webkit-print-color-adjust: exact; print-color-adjust: exact } .rs-page { break-after: page; page-break-after: always } .rs-page:last-child { break-after: auto; page-break-after: auto } }`}</style>
+        <div className="noprint mb-4 flex gap-2"><a href="/lms/activities/saved" className="rounded-full border border-black/15 px-4 py-2 text-sm font-bold">← {tr("All saved results", "كل النتائج المحفوظة")}</a><button type="button" className="rounded-full bg-[#1b3a57] px-4 py-2 text-sm font-bold text-[#f5c542]" onClick={() => window.print()} data-testid="saved-print-btn">🖨 {tr("Print / save PDF", "طباعة / PDF")}</button>
+          <span className="inline-flex overflow-hidden rounded-full border border-black/15 text-sm font-bold" role="group" aria-label={tr("Paper size", "حجم الورق")}>{(["A4", "A3"] as const).map((p) => <button key={p} type="button" className={`px-3 py-2 ${paper === p ? "bg-[#f5c542] text-[#1b3a57]" : ""}`} aria-pressed={paper === p} onClick={() => setPaper(p)} data-testid={`saved-paper-${p}`}>📄 {p}</button>)}</span></div>
+        <ResultSheet r={one} lang={lang} paper={paper} qr={one.tok ? `${window.location.origin}/result?t=${one.tok}` : ""} />
       </div>
     );
   }
@@ -57,7 +63,7 @@ export function SavedActivitiesPage() {
 
 const BUB = ["#0284c7", "#d97706", "#059669", "#e11d48", "#7c3aed", "#0d9488", "#1b3a57", "#c026d3", "#ea580c", "#4f46e5"];
 /** t375: the printable / public sheet — answers as a packed word cloud (word cloud) or colourful cloud bubbles (other types). */
-export function ResultSheet({ r, lang, qr, names = true }: { r: { type: string; title: string; prompt: string; cls: string; subject?: string; topic?: string; at: number; teacher?: string; rows: { name?: string; answer: string; cls?: string; group?: string; ok?: boolean }[] }; lang: string; qr?: string; names?: boolean }) {
+export function ResultSheet({ r, lang, qr, names = true, paper = "A4" }: { r: { type: string; title: string; prompt: string; cls: string; subject?: string; topic?: string; at: number; teacher?: string; rows: SavedRow[] }; lang: string; qr?: string; names?: boolean; paper?: "A4" | "A3" }) {
   const tr = (en: string, ar: string) => (lang === "ar" ? ar : en);
   const l = ACTIVITY_LABELS[r.type as ActivityType];
   const date = new Date(r.at).toLocaleString(lang === "ar" ? "ar" : "en-GB", { timeZone: "Asia/Dubai", dateStyle: "medium", timeStyle: "short" });
@@ -90,9 +96,25 @@ export function ResultSheet({ r, lang, qr, names = true }: { r: { type: string; 
     );
   };
   const meta: [string, string][] = [[tr("Class", "الصف"), r.cls], [tr("Subject", "المادة"), r.subject || ""], [tr("Topic", "الموضوع"), r.topic || r.title]];
+  const bubbleBody = (rows: typeof r.rows) => (
+      <div className="space-y-3 bg-[#fffbea] p-4">
+        {!rows.length ? <p className="py-8 text-center opacity-70">{tr("No answers were given.", "لم تُقدَّم إجابات.")}</p> : (rows === r.rows ? groups : [["", rows] as [string, typeof r.rows]]).map(([g, rs]) => (
+          <section key={g || "all"} className="rounded-[28px] bg-white p-4" data-testid="result-bubbles">
+            {g && <p className="mb-2 inline-block rounded-full bg-[#1b3a57] px-4 py-1 text-sm font-extrabold text-[#f5c542]" style={{ color: "#f5c542" }} dir="auto" data-testid="result-group">{g}</p>}
+            <div className="flex min-h-24 flex-wrap items-center justify-center gap-3">{bubbles(rs).map(bubble)}</div>
+          </section>
+        ))}
+      </div>
+  );
+  // t423: each activity keeps its own live design on paper; long ones split into whole, meaningful pages.
+  const pages: ReactNode[] = activityPages(r, { names, paper, tr }) || [bubbleBody(r.rows)];
+  const widthMm = paper === "A3" ? 277 : 190;
   return (
-    <div className="mx-auto max-w-4xl overflow-hidden rounded-3xl border-4 border-[#1b3a57] bg-white text-[#1b2f44]" data-testid="result-sheet">
-      <header className="flex items-start gap-4 px-6 py-5 text-white" style={{ backgroundImage: "linear-gradient(135deg,#1b3a57,#2b5b85)" }}>
+    <div className="mx-auto space-y-6 print:space-y-0" style={{ maxWidth: `${widthMm}mm` }} data-testid="result-pages">
+      {pages.map((body, k) => (
+        <div key={k} className="rs-page overflow-hidden rounded-3xl border-4 border-[#1b3a57] bg-white text-[#1b2f44]" data-testid="result-sheet">
+          {k === 0 ? (
+            <header className="flex items-start gap-4 px-6 py-5 text-white" style={{ backgroundImage: "linear-gradient(135deg,#1b3a57,#2b5b85)" }}>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-bold uppercase tracking-widest text-[#f5c542]">{l?.icon} {l ? (lang === "ar" ? l.ar : l.en) : r.type}</p>
           <p className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5 text-sm text-white" style={{ color: "#ffffff" }} data-testid="result-meta">
@@ -104,17 +126,77 @@ export function ResultSheet({ r, lang, qr, names = true }: { r: { type: string; 
         </div>
         {qr && <div className="shrink-0 rounded-2xl bg-white p-1.5 text-center" data-testid="result-qr">{/* eslint-disable-next-line @next/next/no-img-element */}<img src={qrImageUrl(qr, 240)} alt={tr("QR code to view these results", "رمز QR لعرض النتائج")} width={110} height={110} className="h-[110px] w-[110px]" /><p className="text-[10px] font-bold text-[#1b3a57]">{tr("Scan to view", "امسح للعرض")}</p></div>}
       </header>
-      <div className="space-y-3 bg-[#fffbea] p-4">
-        {!r.rows.length ? <p className="py-8 text-center opacity-70">{tr("No answers were given.", "لم تُقدَّم إجابات.")}</p> : groups.map(([g, rows]) => (
-          <section key={g || "all"} className="rounded-[28px] bg-white p-4" data-testid="result-bubbles">
-            {g && <p className="mb-2 inline-block rounded-full bg-[#1b3a57] px-4 py-1 text-sm font-extrabold text-[#f5c542]" style={{ color: "#f5c542" }} dir="auto" data-testid="result-group">{g}</p>}
-            <div className="flex min-h-24 flex-wrap items-center justify-center gap-3">{bubbles(rows).map(bubble)}</div>
-          </section>
-        ))}
-      </div>
-      <footer className="bg-[#f5c542] px-6 py-2 text-center text-xs font-bold text-[#1b3a57]">shaiqmuhammad.com</footer>
+          ) : (
+            <header className="flex items-center gap-3 px-6 py-2 text-white" style={{ backgroundImage: "linear-gradient(135deg,#1b3a57,#2b5b85)" }}>
+              <p className="min-w-0 flex-1 truncate text-sm font-extrabold text-white" style={{ color: "#ffffff" }} dir="auto">{l?.icon} {r.prompt || r.title}</p>
+              <p className="shrink-0 text-xs font-bold text-[#f5c542]">{meta.filter(([, v]) => v).map(([, v]) => v).join(" · ")}</p>
+            </header>
+          )}
+          {body}
+          <footer className="flex justify-between bg-[#f5c542] px-6 py-2 text-xs font-bold text-[#1b3a57]"><span>shaiqmuhammad.com</span>{pages.length > 1 && <span data-testid="result-pageno">{tr(`Page ${k + 1} of ${pages.length}`, `صفحة ${k + 1} من ${pages.length}`)}</span>}</footer>
+        </div>
+      ))}
     </div>
   );
+}
+
+const WALL_BG: Record<string, string> = { "": "#ffffff", yellow: "#fef3c7", teal: "#ccfbf1", rose: "#ffe4e6", sky: "#e0f2fe", violet: "#ede9fe", lime: "#ecfccb" };
+const chunk = <T,>(a: T[], n: number) => Array.from({ length: Math.ceil(a.length / n) }, (_, i) => a.slice(i * n, i * n + n));
+
+/** t423: printable bodies that keep the live look (null = use the shared bubble layout). */
+function activityPages(r: { type: string; title: string; prompt: string; rows: SavedRow[] }, { names, paper, tr }: { names: boolean; paper: "A4" | "A3"; tr: (en: string, ar: string) => string }): ReactNode[] | null {
+  const big = paper === "A3";
+  if (r.type === "whiteboard") {
+    const bg = r.rows.find((x) => x.kind === "bg");
+    const strokes: WbStroke[] = r.rows.filter((x) => x.kind === "stroke" || x.kind === "note").map((x, i) => ({ id: x.id || String(i), pid: x.pid || "", author: x.name || "", kind: x.kind!, d: (x.wb || {}) as WbStroke["d"] }));
+    const who = [...new Set(r.rows.filter((x) => x.kind && x.kind !== "bg" && x.pid !== "host" && x.name).map((x) => x.name!))];
+    return [(
+      <div key="wb" className="space-y-2 bg-[#fffbea] p-3">
+        <div className="overflow-hidden rounded-2xl ring-4 ring-[#1b3a57]/80"><BoardArt strokes={strokes} bg={String(bg?.wb?.bg || "blank")} names={names && bg?.wb?.labels !== false} centre={r.prompt || r.title} tr={tr} /></div>
+        {names && who.length > 0 && <p className="text-xs"><b>✏️ {tr("Drawn by", "رسم")}:</b> {who.join(" · ")}</p>}
+      </div>
+    )];
+  }
+  if (r.type === "mindmap" && r.rows.length && r.rows.every((x) => x.id)) {
+    const toItem = (x: SavedRow): ActivityItem => ({ id: x.id!, pid: x.pid || "s", mine: false, author: x.name || "", kind: x.kind === "recall" ? "recall" : "post", data: { text: x.answer, ...(x.parent ? { parent: x.parent } : {}) }, status: "approved", created: 0, pinned: 0, color: "", highlight: !!x.highlight, img: null, likes: x.likes || 0, liked: false, comments: [] });
+    const items = r.rows.map(toItem);
+    const st = (its: ActivityItem[]) => ({ type: "mindmap", title: r.title, prompt: r.prompt, items: its, participants: [], settings: { options: {}, hideNames: !names, moderation: "live", likes: false, allowImages: false, allowLinks: false, timerEnd: null, locked: false } } as unknown as ActivityState);
+    const { branches, leaves } = mapNodes(st(items));
+    const maxB = big ? 7 : 3, maxIdeas = big ? 34 : 18;
+    const groupsOf: ActivityItem[][] = [];
+    let cur: ActivityItem[] = [], nB = 0;
+    for (const b of branches) {
+      const fam = [b, ...leaves(b.id)];
+      if (cur.length && (nB >= maxB || cur.length + fam.length > maxIdeas)) { groupsOf.push(cur); cur = []; nB = 0; }
+      cur.push(...fam); nB++;
+    }
+    if (cur.length || !groupsOf.length) groupsOf.push(cur);
+    const recall = r.rows.filter((x) => x.kind === "recall");
+    return groupsOf.map((its, k) => (
+      <div key={k} className="bg-[#fffbea] p-3" data-testid="print-mindmap">
+        <MapBoard state={st(groupsOf.length > 1 ? its : its.map((i) => i))} big={big} />
+        {k === groupsOf.length - 1 && recall.length > 0 && <p className="mt-2 text-xs" dir="auto"><b>🧩 {tr("Recall answers", "إجابات التذكّر")}:</b> {recall.map((x) => `${x.answer}${names && x.name ? ` (${x.name})` : ""}`).join(" · ")}</p>}
+      </div>
+    ));
+  }
+  if (r.type === "wall" && r.rows.length && r.rows.every((x) => x.id)) {
+    const posts = [...r.rows].sort((a, b) => (b.pinned || 0) - (a.pinned || 0));
+    return chunk(posts, big ? 15 : 8).map((ps, k) => (
+      <div key={k} className={`gap-3 bg-[#fffbea] p-3 ${big ? "columns-3" : "columns-2"}`} data-testid="print-wall">
+        {ps.map((x, i) => (
+          <article key={x.id || i} className="mb-3 break-inside-avoid rounded-3xl border p-3 shadow-sm" style={{ background: WALL_BG[x.color || ""] || "#ffffff", borderColor: x.highlight ? "#f5c542" : "rgba(0,0,0,.08)", borderWidth: x.highlight ? 3 : 1 }} data-testid="print-wall-card">
+            <header className="flex items-center gap-2 text-xs">
+              <span className="inline-flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-extrabold" style={{ background: x.pid === "host" ? "#1b3a57" : "#f5c542", color: x.pid === "host" ? "#f5c542" : "#1b3a57" }} aria-hidden>{x.pid === "host" ? "★" : names ? (x.name || "?").slice(0, 1).toUpperCase() : "•"}</span>
+              {names && <span className="font-bold" data-testid="result-name">{x.name}</span>}
+              {x.pinned ? <span aria-label={tr("Pinned", "مثبت")}>📌</span> : null}{x.highlight && <span>⭐</span>}{x.likes ? <span className="ms-auto">♥ {x.likes}</span> : null}
+            </header>
+            <p className="mt-1.5 whitespace-pre-wrap break-words text-sm leading-relaxed" dir="auto">{x.answer}</p>
+          </article>
+        ))}
+      </div>
+    ));
+  }
+  return null;
 }
 
 /** t375: public, no-login, read-only view of one saved result (QR on the printed sheet). No student names. */

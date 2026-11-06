@@ -8,7 +8,7 @@ import { useTr } from "@/components/lms/useLms";
 import { lmsApi, lmsSession, type RosterStudent, type StudentGroup } from "@/lib/lms";
 
 /** t312: pick the year group(s) / class(es) / section(s) / groups a live activity or assessment starts with. Keys: "Year 3" | "Year 3|3A" | "g:<id>". */
-export const LOCK_TYPES = ["assess", "wordcloud", "poll", "survey", "tps", "vote", "mindmap", "compare"];
+export const LOCK_TYPES = ["assess", "wordcloud", "poll", "survey", "tps", "vote", "mindmap", "compare", "whiteboard"];
 export function useRosterData(given?: { roster: RosterStudent[] | null; groups: StudentGroup[] }) {
   const [roster, setRoster] = useState<RosterStudent[] | null>(null);
   const [groups, setGroups] = useState<StudentGroup[]>([]);

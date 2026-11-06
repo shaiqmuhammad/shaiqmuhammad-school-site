@@ -20,7 +20,7 @@ export function LmsActivitiesPage() {
   }, []);
   const acts = (perms || []).filter((p) => p.startsWith("act:")).map((p) => p.slice(4));
   // t350: only the activities the admin ticked (act:* = all); "hide:activities" hides them all.
-  const allActs = (perms || []).includes("hide:activities") ? [] : acts.includes("*") ? ["wall", "wordcloud", "poll", "survey", "tps", "vote", "mindmap", "compare", "wheel", "randomiser"] : acts;
+  const allActs = (perms || []).includes("hide:activities") ? [] : acts.includes("*") ? ["wall", "wordcloud", "poll", "survey", "tps", "vote", "mindmap", "compare", "wheel", "randomiser", ...(acts.includes("whiteboard") ? ["whiteboard"] : [])] : acts;
   return (
     <AssessmentShell title={tr("Classroom", "الصف")} exitHref="/lms" wide toolbar={<LmsStaffToolbar />}>
       <div className="mx-auto w-full max-w-6xl flex-1 space-y-8 px-3 py-6 sm:px-6" data-testid="lms-activities">
