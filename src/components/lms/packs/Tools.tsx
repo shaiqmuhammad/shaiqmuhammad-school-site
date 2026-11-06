@@ -5,6 +5,7 @@ import { AudioRecorder } from "@/components/lms/Audio";
 import { inputCls, smallBtn, useTr } from "@/components/lms/useLms";
 import { FONTS, mediaUpload, uid, ytId, type El } from "@/lib/packs";
 import { thumb, ytApi, type YtVideo } from "@/lib/yt";
+import { activityApi, type HostedActivity } from "@/lib/activity";
 
 /** t321: colourful toolbar buttons (each tool has its own colour). */
 const TB: Record<string, string> = { sky: "bg-sky-100 text-sky-900 ring-sky-300 hover:bg-sky-200", violet: "bg-violet-100 text-violet-900 ring-violet-300 hover:bg-violet-200", rose: "bg-rose-100 text-rose-900 ring-rose-300 hover:bg-rose-200", orange: "bg-orange-100 text-orange-900 ring-orange-300 hover:bg-orange-200", red: "bg-red-100 text-red-900 ring-red-300 hover:bg-red-200", indigo: "bg-indigo-100 text-indigo-900 ring-indigo-300 hover:bg-indigo-200", emerald: "bg-emerald-100 text-emerald-900 ring-emerald-300 hover:bg-emerald-200" };
@@ -76,9 +77,19 @@ function ActPick({ onPick }: { onPick: (v: { code?: string; quiz?: string; label
   const [code, setCode] = useState("");
   const [quizzes, setQuizzes] = useState<{ slug: string; title: string }[]>([]);
   const [quiz, setQuiz] = useState("");
+  // t429: pick one of my class activities (class → activity) instead of typing a code.
+  const [mine, setMine] = useState<(HostedActivity & { ended: boolean; cls: string })[] | null>(null);
+  const [cls, setCls] = useState("");
+  useEffect(() => { activityApi.mine().then((r) => setMine(r.items.map((x) => { let c = ""; try { c = localStorage.getItem(`sm-act-cls-${x.code}`) || ""; } catch { /* */ } return { ...x, cls: c }; }))).catch(() => setMine([])); }, []);
+  const classes = [...new Set((mine || []).map((x) => x.cls).filter(Boolean))].sort();
   useEffect(() => { fetch("/content/quizzes.json").then((r) => r.json()).then((j) => setQuizzes(((Array.isArray(j) ? j : j.quizzes || []) as { slug: string; title: string }[]).filter((x) => x.slug))).catch(() => undefined); }, []);
   return (
     <div className="space-y-2 rounded-2xl border border-black/10 bg-white p-3" data-testid="lp-act-panel">
+      <div className="space-y-1.5 rounded-xl bg-indigo-50/70 p-2" data-testid="lp-act-mine">
+        <p className="text-sm font-bold">🏫 {tr("My class activities — choose the class, then the activity", "أنشطة صفوفي — اختر الصف ثم النشاط")}</p>
+        <select className={inputCls + " !mt-0"} value={cls} onChange={(e) => setCls(e.target.value)} data-testid="lp-act-cls"><option value="">{tr("All classes", "كل الصفوف")}</option>{classes.map((c) => <option key={c} value={c}>{c}</option>)}</select>
+        <div className="flex max-h-48 flex-wrap gap-1.5 overflow-y-auto">{mine === null ? <span className="text-xs">…</span> : (mine.filter((x) => !cls || x.cls === cls).length ? mine.filter((x) => !cls || x.cls === cls).slice(0, 40).map((x) => <button key={x.code} type="button" className="rounded-full bg-white px-3 py-1 text-xs font-bold ring-1 ring-indigo-200 hover:bg-indigo-100" onClick={() => onPick({ code: x.code, label: x.title || x.code })} data-testid="lp-act-mine-item">🎲 {x.title || x.type} <span className="opacity-50">· {x.type}{x.cls ? ` · ${x.cls}` : ""}{x.ended ? " · " + tr("ended", "منتهٍ") : ""}</span></button>) : <span className="text-xs opacity-60">{tr("No activities yet — create one in Activities, then pick it here.", "لا أنشطة بعد — أنشئ نشاطًا ثم اختره هنا.")}</span>)}</div>
+      </div>
       <label className="block text-sm font-bold">{tr("Live activity or assessment code (word cloud, poll, survey, vote, think-pair-share, wheel, quiz…)", "رمز نشاط أو تقييم مباشر")}
         <div className="flex gap-2"><input className={inputCls} value={code} onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8))} placeholder="ABCDE" data-testid="lp-act-code" /><button type="button" className={smallBtn + " mt-1"} disabled={code.length < 4} onClick={() => onPick({ code, label: `${tr("Activity", "نشاط")} ${code}` })} data-testid="lp-act-add">{tr("Add", "إضافة")}</button></div></label>
       <label className="block text-sm font-bold">{tr("Or a self-paced assessment", "أو تقييم ذاتي")}

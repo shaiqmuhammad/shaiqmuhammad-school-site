@@ -279,11 +279,19 @@ export class ClassActivity extends DurableObject<ActivityEnv> {
             const pts = raw.slice(0, 1600).map((v) => Math.round(Math.max(0, Math.min(1, Number(v) || 0)) * 10000) / 10000);
             if (pts.length < 2 || pts.length % 2) return { status: 400, body: { error: "empty" } };
             d.pts = pts; d.w = Math.max(1, Math.min(60, Number(input.w) || 4)); d.hl = input.hl === true; d.er = input.er === true;
+            // t429: shapes (closed + fill), pencil / brush opacity
+            if (/^#[0-9a-fA-F]{6}$/.test(str(input.fill, 7))) d.fill = str(input.fill, 7);
+            if (input.cl === true) d.cl = true;
+            const op = Number(input.o); if (op > 0 && op < 1) d.o = Math.round(Math.max(0.1, op) * 100) / 100;
+            if (input.ar === true) d.ar = true;
           } else {
             const t = str(input.text, 200);
             if (!t) return { status: 400, body: { error: "empty" } };
             if (!isHost && isProfane(t)) return { status: 400, body: { error: "language" } };
             d.text = t; d.x = Math.max(0, Math.min(1, Number(input.x) || 0)); d.y = Math.max(0, Math.min(1, Number(input.y) || 0)); d.w = Math.max(10, Math.min(80, Number(input.w) || 22));
+            // t429: note font + highlight colour
+            if (["Nunito", "Amiri", "Tajawal", "Georgia", "Comic Sans MS", "Courier New", "Arial"].includes(str(input.f, 30))) d.f = str(input.f, 30);
+            if (/^#[0-9a-fA-F]{6}$/.test(str(input.bg, 7))) d.bg = str(input.bg, 7);
           }
           const id = rand(12);
           this.sql.exec(`INSERT INTO items (id, pid, kind, data, status, created) VALUES (?, ?, ?, ?, 'approved', ?)`, id, me.id, k, JSON.stringify(d), Date.now());

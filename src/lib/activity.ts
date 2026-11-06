@@ -42,7 +42,7 @@ export type ActivityItem = {
   mine: boolean;
   author: string;
   kind: string;
-  data: { text?: string; link?: string; youtube?: string; stage?: string; word?: string; picks?: number[]; answers?: unknown[]; parent?: string; group?: string; zone?: "a" | "b" | "both"; x?: number; y?: number; card?: number; leaf?: string; hidden?: boolean; pts?: number[]; c?: string; w?: number; hl?: boolean; er?: boolean };
+  data: { text?: string; link?: string; youtube?: string; stage?: string; word?: string; picks?: number[]; answers?: unknown[]; parent?: string; group?: string; zone?: "a" | "b" | "both"; x?: number; y?: number; card?: number; leaf?: string; hidden?: boolean; pts?: number[]; c?: string; w?: number; hl?: boolean; er?: boolean; /** t429 whiteboard */ fill?: string; cl?: boolean; o?: number; ar?: boolean; f?: string; bg?: string };
   status: "approved" | "pending";
   created: number;
   pinned: number;

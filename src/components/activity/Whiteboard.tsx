@@ -1,16 +1,20 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { qrSvg } from "@/lib/qrLocal";
 import { actErr, hostChip, saveOptions, useTr, type Tr } from "@/components/activity/common";
 import { activityApi, type ActivityItem, type ActivityState, type Who } from "@/lib/activity";
 
 /** t423: live whiteboard — pen / highlighter / eraser / text notes on a 1600×1000 board with ready-made layouts. */
 export const WB_W = 1600, WB_H = 1000;
-const COLORS = ["#1b3a57", "#e11d48", "#2563eb", "#059669", "#d97706", "#7c3aed", "#0f172a", "#f5c542"];
-const WIDTHS = [3, 6, 12];
+const COLORS = ["#1b3a57", "#e11d48", "#2563eb", "#059669", "#d97706", "#7c3aed", "#0f172a", "#f5c542", "#db2777", "#0891b2", "#65a30d", "#ffffff"];
+const WB_FONTS = ["Nunito", "Amiri", "Tajawal", "Georgia", "Comic Sans MS", "Courier New", "Arial"];
+type Tool = "pen" | "pencil" | "brush" | "hl" | "er" | "text" | "line" | "arrow" | "rect" | "ellipse" | "tri";
+const WIDTHS = [3, 6, 12, 20];
 export const WB_BGS: [string, string, string][] = [
   ["blank", "Blank", "فارغة"], ["lined", "Lined", "مسطّرة"], ["grid", "Grid", "شبكة"], ["dots", "Dots", "نقاط"],
   ["venn", "Venn", "مخطط فن"], ["tchart", "T-chart", "جدول T"], ["kwl", "K · W · L", "أعرف · أريد · تعلّمت"], ["mind", "Mind map centre", "مركز خريطة ذهنية"], ["four", "4 boxes", "٤ مربعات"],
+  ["music", "Handwriting lines", "أسطر الخط"], ["iso", "Isometric dots", "نقاط متساوية"], ["cornell", "Cornell notes", "ملاحظات كورنيل"], ["timeline", "Timeline", "خط زمني"], ["flow", "Flow chart", "مخطط انسيابي"], ["venn3", "Venn (3)", "مخطط فن (٣)"],
 ];
 export type WbStroke = { id: string; pid: string; author: string; kind: string; d: ActivityItem["data"] & { text?: string } };
 
@@ -24,6 +28,12 @@ function Background({ bg, tr }: { bg: string; tr: Tr }) {
   if (bg === "tchart") return <g><line x1={800} x2={800} y1={40} y2={960} stroke={T} strokeWidth={6} /><line x1={60} x2={1540} y1={150} y2={150} stroke={T} strokeWidth={6} />{label(430, 115, tr("For / Yes", "مع / نعم"))}{label(1170, 115, tr("Against / No", "ضد / لا"))}</g>;
   if (bg === "kwl") return <g>{[533, 1066].map((x) => <line key={x} x1={x} x2={x} y1={40} y2={960} stroke={T} strokeWidth={5} />)}<line x1={30} x2={1570} y1={150} y2={150} stroke={T} strokeWidth={5} />{label(266, 115, tr("K — I know", "أعرف"))}{label(800, 115, tr("W — I want to know", "أريد أن أعرف"))}{label(1333, 115, tr("L — I learned", "تعلّمت"))}</g>;
   if (bg === "mind") return <g><ellipse cx={800} cy={500} rx={230} ry={120} fill="#1b3a57" stroke="#f5c542" strokeWidth={8} />{[0, 60, 120, 180, 240, 300].map((a) => { const r = (a * Math.PI) / 180; return <line key={a} x1={800 + 240 * Math.cos(r)} y1={500 + 130 * Math.sin(r)} x2={800 + 560 * Math.cos(r)} y2={500 + 400 * Math.sin(r)} stroke={L} strokeWidth={5} strokeDasharray="14 12" />; })}</g>;
+  if (bg === "music") return <g>{Array.from({ length: 9 }, (_, i) => { const y = 90 + i * 105; return <g key={i}><line x1={40} x2={1560} y1={y} y2={y} stroke={L} strokeWidth={2} /><line x1={40} x2={1560} y1={y + 35} y2={y + 35} stroke="#93c5fd" strokeWidth={2} strokeDasharray="10 8" /><line x1={40} x2={1560} y1={y + 70} y2={y + 70} stroke="#1b3a57" strokeOpacity={0.5} strokeWidth={2.5} /></g>; })}</g>;
+  if (bg === "iso") return <g>{Array.from({ length: 34 * 23 }, (_, k) => { const r = Math.floor(k / 34), c = k % 34; return <circle key={k} cx={20 + c * 48 + (r % 2 ? 24 : 0)} cy={20 + r * 42} r={3} fill={L} />; })}</g>;
+  if (bg === "cornell") return <g><line x1={430} x2={430} y1={150} y2={780} stroke={T} strokeWidth={5} /><line x1={30} x2={1570} y1={150} y2={150} stroke={T} strokeWidth={5} /><line x1={30} x2={1570} y1={780} y2={780} stroke={T} strokeWidth={5} />{label(230, 115, tr("Cues", "إشارات"))}{label(1000, 115, tr("Notes", "ملاحظات"))}{label(800, 830, tr("Summary", "الخلاصة"))}</g>;
+  if (bg === "timeline") return <g><line x1={80} x2={1520} y1={500} y2={500} stroke={T} strokeWidth={8} /><path d="M1520 470 L1570 500 L1520 530 Z" fill={T} />{[200, 480, 760, 1040, 1320].map((x) => <g key={x}><circle cx={x} cy={500} r={18} fill="#f5c542" stroke={T} strokeWidth={5} /><line x1={x} x2={x} y1={x % 560 === 200 ? 300 : 520} y2={x % 560 === 200 ? 480 : 700} stroke={L} strokeWidth={4} strokeDasharray="10 8" /></g>)}</g>;
+  if (bg === "flow") return <g>{[160, 620, 1080].map((x, i) => <g key={x}><rect x={x} y={380} width={360} height={240} rx={30} fill={["#0284c7", "#7c3aed", "#059669"][i]} fillOpacity={0.08} stroke={["#0284c7", "#7c3aed", "#059669"][i]} strokeWidth={5} />{i < 2 && <path d={`M${x + 370} 500 H${x + 450} M${x + 430} 480 L${x + 455} 500 L${x + 430} 520`} stroke={T} strokeWidth={6} fill="none" />}</g>)}</g>;
+  if (bg === "venn3") return <g><circle cx={640} cy={400} r={300} fill="#0284c7" fillOpacity={0.08} stroke="#0284c7" strokeWidth={5} /><circle cx={960} cy={400} r={300} fill="#d97706" fillOpacity={0.08} stroke="#d97706" strokeWidth={5} /><circle cx={800} cy={640} r={300} fill="#059669" fillOpacity={0.08} stroke="#059669" strokeWidth={5} />{label(480, 160, "A")}{label(1120, 160, "B")}{label(800, 975, "C")}</g>;
   if (bg === "four") return <g><line x1={800} x2={800} y1={30} y2={970} stroke={T} strokeWidth={5} /><line x1={30} x2={1570} y1={500} y2={500} stroke={T} strokeWidth={5} /></g>;
   return null;
 }
@@ -36,16 +46,18 @@ export function BoardArt({ strokes, bg, names, centre, tr, extra }: { strokes: W
   if (names) for (const s of strokes) if (s.kind === "stroke" && s.pid !== "host" && !s.d.er && !firstOf.has(s.pid)) { firstOf.add(s.pid); labelled.push(s); }
   return (
     <svg viewBox={`0 0 ${WB_W} ${WB_H}`} className="block h-auto w-full" data-testid="wb-art">
+      <defs><marker id="wb-arrow" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="context-stroke" /></marker></defs>
       <rect width={WB_W} height={WB_H} fill="#ffffff" />
       <Background bg={bg} tr={tr} />
       {bg === "mind" && centre && <foreignObject x={590} y={400} width={420} height={200}><div style={{ display: "flex", height: "100%", alignItems: "center", justifyContent: "center", color: "#f5c542", fontWeight: 800, fontSize: 30, textAlign: "center", lineHeight: 1.15 }} dir="auto">{centre}</div></foreignObject>}
       {strokes.map((s) => s.kind === "note" ? (
         <g key={s.id}>
-          <text x={(s.d.x || 0) * WB_W} y={(s.d.y || 0) * WB_H} fontSize={(s.d.w || 22) * 1.6} fontWeight={700} fill={s.d.c || "#1b3a57"} dominantBaseline="hanging">{s.d.text}</text>
+          {s.d.bg && <rect x={(s.d.x || 0) * WB_W - 8} y={(s.d.y || 0) * WB_H - 6} width={String(s.d.text || "").length * (s.d.w || 22) * 0.95 + 16} height={(s.d.w || 22) * 1.6 * 1.25 + 8} rx={10} fill={s.d.bg} />}
+          <text x={(s.d.x || 0) * WB_W} y={(s.d.y || 0) * WB_H} fontSize={(s.d.w || 22) * 1.6} fontWeight={700} fill={s.d.c || "#1b3a57"} fontFamily={s.d.f || undefined} dominantBaseline="hanging">{s.d.text}</text>
           {names && s.pid !== "host" && <text x={(s.d.x || 0) * WB_W} y={(s.d.y || 0) * WB_H - 6} fontSize={16} fill="#64748b" fontWeight={600}>{s.author}</text>}
         </g>
       ) : (
-        <path key={s.id} d={pathOf(s.d.pts || [])} fill="none" stroke={s.d.er ? "#ffffff" : s.d.c || "#1b3a57"} strokeOpacity={s.d.hl ? 0.35 : 1} strokeWidth={(s.d.w || 4) * (s.d.hl ? 3 : 1) * (s.d.er ? 4 : 1)} strokeLinecap="round" strokeLinejoin="round" />
+        <path key={s.id} d={pathOf(s.d.pts || []) + (s.d.cl ? "Z" : "")} fill={s.d.fill && s.d.cl ? s.d.fill : "none"} fillOpacity={0.35} markerEnd={s.d.ar ? "url(#wb-arrow)" : undefined} stroke={s.d.er ? "#ffffff" : s.d.c || "#1b3a57"} strokeOpacity={s.d.hl ? 0.35 : s.d.o || 1} strokeWidth={(s.d.w || 4) * (s.d.hl ? 3 : 1) * (s.d.er ? 4 : 1)} strokeLinecap="round" strokeLinejoin="round" />
       ))}
       {labelled.map((s) => <text key={`n${s.id}`} x={(s.d.pts?.[0] || 0) * WB_W + 8} y={(s.d.pts?.[1] || 0) * WB_H - 10} fontSize={17} fontWeight={700} fill="#475569" stroke="#fff" strokeWidth={4} paintOrder="stroke" data-testid="wb-name">{s.author}</text>)}
       {extra}
@@ -59,7 +71,21 @@ export const strokesOf = (state: ActivityState): WbStroke[] => state.items.filte
 function Board({ code, who, state, reload, canDraw, isHost }: { code: string; who: Who; state: ActivityState; reload: () => void; canDraw: boolean; isHost: boolean }) {
   const { tr } = useTr();
   const o = state.settings.options;
-  const [tool, setTool] = useState<"pen" | "hl" | "er" | "text">("pen");
+  const [tool, setTool] = useState<Tool>("pen");
+  const [fill, setFill] = useState(false);
+  const [font, setFont] = useState("Nunito");
+  const [noteBg, setNoteBg] = useState("");
+  const start = useRef<[number, number] | null>(null);
+  const SHAPES: Tool[] = ["line", "arrow", "rect", "ellipse", "tri"];
+  const shapePts = (a: [number, number], x: number, y: number): number[] => {
+    const [x0, y0] = a; const r4 = (v: number) => Math.round(v * 10000) / 10000;
+    if (tool === "line" || tool === "arrow") return [x0, y0, x, y];
+    if (tool === "rect") return [x0, y0, x, y0, x, y, x0, y];
+    if (tool === "tri") return [(x0 + x) / 2, y0, x, y, x0, y];
+    const cx = (x0 + x) / 2, cy = (y0 + y) / 2, rx = Math.abs(x - x0) / 2, ry = Math.abs(y - y0) / 2;
+    return Array.from({ length: 40 }, (_, i) => [r4(cx + rx * Math.cos((i / 40) * Math.PI * 2)), r4(cy + ry * Math.sin((i / 40) * Math.PI * 2))]).flat();
+  };
+  const strokeData = (pts: number[]) => ({ pts, c: color, w: tool === "pencil" ? Math.max(1, Math.round(width / 2)) : tool === "brush" ? width * 2.5 : width, hl: tool === "hl", er: tool === "er", ...(tool === "pencil" ? { o: 0.75 } : tool === "brush" ? { o: 0.9 } : {}), ...(SHAPES.includes(tool) && tool !== "line" && tool !== "arrow" ? { cl: true, ...(fill ? { fill: color } : {}) } : {}), ...(tool === "arrow" ? { ar: true } : {}) });
   const [color, setColor] = useState(COLORS[0]);
   const [width, setWidth] = useState(WIDTHS[1]);
   const [cur, setCur] = useState<number[] | null>(null);
@@ -78,36 +104,48 @@ function Board({ code, who, state, reload, canDraw, isHost }: { code: string; wh
     const [x, y] = pt(e);
     if (tool === "text") {
       const t = window.prompt(tr("Text to add on the board:", "النص لإضافته على السبورة:"))?.trim();
-      if (t) send({ kind: "note", text: t.slice(0, 200), x, y, c: color, w: width * 3 + 12 }, { id: `tmp${Date.now()}`, pid: "me", author: "", kind: "note", d: { text: t, x, y, c: color, w: width * 3 + 12 } });
+      if (t) send({ kind: "note", text: t.slice(0, 200), x, y, c: color, w: width * 3 + 12, f: font, ...(noteBg ? { bg: noteBg } : {}) } as never, { id: `tmp${Date.now()}`, pid: "me", author: "", kind: "note", d: { text: t, x, y, c: color, w: width * 3 + 12, f: font, bg: noteBg || undefined } });
       return;
     }
     (e.target as Element).setPointerCapture?.(e.pointerId);
+    start.current = [x, y];
     setCur([x, y]);
   };
   const move = (e: React.PointerEvent) => {
     if (!cur) return;
-    const [x, y] = pt(e); const lx = cur[cur.length - 2], ly = cur[cur.length - 1];
+    const [x, y] = pt(e);
+    if (SHAPES.includes(tool) && start.current) { setCur(shapePts(start.current, x, y)); return; }
+    const lx = cur[cur.length - 2], ly = cur[cur.length - 1];
     if (Math.hypot((x - lx) * WB_W, (y - ly) * WB_H) < 4 || cur.length >= 1600) return;
     setCur([...cur, x, y]);
   };
   const up = () => {
     if (!cur) return;
     const pts = cur; setCur(null);
-    const d = { pts, c: color, w: width, hl: tool === "hl", er: tool === "er" };
-    send({ kind: "stroke", ...d }, { id: `tmp${Date.now()}`, pid: "me", author: "", kind: "stroke", d });
+    if (pts.length < 4 && SHAPES.includes(tool)) return;
+    const d = strokeData(pts);
+    send({ kind: "stroke", ...d } as never, { id: `tmp${Date.now()}`, pid: "me", author: "", kind: "stroke", d });
   };
-  const all = [...strokesOf(state), ...pending, ...(cur ? [{ id: "cur", pid: "me", author: "", kind: "stroke", d: { pts: cur, c: color, w: width, hl: tool === "hl", er: tool === "er" } }] : [])];
+  const all = [...strokesOf(state), ...pending, ...(cur ? [{ id: "cur", pid: "me", author: "", kind: "stroke", d: strokeData(cur) }] : [])];
   const btn = (on: boolean) => `${hostChip(on)} !px-3`;
   return (
     <div className="space-y-2" data-testid="wb">
       {canDraw && (
         <div className="glass flex flex-wrap items-center gap-1.5 rounded-2xl p-2" data-focus-keep data-testid="wb-tools">
-          <button type="button" className={btn(tool === "pen")} onClick={() => setTool("pen")} data-testid="wb-pen">✏️ {tr("Pen", "قلم")}</button>
+          <button type="button" className={btn(tool === "pen")} onClick={() => setTool("pen")} data-testid="wb-pen">🖊️ {tr("Pen", "قلم")}</button>
+          <button type="button" className={btn(tool === "pencil")} onClick={() => setTool("pencil")} data-testid="wb-pencil">✏️ {tr("Pencil", "رصاص")}</button>
+          <button type="button" className={btn(tool === "brush")} onClick={() => setTool("brush")} data-testid="wb-brush">🖌️ {tr("Brush", "فرشاة")}</button>
           <button type="button" className={btn(tool === "hl")} onClick={() => setTool("hl")}>🖍️ {tr("Highlighter", "محدد")}</button>
           <button type="button" className={btn(tool === "er")} onClick={() => setTool("er")}>🧽 {tr("Eraser", "ممحاة")}</button>
           <button type="button" className={btn(tool === "text")} onClick={() => setTool("text")} data-testid="wb-text">🔤 {tr("Text", "نص")}</button>
+          {tool === "text" && <><select className="rounded-full border border-black/10 bg-white px-2 py-1 text-sm text-[#1b2f44]" value={font} onChange={(e) => setFont(e.target.value)} aria-label={tr("Font", "الخط")} data-testid="wb-font">{WB_FONTS.map((f) => <option key={f} value={f} style={{ fontFamily: f }}>{f}</option>)}</select>
+            <select className="rounded-full border border-black/10 bg-white px-2 py-1 text-sm text-[#1b2f44]" value={noteBg} onChange={(e) => setNoteBg(e.target.value)} aria-label={tr("Highlight", "تظليل")} data-testid="wb-notebg"><option value="">{tr("No highlight", "بدون تظليل")}</option><option value="#fef08a">🟨</option><option value="#bbf7d0">🟩</option><option value="#bfdbfe">🟦</option><option value="#fbcfe8">🟪</option></select></>}
           <span className="mx-1 h-6 w-px bg-black/15" aria-hidden />
-          {COLORS.map((c) => <button key={c} type="button" onClick={() => setColor(c)} className={`h-7 w-7 rounded-full border-2 ${color === c ? "border-sun ring-2 ring-sun" : "border-white"}`} style={{ background: c }} aria-label={c} />)}
+          {([["line", "╱", "Line", "خط"], ["arrow", "➜", "Arrow", "سهم"], ["rect", "▭", "Rectangle", "مستطيل"], ["ellipse", "◯", "Circle", "دائرة"], ["tri", "△", "Triangle", "مثلث"]] as [Tool, string, string, string][]).map(([k, ic, en, ar]) => <button key={k} type="button" className={btn(tool === k)} onClick={() => setTool(k)} title={tr(en, ar)} aria-label={tr(en, ar)} data-testid={`wb-${k}`}>{ic}</button>)}
+          <button type="button" className={btn(fill)} onClick={() => setFill(!fill)} title={tr("Fill shapes", "تعبئة الأشكال")} data-testid="wb-fill">🎨 {tr("Fill", "تعبئة")}</button>
+          <span className="mx-1 h-6 w-px bg-black/15" aria-hidden />
+          {COLORS.map((c) => <button key={c} type="button" onClick={() => setColor(c)} className={`h-7 w-7 rounded-full border-2 ${color === c ? "border-sun ring-2 ring-sun" : "border-black/10"}`} style={{ background: c }} aria-label={c} />)}
+          <input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="h-7 w-9 cursor-pointer rounded-full" aria-label={tr("Any colour", "أي لون")} data-testid="wb-color" />
           <span className="mx-1 h-6 w-px bg-black/15" aria-hidden />
           {WIDTHS.map((w) => <button key={w} type="button" onClick={() => setWidth(w)} className={btn(width === w)} aria-label={tr(`Thickness ${w}`, `السماكة ${w}`)}><span className="inline-block rounded-full bg-current" style={{ width: w + 4, height: w + 4 }} /></button>)}
           <span className="mx-1 h-6 w-px bg-black/15" aria-hidden />
@@ -143,6 +181,7 @@ export function WhiteboardHost({ code, hostKey, state, reload }: { code: string;
           </select>
         </label>
       </div>
+      <WbExtras code={code} title={state.title || ""} />
       <p className="text-xs opacity-70">{tr("Tip: works with a finger or Apple Pencil. Save & print keeps the board exactly as drawn.", "نصيحة: يعمل بالإصبع أو قلم آبل. الحفظ والطباعة يحفظان السبورة كما رُسمت تمامًا.")}</p>
     </div>
   );
@@ -159,4 +198,35 @@ export function WhiteboardOptions({ options, setOptions }: { options: Record<str
       <label className="inline-flex items-center gap-2 text-sm"><input type="checkbox" checked={options.draw !== false} onChange={(e) => setOptions({ ...options, draw: e.target.checked })} />{tr("Students can draw and write too", "يمكن للطلاب الرسم والكتابة أيضًا")}</label>
     </div>
   );
+}
+
+/** t429: share link (students + teachers join with it and draw together), screen recording, colourful print with QR. */
+function WbExtras({ code, title }: { code: string; title: string }) {
+  const { tr } = useTr();
+  const [msg, setMsg] = useState("");
+  const [rec, setRec] = useState<MediaRecorder | null>(null);
+  const link = typeof window !== "undefined" ? `${location.origin}/join?code=${encodeURIComponent(code)}` : "";
+  const share = async () => { try { if (navigator.share) await navigator.share({ title: title || "Whiteboard", url: link }); else { await navigator.clipboard.writeText(link); setMsg(tr("Link copied — anyone with it (students or teachers) joins this board.", "نُسخ الرابط — من يملكه (طلاب أو معلمون) ينضم لهذه السبورة.")); } } catch { /* cancelled */ } };
+  const record = async () => {
+    if (rec) { rec.stop(); return; }
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+      const r = new MediaRecorder(stream); const parts: Blob[] = [];
+      r.ondataavailable = (e) => e.data.size && parts.push(e.data);
+      r.onstop = () => { stream.getTracks().forEach((t) => t.stop()); const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob(parts, { type: "video/webm" })); a.download = `whiteboard-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-")}.webm`; a.click(); setRec(null); setMsg(tr("Recording saved to your downloads.", "حُفظ التسجيل في التنزيلات.")); };
+      stream.getVideoTracks()[0].onended = () => r.state !== "inactive" && r.stop();
+      r.start(1000); setRec(r); setMsg(tr("Recording… press ⏹ to stop.", "جارٍ التسجيل… اضغط ⏹ للإيقاف."));
+    } catch { setMsg(tr("Screen recording isn't available in this browser.", "تسجيل الشاشة غير متاح في هذا المتصفح.")); }
+  };
+  const print = () => {
+    const svg = document.querySelector("[data-testid=wb-art]")?.outerHTML || ""; const w = window.open("", "_blank"); if (!w) return;
+    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${(title || "Whiteboard").replace(/</g, "")}</title><style>@page{size:A4 landscape;margin:8mm}body{margin:0;font-family:Nunito,Arial,sans-serif}.f{border:6px solid #1b3a57;border-radius:22px;padding:10px;background:linear-gradient(135deg,#fdf0c4,#fff,#dbe7f3)}.h{display:flex;align-items:center;gap:12px;margin-bottom:8px}.h b{flex:1;font-size:22px;color:#1b3a57}.c{border-radius:14px;overflow:hidden;border:3px solid #f5c542}svg{width:100%;height:auto;display:block}</style></head><body><div class="f"><div class="h"><b>🖍️ ${(title || "Whiteboard").replace(/</g, "")}</b><span>${new Date().toLocaleDateString("en-GB")}</span>${qrSvg(link, 84)}</div><div class="c">${svg}</div></div><script>setTimeout(()=>print(),400)<\/script></body></html>`);
+    w.document.close();
+  };
+  return <div className="flex flex-wrap items-center gap-2" data-focus-keep data-testid="wb-extras">
+    <button type="button" className={hostChip(false)} onClick={share} data-testid="wb-share">🔗 {tr("Share link (students & teachers)", "رابط المشاركة (طلاب ومعلمون)")}</button>
+    <button type="button" className={hostChip(!!rec)} onClick={record} data-testid="wb-rec">{rec ? "⏹ " + tr("Stop recording", "إيقاف التسجيل") : "🎥 " + tr("Record screen", "تسجيل الشاشة")}</button>
+    <button type="button" className={hostChip(false)} onClick={print} data-testid="wb-print">🖨 {tr("Colour print + QR", "طباعة ملوّنة + QR")}</button>
+    {msg && <span className="text-xs font-semibold opacity-80" role="status">{msg}</span>}
+  </div>;
 }
