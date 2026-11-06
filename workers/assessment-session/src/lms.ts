@@ -116,6 +116,7 @@ const PUSH_TEXT: Record<string, [string, string]> = {
   lp_activity: ["New class activity", "{by}: {title}"],
   tt_observe_req: ["Observation request", "{by} would like to observe your lesson on {day} at {time}"],
   tt_observe_reply: ["Observation {status}", "{by}: {day} at {time}"],
+  tt_cover: ["Cover lesson assigned", "{by}: cover for {absent} on {day} at {time} ({cls})"],
   hw_shared: ["Homework shared with you", "{by}: {title}"],
   lp_new: ["New learning material", "{by}: {title}"], lp_due: ["Due soon", "{title} is due within 24 hours"], lp_feedback: ["Teacher feedback on your slides", "{title}"],
 };

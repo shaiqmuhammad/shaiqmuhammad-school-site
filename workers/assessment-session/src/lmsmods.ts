@@ -52,6 +52,7 @@ export function initMods(sql: SqlStorage) {
   // t384: peer observation requests (one dated slot; shown on both timetables once approved).
   sql.exec(`CREATE TABLE IF NOT EXISTS ttobs (id TEXT PRIMARY KEY, req TEXT, req_name TEXT, target TEXT, target_name TEXT, day TEXT, dow INTEGER, s TEXT, e TEXT, cls TEXT, subject TEXT, note TEXT, status TEXT, at INTEGER)`);
   sql.exec(`CREATE TABLE IF NOT EXISTS ttshare (id TEXT PRIMARY KEY, by TEXT, by_name TEXT, title TEXT, rows TEXT, recips TEXT, at INTEGER)`);
+  sql.exec(`CREATE TABLE IF NOT EXISTS ttcover (id TEXT PRIMARY KEY, day TEXT, dow INTEGER, tt_id TEXT, absent TEXT, absent_name TEXT, cover TEXT, cover_name TEXT, s TEXT, e TEXT, cls TEXT, section TEXT, subject TEXT, title TEXT, note TEXT, at INTEGER)`);
   sql.exec(`CREATE TABLE IF NOT EXISTS beh (id TEXT PRIMARY KEY, student TEXT, cls TEXT, section TEXT, day TEXT, kind TEXT, category TEXT, severity INTEGER DEFAULT 1, note TEXT DEFAULT '', action TEXT DEFAULT '', follow TEXT DEFAULT 'none', follow_note TEXT DEFAULT '', sensitive INTEGER DEFAULT 0, by TEXT, by_name TEXT, at INTEGER, updated INTEGER)`);
   sql.exec(`CREATE INDEX IF NOT EXISTS beh_student ON beh (student, day)`);
   sql.exec(`CREATE TABLE IF NOT EXISTS cur (id TEXT PRIMARY KEY, subject TEXT, yr TEXT, term TEXT, title TEXT, objectives TEXT DEFAULT '', lessons TEXT DEFAULT '[]', resources TEXT DEFAULT '[]', wk_from INTEGER DEFAULT 0, wk_to INTEGER DEFAULT 0, status TEXT DEFAULT 'planned', quiz TEXT DEFAULT '', page TEXT DEFAULT '', ord INTEGER DEFAULT 0, by_name TEXT, updated INTEGER)`);
@@ -261,7 +262,7 @@ export async function modHandle(c: ModCtx, action: string, a: Actor, input: Json
     case "att-tt-save": return ttHandle(c, a, "att-tt-save", input);
     case "att-tt-del": return ttHandle(c, a, "att-tt-del", input);
     case "att-tt-share": case "att-tt-unshare": case "att-tt-shared": return ttHandle(c, a, action, input);
-    case "att-tt-view": case "att-tt-compare": case "att-tt-obs-req": case "att-tt-obs-reply": case "att-tt-obs-del": return ttHandle(c, a, action, input);
+    case "att-tt-view": case "att-tt-compare": case "att-tt-obs-req": case "att-tt-obs-reply": case "att-tt-obs-del": case "att-tt-cover": case "att-tt-cover-save": case "att-tt-cover-del": case "att-tt-leads": return ttHandle(c, a, action, input);
     case "att-history": {
       // t304: register history for a class: one row per student, one column per (day, period) taken in the range.
       if (!modCan(a, "att", "view")) return forbid();
@@ -605,6 +606,14 @@ const hm12 = (hm: string) => { const [h, m] = hm.split(":").map(Number); return 
 export const ttFor = (r: TtRow, cls: string, section: string) => !!r.cls && r.cls === cls && // t420: class-less events are staff-only
   (!r.sections.length || r.sections.includes(section));
 const dubaiNow = () => { const d = new Date(Date.now() + 4 * 3600e3); return { dow: d.getUTCDay(), hm: d.toISOString().slice(11, 16), day: d.toISOString().slice(0, 10) }; };
+const ttOverlap = (aS: string, aE: string, bS: string, bE: string) => !!aS && !!aE && !!bS && !!bE && aS < bE && bS < aE;
+function ttCoverRows(sql: SqlStorage, uid: string | null, from?: string, to?: string) {
+  const today = new Date(Date.now() + 4 * 3600e3).toISOString().slice(0, 10);
+  const f = from || today, t0 = to || "9999-12-31";
+  return sql.exec(`SELECT * FROM ttcover WHERE day>=? AND day<=? ORDER BY day, s LIMIT 500`, f, t0).toArray()
+    .filter((r) => !uid || r.absent === uid || r.cover === uid)
+    .map((r) => ({ id: String(r.id), day: String(r.day), dow: Number(r.dow), ttId: String(r.tt_id || ""), absent: String(r.absent), absentName: String(r.absent_name || ""), cover: String(r.cover), coverName: String(r.cover_name || ""), s: String(r.s), e: String(r.e), cls: String(r.cls || ""), section: String(r.section || ""), subject: String(r.subject || ""), title: String(r.title || ""), note: String(r.note || ""), at: Number(r.at) }));
+}
 function ttHandle(c: ModCtx, a: Actor, action: string, input: Json): { status: number; body: Json } {
   const sql = c.sql;
   const acc0: { show: boolean; view: boolean; add: boolean; edit: boolean; delete: boolean; share?: boolean; peers?: boolean; compare?: boolean; observe?: boolean } = c.mp ? c.mp(a, "tt") : { show: true, view: true, add: a.role === "admin", edit: a.role === "admin", delete: a.role === "admin", share: a.role === "admin" };
@@ -637,7 +646,19 @@ function ttHandle(c: ModCtx, a: Actor, action: string, input: Json): { status: n
       }
     }
     const obs = a.role === "student" || a.role === "parent" ? [] : ttObsRows(sql, a.role === "admin" ? null : a.id);
-    return { status: 200, body: { secMap, peers, staff: staffList, obs, times, timetable: tt, shared, now: { dow: now.dow, hm: now.hm, period: cur }, current, teachers, catalog, phases: (loadCat(sql as never), catPhases()), depts: [...new Set([...depts, ...sql.exec(`SELECT name FROM catalog WHERE kind='dept'`).toArray().map((r) => String(r.name))])].sort(), acc, lead: pref ? Number(pref.v) : 5 } };
+    const covers = a.role === "student" || a.role === "parent" ? [] : ttCoverRows(sql, a.role === "admin" ? null : a.id);
+    // t433: teacher filter scope — only their phase / departments / subjects / classes.
+    const meStaff = a.role === "teacher" ? ttStaff(sql).find((t) => t.id === a.id) : undefined;
+    const scope = meStaff ? { phase: meStaff.phase, depts: meStaff.depts, subjects: meStaff.subjects, classes: meStaff.classes } : null;
+    // Cover lessons appear on the covering teacher's timetable as tinted rows.
+    const coverSrc = a.role === "admin" ? covers : covers.filter((x) => x.cover === a.id || x.absent === a.id);
+    const coverRows: TtRow[] = coverSrc.map((x) => ({
+      id: "cover-" + x.id, dow: x.dow, period: "", cls: x.cls, sections: secList(x.section), teacher: x.cover === a.id || a.role === "admin" ? x.cover : x.absent, teacherName: x.coverName,
+      subject: x.subject, phase: "", dept: "", s: x.s, e: x.e, color: "#fecdd3",
+      title: x.cover === a.id ? `🛟 Cover · ${x.absentName}` : `🛟 Covered by ${x.coverName}`,
+    }));
+    const timetableOut = [...tt, ...coverRows];
+    return { status: 200, body: { secMap, peers, staff: staffList, obs, covers, scope, times, timetable: timetableOut, shared, now: { dow: now.dow, hm: now.hm, period: cur }, current, teachers, catalog, phases: (loadCat(sql as never), catPhases()), depts: [...new Set([...depts, ...sql.exec(`SELECT name FROM catalog WHERE kind='dept'`).toArray().map((r) => String(r.name))])].sort(), acc, lead: pref ? Number(pref.v) : 5 } };
   }
   if (action === "att-times-save") {
     if (input.lead !== undefined) {
@@ -645,6 +666,19 @@ function ttHandle(c: ModCtx, a: Actor, action: string, input: Json): { status: n
       const n = Math.round(Number(input.lead)); if (![0, 2, 5, 10, 15, 30].includes(n)) return { status: 400, body: { error: "bad_input" } };
       sql.exec(`INSERT INTO settings (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v=excluded.v`, `ttlead:${a.id}`, String(n));
       return { status: 200, body: { ok: true, lead: n } };
+    }
+    // t433: admin sets reminder lead for one or many teachers.
+    if (Array.isArray(input.leads)) {
+      if (a.role !== "admin" || a.viewAs) return forbid();
+      const out: { id: string; lead: number }[] = [];
+      for (const row of input.leads.slice(0, 400)) {
+        const id = str(row?.id ?? row?.teacher, 40); const n = Math.round(Number(row?.lead));
+        if (!id || ![0, 2, 5, 10, 15, 30].includes(n)) continue;
+        if (!c.userRow("id=? AND role='teacher'", id)) continue;
+        sql.exec(`INSERT INTO settings (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v=excluded.v`, `ttlead:${id}`, String(n));
+        out.push({ id, lead: n });
+      }
+      return { status: 200, body: { ok: true, leads: out } };
     }
     if (a.role !== "admin" || a.viewAs) return forbid();
     const inT = (input.times && typeof input.times === "object" ? input.times : {}) as Record<string, Json>;
@@ -692,6 +726,58 @@ function ttHandle(c: ModCtx, a: Actor, action: string, input: Json): { status: n
     sql.exec(`UPDATE ttobs SET status=? WHERE id=?`, status, String(o.id));
     c.notify?.([String(o.req)], "tt_observe_reply", { by: a.name, day: String(o.day), time: hm12(String(o.s)), status });
     return { status: 200, body: { ok: true, status } };
+  }
+  if (action === "att-tt-leads") {
+    if (a.role !== "admin" || a.viewAs) return forbid();
+    const teachers = sql.exec(`SELECT id, name FROM users WHERE role='teacher' AND disabled=0 ORDER BY name`).toArray();
+    return { status: 200, body: { leads: teachers.map((r) => { const pref = sql.exec(`SELECT v FROM settings WHERE k=?`, `ttlead:${r.id}`).toArray()[0]; return { id: String(r.id), name: String(r.name), lead: pref ? Number(pref.v) : 5 }; }) } };
+  }
+  if (action === "att-tt-cover") {
+    // List absent teachers' lessons for a day + free cover candidates (permission: add/edit/delete).
+    if (a.role !== "admin" && a.role !== "teacher") return forbid();
+    if (!(acc.add || acc.edit || acc.delete)) return forbid("not_allowed");
+    const day = /^\d{4}-\d{2}-\d{2}$/.test(str(input.day, 10)) ? str(input.day, 10) : dubaiNow().day;
+    const dow = new Date(day + "T12:00:00Z").getUTCDay();
+    const times = ttTimes(sql);
+    const all = ttRows(sql).map((r) => ({ ...r, ...ttSE(r, times) }));
+    const covers = ttCoverRows(sql, null, day, day);
+    const coveredTt = new Set(covers.map((c) => c.ttId).filter(Boolean));
+    // Absent teachers are chosen in the UI (input.absent[]); we list their lessons + free cover candidates.
+    const absIds = new Set((Array.isArray(input.absent) ? input.absent : []).map((x) => str(x, 40)).filter(Boolean));
+    const staff = ttStaff(sql);
+    const absTeachers = absIds.size ? staff.filter((t) => absIds.has(t.id)) : [];
+    const lessons = all.filter((r) => absIds.has(r.teacher) && r.dow === dow && !coveredTt.has(r.id));
+    const freeFor = (s: string, e: string, exclude: string) => staff.filter((t) => t.id !== exclude && !all.some((r) => r.teacher === t.id && r.dow === dow && ttOverlap(r.s, r.e, s, e)) && !covers.some((c) => c.cover === t.id && ttOverlap(c.s, c.e, s, e)));
+    return { status: 200, body: { day, dow, absent: absTeachers, lessons: lessons.map((r) => ({ ...r, free: freeFor(r.s, r.e, r.teacher).map((t) => ({ id: t.id, name: t.name, depts: t.depts })) })), covers, teachers: staff.map((t) => ({ id: t.id, name: t.name })) } };
+  }
+  if (action === "att-tt-cover-save") {
+    if (a.role !== "admin" && a.role !== "teacher") return forbid();
+    if (!(acc.add || acc.edit)) return forbid("not_allowed");
+    if (a.viewAs) return forbid();
+    const day = str(input.day, 10), s0 = str(input.s, 5), e0 = str(input.e, 5), absent = str(input.absent, 40), cover = str(input.cover, 40);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !ttOverlap(s0, e0, s0, e0) || !absent || !cover || absent === cover) return { status: 400, body: { error: "bad_input" } };
+    const au = c.userRow("id=? AND role='teacher'", absent), cu = c.userRow("id=? AND role='teacher'", cover);
+    if (!au || !cu) return { status: 404, body: { error: "not_found" } };
+    const dow = new Date(day + "T12:00:00Z").getUTCDay();
+    const times = ttTimes(sql);
+    const all = ttRows(sql).map((r) => ({ ...r, ...ttSE(r, times) }));
+    // Clash: cover teacher must be free.
+    if (all.some((r) => r.teacher === cover && r.dow === dow && ttOverlap(r.s, r.e, s0, e0))) return { status: 409, body: { error: "cover_busy", message: "Cover teacher is busy at that time." } };
+    if (ttCoverRows(sql, null, day, day).some((c) => c.cover === cover && ttOverlap(c.s, c.e, s0, e0))) return { status: 409, body: { error: "cover_busy" } };
+    const id = rid("tc");
+    sql.exec(`INSERT INTO ttcover (id, day, dow, tt_id, absent, absent_name, cover, cover_name, s, e, cls, section, subject, title, note, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      id, day, dow, str(input.ttId, 40), absent, String(au.name), cover, String(cu.name), s0, e0, str(input.cls, 80), str(input.section, 80), str(input.subject, 80), str(input.title, 120), str(input.note, 300), Date.now());
+    c.notify?.([cover], "tt_cover", { by: a.name, day, time: hm12(s0), cls: str(input.cls, 80), absent: String(au.name), subject: str(input.subject, 80) });
+    return { status: 200, body: { ok: true, id } };
+  }
+  if (action === "att-tt-cover-del") {
+    if (!(acc.delete || acc.edit) || a.viewAs) return forbid();
+    const id = str(input.id, 40);
+    const row = sql.exec(`SELECT * FROM ttcover WHERE id=?`, id).toArray()[0];
+    if (!row) return { status: 404, body: { error: "not_found" } };
+    if (a.role !== "admin" && String(row.cover) !== a.id && String(row.absent) !== a.id) return forbid();
+    sql.exec(`DELETE FROM ttcover WHERE id=?`, id);
+    return { status: 200, body: { ok: true } };
   }
   if (action === "att-tt-shared") return { status: 200, body: { shared: ttShared(sql, a) } };
   if (action === "att-tt-share") {
@@ -746,6 +832,16 @@ function ttHandle(c: ModCtx, a: Actor, action: string, input: Json): { status: n
   const sections = !str(input.cls, 80) ? [] : (Array.isArray(input.sections) ? input.sections.map((x) => str(x, 40)) : secList(input.section)).filter(Boolean).slice(0, 20);
   const title = str(input.title, 120);
   const vals = [str(input.cls, 80), sections.join(","), tu ? tid : "", tu ? String(tu.name) : "", str(input.subject, 80), str(input.phase, 40), str(input.dept, 80)];
+  // t433: no double-booking — same teacher overlapping [s,e) on same weekday.
+  if (tid) {
+    const times0 = ttTimes(sql);
+    const existing = ttRows(sql).filter((r) => r.teacher === tid && (!old || r.id !== id0)).map((r) => ({ ...r, ...ttSE(r, times0) }));
+    for (const dd of days) {
+      if (!dd.s || !dd.e) continue;
+      const hit = existing.find((r) => r.dow === dd.dow && ttOverlap(r.s, r.e, dd.s, dd.e));
+      if (hit) return { status: 409, body: { error: "teacher_busy", message: `Teacher already has a lesson ${hit.s}–${hit.e} that day.`, clash: { id: hit.id, s: hit.s, e: hit.e, subject: hit.subject, cls: hit.cls } } };
+    }
+  }
   const ids: string[] = [];
   for (const [i, dd] of days.entries()) {
     const dow = dd.dow;
