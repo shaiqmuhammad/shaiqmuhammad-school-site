@@ -129,7 +129,7 @@ export function Curriculum({ asAdmin, student = false }: { asAdmin: boolean; stu
 
   return (
     <div data-testid="curriculum" className="space-y-1">
-      <Head hide={asAdmin || student} icon="📚" title={tr("Curriculum Management", "إدارة المنهج")} sub={tr("Scheme of work by subject, year group and term: objectives, lessons, resources, pacing and status.", "المخطط الدراسي حسب المادة والسنة والفصل: الأهداف والدروس والمصادر والتوزيع الزمني والحالة.")}>
+      <Head hide={asAdmin || student} icon="🗂️" title={tr("Curriculum Management", "إدارة المنهج")} sub={tr("Scheme of work by subject, year group and term: objectives, lessons, resources, pacing and status.", "المخطط الدراسي حسب المادة والسنة والفصل: الأهداف والدروس والمصادر والتوزيع الزمني والحالة.")}>
         {!student && canEdit && perm.edit && <button type="button" className={btnCta} onClick={() => setEdit({ subject: f.subject || subjects[0] || "", yr: f.yr || years[0] || "", term: f.term || "Term 1", status: "planned", lessons: [], resources: [] })} data-testid="cur-new">+ {tr("Add unit", "إضافة وحدة")}</button>}
       </Head>
       {student && <p className="mb-3 text-2xl font-extrabold">📚 {tr("My curriculum", "منهجي")} <span className="text-base font-bold opacity-60">· {year}</span></p>}

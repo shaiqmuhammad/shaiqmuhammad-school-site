@@ -122,7 +122,7 @@ function Overview({ kid, ar, go }: { kid: Kid; ar: boolean; go: (s: Sec) => void
     <div className="space-y-4" data-testid="family-overview">
       <DashCarousel testId="family-widgets" items={[
         { icon: "✏️", title: tr("Still to do", "المتبقي"), value: dash.d ? todo : "…", sub: tr("homework", "واجبات"), href: "/lms/family#homework", tone: "sun", badge: dash.d ? todo : 0 },
-        { icon: "📚", title: tr("Homework", "الواجبات"), value: dash.d ? hw.length : "…", sub: tr("assigned", "مُسندة"), href: "/lms/family#homework", tone: "teal" },
+        { icon: "📝", title: tr("Homework", "الواجبات"), value: dash.d ? hw.length : "…", sub: tr("assigned", "مُسندة"), href: "/lms/family#homework", tone: "teal" },
         { icon: "📅", title: tr("Attendance", "الحضور"), value: att.d ? (att.d.pct == null ? "–" : `${att.d.pct}%`) : "…", sub: tr("this term", "هذا الفصل"), href: "/lms/family#att", tone: "navy" },
         { icon: "⭐", title: tr("Behaviour points", "نقاط السلوك"), value: beh.d ? beh.d.total : "…", sub: tr("great job!", "أحسنت!"), href: "/lms/family#beh", tone: "coral" },
         { icon: "📖", title: tr("Quran tracker", "متابعة القرآن"), sub: tr("see progress", "شاهد التقدم"), href: "/lms/family#quran", tone: "mint" },

@@ -286,7 +286,7 @@ export function StudentProgress({ id, asAdmin = false }: { id: string; asAdmin?:
       <section className={card + " space-y-2"}><h3 className="text-lg font-bold">📈 {tr("Quran tracker", "متابعة الحفظ")}</h3><TrackerBadges tracker={d.tracker} /></section>
       <Certificates tracker={d.tracker} student={d.student.name} nameAr={d.student.nameAr || ""} arabic={!!(d.student as { arabic?: boolean }).arabic} />
       <section className={card + " space-y-2"}>
-        <h3 className="text-lg font-bold">📚 {tr("Homework", "الواجبات")}</h3>
+        <h3 className="text-lg font-bold">📝 {tr("Homework", "الواجبات")}</h3>
         <ul className="divide-y divide-black/5 dark:divide-white/10">
           {d.homework.map((h) => (
             <li key={h.id} className="flex flex-wrap items-center gap-2 py-2" data-testid="sp-hw">
