@@ -17,7 +17,7 @@ export type DashStudent = { id: string; name: string; cls: string; section: stri
 /** Teacher scope entry: "Year 2" (whole class) or "Year 2|2A" (one section). */
 export const scopeLabel = (s: string) => s.replace("|", " · ");
 /** t292: module permissions (Assessment Tracker, Department Report, Attainment & Progress report). */
-export const MP_MODS = ["trk", "rep", "aps", "tt", "lp", "qa"] as const;
+export const MP_MODS = ["trk", "rep", "aps", "tt", "lp", "qa", "rw"] as const;
 export const MP_KEYS = ["show", "view", "add", "edit", "delete", "xlsx", "pdf", "isams", "share", "dl", "peers", "compare", "observe"] as const;
 export type MpMod = (typeof MP_MODS)[number];
 export type MpKey = (typeof MP_KEYS)[number];
@@ -327,6 +327,8 @@ export const lmsApi = {
   actResult: (t: string) => call<{ type: string; title: string; prompt: string; cls: string; subject?: string; topic?: string; at: number; rows: SavedRow[] }>("act-result", undefined, { query: { t } }),
   actSaved: (q: { id?: string; del?: string } = {}) => call<{ items?: SavedAct[]; item?: SavedAct & { prompt: string; tok?: string; subject?: string; topic?: string; rows: SavedRow[] } }>("act-saved", q, { asAdmin: !lmsSession() }),
   actLive: () => call<{ items: LiveActivity[] }>("act-live"),
+  /** t441: Reward Cards (wallet, shop, plan). */
+  rc: <T = Record<string, unknown>>(action: string, body: Record<string, unknown> = {}) => call<T>(`rc-${action}`, body),
   permSwitch: (ids: string[], perm: "shareCorrect", on: boolean) => call<{ ok: true; changed: number }>("perm-switch", { ids, perm, on }, { asAdmin: true }),
   myAssess: () => call<{ items: (ResultRecord & { level?: number; label?: string })[] }>("my-assess"),
   assessList: (asAdmin = false) => call<{ items: Assignment[] }>("assess-list", undefined, { asAdmin }),
