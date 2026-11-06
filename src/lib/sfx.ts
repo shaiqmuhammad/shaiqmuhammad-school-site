@@ -28,3 +28,18 @@ export function sfxChime() { const c = ac(); if (!c) return; [523, 659, 784, 104
 export function sfxPositive() { const c = ac(); if (!c) return; const t = c.currentTime; tone(c, 784, t, 0.12, 0.16, "triangle"); tone(c, 1047, t + 0.1, 0.12, 0.16, "triangle"); tone(c, 1568, t + 0.2, 0.3, 0.13, "sine"); }
 export function sfxNegative() { const c = ac(); if (!c) return; const t = c.currentTime; tone(c, 440, t, 0.22, 0.13, "sine", 392); tone(c, 349, t + 0.24, 0.4, 0.13, "sine", 262); }
 export function sfxPoints(pts: number) { if (pts > 0) sfxPositive(); else if (pts < 0) sfxNegative(); }
+/** t422: assessment-end appreciation — a short bright fanfare + sparkle and soft "applause" noise bursts (respects mute). */
+export function sfxFanfare() {
+  const c = ac(); if (!c) return; const t = c.currentTime;
+  [[523, 0], [659, 0.14], [784, 0.28], [1047, 0.46]].forEach(([f, d]) => tone(c, f, t + d, d === 0.46 ? 0.7 : 0.16, 0.15, "triangle"));
+  [1319, 1568, 2093].forEach((f, i) => tone(c, f, t + 0.62 + i * 0.07, 0.25, 0.07, "sine"));
+  try {
+    for (let k = 0; k < 10; k++) {
+      const len = Math.floor(c.sampleRate * 0.05), b = c.createBuffer(1, len, c.sampleRate), d = b.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
+      const s = c.createBufferSource(), g = c.createGain(), fl = c.createBiquadFilter();
+      fl.type = "bandpass"; fl.frequency.value = 1800 + Math.random() * 1500; g.gain.value = 0.05;
+      s.buffer = b; s.connect(fl); fl.connect(g); g.connect(c.destination); s.start(t + 0.9 + k * 0.09 + Math.random() * 0.05);
+    }
+  } catch { /* */ }
+}

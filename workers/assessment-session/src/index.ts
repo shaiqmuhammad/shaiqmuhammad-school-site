@@ -35,7 +35,7 @@ import { handleAdmin, type AdminEnv } from "./admin";
 import { handleForum } from "./forum";
 import { handleResults, resultsStore, type ResultRecord, type ResultsEnv } from "./results";
 import { handleActivity, type ActivityEnv } from "./activity";
-import { handleLms, rosterGate, studentIdOf, type LmsEnv } from "./lms";
+import { handleLms, rosterGate, studentIdOf, studentAvatar, type LmsEnv } from "./lms";
 import { handleYt, SiteKV, type YtEnv } from "./youtube";
 import { handleCert } from "./cert";
 import { handleContact, handleMail } from "./mail/routes";
@@ -85,6 +85,8 @@ type Participant = {
   removedAt?: number;
   /** LMS student id when the student joined while logged in (verified by the Worker). */
   lmsStudent?: string;
+  /** t422: the student's LMS character code (server-set from their account; never from the client). */
+  av?: string;
 };
 
 type Reply = { status: number; body: unknown };
@@ -262,6 +264,7 @@ export class AssessmentSession extends DurableObject<Env> {
       return {
         id: p.id,
         name: this.label(p, { host: opts.hostDetail, selfId: opts.selfId }),
+        ...(p.av ? { av: p.av } : {}),
         ...(showDetail ? { details } : {}),
         ...(opts.selfId !== undefined && opts.selfId === p.id ? { isSelf: true } : {}),
         score,
@@ -337,6 +340,9 @@ export class AssessmentSession extends DurableObject<Env> {
     const endAt = m.endedAt ?? m.endAt ?? now;
     const byId = new Map(q.questions.map((x) => [x.id, x]));
     const text = (lines: { text: string }[]) => lines.map((l) => l.text).join("; ");
+    // t422: the top-3 podium (dense places, ties share) saved with every group result so the student's record shows it later.
+    const places = [...new Set(res.rows.filter((r) => r.submitted || r.score > 0).map((r) => r.score))].sort((x, y) => y - x).slice(0, 3);
+    const podium = res.rows.filter((r) => places.includes(r.score)).slice(0, 9).map((r) => { const pp = this.participants.get(r.id); return { p: places.indexOf(r.score) + 1, n: pp ? this.label(pp, {}) : r.name, a: pp?.av || "", pct: r.percentage }; });
     const records: ResultRecord[] = res.rows.map((r) => ({
       id: `g_${m.code}_${startAt.toString(36)}_${r.id}`,
       kind: "group",
@@ -357,6 +363,7 @@ export class AssessmentSession extends DurableObject<Env> {
       rank: r.rank,
       groupSize: res.rows.length,
       studentId: this.participants.get(r.id)?.lmsStudent || "",
+      ...(podium.length ? { podium } : {}),
       details: (r.details ?? []).map((d, i) => {
         const question = byId.get(d.questionId);
         return {
@@ -432,6 +439,7 @@ export class AssessmentSession extends DurableObject<Env> {
           joinedAt: now,
           ...(deviceId ? { deviceId } : {}),
           ...(typeof body.lmsStudent === "string" && body.lmsStudent ? { lmsStudent: body.lmsStudent } : {}),
+          ...(typeof body.av === "string" && /^[abgn]\d{1,2}$/.test(body.av) ? { av: body.av } : {}),
         };
         await this.saveParticipant(p);
         return { status: 200, body: { participantId: p.id, token: p.token, name: p.name, ...this.info(now, { selfId: p.id }) } };
@@ -611,6 +619,7 @@ export default {
     const input: Record<string, unknown> = { ...Object.fromEntries(url.searchParams), ...body };
     // Only the server sets lmsStudent: from a verified student login sent with join (body "lmsToken"); never trusted from the client.
     delete input.lmsStudent;
+    delete input.av;
     const lmsToken = typeof input.lmsToken === "string" ? input.lmsToken : "";
     delete input.lmsToken;
     if (action === "join" && lmsToken) input.lmsStudent = (await studentIdOf(env as unknown as LmsEnv, lmsToken).catch(() => null)) || "";
@@ -618,6 +627,7 @@ export default {
       const g = await rosterGate(env as unknown as LmsEnv, code, lmsToken).catch(() => null);
       if (g && !g.ok) return json({ error: "not_in_group" }, 403);
       if (g?.ok) { input.name = g.name; input.lmsStudent = g.sid; }
+      if (typeof input.lmsStudent === "string" && input.lmsStudent) input.av = await studentAvatar(env as unknown as LmsEnv, input.lmsStudent).catch(() => "");
     }
     const stub = env.SESSIONS.get(env.SESSIONS.idFromName(code));
     const reply = (await stub.handle(action, request.method, input)) as unknown as Reply;

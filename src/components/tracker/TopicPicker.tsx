@@ -1,5 +1,6 @@
 "use client";
 
+import { clsCmp } from "@/lib/classSort";
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { modCall, type CurUnit } from "@/lib/lmsMods";
 import { topicLabel, type TopicInfo } from "@/lib/quiz";
@@ -28,7 +29,7 @@ export function TopicPicker({ value, onChange, lang = "en", taken }: { value?: s
   useEffect(() => { loadCurUnits().then(setUnits); }, []);
   const cur = useMemo(() => units?.find((u) => u.id === value), [units, value]);
   useEffect(() => { if (cur) { setYr(cur.yr); setTerm(cur.term); setWk(String(cur.wkFrom || 0)); } }, [cur]);
-  const years = useMemo(() => [...new Set((units || []).map((u) => u.yr))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })), [units]);
+  const years = useMemo(() => [...new Set((units || []).map((u) => u.yr))].sort(clsCmp), [units]);
   const terms = useMemo(() => [...new Set((units || []).filter((u) => u.yr === yr).map((u) => u.term))].sort(), [units, yr]);
   const weeks = useMemo(() => [...new Set((units || []).filter((u) => u.yr === yr && u.term === term).map((u) => u.wkFrom || 0))].sort((a, b) => a - b), [units, yr, term]);
   const topics = (units || []).filter((u) => u.yr === yr && u.term === term && String(u.wkFrom || 0) === wk);

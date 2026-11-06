@@ -1,5 +1,6 @@
 "use client";
 
+import { clsCmp } from "@/lib/classSort";
 import { SubjectPick, teacherSubjects } from "@/components/lms/SubjectPick";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { lmsSession } from "@/lib/lms";
@@ -188,7 +189,7 @@ export function TimetableManager({ asAdmin, full = false }: { asAdmin: boolean; 
         {sel("dept", tr("All departments", "كل الأقسام"), uniq([...d.depts]).map((x) => [x, x]), "tt-f-dept")}
         {d.teachers.length > 1 && sel("teacher", tr("All teachers", "كل المعلمين"), d.teachers.map((t) => [t.id, t.name]), "tt-f-teacher")}
         {sel("subject", tr("All subjects", "كل المواد"), subjects.map((x) => [x, x]), "tt-f-subject")}
-        {sel("cls", tr("All classes", "كل الصفوف"), uniq([...classes.map((c) => c.name), ...d.timetable.map((r) => r.cls)]).map((x) => [x, x]), "tt-f-cls")}
+        {sel("cls", tr("All classes", "كل الصفوف"), uniq([...classes.map((c) => c.name), ...d.timetable.map((r) => r.cls)]).sort(clsCmp).map((x) => [x, x]), "tt-f-cls")}
         {(asAdmin || full) && f.cls && sel("sec", tr("All sections", "كل الشعب"), (classes.find((c) => c.name === f.cls)?.sections || []).map((x) => [x, x]), "tt-f-sec")}
         {canAdd && <button type="button" className="rounded-full bg-sun px-4 py-1.5 text-sm font-bold text-[#0b1b2b]" onClick={() => setEd({ ...EMPTY, teacher: asAdmin ? "" : d.teachers[0]?.id || "" })} data-testid="tt-new">+ {tr("Add Event", "إضافة حدث")}</button>}
       </div>

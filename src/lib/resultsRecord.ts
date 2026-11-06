@@ -40,6 +40,8 @@ export type ResultRecord = {
   rank: number | null;
   groupSize: number | null;
   details?: ResultDetail[];
+  /** t422: group sessions — the saved top-3 podium (ties share a place). */
+  podium?: { p: number; n: string; a: string; pct: number }[];
 };
 
 export type ResultFilters = { quiz?: string; year?: number; mode?: "" | "individual" | "group"; from?: number; to?: number; q?: string };

@@ -657,6 +657,13 @@ export class LmsStore extends DurableObject<LmsEnv> {
     if (!r || !Number(r.locked) || Number(r.at) < Date.now() - 12 * 3600e3) return null;
     return { students: JSON.parse(String(r.students || "[]")) as string[] };
   }
+  /** t422: a student's cartoon character code (photos are never shared into live sessions). */
+  async avatarFor(uid: string): Promise<string> {
+    const r = this.userRow("id=?", uid);
+    if (!r || r.role !== "student") return "";
+    const c = avatarOf(r);
+    return /^[abgn]\d{1,2}$/.test(c) ? c : "";
+  }
   async actor(uid: string, pv = ""): Promise<Actor | null> {
     const r = this.userRow("id=?", uid);
     if (!r || r.disabled) return null;
@@ -2550,7 +2557,21 @@ export class LmsStore extends DurableObject<LmsEnv> {
   }
   private allHomework(id?: string) {
     const rows = id ? this.sql.exec(`SELECT * FROM homework WHERE id=?`, id).toArray() : this.sql.exec(`SELECT * FROM homework ORDER BY created DESC`).toArray();
-    return rows.map((r) => ({ id: String(r.id), kind: String(r.kind) as "quran" | "general", title: String(r.title), cls: String(r.cls || ""), section: String(r.section || ""), students: JSON.parse(String(r.students || "[]")) as string[], data: JSON.parse(String(r.data || "{}")) as Json, due: r.due ? Number(r.due) : null, createdBy: String(r.created_by), created: Number(r.created) }));
+    // t422: each homework's subject — from the pack that published it, else the setter's own (single) subject.
+    const subj = new Map<string, string>();
+    try { for (const p of this.sql.exec(`SELECT hw, subject FROM lpack WHERE hw != '' AND subject != ''`).toArray()) subj.set(String(p.hw), String(p.subject)); } catch { /* no packs table yet */ }
+    const tsub = new Map<string, string>();
+    const subOf = (uid: string) => { if (!tsub.has(uid)) { const u = this.sql.exec(`SELECT subjects FROM users WHERE id=?`, uid).toArray()[0]; let l: string[] = []; try { l = JSON.parse(String(u?.subjects || "[]")) as string[]; } catch { /* */ } tsub.set(uid, l.length === 1 ? l[0] : ""); } return tsub.get(uid) || ""; };
+    let stu: Map<string, [string, string]> | null = null;
+    const audOf = (r: Record<string, unknown>) => {
+      if (r.cls) return { years: [String(r.cls)], sections: r.section ? [String(r.section)] : [] };
+      const ids = JSON.parse(String(r.students || "[]")) as string[];
+      if (!ids.length) return { years: [] as string[], sections: [] as string[] };
+      if (!stu) stu = new Map(this.sql.exec(`SELECT id, cls, section FROM users WHERE role='student'`).toArray().map((u) => [String(u.id), [String(u.cls || ""), String(u.section || "")] as [string, string]]));
+      const got = ids.map((i) => stu!.get(i)).filter(Boolean) as [string, string][];
+      return { years: [...new Set(got.map((g) => g[0]).filter(Boolean))], sections: [...new Set(got.map((g) => g[1]).filter(Boolean))] };
+    };
+    return rows.map((r) => ({ id: String(r.id), kind: String(r.kind) as "quran" | "general", title: String(r.title), cls: String(r.cls || ""), section: String(r.section || ""), subject: subj.get(String(r.id)) || subOf(String(r.created_by)), aud: audOf(r), students: JSON.parse(String(r.students || "[]")) as string[], data: JSON.parse(String(r.data || "{}")) as Json, due: r.due ? Number(r.due) : null, createdBy: String(r.created_by), created: Number(r.created) }));
   }
   /** Students a homework is for: the listed students, else everyone in its class ("" = all students). */
   private assignees(h: { cls: string; section: string; students: string[]; createdBy?: string }): string[] {
@@ -3300,6 +3321,10 @@ export async function studentIdOf(env: LmsEnv, tokenOrHeader: string | null | un
   if (!tk) return null;
   const u = (await env.LMS.get(env.LMS.idFromName("main")).actor(tk.uid, tk.pv)) as unknown as Actor | null;
   return u && u.role === "student" ? u.id : null;
+}
+export async function studentAvatar(env: LmsEnv, sid: string): Promise<string> {
+  if (!env.LMS || !sid) return "";
+  return String((await env.LMS.get(env.LMS.idFromName("main")).avatarFor(sid)) || "");
 }
 /** t312: join gate for locked codes — null if the code is open; else ok (with the student's account name) or refused. */
 export async function rosterGate(env: LmsEnv, code: string, lmsToken: string): Promise<{ ok: boolean; sid?: string; name?: string } | null> {

@@ -2,6 +2,7 @@
 
 import { getServerSession } from "@/lib/adminServer";
 import { ASSESSMENT_API_BASE } from "@/lib/groupSession";
+import { sortBy } from "@/lib/classSort";
 
 /** LMS phase 1 client (see workers/assessment-session/src/lms.ts). */
 export type Role = "student" | "teacher" | "parent";
@@ -27,7 +28,7 @@ export type Actor = { id: string; role: Role | "admin"; name: string; nameAr?: s
 export type Slide = { title: string; text: string; image: string };
 export type QuranData = { surah: number; from: number; to: number; reciter: string; notes: string; translit?: boolean; translation?: boolean; extra?: string; memorise?: boolean; memoAudio?: boolean };
 export type GeneralData = { slides: Slide[]; question: string };
-export type Homework = { id: string; kind: "quran" | "general"; title: string; cls: string; section?: string; students: string[]; data: QuranData | GeneralData; due: number | null; createdBy: string; created: number; locked?: boolean; lockedBy?: { surah: number; from: number; to: number; title: string } | null; late?: boolean };
+export type Homework = { id: string; kind: "quran" | "general"; title: string; cls: string; section?: string; /** t422: subject + resolved Year(s) / Section(s) for display */ subject?: string; aud?: { years: string[]; sections: string[] }; students: string[]; data: QuranData | GeneralData; due: number | null; createdBy: string; created: number; locked?: boolean; lockedBy?: { surah: number; from: number; to: number; title: string } | null; late?: boolean };
 export type Comment = { by: string; text: string; at: number; audio?: string };
 export type RosterStudent = { id: string; name: string; cls: string; section: string; avatar: string; parentEmail: boolean; points: number; seen: number };
 export type PointCat = { id: string; label: string; pts: number; icon: string };
@@ -187,7 +188,17 @@ async function call<T>(action: string, body?: unknown, opts: { asAdmin?: boolean
     } catch { /* ignore */ }
   }
   if (!res.ok) { const er = new LmsError(data.error || "error", res.status); er.data = data as Record<string, unknown>; throw er; }
-  return data;
+  return sortCatalogIn(data);
+}
+/** t422: every catalog the client receives is in school order (FS2, Y1 … Y13; sections A, B, C). */
+function sortCatalogIn<T>(d: T): T {
+  try {
+    const fix = (c: Partial<Catalog> | undefined) => { if (!c || !Array.isArray(c.classes)) return; c.classes = sortBy(c.classes, (x) => x.name); if (Array.isArray(c.sections)) c.sections = sortBy(c.sections, (x) => `${x.cls}|${x.name}`); };
+    const o = d as unknown as { catalog?: Catalog; classes?: unknown };
+    if (o && typeof o === "object") { fix(o.catalog); if (Array.isArray(o.classes) && (o.classes as { name?: unknown }[])[0]?.name !== undefined && "sections" in o) fix(o as unknown as Catalog);
+      if (Array.isArray(o.classes) && typeof (o.classes as { cls?: unknown }[])[0]?.cls === "string") o.classes = sortBy(o.classes as { cls: string }[], (x) => x.cls); }
+  } catch { /* ignore */ }
+  return d;
 }
 
 /** The Class Wall also opens inside the admin area (admin token) — set by the admin Wall tab. */

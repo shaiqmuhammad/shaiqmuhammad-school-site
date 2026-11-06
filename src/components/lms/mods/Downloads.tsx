@@ -1,5 +1,6 @@
 "use client";
 
+import { clsCmp } from "@/lib/classSort";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { cardCls, field, Toast, useRoster } from "@/components/lms/mods/ModUi";
 import { useTr } from "@/components/lms/useLms";
@@ -14,7 +15,7 @@ export function AdminDownloads() {
   const { students } = useRoster(true);
   const [cfg, setCfg] = useState<Cfg | null>(null);
   const [msg, setMsg] = useState(""); const [bad, setBad] = useState(false);
-  const classes = useMemo(() => [...new Set((students || []).map((s) => s.cls))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })), [students]);
+  const classes = useMemo(() => [...new Set((students || []).map((s) => s.cls))].sort(clsCmp), [students]);
   useEffect(() => { modCall<Cfg>("dl-get", undefined, true).then(setCfg).catch((e) => { setCfg({}); setMsg(modErr(e, tr)); setBad(true); }); }, [tr]);
   const save = useCallback(async (next: Cfg) => {
     setCfg(next);

@@ -1,5 +1,6 @@
 "use client";
 
+import { clsCmp } from "@/lib/classSort";
 import { spaNav } from "@/components/FocusMode";
 import { useEffect, useMemo, useState } from "react";
 import { BodyPortal } from "@/components/BodyPortal";
@@ -35,7 +36,7 @@ export function RosterPicker({ value, onChange, roster, groups: allGroups, subje
   const { tr } = useTr();
   // t322: only the groups of the chosen subject (groups without a subject always show).
   const groups = subject ? allGroups.filter((g) => !g.subject || g.subject === subject) : allGroups;
-  const years = useMemo(() => [...new Set(roster.map((s) => s.cls).filter(Boolean))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })), [roster]);
+  const years = useMemo(() => [...new Set(roster.map((s) => s.cls).filter(Boolean))].sort(clsCmp), [roster]);
   const secs = (y: string) => [...new Set(roster.filter((s) => s.cls === y && s.section).map((s) => s.section))].sort();
   const tog = (k: string) => onChange(value.includes(k) ? value.filter((x) => x !== k) : [...value.filter((x) => !(k.includes("|") ? x === k.split("|")[0] : x.startsWith(k + "|"))), k]);
   const chip = (k: string, label: string, n: number) => <button key={k} type="button" aria-pressed={value.includes(k)} onClick={() => tog(k)} className={`rounded-full px-3 py-1.5 text-sm font-bold ring-1 ring-black/15 ${value.includes(k) ? "bg-header text-sun" : "bg-white/70 dark:bg-white/10"}`} data-testid="roster-chip" data-key={k}>{value.includes(k) ? "✓ " : ""}{label} <span className="opacity-60">({n})</span></button>;

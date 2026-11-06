@@ -15,6 +15,7 @@ import { AssignForm, AssignedList, loadAnyQuiz } from "@/components/lms/LmsQuiz"
 import { HOST_DRAFT_KEY } from "@/lib/groupSession";
 import type { Assignment } from "@/lib/lms";
 import type { ResultRecord } from "@/lib/resultsRecord";
+import { Podium } from "@/components/assessment/ResultsVisuals";
 import { modCall, type CurUnit } from "@/lib/lmsMods";
 
 /** /lms/assessments: assessments inside the LMS layout. Students: start on their own + join a live code. Teachers: host the ones the admin allowed. */
@@ -127,6 +128,8 @@ export function MyRecord({ items, name, tr, lang, child }: { items: Assignment[]
                 </button>
                 {open === r.id && (
                   <div className="mt-3 space-y-3" data-testid="rec-report">
+                    {r.podium?.length ? <Podium rows={r.podium} lang={lang} saved /> : null}
+                    {r.kind === "group" && r.rank ? <p className="text-sm font-bold" data-testid="rec-place">🏅 {tr(`Your place: ${r.rank} of ${r.groupSize}`, `مركزك: ${r.rank} من ${r.groupSize}`)}</p> : null}
                     <p className="text-sm">✅ {r.correct} {tr("correct", "صحيحة")} · ❌ {r.wrong} {tr("wrong", "خاطئة")} · ⏭ {r.unanswered} {tr("unanswered", "بلا إجابة")}{r.timeSec ? ` · ⏱ ${Math.round(r.timeSec / 60)} ${tr("min", "د")}` : ""}{r.label ? ` · ${r.label}` : ""}</p>
                     {sc.size > 0 && (
                       <div><p className="mb-1 text-sm font-extrabold">🎯 {tr("Success criteria", "معايير النجاح")}</p>

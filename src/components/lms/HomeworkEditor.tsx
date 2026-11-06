@@ -1,5 +1,6 @@
 "use client";
 
+import { clsCmp } from "@/lib/classSort";
 import { useEffect, useState } from "react";
 import { primaryBtn } from "@/components/assessment/AssessmentShell";
 import { WhoPicker } from "@/components/lms/WhoPicker";
@@ -24,7 +25,7 @@ export function HomeworkEditor({ initial, classes, students, catalog, scope = []
   // Classes from the catalog (plus any older free-text ones), narrowed to a teacher's scope when set.
   const counts = new Map(classes.map((c) => [c.cls, c.students]));
   const inScope = (c: string, sec = "") => !scope.length || scope.some((x) => { const [k, s2] = x.split("|"); return k === c && (!s2 || !sec || s2 === sec); });
-  const classNames = [...new Set([...(catalog?.classes || []).map((c) => c.name), ...classes.map((c) => c.cls).filter(Boolean)])].filter((c) => inScope(c));
+  const classNames = [...new Set([...(catalog?.classes || []).map((c) => c.name), ...classes.map((c) => c.cls).filter(Boolean)])].filter((c) => inScope(c)).sort(clsCmp);
   const sectionsOf = (c: string) => (catalog?.sections || []).filter((x) => x.cls === c && inScope(c, x.name)).map((x) => x.name);
   const wholeClassOk = (c: string) => !scope.length || scope.includes(c);
   const shownStudents = students.filter((s) => (!fCls || s.cls === fCls) && (!fSec || s.section === fSec));

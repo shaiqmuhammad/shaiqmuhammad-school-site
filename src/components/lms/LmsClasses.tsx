@@ -1,4 +1,5 @@
 "use client";
+import { clsCmp } from "@/lib/classSort";
 import { spaNav } from "@/components/FocusMode";
 import { SfxToggle } from "@/components/activity/SfxToggle";
 import { sfxPoints } from "@/lib/sfx";
@@ -88,7 +89,7 @@ export function LmsClassesPage() {
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load(); }, [load]);
 
-  const classes = useMemo(() => [...new Set([...(roster || []).map((s) => (s.section ? `${s.cls}|${s.section}` : s.cls)), ...assigned])].sort(), [roster, assigned]);
+  const classes = useMemo(() => [...new Set([...(roster || []).map((s) => (s.section ? `${s.cls}|${s.section}` : s.cls)), ...assigned])].sort(clsCmp), [roster, assigned]);
   const classTabs = useMemo(() => { const out: string[] = []; for (const t of classes) { const c = t.split("|")[0]; if (!out.includes(c)) out.push(c); if (t.includes("|")) out.push(t); } return out; }, [classes]);
   const shown = useMemo(() => {
     const all = roster || [];
@@ -207,12 +208,12 @@ export function LmsClassesPage() {
         {err && <p className="rounded-2xl bg-rose-100 px-4 py-2 text-sm text-rose-800">{err}</p>}
         {attMode && <div className="flex flex-wrap items-center gap-2 rounded-3xl bg-emerald-50 px-4 py-2 text-sm text-emerald-950 dark:bg-emerald-900/30 dark:text-emerald-50" data-testid="att-bar"><span className="me-auto font-bold">📋 {attDay} · {attPeriod === "Day" ? tr("Whole day", "اليوم كله") : tr(`Period ${attPeriod.slice(1)}`, `الحصة ${attPeriod.slice(1)}`)} — {tr("tap = Present · hold or ⋯ = Late / Absent", "نقرة = حاضر · ضغط مطوّل أو ⋯ = متأخر / غائب")}</span><button type="button" className="rounded-full bg-emerald-600 px-4 py-1.5 font-bold text-white" onClick={markAll} data-testid="att-all">✅ {tr("Mark all present", "تسجيل حضور الجميع")}</button><a className="rounded-full border border-emerald-700/30 px-3 py-1.5 font-bold" href="/lms/attendance#history" data-testid="att-history-link">🗂 {tr("History", "السجل")}</a></div>}
         {!view ? null : roster === null ? <p className="opacity-70">{tr("Loading…", "جارٍ التحميل…")}</p> : !shown.length ? <p className="glass rounded-3xl p-8 text-center opacity-80">{tr("No students here yet.", "لا يوجد طلاب هنا بعد.")}</p> : (
-          <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6" data-testid="cls-grid">
+          <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6" data-testid="cls-grid">
             {shown.map((s) => (
               <li key={s.id} className="group relative" data-testid="cls-card">
-                <button type="button" onPointerDown={() => pressStart(s)} onPointerUp={pressEnd} onPointerLeave={pressEnd} onContextMenu={(e) => { if (attMode) e.preventDefault(); }} onClick={() => { if (attMode) { if (lp.current.fired) { lp.current.fired = false; return; } mark(s, "P"); return; } setWhole(false); setAward([s]); }} className="relative flex w-full flex-col items-center gap-2 rounded-[1.75rem] border border-white/70 p-4 pt-5 text-center text-[#1b2f44] shadow-[0_6px_20px_rgba(27,58,87,0.12)] backdrop-blur-md transition hover:-translate-y-1 hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sun" style={{ background: `linear-gradient(155deg, ${PASTEL[shown.indexOf(s) % PASTEL.length]}e6, rgba(255,255,255,0.72))` }} aria-label={tr(`Award points to ${s.name}`, `منح نقاط لـ ${s.name}`)}>
-                  <span className="relative"><Avatar code={s.avatar} size={72} className="ring-4 ring-white shadow dark:ring-white/10" /><PresenceDot seen={s.seen} className="absolute bottom-1 end-0" /></span>
-                  <span className="line-clamp-2 min-h-[2.5rem] text-sm font-bold leading-tight" dir="auto" data-testid="cls-name">{s.name}</span>
+                <button type="button" onPointerDown={() => pressStart(s)} onPointerUp={pressEnd} onPointerLeave={pressEnd} onContextMenu={(e) => { if (attMode) e.preventDefault(); }} onClick={() => { if (attMode) { if (lp.current.fired) { lp.current.fired = false; return; } mark(s, "P"); return; } setWhole(false); setAward([s]); }} className="relative flex w-full flex-col items-center gap-2 rounded-[1.75rem] border-2 border-white/80 p-4 pt-5 ring-1 ring-[#1b3a57]/10 text-center text-[#1b2f44] shadow-[0_6px_20px_rgba(27,58,87,0.12)] backdrop-blur-md transition hover:-translate-y-1 hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sun" style={{ background: `linear-gradient(155deg, ${PASTEL[shown.indexOf(s) % PASTEL.length]}e6, rgba(255,255,255,0.72))` }} aria-label={tr(`Award points to ${s.name}`, `منح نقاط لـ ${s.name}`)}>
+                  <span className="relative"><Avatar code={s.avatar} size={96} anim={flash[s.id] !== undefined && flash[s.id] > 0 ? "celebrate" : "idle"} className="ring-4 ring-white shadow-lg transition group-hover:scale-105 dark:ring-white/20" /><PresenceDot seen={s.seen} className="absolute bottom-1 end-0" /></span>
+                  <span className="line-clamp-2 min-h-[2.75rem] text-base font-extrabold leading-tight tracking-tight text-[#1b3a57] sm:text-lg" dir="auto" data-testid="cls-name">{s.name}</span>
                   {attMode && <span className={`rounded-full px-2.5 py-0.5 text-xs font-extrabold ${att[s.id]?.status === "P" ? "bg-emerald-100 text-emerald-900" : att[s.id]?.status === "L" ? "bg-amber-100 text-amber-900" : att[s.id]?.status === "A" ? "bg-rose-100 text-rose-900" : "bg-black/10"}`} data-testid="cls-att">{att[s.id]?.status === "P" ? tr("Present", "حاضر") : att[s.id]?.status === "L" ? tr("Late", "متأخر") : att[s.id]?.status === "A" ? tr("Absent", "غائب") : att[s.id]?.status === "E" ? tr("Excused", "بعذر") : tr("Not marked", "غير مسجّل")}</span>}
                   <span className={`rounded-full px-3 py-0.5 text-sm font-extrabold ${s.points < 0 ? "bg-rose-100 text-rose-800" : "bg-sun/80 text-[#0b1b2b]"}`} data-testid="cls-points">{s.points}</span>
                   <span className="h-1.5 w-full overflow-hidden rounded-full bg-black/10"><span className="block h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${Math.max(0, Math.round((s.points / maxPts) * 100))}%` }} /></span>

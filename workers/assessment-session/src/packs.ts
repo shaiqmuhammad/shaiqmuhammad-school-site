@@ -66,6 +66,13 @@ const row = (r: Record<string, unknown>, full = true) => ({
   assignAt: Number(r.assign_at || 0), due: Number(r.due || 0), status: String(r.status), hw: String(r.hw || ""), live: Number(r.live ?? -1), tpl: !!Number(r.tpl || 0), created: Number(r.created), updated: Number(r.updated),
   ...(full ? { slides: JSON.parse(String(r.slides || "[]")) } : { count: (JSON.parse(String(r.slides || "[]")) as unknown[]).length }),
 });
+/** t422: Year(s) / Section(s) a pack reaches, resolved from its students (for the list cards). */
+function withAud(sql: Sql, items: (ReturnType<typeof row>)[]) {
+  const ids = [...new Set(items.flatMap((x) => x.students as string[]))];
+  if (!ids.length) return items;
+  const m = new Map(sql.exec(`SELECT id, cls, section FROM users WHERE role='student'`).toArray().map((u) => [String(u.id), [String(u.cls || ""), String(u.section || "")]]));
+  return items.map((x) => { const g = (x.students as string[]).map((i) => m.get(i)).filter(Boolean) as string[][]; return { ...x, years: [...new Set(g.map((v) => v[0]).filter(Boolean))], sections: [...new Set(g.map((v) => v[1]).filter(Boolean))] }; });
+}
 const mine = (a: Actor, r: Record<string, unknown>) => a.role === "admin" || String(r.owner) === a.id;
 const forStudent = (a: Actor, r: Record<string, unknown>) => String(r.type) !== "lesson" && String(r.status) === "published" && Number(r.assign_at || 0) <= Date.now() && (JSON.parse(String(r.students || "[]")) as string[]).includes(a.id);
 
@@ -99,11 +106,13 @@ export async function packHandle(c: PackCtx, a: Actor, action: string, input: Js
       if (!staff) {
         // Students: Learning Material (libraries) and any pack homework they were given.
         const items = sql.exec(`SELECT * FROM lpack WHERE status='published' ORDER BY assign_at DESC, updated DESC`).toArray().filter((r) => forStudent(a, r)).map((r) => row(r, false));
-        return { status: 200, body: { items } };
+        const itemsA = withAud(sql, items);
+        return { status: 200, body: { items: itemsA } };
       }
       if (!acc.view) return forbid("module_hidden");
       const items = sql.exec(`SELECT * FROM lpack ORDER BY updated DESC LIMIT 400`).toArray().filter((r) => mine(a, r) || Number(r.tpl)).map((r) => row(r, false));
-      return { status: 200, body: { items, acc } };
+      const itemsA = withAud(sql, items);
+      return { status: 200, body: { items: itemsA, acc } };
     }
     case "lp-get": {
       const r = get();

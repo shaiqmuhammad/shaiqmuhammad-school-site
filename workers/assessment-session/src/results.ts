@@ -54,7 +54,10 @@ export type ResultRecord = {
   /** "" (auto), "manual" (admin linked it) or "ignored" (admin chose to leave it out of reports). */
   linkState?: string;
   details?: ResultDetail[];
+  /** t422: group sessions — top-3 places (p 1..3, ties share) with the shown name, character code and %. */
+  podium?: Podium;
 };
+export type Podium = { p: number; n: string; a: string; pct: number }[];
 
 export interface ResultsEnv extends AdminEnv {
   RESULTS: DurableObjectNamespace<ResultsStore>;
@@ -108,14 +111,15 @@ export class ResultsStore extends DurableObject {
     const cols = new Set([...sql.exec("PRAGMA table_info(records)")].map((r) => String(r.name)));
     if (!cols.has("student_id")) sql.exec("ALTER TABLE records ADD COLUMN student_id TEXT DEFAULT ''");
     if (!cols.has("link_state")) sql.exec("ALTER TABLE records ADD COLUMN link_state TEXT DEFAULT ''");
+    if (!cols.has("podium")) sql.exec("ALTER TABLE records ADD COLUMN podium TEXT DEFAULT ''");
     this.ready = true;
   }
 
   private insert(r: ResultRecord) {
     this.ctx.storage.sql.exec(
-      `INSERT OR REPLACE INTO records (id, kind, quiz_id, quiz_slug, quiz_title, year, name, session_code, score, max_score, percentage, correct, wrong, unanswered, time_sec, finished_at, rank, group_size, details, student_id, link_state) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      `INSERT OR REPLACE INTO records (id, kind, quiz_id, quiz_slug, quiz_title, year, name, session_code, score, max_score, percentage, correct, wrong, unanswered, time_sec, finished_at, rank, group_size, details, student_id, link_state, podium) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       r.id, r.kind, r.quizId, r.quizSlug, r.quizTitle, r.year, r.name, r.sessionCode, r.score, r.maxScore, r.percentage,
-      r.correct, r.wrong, r.unanswered, r.timeSec, r.finishedAt, r.rank, r.groupSize, JSON.stringify(r.details ?? []), r.studentId || "", r.linkState || "",
+      r.correct, r.wrong, r.unanswered, r.timeSec, r.finishedAt, r.rank, r.groupSize, JSON.stringify(r.details ?? []), r.studentId || "", r.linkState || "", r.podium?.length ? JSON.stringify(r.podium) : "",
     );
   }
 
@@ -239,6 +243,7 @@ function toRecord(row: Record<string, SqlStorageValue>, withDetails: boolean): R
     studentId: String(row.student_id ?? ""),
     linkState: String(row.link_state ?? ""),
   };
+  if (row.podium) { try { r.podium = JSON.parse(String(row.podium)) as Podium; } catch { /* old rows: none */ } }
   if (withDetails) {
     try {
       r.details = JSON.parse(String(row.details || "[]")) as ResultDetail[];

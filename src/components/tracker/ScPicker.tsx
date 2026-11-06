@@ -1,5 +1,6 @@
 "use client";
 
+import { clsCmp } from "@/lib/classSort";
 import { useEffect, useMemo, useState } from "react";
 import type { CurUnit } from "@/lib/lmsMods";
 import { loadCurUnits, useTopic } from "@/components/tracker/TopicPicker";
@@ -18,7 +19,7 @@ export function ScPicker({ value, onChange }: { value?: string; onChange: (v: st
   const units = useMemo(() => (all && topic ? all.filter((u) => u.id === topic) : all), [all, topic]);
   const scText = (u: CurUnit, i: number) => (ar && u.scAr?.[i]?.trim() ? u.scAr[i] : u.sc?.[i] || "");
   const cur = useMemo(() => units?.find((u) => value && value.startsWith(u.id + "#")), [units, value]);
-  const years = useMemo(() => [...new Set((units || []).map((u) => u.yr))].sort(), [units]);
+  const years = useMemo(() => [...new Set((units || []).map((u) => u.yr))].sort(clsCmp), [units]);
   const y = yr || cur?.yr || "";
   const list = (units || []).filter((u) => !y || u.yr === y);
   return (

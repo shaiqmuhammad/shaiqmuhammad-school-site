@@ -1,4 +1,5 @@
 "use client";
+import { clsCmp } from "@/lib/classSort";
 import { AdminScopeBar, useAdminScope } from "@/components/AdminScope";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -32,7 +33,7 @@ export function AdminGroups() {
     const m = new Map<string, Set<string>>();
     for (const c of cat?.classes || []) m.set(c.name, new Set((cat?.sections || []).filter((x) => x.classId === c.id || x.cls === c.name).map((x) => x.name)));
     for (const s of students || []) { if (!m.has(s.cls)) m.set(s.cls, new Set()); if (s.section) m.get(s.cls)!.add(s.section); }
-    return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true })).flatMap(([c, ss]) => [c, ...[...ss].sort().map((x) => `${c}|${x}`)]);
+    return [...m.entries()].sort((a, b) => clsCmp(a[0], b[0])).flatMap(([c, ss]) => [c, ...[...ss].sort().map((x) => `${c}|${x}`)]);
   }, [students, cat]);
   const tname = (id: string) => teachers.find((t) => t.id === id)?.name || "?";
   const shown = (items || []).filter((g) => (!fSub || g.subject === fSub) && (!scope.teacher || (g.teachers || []).includes(scope.teacher)));

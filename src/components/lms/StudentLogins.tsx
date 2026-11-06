@@ -1,4 +1,5 @@
 "use client";
+import { clsCmp } from "@/lib/classSort";
 import { useAdminScope } from "@/components/AdminScope";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -34,7 +35,7 @@ export function StudentLogins({ asAdmin, perms = [] }: { asAdmin: boolean; perms
   const load = useCallback(() => { lmsApi.loginsList(asAdmin).then((r) => setItems(r.items)).catch((e) => { setItems([]); setErr(lmsErrorText(e, tr)); }); }, [asAdmin, tr]);
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load(); }, [load]);
-  const classes = useMemo(() => [...new Set((items || []).map((s) => [s.cls, s.section].join("|")))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })), [items]);
+  const classes = useMemo(() => [...new Set((items || []).map((s) => [s.cls, s.section].join("|")))].sort(clsCmp), [items]);
   const scope = useAdminScope();
   const sids = asAdmin ? scope.studentIds : null;
   const sections = useMemo(() => {
@@ -47,7 +48,7 @@ export function StudentLogins({ asAdmin, perms = [] }: { asAdmin: boolean; perms
     return out;
   }, [items, groups, gsel, q, tr, sids]);
   const list = useMemo(() => byGroup ? [...new Map(sections.flatMap((x) => x.students).map((s) => [s.id, s])).values()] : (items || []).filter((s) => (!sids || sids.has(s.id)) && (!cls || `${s.cls}|${s.section}` === cls || s.cls === cls) && (!q || `${s.name} ${s.username}`.toLowerCase().includes(q.toLowerCase()))), [items, cls, q, byGroup, sections, sids]);
-  const classOnly = useMemo(() => [...new Set((items || []).map((s) => s.cls))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })), [items]);
+  const classOnly = useMemo(() => [...new Set((items || []).map((s) => s.cls))].sort(clsCmp), [items]);
   const regen = async (s: LoginCard) => {
     if (!confirm(tr(`Make a new QR code for ${s.name}? The old printed QR will stop working.`, `إنشاء رمز QR جديد لـ ${s.name}؟ سيتوقف الرمز المطبوع القديم.`))) return;
     setBusy(s.id);

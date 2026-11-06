@@ -1,5 +1,6 @@
 "use client";
 
+import { HwMeta, hwAud } from "@/components/lms/HwMeta";
 import { useAdminScope } from "@/components/AdminScope";
 import { TrkLink } from "@/components/tracker/TrkLink";
 import { useCallback, useEffect, useState } from "react";
@@ -50,7 +51,7 @@ export function AdminLmsHomework() {
             <li key={h.id} className={card + " space-y-2"} data-testid="admin-hw-row">
               <div className="flex flex-wrap items-center gap-2">
                 <span aria-hidden>{h.kind === "quran" ? "📖" : "📝"}</span>
-                <b className="min-w-0 flex-1" dir="auto">{h.title}</b>
+                <b className="min-w-0 flex-1" dir="auto">{h.title}<HwMeta {...hwAud(h)} className="mt-0.5 font-normal" /></b>
                 {h.kind === "quran" && <TrkLink id={h.id} kind="hw" asAdmin />}
                 <span className="text-sm opacity-70">{h.students.length ? tr(`${h.students.length} students`, `${h.students.length} طلاب`) : [h.cls, h.section].filter(Boolean).join(" · ") || tr("All students", "كل الطلاب")}</span>
                 <span className="text-sm opacity-70">{Object.entries(h.counts || {}).map(([k, n]) => `${statusLabel(k as never, tr)}: ${n}`).join(" · ") || tr("no work yet", "لا يوجد عمل بعد")}</span>

@@ -1,4 +1,5 @@
 "use client";
+import { HwMeta, hwAud } from "@/components/lms/HwMeta";
 import { applyPref, MenuEditor, useMyPages, useUiPrefs } from "@/components/lms/MenuPrefs";
 import { TodayLessons } from "@/components/lms/Timetable";
 
@@ -169,6 +170,7 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
                           <span className="text-3xl" aria-hidden>{h.kind === "quran" ? "📖" : "📝"}</span>
                           <div className="min-w-0 flex-1">
                             <p className="text-lg font-bold" dir="auto">{h.title}</p>
+                            <HwMeta {...hwAud(h)} className="my-1" />
                             {h.kind === "quran" && <p className="text-sm opacity-80">{surahName(q.surah)} · {q.from}–{q.to}</p>}
                             {h.due && <p className="text-sm opacity-70">{tr("Due", "التسليم")} {new Date(h.due).toLocaleDateString(lang === "ar" ? "ar" : "en-GB")} {h.late && <span className="ms-1 rounded-full bg-rose-100 px-2 py-0.5 text-xs font-bold text-rose-800" data-testid="lms-hw-late">⏰ {h.sub?.submittedAt ? tr("Handed in late", "سُلّم متأخرًا") : tr("Overdue", "متأخر")}</span>}</p>}
                           </div>
@@ -239,6 +241,7 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
                         <span className="text-2xl" aria-hidden>{h.kind === "quran" ? "📖" : "📝"}</span>
                         <span className="min-w-0 flex-1">
                           <span className="block font-bold" dir="auto">{h.title}</span>
+                          <HwMeta {...hwAud(h)} className="my-0.5" />
                           <span className="block text-sm opacity-75">
                             {h.kind === "quran" ? `${surahName(q.surah)} ${q.from}–${q.to} · ` : ""}
                             {h.students.length ? tr(`${h.students.length} students`, `${h.students.length} طلاب`) : [h.cls, h.section].filter(Boolean).join(" · ") || tr("All students", "كل الطلاب")}
@@ -274,6 +277,7 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
                         <span className="text-2xl" aria-hidden>{h.kind === "quran" ? "📖" : "📝"}</span>
                         <span className="min-w-0 flex-1">
                           <span className="block font-bold" dir="auto">{h.title}</span>
+                          <HwMeta {...hwAud(h)} className="my-0.5" />
                           <span className="block text-sm opacity-75">
                             {h.kind === "quran" ? `${surahName(q.surah)} ${q.from}–${q.to} · ` : ""}
                             {h.students.length ? tr(`${h.students.length} students`, `${h.students.length} طلاب`) : [h.cls, h.section].filter(Boolean).join(" · ") || tr("All students", "كل الطلاب")}
@@ -309,6 +313,7 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
                         <span className="text-2xl" aria-hidden>{h.kind === "quran" ? "📖" : "📝"}</span>
                         <span className="min-w-0 flex-1">
                           <span className="block font-bold" dir="auto">{h.title}</span>
+                          <HwMeta {...hwAud(h)} className="my-0.5" />
                           <span className="block text-sm opacity-75">
                             {h.kind === "quran" ? `${surahName(q.surah)} ${q.from}–${q.to} · ` : ""}
                             {h.students.length ? tr(`${h.students.length} students`, `${h.students.length} طلاب`) : [h.cls, h.section].filter(Boolean).join(" · ") || tr("All students", "كل الطلاب")}

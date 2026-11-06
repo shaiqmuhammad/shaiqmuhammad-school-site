@@ -1,7 +1,10 @@
 "use client";
 
 import { DlGate } from "@/components/lms/DlGate";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Avatar, ANIMALS } from "@/components/lms/Avatar";
+import { SfxToggle } from "@/components/activity/SfxToggle";
+import { sfxFanfare } from "@/lib/sfx";
 import type { ResultRow, SessionResults } from "@/lib/groupSession";
 import type { Quiz } from "@/lib/quiz";
 import { barChartSvg, classAverage, donutGridSvg, questionStats } from "@/lib/resultsCharts";
@@ -58,30 +61,45 @@ export function Confetti() {
   );
 }
 
-/** Top-3 podium (ties share a step) with medals and confetti. Rows already carry the names to show. */
-export function Podium({ rows, lang }: { rows: ResultRow[]; lang: string }) {
-  if (!rows.length) return null;
+/** t422: dense podium places — 1st, 2nd and 3rd are the three best distinct scores (ties share a step, nobody is skipped). */
+export function podiumPlaces<T extends { score: number; submitted?: boolean }>(rows: T[]): (T & { place: number })[] {
+  const live = rows.filter((r) => r.submitted !== false || r.score > 0);
+  const top = [...new Set(live.map((r) => r.score))].sort((a, b) => b - a).slice(0, 3);
+  return live.filter((r) => top.includes(r.score)).map((r) => ({ ...r, place: top.indexOf(r.score) + 1 }));
+}
+/** A friendly fallback character for a name (anonymous joiners): one of the 24 animals, stable per name. */
+export const nameAvatar = (n: string) => { let h = 7; for (const c of n) h = (h * 31 + c.charCodeAt(0)) >>> 0; return `a${h % ANIMALS}`; };
+
+/** Top-3 podium with characters, medals, confetti and an appreciation sound (respects the 🔊 mute). */
+export function Podium({ rows, lang, saved }: { rows: ResultRow[] | { p: number; n: string; a: string; pct: number }[]; lang: string; saved?: boolean }) {
+  const list = useMemo(() => (saved ? (rows as { p: number; n: string; a: string; pct: number }[]).map((r) => ({ place: r.p, name: r.n, av: r.a, percentage: r.pct })) : podiumPlaces(rows as ResultRow[]).map((r) => ({ place: r.place, name: r.name, av: r.av || "", percentage: r.percentage }))), [rows, saved]);
+  const played = useRef(false);
+  useEffect(() => { if (!saved && list.length && !played.current) { played.current = true; sfxFanfare(); } }, [list.length, saved]);
+  if (!list.length) return null;
+  const steps = STEPS.filter((s) => list.some((r) => r.place === s.rank));
   return (
-    <div className="relative rounded-3xl bg-gradient-to-b from-teal-50 to-white p-4 pt-6 shadow-xl ring-1 ring-emerald-900/10 dark:from-teal-950/40 dark:to-transparent dark:ring-emerald-100/10" data-testid="podium">
-      <Confetti />
-      <div className="mx-auto grid max-w-3xl grid-cols-3 items-end gap-2 sm:gap-4">
-        {STEPS.map((s) => {
-          const who = rows.filter((r) => r.rank === s.rank);
+    <div className={`relative overflow-hidden rounded-3xl bg-gradient-to-b from-[#1b3a57] via-[#24507a] to-[#1b3a57] ${saved ? "p-3" : "p-4 pt-6"} text-white shadow-xl ring-1 ring-[#f5c542]/40`} data-testid="podium">
+      {!saved && <Confetti />}
+      {!saved && <p className="mb-3 text-center text-lg font-extrabold text-[#f5c542] sm:text-2xl" data-testid="podium-cheer">🌟 {lang === "ar" ? "أحسنتم جميعًا! ما شاء الله" : "Well done, everyone! MashaAllah"} 🌟</p>}
+      {!saved && <div className="absolute end-3 top-3"><SfxToggle /></div>}
+      <div className={`mx-auto grid max-w-3xl items-end gap-2 sm:gap-4 ${steps.length === 1 ? "grid-cols-1 max-w-xs" : steps.length === 2 ? "grid-cols-2 max-w-xl" : "grid-cols-3"}`}>
+        {steps.map((s) => {
+          const who = list.filter((r) => r.place === s.rank);
           return (
             <div key={s.rank} className="flex flex-col items-center text-center" data-testid={`podium-${s.rank}`}>
-              <span className="text-4xl sm:text-6xl" aria-hidden>
-                {who.length ? s.medal : ""}
-              </span>
-              <div className="mt-1 min-h-[3.5rem] w-full space-y-0.5">
-                {who.map((r, i) => (
-                  <p key={i} dir="auto" className="truncate text-sm font-bold sm:text-xl">
-                    {r.name}
-                  </p>
+              <span className={saved ? "text-2xl" : "text-4xl sm:text-5xl"} aria-hidden>{s.medal}</span>
+              <div className="mt-1 flex w-full flex-wrap items-end justify-center gap-2">
+                {who.slice(0, 4).map((r, i) => (
+                  <div key={i} className="flex min-w-0 flex-col items-center" data-testid="podium-person">
+                    <Avatar code={r.av || nameAvatar(r.name)} size={saved ? 40 : who.length > 2 ? 56 : 76} anim={saved ? undefined : s.rank === 1 ? "celebrate" : "idle"} className="ring-4 ring-white/80 shadow-lg" />
+                    <p dir="auto" className={`mt-1 max-w-[9rem] truncate font-extrabold text-white ${saved ? "text-xs" : "text-sm sm:text-lg"}`}>{r.name}</p>
+                  </div>
                 ))}
-                {who.length ? <p className="text-xs font-semibold opacity-70 sm:text-sm">{who[0].percentage}%</p> : null}
+                {who.length > 4 && <span className="text-xs font-bold text-white/80">+{who.length - 4}</span>}
               </div>
-              <div className={`mt-2 flex w-full items-start justify-center rounded-t-2xl bg-gradient-to-b ${s.tone} ${s.h} pt-2 text-xl font-black sm:text-3xl`}>
-                {who.length ? (lang === "ar" ? s.label[1] : s.label[0]) : "—"}
+              <p className="text-xs font-bold text-[#f5c542] sm:text-sm">{who[0].percentage}%</p>
+              <div className={`mt-2 flex w-full items-start justify-center rounded-t-2xl bg-gradient-to-b ${s.tone} ${saved ? "h-8 text-sm" : s.h + " text-xl sm:text-3xl"} pt-1 font-black`}>
+                {lang === "ar" ? s.label[1] : s.label[0]}
               </div>
             </div>
           );

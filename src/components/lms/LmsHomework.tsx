@@ -1,5 +1,6 @@
 "use client";
 
+import { HwMeta, hwAud } from "@/components/lms/HwMeta";
 import { TrkLink } from "@/components/tracker/TrkLink";
 import { CurChip } from "@/components/lms/mods/CurChip";
 import { Amiri_Quran } from "next/font/google";
@@ -448,6 +449,7 @@ export function LmsHomework() {
           <>
             <header className="space-y-1">
               <h1 className="text-3xl font-bold" dir="auto">{hw.title}</h1>
+              <HwMeta {...hwAud(hw)} />
               <p className="opacity-80">
                 {subtitle}
                 {hw.due ? ` · ${tr("due", "التسليم")} ${new Date(hw.due).toLocaleDateString(lang === "ar" ? "ar" : "en-GB")}` : ""}

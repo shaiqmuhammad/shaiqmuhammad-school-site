@@ -53,7 +53,7 @@ function AddWithParent({ kind, placeholder, opts, none, testId, save }: { kind: 
   return <div className="flex flex-wrap items-center gap-2">{opts && <PSel value={pv} opts={opts} onChange={setPv} none={none || ""} testId={`${testId}-parent`} />}<AddForm placeholder={placeholder} testId={testId} onAdd={(name) => save(kind, undefined, name, opts ? pv : undefined)} /></div>;
 }
 function H({ icon, t, sub, tone }: { icon: string; t: string; sub: string; tone: string }) {
-  return <div className={`-mx-4 -mt-4 mb-3 rounded-t-3xl px-4 py-3 text-white sm:-mx-5 sm:-mt-5 sm:px-5 ${tone}`}><h3 className="text-lg font-extrabold">{icon} {t}</h3><p className="text-xs opacity-90">{sub}</p></div>;
+  return <div className={`-mx-4 -mt-4 mb-3 rounded-t-3xl px-4 py-3 text-white sm:-mx-5 sm:-mt-5 sm:px-5 ${tone}`}><h3 className="text-lg font-extrabold text-white!" style={{ color: "#fff" }}>{icon} {t}</h3><p className="text-xs text-white!" style={{ color: "#fff" }}>{sub}</p></div>;
 }
 
 /** Admin area only (rendered inside the Admin layout): Subjects, Classes and their Sections (used by people forms, templates, homework targeting and filters). */
@@ -96,7 +96,7 @@ export function LmsSetup() {
     <>
       <div className="light-island space-y-5 text-[#1b2f44]" data-testid="lms-setup">
         <div className="rounded-3xl bg-gradient-to-r from-indigo-800 via-sky-800 to-emerald-800 p-5 text-white shadow">
-          <h2 className="text-2xl font-extrabold" data-testid="admin-lms-heading">🏫 {tr("Classes & subjects", "الصفوف والمواد")}</h2>
+          <h2 className="text-2xl font-extrabold text-white" style={{ color: "#fff" }} data-testid="admin-lms-heading">🏫 {tr("Classes & subjects", "الصفوف والمواد")}</h2>
           <p className="mt-1 text-sm opacity-90">{tr("The only place to create Phases, Departments, Subjects, Classes and Sections. Groups, Teaching assignment, Timetable, filters, trackers and reports all read from here. Renaming updates everyone who uses the name.", "المكان الوحيد لإنشاء المراحل والأقسام والمواد والصفوف والشعب. كل الصفحات تقرأ من هنا.")}</p>
           <p className="mt-2 text-xs font-bold opacity-90">{tr("Phase → Department → Subject · Phase → Class → Section", "المرحلة ← القسم ← المادة · المرحلة ← الصف ← الشعبة")}</p>
         </div>

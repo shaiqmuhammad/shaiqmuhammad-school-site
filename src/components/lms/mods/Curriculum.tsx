@@ -1,5 +1,6 @@
 "use client";
 
+import { clsCmp } from "@/lib/classSort";
 import { pgApi } from "@/lib/lessonPages";
 import { useI18n } from "@/lib/i18n";
 import { DlGate } from "@/components/lms/DlGate";
@@ -88,7 +89,7 @@ export function Curriculum({ asAdmin, student = false }: { asAdmin: boolean; stu
     Promise.all([loadQuizzesData().catch(() => null), pgApi.list(asAdmin).catch(() => null)]).then(([q, c]) => setLinks({ quizzes: (q?.quizzes || []).map((x) => ({ slug: x.slug, title: x.title })), pages: (c?.items || []).map((x) => ({ slug: x.slug, title: x.title })) })); }, [load, asAdmin, student]);
   useEffect(() => { if (focus && items) setTimeout(() => document.getElementById(`u-${focus}`)?.scrollIntoView({ block: "center" }), 150); }, [focus, items]);
   const subjects = useMemo(() => [...new Set([...(cat?.subjects.map((s) => s.name) || []), ...(items || []).map((i) => i.subject)])], [cat, items]);
-  const years = useMemo(() => [...new Set([...(cat?.classes.map((s) => s.name) || []), ...(items || []).map((i) => i.yr)])], [cat, items]);
+  const years = useMemo(() => [...new Set([...(cat?.classes.map((s) => s.name) || []), ...(items || []).map((i) => i.yr)])].sort(clsCmp), [cat, items]);
   // t284: Islamic A links to (shares) the Islamic B curriculum and shows it in Arabic by default; English fills any gap.
   const subjSel = f.subject || (asAdmin ? scope.subject : "");
   const arCtx = ARABIC_SUBJECTS.includes(subjSel) || (!asAdmin && !!actor?.subj?.length && actor.subj.every((x) => ARABIC_SUBJECTS.includes(x)));

@@ -1,5 +1,6 @@
 "use client";
 
+import { clsCmp } from "@/lib/classSort";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { AssessmentShell } from "@/components/assessment/AssessmentShell";
 import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
@@ -79,7 +80,7 @@ export function useRoster(asAdmin: boolean) {
   }, [asAdmin]);
   const groups = useMemo<RGroup[]>(() => {
     const have = new Set((students || []).map((s) => s.id));
-    return grp.map((g) => ({ key: g.id, name: grpLabel(g), ids: g.students.filter((id) => have.has(id)), cls: "", section: "" })).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+    return grp.map((g) => ({ key: g.id, name: grpLabel(g), ids: g.students.filter((id) => have.has(id)), cls: "", section: "" })).sort((a, b) => clsCmp(a.name, b.name));
   }, [grp, students]);
   return { students, groups };
 }

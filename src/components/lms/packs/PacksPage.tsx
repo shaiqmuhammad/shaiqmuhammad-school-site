@@ -6,6 +6,7 @@ import { AssessmentShell } from "@/components/assessment/AssessmentShell";
 import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
 import { smallBtn, useLmsActor, useTr } from "@/components/lms/useLms";
 import { modErr } from "@/lib/lmsMods";
+import { HwMeta } from "@/components/lms/HwMeta";
 import { blankSlide, lp, TYPE_LABEL, type Acc, type Pack, type PackType } from "@/lib/packs";
 import { PackEditor } from "./PackEditor";
 import { HwRemindBell } from "@/components/lms/HwRemind";
@@ -72,7 +73,7 @@ export function PacksPage() {
           <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" data-testid="lp-list">
             {items === null ? <li>…</li> : list.length === 0 ? <li className="rounded-3xl border border-white/60 bg-white/75 p-4 text-sm text-[#1b2f44] backdrop-blur-md">{staff ? tr("No packs yet — start with a template above.", "لا توجد حزم بعد — ابدأ بقالب.") : tr("Nothing here yet.", "لا شيء هنا بعد.")}</li> : list.map((x) => (
               <li key={x.id} className={`space-y-2 rounded-3xl border p-4 text-[#1b2f44] shadow-lg backdrop-blur-md transition hover:-translate-y-0.5 ${TINT[x.type]}`} data-testid="lp-item">
-                <div className="flex items-start gap-2"><span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-white/80 text-2xl shadow-inner">{TYPE_LABEL[x.type][0]}</span><div className="min-w-0 flex-1"><p className="font-extrabold" dir="auto">{x.title}</p><span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-extrabold ${BADGE[x.type]}`} data-testid="lp-badge">{tr(TYPE_LABEL[x.type][1], TYPE_LABEL[x.type][2])}</span><p className="text-xs opacity-70">{tr(TYPE_LABEL[x.type][1], TYPE_LABEL[x.type][2])} · {x.count} {tr("slides", "شرائح")}{x.subject ? ` · ${x.subject}` : ""}{x.topic?.title ? ` · ${x.topic.title}` : ""}</p>
+                <div className="flex items-start gap-2"><span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-white/80 text-2xl shadow-inner">{TYPE_LABEL[x.type][0]}</span><div className="min-w-0 flex-1"><p className="font-extrabold" dir="auto">{x.title}</p><span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-extrabold ${BADGE[x.type]}`} data-testid="lp-badge">{tr(TYPE_LABEL[x.type][1], TYPE_LABEL[x.type][2])}</span><p className="text-xs opacity-70">{tr(TYPE_LABEL[x.type][1], TYPE_LABEL[x.type][2])} · {x.count} {tr("slides", "شرائح")}{x.subject ? ` · ${x.subject}` : ""}{x.topic?.title ? ` · ${x.topic.title}` : ""}</p><HwMeta years={x.years} sections={x.sections} subject={x.subject} className="mt-1" />
                   {staff && <p className="text-xs opacity-70">{x.status === "published" ? (x.assignAt > Date.now() ? "⏰ " + tr("Scheduled", "مجدول") : "✅ " + tr("Published", "منشور")) : "📝 " + tr("Draft", "مسودة")}{x.due ? ` · ${tr("due", "التسليم")} ${new Date(x.due).toLocaleDateString(lang === "ar" ? "ar-AE" : "en-GB", { timeZone: "Asia/Dubai" })}` : ""}{x.tpl ? ` · ${tr("template", "قالب")}` : ""}{x.mode === "live" ? " · 📡" : ""}</p>}</div></div>
                 <div className="flex flex-wrap gap-1.5">
                   {staff && (x.owner === actor?.id || asAdmin) && <button type="button" className={smallBtn} onClick={() => lp.get(x.id, asAdmin).then((r) => setEdit(r.pack))} data-testid="lp-edit">✏️ {acc?.edit ? tr("Edit", "تعديل") : tr("View", "عرض")}</button>}

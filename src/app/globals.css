@@ -404,3 +404,15 @@ html.focus-mode .pub-main, html.focus-mode .lms-main { padding-top: 0 !important
 
 /* t413: Venn zone labels (incl. the middle "Both" / "كلاهما") stay white on every surface, light + dark. */
 html [data-venn-label], html.dark [data-venn-label], html .dark [data-venn-label] { color: #ffffff !important; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55) !important; }
+
+/* t422: animated characters (Avatar anim="idle" | "celebrate") */
+@media (prefers-reduced-motion: no-preference) {
+  .av-idle .av-body { transform-origin: 50% 90%; animation: av-bob 3.2s ease-in-out infinite; }
+  .av-idle .av-eyes, .av-celebrate .av-eyes { transform-origin: 50% 55%; transform-box: fill-box; animation: av-blink 4.6s infinite; }
+  .av-celebrate { animation: av-jump 0.9s ease-in-out infinite; }
+  .av-celebrate .av-spark { transform-origin: center; transform-box: fill-box; animation: av-twinkle 1.1s ease-in-out infinite; }
+}
+@keyframes av-bob { 0%, 100% { transform: translateY(0) rotate(0) } 50% { transform: translateY(-2.5px) rotate(-2deg) } }
+@keyframes av-blink { 0%, 92%, 100% { transform: scaleY(1) } 95% { transform: scaleY(0.1) } }
+@keyframes av-jump { 0%, 100% { transform: translateY(0) scale(1) } 40% { transform: translateY(-10%) scale(1.06) } 60% { transform: translateY(0) scale(0.97, 1.03) } }
+@keyframes av-twinkle { 0%, 100% { opacity: .3; transform: scale(.7) } 50% { opacity: 1; transform: scale(1.15) } }

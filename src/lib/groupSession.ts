@@ -37,6 +37,8 @@ export type ResultRow = {
   id?: string;
   rank: number;
   name: string;
+  /** t422: LMS character code of a signed-in class student. */
+  av?: string;
   score: number;
   maxScore: number;
   correct: number;

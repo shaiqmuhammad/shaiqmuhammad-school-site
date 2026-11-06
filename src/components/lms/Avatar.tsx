@@ -22,18 +22,25 @@ export function rerollCode(gender = "", current = ""): string {
 }
 
 function Face({ skin }: { skin: string }) {
+  // t422: brighter, friendlier face — big shiny eyes that blink, brows, rosy cheeks, open smile.
   return (
     <>
       <circle cx="50" cy="54" r="24" fill={skin} />
-      <circle cx="41" cy="54" r="3.2" fill="#1f2937" /><circle cx="59" cy="54" r="3.2" fill="#1f2937" />
-      <circle cx="42" cy="53" r="1" fill="#fff" /><circle cx="60" cy="53" r="1" fill="#fff" />
-      <circle cx="35" cy="62" r="3.5" fill="#f87171" opacity=".35" /><circle cx="65" cy="62" r="3.5" fill="#f87171" opacity=".35" />
-      <path d="M43 64q7 6 14 0" stroke="#7c2d12" strokeWidth="2.4" fill="none" strokeLinecap="round" />
+      <ellipse cx="44" cy="44" rx="10" ry="6" fill="#fff" opacity=".18" />
+      <path d="M36 46q5-3 9 0M55 46q5-3 9 0" stroke="#3b2414" strokeWidth="1.8" fill="none" strokeLinecap="round" opacity=".7" />
+      <g className="av-eyes">
+        <ellipse cx="41" cy="54" rx="3.8" ry="4.4" fill="#1f2937" /><ellipse cx="59" cy="54" rx="3.8" ry="4.4" fill="#1f2937" />
+        <circle cx="42.4" cy="52.4" r="1.5" fill="#fff" /><circle cx="60.4" cy="52.4" r="1.5" fill="#fff" />
+        <circle cx="40" cy="56" r=".7" fill="#fff" opacity=".8" /><circle cx="58" cy="56" r=".7" fill="#fff" opacity=".8" />
+      </g>
+      <circle cx="34.5" cy="62" r="4" fill="#fb7185" opacity=".4" /><circle cx="65.5" cy="62" r="4" fill="#fb7185" opacity=".4" />
+      <path d="M43 63q7 7 14 0z" fill="#9a3412" /><path d="M46 65.5q4 2.6 8 0" stroke="#fda4af" strokeWidth="2" fill="none" strokeLinecap="round" />
     </>
   );
 }
 
-export function Avatar({ code, size = 56, className = "" }: { code: string; size?: number; className?: string }) {
+/** t422: anim "idle" = gentle bob + blink; "celebrate" = bounce + sparkles. Respects reduced motion (CSS). */
+export function Avatar({ code, size = 56, className = "", anim }: { code: string; size?: number; className?: string; anim?: "idle" | "celebrate" }) {
   // t305: an uploaded profile photo (data URL) instead of a character.
   // eslint-disable-next-line @next/next/no-img-element
   if (code.startsWith("data:image/")) return <img src={code} alt="" width={size} height={size} className={`shrink-0 rounded-full object-cover ${className}`} style={{ width: size, height: size }} data-testid="avatar-photo" />;
@@ -85,21 +92,30 @@ export function Avatar({ code, size = 56, className = "" }: { code: string; size
       </>
     );
   }
+  const gid = `avg-${code}`;
   return (
-    <svg viewBox="0 0 100 100" width={size} height={size} className={`shrink-0 rounded-full ${className}`} aria-hidden data-avatar={code}>
-      <circle cx="50" cy="50" r="50" fill={bg} />
-      <clipPath id={`av-${code}`}><circle cx="50" cy="50" r="50" /></clipPath>
-      <g clipPath={`url(#av-${code})`}>{body}</g>
+    <svg viewBox="0 0 100 100" width={size} height={size} className={`av shrink-0 rounded-full ${anim ? `av-${anim}` : ""} ${className}`} aria-hidden data-avatar={code}>
+      <defs>
+        <radialGradient id={gid} cx="35%" cy="28%" r="80%"><stop offset="0" stopColor="#fff" stopOpacity=".85" /><stop offset=".45" stopColor={bg} /><stop offset="1" stopColor={SCARF[(n + 5) % SCARF.length]} stopOpacity=".55" /></radialGradient>
+        <clipPath id={`av-${code}`}><circle cx="50" cy="50" r="50" /></clipPath>
+      </defs>
+      <circle cx="50" cy="50" r="50" fill={`url(#${gid})`} />
+      <g clipPath={`url(#av-${code})`}>
+        <circle cx="14" cy="22" r="3" fill="#fff" opacity=".6" /><circle cx="86" cy="30" r="2" fill="#fff" opacity=".7" /><circle cx="82" cy="78" r="2.5" fill="#fff" opacity=".45" />
+        <g className="av-body">{body}</g>
+        <path d="M18 30a40 40 0 0 1 30-20" stroke="#fff" strokeOpacity=".55" strokeWidth="4" fill="none" strokeLinecap="round" />
+      </g>
+      {anim === "celebrate" && <g className="av-spark" fill="#f5c542"><path d="M12 12l2 5 5 2-5 2-2 5-2-5-5-2 5-2z" /><path d="M86 10l1.5 4 4 1.5-4 1.5-1.5 4-1.5-4-4-1.5 4-1.5z" /><path d="M88 74l1.5 4 4 1.5-4 1.5-1.5 4-1.5-4-4-1.5 4-1.5z" /></g>}
     </svg>
   );
 }
 
-const FUR = [["#f4a259", "#fde2c4"], ["#9ca3af", "#f3f4f6"], ["#8b5e3c", "#e8c9a6"]];
+const FUR = [["#fb923c", "#ffedd5"], ["#a78bfa", "#f5f3ff"], ["#38bdf8", "#e0f2fe"]];
 function Animal({ n }: { n: number }) {
   const kind = n % 8, [fur, light] = FUR[Math.floor(n / 8) % FUR.length];
-  const eyes = <><circle cx="40" cy="56" r="4" fill="#1f2937" /><circle cx="60" cy="56" r="4" fill="#1f2937" /><circle cx="41.3" cy="54.7" r="1.3" fill="#fff" /><circle cx="61.3" cy="54.7" r="1.3" fill="#fff" /></>;
+  const eyes = <g className="av-eyes"><ellipse cx="40" cy="56" rx="4.4" ry="5" fill="#1f2937" /><ellipse cx="60" cy="56" rx="4.4" ry="5" fill="#1f2937" /><circle cx="41.6" cy="54.2" r="1.7" fill="#fff" /><circle cx="61.6" cy="54.2" r="1.7" fill="#fff" /><circle cx="39" cy="58" r=".8" fill="#fff" opacity=".8" /><circle cx="59" cy="58" r=".8" fill="#fff" opacity=".8" /></g>;
   const smile = <path d="M45 68q5 4 10 0" stroke="#3f1d0b" strokeWidth="2.2" fill="none" strokeLinecap="round" />;
-  const cheeks = <><circle cx="33" cy="64" r="4" fill="#f87171" opacity=".3" /><circle cx="67" cy="64" r="4" fill="#f87171" opacity=".3" /></>;
+  const cheeks = <><circle cx="33" cy="64" r="4.5" fill="#fb7185" opacity=".45" /><circle cx="67" cy="64" r="4.5" fill="#fb7185" opacity=".45" /></>;
   switch (kind) {
     case 0: // cat
       return <><path d="M24 44 30 18l16 16zM76 44 70 18 54 34z" fill={fur} /><circle cx="50" cy="60" r="28" fill={fur} />{eyes}{cheeks}<path d="M47 63h6l-3 3z" fill="#e76f51" />{smile}<path d="M22 62h14M22 68h14M64 62h14M64 68h14" stroke="#1f2937" strokeWidth="1.2" opacity=".5" /></>;
