@@ -85,9 +85,10 @@ type Props = {
   onMove?: (id: string, patch: Partial<El>) => void;
   pen?: { c: string; w: number } | null; onStroke?: (d: number[]) => void;
   className?: string; testId?: string;
+  /** t429: small ✕ on the selected element */ onDelete?: (id: string) => void;
 };
 /** Renders a slide (teacher elements, then the student's layer). Editable elements can be dragged and resized; the pen draws strokes. */
-export function SlideView({ slide, layer = [], asAdmin, live = true, edit = null, selected, onSelect, onMove, pen, onStroke, className = "", testId = "slide" }: Props) {
+export function SlideView({ slide, layer = [], asAdmin, live = true, edit = null, selected, onSelect, onMove, pen, onStroke, className = "", testId = "slide", onDelete }: Props) {
   const box = useRef<HTMLDivElement>(null);
   const drag = useRef<{ id: string; mode: "move" | "size"; sx: number; sy: number; e: El } | null>(null);
   const [stroke, setStroke] = useState<number[] | null>(null);
@@ -96,6 +97,7 @@ export function SlideView({ slide, layer = [], asAdmin, live = true, edit = null
   const down = (ev: React.PointerEvent, e: El, mode: "move" | "size") => {
     if (pen || !edit || (e.by || "t") !== edit) return;
     ev.stopPropagation(); onSelect?.(e.id);
+    if (e.lock) return; // t429: locked by the teacher
     (ev.target as Element).setPointerCapture?.(ev.pointerId);
     const [x, y] = pt(ev); drag.current = { id: e.id, mode, sx: x, sy: y, e };
   };
@@ -115,7 +117,9 @@ export function SlideView({ slide, layer = [], asAdmin, live = true, edit = null
           onPointerDown={(ev) => { if (editing === e.id) return; down(ev, e, "move"); }} onDoubleClick={() => { if (e.t === "text" && edit && e.by === edit && !pen) setEditing(e.id); }} onClick={() => { if (e.t === "text" && edit && e.by === edit && !pen && selected === e.id && !drag.current) setEditing(e.id); }} data-testid={`el-${e.t}`}>
           {editing === e.id && e.t === "text" ? <EditText e={e} onDone={(html, text) => { onMove?.(e.id, { html, text: text.slice(0, 4000) } as Partial<El>); setEditing(""); }} onSize={(d) => onMove?.(e.id, { size: Math.max(8, Math.min(160, e.size + d)) } as Partial<El>)} />
             : <div className={edit && e.by === edit && !pen && (e.t === "yt" || e.t === "act") ? "pointer-events-none h-full w-full" : "h-full w-full"}><Body e={e} asAdmin={asAdmin} live={live && !(edit && e.by === edit)} /></div>}
-          {selected === e.id && e.by === edit && !pen && <span className="absolute -bottom-2 -end-2 h-4 w-4 cursor-se-resize rounded-full border-2 border-white bg-sky-500" onPointerDown={(ev) => down(ev, e, "size")} data-testid="el-resize" />}
+          {selected === e.id && e.by === edit && !pen && onDelete && !e.lock && <button type="button" className="absolute -end-3 -top-3 z-10 grid h-6 w-6 place-items-center rounded-full bg-rose-600 text-xs font-black text-white shadow-md ring-2 ring-white hover:bg-rose-700" onPointerDown={(ev) => ev.stopPropagation()} onClick={(ev) => { ev.stopPropagation(); onDelete(e.id); }} aria-label="Delete" title="Delete (Del)" data-testid="el-x">✕</button>}
+          {selected === e.id && e.by === edit && !pen && e.lock && <span className="absolute -end-3 -top-3 z-10 grid h-6 w-6 place-items-center rounded-full bg-slate-700 text-[11px] text-white shadow-md ring-2 ring-white" title="Locked" data-testid="el-locked">🔒</span>}
+          {selected === e.id && e.by === edit && !pen && !e.lock && <span className="absolute -bottom-2 -end-2 h-4 w-4 cursor-se-resize rounded-full border-2 border-white bg-sky-500" onPointerDown={(ev) => down(ev, e, "size")} data-testid="el-resize" />}
         </div>))}
       {stroke && pen && <Strokes e={{ id: "tmp", t: "draw", x: 0, y: 0, w: 100, h: 100, paths: [{ c: pen.c, w: pen.w, d: stroke }] }} />}
     </div>

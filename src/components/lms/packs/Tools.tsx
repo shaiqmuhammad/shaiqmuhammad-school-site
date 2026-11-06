@@ -14,7 +14,7 @@ export type Pen = { c: string; w: number } | null;
 type Add = (e: Omit<El, "id">) => void;
 
 /** t315: "add" toolbar shared by the teacher editor and the student player. Teachers also get YouTube, activities and the Quran block. */
-export function AddTools({ add, pen, setPen, onUndoStroke, onClearDraw, asAdmin, teacher, onErr }: { add: Add; pen: Pen; setPen: (p: Pen) => void; onUndoStroke: () => void; onClearDraw: () => void; asAdmin: boolean; teacher: boolean; onErr: (m: string) => void }) {
+export function AddTools({ add, pen, setPen, onUndoStroke, onClearDraw, asAdmin, teacher, onErr, compact = false }: { add: Add; pen: Pen; setPen: (p: Pen) => void; onUndoStroke: () => void; onClearDraw: () => void; asAdmin: boolean; teacher: boolean; onErr: (m: string) => void; compact?: boolean }) {
   const { tr } = useTr();
   const [panel, setPanel] = useState<"" | "yt" | "act" | "quran" | "rec">("");
   const [busy, setBusy] = useState(false);
@@ -22,11 +22,12 @@ export function AddTools({ add, pen, setPen, onUndoStroke, onClearDraw, asAdmin,
   const b = (on: boolean, c = "sky") => `${tb(c)} ${on ? "!bg-[#1b2f44] !text-white !ring-[#1b2f44]" : ""}`;
   return (
     <div className="space-y-2" data-testid="lp-tools">
-      <div className="flex flex-wrap items-center gap-1.5 rounded-2xl bg-white/80 p-2 shadow-sm ring-1 ring-black/5" data-testid="lp-toolbar">
-        <button type="button" className={tb("sky")} onClick={() => add({ t: "text", text: tr("Type here", "اكتب هنا"), color: "#1b2f44", font: "Nunito", size: 40, x: 10, y: 10, w: 50, h: 14 } as Omit<El, "id">)} data-testid="lp-add-text">🔤 {tr("Text", "نص")}</button>
-        <label className={tb("violet")} data-testid="lp-add-pic">🖼️ {busy ? "…" : tr("Picture", "صورة")}<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="hidden" onChange={(e) => { pic(e.target.files?.[0]); e.target.value = ""; }} data-testid="lp-pic-input" /></label>
-        <button type="button" className={b(panel === "rec", "rose")} onClick={() => setPanel(panel === "rec" ? "" : "rec")} data-testid="lp-add-audio">🎙️ {tr("Record audio", "تسجيل صوت")}</button>
-        <button type="button" className={b(!!pen, "orange")} onClick={() => setPen(pen ? null : { c: "#e11d48", w: 0.5 })} data-testid="lp-pen">✏️ {pen ? tr("Drawing — tap to stop", "الرسم — اضغط للإيقاف") : tr("Draw", "رسم")}</button>
+      <div className={`flex flex-wrap items-center gap-1.5 rounded-2xl bg-white/80 p-2 shadow-sm ring-1 ring-black/5 ${compact ? "lb-compact justify-center" : ""}`} data-testid="lp-toolbar">
+        <button type="button" className={tb("sky")} onClick={() => add({ t: "text", text: tr("Type here", "اكتب هنا"), color: "#1b2f44", font: "Nunito", size: 40, x: 10, y: 10, w: 50, h: 14 } as Omit<El, "id">)} title={tr("Text", "نص")} data-testid="lp-add-text">🔤 <span className="lb-tl">{tr("Text", "نص")}</span></button>
+        <label className={tb("violet")} title={tr("Upload picture", "رفع صورة")} data-testid="lp-add-pic">🖼️ <span className="lb-tl">{busy ? "…" : tr("Picture", "صورة")}</span><input type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="hidden" onChange={(e) => { pic(e.target.files?.[0]); e.target.value = ""; }} data-testid="lp-pic-input" /></label>
+        <label className={tb("indigo")} title={tr("Take a photo with the camera", "التقط صورة بالكاميرا")} data-testid="lp-add-cam">📷 <span className="lb-tl">{tr("Camera", "الكاميرا")}</span><input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { pic(e.target.files?.[0]); e.target.value = ""; }} data-testid="lp-cam-input" /></label>
+        <button type="button" className={b(panel === "rec", "rose")} onClick={() => setPanel(panel === "rec" ? "" : "rec")} title={tr("Record your voice", "سجّل صوتك")} data-testid="lp-add-audio">🎙️ <span className="lb-tl">{tr("Record", "تسجيل")}</span></button>
+        <button type="button" className={b(!!pen, "orange")} onClick={() => setPen(pen ? null : { c: "#e11d48", w: 0.5 })} title={tr("Draw", "رسم")} data-testid="lp-pen">✏️ <span className="lb-tl">{pen ? tr("Drawing — tap to stop", "الرسم — اضغط للإيقاف") : tr("Draw", "رسم")}</span></button>
         {teacher && <>
           <button type="button" className={b(panel === "yt", "red")} onClick={() => setPanel(panel === "yt" ? "" : "yt")} data-testid="lp-add-yt">▶️ YouTube</button>
           <button type="button" className={b(panel === "act", "indigo")} onClick={() => setPanel(panel === "act" ? "" : "act")} data-testid="lp-add-act">🎲 {tr("Activity", "نشاط")}</button>
@@ -105,9 +106,10 @@ export function ElProps({ e, set, del, front, back }: { e: El; set: (p: Partial<
         </div>
       </>}
       <div className="flex flex-wrap gap-1.5">
+        {e.by !== "s" && <button type="button" className={smallBtn + (e.lock ? " !bg-header !text-sun" : "")} onClick={() => set({ lock: !e.lock } as Partial<El>)} title={tr("Locked items can't be moved or deleted by mistake", "العناصر المقفلة لا تُنقل ولا تُحذف بالخطأ")} data-testid="lp-el-lock">{e.lock ? "🔒 " + tr("Locked", "مقفل") : "🔓 " + tr("Lock", "قفل")}</button>}
         <button type="button" className={smallBtn} onClick={front}>⬆ {tr("Bring forward", "للأمام")}</button>
         <button type="button" className={smallBtn} onClick={back}>⬇ {tr("Send back", "للخلف")}</button>
-        <button type="button" className={smallBtn + " !text-rose-700"} onClick={del} data-testid="lp-el-delete">🗑 {tr("Delete", "حذف")}</button>
+        <button type="button" className={smallBtn + " !text-rose-700"} onClick={del} disabled={!!e.lock} data-testid="lp-el-delete">🗑 {tr("Delete", "حذف")}</button>
       </div>
     </div>
   );

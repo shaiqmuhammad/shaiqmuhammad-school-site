@@ -7,7 +7,7 @@ import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
 import { smallBtn, useLmsActor, useTr } from "@/components/lms/useLms";
 import { modErr } from "@/lib/lmsMods";
 import { HwMeta } from "@/components/lms/HwMeta";
-import { blankSlide, lp, TYPE_LABEL, type Acc, type Pack, type PackType } from "@/lib/packs";
+import { LB_ICON, blankSlide, lp, TYPE_LABEL, type Acc, type Pack, type PackType } from "@/lib/packs";
 import { PackEditor } from "./PackEditor";
 import { HwRemindBell } from "@/components/lms/HwRemind";
 import { PackPlayer } from "./PackPlayer";
@@ -18,7 +18,7 @@ const TEMPLATES: [string, string, string, (ar: boolean) => Pack["slides"]][] = [
   ["hw", "Homework: task + answer space", "واجب: مهمة + مساحة للإجابة", (ar) => [{ ...blankSlide(), els: [{ id: "t1", t: "text", text: ar ? "📝 المهمة" : "📝 Your task", color: "#1b3a57", font: ar ? "Amiri" : "Nunito", size: 64, bold: true, x: 6, y: 6, w: 88, h: 16 }, { id: "t2", t: "text", text: ar ? "اكتب أو ارسم أو سجّل إجابتك في هذه الشريحة." : "Type, draw or record your answer on this slide.", color: "#586a7d", font: ar ? "Amiri" : "Nunito", size: 36, x: 6, y: 26, w: 88, h: 14 }] }] as Pack["slides"]],
 ];
 
-/** t315: Learning Material — Lesson Packs list (admin + teachers) and the student list (from the Learning Libraries). */
+/** t315: Lesson Builder — Lesson Packs list (admin + teachers) and the student list (from the Learning Libraries). */
 /** t391: frosted tints and badges per type. */
 const TINT: Record<PackType, string> = {
   lesson: "border-[#1b3a57]/25 bg-gradient-to-br from-[#dbe7f3]/90 via-white/75 to-[#fdf0c4]/85",
@@ -46,7 +46,7 @@ export function PacksPage() {
   useEffect(() => { const q = new URLSearchParams(location.search); const t = q.get("new") as PackType | null; if (t && acc?.add && !edit) newPack(t, "blank"); // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [acc]);
   const newPack = (type: PackType, tpl: string) => setEdit({ id: "", owner: "", ownerName: "", title: "", type, subject: asAdmin ? "" : defaultSubject(teacherSubjects(actor as never)), aud: [], students: [], topic: {}, mode: "self", assignAt: 0, due: 0, status: "draft", hw: "", live: -1, tpl: false, created: 0, updated: 0, slides: TEMPLATES.find((x) => x[0] === tpl)![3](/^islamic a$/i.test(actor?.subj?.[0] || "") || lang === "ar") });
-  const title = tr("Learning Material", "المواد التعليمية");
+  const title = tr("Lesson Builder", "منشئ الدروس");
   if (ready && !actor) return <AssessmentShell title={title} exitHref="/lms"><p className="p-8 text-center">{tr("Please sign in.", "يرجى تسجيل الدخول.")}</p></AssessmentShell>;
   const list = (items || []).filter((x) => !filter || x.type === filter);
   return (
@@ -56,7 +56,7 @@ export function PacksPage() {
         : open ? <div className="space-y-2"><button type="button" className={smallBtn} onClick={() => { if (document.fullscreenElement) document.exitFullscreen().catch(() => undefined); setOpen(""); }} data-testid="lp-close">← {tr("Back", "رجوع")}</button><PackPlayer autoFull id={open} asAdmin={asAdmin} preview={staff} /></div>
         : <>
           <div className="relative overflow-hidden rounded-3xl border border-white/30 bg-gradient-to-br from-[#1b3a57]/90 via-[#24507a]/85 to-[#1b3a57]/90 p-5 text-white shadow-[0_12px_40px_-12px_rgba(11,27,43,0.6)] backdrop-blur-xl"><div aria-hidden className="pointer-events-none absolute -end-10 -top-10 h-40 w-40 rounded-full bg-[#f5c542]/30 blur-3xl" />
-            <h1 className="text-2xl font-extrabold !text-white">📚 {title}</h1>
+            <h1 className="flex items-center gap-2 text-2xl font-extrabold !text-white"><span className="grid h-10 w-10 place-items-center rounded-2xl bg-[#f5c542] text-xl shadow-inner" aria-hidden>{LB_ICON}</span>{title}</h1>
             <p className="text-sm opacity-90">{staff ? tr("Build slide lessons and homework: text, pictures, drawing, audio, your YouTube videos, activities and Quran — then assign by year group, class, section or group.", "أنشئ دروسًا وواجبات بالشرائح: نصوص وصور ورسم وصوت وفيديوهاتك وأنشطة وقرآن — ثم أسندها.") : tr("Lessons from your teachers. Open one, then type, draw or record on the slides.", "دروس من معلميك. افتح درسًا واكتب أو ارسم أو سجّل على الشرائح.")}</p>
           </div>
           {msg && <p className="text-sm font-semibold" role="status">{msg}</p>}
@@ -71,13 +71,14 @@ export function PacksPage() {
           {staff && !acc?.view && items && <p className="text-sm">{tr("This module is hidden for your account.", "هذه الوحدة مخفية لحسابك.")}</p>}
           <div className="flex flex-wrap gap-1.5">{(["", "lesson", "activity", "homework", "quran", "material"] as const).map((k) => <button key={k} type="button" aria-pressed={filter === k} className={`rounded-full px-3 py-1 text-sm font-bold ring-1 ring-black/10 ${filter === k ? "bg-[#1b3a57] text-[#f5c542]" : "bg-white/80 text-[#1b2f44] backdrop-blur"}`} onClick={() => setFilter(k)}>{k ? `${TYPE_LABEL[k][0]} ${tr(TYPE_LABEL[k][1], TYPE_LABEL[k][2])}` : tr("All", "الكل")}</button>)}</div>
           <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" data-testid="lp-list">
-            {items === null ? <li>…</li> : list.length === 0 ? <li className="rounded-3xl border border-white/60 bg-white/75 p-4 text-sm text-[#1b2f44] backdrop-blur-md">{staff ? tr("No packs yet — start with a template above.", "لا توجد حزم بعد — ابدأ بقالب.") : tr("Nothing here yet.", "لا شيء هنا بعد.")}</li> : list.map((x) => (
+            {items === null ? <li>…</li> : list.length === 0 ? <li className="rounded-3xl border border-white/60 bg-white/75 p-4 text-sm text-[#1b2f44] backdrop-blur-md">{staff ? tr("No lessons yet — start with a template above.", "لا توجد دروس بعد — ابدأ بقالب.") : tr("Nothing here yet.", "لا شيء هنا بعد.")}</li> : list.map((x) => (
               <li key={x.id} className={`space-y-2 rounded-3xl border p-4 text-[#1b2f44] shadow-lg backdrop-blur-md transition hover:-translate-y-0.5 ${TINT[x.type]}`} data-testid="lp-item">
                 <div className="flex items-start gap-2"><span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-white/80 text-2xl shadow-inner">{TYPE_LABEL[x.type][0]}</span><div className="min-w-0 flex-1"><p className="font-extrabold" dir="auto">{x.title}</p><span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-extrabold ${BADGE[x.type]}`} data-testid="lp-badge">{tr(TYPE_LABEL[x.type][1], TYPE_LABEL[x.type][2])}</span><p className="text-xs opacity-70">{tr(TYPE_LABEL[x.type][1], TYPE_LABEL[x.type][2])} · {x.count} {tr("slides", "شرائح")}{x.subject ? ` · ${x.subject}` : ""}{x.topic?.title ? ` · ${x.topic.title}` : ""}</p><HwMeta years={x.years} sections={x.sections} subject={x.subject} className="mt-1" />
                   {staff && <p className="text-xs opacity-70">{x.status === "published" ? (x.assignAt > Date.now() ? "⏰ " + tr("Scheduled", "مجدول") : "✅ " + tr("Published", "منشور")) : "📝 " + tr("Draft", "مسودة")}{x.due ? ` · ${tr("due", "التسليم")} ${new Date(x.due).toLocaleDateString(lang === "ar" ? "ar-AE" : "en-GB", { timeZone: "Asia/Dubai" })}` : ""}{x.tpl ? ` · ${tr("template", "قالب")}` : ""}{x.mode === "live" ? " · 📡" : ""}</p>}</div></div>
                 <div className="flex flex-wrap gap-1.5">
                   {staff && (x.owner === actor?.id || asAdmin) && <button type="button" className={smallBtn} onClick={() => lp.get(x.id, asAdmin).then((r) => setEdit(r.pack))} data-testid="lp-edit">✏️ {acc?.edit ? tr("Edit", "تعديل") : tr("View", "عرض")}</button>}
-                  {(!staff || x.type === "material" || x.type === "lesson") && <button type="button" className={smallBtn} onClick={() => { document.documentElement.requestFullscreen?.().catch(() => undefined); setOpen(x.id); }} data-testid="lp-open">▶ {tr("Open", "فتح")}</button>}
+                  {(!staff || x.type === "material" || x.type === "lesson") && <button type="button" className={smallBtn} onClick={() => { document.documentElement.requestFullscreen?.().catch(() => undefined); setOpen(x.id); }} data-testid="lp-open">▶ {staff ? tr("Present", "عرض") : tr("Open", "فتح")}</button>}
+                  {staff && x.type !== "material" && x.type !== "lesson" && <button type="button" className={smallBtn} onClick={() => setOpen(x.id)} title={tr("Try it as a student — nothing is assigned or saved", "جرّبه كطالب — بدون إسناد أو حفظ")} data-testid="lp-preview-open">👁 {tr("Preview", "معاينة")}</button>}
                   {staff && x.hw && x.status === "published" && (x.type === "homework" || x.type === "quran") && <HwRemindBell hw={x.hw} title={x.title} asAdmin={asAdmin} />}
                   {!staff && x.hw && <a className={smallBtn} href={`/lms/homework?id=${encodeURIComponent(x.hw)}`} data-testid="lp-open-hw">📝 {x.type === "activity" ? tr("Open activity & hand in", "افتح النشاط وسلّم") : tr("Open homework", "افتح الواجب")}</a>}
                   {staff && acc?.add && <button type="button" className={smallBtn} onClick={() => lp.dup(x.id, asAdmin).then(load).catch((e) => setMsg(modErr(e, tr)))} data-testid="lp-dup">⧉ {tr("Duplicate", "تكرار")}</button>}

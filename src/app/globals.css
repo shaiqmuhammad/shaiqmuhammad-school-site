@@ -416,3 +416,22 @@ html [data-venn-label], html.dark [data-venn-label], html .dark [data-venn-label
 @keyframes av-blink { 0%, 92%, 100% { transform: scaleY(1) } 95% { transform: scaleY(0.1) } }
 @keyframes av-jump { 0%, 100% { transform: translateY(0) scale(1) } 40% { transform: translateY(-10%) scale(1.06) } 60% { transform: translateY(0) scale(0.97, 1.03) } }
 @keyframes av-twinkle { 0%, 100% { opacity: .3; transform: scale(.7) } 50% { opacity: 1; transform: scale(1.15) } }
+/* t429: sitewide Focus pill — hide top bars, menus, tickers and side chrome; keep the page itself. */
+html.page-focus [data-topbar], html.page-focus .admin-page-head, html.page-focus [data-pagechrome], html.page-focus #announcement-ticker, html.page-focus [data-testid=lms-tabs-top], html.page-focus [data-focus-hide], html.page-focus [data-testid=admin-date-row], html.page-focus [data-testid=lms-date-row] { display: none !important; }
+html.page-focus .pub-main, html.page-focus .lms-main { padding-top: 0 !important; }
+/* t429: Lesson Builder full-screen working mode — slide fits the landscape screen, tools always visible. */
+body.lb-work .lb-hide-work { display: none !important; }
+body.lb-work .lp-editor-full { min-height: 100dvh; border-radius: 0; }
+.lb-fit { width: 100%; max-width: calc((100dvh - 11rem) * 16 / 9); margin-inline: auto; }
+body.lb-work .lb-fit { max-width: calc((100dvh - 8rem) * 16 / 9); }
+/* t429: printable slides with QR */
+.lp-print { display: none; }
+@media print {
+  body.lp-printing * { visibility: hidden !important; }
+  body.lp-printing .lp-print, body.lp-printing .lp-print * { visibility: visible !important; }
+  body.lp-printing .lp-print { display: block !important; position: absolute; inset: 0 auto auto 0; width: 100%; }
+  .lp-print-slide { break-inside: avoid; page-break-inside: avoid; margin-bottom: 8mm; }
+  @page { size: A4 landscape; margin: 10mm; }
+}
+.lb-compact .lb-tl { display: none; }
+.lb-compact > button, .lb-compact > label { padding: 0.45rem 0.6rem; font-size: 1.15rem; }

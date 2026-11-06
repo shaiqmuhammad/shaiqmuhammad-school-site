@@ -1,4 +1,5 @@
 "use client";
+import { PackDash } from "@/components/lms/packs/PackDash";
 import { HwMeta, hwAud } from "@/components/lms/HwMeta";
 import { applyPref, MenuEditor, useMyPages, useUiPrefs } from "@/components/lms/MenuPrefs";
 import { TodayLessons } from "@/components/lms/Timetable";
@@ -154,6 +155,7 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
           <p className="p-10 text-center opacity-70">{tr("Loading…", "جارٍ التحميل…")}</p>
         ) : !staff ? (
           <>
+            {!hwOnly && <PackDash />}
             {dash.progress && !hwOnly && <ProgressCard p={dash.progress} />}
             {!hwOnly && <RevisionList tracker={dash.tracker || []} onChange={(t) => setDash({ ...dash, tracker: t })} />}
             <section id="homework" className="scroll-mt-28">

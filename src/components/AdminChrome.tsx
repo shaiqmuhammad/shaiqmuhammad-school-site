@@ -1,7 +1,7 @@
 "use client";
 
 import { useLogoUrl } from "@/components/SiteBrand";
-import { FullscreenToggle } from "@/components/FullscreenToggle";
+import { FocusPill, FullscreenToggle } from "@/components/FullscreenToggle";
 import { GregPill, HijriPill } from "@/components/DatePills";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AdminToolbar } from "@/components/AdminToolbar";
@@ -105,7 +105,7 @@ const ICONS: Record<Tab, ReactNode> = {
   wall: <><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M3 10h18M9 10v10M15 4v6" /></>,
   reports: <><circle cx="12" cy="12" r="9" /><path d="M12 3v9l6.4 6.4" /></>,
   activities: <><rect x="3" y="4" width="18" height="12" rx="2" /><path d="M8 20h8M12 16v4M7 9h4M7 12h7" /></>,
-  pages: <><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z" /><path d="M4 20.5A2.5 2.5 0 0 1 6.5 18H20v3H6.5A2.5 2.5 0 0 1 4 20.5z" /></>,
+  pages: <><rect x="3" y="4" width="14" height="10" rx="2" /><path d="M7 18h6M10 14v4M15 21l6-6M19 13l.5-1.5L21 11l-1.5-.5L19 9l-.5 1.5L17 11l1.5.5z" /></>,
   youtube: <><rect x="2.5" y="5" width="19" height="14" rx="4" /><path d="M10 9v6l5-3z" /></>,
   sitepages: <><path d="M6 3h9l4 4v14H6z" /><path d="M14 3v5h5M9 13h7M9 17h5" /></>,
   announcements: <><path d="M3 11v2a1 1 0 0 0 1 1h3l5 4V6L7 10H4a1 1 0 0 0-1 1z" /><path d="M16 8a5 5 0 0 1 0 8" /></>,
@@ -205,7 +205,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
   const drawerRef = useRef<HTMLDivElement>(null);
   const homeLabel = tr("Admin home — refresh content", "الرئيسية وتحديث المحتوى");
   const label = (id: Tab) =>
-    id === "home" ? tr("Dashboard", "لوحة التحكم") : id === "announcements" ? tr("Announcements", "الإعلانات") : id === "results" ? tr("Results", "النتائج") : id === "reports" ? tr("Department Report", "تقرير القسم") : id === "wall" ? tr("Class Wall", "جدار الصف") : id === "tracker" ? tr("Assessment Tracker", "متتبع التقييم") : id === "asys" ? tr("Attainment & Progress Systems", "أنظمة التحصيل والتقدّم") : id === "qa" ? tr("Progress Check QA", "ضمان جودة فحص التقدم") : id === "timetable" ? tr("Timetable", "الجدول الدراسي") : id === "activities" ? tr("Activities", "الأنشطة") : id === "students" ? tr("Students", "الطلاب") : id === "teachers" ? tr("Teachers", "المعلمون") : id === "setup" ? tr("Classes & Subjects", "الصفوف والمواد") : id === "lmshw" ? tr("Homework", "الواجبات") : id === "mail" ? tr("Mail", "البريد") : id === "homepage" ? tr("Homepage", "الصفحة الرئيسية") : id === "logins" ? tr("Student Logins", "بيانات دخول الطلاب") : id === "groups" ? tr("Groups", "المجموعات") : id === "downloads" ? tr("Downloads", "التنزيلات") : id === "parents" ? tr("Parents", "أولياء الأمور") : id === "attendance" ? tr("Attendance", "الحضور") : id === "behaviour" ? tr("Behaviour", "السلوك") : id === "curriculum" ? tr("Curriculum", "المنهج") : id === "classes" ? tr("Classes", "الصفوف") : id === "staff" ? tr("Staff", "الموظفون") : id === "vcomments" ? tr("Video comments", "تعليقات الفيديو") : id === "messages" ? tr("Messages", "الرسائل") : id === "notices" ? tr("Class announcements", "إعلانات الصفوف") : id === "pages" ? tr("Learning Material", "المواد التعليمية") : id === "youtube" ? "YouTube" : id === "sitepages" ? tr("Pages & menu", "الصفحات والقوائم") : t(`admin.tab.${id}`);
+    id === "home" ? tr("Dashboard", "لوحة التحكم") : id === "announcements" ? tr("Announcements", "الإعلانات") : id === "results" ? tr("Results", "النتائج") : id === "reports" ? tr("Department Report", "تقرير القسم") : id === "wall" ? tr("Class Wall", "جدار الصف") : id === "tracker" ? tr("Assessment Tracker", "متتبع التقييم") : id === "asys" ? tr("Attainment & Progress Systems", "أنظمة التحصيل والتقدّم") : id === "qa" ? tr("Progress Check QA", "ضمان جودة فحص التقدم") : id === "timetable" ? tr("Timetable", "الجدول الدراسي") : id === "activities" ? tr("Activities", "الأنشطة") : id === "students" ? tr("Students", "الطلاب") : id === "teachers" ? tr("Teachers", "المعلمون") : id === "setup" ? tr("Classes & Subjects", "الصفوف والمواد") : id === "lmshw" ? tr("Homework", "الواجبات") : id === "mail" ? tr("Mail", "البريد") : id === "homepage" ? tr("Homepage", "الصفحة الرئيسية") : id === "logins" ? tr("Student Logins", "بيانات دخول الطلاب") : id === "groups" ? tr("Groups", "المجموعات") : id === "downloads" ? tr("Downloads", "التنزيلات") : id === "parents" ? tr("Parents", "أولياء الأمور") : id === "attendance" ? tr("Attendance", "الحضور") : id === "behaviour" ? tr("Behaviour", "السلوك") : id === "curriculum" ? tr("Curriculum", "المنهج") : id === "classes" ? tr("Classes", "الصفوف") : id === "staff" ? tr("Staff", "الموظفون") : id === "vcomments" ? tr("Video comments", "تعليقات الفيديو") : id === "messages" ? tr("Messages", "الرسائل") : id === "notices" ? tr("Class announcements", "إعلانات الصفوف") : id === "pages" ? tr("Lesson Builder", "منشئ الدروس") : id === "youtube" ? "YouTube" : id === "sitepages" ? tr("Pages & menu", "الصفحات والقوائم") : t(`admin.tab.${id}`);
 
   useEffect(() => {
     try {
@@ -388,6 +388,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
           <div className="-my-2 ms-auto flex min-w-0 items-center gap-2 overflow-x-auto px-1 py-2 [scrollbar-width:none]" data-testid="admin-top-icons">
           <MailIcon unread={mailUnread} onClick={() => onTab("mail")} label={tr("Mailbox", "البريد")} />
           <AdminToolbar variant="glass" onLogout={onLogout} msg={<MsgIcon variant="glass" asAdmin onClick={() => onTab("messages")} />} bell={<LmsBell asAdmin testId="admin-bell" variant={"glass"} extra={onBell ? { count: pendingCount, label: tr(`${pendingCount} forum post${pendingCount === 1 ? "" : "s"} waiting for approval`, `${pendingCount} مشاركة في المنتدى بانتظار الموافقة`), onClick: onBell } : undefined} />} />
+          <FocusPill className="!text-[#b8860b] dark:!text-[#f5c542]" />
           <FullscreenToggle className="!text-[#b8860b] dark:!text-[#f5c542]" />
           </div>
         </div>
@@ -444,7 +445,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
                 {(DESC[tab] || MOD_DESC[tab]) && <p className="mt-1 max-w-3xl text-sm text-muted">{tr((DESC[tab] || MOD_DESC[tab])![0], (DESC[tab] || MOD_DESC[tab])![1])}</p>}
               </div>
               {star(tab, "!h-9 !w-9 border border-black/10 dark:border-white/15")}
-            <FullscreenToggle className="ml-auto !text-[#b8860b] dark:!text-[#f5c542]" /></header>
+            <FocusPill className="ml-auto !text-[#b8860b] dark:!text-[#f5c542]" /><FullscreenToggle className="!text-[#b8860b] dark:!text-[#f5c542]" /></header>
           )}
           <div className="admin-tab">{children}</div>
         </div>

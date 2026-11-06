@@ -12,12 +12,12 @@ const BASE: Card[] = [
   { href: "/encyclopedia/quran-com", src: "https://quran.com/", en: "Quran.com", ar: "Quran.com", icon: "🕌", tone: "from-sky-400 to-indigo-500", den: "Read and listen to the Quran.", dar: "اقرأ القرآن واستمع إليه." },
   { href: "/encyclopedia/hadith", src: "https://hadeethenc.com/en/home/about", en: "Encyclopedia of Hadith", ar: "موسوعة الحديث", icon: "📜", tone: "from-amber-400 to-orange-500", den: "Trusted hadith with meanings.", dar: "أحاديث موثوقة مع معانيها." },
   { href: "/encyclopedia/sunnah", src: "https://sunnah.com/", en: "Sunnah.com", ar: "Sunnah.com", icon: "🌙", tone: "from-violet-400 to-fuchsia-500", den: "Search the hadith collections.", dar: "ابحث في كتب الحديث." },
-  { href: "/lms/material", en: "Learning Material", ar: "المواد التعليمية", icon: "🎒", tone: "from-rose-400 to-pink-500", den: "Slide lessons from your teachers.", dar: "دروس بالشرائح من معلميك." },
+  { href: "/lms/material", en: "Lesson Builder", ar: "منشئ الدروس", icon: "🪄", tone: "from-rose-400 to-pink-500", den: "Slide lessons from your teachers.", dar: "دروس بالشرائح من معلميك." },
   { href: "/lms/lessons", en: "Lesson pages", ar: "صفحات الدروس", icon: "📄", tone: "from-pink-300 to-rose-400", den: "Lesson pages for your account.", dar: "صفحات الدروس لحسابك." },
   { href: "/videos", en: "Videos", ar: "الفيديوهات", icon: "🎬", tone: "from-cyan-400 to-blue-500", den: "Watch and learn.", dar: "شاهد وتعلّم." },
 ];
 
-/** t303: student-friendly Learning Libraries tab (encyclopedias, Learning Material and any extra pages the admin published). */
+/** t303: student-friendly Learning Libraries tab (encyclopedias, Lesson Builder and any extra pages the admin published). */
 export function LearningLibrary() {
   const { tr } = useTr();
   const dyn = useDynNav();

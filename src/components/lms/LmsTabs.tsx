@@ -23,6 +23,7 @@ const I = {
   beh: "M12 21s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.6-7 10-7 10z",
   cur: "M4 5h6a2 2 0 0 1 2 2v13a2 2 0 0 0-2-2H4zM20 5h-6a2 2 0 0 0-2 2v13a2 2 0 0 1 2-2h6z",
   res: "M7 4h10v5a5 5 0 0 1-10 0zM9 20h6M12 14v6",
+  lb: "M3 4h14v10H3zM7 18h6M10 14v4M15 21l6-6M19 9l.6 1.4L21 11l-1.4.6L19 13l-.6-1.4L17 11l1.4-.6z",
 };
 // lvl = smallest width class at which the tab sits in the strip (0 = always, 1 = sm, 2 = md, 3 = lg); the rest live in "More".
 const STUDENT: Tab[] = [
@@ -92,7 +93,7 @@ export function LmsTabs() {
     ...(staff && pm("cur") ? [{ id: "cur", href: "/lms/curriculum", en: "Curriculum", ar: "المنهج", icon: I.cur, lvl: 3 } as Tab] : []),
     ...(staff && qp.show ? [{ id: "map", href: "/lms/map", en: "Quran map", ar: "خريطة القرآن", icon: "", lvl: 3 } as Tab] : []),
     ...(staff && mpShown(actor, "tt") ? [{ id: "tt", href: "/lms/timetable", en: "Timetable", ar: "الجدول", icon: "", lvl: 3 } as Tab] : []),
-    ...((staff && mpShown(actor, "lp")) || actor.role === "admin" ? [{ id: "lp", href: "/lms/material", en: "Learning Material", ar: "المواد التعليمية", icon: "", lvl: 3 } as Tab] : []),
+    ...((staff && mpShown(actor, "lp")) || actor.role === "admin" ? [{ id: "lp", href: "/lms/material", en: "Lesson Builder", ar: "منشئ الدروس", icon: I.lb, lvl: 3 } as Tab] : []),
     ...(staff ? [{ id: "std", href: "/lms/standards", en: "Standards book", ar: "كتاب المعايير", icon: "", lvl: 3 } as Tab] : []),
     ...(staff ? [{ id: "pts", href: "/lms/points", en: "Points", ar: "النقاط", icon: "", lvl: 3 } as Tab] : []),
     ...(staff && !actor.perms?.includes("trk:view:off") && mpShown(actor, "trk") ? [{ id: "trk", href: "/lms/tracker", en: "Assessment Tracker", ar: "متتبع التقييم", icon: "", lvl: 3 } as Tab] : []),

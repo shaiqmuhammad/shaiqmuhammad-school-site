@@ -14,7 +14,7 @@ export type ElYt = { t: "yt"; vid: string; title?: string };
 export type ElAct = { t: "act"; code?: string; quiz?: string; label?: string };
 export type ElDoc = { t: "doc"; src: string; kind: "pptx" | "pdf"; name?: string };
 export type ElQuran = { t: "quran"; surah: number; from: number; to: number; reciter?: string; memorise?: boolean; memoAudio?: boolean; translit?: boolean; translation?: boolean; notes?: string };
-export type El = { id: string; x: number; y: number; w: number; h: number; by?: "t" | "s" } & (ElText | ElImg | ElAudio | ElDraw | ElYt | ElAct | ElQuran | ElDoc);
+export type El = { id: string; x: number; y: number; w: number; h: number; by?: "t" | "s"; /** t429: teacher lock — can't be moved or deleted until unlocked */ lock?: boolean } & (ElText | ElImg | ElAudio | ElDraw | ElYt | ElAct | ElQuran | ElDoc);
 export type Slide = { id: string; bg: string; els: El[] };
 export type PackType = "lesson" | "activity" | "homework" | "quran" | "material";
 export type Topic = { cur?: string; title?: string; yr?: string; term?: string; std?: string[] };
@@ -23,6 +23,8 @@ export type Acc = { show: boolean; view: boolean; add: boolean; edit: boolean; d
 export type Progress = { student: string; seen: number; total: number; updated: number; status: string };
 export const FONTS = ["Nunito", "Arial", "Georgia", "Times New Roman", "Courier New", "Comic Sans MS", "Amiri", "Tajawal", "Verdana"];
 export const TYPE_LABEL: Record<PackType, [string, string, string]> = { lesson: ["🎤", "Lesson", "درس"], activity: ["✏️", "Activity", "نشاط"], homework: ["📝", "Homework", "واجب"], quran: ["📖", "Quran Homework", "واجب القرآن"], material: ["📚", "Library material", "مادة المكتبة"] };
+/** t429: product name + icon (user-facing; the route stays /lms/material). */
+export const LB_EN = "Lesson Builder", LB_AR = "منشئ الدروس", LB_ICON = "🪄";
 /** t389: public link for an uploaded PowerPoint / PDF (rendered by the free Office / browser viewer). */
 export const docUrl = (id: string) => `${ASSESSMENT_API_BASE}/api/lms/lp-doc?id=${encodeURIComponent(id)}`;
 export const docViewer = (id: string, kind: "pptx" | "pdf") => (kind === "pdf" ? docUrl(id) : `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(docUrl(id))}`);

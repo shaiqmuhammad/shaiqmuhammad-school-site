@@ -7,7 +7,7 @@ import { GregPill, HijriPill } from "@/components/DatePills";
 import { lmsRenew } from "@/lib/lms";
 import { useEffect, useRef, type ReactNode } from "react";
 import { LanguageToggle } from "@/components/LanguageToggle";
-import { FullscreenToggle } from "@/components/FullscreenToggle";
+import { FocusPill, FullscreenToggle } from "@/components/FullscreenToggle";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { formatClock, useAssessmentText } from "@/lib/assessmentI18n";
 
@@ -121,6 +121,7 @@ export function AssessmentShell({ title, exitHref = "/assessments", onExit, seco
           )}
           {rail && <span className="hidden md:inline-flex"><HijriPill /></span>}
           {actions}
+          <FocusPill />
           <FullscreenToggle />
           {toolbar ?? (
             <>

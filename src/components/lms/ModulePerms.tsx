@@ -4,7 +4,7 @@ import { useTr } from "@/components/lms/useLms";
 import { lmsApi, MP_KEYS, MP_MODS, type MpCfg, type MpKey, type MpMod, type MpPart } from "@/lib/lms";
 
 /** t292: labels for the module permission switches. */
-export const MP_MOD_LABEL: Record<MpMod, [string, string]> = { trk: ["📊 Assessment Tracker", "📊 متتبع التقييم"], rep: ["📈 Department Report", "📈 تقرير القسم"], aps: ["🎯 Attainment & Progress Report", "🎯 تقرير التحصيل والتقدم"], tt: ["🗓️ Timetable", "🗓️ الجدول الدراسي"], lp: ["📚 Learning Material & Lesson Packs (incl. Homework, Quran Homework)", "📚 المواد التعليمية وحزم الدروس (مع الواجبات وواجب القرآن)"], qa: ["✅ Progress Check QA (off by default)", "✅ ضمان جودة فحص التقدم (مغلق افتراضيًا)"] };
+export const MP_MOD_LABEL: Record<MpMod, [string, string]> = { trk: ["📊 Assessment Tracker", "📊 متتبع التقييم"], rep: ["📈 Department Report", "📈 تقرير القسم"], aps: ["🎯 Attainment & Progress Report", "🎯 تقرير التحصيل والتقدم"], tt: ["🗓️ Timetable", "🗓️ الجدول الدراسي"], lp: ["📚 Lesson Builder & Lesson Packs (incl. Homework, Quran Homework)", "📚 منشئ الدروس وحزم الدروس (مع الواجبات وواجب القرآن)"], qa: ["✅ Progress Check QA (off by default)", "✅ ضمان جودة فحص التقدم (مغلق افتراضيًا)"] };
 export const MP_KEY_LABEL: Record<MpKey, [string, string]> = { show: ["Show", "إظهار"], view: ["View", "عرض"], add: ["Add", "إضافة"], edit: ["Edit", "تعديل"], delete: ["Delete", "حذف"], xlsx: ["Download Excel", "تنزيل Excel"], pdf: ["Download PDF", "تنزيل PDF"], isams: ["Download iSAMS", "تنزيل iSAMS"], share: ["Share", "مشاركة"], dl: ["Download (PDF, Word, Excel)", "تنزيل (PDF و Word و Excel)"], peers: ["View colleagues' timetables", "عرض جداول الزملاء"], compare: ["Compare timetables", "مقارنة الجداول"], observe: ["Request peer observations", "طلب ملاحظة الزملاء"] };
 /** Keys that do something in each module (others are hidden): the report is read-only for teachers; iSAMS exists only in the tracker. */
 export const MP_KEYS_OF: Record<MpMod, MpKey[]> = { qa: ["view", "add", "edit", "dl"], trk: MP_KEYS.filter((k) => k !== "share" && k !== "dl"), rep: ["show", "view", "xlsx", "pdf"], aps: ["show", "view"], tt: ["show", "view", "add", "edit", "delete", "xlsx", "pdf", "share", "peers", "compare", "observe"], lp: ["show", "view", "add", "edit", "delete"] };
@@ -35,7 +35,7 @@ export function ModulePermsTeacher({ perms, setPerms }: { perms: string[]; setPe
   const { tr } = useTr();
   return (
     <div className="space-y-2 rounded-2xl border border-dashed border-black/15 p-3 dark:border-white/20" data-testid="perm-mp">
-      <p className="text-sm font-bold">🛡️ {tr("Timetable, Learning Material, tracker & report modules — Show/Hide, View, Add, Edit, Delete", "الجدول والمواد التعليمية والمتتبع والتقارير — إظهار/إخفاء، عرض، إضافة، تعديل، حذف")}</p>
+      <p className="text-sm font-bold">🛡️ {tr("Timetable, Lesson Builder, tracker & report modules — Show/Hide, View, Add, Edit, Delete", "الجدول ومنشئ الدروس والمتتبع والتقارير — إظهار/إخفاء، عرض، إضافة، تعديل، حذف")}</p>
       <Grid hideQa testPrefix="perm-mp" inherit={tr("Default", "الافتراضي")}
         get={(m, k) => (perms.includes(`mp:${m}:${k}:on`) ? "on" : perms.includes(`mp:${m}:${k}:off`) ? "off" : "")}
         set={(m, k, v) => setPerms([...perms.filter((p) => p !== `mp:${m}:${k}:on` && p !== `mp:${m}:${k}:off`), ...(v ? [`mp:${m}:${k}:${v}`] : [])])} />
@@ -58,7 +58,7 @@ export function ModulePermsGlobal() {
   const save = async () => { try { setCfg((await lmsApi.modpermSave(cfg)).cfg); setMsg(tr("Saved.", "تم الحفظ.")); } catch (e) { setMsg(String((e as Error).message)); } setTimeout(() => setMsg(""), 4000); };
   return (
     <section className="space-y-2 rounded-2xl border border-card-border bg-white/80 p-4 dark:bg-white/5" data-testid="mp-global">
-      <h3 className="font-extrabold">🛡️ {tr("Module permissions — Timetable, Learning Material, Assessment Tracker, Department Report, Attainment & Progress Report", "صلاحيات الوحدات")}</h3>
+      <h3 className="font-extrabold">🛡️ {tr("Module permissions — Timetable, Lesson Builder, Assessment Tracker, Department Report, Attainment & Progress Report", "صلاحيات الوحدات")}</h3>
       <p className="text-xs opacity-70">{tr("Order: global → role → subject → each teacher (Teachers › Permissions). Admin always has full access.", "الترتيب: عام ← الدور ← المادة ← المعلم. للمدير وصول كامل.")}</p>
       <label className="text-xs font-bold">{tr("Apply to", "تطبيق على")} <select className={sel + " ms-1 !text-sm"} value={layer} onChange={(e) => setLayer(e.target.value)} data-testid="mp-layer">
         <option value="global">{tr("Everyone (global)", "الجميع (عام)")}</option><option value="role:teacher">{tr("Role: Teacher", "الدور: معلم")}</option><option value="role:inspector">{tr("Role: Inspector", "الدور: مفتش")}</option>
