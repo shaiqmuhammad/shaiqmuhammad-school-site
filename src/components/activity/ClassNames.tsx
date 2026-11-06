@@ -13,6 +13,14 @@ export function rosterIdFor(name: string): string | null {
   try { const m = JSON.parse(localStorage.getItem(IDS_KEY) || "{}"); return typeof m[name] === "string" ? m[name] : null; } catch { return null; }
 }
 export function clearRosterIds() { try { localStorage.removeItem(IDS_KEY); } catch { /* */ } }
+/** t432: name→studentId map so Spin/Randomiser popups can award points after a My Classes launch. */
+export function saveRosterIds(map: Record<string, string>) {
+  try {
+    const clean: Record<string, string> = {};
+    for (const [k, v] of Object.entries(map || {})) if (k && typeof v === "string" && v) clean[k] = v;
+    localStorage.setItem(IDS_KEY, JSON.stringify(clean));
+  } catch { /* */ }
+}
 
 export function loadNames(): string[] {
   try {

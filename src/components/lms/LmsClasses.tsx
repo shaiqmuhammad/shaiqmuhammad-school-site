@@ -7,7 +7,7 @@ import { startWithClass } from "@/components/lms/ClassLaunch";
 import { QuickStart } from "@/components/lms/QuickStart";
 import { openClassTimer } from "@/components/lms/ClassTimer";
 import type { ActivityType } from "@/lib/activity";
-import { saveNames } from "@/components/activity/ClassNames";
+import { saveNames, saveRosterIds } from "@/components/activity/ClassNames";
 
 import { dlGrant } from "@/lib/dl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -149,7 +149,7 @@ export function LmsClassesPage() {
   const viewName = view ? (view.startsWith("g:") ? groups.find((g) => g.id === view.slice(2))?.name || tr("this group", "هذه المجموعة") : label(view)) : tr("all my students", "كل طلابي");
   // t370: one tap from an open class starts the activity for that class — no two-option prompt, no All Activities page.
   const direct = (t: string, en: string) => {
-    if (t === "wheel" || t === "randomiser") { saveNames(shown.map((s) => s.name)); try { sessionStorage.setItem("sm-act-back", `/lms/classes#v=${encodeURIComponent(view)}`); } catch { /* */ } spaNav(`/activities/${t}`); return; }
+    if (t === "wheel" || t === "randomiser") { saveNames(shown.map((s) => s.name)); saveRosterIds(Object.fromEntries(shown.map((s) => [s.name, s.id]))); try { sessionStorage.setItem("sm-act-back", `/lms/classes#v=${encodeURIComponent(view)}`); } catch { /* */ } spaNav(`/activities/${t}`); return; }
     if (t === "classwall") { spaNav(view ? `/lms/wall#k=${encodeURIComponent(view)}` : "/lms/wall"); return; }
     if (t === "assess") { startWithClass("assess", shown.map((s) => s.id), viewName, `${en} · ${viewName}`); return; }
     setLaunch([t]);
