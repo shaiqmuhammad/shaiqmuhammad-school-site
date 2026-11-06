@@ -266,7 +266,7 @@ export class ClassActivity extends DurableObject<ActivityEnv> {
           if (!isHost && (m.settings.options as Json).draw !== true) return { status: 403, body: { error: "no_draw" } };
           if (!isHost && this.limited(me.id, "stroke")) return { status: 429, body: { error: "slow_down" } };
           if (k === "undo") {
-            const last = this.sql.exec(`SELECT id FROM items WHERE pid=? AND kind IN ('stroke','note') ORDER BY created DESC LIMIT 1`, me.id).toArray()[0];
+            const last = this.sql.exec(`SELECT id FROM items WHERE pid=? AND kind IN ('stroke','note','pic') ORDER BY created DESC LIMIT 1`, me.id).toArray()[0];
             if (last) { this.deleteItems(`id=?`, String(last.id)); this.bump(); }
             return { status: 200, body: { ok: true, id: last ? String(last.id) : "", status: "approved" } };
           }
@@ -325,6 +325,8 @@ export class ClassActivity extends DurableObject<ActivityEnv> {
         const data: Json = { text, link, youtube: yt, stage: str(input.stage, 20) };
         // t409: mind map (branch → leaf via parent, optional group) and compare (zone a | b | both).
         if (m.type === "mindmap") { const par = str(input.parent, 20); if (par && !this.sql.exec(`SELECT 1 FROM items WHERE id=?`, par).toArray().length) return { status: 400, body: { error: "no_parent" } }; data.parent = par; data.group = str(input.group, 30); }
+        // t429: whiteboard picture placement (fractions of the 1600×1000 board).
+        if (m.type === "whiteboard" && kind === "pic") { const f = (v: unknown, d: number) => Math.max(0, Math.min(1, Number(v) || d)); data.x = f(input.x, 0.3); data.y = f(input.y, 0.25); data.w = Math.max(0.05, f(input.w, 0.4)); data.h = Math.max(0.05, f(input.h, 0.4)); }
         if (m.type === "compare") { const z = str(input.zone, 6); if (!["a", "b", "both"].includes(z)) return { status: 400, body: { error: "bad_zone" } }; data.zone = z; }
         this.sql.exec(`INSERT INTO items (id, pid, kind, data, status, created, img) VALUES (?, ?, ?, ?, ?, ?, ?)`, id, me.id, kind, JSON.stringify(data), status, Date.now(), imgId);
         this.bump();

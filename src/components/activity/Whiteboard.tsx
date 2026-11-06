@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { qrSvg } from "@/lib/qrLocal";
 import { actErr, hostChip, saveOptions, useTr, type Tr } from "@/components/activity/common";
-import { activityApi, type ActivityItem, type ActivityState, type Who } from "@/lib/activity";
+import { activityApi, compressImage, type ActivityItem, type ActivityState, type Who } from "@/lib/activity";
 
 /** t423: live whiteboard — pen / highlighter / eraser / text notes on a 1600×1000 board with ready-made layouts. */
 export const WB_W = 1600, WB_H = 1000;
@@ -16,7 +16,7 @@ export const WB_BGS: [string, string, string][] = [
   ["venn", "Venn", "مخطط فن"], ["tchart", "T-chart", "جدول T"], ["kwl", "K · W · L", "أعرف · أريد · تعلّمت"], ["mind", "Mind map centre", "مركز خريطة ذهنية"], ["four", "4 boxes", "٤ مربعات"],
   ["music", "Handwriting lines", "أسطر الخط"], ["iso", "Isometric dots", "نقاط متساوية"], ["cornell", "Cornell notes", "ملاحظات كورنيل"], ["timeline", "Timeline", "خط زمني"], ["flow", "Flow chart", "مخطط انسيابي"], ["venn3", "Venn (3)", "مخطط فن (٣)"],
 ];
-export type WbStroke = { id: string; pid: string; author: string; kind: string; d: ActivityItem["data"] & { text?: string } };
+export type WbStroke = { id: string; pid: string; author: string; kind: string; d: ActivityItem["data"] & { text?: string; h?: number; src?: string } };
 
 function Background({ bg, tr }: { bg: string; tr: Tr }) {
   const L = "#c7d4e2", T = "#1b3a57";
@@ -50,7 +50,9 @@ export function BoardArt({ strokes, bg, names, centre, tr, extra }: { strokes: W
       <rect width={WB_W} height={WB_H} fill="#ffffff" />
       <Background bg={bg} tr={tr} />
       {bg === "mind" && centre && <foreignObject x={590} y={400} width={420} height={200}><div style={{ display: "flex", height: "100%", alignItems: "center", justifyContent: "center", color: "#f5c542", fontWeight: 800, fontSize: 30, textAlign: "center", lineHeight: 1.15 }} dir="auto">{centre}</div></foreignObject>}
-      {strokes.map((s) => s.kind === "note" ? (
+      {strokes.map((s) => s.kind === "pic" ? (
+        <image key={s.id} href={s.d.src} x={(s.d.x || 0) * WB_W} y={(s.d.y || 0) * WB_H} width={(s.d.w || 0.4) * WB_W} height={(s.d.h || 0.4) * WB_H} preserveAspectRatio="xMidYMid meet" data-testid="wb-pic" />
+      ) : s.kind === "note" ? (
         <g key={s.id}>
           {s.d.bg && <rect x={(s.d.x || 0) * WB_W - 8} y={(s.d.y || 0) * WB_H - 6} width={String(s.d.text || "").length * (s.d.w || 22) * 0.95 + 16} height={(s.d.w || 22) * 1.6 * 1.25 + 8} rx={10} fill={s.d.bg} />}
           <text x={(s.d.x || 0) * WB_W} y={(s.d.y || 0) * WB_H} fontSize={(s.d.w || 22) * 1.6} fontWeight={700} fill={s.d.c || "#1b3a57"} fontFamily={s.d.f || undefined} dominantBaseline="hanging">{s.d.text}</text>
@@ -65,7 +67,7 @@ export function BoardArt({ strokes, bg, names, centre, tr, extra }: { strokes: W
   );
 }
 
-export const strokesOf = (state: ActivityState): WbStroke[] => state.items.filter((i) => i.kind === "stroke" || i.kind === "note").map((i) => ({ id: i.id, pid: i.pid, author: i.author, kind: i.kind, d: i.data }));
+export const strokesOf = (state: ActivityState): WbStroke[] => state.items.filter((i) => i.kind === "stroke" || i.kind === "note" || (i.kind === "pic" && i.img)).map((i) => ({ id: i.id, pid: i.pid, author: i.author, kind: i.kind, d: i.kind === "pic" ? { ...i.data, src: activityApi.imgUrl(state.code, i.img!) } : i.data }));
 
 /** Interactive board: draws locally, sends each finished stroke. */
 function Board({ code, who, state, reload, canDraw, isHost }: { code: string; who: Who; state: ActivityState; reload: () => void; canDraw: boolean; isHost: boolean }) {
@@ -149,8 +151,17 @@ function Board({ code, who, state, reload, canDraw, isHost }: { code: string; wh
           <span className="mx-1 h-6 w-px bg-black/15" aria-hidden />
           {WIDTHS.map((w) => <button key={w} type="button" onClick={() => setWidth(w)} className={btn(width === w)} aria-label={tr(`Thickness ${w}`, `السماكة ${w}`)}><span className="inline-block rounded-full bg-current" style={{ width: w + 4, height: w + 4 }} /></button>)}
           <span className="mx-1 h-6 w-px bg-black/15" aria-hidden />
+          {isHost && <label className={btn(false) + " cursor-pointer"} title={tr("Add a picture everyone sees", "أضف صورة يراها الجميع")} data-testid="wb-pic-add">🖼️ {tr("Picture", "صورة")}<input type="file" accept="image/*" className="hidden" data-testid="wb-pic-input" onChange={async (e) => {
+            const f = e.target.files?.[0]; e.target.value = ""; if (!f) return; setErr("");
+            try {
+              const bmp = await createImageBitmap(f); const ar = (bmp.width / bmp.height) / (WB_W / WB_H);
+              const w = ar >= 1 ? 0.5 : 0.5 * ar, h = ar >= 1 ? 0.5 / ar : 0.5;
+              const image = await compressImage(f);
+              await activityApi.post(code, who, { kind: "pic", image, x: (1 - w) / 2, y: (1 - h) / 2, w, h } as never); await reload();
+            } catch (er) { setErr(actErr(er, tr)); }
+          }} /></label>}
           <button type="button" className={btn(false)} onClick={() => activityApi.post(code, who, { kind: "undo" }).then(reload).catch((e) => setErr(actErr(e, tr)))} data-testid="wb-undo">↶ {tr("Undo", "تراجع")}</button>
-          {isHost && "hostKey" in who && <button type="button" className={btn(false)} onClick={async () => { if (!confirm(tr("Clear the whole board?", "مسح السبورة كلها؟"))) return; await activityApi.moderate(code, who.hostKey, "clear", { kind: "stroke" }).catch(() => undefined); await activityApi.moderate(code, who.hostKey, "clear", { kind: "note" }).catch(() => undefined); reload(); }} data-testid="wb-clear">🗑️ {tr("Clear", "مسح")}</button>}
+          {isHost && "hostKey" in who && <button type="button" className={btn(false)} onClick={async () => { if (!confirm(tr("Clear the whole board?", "مسح السبورة كلها؟"))) return; await activityApi.moderate(code, who.hostKey, "clear", { kind: "stroke" }).catch(() => undefined); await activityApi.moderate(code, who.hostKey, "clear", { kind: "note" }).catch(() => undefined); await activityApi.moderate(code, who.hostKey, "clear", { kind: "pic" }).catch(() => undefined); reload(); }} data-testid="wb-clear">🗑️ {tr("Clear", "مسح")}</button>}
         </div>
       )}
       <div ref={svgBox} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} className={`overflow-hidden rounded-[24px] shadow-xl ring-4 ring-[#1b3a57]/80 ${canDraw ? "cursor-crosshair touch-none" : ""}`} data-testid="wb-board">
