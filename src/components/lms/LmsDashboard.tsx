@@ -56,7 +56,9 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
   const [err, setErr] = useState("");
   const [creating, setCreating] = useState(false);
   // t302: teacher Homeworks hub tabs (Quran / General / Assigned / Corrected with Quran|General sub-tabs).
-  const [hubTab, setHubTab] = useState<"quran" | "general" | "assigned" | "corrected">("general");
+  const [hubTab, setHubTab] = useState<"quran" | "general" | "assigned" | "corrected" | "add">("general");
+  const [addKey, setAddKey] = useState(0); // t430: fresh "Add homework" form after each save
+  const [addMsg, setAddMsg] = useState("");
   const [corrSub, setCorrSub] = useState<"quran" | "general">("quran");
   useEffect(() => { const h = window.location.hash.replace("#", ""); if (h === "quran" || h === "general" || h === "assigned" || h === "corrected") setHubTab(h); }, []);
   const [chapters, setChapters] = useState<Chapter[]>([]);
@@ -222,11 +224,15 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
             {hwOnly && staff ? (
               <section id="homework" className="scroll-mt-28 space-y-4" data-testid="hw-hub">
                 <div className="flex flex-wrap gap-2" role="tablist" data-testid="hw-hub-tabs">
-                  {([["quran", "📖", "Quran", "القرآن"], ["general", "📝", "General", "عام"], ["assigned", "📋", "Assigned Homework", "الواجبات المسندة"], ["corrected", "✅", "Corrected Homework", "الواجبات المصحَّحة"]] as const).filter(([id]) => id !== "quran" || qOk).map(([id, ic, en, ar]) => (
+                  {([["quran", "📖", "Quran", "القرآن"], ["general", "📝", "General", "عام"], ["assigned", "📋", "Assigned Homework", "الواجبات المسندة"], ["corrected", "✅", "Corrected Homework", "الواجبات المصحَّحة"], ["add", "➕", "Add homework", "إضافة واجب"]] as const).filter(([id]) => (id !== "quran" || qOk) && (id !== "add" || canAssign)).map(([id, ic, en, ar]) => (
                     <button key={id} type="button" role="tab" aria-selected={hubTab === id} onClick={() => setHubTab(id)} className={`rounded-full px-4 py-2 text-sm font-extrabold shadow-sm transition ${hubTab === id ? "bg-header text-white" : "bg-white text-[#1b2f44] hover:bg-sun/50 dark:bg-white/10 dark:text-white"}`} data-testid={`hw-tab-${id}`}>{ic} {tr(en, ar)}</button>
                   ))}
                 </div>
-                {hubTab === "quran" && qOk ? <QuranHomework /> : hubTab === "corrected" ? (
+                {hubTab === "add" && canAssign ? <div className="space-y-2" data-testid="hw-add-tab">
+                  {addMsg && <p className="rounded-xl bg-emerald-100 px-3 py-2 text-sm font-bold text-emerald-900" role="status" data-testid="hw-add-msg">{addMsg}</p>}
+                  {(dash as { quran?: { add: boolean } }).quran && !(dash as { quran?: { add: boolean } }).quran!.add ? <a href="/lms/material?new=homework" className="inline-block rounded-full bg-sun px-4 py-2 font-extrabold text-[#1b2f44]">📚 {tr("New homework as slides (Lesson Pack)", "واجب جديد بالشرائح")}</a>
+                    : <HomeworkEditor key={addKey} classes={dash.classes || []} students={dash.students || []} catalog={dash.catalog} scope={dash.scope} asAdmin={asAdmin} kinds={["quran", "general"]} onCancel={() => setHubTab("quran")} onSaved={(id) => { setAddMsg(tr("Homework created ✓ — add another below, or open it from Assigned Homework.", "تم إنشاء الواجب ✓ — أضف واجبًا آخر بالأسفل أو افتحه من الواجبات المسندة.")); setAddKey((k) => k + 1); void id; load(); }} />}
+                </div> : hubTab === "quran" && qOk ? <QuranHomework /> : hubTab === "corrected" ? (
                   <div className="space-y-3">
                     <div className="flex gap-2" role="tablist" data-testid="corr-sub-tabs">
                       {qOk && <button type="button" role="tab" aria-selected={corrSub === "quran"} onClick={() => setCorrSub("quran")} className={`rounded-full px-3 py-1.5 text-sm font-bold ${corrSub === "quran" ? "bg-sun text-[#0b1b2b]" : "bg-black/5 dark:bg-white/10"}`} data-testid="corr-sub-quran">📖 {tr("Quran", "القرآن")}</button>}
