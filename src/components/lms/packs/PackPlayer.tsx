@@ -5,6 +5,8 @@ import { smallBtn, useTr } from "@/components/lms/useLms";
 import { LB_AR as LB_AR_P, LB_EN as LB_EN_P, lp, uid, type El, type Pack, type Slide } from "@/lib/packs";
 import { SlideView } from "./SlideView";
 import { qrSvg } from "@/lib/qrLocal";
+import { InstrAudio } from "./SlideView";
+import { PART_LABEL, fmtT } from "@/lib/packs";
 import { AddTools, ElProps, withId, type Pen } from "./Tools";
 
 /** t315: student view of a pack — teacher slides + the student's own layer (type, draw, picture, record), auto-saved.
@@ -20,6 +22,8 @@ export function PackPlayer({ id, asAdmin = false, review, preview = false, locke
   const [msg, setMsg] = useState("");
   const [dirty, setDirty] = useState(false);
   const [waiting, setWaiting] = useState(false);
+  const [tick, setTick] = useState(0); // t429: seconds since the pack / slide was opened (timers)
+  const [slideAt, setSlideAt] = useState(0);
   const [printing, setPrinting] = useState(false);
   const swipe = useRef<{ x: number; y: number } | null>(null);
   const [full, setFull] = useState(!!autoFull); // t396: opened from the list → full screen (document fullscreen from the click, else full-window)
@@ -62,6 +66,8 @@ export function PackPlayer({ id, asAdmin = false, review, preview = false, locke
     const k = (e: KeyboardEvent) => { const t = e.target as HTMLElement | null; if (t?.closest?.("input,textarea,select,[contenteditable=true],[contenteditable='']") || sel) return; if (e.key === "ArrowRight" || e.key === "PageDown" || (e.key === " " && !pen)) { e.preventDefault(); setCur((c) => Math.min(nSlides - 1, c + 1)); } else if (e.key === "ArrowLeft" || e.key === "PageUp") { e.preventDefault(); setCur((c) => Math.max(0, c - 1)); } else if (e.key === "Home") setCur(0); else if (e.key === "End") setCur(Math.max(0, nSlides - 1)); };
     window.addEventListener("keydown", k); return () => window.removeEventListener("keydown", k);
   }, [live, sel, pen, nSlides]);
+  useEffect(() => { const t = setInterval(() => setTick((x) => x + 1), 1000); return () => clearInterval(t); }, []);
+  useEffect(() => { setSlideAt(tick); }, [cur]); // eslint-disable-line react-hooks/exhaustive-deps
   const doPrint = () => { setPrinting(true); document.body.classList.add("lp-printing"); setTimeout(() => { window.print(); setTimeout(() => { document.body.classList.remove("lp-printing"); setPrinting(false); }, 400); }, 1500); };
   if (!pack) return <p className="text-sm opacity-70" data-testid="lp-player">{msg || "…"}</p>;
   if (!slides.length) return null;
@@ -71,6 +77,9 @@ export function PackPlayer({ id, asAdmin = false, review, preview = false, locke
   const draw = () => layer.find((e) => e.t === "draw") as Extract<El, { t: "draw" }> | undefined;
   const selEl = layer.find((e) => e.id === sel);
   const staffView = !!review || preview || asAdmin;
+  const packLeft = pack.topic?.timer ? Math.max(0, pack.topic.timer - tick) : null;
+  const slideLeft = s.timer ? Math.max(0, s.timer - (tick - slideAt)) : null;
+  const left = slideLeft ?? packLeft;
   const qr = typeof window !== "undefined" ? qrSvg(`${location.origin}/lms/material?open=${encodeURIComponent(id)}`, 96) : "";
   return (
     <section ref={box} className={`space-y-2 ${full ? "fixed inset-0 z-[2147483000] flex flex-col overflow-hidden bg-gradient-to-br from-[#0f2438] via-[#1b3a57] to-[#0f2438] p-2 sm:p-3" : "rounded-3xl border border-white/60 bg-gradient-to-br from-sky-100/85 via-white/80 to-violet-100/80 p-3 text-[#1b2f44] shadow-lg backdrop-blur-md sm:p-4"}`} data-testid="lp-player">
@@ -79,10 +88,13 @@ export function PackPlayer({ id, asAdmin = false, review, preview = false, locke
         {full && <span className="truncate font-extrabold text-[#f5c542]" dir="auto">{pack.title}</span>}
         {live && <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs text-violet-900" data-testid="lp-following">📡 {tr("Following your teacher", "تتابع معلمك")}</span>}
         {pack.topic?.title && !full && <span className="rounded-full bg-sky-100 px-2 py-0.5 text-xs text-sky-900" dir="auto">🎯 {pack.topic.title}</span>}
+        {s.part && <span className={`rounded-full px-2 py-0.5 text-xs font-extrabold ${PART_LABEL[s.part][3]}`} data-testid="lp-player-part">{PART_LABEL[s.part][0]} {tr(PART_LABEL[s.part][1], PART_LABEL[s.part][2])}</span>}
         <span className="flex-1" />
+        {left !== null && !review && <span className={`rounded-full px-3 py-0.5 font-mono text-base font-extrabold tabular-nums shadow ${left === 0 ? "bg-rose-600 text-white" : left <= 30 ? "animate-pulse bg-amber-400 text-[#1b2f44]" : "bg-[#1b3a57] text-[#f5c542]"}`} title={slideLeft !== null ? tr("Time for this slide", "وقت هذه الشريحة") : tr("Time for the activity", "وقت النشاط")} data-testid="lp-timer-left">⏱ {left === 0 ? tr("Time's up!", "انتهى الوقت!") : fmtT(left)}</span>}
         {staffView && <button type="button" className={smallBtn} onClick={doPrint} disabled={printing} title={tr("Colourful printable with QR code", "نسخة ملوّنة للطباعة مع رمز QR")} data-testid="lp-print">🖨 {printing ? "…" : tr("Print / PDF", "طباعة / PDF")}</button>}
         <button type="button" className={smallBtn} onClick={toggleFull} title={tr("Full screen (Esc to exit)", "ملء الشاشة (Esc للخروج)")} data-testid="lp-full">{full ? "✕" : "⛶"} {full ? tr("Exit", "خروج") : tr("Full screen", "ملء الشاشة")}</button>
       </div>
+      {(s.instr || s.instrAudio) && <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-sky-200 bg-sky-50/95 px-3 py-2 text-sm font-semibold text-[#1b2f44] shadow-sm" data-testid="lp-player-instr"><span className="text-lg" aria-hidden>💬</span>{s.instr && <p className="min-w-0 flex-1 whitespace-pre-wrap" dir="auto">{s.instr}</p>}{s.instrAudio && <InstrAudio id={s.instrAudio} asAdmin={asAdmin} />}</div>}
       {editable && <AddTools compact={full} add={(e) => { const el = withId({ ...e, ...(e.t === "text" ? { y: Math.min(80, 40 + layer.filter((x) => x.t === "text").length * 8) } : {}), by: "s" } as Omit<El, "id">); setLayer((l) => [...l, el]); setSel(el.id); }} pen={pen} setPen={setPen} asAdmin={asAdmin} teacher={false} onErr={setMsg}
         onUndoStroke={() => { const d = draw(); if (d) setLayer((l) => l.map((e) => (e === d ? { ...d, paths: d.paths.slice(0, -1) } : e))); }} onClearDraw={() => { const d = draw(); if (d) setLayer((l) => l.filter((e) => e !== d)); }} />}
       <div className={`relative ${full ? "flex min-h-0 flex-1 items-center justify-center" : ""}`}

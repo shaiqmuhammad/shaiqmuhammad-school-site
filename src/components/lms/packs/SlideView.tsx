@@ -125,3 +125,10 @@ export function SlideView({ slide, layer = [], asAdmin, live = true, edit = null
     </div>
   );
 }
+
+/** t429: plays a recorded instruction (media fetched with the sign-in token). */
+export function InstrAudio({ id, asAdmin }: { id: string; asAdmin: boolean }) {
+  const [u, setU] = useState("");
+  useEffect(() => { mediaUrl(id, asAdmin).then(setU).catch(() => undefined); }, [id, asAdmin]);
+  return u ? <audio controls src={u} className="h-9 max-w-full" data-testid="lp-instr-audio" /> : <span>…</span>;
+}

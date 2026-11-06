@@ -15,9 +15,14 @@ export type ElAct = { t: "act"; code?: string; quiz?: string; label?: string };
 export type ElDoc = { t: "doc"; src: string; kind: "pptx" | "pdf"; name?: string };
 export type ElQuran = { t: "quran"; surah: number; from: number; to: number; reciter?: string; memorise?: boolean; memoAudio?: boolean; translit?: boolean; translation?: boolean; notes?: string };
 export type El = { id: string; x: number; y: number; w: number; h: number; by?: "t" | "s"; /** t429: teacher lock — can't be moved or deleted until unlocked */ lock?: boolean } & (ElText | ElImg | ElAudio | ElDraw | ElYt | ElAct | ElQuran | ElDoc);
-export type Slide = { id: string; bg: string; els: El[] };
+export type Part = "lesson" | "activity" | "homework";
+/** t429: part (lesson / activity / homework), timer seconds, instructions for students (+ recorded audio id). */
+export type Slide = { id: string; bg: string; els: El[]; part?: Part; timer?: number; instr?: string; instrAudio?: string };
+export const PART_LABEL: Record<Part, [string, string, string, string]> = { lesson: ["🎤", "Lesson", "درس", "bg-[#1b3a57] text-[#f5c542]"], activity: ["✏️", "Activity", "نشاط", "bg-violet-600 text-white"], homework: ["📝", "Homework", "واجب", "bg-amber-500 text-[#1b2f44]"] };
+export const TIMERS = [0, 30, 60, 120, 180, 300, 600, 900, 1200, 1800, 2700, 3600];
+export const fmtT = (s: number) => (s >= 60 ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}` : `0:${String(s).padStart(2, "0")}`);
 export type PackType = "lesson" | "activity" | "homework" | "quran" | "material";
-export type Topic = { cur?: string; title?: string; yr?: string; term?: string; std?: string[] };
+export type Topic = { cur?: string; title?: string; yr?: string; term?: string; std?: string[]; /** t429 SOW panel */ lo?: string; sc?: string[]; kw?: string; stdText?: string; /** pack timer, seconds */ timer?: number };
 export type Pack = { id: string; owner: string; ownerName: string; title: string; type: PackType; subject: string; aud: string[]; students: string[]; topic: Topic; mode: "self" | "live"; assignAt: number; due: number; status: "draft" | "published"; hw: string; live: number; tpl: boolean; created: number; updated: number; slides?: Slide[]; count?: number; /** t422 */ years?: string[]; sections?: string[] };
 export type Acc = { show: boolean; view: boolean; add: boolean; edit: boolean; delete: boolean };
 export type Progress = { student: string; seen: number; total: number; updated: number; status: string };

@@ -38,7 +38,7 @@ const richHtml = (v: unknown) => String(v ?? "").slice(0, 8000).replace(/<(\/?)(
 /** Element sanitiser — positions in % of a 16:9 slide. */
 function el(e: Json, student = false): Json | null {
   const t = String(e.t || "");
-  const base = { id: str(e.id, 30) || rid("e"), t, x: num(e.x, -20, 100), y: num(e.y, -20, 100), w: num(e.w, 1, 120, 30), h: num(e.h, 1, 120, 10), by: student ? "s" : "t" };
+  const base = { id: str(e.id, 30) || rid("e"), t, x: num(e.x, -20, 100), y: num(e.y, -20, 100), w: num(e.w, 1, 120, 30), h: num(e.h, 1, 120, 10), by: student ? "s" : "t", ...(!student && e.lock === true ? { lock: true } : {}) };
   if (t === "text") return { ...base, ...(e.html ? { html: richHtml(e.html) } : {}), text: str(e.text, 4000), color: color(e.color) || "#1b2f44", bg: color(e.bg), font: FONTS.includes(String(e.font)) ? String(e.font) : "Nunito", size: num(e.size, 8, 160, 28), bold: e.bold === true, italic: e.italic === true, align: ["start", "center", "end"].includes(String(e.align)) ? String(e.align) : "start" };
   if (t === "img") return MEDIA.test(String(e.src)) ? { ...base, src: String(e.src) } : null;
   if (t === "audio") return MEDIA.test(String(e.src)) ? { ...base, src: String(e.src) } : null;
@@ -53,8 +53,17 @@ function el(e: Json, student = false): Json | null {
   if (t === "quran") { const surah = Math.trunc(num(e.surah, 1, 114, 1)), from = Math.trunc(num(e.from, 1, 286, 1)); return { ...base, surah, from, to: Math.max(from, Math.trunc(num(e.to, 1, 286, from))), reciter: str(e.reciter, 60) || "Alafasy_128kbps", memorise: e.memorise === true, memoAudio: e.memoAudio !== false, translit: e.translit === true, translation: e.translation === true, notes: str(e.notes, 1000) }; }
   return null;
 }
+/** t429: Lesson Builder slide meta — part (lesson/activity/homework), timer (seconds), student instructions (+ recorded audio). */
+function slideMeta(s: Json): Json {
+  const o: Json = {};
+  if (["lesson", "activity", "homework"].includes(String(s?.part))) o.part = String(s.part);
+  const t = Math.trunc(Number(s?.timer) || 0); if (t > 0) o.timer = Math.min(7200, t);
+  const ins = str(s?.instr, 2000); if (ins) o.instr = ins;
+  if (MEDIA.test(String(s?.instrAudio || ""))) o.instrAudio = String(s.instrAudio);
+  return o;
+}
 function slides(v: unknown, student = false): Json[] {
-  return (Array.isArray(v) ? (v as Json[]) : []).slice(0, 60).map((s) => ({ id: str(s?.id, 30) || rid("s"), bg: color(s?.bg) || "#ffffff", els: (Array.isArray(s?.els) ? (s.els as Json[]) : []).slice(0, 80).map((e) => el(e, student)).filter(Boolean) }));
+  return (Array.isArray(v) ? (v as Json[]) : []).slice(0, 60).map((s) => ({ id: str(s?.id, 30) || rid("s"), bg: color(s?.bg) || "#ffffff", ...(student ? {} : slideMeta(s)), els: (Array.isArray(s?.els) ? (s.els as Json[]) : []).slice(0, 80).map((e) => el(e, student)).filter(Boolean) }));
 }
 export function packInit(sql: Sql) {
   sql.exec(`CREATE TABLE IF NOT EXISTS lpack (id TEXT PRIMARY KEY, owner TEXT, owner_name TEXT, title TEXT, type TEXT, subject TEXT DEFAULT '', aud TEXT DEFAULT '[]', students TEXT DEFAULT '[]', topic TEXT DEFAULT '{}', slides TEXT DEFAULT '[]', mode TEXT DEFAULT 'self', assign_at INTEGER DEFAULT 0, due INTEGER DEFAULT 0, status TEXT DEFAULT 'draft', hw TEXT DEFAULT '', live INTEGER DEFAULT -1, tpl INTEGER DEFAULT 0, notified INTEGER DEFAULT 0, due_notified INTEGER DEFAULT 0, created INTEGER, updated INTEGER)`);
@@ -139,7 +148,8 @@ export async function packHandle(c: PackCtx, a: Actor, action: string, input: Js
       const blob = JSON.stringify(sl);
       if (blob.length > 900_000) return { status: 413, body: { error: "too_large" } };
       const topic = (input.topic && typeof input.topic === "object" ? input.topic : {}) as Json;
-      const tp = { cur: str(topic.cur, 40), title: str(topic.title, 200), yr: str(topic.yr, 60), term: str(topic.term, 20), std: (Array.isArray(topic.std) ? topic.std : []).slice(0, 30).map((x) => str(x, 40)) };
+      const tp = { cur: str(topic.cur, 40), title: str(topic.title, 200), yr: str(topic.yr, 60), term: str(topic.term, 20), std: (Array.isArray(topic.std) ? topic.std : []).slice(0, 30).map((x) => str(x, 40)),
+        /* t429 SOW panel + pack timer */ lo: str(topic.lo, 3000), sc: (Array.isArray(topic.sc) ? topic.sc : []).slice(0, 20).map((x) => str(x, 400)).filter(Boolean), kw: str(topic.kw, 1000), stdText: str(topic.stdText, 1500), timer: Math.min(7200, Math.max(0, Math.trunc(Number(topic.timer) || 0))) };
       const aud = (Array.isArray(input.aud) ? input.aud : []).slice(0, 40).map((x) => str(x, 80));
       const students = [...new Set((Array.isArray(input.students) ? input.students : []).map((x) => str(x, 40)).filter(Boolean))].slice(0, 800);
       if (a.role === "teacher" && students.length && !c.inScopeIds(a, students)) return forbid("out_of_scope");
