@@ -189,6 +189,8 @@ export function TodayLessons() {
             {d.peers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
         )}
+        <a href="/lms/timetable?obs=1" className="rounded-full bg-[#f5c542] px-3 py-1 text-xs font-bold text-[#1b3a57]" data-testid="tt-dash-obs">👀 {tr("Peer observation", "ملاحظة زميل")}</a>
+        <a href="/lms/timetable?cover=1" className="rounded-full bg-rose-100 px-3 py-1 text-xs font-bold text-rose-900" data-testid="tt-dash-cover">🛟 {tr("Assign Cover", "تعيين احتياط")}</a>
         <a href="/lms/timetable" className="rounded-full border border-black/10 px-3 py-1 text-xs font-bold" data-testid="tt-dash-dl">⬇️ {tr("Download", "تنزيل")}</a>
       </div>
       <div className="mb-2"><LeadPicker d={d} asAdmin={false} onSaved={load} /></div>
@@ -236,6 +238,8 @@ export function TimetableManager({ asAdmin, full = false }: { asAdmin: boolean; 
     if (typeof window === "undefined" || !d) return;
     const q = new URLSearchParams(window.location.search);
     const s = q.get("src"); if (s && !src) setSrc(s);
+    if (q.get("cover") === "1") setCoverOpen(true);
+    if (q.get("obs") === "1" && !asAdmin) { const p = (d.peers || []).find((x) => x.same || d.acc.observe); if (p && !s) setSrc(p.id); setView("day"); setMsg(p ? tr("Choose a colleague above, then press “Request to observe” on a lesson.", "اختر زميلًا أعلاه ثم اضغط «طلب ملاحظة» على حصة.") : tr("No colleagues in your department are available to observe yet.", "لا يوجد زملاء في قسمك متاحون للملاحظة بعد.")); }
     if (q.get("new") === "1" && d.acc.add && !ed) setEd({ ...EMPTY, teacher: asAdmin ? "" : d.teachers[0]?.id || "" });
   }, [d]); // eslint-disable-line react-hooks/exhaustive-deps
   const onTtSubject = useCallback((subject: string) => setEd((e) => (e && e.subject !== subject ? { ...e, subject } : e)), []);
@@ -697,6 +701,8 @@ export function AdminTtWidget({ onOpen }: { onOpen: () => void }) {
   const { d, load } = useTimetable(true);
   const [t, setT] = useState("");
   const [cmp, setCmp] = useState(false);
+  const [cov, setCov] = useState(false);
+  const [today0] = useState(() => new Date(Date.now() + 4 * 3600e3).toISOString().slice(0, 10));
   if (!d) return null;
   SECMAP = d.secMap || SECMAP;
   const rows = d.timetable.filter((r) => !t || r.teacher === t);
@@ -712,9 +718,11 @@ export function AdminTtWidget({ onOpen }: { onOpen: () => void }) {
         <LeadPicker d={d} asAdmin={true} onSaved={load} />
         <select className="rounded-xl border border-black/10 bg-white px-2 py-1 text-sm" value={t} onChange={(e) => setT(e.target.value)} aria-label={tr("Teacher", "المعلم")} data-testid="admin-tt-teacher"><option value="">{tr("All teachers", "كل المعلمين")}</option>{names.map(([id, n]) => <option key={id} value={id}>{n}</option>)}</select>
         {d.acc.add && <button type="button" onClick={onOpen} className="rounded-full bg-sun px-3 py-1.5 text-sm font-bold text-[#0b1b2b]" data-testid="admin-tt-add">+ {tr("Add event", "إضافة حدث")}</button>}
+        <button type="button" onClick={() => setCov(!cov)} className="rounded-full bg-rose-100 px-3 py-1.5 text-sm font-bold text-rose-900" data-testid="admin-tt-cover">🛟 {tr("Assign Cover", "تعيين احتياط")}</button>
         <button type="button" onClick={() => setCmp(!cmp)} className="rounded-full bg-[#1b3a57] px-3 py-1.5 text-sm font-bold text-[#f5c542]" data-testid="admin-tt-compare">⚖️ {tr("Compare", "مقارنة")}</button>
         <button type="button" onClick={onOpen} className="rounded-full border border-black/10 px-3 py-1.5 text-sm font-bold" data-testid="admin-tt-open">⬇️ {tr("Download / manage", "تنزيل / إدارة")}</button>
       </div>
+      {cov && <CoverPanel d={d} asAdmin={true} day0={today0} onClose={() => setCov(false)} onSaved={load} />}
       {cmp && <ComparePanel d={d} asAdmin={true} />}
       {d.acc.add && <AdminLeads asAdmin={true} />}
       <TtDash rows={rows} times={d.times} now={d.now} testId="admin-tt-strip" />
