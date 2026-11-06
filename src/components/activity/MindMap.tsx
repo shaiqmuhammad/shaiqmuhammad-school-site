@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { fieldCls, primaryBtn } from "@/components/assessment/AssessmentShell";
 import { ChoiceList, actErr, hostChip, saveOptions, useTr } from "@/components/activity/common";
 import { activityApi, type ActivityItem, type ActivityState, type Who } from "@/lib/activity";
@@ -29,12 +29,12 @@ export function mapNodes(state: ActivityState) {
 
 type Pos = { x: number; y: number };
 /** Auto radial layout (0..1), overridden by any teacher-dragged x/y; then overlaps are pushed apart so no idea hides another. */
-function layoutMap(state: ActivityState, W: number, H: number) {
+function layoutMap(state: ActivityState, W: number, H: number, measured?: Map<string, { w: number; h: number }>) {
   const { branches, leaves } = mapNodes(state);
   const pos = new Map<string, Pos>();
   const fixed = new Set<string>();
   const size = new Map<string, { w: number; h: number }>();
-  const est = (i: ActivityItem, br: boolean) => ({ w: Math.min(W * 0.42, String(i.data.text || "").length * (br ? 9 : 7.5) + 70), h: br ? 40 : 32 });
+  const est = (i: ActivityItem, br: boolean) => measured?.get(i.id) || ({ w: Math.min(W * 0.42, String(i.data.text || "").length * (br ? 9 : 7.5) + 70), h: br ? 40 : 32 });
   const n = Math.max(branches.length, 1);
   const twoRings = branches.length > 8;
   branches.forEach((b, k) => {
@@ -56,7 +56,7 @@ function layoutMap(state: ActivityState, W: number, H: number) {
   // Relax: push overlapping boxes apart (in pixels), keep inside the board and away from the centre topic.
   const keys = [...pos.keys()];
   const centre = { w: Math.min(W * 0.4, 260), h: 70 };
-  for (let it = 0; it < 80; it++) {
+  for (let it = 0; it < 160; it++) {
     let moved = false;
     for (let i = 0; i < keys.length; i++) {
       const A = pos.get(keys[i])!, sa = size.get(keys[i])!;
@@ -91,10 +91,18 @@ export function MapBoard({ state, big = false, host, onPick, picked, recallMine 
     const el = box.current; if (!el) return;
     const ro = new ResizeObserver(() => setW(el.clientWidth || 900)); ro.observe(el); return () => ro.disconnect();
   }, []);
-  const count = mapNodes(state).ideas.length;
-  // t423: the board grows with the class so every idea has room.
-  const H = Math.min(2400, (big ? 620 : 460) + Math.max(0, count - (W < 600 ? 6 : 12)) * (W < 600 ? 60 : 34));
-  const { pos, branches, leaves } = useMemo(() => layoutMap(state, W, H), [state, W, H]);
+  // t423: real node sizes (measured after render) drive the layout, and the board grows with the class so every idea has room.
+  const [sizes, setSizes] = useState<Map<string, { w: number; h: number }>>(new Map());
+  const area = mapNodes(state).ideas.reduce((a, i) => { const z = sizes.get(i.id); return a + (z ? z.w * z.h : 220 * 40); }, 0);
+  const H = Math.min(3200, Math.max(big ? 620 : 460, Math.round((area * 2.6) / Math.max(300, W)) + 160));
+  const { pos, branches, leaves } = useMemo(() => layoutMap(state, W, H, sizes), [state, W, H, sizes]);
+  useLayoutEffect(() => {
+    const el = box.current; if (!el) return;
+    let changed = false; const next = new Map(sizes);
+    el.querySelectorAll<HTMLElement>("[data-node]").forEach((n) => { const id = n.dataset.node!; const w = n.offsetWidth, h = n.offsetHeight; const o = sizes.get(id); if (!o || Math.abs(o.w - w) > 3 || Math.abs(o.h - h) > 3) { next.set(id, { w, h }); changed = true; } });
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (changed) setSizes(next);
+  });
   const byGroup = state.settings.options.colorBy === "group";
   const at = (id: string) => (drag?.id === id ? drag : pos.get(id) || { x: 0.5, y: 0.5 });
   const move = (e: React.PointerEvent) => {
@@ -119,7 +127,8 @@ export function MapBoard({ state, big = false, host, onPick, picked, recallMine 
         type="button"
         onPointerDown={host ? (e) => { (e.target as HTMLElement).setPointerCapture?.(e.pointerId); setDrag({ id: i.id, ...at(i.id) }); } : undefined}
         onClick={() => onPick?.(i)}
-        className={`absolute max-w-[42%] -translate-x-1/2 -translate-y-1/2 rounded-2xl px-3 py-1.5 text-start font-extrabold shadow-lg transition ${isBranch ? (big ? "text-xl" : "text-base") : big ? "text-base" : "text-sm"} ${picked === i.id ? "ring-4 ring-[#f5c542]" : ""} ${i.status === "pending" ? "border-dashed opacity-70" : ""} ${host ? "cursor-grab touch-none" : ""}`}
+        data-node={i.id}
+        className={`absolute w-max max-w-[42%] -translate-x-1/2 -translate-y-1/2 rounded-2xl px-3 py-1.5 text-start font-extrabold shadow-lg transition ${isBranch ? (big ? "text-xl" : "text-base") : big ? "text-base" : "text-sm"} ${picked === i.id ? "ring-4 ring-[#f5c542]" : ""} ${i.status === "pending" ? "border-dashed opacity-70" : ""} ${host ? "cursor-grab touch-none" : ""}`}
         style={{ left: `${p.x * 100}%`, top: `${p.y * 100}%`, background: isBranch ? c : "white", color: isBranch ? "white" : c, border: `2px solid ${c}` }}
         data-testid={isBranch ? "mm-branch" : "mm-leaf"}
         dir="auto"
