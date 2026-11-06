@@ -10,7 +10,7 @@ export function FullscreenToggle({ className = "" }: { className?: string }) {
   if (!ok) return null;
   const go = () => toggleFullscreen();
   return <button type="button" onClick={go} title={on ? "Exit full screen (Esc)" : "Full screen"} aria-label={on ? "Exit full screen" : "Full screen"} aria-pressed={on} data-testid="global-full"
-    className={"inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#f5c542]/60 bg-white/10 text-base font-bold text-[#f5c542] backdrop-blur hover:bg-[#f5c542]/20 " + className}>{on ? "✕" : "⛶"}</button>;
+    className={"inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#f5c542]/70 bg-[#1b3a57] text-base font-bold text-[#f5c542] shadow-sm hover:bg-[#244a6b] " + className}>{on ? "✕" : "⛶"}</button>;
 }
 
 /** t429: small "Focus" pill for every admin / teacher / student page — hides the top bar, menus and tickers (and goes full screen).
@@ -32,7 +32,7 @@ export function FocusPill({ className = "" }: { className?: string }) {
   const ar = typeof document !== "undefined" && document.documentElement.lang === "ar";
   return <>
     <button type="button" onClick={() => setPageFocus(!on)} aria-pressed={on} title={ar ? "وضع التركيز — إخفاء القوائم" : "Focus — hide menus and bars"} data-testid="page-focus"
-      className={"inline-flex h-8 shrink-0 items-center gap-1 rounded-full border border-[#f5c542]/60 bg-white/10 px-2.5 text-xs font-extrabold text-[#f5c542] backdrop-blur hover:bg-[#f5c542]/20 " + className}>
+      className={"inline-flex h-8 shrink-0 items-center gap-1 rounded-full border border-[#f5c542]/70 bg-[#1b3a57] px-2.5 text-xs font-extrabold text-[#f5c542] shadow-sm hover:bg-[#244a6b] " + className}>
       <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden><circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="3" /></svg>{ar ? "تركيز" : "Focus"}</button>
     {on && typeof document !== "undefined" && createPortal(<button type="button" onClick={() => setPageFocus(false)} className="page-focus-exit fixed end-3 top-3 z-[4500] inline-flex items-center gap-1.5 rounded-full bg-[#1b3a57]/85 px-3 py-1.5 text-xs font-extrabold text-[#f5c542] shadow-lg ring-1 ring-[#f5c542]/60 backdrop-blur opacity-70 transition hover:opacity-100" data-testid="page-focus-exit">✕ {ar ? "إنهاء التركيز" : "Exit Focus"}</button>, document.body)}
   </>;
