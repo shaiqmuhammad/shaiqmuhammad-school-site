@@ -735,7 +735,7 @@ function ModuleAccess({ perms, setPerms, teachers }: { perms: string[]; setPerms
   );
   const sub = (on: boolean, kids: React.ReactNode) => on ? <div className="ms-4 flex flex-wrap gap-x-4 gap-y-1 border-s-2 border-black/10 ps-3 text-sm dark:border-white/15">{kids}</div> : null;
   const cb = (checked: boolean, onChange: (v: boolean) => void, label: string, id: string) => <label className="flex items-center gap-1.5"><input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} data-testid={id} /> {label}</label>;
-  const simple: [string, string, string][] = [["messaging", "💬 Messaging", "💬 الرسائل"], ["wall", "🧱 Class Wall", "🧱 جدار الصف"], ["activities", "🎲 Activities", "🎲 الأنشطة"], ["homework", "📝 Homework", "📝 الواجبات"], ["assessments", "✅ Assessments", "✅ التقييمات"], ["results", "📊 Assessment Results", "📊 نتائج التقييمات"]];
+  const simple: [string, string, string][] = [["messaging", "💬 Messaging", "💬 الرسائل"], ["wall", "🧱 Class Wall", "🧱 جدار الصف"], ["activities", "🎲 Activities", "🎲 الأنشطة"], ["homework", "📝 Homework", "📝 الواجبات"], ["assessments", "🧩 Assessments", "🧩 التقييمات"], ["results", "🧾 Assessment Results", "🧾 نتائج التقييمات"]];
   const fine: [string, string, string, boolean][] = [["att", "🗓️ Attendance Register", "🗓️ سجل الحضور", false], ["beh", "🌟 Behaviour", "🌟 السلوك", false], ["cur", "🗂️ Curriculum", "🗂️ المنهج", true]];
   const qOps: ["view" | "add" | "edit" | "delete", string, string][] = [["view", "View", "عرض"], ["add", "Add", "إضافة"], ["edit", "Edit", "تعديل"], ["delete", "Delete", "حذف"]];
   return (
@@ -764,7 +764,7 @@ function ModuleAccess({ perms, setPerms, teachers }: { perms: string[]; setPerms
           </div>
         ))}
         <div className="space-y-1.5 rounded-xl bg-black/[0.03] px-3 py-2 dark:bg-white/5" data-testid="perm-qhw">
-          <div className="flex items-center justify-between gap-2"><span className="text-sm font-semibold">📖 {tr("Quran Homework", "واجب القرآن")}</span>{show(q("show"), (v) => setQ("show", v), "perm-qhw-show")}</div>
+          <div className="flex items-center justify-between gap-2"><span className="text-sm font-semibold">🎙️ {tr("Quran Homework", "واجب القرآن")}</span>{show(q("show"), (v) => setQ("show", v), "perm-qhw-show")}</div>
           {sub(q("show"), qOps.map(([op, en, ar]) => <Fragment key={op}>{cb(q(op), (v) => setQ(op, v), tr(en, ar), `perm-qhw-${op}`)}</Fragment>))}
         </div>
         <div className="space-y-1.5 rounded-xl bg-black/[0.03] px-3 py-2 md:col-span-2 dark:bg-white/5" data-testid="perm-rep">
