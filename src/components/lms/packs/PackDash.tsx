@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useTr } from "@/components/lms/useLms";
 import { LB_ICON, lp, TYPE_LABEL, type Pack } from "@/lib/packs";
 
-/** t429: student dashboard — slide activities / homework assigned from the Lesson Builder, one tap to open and start. */
+/** t429: student dashboard — lessons and activities assigned from the Lesson Builder, one tap to open and start. */
 export function PackDash() {
   const { tr } = useTr();
   const [items, setItems] = useState<Pack[] | null>(null);
@@ -13,7 +13,7 @@ export function PackDash() {
   if (!list.length) return null;
   return (
     <section className="rounded-3xl border border-violet-200/80 bg-gradient-to-br from-violet-100/90 via-white/80 to-sky-100/80 p-4 text-[#1b2f44] shadow-lg backdrop-blur-md" data-testid="lp-dash">
-      <h2 className="mb-2 flex items-center gap-2 text-lg font-extrabold">{LB_ICON} {tr("My slide activities", "أنشطتي بالشرائح")}</h2>
+      <h2 className="mb-2 flex items-center gap-2 text-lg font-extrabold">{LB_ICON} {tr("My Lessons and Activities", "دروسي وأنشطتي")}</h2>
       <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {list.map((x) => <li key={x.id}><a href={x.hw ? `/lms/homework?id=${encodeURIComponent(x.hw)}` : `/lms/material?open=${encodeURIComponent(x.id)}`} className="flex items-center gap-3 rounded-2xl bg-white/85 p-3 shadow-sm ring-1 ring-black/5 transition hover:-translate-y-0.5 hover:shadow-md" data-testid="lp-dash-item">
           <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-violet-600 text-2xl text-white shadow-inner">{TYPE_LABEL[x.type][0]}</span>
