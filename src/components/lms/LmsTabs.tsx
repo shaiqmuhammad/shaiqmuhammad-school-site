@@ -47,7 +47,7 @@ const TEACHER: Tab[] = [
   { id: "res", href: "/lms/results", en: "Results", ar: "النتائج", icon: I.res, lvl: 3 },
 ];
 // Child-friendly look: one emoji per area, each on its own theme-coloured disc.
-const EMOJI: Record<string, string> = { tt: "⏰", std: "📘", lib: "📚", rep: "📈", dash: "🏠", hw: "📝", assess: "✅", msg: "💬", wall: "🧱", quran: "📖", qhw: "📖", cls: "🏫", act: "🎲", res: "📊", att: "🗓️", beh: "🌟", cur: "📚", logins: "🔑", acct: "🙂", stu: "👥", map: "🗺️", pts: "🏆", fcur: "📚", fassess: "✅", corr: "💯" };
+const EMOJI: Record<string, string> = { tt: "⏰", std: "📘", lib: "📚", rep: "📈", dash: "🏠", hw: "📝", assess: "✅", msg: "💬", wall: "🧱", quran: "📖", qhw: "📖", cls: "🏫", act: "🎲", res: "🧾", att: "🗓️", beh: "🌟", cur: "📚", logins: "🔑", acct: "🙂", stu: "👥", map: "🗺️", pts: "🏆", fcur: "📚", fassess: "✅", corr: "💯", lp: "📑", qa: "📊", rc: "🃏", trk: "📋" };
 const DISC = ["bg-white/15 text-white ring-1 ring-white/25"];
 
 /**

@@ -30,7 +30,7 @@ export type Progress = { student: string; seen: number; total: number; updated: 
 export const FONTS = ["Nunito", "Arial", "Georgia", "Times New Roman", "Courier New", "Comic Sans MS", "Amiri", "Tajawal", "Verdana"];
 export const TYPE_LABEL: Record<PackType, [string, string, string]> = { lesson: ["🎤", "Lesson", "درس"], activity: ["✏️", "Activity", "نشاط"], homework: ["📝", "Homework", "واجب"], quran: ["📖", "Quran Homework", "واجب القرآن"], material: ["📚", "Library material", "مادة المكتبة"] };
 /** t429: product name + icon (user-facing; the route stays /lms/material). */
-export const LB_EN = "Lesson Builder", LB_AR = "منشئ الدروس", LB_ICON = "🪄";
+export const LB_EN = "Lesson Builder", LB_AR = "منشئ الدروس", LB_ICON = "📑";
 /** t389: public link for an uploaded PowerPoint / PDF (rendered by the free Office / browser viewer). */
 export const docUrl = (id: string) => `${ASSESSMENT_API_BASE}/api/lms/lp-doc?id=${encodeURIComponent(id)}`;
 export const docViewer = (id: string, kind: "pptx" | "pdf") => (kind === "pdf" ? docUrl(id) : `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(docUrl(id))}`);

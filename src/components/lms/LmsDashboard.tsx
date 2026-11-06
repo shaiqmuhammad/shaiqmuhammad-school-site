@@ -23,7 +23,7 @@ import { CorrectedList } from "@/components/lms/mods/CorrectedHomework";
 import { qhwPerm } from "@/lib/lmsMods";
 import { exportAllHomeworkZip } from "@/components/lms/lmsFiles";
 import { STATUS_STYLE, card, smallBtn, statusLabel, useLmsActor, useTr, GRADE_STYLE, gradeLabel } from "@/components/lms/useLms";
-import { lmsApi, lmsErrorText, lmsSignOut, quranChapters, type Chapter, type QuranData } from "@/lib/lms";
+import { lmsApi, lmsErrorText, lmsSignOut, mpShown, quranChapters, type Chapter, type QuranData } from "@/lib/lms";
 
 type Dash = Awaited<ReturnType<typeof lmsApi.dashboard>>;
 
@@ -107,7 +107,9 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
   const canAssign = actor?.role === "admin" || actor?.perms.includes("assign");
 
   const QUICK: string[][] = (staff ? [["/lms/timetable", "⏰", "Timetable", "الجدول", "from-lime-100 to-lime-200"], ["/lms/classes", "🧑‍🏫", "My classes", "صفوفي", "from-sky-100 to-sky-200"], ["/lms/homework", "📚", "Homeworks", "الواجبات", "from-amber-100 to-amber-200"], ["/lms/attendance", "📋", "Attendance", "الحضور", "from-emerald-100 to-emerald-200"], ["/lms/activities", "🎡", "Activities", "الأنشطة", "from-violet-100 to-violet-200"], ["/lms/assessments", "🧩", "Assessments", "التقييمات", "from-rose-100 to-rose-200"], ["/lms/messages", "💬", "Messages", "الرسائل", "from-cyan-100 to-cyan-200"]] : [["/lms/timetable", "⏰", "Timetable", "الجدول", "from-lime-100 to-lime-200"], ["/lms/homework", "✏️", "Homework", "الواجبات", "from-amber-100 to-amber-200"], ["/lms/assessments", "🧩", "Assessments", "التقييمات", "from-rose-100 to-rose-200"], ["/lms/library", "📚", "Libraries", "المكتبات", "from-emerald-100 to-emerald-200"], ["/lms#tracker", "📖", "Quran Tracker", "متابعة الحفظ", "from-sky-100 to-sky-200"], ["/lms/rewards", "🃏", "Reward Cards", "بطاقات المكافآت", "from-amber-100 to-yellow-300"], ["/lms/messages", "💬", "Messages", "الرسائل", "from-cyan-100 to-cyan-200"], ["/lms/account", "🦸", "My character", "شخصيتي", "from-violet-100 to-violet-200"]]);
-  // t441: Reward Cards tile for staff with the Rewards permission (admin always).
+  // t448: distinct icons — Progress Check 📊, Lesson Builder 📑, Reward Cards 🃏
+  if (staff && (actor?.role === "admin" || mpShown(actor, "lp"))) QUICK.push(["/lms/material", "📑", "Lesson Builder", "منشئ الدروس", "from-rose-100 to-pink-200"]);
+  if (staff && actor?.role === "teacher" && actor?.mods?.qa?.view) QUICK.push(["/lms/qa", "📊", "Progress Check", "فحص التقدم", "from-indigo-100 to-sky-200"]);
   if (staff && (actor?.role === "admin" || actor?.mods?.rw?.view)) QUICK.push(["/lms/rewards", "🃏", "Reward Cards", "بطاقات المكافآت", "from-amber-100 to-yellow-300"]);
   // t350: hide the Activities tile when the teacher has no activity/assessment permission.
   const actOk = !staff || (!actor?.perms?.includes("hide:activities") && (actor?.perms || []).some((p) => p.startsWith("act:") || p.startsWith("host:")));
@@ -223,7 +225,7 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
             </div>
             {!hwOnly && <div className={card + " py-3"}><LeaderboardSetting /></div>}
             {creating && (
-              (dash as { quran?: { add: boolean } }).quran && !(dash as { quran?: { add: boolean } }).quran!.add ? <a href="/lms/material?new=homework" className="inline-block rounded-full bg-sun px-4 py-2 font-extrabold text-[#1b2f44]" data-testid="hw-kind-pack">📚 {tr("New homework as slides (Lesson Pack)", "واجب جديد بالشرائح")}</a> : <HomeworkEditor classes={dash.classes || []} students={dash.students || []} catalog={dash.catalog} scope={dash.scope} asAdmin={asAdmin} kinds={(dash as { quran?: { add: boolean } }).quran && !(dash as { quran?: { add: boolean } }).quran!.add ? ["general"] : ["quran", "general"]} onCancel={() => setCreating(false)} onSaved={(id) => router.push(`/lms/homework?id=${id}`)} />
+              (dash as { quran?: { add: boolean } }).quran && !(dash as { quran?: { add: boolean } }).quran!.add ? <a href="/lms/material?new=homework" className="inline-block rounded-full bg-sun px-4 py-2 font-extrabold text-[#1b2f44]" data-testid="hw-kind-pack">📑 {tr("New homework as slides (Lesson Pack)", "واجب جديد بالشرائح")}</a> : <HomeworkEditor classes={dash.classes || []} students={dash.students || []} catalog={dash.catalog} scope={dash.scope} asAdmin={asAdmin} kinds={(dash as { quran?: { add: boolean } }).quran && !(dash as { quran?: { add: boolean } }).quran!.add ? ["general"] : ["quran", "general"]} onCancel={() => setCreating(false)} onSaved={(id) => router.push(`/lms/homework?id=${id}`)} />
             )}
             {hwOnly && staff ? (
               <section id="homework" className="scroll-mt-28 space-y-4" data-testid="hw-hub">
@@ -234,7 +236,7 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
                 </div>
                 {hubTab === "add" && canAssign ? <div className="space-y-2" data-testid="hw-add-tab">
                   {addMsg && <p className="rounded-xl bg-emerald-100 px-3 py-2 text-sm font-bold text-emerald-900" role="status" data-testid="hw-add-msg">{addMsg}</p>}
-                  {(dash as { quran?: { add: boolean } }).quran && !(dash as { quran?: { add: boolean } }).quran!.add ? <a href="/lms/material?new=homework" className="inline-block rounded-full bg-sun px-4 py-2 font-extrabold text-[#1b2f44]">📚 {tr("New homework as slides (Lesson Pack)", "واجب جديد بالشرائح")}</a>
+                  {(dash as { quran?: { add: boolean } }).quran && !(dash as { quran?: { add: boolean } }).quran!.add ? <a href="/lms/material?new=homework" className="inline-block rounded-full bg-sun px-4 py-2 font-extrabold text-[#1b2f44]">📑 {tr("New homework as slides (Lesson Pack)", "واجب جديد بالشرائح")}</a>
                     : <HomeworkEditor key={addKey} classes={dash.classes || []} students={dash.students || []} catalog={dash.catalog} scope={dash.scope} asAdmin={asAdmin} kinds={["quran", "general"]} onCancel={() => setHubTab("quran")} onSaved={(id) => { setAddMsg(tr("Homework created ✓ — add another below, or open it from Assigned Homework.", "تم إنشاء الواجب ✓ — أضف واجبًا آخر بالأسفل أو افتحه من الواجبات المسندة.")); setAddKey((k) => k + 1); void id; load(); }} />}
                 </div> : hubTab === "quran" && qOk ? <QuranHomework /> : hubTab === "corrected" ? (
                   <div className="space-y-3">
