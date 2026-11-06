@@ -62,7 +62,7 @@ export function LmsParentPage() {
             <section className={card + " space-y-2"}><h3 className="text-lg font-bold">📈 {tr("Quran tracker", "متابعة الحفظ")}</h3><TrackerBadges tracker={d.tracker} /></section>
             <Certificates tracker={d.tracker} student={d.name} />
             <section className={card + " space-y-2"}>
-              <h3 className="text-lg font-bold">📚 {tr("Homework", "الواجبات")}</h3>
+              <h3 className="text-lg font-bold">📝 {tr("Homework", "الواجبات")}</h3>
               <ul className="divide-y divide-black/5 dark:divide-white/10">
                 {d.homework.map((h) => (
                   <li key={h.id} className="space-y-1 py-2" data-testid="parent-hw">
