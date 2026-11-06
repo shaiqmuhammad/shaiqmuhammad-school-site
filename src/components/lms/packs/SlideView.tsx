@@ -18,6 +18,13 @@ export function MediaAudio({ id, asAdmin }: { id: string; asAdmin: boolean }) {
   return <div className="flex h-full w-full items-center rounded-xl bg-amber-50 px-2"><span className="me-1 text-[2.5cqw]">🎙️</span>{u ? <audio controls src={u} className="h-[70%] w-full" controlsList="nodownload" /> : "…"}</div>;
 }
 
+/** t431: recorded video answer. */
+export function MediaVideo({ id, asAdmin }: { id: string; asAdmin: boolean }) {
+  const [u, setU] = useState("");
+  useEffect(() => { let on = true; mediaUrl(id, asAdmin).then((x) => on && setU(x)).catch(() => undefined); return () => { on = false; }; }, [id, asAdmin]);
+  return <div className="h-full w-full overflow-hidden rounded-xl bg-black">{u ? <video controls playsInline src={u} className="h-full w-full object-contain" data-testid="el-video-player" /> : <span className="grid h-full place-items-center text-white">🎥 …</span>}</div>;
+}
+
 /** t395: rich text kept to bold / italic / underline / line breaks (same on the editor canvas and the student player). */
 export function cleanHtml(h: string): string {
   if (typeof DOMParser === "undefined") return "";
@@ -59,6 +66,7 @@ function Body({ e, asAdmin, live }: { e: El; asAdmin: boolean; live: boolean }) 
       return <div dir="auto" className="h-full w-full overflow-hidden whitespace-pre-wrap break-words leading-snug" style={{ color: e.color, background: e.bg || undefined, fontFamily: e.font, fontSize: `${e.size / 16}cqw`, fontWeight: e.bold ? 800 : 400, fontStyle: e.italic ? "italic" : undefined, textAlign: e.align === "center" ? "center" : e.align === "end" ? "end" : "start", padding: "0.4cqw" }}>{e.html ? <span dangerouslySetInnerHTML={{ __html: cleanHtml(e.html) }} /> : e.text || " "}</div>;
     case "img": return <MediaImg id={e.src} asAdmin={asAdmin} />;
     case "audio": return <MediaAudio id={e.src} asAdmin={asAdmin} />;
+    case "video": return <MediaVideo id={e.src} asAdmin={asAdmin} />;
     case "yt": return live ? <iframe src={embed(e.vid)} title={e.title || "Video"} className="h-full w-full rounded-lg" allow="encrypted-media; picture-in-picture; fullscreen" allowFullScreen referrerPolicy="strict-origin-when-cross-origin" /> : <div className="grid h-full w-full place-items-center rounded-lg bg-slate-800 text-[2cqw] text-white">▶ {e.title || "YouTube"}</div>;
     case "act": {
       const src = e.code ? `/join?code=${encodeURIComponent(e.code)}` : `/assessments/${encodeURIComponent(e.quiz || "")}`;

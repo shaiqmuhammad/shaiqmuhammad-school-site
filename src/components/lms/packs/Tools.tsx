@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AudioRecorder } from "@/components/lms/Audio";
 import { inputCls, smallBtn, useTr } from "@/components/lms/useLms";
 import { FONTS, mediaUpload, uid, ytId, type El } from "@/lib/packs";
@@ -17,7 +17,7 @@ type Add = (e: Omit<El, "id">) => void;
 /** t315: "add" toolbar shared by the teacher editor and the student player. Teachers also get YouTube, activities and the Quran block. */
 export function AddTools({ add, pen, setPen, onUndoStroke, onClearDraw, asAdmin, teacher, onErr, compact = false }: { add: Add; pen: Pen; setPen: (p: Pen) => void; onUndoStroke: () => void; onClearDraw: () => void; asAdmin: boolean; teacher: boolean; onErr: (m: string) => void; compact?: boolean }) {
   const { tr } = useTr();
-  const [panel, setPanel] = useState<"" | "yt" | "act" | "quran" | "rec">("");
+  const [panel, setPanel] = useState<"" | "yt" | "act" | "quran" | "rec" | "vid">("");
   const [busy, setBusy] = useState(false);
   const pic = async (f: File | undefined) => { if (!f) return; setBusy(true); try { add({ t: "img", src: await mediaUpload(f, asAdmin), x: 25, y: 15, w: 50, h: 60 } as Omit<El, "id">); } catch (e) { onErr(String((e as Error).message)); } setBusy(false); };
   const b = (on: boolean, c = "sky") => `${tb(c)} ${on ? "!bg-[#1b2f44] !text-white !ring-[#1b2f44]" : ""}`;
@@ -28,6 +28,7 @@ export function AddTools({ add, pen, setPen, onUndoStroke, onClearDraw, asAdmin,
         <label className={tb("violet")} title={tr("Upload picture", "رفع صورة")} data-testid="lp-add-pic">🖼️ <span className="lb-tl">{busy ? "…" : tr("Picture", "صورة")}</span><input type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="hidden" onChange={(e) => { pic(e.target.files?.[0]); e.target.value = ""; }} data-testid="lp-pic-input" /></label>
         <label className={tb("indigo")} title={tr("Take a photo with the camera", "التقط صورة بالكاميرا")} data-testid="lp-add-cam">📷 <span className="lb-tl">{tr("Camera", "الكاميرا")}</span><input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { pic(e.target.files?.[0]); e.target.value = ""; }} data-testid="lp-cam-input" /></label>
         <button type="button" className={b(panel === "rec", "rose")} onClick={() => setPanel(panel === "rec" ? "" : "rec")} title={tr("Record your voice", "سجّل صوتك")} data-testid="lp-add-audio">🎙️ <span className="lb-tl">{tr("Record", "تسجيل")}</span></button>
+        <button type="button" className={b(panel === "vid", "red")} onClick={() => setPanel(panel === "vid" ? "" : "vid")} title={tr("Record a video", "سجّل فيديو")} data-testid="lp-add-video">🎥 <span className="lb-tl">{tr("Video", "فيديو")}</span></button>
         <button type="button" className={b(!!pen, "orange")} onClick={() => setPen(pen ? null : { c: "#e11d48", w: 0.5 })} title={tr("Draw", "رسم")} data-testid="lp-pen">✏️ <span className="lb-tl">{pen ? tr("Drawing — tap to stop", "الرسم — اضغط للإيقاف") : tr("Draw", "رسم")}</span></button>
         {teacher && <>
           <button type="button" className={b(panel === "yt", "red")} onClick={() => setPanel(panel === "yt" ? "" : "yt")} data-testid="lp-add-yt">▶️ YouTube</button>
@@ -42,6 +43,7 @@ export function AddTools({ add, pen, setPen, onUndoStroke, onClearDraw, asAdmin,
         <button type="button" className={smallBtn} onClick={onClearDraw} data-testid="lp-clear-draw">🧽 {tr("Clear drawing", "مسح الرسم")}</button>
       </div>}
       {panel === "rec" && <AudioRecorder label={tr("Record (up to 3 minutes)", "سجّل (حتى 3 دقائق)")} testId="lp-rec" onSave={async (blob) => { const id = await mediaUpload(blob, asAdmin); add({ t: "audio", src: id, x: 30, y: 75, w: 40, h: 12 } as Omit<El, "id">); setPanel(""); }} />}
+      {panel === "vid" && <VideoRecorder onErr={onErr} onSave={async (blob) => { const id = await mediaUpload(blob, asAdmin); add({ t: "video", src: id, x: 25, y: 15, w: 50, h: 60 } as Omit<El, "id">); setPanel(""); }} />}
       {panel === "yt" && <YtPick onPick={(vid, title) => { add({ t: "yt", vid, title, x: 15, y: 12, w: 70, h: 76 } as Omit<El, "id">); setPanel(""); }} />}
       {panel === "act" && <ActPick onPick={(v) => { add({ t: "act", ...v, x: 10, y: 10, w: 80, h: 80 } as Omit<El, "id">); setPanel(""); }} />}
     </div>
@@ -126,3 +128,32 @@ export function ElProps({ e, set, del, front, back }: { e: El; set: (p: Partial<
   );
 }
 export const withId = (e: Omit<El, "id">): El => ({ ...(e as El), id: uid() });
+
+/** t431: short video answer — camera preview, record up to 60 s at a small size (fits the 2.5 MB upload), or pick / capture a clip. */
+function VideoRecorder({ onSave, onErr }: { onSave: (b: Blob) => Promise<void>; onErr: (m: string) => void }) {
+  const { tr } = useTr();
+  const vid = useRef<HTMLVideoElement>(null);
+  const [stream, setStream] = useState<MediaStream | null>(null);
+  const [rec, setRec] = useState<MediaRecorder | null>(null);
+  const [blob, setBlob] = useState<Blob | null>(null);
+  const [secs, setSecs] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const LIMIT = 60, MAX = 2_400_000;
+  useEffect(() => () => { stream?.getTracks().forEach((t) => t.stop()); }, [stream]);
+  useEffect(() => { if (!rec) return; const t = setInterval(() => setSecs((s) => { if (s + 1 >= LIMIT && rec.state === "recording") rec.stop(); return s + 1; }), 1000); return () => clearInterval(t); }, [rec]);
+  const open = async () => { try { const s = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 480 }, height: { ideal: 360 }, facingMode: "user" }, audio: true }); setStream(s); setBlob(null); if (vid.current) { vid.current.srcObject = s; vid.current.muted = true; vid.current.play().catch(() => undefined); } } catch { onErr(tr("Camera not available — allow camera and microphone, or choose a video file.", "الكاميرا غير متاحة — اسمح بالكاميرا والميكروفون أو اختر ملف فيديو.")); } };
+  const start = () => { if (!stream) return; const mt = ["video/webm;codecs=vp8,opus", "video/webm", "video/mp4"].find((m) => MediaRecorder.isTypeSupported?.(m)) || ""; const r = new MediaRecorder(stream, { ...(mt ? { mimeType: mt } : {}), videoBitsPerSecond: 250_000, audioBitsPerSecond: 32_000 }); const parts: Blob[] = []; r.ondataavailable = (e) => e.data.size && parts.push(e.data); r.onstop = () => { const b = new Blob(parts, { type: (r.mimeType || "video/webm").split(";")[0] }); setBlob(b); setRec(null); if (vid.current) { vid.current.srcObject = null; vid.current.src = URL.createObjectURL(b); vid.current.muted = false; } }; setSecs(0); r.start(1000); setRec(r); };
+  const save = async (b: Blob) => { if (b.size > MAX) { onErr(tr("That video is too big (max ~2.5 MB). Record a shorter clip.", "الفيديو كبير جدًا (الحد ~2.5 ميغابايت). سجّل مقطعًا أقصر.")); return; } setBusy(true); try { await onSave(b); stream?.getTracks().forEach((t) => t.stop()); setStream(null); } catch (e) { onErr(String((e as Error).message)); } setBusy(false); };
+  return (
+    <div className="space-y-2 rounded-2xl border border-red-200 bg-red-50/70 p-3" data-testid="lp-video-panel">
+      <video ref={vid} playsInline controls={!!blob} className="aspect-video w-full max-w-md rounded-xl bg-black" data-testid="lp-video-preview" />
+      <div className="flex flex-wrap items-center gap-2 text-sm font-bold">
+        {!stream && !blob && <button type="button" className={smallBtn} onClick={open} data-testid="lp-video-open">📹 {tr("Turn on camera", "شغّل الكاميرا")}</button>}
+        {stream && !rec && !blob && <button type="button" className={smallBtn + " !bg-red-600 !text-white"} onClick={start} data-testid="lp-video-start">⏺ {tr("Record", "تسجيل")}</button>}
+        {rec && <button type="button" className={smallBtn + " !bg-slate-800 !text-white"} onClick={() => rec.stop()} data-testid="lp-video-stop">⏹ {tr("Stop", "إيقاف")} · {secs}s / {LIMIT}s</button>}
+        {blob && <><button type="button" className={smallBtn + " !bg-emerald-600 !text-white"} disabled={busy} onClick={() => save(blob)} data-testid="lp-video-save">✅ {busy ? "…" : tr("Add to my slide", "أضِف إلى شريحتي")}</button><button type="button" className={smallBtn} onClick={() => { setBlob(null); open(); }}>↺ {tr("Record again", "أعد التسجيل")}</button></>}
+        <label className={smallBtn + " cursor-pointer"} data-testid="lp-video-file">📁 {tr("Choose / capture a clip", "اختر / صوّر مقطعًا")}<input type="file" accept="video/*" capture="user" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) save(f); }} /></label>
+      </div>
+    </div>
+  );
+}

@@ -9,12 +9,13 @@ import { modCall } from "@/lib/lmsMods";
 export type ElText = { t: "text"; text: string; html?: string; color: string; bg?: string; font: string; size: number; bold?: boolean; italic?: boolean; align?: "start" | "center" | "end" };
 export type ElImg = { t: "img"; src: string };
 export type ElAudio = { t: "audio"; src: string };
+export type ElVideo = { t: "video"; src: string };
 export type ElDraw = { t: "draw"; paths: { c: string; w: number; d: number[] }[] };
 export type ElYt = { t: "yt"; vid: string; title?: string };
 export type ElAct = { t: "act"; code?: string; quiz?: string; label?: string };
 export type ElDoc = { t: "doc"; src: string; kind: "pptx" | "pdf"; name?: string };
 export type ElQuran = { t: "quran"; surah: number; from: number; to: number; reciter?: string; memorise?: boolean; memoAudio?: boolean; translit?: boolean; translation?: boolean; notes?: string };
-export type El = { id: string; x: number; y: number; w: number; h: number; by?: "t" | "s"; /** t429: teacher lock — can't be moved or deleted until unlocked */ lock?: boolean } & (ElText | ElImg | ElAudio | ElDraw | ElYt | ElAct | ElQuran | ElDoc);
+export type El = { id: string; x: number; y: number; w: number; h: number; by?: "t" | "s"; /** t429: teacher lock — can't be moved or deleted until unlocked */ lock?: boolean } & (ElText | ElImg | ElAudio | ElVideo | ElDraw | ElYt | ElAct | ElQuran | ElDoc);
 export type Part = "lesson" | "activity" | "homework";
 /** t429: part (lesson / activity / homework), timer seconds, instructions for students (+ recorded audio id). */
 export type Slide = { id: string; bg: string; els: El[]; part?: Part; timer?: number; instr?: string; instrAudio?: string };
