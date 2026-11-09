@@ -42,7 +42,7 @@ export type ActivityItem = {
   mine: boolean;
   author: string;
   kind: string;
-  data: { text?: string; link?: string; youtube?: string; stage?: string; word?: string; picks?: number[]; answers?: unknown[]; parent?: string; group?: string; zone?: "a" | "b" | "both"; x?: number; y?: number; card?: number; leaf?: string; hidden?: boolean; pts?: number[]; c?: string; w?: number; hl?: boolean; er?: boolean; /** t429 whiteboard */ fill?: string; cl?: boolean; o?: number; ar?: boolean; f?: string; bg?: string };
+  data: { text?: string; link?: string; youtube?: string; stage?: string; word?: string; picks?: number[]; answers?: unknown[]; parent?: string; group?: string; zone?: "a" | "b" | "both"; x?: number; y?: number; card?: number; leaf?: string; hidden?: boolean; pts?: number[]; c?: string; w?: number; hl?: boolean; er?: boolean; /** t429 whiteboard */ fill?: string; cl?: boolean; o?: number; ar?: boolean; f?: string; bg?: string; pg?: number; ws?: number[]; tool?: string };
   status: "approved" | "pending";
   created: number;
   pinned: number;
@@ -108,14 +108,16 @@ export const activityApi = {
   info: (code: string) => call<ActivityInfo>(code),
   join: (code: string, name: string, deviceId: string) => call<ActivityInfo & { pid: string; token: string; name: string }>(`${code}/join`, { name, deviceId, ...(studentLoginToken() ? { lmsToken: studentLoginToken() } : {}) }),
   state: (code: string, who: Who, since?: number) => call<ActivityState | { same: true; rev: number; now: number }>(`${code}/state${q({ ...who, since })}`),
-  post: (code: string, who: Who, p: { text?: string; link?: string; youtube?: string; image?: string; kind?: string; stage?: string; parent?: string; group?: string; zone?: string; pts?: number[]; c?: string; w?: number; hl?: boolean; er?: boolean; x?: number; y?: number; id?: string; dx?: number; dy?: number }) =>
+  post: (code: string, who: Who, p: { text?: string; link?: string; youtube?: string; image?: string; kind?: string; stage?: string; parent?: string; group?: string; zone?: string; pts?: number[]; c?: string; w?: number; hl?: boolean; er?: boolean; x?: number; y?: number; id?: string; dx?: number; dy?: number; pg?: number; ws?: number[]; tool?: string; fill?: string; cl?: boolean; o?: number; ar?: boolean; f?: string; bg?: string }) =>
     call<{ ok: true; id: string; status: string }>(`${code}/post`, { ...who, ...p }),
   respond: (code: string, who: Who, data: unknown) => call<{ ok: true }>(`${code}/respond`, { ...who, data }),
   like: (code: string, who: Who, id: string) => call<{ ok: true; liked: boolean }>(`${code}/like`, { ...who, id }),
   comment: (code: string, hostKey: string, id: string, text: string) => call<{ ok: true }>(`${code}/comment`, { hostKey, id, text }),
   moderate: (code: string, hostKey: string, action: string, extra: Record<string, unknown> = {}) => call<{ ok: true }>(`${code}/moderate`, { hostKey, action, ...extra }),
-  settings: (code: string, hostKey: string, patch: { title?: string; prompt?: string; settings?: Partial<ActivitySettings>; reopen?: boolean }) =>
-    call<ActivityInfo>(`${code}/settings`, { hostKey, ...patch }),
+  settings: (code: string, hostKey: string, patch: { title?: string; prompt?: string; settings?: Partial<ActivitySettings>; reopen?: boolean }) => {
+    const tok = actingAs() === "lms" ? lmsSession()?.token : getServerSession()?.token || lmsSession()?.token;
+    return call<ActivityInfo>(`${code}/settings`, { hostKey, ...patch }, tok ? { Authorization: `Bearer ${tok}` } : {});
+  },
   remove: (code: string, hostKey: string, pid: string, opts: { deleteItems?: boolean; restore?: boolean; forget?: boolean } = {}) =>
     call<{ ok: true }>(`${code}/remove`, { hostKey, pid, ...opts }),
   end: (code: string, hostKey: string) => call<{ ok: true }>(`${code}/end`, { hostKey }),

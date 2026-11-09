@@ -1,53 +1,100 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { qrSvg } from "@/lib/qrLocal";
 import { actErr, hostChip, saveOptions, useTr, type Tr } from "@/components/activity/common";
 import { activityApi, compressImage, type ActivityItem, type ActivityState, type Who } from "@/lib/activity";
 
-/** t423: live whiteboard — pen / highlighter / eraser / text notes on a 1600×1000 board with ready-made layouts. */
+/** Live whiteboard: fast canvas ink (smart-board friendly), pages, patterns, and per-student write access. */
 export const WB_W = 1600, WB_H = 1000;
 const COLORS = ["#1b3a57", "#e11d48", "#2563eb", "#059669", "#d97706", "#7c3aed", "#0f172a", "#f5c542", "#db2777", "#0891b2", "#65a30d", "#ffffff"];
-const WB_FONTS = ["Nunito", "Amiri", "Tajawal", "Georgia", "Comic Sans MS", "Courier New", "Arial"];
-type Tool = "hand" | "pen" | "pencil" | "brush" | "hl" | "er" | "text" | "line" | "arrow" | "rect" | "ellipse" | "tri";
+const WB_FONTS = ["Nunito", "Amiri", "Tajawal", "Noto Sans Arabic", "Georgia", "Comic Sans MS", "Courier New", "Arial"];
+type Tool = "hand" | "pen" | "pencil" | "brush" | "paint" | "qalam" | "hl" | "er" | "text" | "line" | "arrow" | "rect" | "ellipse" | "tri";
 const WIDTHS = [3, 6, 12, 20];
+const SHAPES: Tool[] = ["line", "arrow", "rect", "ellipse", "tri"];
 export const WB_BGS: [string, string, string][] = [
-  ["blank", "Blank", "فارغة"], ["lined", "Lined", "مسطّرة"], ["grid", "Grid", "شبكة"], ["dots", "Dots", "نقاط"],
-  ["venn", "Venn", "مخطط فن"], ["tchart", "T-chart", "جدول T"], ["kwl", "K · W · L", "أعرف · أريد · تعلّمت"], ["mind", "Mind map centre", "مركز خريطة ذهنية"], ["four", "4 boxes", "٤ مربعات"],
-  ["music", "Handwriting lines", "أسطر الخط"], ["iso", "Isometric dots", "نقاط متساوية"], ["cornell", "Cornell notes", "ملاحظات كورنيل"], ["timeline", "Timeline", "خط زمني"], ["flow", "Flow chart", "مخطط انسيابي"], ["venn3", "Venn (3)", "مخطط فن (٣)"],
+  ["blank", "Blank", "فارغة"], ["lined", "Lined", "مسطّرة"], ["linedrtl", "Lined (Arabic)", "مسطّرة (عربي)"], ["grid", "Grid", "شبكة"], ["graph", "Graph paper", "ورق بياني"], ["dots", "Dots", "نقاط"],
+  ["callig", "Arabic calligraphy", "خط عربي"], ["music", "Handwriting lines", "أسطر الخط"],
+  ["venn", "Venn", "مخطط فن"], ["venn3", "Venn (3)", "مخطط فن (٣)"], ["tchart", "T-chart", "جدول T"], ["kwl", "K · W · L", "أعرف · أريد · تعلّمت"],
+  ["stw", "See · Think · Wonder", "أرى · أفكر · أتساءل"], ["cer", "Claim · Evidence · Reasoning", "ادعاء · دليل · تعليل"],
+  ["frayer", "Frayer model", "نموذج فراير"], ["plusminus", "Plus / Minus / Interesting", "زائد / ناقص / مثير"], ["twocol", "Two columns", "عمودان"],
+  ["four", "4 boxes", "٤ مربعات"], ["mind", "Mind map centre", "مركز خريطة ذهنية"], ["cycle", "Cycle", "دورة"], ["story", "Storyboard", "لوحة قصة"],
+  ["cornell", "Cornell notes", "ملاحظات كورنيل"], ["timeline", "Timeline", "خط زمني"], ["flow", "Flow chart", "مخطط انسيابي"], ["exit", "Exit ticket", "بطاقة خروج"],
+  ["iso", "Isometric dots", "نقاط متساوية"], ["cream", "Cream paper", "ورق كريمي"], ["chalk", "Chalkboard", "سبورة طباشير"], ["navy", "Navy board", "سبورة كحلية"],
 ];
-export type WbStroke = { id: string; pid: string; author: string; kind: string; d: ActivityItem["data"] & { text?: string; h?: number; src?: string } };
+export type WbStroke = { id: string; pid: string; author: string; kind: string; d: ActivityItem["data"] & { text?: string; h?: number; src?: string; pg?: number; ws?: number[]; tool?: string } };
+
+export const pageOf = (s: { d?: { pg?: number } }) => Math.max(0, Math.floor(Number(s.d?.pg) || 0));
+export const writersOf = (o: Record<string, unknown>) => (Array.isArray(o.writers) ? o.writers.map((x) => String(x)) : []);
+export const studentMayDraw = (o: Record<string, unknown>, pid: string) => o.draw === true || writersOf(o).includes(pid);
+export const pagesOf = (o: Record<string, unknown>) => Math.max(1, Math.min(30, Math.floor(Number(o.pages) || 1)));
+export const bgOf = (o: Record<string, unknown>, page: number) => {
+  const bgs = Array.isArray(o.bgs) ? o.bgs : [];
+  return String(bgs[page] || o.bg || "blank");
+};
+const boardFill = (bg: string) => bg === "chalk" ? "#1a3d2a" : bg === "navy" ? "#15344c" : bg === "cream" ? "#fbf4e4" : "#ffffff";
+const darkBg = (bg: string) => bg === "chalk" || bg === "navy";
 
 function Background({ bg, tr }: { bg: string; tr: Tr }) {
-  const L = "#c7d4e2", T = "#1b3a57";
-  const label = (x: number, y: number, t: string) => <text x={x} y={y} textAnchor="middle" fontSize={34} fontWeight={800} fill={T} opacity={0.75}>{t}</text>;
-  if (bg === "lined") return <g>{Array.from({ length: 19 }, (_, i) => <line key={i} x1={0} x2={WB_W} y1={60 + i * 50} y2={60 + i * 50} stroke={L} strokeWidth={2} />)}<line x1={120} x2={120} y1={0} y2={WB_H} stroke="#fda4af" strokeWidth={3} /></g>;
+  const dark = darkBg(bg);
+  const L = dark ? "rgba(255,255,255,0.22)" : "#c7d4e2", T = dark ? "#f8fafc" : "#1b3a57";
+  const label = (x: number, y: number, t: string) => <text x={x} y={y} textAnchor="middle" fontSize={30} fontWeight={800} fill={T} opacity={0.8}>{t}</text>;
+  if (bg === "lined" || bg === "linedrtl") return <g>{Array.from({ length: 19 }, (_, i) => <line key={i} x1={0} x2={WB_W} y1={60 + i * 50} y2={60 + i * 50} stroke={L} strokeWidth={2} />)}<line x1={bg === "linedrtl" ? 1480 : 120} x2={bg === "linedrtl" ? 1480 : 120} y1={0} y2={WB_H} stroke="#fda4af" strokeWidth={3} /></g>;
   if (bg === "grid") return <g>{Array.from({ length: 33 }, (_, i) => <line key={`v${i}`} x1={i * 50} x2={i * 50} y1={0} y2={WB_H} stroke={L} />)}{Array.from({ length: 21 }, (_, i) => <line key={`h${i}`} y1={i * 50} y2={i * 50} x1={0} x2={WB_W} stroke={L} />)}</g>;
+  if (bg === "graph") return <g>{Array.from({ length: 81 }, (_, i) => <line key={`v${i}`} x1={i * 20} x2={i * 20} y1={0} y2={WB_H} stroke={i % 5 ? (dark ? "rgba(255,255,255,0.08)" : "#e2e8f0") : L} />)}{Array.from({ length: 51 }, (_, i) => <line key={`h${i}`} y1={i * 20} y2={i * 20} x1={0} x2={WB_W} stroke={i % 5 ? (dark ? "rgba(255,255,255,0.08)" : "#e2e8f0") : L} />)}</g>;
   if (bg === "dots") return <g>{Array.from({ length: 31 * 19 }, (_, k) => <circle key={k} cx={50 + (k % 31) * 50} cy={50 + Math.floor(k / 31) * 50} r={3} fill={L} />)}</g>;
+  if (bg === "callig") return <g>{Array.from({ length: 8 }, (_, i) => { const y = 70 + i * 118; return <g key={i}><line x1={40} x2={1560} y1={y} y2={y} stroke={L} strokeWidth={2} /><line x1={40} x2={1560} y1={y + 28} y2={y + 28} stroke="#93c5fd" strokeWidth={1.5} strokeDasharray="8 7" /><line x1={40} x2={1560} y1={y + 56} y2={y + 56} stroke={T} strokeOpacity={0.55} strokeWidth={2.5} /><line x1={40} x2={1560} y1={y + 84} y2={y + 84} stroke={L} strokeWidth={2} /></g>; })}</g>;
   if (bg === "venn") return <g><circle cx={620} cy={520} r={380} fill="#0284c7" fillOpacity={0.08} stroke="#0284c7" strokeWidth={5} /><circle cx={980} cy={520} r={380} fill="#d97706" fillOpacity={0.08} stroke="#d97706" strokeWidth={5} />{label(450, 110, "A")}{label(1150, 110, "B")}{label(800, 90, tr("Both", "كلاهما"))}</g>;
   if (bg === "tchart") return <g><line x1={800} x2={800} y1={40} y2={960} stroke={T} strokeWidth={6} /><line x1={60} x2={1540} y1={150} y2={150} stroke={T} strokeWidth={6} />{label(430, 115, tr("For / Yes", "مع / نعم"))}{label(1170, 115, tr("Against / No", "ضد / لا"))}</g>;
   if (bg === "kwl") return <g>{[533, 1066].map((x) => <line key={x} x1={x} x2={x} y1={40} y2={960} stroke={T} strokeWidth={5} />)}<line x1={30} x2={1570} y1={150} y2={150} stroke={T} strokeWidth={5} />{label(266, 115, tr("K — I know", "أعرف"))}{label(800, 115, tr("W — I want to know", "أريد أن أعرف"))}{label(1333, 115, tr("L — I learned", "تعلّمت"))}</g>;
+  if (bg === "stw") return <g>{[533, 1066].map((x) => <line key={x} x1={x} x2={x} y1={40} y2={960} stroke={T} strokeWidth={5} />)}<line x1={30} x2={1570} y1={150} y2={150} stroke={T} strokeWidth={5} />{label(266, 115, tr("See", "أرى"))}{label(800, 115, tr("Think", "أفكر"))}{label(1333, 115, tr("Wonder", "أتساءل"))}</g>;
+  if (bg === "cer") return <g>{[533, 1066].map((x) => <line key={x} x1={x} x2={x} y1={40} y2={960} stroke={T} strokeWidth={5} />)}<line x1={30} x2={1570} y1={150} y2={150} stroke={T} strokeWidth={5} />{label(266, 115, tr("Claim", "الادعاء"))}{label(800, 115, tr("Evidence", "الدليل"))}{label(1333, 115, tr("Reasoning", "التعليل"))}</g>;
+  if (bg === "plusminus") return <g>{[533, 1066].map((x) => <line key={x} x1={x} x2={x} y1={40} y2={960} stroke={T} strokeWidth={5} />)}<line x1={30} x2={1570} y1={150} y2={150} stroke={T} strokeWidth={5} />{label(266, 115, "+")}{label(800, 115, "−")}{label(1333, 115, tr("Interesting", "مثير"))}</g>;
+  if (bg === "twocol") return <g><line x1={800} x2={800} y1={40} y2={960} stroke={T} strokeWidth={6} /><line x1={60} x2={1540} y1={140} y2={140} stroke={T} strokeWidth={6} />{label(400, 105, tr("Column A", "العمود أ"))}{label(1200, 105, tr("Column B", "العمود ب"))}</g>;
+  if (bg === "frayer") return <g><line x1={800} x2={800} y1={30} y2={970} stroke={T} strokeWidth={5} /><line x1={30} x2={1570} y1={500} y2={500} stroke={T} strokeWidth={5} /><rect x={560} y={360} width={480} height={280} rx={24} fill={dark ? "#15344c" : "#fff"} stroke="#f5c542" strokeWidth={8} />{label(400, 80, tr("Definition", "التعريف"))}{label(1200, 80, tr("Characteristics", "الخصائص"))}{label(400, 940, tr("Examples", "أمثلة"))}{label(1200, 940, tr("Non-examples", "ليست أمثلة"))}{label(800, 510, tr("Word", "الكلمة"))}</g>;
   if (bg === "mind") return <g><ellipse cx={800} cy={500} rx={230} ry={120} fill="#1b3a57" stroke="#f5c542" strokeWidth={8} />{[0, 60, 120, 180, 240, 300].map((a) => { const r = (a * Math.PI) / 180; return <line key={a} x1={800 + 240 * Math.cos(r)} y1={500 + 130 * Math.sin(r)} x2={800 + 560 * Math.cos(r)} y2={500 + 400 * Math.sin(r)} stroke={L} strokeWidth={5} strokeDasharray="14 12" />; })}</g>;
   if (bg === "music") return <g>{Array.from({ length: 9 }, (_, i) => { const y = 90 + i * 105; return <g key={i}><line x1={40} x2={1560} y1={y} y2={y} stroke={L} strokeWidth={2} /><line x1={40} x2={1560} y1={y + 35} y2={y + 35} stroke="#93c5fd" strokeWidth={2} strokeDasharray="10 8" /><line x1={40} x2={1560} y1={y + 70} y2={y + 70} stroke="#1b3a57" strokeOpacity={0.5} strokeWidth={2.5} /></g>; })}</g>;
   if (bg === "iso") return <g>{Array.from({ length: 34 * 23 }, (_, k) => { const r = Math.floor(k / 34), c = k % 34; return <circle key={k} cx={20 + c * 48 + (r % 2 ? 24 : 0)} cy={20 + r * 42} r={3} fill={L} />; })}</g>;
   if (bg === "cornell") return <g><line x1={430} x2={430} y1={150} y2={780} stroke={T} strokeWidth={5} /><line x1={30} x2={1570} y1={150} y2={150} stroke={T} strokeWidth={5} /><line x1={30} x2={1570} y1={780} y2={780} stroke={T} strokeWidth={5} />{label(230, 115, tr("Cues", "إشارات"))}{label(1000, 115, tr("Notes", "ملاحظات"))}{label(800, 830, tr("Summary", "الخلاصة"))}</g>;
   if (bg === "timeline") return <g><line x1={80} x2={1520} y1={500} y2={500} stroke={T} strokeWidth={8} /><path d="M1520 470 L1570 500 L1520 530 Z" fill={T} />{[200, 480, 760, 1040, 1320].map((x) => <g key={x}><circle cx={x} cy={500} r={18} fill="#f5c542" stroke={T} strokeWidth={5} /><line x1={x} x2={x} y1={x % 560 === 200 ? 300 : 520} y2={x % 560 === 200 ? 480 : 700} stroke={L} strokeWidth={4} strokeDasharray="10 8" /></g>)}</g>;
   if (bg === "flow") return <g>{[160, 620, 1080].map((x, i) => <g key={x}><rect x={x} y={380} width={360} height={240} rx={30} fill={["#0284c7", "#7c3aed", "#059669"][i]} fillOpacity={0.08} stroke={["#0284c7", "#7c3aed", "#059669"][i]} strokeWidth={5} />{i < 2 && <path d={`M${x + 370} 500 H${x + 450} M${x + 430} 480 L${x + 455} 500 L${x + 430} 520`} stroke={T} strokeWidth={6} fill="none" />}</g>)}</g>;
+  if (bg === "cycle") return <g><ellipse cx={800} cy={500} rx={520} ry={340} fill="none" stroke={T} strokeWidth={6} strokeDasharray="16 14" />{[0, 120, 240].map((a, i) => { const r = ((a - 90) * Math.PI) / 180; return <g key={a}><circle cx={800 + 420 * Math.cos(r)} cy={500 + 260 * Math.sin(r)} r={90} fill={["#0284c7", "#d97706", "#059669"][i]} fillOpacity={0.15} stroke={["#0284c7", "#d97706", "#059669"][i]} strokeWidth={5} />{label(800 + 420 * Math.cos(r), 500 + 260 * Math.sin(r) + 10, String(i + 1))}</g>; })}</g>;
+  if (bg === "story") return <g>{[0, 1].map((r) => [0, 1, 2].map((c) => <rect key={`${r}${c}`} x={40 + c * 520} y={40 + r * 480} width={480} height={440} rx={18} fill="none" stroke={T} strokeWidth={4} />))}</g>;
+  if (bg === "exit") return <g><rect x={80} y={80} width={1440} height={840} rx={28} fill="none" stroke={T} strokeWidth={6} />{label(800, 160, tr("Exit ticket", "بطاقة خروج"))}<line x1={140} x2={1460} y1={280} y2={280} stroke={L} strokeWidth={3} /><line x1={140} x2={1460} y1={480} y2={480} stroke={L} strokeWidth={3} /><line x1={140} x2={1460} y1={680} y2={680} stroke={L} strokeWidth={3} /></g>;
   if (bg === "venn3") return <g><circle cx={640} cy={400} r={300} fill="#0284c7" fillOpacity={0.08} stroke="#0284c7" strokeWidth={5} /><circle cx={960} cy={400} r={300} fill="#d97706" fillOpacity={0.08} stroke="#d97706" strokeWidth={5} /><circle cx={800} cy={640} r={300} fill="#059669" fillOpacity={0.08} stroke="#059669" strokeWidth={5} />{label(480, 160, "A")}{label(1120, 160, "B")}{label(800, 975, "C")}</g>;
   if (bg === "four") return <g><line x1={800} x2={800} y1={30} y2={970} stroke={T} strokeWidth={5} /><line x1={30} x2={1570} y1={500} y2={500} stroke={T} strokeWidth={5} /></g>;
   return null;
 }
 
-const pathOf = (pts: number[]) => { let s = ""; for (let i = 0; i + 1 < pts.length; i += 2) s += `${i ? "L" : "M"}${(pts[i] * WB_W).toFixed(1)} ${(pts[i + 1] * WB_H).toFixed(1)}`; return pts.length === 2 ? s + `l0.1 0` : s; };
+const pathOf = (pts: number[]) => {
+  if (pts.length < 2) return "";
+  const X = (i: number) => (pts[i] * WB_W).toFixed(1), Y = (i: number) => (pts[i + 1] * WB_H).toFixed(1);
+  if (pts.length === 2) return `M${X(0)} ${Y(0)}l0.1 0`;
+  if (pts.length === 4) return `M${X(0)} ${Y(0)}L${X(2)} ${Y(2)}`;
+  let s = `M${X(0)} ${Y(0)}`;
+  for (let i = 2; i < pts.length - 2; i += 2) s += `Q${X(i)} ${Y(i)} ${(((pts[i] + pts[i + 2]) / 2) * WB_W).toFixed(1)} ${(((pts[i + 1] + pts[i + 3]) / 2) * WB_H).toFixed(1)}`;
+  return s + `L${X(pts.length - 2)} ${Y(pts.length - 2)}`;
+};
+
+function StrokeSvg({ s }: { s: WbStroke }) {
+  const pts = s.d.pts || [], ws = s.d.ws, hl = !!s.d.hl, er = !!s.d.er;
+  const color = er ? "#ffffff" : s.d.c || "#1b3a57";
+  const op = hl ? 0.35 : s.d.o || 1;
+  const base = (s.d.w || 4) * (hl ? 3 : 1) * (er ? 4 : 1);
+  if (ws && ws.length >= 2 && pts.length >= 4 && !s.d.cl) {
+    return <g>{Array.from({ length: Math.floor(pts.length / 2) - 1 }, (_, i) => <path key={i} d={`M${(pts[i * 2] * WB_W).toFixed(1)} ${(pts[i * 2 + 1] * WB_H).toFixed(1)}L${(pts[i * 2 + 2] * WB_W).toFixed(1)} ${(pts[i * 2 + 3] * WB_H).toFixed(1)}`} fill="none" stroke={color} strokeOpacity={op} strokeWidth={ws[i] || base} strokeLinecap="round" strokeLinejoin="round" />)}</g>;
+  }
+  return <path d={pathOf(pts) + (s.d.cl ? "Z" : "")} fill={s.d.fill && s.d.cl ? s.d.fill : "none"} fillOpacity={0.35} markerEnd={s.d.ar ? "url(#wb-arrow)" : undefined} stroke={color} strokeOpacity={op} strokeWidth={base} strokeLinecap="round" strokeLinejoin="round" />;
+}
 
 /** The board art (live and printable share this). `centre` = prompt text drawn in the mind-map centre. */
-export function BoardArt({ strokes, bg, names, centre, tr, extra }: { strokes: WbStroke[]; bg: string; names: boolean; centre?: string; tr: Tr; extra?: React.ReactNode }) {
+export function BoardArt({ strokes, bg, names, centre, tr, extra, inkOnCanvas }: { strokes: WbStroke[]; bg: string; names: boolean; centre?: string; tr: Tr; extra?: React.ReactNode; inkOnCanvas?: boolean }) {
   const firstOf = new Set<string>(); const labelled: WbStroke[] = [];
   if (names) for (const s of strokes) if (s.kind === "stroke" && s.pid !== "host" && !s.d.er && !firstOf.has(s.pid)) { firstOf.add(s.pid); labelled.push(s); }
   return (
     <svg viewBox={`0 0 ${WB_W} ${WB_H}`} className="block h-auto w-full" data-testid="wb-art">
       <defs><marker id="wb-arrow" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="context-stroke" /></marker></defs>
-      <rect width={WB_W} height={WB_H} fill="#ffffff" />
+      <rect width={WB_W} height={WB_H} fill={boardFill(bg)} />
       <Background bg={bg} tr={tr} />
       {bg === "mind" && centre && <foreignObject x={590} y={400} width={420} height={200}><div style={{ display: "flex", height: "100%", alignItems: "center", justifyContent: "center", color: "#f5c542", fontWeight: 800, fontSize: 30, textAlign: "center", lineHeight: 1.15 }} dir="auto">{centre}</div></foreignObject>}
       {strokes.map((s) => s.kind === "pic" ? (
@@ -55,11 +102,11 @@ export function BoardArt({ strokes, bg, names, centre, tr, extra }: { strokes: W
       ) : s.kind === "note" ? (
         <g key={s.id} data-wb-id={s.id}>
           {s.d.bg && <rect x={(s.d.x || 0) * WB_W - 8} y={(s.d.y || 0) * WB_H - 6} width={String(s.d.text || "").length * (s.d.w || 22) * 0.95 + 16} height={(s.d.w || 22) * 1.6 * 1.25 + 8} rx={10} fill={s.d.bg} />}
-          <text x={(s.d.x || 0) * WB_W} y={(s.d.y || 0) * WB_H} fontSize={(s.d.w || 22) * 1.6} fontWeight={700} fill={s.d.c || "#1b3a57"} fontFamily={s.d.f || undefined} dominantBaseline="hanging">{s.d.text}</text>
+          <text x={(s.d.x || 0) * WB_W} y={(s.d.y || 0) * WB_H} fontSize={(s.d.w || 22) * 1.6} fontWeight={700} fill={s.d.c || (darkBg(bg) ? "#f8fafc" : "#1b3a57")} fontFamily={s.d.f || undefined} dominantBaseline="hanging">{s.d.text}</text>
           {names && s.pid !== "host" && <text x={(s.d.x || 0) * WB_W} y={(s.d.y || 0) * WB_H - 6} fontSize={16} fill="#64748b" fontWeight={600}>{s.author}</text>}
         </g>
-      ) : (
-        <path key={s.id} data-wb-id={s.id} d={pathOf(s.d.pts || []) + (s.d.cl ? "Z" : "")} fill={s.d.fill && s.d.cl ? s.d.fill : "none"} fillOpacity={0.35} markerEnd={s.d.ar ? "url(#wb-arrow)" : undefined} stroke={s.d.er ? "#ffffff" : s.d.c || "#1b3a57"} strokeOpacity={s.d.hl ? 0.35 : s.d.o || 1} strokeWidth={(s.d.w || 4) * (s.d.hl ? 3 : 1) * (s.d.er ? 4 : 1)} strokeLinecap="round" strokeLinejoin="round" />
+      ) : inkOnCanvas ? null : (
+        <g key={s.id} data-wb-id={s.id}><StrokeSvg s={s} /></g>
       ))}
       {labelled.map((s) => <text key={`n${s.id}`} x={(s.d.pts?.[0] || 0) * WB_W + 8} y={(s.d.pts?.[1] || 0) * WB_H - 10} fontSize={17} fontWeight={700} fill="#475569" stroke="#fff" strokeWidth={4} paintOrder="stroke" data-testid="wb-name">{s.author}</text>)}
       {extra}
@@ -69,7 +116,6 @@ export function BoardArt({ strokes, bg, names, centre, tr, extra }: { strokes: W
 
 export const strokesOf = (state: ActivityState): WbStroke[] => state.items.filter((i) => i.kind === "stroke" || i.kind === "note" || (i.kind === "pic" && i.img)).map((i) => ({ id: i.id, pid: i.pid, author: i.author, kind: i.kind, d: i.kind === "pic" ? { ...i.data, src: activityApi.imgUrl(state.code, i.img!) } : i.data }));
 
-/** Hit-test the topmost picture, note, or stroke under a normalised board point. */
 function distSeg(x: number, y: number, x1: number, y1: number, x2: number, y2: number) {
   const dx = x2 - x1, dy = y2 - y1, l2 = dx * dx + dy * dy;
   if (!l2) return Math.hypot(x - x1, y - y1);
@@ -100,20 +146,132 @@ function hitItem(strokes: WbStroke[], x: number, y: number): WbStroke | null {
   return null;
 }
 
-/** Interactive board: draws on a live SVG path (no per-point React redraws); hand tool moves items. */
+function rdpKeep(pts: number[], eps: number): number[] {
+  const n = pts.length / 2;
+  if (n <= 2) return Array.from({ length: n }, (_, i) => i);
+  const keep = new Array(n).fill(false);
+  keep[0] = keep[n - 1] = true;
+  const stack: [number, number][] = [[0, n - 1]];
+  while (stack.length) {
+    const [a, b] = stack.pop()!;
+    let maxD = 0, idx = -1;
+    for (let i = a + 1; i < b; i++) {
+      const d = distSeg(pts[i * 2], pts[i * 2 + 1], pts[a * 2], pts[a * 2 + 1], pts[b * 2], pts[b * 2 + 1]);
+      if (d > maxD) { maxD = d; idx = i; }
+    }
+    if (idx >= 0 && maxD > eps) { keep[idx] = true; stack.push([a, idx], [idx, b]); }
+  }
+  return keep.map((k, i) => (k ? i : -1)).filter((i) => i >= 0);
+}
+
+function paintInk(ctx: CanvasRenderingContext2D, s: WbStroke, cssW: number, cssH: number) {
+  const pts = s.d.pts || [];
+  if (pts.length < 2 || s.kind !== "stroke") return;
+  const X = (i: number) => pts[i] * cssW, Y = (i: number) => pts[i + 1] * cssH;
+  const er = !!s.d.er, hl = !!s.d.hl, tool = s.d.tool;
+  const color = er ? "#000000" : s.d.c || "#1b3a57";
+  const base = (s.d.w || 4) * (hl ? 3 : 1) * (er ? 4 : 1);
+  const ws = s.d.ws;
+  ctx.save();
+  ctx.globalCompositeOperation = er ? "destination-out" : "source-over";
+  if (tool === "paint" && !er) {
+    ctx.fillStyle = color;
+    ctx.globalAlpha = 0.16;
+    for (let i = 0; i < pts.length; i += 2) { ctx.beginPath(); ctx.arc(X(i), Y(i), (ws?.[i / 2] || base) * 0.7, 0, Math.PI * 2); ctx.fill(); }
+    ctx.restore();
+    return;
+  }
+  ctx.strokeStyle = color;
+  ctx.globalAlpha = hl ? 0.35 : s.d.o || 1;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  if (ws && ws.length >= 2 && pts.length >= 4 && !s.d.cl) {
+    for (let i = 0; i + 3 < pts.length; i += 2) {
+      ctx.beginPath();
+      ctx.lineWidth = ws[i / 2] || base;
+      ctx.moveTo(X(i), Y(i));
+      ctx.lineTo(X(i + 2), Y(i + 2));
+      ctx.stroke();
+    }
+  } else {
+    ctx.lineWidth = base;
+    ctx.beginPath();
+    ctx.moveTo(X(0), Y(0));
+    if (pts.length === 2) ctx.lineTo(X(0) + 0.15, Y(0));
+    else {
+      for (let i = 2; i < pts.length - 2; i += 2) ctx.quadraticCurveTo(X(i), Y(i), (pts[i] + pts[i + 2]) / 2 * cssW, (pts[i + 1] + pts[i + 3]) / 2 * cssH);
+      ctx.lineTo(X(pts.length - 2), Y(pts.length - 2));
+    }
+    if (s.d.cl) ctx.closePath();
+    ctx.stroke();
+    if (s.d.fill && s.d.cl) { ctx.fillStyle = s.d.fill; ctx.globalAlpha = 0.35; ctx.fill(); }
+    if (s.d.ar && pts.length >= 4) {
+      const x0 = X(pts.length - 4), y0 = Y(pts.length - 4), x1 = X(pts.length - 2), y1 = Y(pts.length - 2);
+      const ang = Math.atan2(y1 - y0, x1 - x0), len = 14 + base;
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x1 - len * Math.cos(ang - 0.4), y1 - len * Math.sin(ang - 0.4));
+      ctx.lineTo(x1 - len * Math.cos(ang + 0.4), y1 - len * Math.sin(ang + 0.4));
+      ctx.closePath();
+      ctx.fillStyle = color;
+      ctx.globalAlpha = 1;
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
+function tipWidth(tool: Tool, base: number, e: PointerEvent, prev: [number, number] | null): number {
+  const pr = e.pointerType === "pen" && e.pressure > 0 && e.pressure < 0.99 ? e.pressure : -1;
+  let m = 1;
+  if (pr >= 0) m = 0.35 + pr * 1.2;
+  else if (prev) {
+    const spd = Math.hypot((e.clientX - prev[0]), (e.clientY - prev[1]));
+    m = 0.55 + 0.45 / (1 + spd / 14);
+  }
+  if (tool === "qalam" && prev) {
+    const ang = Math.atan2(e.clientY - prev[1], e.clientX - prev[0]);
+    m = 0.22 + Math.abs(Math.sin(ang + Math.PI / 5)) * 1.2;
+  }
+  if (tool === "paint") return base * 2.4 * m;
+  if (tool === "brush") return base * 2.2 * m;
+  if (tool === "pencil") return Math.max(1, base * 0.45 * m);
+  if (tool === "qalam") return base * 1.7 * m;
+  if (tool === "hl" || tool === "er") return base;
+  return base * m;
+}
+
+function sameInk(a: WbStroke, b: WbStroke) {
+  const ap = a.d.pts || [], bp = b.d.pts || [];
+  return a.kind === b.kind && ap.length === bp.length && ap[0] === bp[0] && ap[1] === bp[1] && ap[ap.length - 2] === bp[bp.length - 2] && pageOf(a) === pageOf(b);
+}
+
 function Board({ code, who, state, reload, canDraw, isHost }: { code: string; who: Who; state: ActivityState; reload: () => void; canDraw: boolean; isHost: boolean }) {
   const { tr } = useTr();
   const o = state.settings.options;
+  const pageCount = pagesOf(o);
+  const [page, setPage] = useState(Math.min(pageCount - 1, Math.max(0, Number(o.page) || 0)));
   const [tool, setTool] = useState<Tool>("pen");
   const [fill, setFill] = useState(false);
   const [font, setFont] = useState("Nunito");
   const [noteBg, setNoteBg] = useState("");
+  const [color, setColor] = useState(COLORS[0]);
+  const [width, setWidth] = useState(WIDTHS[1]);
+  const [pending, setPending] = useState<WbStroke[]>([]);
+  const [err, setErr] = useState("");
   const start = useRef<[number, number] | null>(null);
   const curRef = useRef<number[] | null>(null);
-  const livePath = useRef<SVGPathElement>(null);
+  const curWs = useRef<number[]>([]);
+  const ptr = useRef<number | null>(null);
+  const lastScreen = useRef<[number, number] | null>(null);
+  const inkRef = useRef<HTMLCanvasElement>(null);
+  const liveRef = useRef<HTMLCanvasElement>(null);
   const dragRef = useRef<{ id: string; x0: number; y0: number; dx: number; dy: number } | null>(null);
   const raf = useRef(0);
-  const SHAPES: Tool[] = ["line", "arrow", "rect", "ellipse", "tri"];
+  const svgBox = useRef<HTMLDivElement>(null);
+  const pageRef = useRef(page);
+  pageRef.current = page;
+  const bg = bgOf(o, page);
   const shapePts = (a: [number, number], x: number, y: number): number[] => {
     const [x0, y0] = a; const r4 = (v: number) => Math.round(v * 10000) / 10000;
     if (tool === "line" || tool === "arrow") return [x0, y0, x, y];
@@ -122,58 +280,96 @@ function Board({ code, who, state, reload, canDraw, isHost }: { code: string; wh
     const cx = (x0 + x) / 2, cy = (y0 + y) / 2, rx = Math.abs(x - x0) / 2, ry = Math.abs(y - y0) / 2;
     return Array.from({ length: 40 }, (_, i) => [r4(cx + rx * Math.cos((i / 40) * Math.PI * 2)), r4(cy + ry * Math.sin((i / 40) * Math.PI * 2))]).flat();
   };
-  const strokeData = (pts: number[]) => ({ pts, c: color, w: tool === "pencil" ? Math.max(1, Math.round(width / 2)) : tool === "brush" ? width * 2.5 : width, hl: tool === "hl", er: tool === "er", ...(tool === "pencil" ? { o: 0.75 } : tool === "brush" ? { o: 0.9 } : {}), ...(SHAPES.includes(tool) && tool !== "line" && tool !== "arrow" ? { cl: true, ...(fill ? { fill: color } : {}) } : {}), ...(tool === "arrow" ? { ar: true } : {}) });
-  const [color, setColor] = useState(COLORS[0]);
-  const [width, setWidth] = useState(WIDTHS[1]);
-  const [pending, setPending] = useState<WbStroke[]>([]);
-  const [err, setErr] = useState("");
-  const svgBox = useRef<HTMLDivElement>(null);
+  const strokeData = (pts: number[], ws?: number[]) => ({
+    pts, c: color,
+    w: tool === "pencil" ? Math.max(1, Math.round(width / 2)) : tool === "brush" || tool === "paint" ? width * 2.2 : tool === "qalam" ? width * 1.4 : width,
+    hl: tool === "hl", er: tool === "er", pg: pageRef.current, tool,
+    ...(ws && ws.length === pts.length / 2 ? { ws } : {}),
+    ...(tool === "pencil" ? { o: 0.72 } : tool === "brush" ? { o: 0.88 } : {}),
+    ...(SHAPES.includes(tool) && tool !== "line" && tool !== "arrow" ? { cl: true, ...(fill ? { fill: color } : {}) } : {}),
+    ...(tool === "arrow" ? { ar: true } : {}),
+  });
   const pt = (e: { clientX: number; clientY: number }) => { const r = svgBox.current!.getBoundingClientRect(); return [Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)), Math.max(0, Math.min(1, (e.clientY - r.top) / r.height))] as [number, number]; };
+  const cssSize = () => { const r = svgBox.current?.getBoundingClientRect(); return [r?.width || 1, r?.height || 1] as [number, number]; };
+  const all = [...strokesOf(state), ...pending];
+  const onPage = all.filter((s) => pageOf(s) === page);
+  const inkList = useRef(onPage);
+  inkList.current = onPage;
+  const fitAndPaint = () => {
+    const box = svgBox.current, ink = inkRef.current, live = liveRef.current;
+    if (!box || !ink || !live) return;
+    const r = box.getBoundingClientRect();
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    for (const c of [ink, live]) {
+      const w = Math.max(1, Math.round(r.width * dpr)), h = Math.max(1, Math.round(r.height * dpr));
+      if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+      c.style.width = `${r.width}px`; c.style.height = `${r.height}px`;
+      const ctx = c.getContext("2d"); if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    const ctx = ink.getContext("2d"); if (!ctx) return;
+    ctx.clearRect(0, 0, r.width, r.height);
+    for (const s of inkList.current) paintInk(ctx, s, r.width, r.height);
+  };
   const paintLive = () => {
     raf.current = 0;
-    const el = livePath.current;
+    const live = liveRef.current, box = svgBox.current;
+    if (!live || !box) return;
+    const r = box.getBoundingClientRect();
+    const ctx = live.getContext("2d"); if (!ctx) return;
+    ctx.clearRect(0, 0, r.width, r.height);
     const pts = curRef.current;
-    if (!el) return;
-    if (!pts || pts.length < 2) { el.setAttribute("d", ""); return; }
-    const d = strokeData(pts);
-    el.setAttribute("d", pathOf(pts) + (d.cl ? "Z" : ""));
-    el.setAttribute("fill", d.fill && d.cl ? String(d.fill) : "none");
-    el.setAttribute("fill-opacity", "0.35");
-    if (d.ar) el.setAttribute("marker-end", "url(#wb-arrow)"); else el.removeAttribute("marker-end");
-    el.setAttribute("stroke", d.er ? "#ffffff" : d.c || "#1b3a57");
-    el.setAttribute("stroke-opacity", String(d.hl ? 0.35 : d.o || 1));
-    el.setAttribute("stroke-width", String((d.w || 4) * (d.hl ? 3 : 1) * (d.er ? 4 : 1)));
+    if (!pts || pts.length < 2) return;
+    const dummy: WbStroke = { id: "live", pid: "me", author: "", kind: "stroke", d: strokeData(pts, curWs.current) };
+    if (tool === "er") {
+      const ink = inkRef.current?.getContext("2d");
+      if (ink) { fitAndPaint(); paintInk(ink, dummy, r.width, r.height); }
+      return;
+    }
+    paintInk(ctx, dummy, r.width, r.height);
   };
   const schedule = () => { if (!raf.current) raf.current = requestAnimationFrame(paintLive); };
+  useEffect(() => { fitAndPaint(); }, [onPage, page, bg]);
+  useEffect(() => {
+    const box = svgBox.current; if (!box) return;
+    const ro = new ResizeObserver(() => fitAndPaint());
+    ro.observe(box);
+    return () => ro.disconnect();
+  }, []);
+  useEffect(() => { setPending((p) => p.filter((local) => !strokesOf(state).some((s) => sameInk(s, local)))); }, [state.items]);
+  useEffect(() => { setPage((p) => Math.min(p, pageCount - 1)); }, [pageCount]);
+
   const send = async (p: Parameters<typeof activityApi.post>[2], local: WbStroke) => {
     setPending((x) => [...x, local]); setErr("");
-    try { await activityApi.post(code, who, p); await reload(); } catch (e) { setErr(actErr(e, tr)); }
-    setPending((x) => x.filter((st) => st.id !== local.id));
+    try { await activityApi.post(code, who, p); } catch (e) { setErr(actErr(e, tr)); setPending((x) => x.filter((st) => st.id !== local.id)); }
   };
   const down = (e: React.PointerEvent) => {
-    if (!canDraw) return;
+    if (!canDraw || !e.isPrimary) return;
     e.preventDefault();
     const [x, y] = pt(e);
+    ptr.current = e.pointerId;
+    lastScreen.current = [e.clientX, e.clientY];
     if (tool === "hand") {
-      const hit = hitItem([...strokesOf(state), ...pending], x, y);
+      const hit = hitItem(onPage, x, y);
       if (!hit) return;
       const mine = hit.pid === "me" || ("pid" in who && hit.pid === who.pid);
       if (!isHost && !mine) return;
-      (e.target as Element).setPointerCapture?.(e.pointerId);
+      svgBox.current?.setPointerCapture?.(e.pointerId);
       dragRef.current = { id: hit.id, x0: x, y0: y, dx: 0, dy: 0 };
       return;
     }
     if (tool === "text") {
       const t = window.prompt(tr("Text to add on the board:", "النص لإضافته على السبورة:"))?.trim();
-      if (t) send({ kind: "note", text: t.slice(0, 200), x, y, c: color, w: width * 3 + 12, f: font, ...(noteBg ? { bg: noteBg } : {}) } as never, { id: `tmp${Date.now()}`, pid: "me", author: "", kind: "note", d: { text: t, x, y, c: color, w: width * 3 + 12, f: font, bg: noteBg || undefined } });
+      if (t) send({ kind: "note", text: t.slice(0, 200), x, y, c: color, w: width * 3 + 12, f: font, pg: page, ...(noteBg ? { bg: noteBg } : {}) } as never, { id: `tmp${Date.now()}`, pid: "me", author: "", kind: "note", d: { text: t, x, y, c: color, w: width * 3 + 12, f: font, bg: noteBg || undefined, pg: page } });
       return;
     }
-    (e.target as Element).setPointerCapture?.(e.pointerId);
+    svgBox.current?.setPointerCapture?.(e.pointerId);
     start.current = [x, y];
     curRef.current = [x, y];
+    curWs.current = [tipWidth(tool, width, e.nativeEvent, null)];
     schedule();
   };
   const move = (e: React.PointerEvent) => {
+    if (ptr.current != null && e.pointerId !== ptr.current) return;
     if (dragRef.current) {
       const [x, y] = pt(e);
       const d = dragRef.current;
@@ -187,15 +383,20 @@ function Board({ code, who, state, reload, canDraw, isHost }: { code: string; wh
     const pts = curRef.current;
     for (const ev of evs) {
       const [x, y] = pt(ev);
-      if (SHAPES.includes(tool) && start.current) { const next = shapePts(start.current, x, y); pts.length = 0; pts.push(...next); continue; }
+      if (SHAPES.includes(tool) && start.current) { const next = shapePts(start.current, x, y); pts.length = 0; pts.push(...next); curWs.current = []; continue; }
       const lx = pts[pts.length - 2], ly = pts[pts.length - 1];
-      if (pts.length >= 2 && Math.hypot((x - lx) * WB_W, (y - ly) * WB_H) < 1.2) continue;
+      if (pts.length >= 2 && Math.hypot((x - lx) * WB_W, (y - ly) * WB_H) < 1.4) continue;
       if (pts.length >= 4000) continue;
       pts.push(x, y);
+      curWs.current.push(tipWidth(tool, width, ev, lastScreen.current));
+      lastScreen.current = [ev.clientX, ev.clientY];
     }
     schedule();
   };
-  const up = () => {
+  const up = (e?: React.PointerEvent) => {
+    if (e && ptr.current != null && e.pointerId !== ptr.current) return;
+    ptr.current = null;
+    lastScreen.current = null;
     if (dragRef.current) {
       const d = dragRef.current; dragRef.current = null;
       const node = svgBox.current?.querySelector(`[data-wb-id="${d.id}"]`);
@@ -204,15 +405,43 @@ function Board({ code, who, state, reload, canDraw, isHost }: { code: string; wh
       activityApi.post(code, who, { kind: "move", id: d.id, dx: d.dx, dy: d.dy }).then(reload).catch((er) => setErr(actErr(er, tr)));
       return;
     }
-    const pts = curRef.current; curRef.current = null; start.current = null;
-    if (livePath.current) livePath.current.setAttribute("d", "");
+    const pts = curRef.current; const rawWs = curWs.current.slice();
+    curRef.current = null; start.current = null; curWs.current = [];
     if (raf.current) { cancelAnimationFrame(raf.current); raf.current = 0; }
+    const live = liveRef.current; if (live) { const r = cssSize(); live.getContext("2d")?.clearRect(0, 0, r[0], r[1]); }
     if (!pts) return;
     if (pts.length < 4 && SHAPES.includes(tool)) return;
-    const data = strokeData(pts);
+    const keep = SHAPES.includes(tool) ? pts.map((_, i) => i).filter((i) => i % 2 === 0).map((i) => i / 2) : rdpKeep(pts, 0.00115);
+    const slim: number[] = []; const slimW: number[] = [];
+    for (const i of keep) { slim.push(Math.round(pts[i * 2] * 10000) / 10000, Math.round(pts[i * 2 + 1] * 10000) / 10000); if (rawWs[i] != null) slimW.push(Math.round(rawWs[i] * 10) / 10); }
+    const data = strokeData(slim, !SHAPES.includes(tool) && slimW.length === slim.length / 2 ? slimW : undefined);
     send({ kind: "stroke", ...data } as never, { id: `tmp${Date.now()}`, pid: "me", author: "", kind: "stroke", d: data });
   };
-  const all = [...strokesOf(state), ...pending];
+  const goPage = (i: number) => {
+    const n = Math.max(0, Math.min(pageCount - 1, i));
+    setPage(n);
+    if (isHost && "hostKey" in who) saveOptions(code, who.hostKey, state, { page: n }).catch(() => undefined);
+  };
+  const setPageBg = (next: string) => {
+    if (!("hostKey" in who)) return;
+    const bgs = Array.from({ length: pageCount }, (_, i) => bgOf(o, i));
+    bgs[page] = next;
+    saveOptions(code, who.hostKey, state, { bg: page === 0 ? next : String(o.bg || next), bgs }).then(reload);
+    if (darkBg(next) && color === "#1b3a57") setColor("#ffffff");
+    if (!darkBg(next) && color === "#ffffff") setColor("#1b3a57");
+  };
+  const addPage = () => {
+    if (!("hostKey" in who) || pageCount >= 30) return;
+    const bgs = Array.from({ length: pageCount + 1 }, (_, i) => i === pageCount ? bgOf(o, page) : bgOf(o, i));
+    saveOptions(code, who.hostKey, state, { pages: pageCount + 1, page: pageCount, bgs }).then(() => { setPage(pageCount); reload(); });
+  };
+  const removePage = () => {
+    if (!("hostKey" in who) || pageCount <= 1) return;
+    const last = pageCount - 1;
+    if (all.some((s) => pageOf(s) === last) && !confirm(tr("Remove the last page? Writing on it will be hidden.", "حذف الصفحة الأخيرة؟ ستُخفى الكتابة عليها."))) return;
+    const next = Math.min(page, last - 1);
+    saveOptions(code, who.hostKey, state, { pages: last, page: next }).then(() => { setPage(next); reload(); });
+  };
   const btn = (on: boolean) => `${hostChip(on)} !px-3`;
   return (
     <div className="space-y-2" data-testid="wb">
@@ -222,6 +451,8 @@ function Board({ code, who, state, reload, canDraw, isHost }: { code: string; wh
           <button type="button" className={btn(tool === "pen")} onClick={() => setTool("pen")} data-testid="wb-pen">🖊️ {tr("Pen", "قلم")}</button>
           <button type="button" className={btn(tool === "pencil")} onClick={() => setTool("pencil")} data-testid="wb-pencil">✏️ {tr("Pencil", "رصاص")}</button>
           <button type="button" className={btn(tool === "brush")} onClick={() => setTool("brush")} data-testid="wb-brush">🖌️ {tr("Brush", "فرشاة")}</button>
+          <button type="button" className={btn(tool === "paint")} onClick={() => setTool("paint")} data-testid="wb-paint">🎨 {tr("Paint", "تلوين")}</button>
+          <button type="button" className={btn(tool === "qalam")} onClick={() => setTool("qalam")} data-testid="wb-qalam">🪶 {tr("Arabic pen", "قلم خط")}</button>
           <button type="button" className={btn(tool === "hl")} onClick={() => setTool("hl")}>🖍️ {tr("Highlighter", "محدد")}</button>
           <button type="button" className={btn(tool === "er")} onClick={() => setTool("er")}>🧽 {tr("Eraser", "ممحاة")}</button>
           <button type="button" className={btn(tool === "text")} onClick={() => setTool("text")} data-testid="wb-text">🔤 {tr("Text", "نص")}</button>
@@ -242,15 +473,31 @@ function Board({ code, who, state, reload, canDraw, isHost }: { code: string; wh
               const bmp = await createImageBitmap(f); const ar = (bmp.width / bmp.height) / (WB_W / WB_H);
               const w = ar >= 1 ? 0.5 : 0.5 * ar, h = ar >= 1 ? 0.5 / ar : 0.5;
               const image = await compressImage(f);
-              await activityApi.post(code, who, { kind: "pic", image, x: (1 - w) / 2, y: (1 - h) / 2, w, h } as never); await reload();
+              await activityApi.post(code, who, { kind: "pic", image, x: (1 - w) / 2, y: (1 - h) / 2, w, h, pg: page } as never); await reload();
             } catch (er) { setErr(actErr(er, tr)); }
           }} /></label>}
           <button type="button" className={btn(false)} onClick={() => activityApi.post(code, who, { kind: "undo" }).then(reload).catch((e) => setErr(actErr(e, tr)))} data-testid="wb-undo">↶ {tr("Undo", "تراجع")}</button>
           {isHost && "hostKey" in who && <button type="button" className={btn(false)} onClick={async () => { if (!confirm(tr("Clear the whole board?", "مسح السبورة كلها؟"))) return; await activityApi.moderate(code, who.hostKey, "clear", { kind: "stroke" }).catch(() => undefined); await activityApi.moderate(code, who.hostKey, "clear", { kind: "note" }).catch(() => undefined); await activityApi.moderate(code, who.hostKey, "clear", { kind: "pic" }).catch(() => undefined); reload(); }} data-testid="wb-clear">🗑️ {tr("Clear", "مسح")}</button>}
         </div>
       )}
-      <div ref={svgBox} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} className={`overflow-hidden rounded-[24px] shadow-xl ring-4 ring-[#1b3a57]/80 ${canDraw ? (tool === "hand" ? "cursor-grab touch-none" : "cursor-crosshair touch-none") : ""}`} data-testid="wb-board">
-        <BoardArt strokes={all} bg={String(o.bg || "blank")} names={o.labels !== false && !state.settings.hideNames} centre={state.prompt || state.title} tr={tr} extra={<path ref={livePath} fill="none" strokeLinecap="round" strokeLinejoin="round" pointerEvents="none" />} />
+      <div className="flex flex-wrap items-center gap-1.5" data-focus-keep data-testid="wb-pages">
+        <button type="button" className={btn(false)} disabled={page <= 0} onClick={() => goPage(page - 1)} aria-label={tr("Previous page", "الصفحة السابقة")}>◀</button>
+        {Array.from({ length: pageCount }, (_, i) => <button key={i} type="button" className={btn(page === i)} onClick={() => goPage(i)} data-testid={`wb-page-${i}`}>{i + 1}</button>)}
+        <button type="button" className={btn(false)} disabled={page >= pageCount - 1} onClick={() => goPage(page + 1)} aria-label={tr("Next page", "الصفحة التالية")}>▶</button>
+        {isHost && "hostKey" in who && <>
+          <button type="button" className={btn(false)} onClick={addPage} data-testid="wb-page-add">＋ {tr("Add page", "إضافة صفحة")}</button>
+          {pageCount > 1 && <button type="button" className={btn(false)} onClick={removePage} data-testid="wb-page-del">{tr("Remove last page", "حذف الصفحة الأخيرة")}</button>}
+          <label className="inline-flex items-center gap-1 text-sm font-bold">🧩 {tr("Pattern", "النمط")}
+            <select className="max-w-[16rem] rounded-full border border-black/10 bg-white px-2 py-1 text-sm text-[#1b2f44]" value={bg} onChange={(e) => setPageBg(e.target.value)} data-testid="wb-bg">
+              {WB_BGS.map(([k, en, ar]) => <option key={k} value={k}>{tr(en, ar)}</option>)}
+            </select>
+          </label>
+        </>}
+      </div>
+      <div ref={svgBox} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onWheel={(e) => { if (curRef.current || dragRef.current || pageCount < 2) return; if (Math.abs(e.deltaY) < 24) return; goPage(page + (e.deltaY > 0 ? 1 : -1)); }} className={`relative overflow-hidden rounded-[24px] shadow-xl ring-4 ring-[#1b3a57]/80 ${canDraw ? (tool === "hand" ? "cursor-grab touch-none" : "cursor-crosshair touch-none") : ""}`} style={canDraw ? { touchAction: "none", overscrollBehavior: "none" } : undefined} data-testid="wb-board">
+        <BoardArt strokes={onPage} bg={bg} names={o.labels !== false && !state.settings.hideNames} centre={state.prompt || state.title} tr={tr} inkOnCanvas extra={<path fill="none" strokeLinecap="round" strokeLinejoin="round" pointerEvents="none" />} />
+        <canvas ref={inkRef} className="pointer-events-none absolute inset-0 h-full w-full" data-testid="wb-ink" />
+        <canvas ref={liveRef} className="pointer-events-none absolute inset-0 h-full w-full" data-testid="wb-live" />
       </div>
       {!canDraw && <p className="text-center text-sm font-semibold opacity-80" data-testid="wb-viewonly">👀 {tr("Watching the board — your teacher will let you draw when it's your turn.", "تشاهد السبورة — سيسمح لك المعلم بالرسم عندما يحين دورك.")}</p>}
       {err && <p className="text-sm font-semibold text-rose-700" role="alert">{err}</p>}
@@ -259,26 +506,43 @@ function Board({ code, who, state, reload, canDraw, isHost }: { code: string; wh
 }
 
 export function WhiteboardStudent({ code, who, state, closed, reload }: { code: string; who: Who; state: ActivityState; closed: boolean; reload: () => void }) {
-  return <Board code={code} who={who} state={state} reload={reload} canDraw={!closed && state.settings.options.draw === true} isHost={false} />;
+  const pid = "pid" in who ? who.pid : "";
+  return <Board code={code} who={who} state={state} reload={reload} canDraw={!closed && studentMayDraw(state.settings.options, pid)} isHost={false} />;
 }
 
 export function WhiteboardHost({ code, hostKey, state, reload }: { code: string; hostKey: string; state: ActivityState; reload: () => void; big: boolean }) {
   const { tr } = useTr();
   const o = state.settings.options;
+  const writers = writersOf(o);
+  const allOn = o.draw === true;
+  const active = state.participants.filter((p) => !p.removed);
+  const grant = (pid: string) => {
+    if (allOn) return;
+    saveOptions(code, hostKey, state, { writers: [...new Set([...writers, pid])] }).then(reload);
+  };
+  const revoke = (pid: string) => {
+    if (allOn) saveOptions(code, hostKey, state, { draw: false, writers: active.filter((p) => p.id !== pid).map((p) => p.id) }).then(reload);
+    else saveOptions(code, hostKey, state, { writers: writers.filter((id) => id !== pid) }).then(reload);
+  };
+  const allowAll = () => saveOptions(code, hostKey, state, { draw: true, writers: [] }).then(reload);
+  const revokeAll = () => saveOptions(code, hostKey, state, { draw: false, writers: [] }).then(reload);
   return (
     <div className="space-y-3">
       <Board code={code} who={{ hostKey }} state={state} reload={reload} canDraw isHost />
-      <div className="flex flex-wrap items-center gap-2" data-focus-keep>
-        <button type="button" className={hostChip(o.draw === true)} onClick={() => saveOptions(code, hostKey, state, { draw: o.draw !== true }).then(reload)} data-testid="wb-draw">🖐️ {o.draw === true ? tr("Students can draw", "يمكن للطلاب الرسم") : tr("Students watch only", "الطلاب يشاهدون فقط")}</button>
+      <div className="flex flex-wrap items-center gap-2" data-focus-keep data-testid="wb-access">
+        <button type="button" className={hostChip(allOn)} onClick={allowAll} data-testid="wb-draw">🖐️ {tr("Everyone can write", "الجميع يمكنهم الكتابة")}</button>
+        <button type="button" className={hostChip(!allOn && writers.length === 0)} onClick={revokeAll} data-testid="wb-draw-none">🚫 {tr("Take access back from all", "سحب الإذن من الجميع")}</button>
         <button type="button" className={hostChip(o.labels !== false)} onClick={() => saveOptions(code, hostKey, state, { labels: o.labels === false }).then(reload)}>🏷️ {tr("Names on the board", "الأسماء على السبورة")}</button>
-        <label className="inline-flex items-center gap-1 text-sm font-bold">🧩 {tr("Layout", "القالب")}
-          <select className="rounded-full border border-black/10 bg-white px-2 py-1 text-sm text-[#1b2f44]" value={String(o.bg || "blank")} onChange={(e) => saveOptions(code, hostKey, state, { bg: e.target.value }).then(reload)} data-testid="wb-bg">
-            {WB_BGS.map(([k, en, ar]) => <option key={k} value={k}>{tr(en, ar)}</option>)}
-          </select>
-        </label>
+      </div>
+      <div className="flex flex-wrap items-center gap-2" data-testid="wb-writers">
+        <span className="text-sm font-bold">{tr("Let a student write:", "اسمح لطالب بالكتابة:")}</span>
+        {active.length === 0 ? <span className="text-sm opacity-70">{tr("Students appear here after they join — tap a name to give or take write access.", "يظهر الطلاب هنا بعد انضمامهم — اضغط على اسم لإعطاء إذن الكتابة أو سحبه.")}</span> : active.map((p) => {
+          const on = allOn || writers.includes(p.id);
+          return <button key={p.id} type="button" className={hostChip(on)} onClick={() => on ? revoke(p.id) : grant(p.id)} data-testid={`wb-write-${p.id}`}>{on ? "✍️" : "👀"} {p.name}</button>;
+        })}
       </div>
       <WbExtras code={code} title={state.title || ""} />
-      <p className="text-xs opacity-70">{tr("Tip: works with a finger or Apple Pencil. Save & print keeps the board exactly as drawn.", "نصيحة: يعمل بالإصبع أو قلم آبل. الحفظ والطباعة يحفظان السبورة كما رُسمت تمامًا.")}</p>
+      <p className="text-xs opacity-70">{tr("Tip: writing follows your finger, stylus or smart-board pen. Add pages or change the pattern whenever you like. Save & print keeps the board as drawn.", "نصيحة: الكتابة تتبع إصبعك أو القلم أو السبورة الذكية. أضف صفحات أو غيّر النمط متى شئت. الحفظ والطباعة يبقيان السبورة كما رُسمت.")}</p>
     </div>
   );
 }
@@ -287,16 +551,16 @@ export function WhiteboardOptions({ options, setOptions }: { options: Record<str
   const { tr } = useTr();
   return (
     <div className="space-y-2">
-      <p className="text-sm font-bold">{tr("Board layout", "قالب السبورة")}</p>
+      <p className="text-sm font-bold">{tr("Board pattern", "نمط السبورة")}</p>
       <div className="flex flex-wrap gap-1.5">
         {WB_BGS.map(([k, en, ar]) => <button key={k} type="button" className={hostChip(String(options.bg || "blank") === k)} onClick={() => setOptions({ ...options, bg: k })} data-testid={`wb-opt-${k}`}>{tr(en, ar)}</button>)}
       </div>
-      <label className="inline-flex items-center gap-2 text-sm"><input type="checkbox" checked={options.draw !== false} onChange={(e) => setOptions({ ...options, draw: e.target.checked })} />{tr("Students can draw and write too", "يمكن للطلاب الرسم والكتابة أيضًا")}</label>
+      <label className="inline-flex items-center gap-2 text-sm"><input type="checkbox" checked={options.draw !== false} onChange={(e) => setOptions({ ...options, draw: e.target.checked, ...(e.target.checked ? { writers: [] } : {}) })} />{tr("Students can draw and write too", "يمكن للطلاب الرسم والكتابة أيضًا")}</label>
     </div>
   );
 }
 
-/** t429: share link (students + teachers join with it and draw together), screen recording, colourful print with QR. */
+/** Share link, screen recording, colourful print with QR. */
 function WbExtras({ code, title }: { code: string; title: string }) {
   const { tr } = useTr();
   const [msg, setMsg] = useState("");
@@ -315,8 +579,11 @@ function WbExtras({ code, title }: { code: string; title: string }) {
     } catch { setMsg(tr("Screen recording isn't available in this browser.", "تسجيل الشاشة غير متاح في هذا المتصفح.")); }
   };
   const print = () => {
-    const svg = document.querySelector("[data-testid=wb-art]")?.outerHTML || ""; const w = window.open("", "_blank"); if (!w) return;
-    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${(title || "Whiteboard").replace(/</g, "")}</title><style>@page{size:A4 landscape;margin:8mm}body{margin:0;font-family:Nunito,Arial,sans-serif}.f{border:6px solid #1b3a57;border-radius:22px;padding:10px;background:linear-gradient(135deg,#fdf0c4,#fff,#dbe7f3)}.h{display:flex;align-items:center;gap:12px;margin-bottom:8px}.h b{flex:1;font-size:22px;color:#1b3a57}.c{border-radius:14px;overflow:hidden;border:3px solid #f5c542}svg{width:100%;height:auto;display:block}</style></head><body><div class="f"><div class="h"><b>🖍️ ${(title || "Whiteboard").replace(/</g, "")}</b><span>${new Date().toLocaleDateString("en-GB")}</span>${qrSvg(link, 84)}</div><div class="c">${svg}</div></div><script>setTimeout(()=>print(),400)<\/script></body></html>`);
+    const svg = document.querySelector("[data-testid=wb-art]")?.outerHTML || "";
+    const ink = document.querySelector("[data-testid=wb-ink]") as HTMLCanvasElement | null;
+    const overlay = ink && ink.width ? `<img alt="" src="${ink.toDataURL("image/png")}" style="position:absolute;inset:0;width:100%;height:100%"/>` : "";
+    const w = window.open("", "_blank"); if (!w) return;
+    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${(title || "Whiteboard").replace(/</g, "")}</title><style>@page{size:A4 landscape;margin:8mm}body{margin:0;font-family:Nunito,Arial,sans-serif}.f{border:6px solid #1b3a57;border-radius:22px;padding:10px;background:linear-gradient(135deg,#fdf0c4,#fff,#dbe7f3)}.h{display:flex;align-items:center;gap:12px;margin-bottom:8px}.h b{flex:1;font-size:22px;color:#1b3a57}.c{position:relative;border-radius:14px;overflow:hidden;border:3px solid #f5c542}svg{width:100%;height:auto;display:block}</style></head><body><div class="f"><div class="h"><b>🖍️ ${(title || "Whiteboard").replace(/</g, "")}</b><span>${new Date().toLocaleDateString("en-GB")}</span>${qrSvg(link, 84)}</div><div class="c">${svg}${overlay}</div></div><script>setTimeout(()=>print(),400)<\\/script></body></html>`);
     w.document.close();
   };
   return <div className="flex flex-wrap items-center gap-2" data-focus-keep data-testid="wb-extras">

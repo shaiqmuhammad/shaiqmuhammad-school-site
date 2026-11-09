@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { ActivityOptionsEditor, READY_TYPES, afterCreate, prepareOptions } from "@/components/activity/ActivityViews";
 import { AudiencePicker } from "@/components/lms/Audience";
 import { openClassTimer } from "@/components/lms/ClassTimer";
+import { useLmsActor } from "@/components/lms/useLms";
 import { lmsApi } from "@/lib/lms";
 import { getServerSession } from "@/lib/adminServer";
 import { activityApi, ACTIVITY_LABELS, ActivityError, forgetHosted, loadHosted, saveHosted, type ActivitySettings, type ActivityType, type HostedActivity } from "@/lib/activity";
@@ -26,6 +27,8 @@ const TOOLS = [
 export function AdminActivities({ allowed }: { allowed?: string[] } = {}) {
   const { lang } = useI18n();
   const tr = (en: string, ar: string) => (lang === "ar" ? ar : en);
+  const { actor, asAdmin } = useLmsActor();
+  const canRename = asAdmin || actor?.role === "admin" || !!actor?.perms?.includes("act:rename");
   const types = allowed ? TYPES.filter((t) => allowed.includes(t)) : TYPES;
   const tools = allowed ? TOOLS.filter((t) => allowed.includes(t.href.split("/").pop() || "")) : TOOLS;
   const [type, setType] = useState<ActivityType>(types[0] || "wall");
@@ -247,6 +250,7 @@ export function AdminActivities({ allowed }: { allowed?: string[] } = {}) {
                       <a className={btnGhost} href={`/activities/host?code=${h.code}`} data-testid="hosted-resume">{srv[h.code]?.ended ? tr("Open results", "عرض النتائج") : tr("Resume", "متابعة")}</a>
                       {!srv[h.code]?.ended && <button type="button" className={btnGhost} data-testid="hosted-end" onClick={async () => { if (!confirm(tr("End this activity? Students can no longer join or answer.", "إنهاء هذا النشاط؟ لن يتمكن الطلاب من الانضمام أو الإجابة."))) return; await activityApi.end(h.code, h.hostKey).catch(() => undefined); refreshMine(); }}>{tr("End", "إنهاء")}</button>}
                       <button type="button" className={btnGhost} onClick={() => navigator.clipboard?.writeText(joinUrl(h.code)).catch(() => undefined)}>{tr("Copy join link", "نسخ رابط الانضمام")}</button>
+                      {canRename && <button type="button" className={btnGhost} data-testid="hosted-rename" onClick={async () => { const next = window.prompt(tr("Rename this activity", "إعادة تسمية هذا النشاط"), h.title); if (next == null) return; const name = next.trim().slice(0, 120); if (!name) return; try { await activityApi.settings(h.code, h.hostKey, { title: name }); saveHosted({ ...h, title: name }); setHosted(loadHosted()); refreshMine(); } catch { /* permission or network */ } }}>{tr("Rename", "إعادة التسمية")}</button>}
                     </>
                   )}
                   <button

@@ -11,7 +11,8 @@ import { AssessmentShell, ghostBtn, panelCls, primaryBtn } from "@/components/as
 import { ActivityHostView } from "@/components/activity/ActivityViews";
 import { WallBoard, WallComposer } from "@/components/activity/WallBoard";
 import { secondsLeft, useActivityState } from "@/components/activity/useActivityState";
-import { activityApi, ACTIVITY_LABELS, forgetHosted, hostedFor, type ActivitySettings, type ActivityState, type HostedActivity } from "@/lib/activity";
+import { useLmsActor } from "@/components/lms/useLms";
+import { activityApi, ACTIVITY_LABELS, forgetHosted, hostedFor, saveHosted, type ActivitySettings, type ActivityState, type HostedActivity } from "@/lib/activity";
 import { downloadBlob, safeFileName } from "@/lib/exportUtils";
 import { joinUrl, qrImageUrl } from "@/lib/groupSession";
 import { useI18n } from "@/lib/i18n";
@@ -88,13 +89,15 @@ export function activityRows(state: ActivityState): SavedRow[] {
     const look = { id: i.id, pid: i.pid === "host" ? "host" : i.pid, kind: i.kind, ...(i.data.parent ? { parent: String(i.data.parent) } : {}), ...(i.color ? { color: i.color } : {}), ...(i.pinned ? { pinned: i.pinned } : {}), ...(i.highlight ? { highlight: true } : {}), ...(i.likes ? { likes: i.likes } : {}) };
     if (state.type === "whiteboard") return { name: i.pid === "host" ? "Teacher" : names.get(i.pid) || i.author || "", answer: i.kind === "note" ? String(i.data.text || "") : "✏️", ...look, wb: i.data as Record<string, unknown> };
     return { name: i.pid === "host" ? "Teacher" : names.get(i.pid) || i.author || "", answer: String(answer).slice(0, 1000), ...(group ? { group } : {}), ...(ok !== undefined ? { ok } : {}), ...look };
-  }).filter((r) => r.answer).concat(state.type === "whiteboard" ? [{ name: "", answer: "layout", kind: "bg", wb: { bg: String(state.settings.options.bg || "blank"), labels: state.settings.options.labels !== false } } as SavedRow] : []);
+  }).filter((r) => r.answer).concat(state.type === "whiteboard" ? [{ name: "", answer: "layout", kind: "bg", wb: { bg: String(state.settings.options.bg || "blank"), labels: state.settings.options.labels !== false, pages: Math.max(1, Math.min(30, Number(state.settings.options.pages) || 1)), bgs: Array.isArray(state.settings.options.bgs) ? (state.settings.options.bgs as unknown[]).map((x) => String(x)).slice(0, 30) : [] } } as SavedRow] : []);
 }
 
 /** Teacher / projector screen for one activity: join QR, participants, moderation, timer, end. */
 export function ActivityHost() {
   const { lang } = useI18n();
   const tr = (en: string, ar: string) => (lang === "ar" ? ar : en);
+  const { actor, asAdmin } = useLmsActor();
+  const canRename = asAdmin || actor?.role === "admin" || !!actor?.perms?.includes("act:rename");
   const params = useSearchParams();
   const router = useRouter();
   const home = useLmsExit("/admin");
@@ -287,6 +290,7 @@ export function ActivityHost() {
                 <input type="range" min={0} max={1} step={0.05} value={snd.vol} onChange={(e) => { const n = { ...snd, vol: Number(e.target.value), muted: false }; setSnd(n); savePrefs(n); }} className="w-20 accent-[#1b3a57]" aria-label={tr("Volume", "مستوى الصوت")} data-testid="host-volume" />
               </span>
             )}
+            {canRename && <button type="button" className={chip(false)} onClick={async () => { const next = window.prompt(tr("Rename this activity", "إعادة تسمية هذا النشاط"), title); if (next == null) return; const name = next.trim().slice(0, 120); if (!name) return; try { await activityApi.settings(code, hostKey, { title: name }); saveHosted({ ...hosted, title: name }); setHosted({ ...hosted, title: name }); reload(); } catch { /* permission or network */ } }} data-testid="host-rename">✏️ {tr("Rename", "إعادة التسمية")}</button>}
             <button type="button" className={chip(false)} onClick={async () => { const id = await saveResults(state); if (id) window.open(`/lms/activities/saved?id=${id}&print=1`, "_blank"); }} data-testid="host-save">💾 {savedId ? tr("Saved ✓ · Print", "محفوظ ✓ · طباعة") : tr("Save & print", "حفظ وطباعة")}</button>
             <button type="button" className={chip(false)} onClick={() => exportActivityXlsx(state)} data-testid="host-export">⬇ Excel</button>
             {state.ended ? (
