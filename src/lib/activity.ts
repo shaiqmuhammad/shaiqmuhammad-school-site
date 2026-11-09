@@ -108,7 +108,7 @@ export const activityApi = {
   info: (code: string) => call<ActivityInfo>(code),
   join: (code: string, name: string, deviceId: string) => call<ActivityInfo & { pid: string; token: string; name: string }>(`${code}/join`, { name, deviceId, ...(studentLoginToken() ? { lmsToken: studentLoginToken() } : {}) }),
   state: (code: string, who: Who, since?: number) => call<ActivityState | { same: true; rev: number; now: number }>(`${code}/state${q({ ...who, since })}`),
-  post: (code: string, who: Who, p: { text?: string; link?: string; youtube?: string; image?: string; kind?: string; stage?: string; parent?: string; group?: string; zone?: string; pts?: number[]; c?: string; w?: number; hl?: boolean; er?: boolean; x?: number; y?: number }) =>
+  post: (code: string, who: Who, p: { text?: string; link?: string; youtube?: string; image?: string; kind?: string; stage?: string; parent?: string; group?: string; zone?: string; pts?: number[]; c?: string; w?: number; hl?: boolean; er?: boolean; x?: number; y?: number; id?: string; dx?: number; dy?: number }) =>
     call<{ ok: true; id: string; status: string }>(`${code}/post`, { ...who, ...p }),
   respond: (code: string, who: Who, data: unknown) => call<{ ok: true }>(`${code}/respond`, { ...who, data }),
   like: (code: string, who: Who, id: string) => call<{ ok: true; liked: boolean }>(`${code}/like`, { ...who, id }),

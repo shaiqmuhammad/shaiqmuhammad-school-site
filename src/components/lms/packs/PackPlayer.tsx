@@ -27,7 +27,9 @@ export function PackPlayer({ id, asAdmin = false, review, preview = false, locke
   const [printing, setPrinting] = useState(false);
   const swipe = useRef<{ x: number; y: number } | null>(null);
   const [full, setFull] = useState(!!autoFull); // t396: opened from the list → full screen (document fullscreen from the click, else full-window)
+  const [canFs, setCanFs] = useState(false);
   const box = useRef<HTMLElement | null>(null);
+  useEffect(() => { setCanFs(!!document.fullscreenEnabled); }, []);
   // t389: real full screen (Fullscreen API; Esc exits). Falls back to a full-window overlay where the API is missing (e.g. iPhone).
   const toggleFull = async () => {
     if (document.fullscreenElement) { await document.exitFullscreen().catch(() => undefined); return; }
@@ -63,9 +65,19 @@ export function PackPlayer({ id, asAdmin = false, review, preview = false, locke
   const nSlides = pack?.slides?.length || 0;
   useEffect(() => {
     if (live) return;
-    const k = (e: KeyboardEvent) => { const t = e.target as HTMLElement | null; if (t?.closest?.("input,textarea,select,[contenteditable=true],[contenteditable='']") || sel) return; if (e.key === "ArrowRight" || e.key === "PageDown" || (e.key === " " && !pen)) { e.preventDefault(); setCur((c) => Math.min(nSlides - 1, c + 1)); } else if (e.key === "ArrowLeft" || e.key === "PageUp") { e.preventDefault(); setCur((c) => Math.max(0, c - 1)); } else if (e.key === "Home") setCur(0); else if (e.key === "End") setCur(Math.max(0, nSlides - 1)); };
+    const jump = (fn: (c: number) => number) => {
+      setCur((c) => {
+        const n = fn(c);
+        if (n !== c && pack?.mode === "live" && pack.status === "published" && pack.live >= 0) {
+          lp.live(id, n, false, asAdmin).catch(() => undefined);
+        }
+        return n;
+      });
+      setSel("");
+    };
+    const k = (e: KeyboardEvent) => { const t = e.target as HTMLElement | null; if (t?.closest?.("input,textarea,select,[contenteditable=true],[contenteditable='']") || sel) return; if (e.key === "ArrowRight" || e.key === "PageDown" || (e.key === " " && !pen)) { e.preventDefault(); jump((c) => Math.min(nSlides - 1, c + 1)); } else if (e.key === "ArrowLeft" || e.key === "PageUp") { e.preventDefault(); jump((c) => Math.max(0, c - 1)); } else if (e.key === "Home") jump(() => 0); else if (e.key === "End") jump(() => Math.max(0, nSlides - 1)); };
     window.addEventListener("keydown", k); return () => window.removeEventListener("keydown", k);
-  }, [live, sel, pen, nSlides]);
+  }, [live, sel, pen, nSlides, pack, id, asAdmin]);
   useEffect(() => { const t = setInterval(() => setTick((x) => x + 1), 1000); return () => clearInterval(t); }, []);
   useEffect(() => { setSlideAt(tick); }, [cur]); // eslint-disable-line react-hooks/exhaustive-deps
   const doPrint = () => { setPrinting(true); document.body.classList.add("lp-printing"); setTimeout(() => { window.print(); setTimeout(() => { document.body.classList.remove("lp-printing"); setPrinting(false); }, 400); }, 1500); };
@@ -73,7 +85,16 @@ export function PackPlayer({ id, asAdmin = false, review, preview = false, locke
   if (!slides.length) return null;
   const s = slides[Math.min(cur, slides.length - 1)];
   const editable = (student || preview) && !locked && !review; // t429: preview = try it without saving or assigning
-  const go = (d: number) => { setCur((c) => Math.max(0, Math.min(slides.length - 1, c + d))); setSel(""); };
+  const go = (d: number) => {
+    setCur((c) => {
+      const n = Math.max(0, Math.min(slides.length - 1, c + d));
+      if (n !== c && pack?.mode === "live" && pack.status === "published" && pack.live >= 0 && !student) {
+        lp.live(id, n, false, asAdmin).catch(() => undefined);
+      }
+      return n;
+    });
+    setSel("");
+  };
   const draw = () => layer.find((e) => e.t === "draw") as Extract<El, { t: "draw" }> | undefined;
   const selEl = layer.find((e) => e.id === sel);
   const staffView = !!review || preview || asAdmin;
@@ -92,7 +113,7 @@ export function PackPlayer({ id, asAdmin = false, review, preview = false, locke
         <span className="flex-1" />
         {left !== null && !review && <span className={`rounded-full px-3 py-0.5 font-mono text-base font-extrabold tabular-nums shadow ${left === 0 ? "bg-rose-600 text-white" : left <= 30 ? "animate-pulse bg-amber-400 text-[#1b2f44]" : "bg-[#1b3a57] text-[#f5c542]"}`} title={slideLeft !== null ? tr("Time for this slide", "وقت هذه الشريحة") : tr("Time for the activity", "وقت النشاط")} data-testid="lp-timer-left">⏱ {left === 0 ? tr("Time's up!", "انتهى الوقت!") : fmtT(left)}</span>}
         {staffView && <button type="button" className={smallBtn} onClick={doPrint} disabled={printing} title={tr("Colourful printable with QR code", "نسخة ملوّنة للطباعة مع رمز QR")} data-testid="lp-print">🖨 {printing ? "…" : tr("Print / PDF", "طباعة / PDF")}</button>}
-        <button type="button" className={smallBtn} onClick={toggleFull} title={tr("Full screen (Esc to exit)", "ملء الشاشة (Esc للخروج)")} data-testid="lp-full">{full ? "✕" : "⛶"} {full ? tr("Exit", "خروج") : tr("Full screen", "ملء الشاشة")}</button>
+        {(!canFs || (full && typeof document !== "undefined" && !document.fullscreenElement)) && <button type="button" className={smallBtn} onClick={toggleFull} title={tr("Full screen (Esc to exit)", "ملء الشاشة (Esc للخروج)")} data-testid="lp-full">{full ? "✕" : "⛶"} {full ? tr("Exit", "خروج") : tr("Full screen", "ملء الشاشة")}</button>}
       </div>
       {(s.instr || s.instrAudio) && <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-sky-200 bg-sky-50/95 px-3 py-2 text-sm font-semibold text-[#1b2f44] shadow-sm" data-testid="lp-player-instr"><span className="text-lg" aria-hidden>💬</span>{s.instr && <p className="min-w-0 flex-1 whitespace-pre-wrap" dir="auto">{s.instr}</p>}{s.instrAudio && <InstrAudio id={s.instrAudio} asAdmin={asAdmin} />}</div>}
       {editable && <AddTools compact={full} add={(e) => { const el = withId({ ...e, ...(e.t === "text" ? { y: Math.min(80, 40 + layer.filter((x) => x.t === "text").length * 8) } : {}), by: "s" } as Omit<El, "id">); setLayer((l) => [...l, el]); setSel(el.id); }} pen={pen} setPen={setPen} asAdmin={asAdmin} teacher={false} onErr={setMsg}
@@ -104,8 +125,8 @@ export function PackPlayer({ id, asAdmin = false, review, preview = false, locke
           <SlideView slide={s} layer={layer} asAdmin={asAdmin} edit={editable ? "s" : null} selected={sel} onSelect={setSel} pen={editable ? pen : null}
             onMove={(eid, q) => setLayer((l) => l.map((e) => (e.id === eid ? ({ ...e, ...q } as El) : e)))} onDelete={editable ? (eid) => { setLayer((l) => l.filter((e) => e.id !== eid)); setSel(""); } : undefined}
             onStroke={(d) => setLayer((l) => { const dr = l.find((e) => e.t === "draw") as Extract<El, { t: "draw" }> | undefined; const path = { c: pen!.c, w: pen!.w, d }; return dr ? l.map((e) => (e === dr ? { ...dr, paths: [...dr.paths, path] } : e)) : [...l, { id: uid(), t: "draw", x: 0, y: 0, w: 100, h: 100, by: "s", paths: [path] } as El]; })} testId="lp-player-slide" />
-          {!live && cur > 0 && <button type="button" onClick={() => go(-1)} className="absolute start-1 top-1/2 z-10 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-[#1b3a57]/55 text-xl font-black text-white shadow-lg ring-1 ring-white/40 backdrop-blur transition hover:scale-105 hover:bg-[#1b3a57]/85 sm:-start-5" aria-label={tr("Previous slide", "الشريحة السابقة")} data-testid="lp-prev"><span className="rtl:rotate-180">‹</span></button>}
-          {!live && cur < slides.length - 1 && <button type="button" onClick={() => go(1)} className="absolute end-1 top-1/2 z-10 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-[#1b3a57]/55 text-xl font-black text-white shadow-lg ring-1 ring-white/40 backdrop-blur transition hover:scale-105 hover:bg-[#1b3a57]/85 sm:-end-5" aria-label={tr("Next slide", "الشريحة التالية")} data-testid="lp-next"><span className="rtl:rotate-180">›</span></button>}
+          {!live && cur > 0 && <button type="button" onClick={() => go(-1)} className="absolute start-2 top-1/2 z-10 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-[#1b3a57]/85 text-xl font-black text-white shadow-lg ring-1 ring-white/40 backdrop-blur transition hover:scale-105 hover:bg-[#1b3a57]" aria-label={tr("Previous slide", "الشريحة السابقة")} data-testid="lp-prev"><span className="rtl:rotate-180">‹</span></button>}
+          {!live && cur < slides.length - 1 && <button type="button" onClick={() => go(1)} className="absolute end-2 top-1/2 z-10 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-[#1b3a57]/85 text-xl font-black text-white shadow-lg ring-1 ring-white/40 backdrop-blur transition hover:scale-105 hover:bg-[#1b3a57]" aria-label={tr("Next slide", "الشريحة التالية")} data-testid="lp-next"><span className="rtl:rotate-180">›</span></button>}
           {live && waiting && <div className="absolute inset-0 z-20 grid place-items-center rounded-xl bg-gradient-to-br from-[#1b3a57]/90 to-[#24507a]/90 text-center text-white backdrop-blur" data-testid="lp-waiting"><div><div className="mx-auto mb-3 h-14 w-14 animate-spin rounded-full border-4 border-[#f5c542]/30 border-t-[#f5c542]" /><p className="text-xl font-extrabold text-[#f5c542]">{tr("Get ready!", "استعد!")}</p><p className="text-sm opacity-90">{tr("Your teacher will start the slides in a moment.", "سيبدأ معلمك الشرائح بعد قليل.")}</p></div></div>}
         </div>
       </div>

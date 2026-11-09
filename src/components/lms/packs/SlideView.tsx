@@ -6,11 +6,13 @@ import { mediaUrl, type El, type Slide , docViewer } from "@/lib/packs";
 import { useTr } from "@/components/lms/useLms";
 
 /** t315: one 16:9 white slide. Text size is relative to a 1600px-wide slide (container query units), so slides look the same on phone and desktop. */
-export function MediaImg({ id, asAdmin, alt = "" }: { id: string; asAdmin: boolean; alt?: string }) {
+export function MediaImg({ id, asAdmin, alt = "", rot = 0, crop }: { id: string; asAdmin: boolean; alt?: string; rot?: number; crop?: { l: number; t: number; r: number; b: number } }) {
   const [u, setU] = useState("");
   useEffect(() => { let on = true; mediaUrl(id, asAdmin).then((x) => on && setU(x)).catch(() => undefined); return () => { on = false; }; }, [id, asAdmin]);
+  const c = { l: Math.max(0, Math.min(45, crop?.l || 0)), t: Math.max(0, Math.min(45, crop?.t || 0)), r: Math.max(0, Math.min(45, crop?.r || 0)), b: Math.max(0, Math.min(45, crop?.b || 0)) };
+  const cropped = c.l + c.t + c.r + c.b > 0;
   // eslint-disable-next-line @next/next/no-img-element
-  return u ? <img src={u} alt={alt} className="pointer-events-none h-full w-full select-none object-contain" draggable={false} /> : <div className="grid h-full w-full place-items-center bg-slate-100 text-xs text-slate-500">…</div>;
+  return u ? <div className="pointer-events-none h-full w-full overflow-hidden" style={!cropped && rot ? { transform: `rotate(${rot}deg)` } : undefined}><img src={u} alt={alt} draggable={false} className={cropped ? "select-none max-w-none object-cover" : "h-full w-full select-none object-contain"} style={cropped ? { width: `${10000 / (100 - c.l - c.r)}%`, height: `${10000 / (100 - c.t - c.b)}%`, marginLeft: `${-100 * c.l / (100 - c.l - c.r)}%`, marginTop: `${-100 * c.t / (100 - c.t - c.b)}%`, transform: rot ? `rotate(${rot}deg)` : undefined } : undefined} /></div> : <div className="grid h-full w-full place-items-center bg-slate-100 text-xs text-slate-500">…</div>;
 }
 export function MediaAudio({ id, asAdmin }: { id: string; asAdmin: boolean }) {
   const [u, setU] = useState("");
@@ -64,7 +66,7 @@ function Body({ e, asAdmin, live }: { e: El; asAdmin: boolean; live: boolean }) 
   switch (e.t) {
     case "text":
       return <div dir="auto" className="h-full w-full overflow-hidden whitespace-pre-wrap break-words leading-snug" style={{ color: e.color, background: e.bg || undefined, fontFamily: e.font, fontSize: `${e.size / 16}cqw`, fontWeight: e.bold ? 800 : 400, fontStyle: e.italic ? "italic" : undefined, textAlign: e.align === "center" ? "center" : e.align === "end" ? "end" : "start", padding: "0.4cqw" }}>{e.html ? <span dangerouslySetInnerHTML={{ __html: cleanHtml(e.html) }} /> : e.text || " "}</div>;
-    case "img": return <MediaImg id={e.src} asAdmin={asAdmin} />;
+    case "img": return <MediaImg id={e.src} asAdmin={asAdmin} rot={e.rot} crop={e.crop} />;
     case "audio": return <MediaAudio id={e.src} asAdmin={asAdmin} />;
     case "video": return <MediaVideo id={e.src} asAdmin={asAdmin} />;
     case "yt": return live ? <iframe src={embed(e.vid)} title={e.title || "Video"} className="h-full w-full rounded-lg" allow="encrypted-media; picture-in-picture; fullscreen" allowFullScreen referrerPolicy="strict-origin-when-cross-origin" /> : <div className="grid h-full w-full place-items-center rounded-lg bg-slate-800 text-[2cqw] text-white">▶ {e.title || "YouTube"}</div>;
@@ -72,7 +74,7 @@ function Body({ e, asAdmin, live }: { e: El; asAdmin: boolean; live: boolean }) 
       const src = e.code ? `/join?code=${encodeURIComponent(e.code)}` : `/assessments/${encodeURIComponent(e.quiz || "")}`;
       return live ? <iframe src={src} title={e.label || "Activity"} className="h-full w-full rounded-lg border border-slate-200 bg-white" /> : <div className="grid h-full w-full place-items-center rounded-lg bg-violet-100 text-[2cqw] font-bold text-violet-900">🎲 {e.label || e.code || e.quiz}</div>;
     }
-    case "doc": return <iframe src={docViewer(e.src, e.kind)} title={e.name || "Slides"} className={`h-full w-full rounded-lg border border-slate-200 bg-white ${live ? "" : "pointer-events-none"}`} allowFullScreen data-testid="lp-doc-frame" />;
+    case "doc": { const c = { l: e.crop?.l || 0, t: e.crop?.t || 0, r: e.crop?.r || 0, b: e.crop?.b || 0 }; const cropped = !!(c.l || c.t || c.r || c.b); return <div className="h-full w-full overflow-hidden" style={!cropped && e.rot ? { transform: `rotate(${e.rot}deg)` } : undefined}><iframe src={docViewer(e.src, e.kind)} title={e.name || "Slides"} className={`h-full w-full rounded-lg border border-slate-200 bg-white ${live ? "" : "pointer-events-none"}`} style={cropped ? { width: `${10000 / (100 - c.l - c.r)}%`, height: `${10000 / (100 - c.t - c.b)}%`, marginLeft: `${-100 * c.l / (100 - c.l - c.r)}%`, marginTop: `${-100 * c.t / (100 - c.t - c.b)}%`, transform: e.rot ? `rotate(${e.rot}deg)` : undefined } : e.rot ? { transform: `rotate(${e.rot}deg)` } : undefined} allowFullScreen data-testid="lp-doc-frame" /></div>; }
     case "quran": return <div className="grid h-full w-full place-items-center rounded-xl border-2 border-amber-300 bg-amber-50 p-[1cqw] text-center text-[2.2cqw] font-bold text-amber-900">📖 {tr("Surah", "سورة")} {e.surah} · {e.from}–{e.to}{e.memorise ? ` · ${tr("memorise", "احفظ")}` : ""}</div>;
     default: return null;
   }
@@ -118,7 +120,7 @@ export function SlideView({ slide, layer = [], asAdmin, live = true, edit = null
   const up = () => { drag.current = null; if (stroke) { if (stroke.length >= 4) onStroke?.(stroke); setStroke(null); } };
   const all = [...slide.els.map((e) => ({ ...e, by: "t" as const })), ...layer.map((e) => ({ ...e, by: "s" as const }))];
   return (
-    <div ref={box} className={`relative aspect-video w-full touch-none select-none overflow-hidden rounded-xl shadow-md ring-1 ring-black/10 [container-type:inline-size] ${className}`} style={{ background: slide.bg || "#fff", color: "#1b2f44" }} data-testid={testId}
+    <div ref={box} className={`relative aspect-video w-full touch-none select-none overflow-hidden rounded-xl shadow-md ring-1 ring-black/10 [container-type:inline-size] ${className}`} style={{ background: slide.bg || "#fff", color: "#1b2f44", transform: slide.rot ? `rotate(${slide.rot}deg)` : undefined }} data-testid={testId}
       onPointerDown={(ev) => { if (pen && edit) { (ev.target as Element).setPointerCapture?.(ev.pointerId); setStroke(pt(ev)); } else onSelect?.(""); }} onPointerMove={move} onPointerUp={up} onPointerCancel={up}>
       {all.map((e) => e.t === "draw" ? <Strokes key={e.by + e.id} e={e} /> : (
         <div key={e.by + e.id} className={`absolute ${edit && e.by === edit && !pen ? "cursor-move" : ""} ${selected === e.id && e.by === edit ? "outline outline-2 outline-offset-2 outline-sky-500" : ""}`} style={{ left: `${e.x}%`, top: `${e.y}%`, width: `${e.w}%`, height: `${e.h}%` }}
