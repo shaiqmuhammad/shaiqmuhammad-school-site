@@ -18,7 +18,7 @@ export type DashStudent = { id: string; name: string; cls: string; section: stri
 export const scopeLabel = (s: string) => s.replace("|", " · ");
 /** t292: module permissions (Assessment Tracker, Department Report, Attainment & Progress report). */
 export const MP_MODS = ["trk", "rep", "aps", "tt", "lp", "qa", "rw"] as const;
-export const MP_KEYS = ["show", "view", "add", "edit", "delete", "xlsx", "pdf", "isams", "share", "dl", "peers", "compare", "observe"] as const;
+export const MP_KEYS = ["show", "view", "add", "edit", "delete", "xlsx", "pdf", "isams", "share", "dl", "peers", "compare", "observe", "cover"] as const;
 export type MpMod = (typeof MP_MODS)[number];
 export type MpKey = (typeof MP_KEYS)[number];
 export type MpAcc = Record<MpKey, boolean>;
@@ -325,7 +325,7 @@ export const lmsApi = {
   actSave: (v: { code: string; type: string; title: string; prompt: string; cls: string; subject?: string; topic?: string; rows: SavedRow[] }) => call<{ ok: true; id: string }>("act-save", v, { asAdmin: !lmsSession() }),
   actSoundAdmin: () => call<{ on: boolean }>("act-sound", undefined, { asAdmin: true }),
   actResult: (t: string) => call<{ type: string; title: string; prompt: string; cls: string; subject?: string; topic?: string; at: number; rows: SavedRow[] }>("act-result", undefined, { query: { t } }),
-  actSaved: (q: { id?: string; del?: string } = {}) => call<{ items?: SavedAct[]; item?: SavedAct & { prompt: string; tok?: string; subject?: string; topic?: string; rows: SavedRow[] } }>("act-saved", q, { asAdmin: !lmsSession() }),
+  actSaved: (q: { id?: string; del?: string; rename?: string } = {}) => call<{ items?: SavedAct[]; item?: SavedAct & { prompt: string; tok?: string; subject?: string; topic?: string; rows: SavedRow[] } }>("act-saved", q, { asAdmin: !lmsSession() }),
   actLive: () => call<{ items: LiveActivity[] }>("act-live"),
   /** t441: Reward Cards (wallet, shop, plan). */
   rc: <T = Record<string, unknown>>(action: string, body: Record<string, unknown> = {}) => call<T>(`rc-${action}`, body, { asAdmin: !lmsSession() && !!getServerSession() }),

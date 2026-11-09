@@ -19,7 +19,7 @@ export type ModCtx = {
   inScope: (a: Actor, cls: string, section: string, sid?: string) => boolean;
   userRow: (where: string, arg: string) => Record<string, unknown> | undefined;
   /** t304: module permissions (timetable) and a hook to re-plan lesson reminders. */
-  mp?: (a: Actor, mod: "tt") => { show: boolean; view: boolean; add: boolean; edit: boolean; delete: boolean; share?: boolean; xlsx?: boolean; pdf?: boolean; peers?: boolean; compare?: boolean; observe?: boolean };
+  mp?: (a: Actor, mod: "tt") => { show: boolean; view: boolean; add: boolean; edit: boolean; delete: boolean; share?: boolean; xlsx?: boolean; pdf?: boolean; peers?: boolean; compare?: boolean; observe?: boolean; cover?: boolean };
   ttChanged?: () => void;
   ttEnsure?: () => void;
   /** t317: notifications and "may this teacher reach these people" for sharing. */
@@ -616,7 +616,7 @@ function ttCoverRows(sql: SqlStorage, uid: string | null, from?: string, to?: st
 }
 function ttHandle(c: ModCtx, a: Actor, action: string, input: Json): { status: number; body: Json } {
   const sql = c.sql;
-  const acc0: { show: boolean; view: boolean; add: boolean; edit: boolean; delete: boolean; share?: boolean; peers?: boolean; compare?: boolean; observe?: boolean } = c.mp ? c.mp(a, "tt") : { show: true, view: true, add: a.role === "admin", edit: a.role === "admin", delete: a.role === "admin", share: a.role === "admin" };
+  const acc0: { show: boolean; view: boolean; add: boolean; edit: boolean; delete: boolean; share?: boolean; peers?: boolean; compare?: boolean; observe?: boolean; cover?: boolean } = c.mp ? c.mp(a, "tt") : { show: true, view: true, add: a.role === "admin", edit: a.role === "admin", delete: a.role === "admin", share: a.role === "admin" };
   const acc = a.role === "student" ? { ...acc0, add: false, edit: false, delete: false } : acc0;
   if (action === "att-times") {
     if (!acc.view) return { status: 403, body: { error: "module_hidden" } };
@@ -734,9 +734,9 @@ function ttHandle(c: ModCtx, a: Actor, action: string, input: Json): { status: n
     return { status: 200, body: { leads: teachers.map((r) => { const pref = sql.exec(`SELECT v FROM settings WHERE k=?`, `ttlead:${r.id}`).toArray()[0]; return { id: String(r.id), name: String(r.name), lead: pref ? Number(pref.v) : 5 }; }) } };
   }
   if (action === "att-tt-cover") {
-    // List absent teachers' lessons for a day + free cover candidates (permission: add/edit/delete).
+    // List absent teachers' lessons for a day + free cover candidates (permission: cover).
     if (a.role !== "admin" && a.role !== "teacher") return forbid();
-    if (!acc.view || a.viewAs) return forbid("not_allowed");
+    if (!acc.cover || a.viewAs) return forbid("not_allowed");
     const day = /^\d{4}-\d{2}-\d{2}$/.test(str(input.day, 10)) ? str(input.day, 10) : dubaiNow().day;
     const dow = new Date(day + "T12:00:00Z").getUTCDay();
     const times = ttTimes(sql);
@@ -753,7 +753,7 @@ function ttHandle(c: ModCtx, a: Actor, action: string, input: Json): { status: n
   }
   if (action === "att-tt-cover-save") {
     if (a.role !== "admin" && a.role !== "teacher") return forbid();
-    if (!acc.view || a.viewAs) return forbid("not_allowed");
+    if (!acc.cover || a.viewAs) return forbid("not_allowed");
     const day = str(input.day, 10), s0 = str(input.s, 5), e0 = str(input.e, 5), absent = str(input.absent, 40), cover = str(input.cover, 40);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !ttOverlap(s0, e0, s0, e0) || !absent || !cover || absent === cover) return { status: 400, body: { error: "bad_input" } };
     const au = c.userRow("id=? AND role='teacher'", absent), cu = c.userRow("id=? AND role='teacher'", cover);
@@ -771,7 +771,7 @@ function ttHandle(c: ModCtx, a: Actor, action: string, input: Json): { status: n
     return { status: 200, body: { ok: true, id } };
   }
   if (action === "att-tt-cover-del") {
-    if (!acc.view || a.viewAs) return forbid();
+    if ((!acc.cover && a.role !== "admin") || a.viewAs) return forbid();
     const id = str(input.id, 40);
     const row = sql.exec(`SELECT * FROM ttcover WHERE id=?`, id).toArray()[0];
     if (!row) return { status: 404, body: { error: "not_found" } };

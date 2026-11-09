@@ -94,6 +94,15 @@ const rand = (n: number, alphabet = "abcdefghijklmnopqrstuvwxyz0123456789") => {
 };
 const COLORS = ["", "yellow", "teal", "rose", "sky", "violet", "lime"];
 
+function writersOf(o: Json): string[] {
+  return Array.isArray(o.writers) ? (o.writers as unknown[]).map((x) => str(x, 40)).filter(Boolean).slice(0, 200) : [];
+}
+function mayWbDraw(isHost: boolean, o: Json, pid: string): boolean {
+  return isHost || o.draw === true || writersOf(o).includes(pid);
+}
+function pageIdx(v: unknown): number {
+  return Math.max(0, Math.min(29, Math.floor(Number(v) || 0)));
+}
 function cleanSettings(raw: unknown, base: Settings): Settings {
   const r = (raw && typeof raw === "object" ? raw : {}) as Partial<Settings>;
   const s: Settings = { ...base };
@@ -263,7 +272,7 @@ export class ClassActivity extends DurableObject<ActivityEnv> {
         // t423: whiteboard strokes / notes / undo (students only when the teacher allows drawing).
         if (m.type === "whiteboard" && ["stroke", "note", "undo", "move"].includes(str(input.kind, 20))) {
           const k = str(input.kind, 20);
-          if (!isHost && (m.settings.options as Json).draw !== true) return { status: 403, body: { error: "no_draw" } };
+          if (!mayWbDraw(isHost, m.settings.options as Json, me.id)) return { status: 403, body: { error: "no_draw" } };
           if (k === "move") {
             const id = str(input.id, 20);
             const row = this.sql.exec(`SELECT id, pid, kind, data FROM items WHERE id=? AND kind IN ('stroke','note','pic')`, id).toArray()[0];
@@ -295,7 +304,7 @@ export class ClassActivity extends DurableObject<ActivityEnv> {
           const d: Json = { c: col };
           if (k === "stroke") {
             const raw = Array.isArray(input.pts) ? (input.pts as unknown[]) : [];
-            const pts = raw.slice(0, 1600).map((v) => Math.round(Math.max(0, Math.min(1, Number(v) || 0)) * 10000) / 10000);
+            const pts = raw.slice(0, 2400).map((v) => Math.round(Math.max(0, Math.min(1, Number(v) || 0)) * 10000) / 10000);
             if (pts.length < 2 || pts.length % 2) return { status: 400, body: { error: "empty" } };
             d.pts = pts; d.w = Math.max(1, Math.min(60, Number(input.w) || 4)); d.hl = input.hl === true; d.er = input.er === true;
             // t429: shapes (closed + fill), pencil / brush opacity
@@ -303,14 +312,22 @@ export class ClassActivity extends DurableObject<ActivityEnv> {
             if (input.cl === true) d.cl = true;
             const op = Number(input.o); if (op > 0 && op < 1) d.o = Math.round(Math.max(0.1, op) * 100) / 100;
             if (input.ar === true) d.ar = true;
+            d.pg = pageIdx(input.pg);
+            if (Array.isArray(input.ws)) {
+              const n = pts.length / 2;
+              d.ws = (input.ws as unknown[]).slice(0, n).map((v) => Math.round(Math.max(0.5, Math.min(80, Number(v) || 1)) * 100) / 100);
+            }
+            const tool = str(input.tool, 20);
+            if (["hand", "pen", "pencil", "brush", "paint", "qalam", "hl", "er", "text", "line", "arrow", "rect", "ellipse", "tri"].includes(tool)) d.tool = tool;
           } else {
             const t = str(input.text, 200);
             if (!t) return { status: 400, body: { error: "empty" } };
             if (!isHost && isProfane(t)) return { status: 400, body: { error: "language" } };
             d.text = t; d.x = Math.max(0, Math.min(1, Number(input.x) || 0)); d.y = Math.max(0, Math.min(1, Number(input.y) || 0)); d.w = Math.max(10, Math.min(80, Number(input.w) || 22));
             // t429: note font + highlight colour
-            if (["Nunito", "Amiri", "Tajawal", "Georgia", "Comic Sans MS", "Courier New", "Arial"].includes(str(input.f, 30))) d.f = str(input.f, 30);
+            if (["Nunito", "Amiri", "Tajawal", "Noto Sans Arabic", "Georgia", "Comic Sans MS", "Courier New", "Arial"].includes(str(input.f, 30))) d.f = str(input.f, 30);
             if (/^#[0-9a-fA-F]{6}$/.test(str(input.bg, 7))) d.bg = str(input.bg, 7);
+            d.pg = pageIdx(input.pg);
           }
           const id = rand(12);
           this.sql.exec(`INSERT INTO items (id, pid, kind, data, status, created) VALUES (?, ?, ?, ?, 'approved', ?)`, id, me.id, k, JSON.stringify(d), Date.now());
@@ -345,7 +362,7 @@ export class ClassActivity extends DurableObject<ActivityEnv> {
         // t409: mind map (branch → leaf via parent, optional group) and compare (zone a | b | both).
         if (m.type === "mindmap") { const par = str(input.parent, 20); if (par && !this.sql.exec(`SELECT 1 FROM items WHERE id=?`, par).toArray().length) return { status: 400, body: { error: "no_parent" } }; data.parent = par; data.group = str(input.group, 30); }
         // t429: whiteboard picture placement (fractions of the 1600×1000 board).
-        if (m.type === "whiteboard" && kind === "pic") { const f = (v: unknown, d: number) => Math.max(0, Math.min(1, Number(v) || d)); data.x = f(input.x, 0.3); data.y = f(input.y, 0.25); data.w = Math.max(0.05, f(input.w, 0.4)); data.h = Math.max(0.05, f(input.h, 0.4)); }
+        if (m.type === "whiteboard" && kind === "pic") { if (!mayWbDraw(isHost, m.settings.options as Json, me.id)) return { status: 403, body: { error: "no_draw" } }; const f = (v: unknown, d: number) => Math.max(0, Math.min(1, Number(v) || d)); data.x = f(input.x, 0.3); data.y = f(input.y, 0.25); data.w = Math.max(0.05, f(input.w, 0.4)); data.h = Math.max(0.05, f(input.h, 0.4)); data.pg = pageIdx(input.pg); }
         if (m.type === "compare") { const z = str(input.zone, 6); if (!["a", "b", "both"].includes(z)) return { status: 400, body: { error: "bad_zone" } }; data.zone = z; }
         this.sql.exec(`INSERT INTO items (id, pid, kind, data, status, created, img) VALUES (?, ?, ?, ?, ?, ?, ?)`, id, me.id, kind, JSON.stringify(data), status, Date.now(), imgId);
         this.bump();
@@ -735,6 +752,10 @@ export async function handleActivity(request: Request, env: ActivityEnv, parts: 
     if (g?.ok) { input.name = g.name; input.lmsStudent = g.sid; }
   }
   delete input.lmsToken;
+  if (action === "settings" && typeof input.title === "string") {
+    const isAdmin = await verifyToken(env, request.headers.get("Authorization"));
+    if (!isAdmin && !(await teacherWithPerm(request, env as unknown as LmsEnv, "act:rename"))) return reply(origin, { error: "rename_not_allowed" }, 403);
+  }
   const r = (await stub.handle(action, request.method, input)) as unknown as Reply;
   if (r.status === 200 && action === "destroy") await lmsStore(env).actDel(code);
   return reply(origin, r.body, r.status);
