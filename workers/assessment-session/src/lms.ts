@@ -1216,7 +1216,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         const row = { id: rid("a"), title, body, aud, cls: aud === "class" ? str(input.cls, 80) : "", section: aud === "class" ? str(input.section, 80) : "", by: a.name, created: Date.now() };
         this.sql.exec(`INSERT INTO ann (id, title, body, aud, cls, section, by, created) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, row.id, row.title, row.body, row.aud, row.cls, row.section, row.by, row.created);
         const users = this.sql.exec(`SELECT id, role, cls, section, scope FROM users WHERE disabled=0`).toArray().filter((u) => this.annFor(row, { id: String(u.id), role: String(u.role) as Role, name: "", cls: String(u.cls || ""), perms: [], scope: String(u.role) === "teacher" ? this.teacherScope(String(u.id)).scope : JSON.parse(String(u.scope || "[]")), section: String(u.section || "") } as Actor & { section: string }));
-        this.notify(users.map((u) => String(u.id)), "announcement", { title });
+        this.notify(users.map((u) => String(u.id)), "announcement", { title, body: body.slice(0, 280) });
         return { status: 200, body: { ok: true, sent: users.length } };
       }
       case "ann-delete": {
@@ -1924,7 +1924,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         if (!this.msgContacts(a).some((c) => c.id === to)) return { status: 403, body: { error: "not_allowed" } };
         const thread = [a.id, to].sort().join("~");
         this.sql.exec(`INSERT INTO msgs (id, thread, sender, recipient, body, created) VALUES (?, ?, ?, ?, ?, ?)`, rid("m"), thread, a.id, to, body, Date.now());
-        this.notify([to], "message", { by: a.name, title: body.slice(0, 60), thread });
+        this.notify([to], "message", { by: a.name, title: body.slice(0, 280), thread });
         return { status: 200, body: { ok: true, thread } };
       }
       case "msg-delete": {
@@ -2831,7 +2831,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
       body = body.trim().slice(0, 5000) || "(empty reply)";
       const t = Date.parse(r.date); 
       this.sql.exec(`INSERT INTO pmsg (id, thread, student, teacher, dir, subject, body, created, msgid, read) VALUES (?, ?, ?, ?, 'in', ?, ?, ?, ?, 0)`, rid("pm"), r.token, String(th.student), String(th.teacher), r.subject.replace(/\[PM-[a-f0-9]{8}\]\s*/i, "").slice(0, 150), body, Number.isFinite(t) ? t : Date.now(), mid);
-      this.notify([String(th.teacher)], "message", { by: "Parent", title: body.slice(0, 60), thread: r.token });
+      this.notify([String(th.teacher)], "message", { by: "Parent", title: body.slice(0, 280), thread: r.token });
     }
   }
 

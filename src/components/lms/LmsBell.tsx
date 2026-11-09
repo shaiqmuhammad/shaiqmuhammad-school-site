@@ -6,7 +6,15 @@ import { mailApi } from "@/lib/mail";
 import { lmsApi, type Note } from "@/lib/lms";
 import { useI18n } from "@/lib/i18n";
 
-const ICON: Record<Note["kind"], string> = { hw_new: "📝", sub_new: "📥", feedback: "💬", feedback_audio: "🎙️", approved: "✅", returned: "↺", graded: "🚦", reminder: "⏰", revise: "🔁", mistakes: "📝", announcement: "📣", message: "💬", act_mindmap: "🧠", act_compare: "⚖️", act_whiteboard: "✏️" };
+const ICON: Record<Note["kind"], string> = {
+  hw_new: "📝", sub_new: "📥", feedback: "💬", feedback_audio: "🎙️", approved: "✅", returned: "↺", graded: "🚦",
+  reminder: "⏰", revise: "🔁", mistakes: "📝", announcement: "📣", message: "💬",
+  act_mindmap: "🧠", act_compare: "⚖️", act_whiteboard: "✏️",
+  lesson: "📚", hw_reminder: "⌛", hw_shared: "📤",
+  lp_feedback: "📑", lp_new: "📖", lp_due: "⏳", lp_activity: "🎯",
+  tt_shared: "📅", tt_observe_req: "👀", tt_observe_reply: "👁️", tt_cover: "🔄",
+  test: "🧪", qa_ready: "📊", child_progress: "👨‍👩‍👧",
+};
 
 /**
  * Notification bell with dropdown. Students: new homework, feedback, approved, try again. Teachers: new submissions.
@@ -51,24 +59,133 @@ export function LmsBell({ asAdmin = false, variant = "navy", extra, testId = "lm
   }, [open]);
 
   const total = unread + (extra?.count || 0) + mail;
-  const text = (n: Note) => {
+  const lines = (n: Note): { heading: string; detail?: string } => {
     const t = n.data.title ? `“${n.data.title}”` : "";
+    const title = n.data.title || "";
+    const by = n.data.by || "";
     switch (n.kind) {
-      case "hw_new": return tr(`New homework: ${t}`, `واجب جديد: ${t}`);
-      case "sub_new": return tr(`${n.data.student} submitted ${t}`, `سلّم ${n.data.student} ${t}`);
-      case "feedback": return tr(`${n.data.by} commented on ${t}`, `علّق ${n.data.by} على ${t}`);
-      case "feedback_audio": return tr(`${n.data.by} sent voice feedback on ${t}`, `أرسل ${n.data.by} تعليقًا صوتيًا على ${t}`);
-      case "graded": return n.data.grade === "red" ? tr(`${t}: 🔴 practise again and re-record`, `${t}: 🔴 تدرّب مجددًا وأعد التسجيل`) : tr(`${t}: ${n.data.grade === "green" ? "🟢" : "🟡"} passed — well done!`, `${t}: ${n.data.grade === "green" ? "🟢" : "🟡"} نجحت — أحسنت!`);
-      case "reminder": return n.data.overdue ? tr(`${t} is overdue — submit it soon`, `${t} متأخر — سلّمه قريبًا`) : tr(`${t} is due within 24 hours`, `موعد تسليم ${t} خلال 24 ساعة`);
-      case "revise": return tr(`Time to revise ${t}`, `حان وقت مراجعة ${t}`);
-      case "mistakes": return tr(`${n.data.by} marked ${n.data.count} word(s) to fix in ${t}`, `حدّد ${n.data.by} ${n.data.count} كلمة للتصحيح في ${t}`);
-      case "announcement": return tr(`Announcement: ${t}`, `إعلان: ${t}`);
-      case "message": return tr(`New message from ${n.data.by}`, `رسالة جديدة من ${n.data.by}`);
-      case "approved": return tr(`${t} was approved`, `تم قبول ${t}`);
-      case "act_whiteboard": return tr(`${n.data.by} started a whiteboard: ${t}`, `بدأ ${n.data.by} سبورة بيضاء: ${t}`);
-      case "act_mindmap": return tr(`${n.data.by} started a mind map: ${t}`, `بدأ ${n.data.by} خريطة ذهنية: ${t}`);
-      case "act_compare": return tr(`${n.data.by} started compare & contrast: ${t}`, `بدأ ${n.data.by} نشاط المقارنة: ${t}`);
-      case "returned": return tr(`${t}: please try again`, `${t}: حاول مرة أخرى`);
+      case "hw_new": return { heading: tr(`New homework: ${t}`, `واجب جديد: ${t}`) };
+      case "sub_new": return { heading: tr(`${n.data.student} submitted ${t}`, `سلّم ${n.data.student} ${t}`) };
+      case "feedback": return { heading: tr(`${by} commented on ${t}`, `علّق ${by} على ${t}`) };
+      case "feedback_audio": return { heading: tr(`${by} sent voice feedback on ${t}`, `أرسل ${by} تعليقًا صوتيًا على ${t}`) };
+      case "graded": return {
+        heading: n.data.grade === "red"
+          ? tr(`${t}: 🔴 practise again and re-record`, `${t}: 🔴 تدرّب مجددًا وأعد التسجيل`)
+          : tr(`${t}: ${n.data.grade === "green" ? "🟢" : "🟡"} passed — well done!`, `${t}: ${n.data.grade === "green" ? "🟢" : "🟡"} نجحت — أحسنت!`),
+      };
+      case "reminder": return {
+        heading: n.data.overdue
+          ? tr(`${t} is overdue — submit it soon`, `${t} متأخر — سلّمه قريبًا`)
+          : tr(`${t} is due within 24 hours`, `موعد تسليم ${t} خلال 24 ساعة`),
+      };
+      case "revise": return { heading: tr(`Time to revise ${t}`, `حان وقت مراجعة ${t}`) };
+      case "mistakes": return { heading: tr(`${by} marked ${n.data.count} word(s) to fix in ${t}`, `حدّد ${by} ${n.data.count} كلمة للتصحيح في ${t}`) };
+      case "announcement":
+        return {
+          heading: title ? tr(`Announcement: ${t}`, `إعلان: ${t}`) : tr("Announcement", "إعلان"),
+          detail: n.data.body || undefined,
+        };
+      case "message":
+        return {
+          heading: tr("New message", "رسالة جديدة"),
+          detail: by && title ? `${by}: ${title}` : by ? tr(`from ${by}`, `من ${by}`) : title || undefined,
+        };
+      case "approved": return { heading: tr(`${t} was approved`, `تم قبول ${t}`) };
+      case "act_whiteboard": return { heading: tr(`${by} started a whiteboard: ${t}`, `بدأ ${by} سبورة بيضاء: ${t}`) };
+      case "act_mindmap": return { heading: tr(`${by} started a mind map: ${t}`, `بدأ ${by} خريطة ذهنية: ${t}`) };
+      case "act_compare": return { heading: tr(`${by} started compare & contrast: ${t}`, `بدأ ${by} نشاط المقارنة: ${t}`) };
+      case "returned": return { heading: tr(`${t}: please try again`, `${t}: حاول مرة أخرى`) };
+      case "lesson": {
+        const mins = n.data.mins ?? "";
+        const bits = [n.data.subject, n.data.cls].filter(Boolean).join(" · ");
+        const when = n.data.time ? tr(`at ${n.data.time}`, `في ${n.data.time}`) : "";
+        return {
+          heading: tr(`Lesson in ${mins} min`, `حصة خلال ${mins} د`),
+          detail: [bits, when].filter(Boolean).join(" ") || undefined,
+        };
+      }
+      case "hw_reminder":
+        return {
+          heading: tr("Homework reminder", "تذكير بالواجب"),
+          detail: by
+            ? tr(`${by}: please complete and submit ${t || title}`, `${by}: يرجى إكمال وتسليم ${t || title}`)
+            : (t || title || undefined),
+        };
+      case "hw_shared":
+        return {
+          heading: tr("Homework shared with you", "واجب مُشارَك معك"),
+          detail: by ? `${by}: ${title || t}` : (title || t || undefined),
+        };
+      case "lp_new":
+        return {
+          heading: tr("New learning material", "مادة تعليمية جديدة"),
+          detail: by ? `${by}: ${title || t}` : (title || t || undefined),
+        };
+      case "lp_due":
+        return {
+          heading: tr("Due soon", "موعد قريب"),
+          detail: title
+            ? tr(`${title} is due within 24 hours`, `${title} مستحق خلال 24 ساعة`)
+            : undefined,
+        };
+      case "lp_feedback":
+        return {
+          heading: tr("Teacher feedback on your slides", "تعليق المعلم على شرائحك"),
+          detail: title || t || undefined,
+        };
+      case "lp_activity":
+        return {
+          heading: tr("New class activity", "نشاط صفّي جديد"),
+          detail: by ? `${by}: ${title || t}` : (title || t || undefined),
+        };
+      case "tt_shared":
+        return {
+          heading: tr("Timetable shared", "مشاركة الجدول"),
+          detail: by ? `${by}: ${title || t}` : (title || t || undefined),
+        };
+      case "tt_observe_req":
+        return {
+          heading: tr("Observation request", "طلب ملاحظة"),
+          detail: by
+            ? tr(`${by} would like to observe your lesson on ${n.data.day || ""} at ${n.data.time || ""}`, `${by} يود ملاحظة حصتك يوم ${n.data.day || ""} في ${n.data.time || ""}`)
+            : undefined,
+        };
+      case "tt_observe_reply":
+        return {
+          heading: tr(`Observation ${n.data.status || ""}`, `ملاحظة ${n.data.status || ""}`).trim(),
+          detail: by
+            ? `${by}: ${[n.data.day, n.data.time].filter(Boolean).join(" · ") || ""}`.replace(/:\s*$/, "") || by
+            : [n.data.day, n.data.time].filter(Boolean).join(" · ") || undefined,
+        };
+      case "tt_cover":
+        return {
+          heading: tr("Cover lesson assigned", "تكليف حصة بديلة"),
+          detail: by
+            ? tr(`${by}: cover for ${n.data.absent || ""} on ${n.data.day || ""} at ${n.data.time || ""} (${n.data.cls || ""})`, `${by}: تغطية بدل ${n.data.absent || ""} يوم ${n.data.day || ""} في ${n.data.time || ""} (${n.data.cls || ""})`)
+            : undefined,
+        };
+      case "test":
+        return {
+          heading: tr("Test notification", "إشعار تجريبي"),
+          detail: tr("Push notifications are working ✅", "إشعارات الدفع تعمل ✅"),
+        };
+      case "qa_ready":
+        return {
+          heading: tr("QA report ready / updated", "تقرير الجودة جاهز / محدَّث"),
+          detail: by ? `${by}: ${title || t}` : (title || t || undefined),
+        };
+      case "child_progress":
+        return {
+          heading: tr("Child progress update", "تحديث تقدّم الابن/الابنة"),
+          detail: n.data.child
+            ? `${n.data.child}: ${title || t}${n.data.grade ? ` — ${n.data.grade}` : ""}`
+            : (title || t || undefined),
+        };
+      default: {
+        const bits = [title, n.data.body, by].filter((x): x is string => !!x);
+        if (bits.length) return { heading: bits[0], detail: bits.slice(1).join(" · ") || undefined };
+        return { heading: tr("New notification", "إشعار جديد") };
+      }
     }
   };
   const ago = (ts: number) => {
@@ -119,26 +236,32 @@ export function LmsBell({ asAdmin = false, variant = "navy", extra, testId = "lm
             {extra && extra.count > 0 && (
               <li>
                 <button type="button" className="flex w-full items-start gap-2 bg-amber-50 px-4 py-2.5 text-start hover:bg-amber-100 dark:bg-amber-900/30" onClick={() => { setOpen(false); extra.onClick(); }} data-testid={`${testId}-extra`}>
-                  <span aria-hidden>🗨️</span><span className="font-semibold">{extra.label}</span>
+                  <span aria-hidden>🗨️</span><span className="font-semibold whitespace-normal break-words">{extra.label}</span>
                 </button>
               </li>
             )}
             {mail > 0 && (
               <li>
                 <a href="/admin#mail" className="flex w-full items-start gap-2 bg-sky-50 px-4 py-2.5 text-start font-semibold hover:bg-sky-100 dark:bg-sky-900/30" onClick={() => { setOpen(false); window.dispatchEvent(new HashChangeEvent("hashchange")); }} data-testid={`${testId}-mail`}>
-                  <span aria-hidden>✉️</span><span>{tr(`${mail} unread message${mail === 1 ? "" : "s"} (email / contact form)`, `${mail} رسالة غير مقروءة (البريد / نموذج التواصل)`)}</span>
+                  <span aria-hidden>✉️</span><span className="whitespace-normal break-words">{tr(`${mail} unread message${mail === 1 ? "" : "s"} (email / contact form)`, `${mail} رسالة غير مقروءة (البريد / نموذج التواصل)`)}</span>
                 </a>
               </li>
             )}
-            {items.map((n) => (
-              <li key={n.id}>
-                <a href={href(n)} className={`flex items-start gap-2 px-4 py-2.5 hover:bg-black/5 dark:hover:bg-white/5 ${n.read ? "" : "bg-sky-50 font-semibold dark:bg-sky-900/30"}`} onClick={() => setOpen(false)} data-testid={`${testId}-item`}>
-                  <span aria-hidden>{ICON[n.kind] || "🔔"}</span>
-                  <span className="min-w-0 flex-1" dir="auto">{text(n)}</span>
-                  <span className="shrink-0 text-xs opacity-60">{ago(n.created)}</span>
-                </a>
-              </li>
-            ))}
+            {items.map((n) => {
+              const L = lines(n);
+              return (
+                <li key={n.id}>
+                  <a href={href(n)} className={`flex items-start gap-2 px-4 py-2.5 hover:bg-black/5 dark:hover:bg-white/5 ${n.read ? "" : "bg-sky-50 font-semibold dark:bg-sky-900/30"}`} onClick={() => setOpen(false)} data-testid={`${testId}-item`}>
+                    <span aria-hidden className="shrink-0">{ICON[n.kind] || "🔔"}</span>
+                    <span className="min-w-0 flex-1 whitespace-normal break-words" dir="auto">
+                      <span className="block">{L.heading}</span>
+                      {L.detail ? <span className="mt-0.5 block text-xs font-normal opacity-70">{L.detail}</span> : null}
+                    </span>
+                    <span className="shrink-0 text-xs opacity-60">{ago(n.created)}</span>
+                  </a>
+                </li>
+              );
+            })}
             {!items.length && !mail && !(extra && extra.count > 0) && <li className="px-4 py-6 text-center opacity-60">{tr("Nothing new.", "لا جديد.")}</li>}
           </ul>
         </div>,

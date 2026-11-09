@@ -51,7 +51,26 @@ export type ParentContact = { student: string; studentName: string; cls: string;
 export type ParentThread = { thread: string; student: string; studentName: string; cls: string; parentName: string; teacherName: string; last: number; count: number; unread: number; preview: string; lastDir: string };
 export type ParentMsg = { id: string; dir: "in" | "out"; subject: string; body: string; created: number };
 export type Msg = { id: string; sender: string; body: string; created: number; mine: boolean };
-export type Note = { id: string; kind: "hw_new" | "sub_new" | "feedback" | "feedback_audio" | "approved" | "returned" | "graded" | "reminder" | "revise" | "mistakes" | "announcement" | "message" | "act_mindmap" | "act_compare" | "act_whiteboard"; data: { code?: string; hw?: string; title?: string; by?: string; student?: string; grade?: Grade; overdue?: boolean; count?: number; surah?: number }; created: number; read: boolean };
+export type Note = {
+  id: string;
+  kind:
+    | "hw_new" | "sub_new" | "feedback" | "feedback_audio" | "approved" | "returned" | "graded"
+    | "reminder" | "revise" | "mistakes" | "announcement" | "message"
+    | "act_mindmap" | "act_compare" | "act_whiteboard"
+    | "lesson" | "hw_reminder" | "hw_shared"
+    | "lp_feedback" | "lp_new" | "lp_due" | "lp_activity"
+    | "tt_shared" | "tt_observe_req" | "tt_observe_reply" | "tt_cover"
+    | "test" | "qa_ready" | "child_progress";
+  data: {
+    code?: string; hw?: string; title?: string; body?: string; by?: string; student?: string;
+    grade?: Grade; overdue?: boolean; count?: number; surah?: number;
+    thread?: string; subject?: string; cls?: string; time?: string; period?: string | number;
+    mins?: number; child?: string; day?: string; status?: string; absent?: string; assess?: string;
+    from?: number; to?: number; key?: string; correct?: boolean;
+  };
+  created: number;
+  read: boolean;
+};
 export type Level = 1 | 2 | 3;
 /** Makharij / Tajweed / Recitation levels (1 Needs practice · 2 Good · 3 Excellent) + generated feedback. */
 export type Scores = { m: Level; t: Level; r: Level; h?: Level; notes?: { m?: string; t?: string; r?: string; h?: string }; fb?: { en: string; ar: string } };
