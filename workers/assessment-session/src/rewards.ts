@@ -16,19 +16,19 @@ export type RcCtx = {
 };
 type Res = { status: number; body: unknown };
 export type Band = "a" | "b" | "c";
-export const RC_RULES = ["activity", "hw_in", "hw_green", "hw_yellow", "q_in", "q_green", "q_yellow", "as_try", "as_good", "as_top", "streak3", "streak7"] as const;
+export const RC_RULES = ["activity", "hw_in", "hw_green", "hw_yellow", "q_in", "q_green", "q_yellow", "as_try", "as_good", "as_top", "att", "streak3", "streak7"] as const;
 type Rule = (typeof RC_RULES)[number];
 export type Plan = { on: boolean; deduct: boolean; legacy: boolean; since: number; resetAt: number; cap: Record<Band, number>; rules: Record<Rule, Record<Band, number>>; manualMax: number };
 const B3 = (a: number, b: number, c: number) => ({ a, b, c });
 const DEF_RULES: Plan["rules"] = {
   activity: B3(2, 2, 2), hw_in: B3(3, 2, 2), hw_green: B3(2, 2, 3), hw_yellow: B3(2, 1, 1), q_in: B3(3, 2, 2), q_green: B3(2, 2, 3), q_yellow: B3(2, 1, 1),
-  as_try: B3(3, 2, 2), as_good: B3(1, 2, 2), as_top: B3(2, 3, 3), streak3: B3(3, 3, 3), streak7: B3(7, 7, 7),
+  as_try: B3(3, 2, 2), as_good: B3(1, 2, 2), as_top: B3(2, 3, 3), att: B3(2, 2, 2), streak3: B3(3, 3, 3), streak7: B3(7, 7, 7),
 };
 export const RC_LABEL: Record<Rule | "manual" | "spend" | "refund", [string, string]> = {
   activity: ["Joined a class activity", "شارك في نشاط الصف"], hw_in: ["Homework handed in", "تسليم الواجب"], hw_green: ["Excellent homework (green)", "واجب ممتاز (أخضر)"], hw_yellow: ["Good homework (yellow)", "واجب جيد (أصفر)"],
   q_in: ["Quran homework submitted", "تسليم واجب القرآن"], q_green: ["Quran recitation green", "تلاوة ممتازة (أخضر)"], q_yellow: ["Quran recitation yellow", "تلاوة جيدة (أصفر)"],
   as_try: ["Assessment completed", "إكمال التقييم"], as_good: ["Strong assessment result (70%+)", "نتيجة قوية (70%+)"], as_top: ["Top assessment result (90%+)", "نتيجة متميزة (90%+)"],
-  streak3: ["3-day learning streak", "مواظبة 3 أيام"], streak7: ["7-day learning streak", "مواظبة 7 أيام"], manual: ["Teacher award", "مكافأة المعلم"], spend: ["Reward Shop", "متجر المكافآت"], refund: ["Refund", "استرجاع"],
+  att: ["Present at school", "الحضور في المدرسة"], streak3: ["3-day learning streak", "مواظبة 3 أيام"], streak7: ["7-day learning streak", "مواظبة 7 أيام"], manual: ["Teacher award", "مكافأة المعلم"], spend: ["Reward Shop", "متجر المكافآت"], refund: ["Refund", "استرجاع"],
 };
 const DEF_SHOP: [string, string, string, number][] = [
   ["Sticker", "ملصق", "⭐", 10], ["Certificate of Excellence", "شهادة تميز", "📜", 25], ["Front-of-line pass", "تذكرة أول الصف", "🎟️", 30],
@@ -91,6 +91,16 @@ export async function rcSync(c: RcCtx, sid: string, withResults = false) {
     if (r.grade === "green") earn(c.sql, p, sid, band, q ? "q_green" : "hw_green", hw, Number(r.updated) || at, t);
     else if (r.grade === "yellow") earn(c.sql, p, sid, band, q ? "q_yellow" : "hw_yellow", hw, Number(r.updated) || at, t);
   }
+  const sinceDay = dayOf(p.since);
+  for (const r of c.sql.exec(`SELECT DISTINCT day FROM att WHERE student=? AND status='P' AND day>=?`, sid, sinceDay).toArray()) {
+    const d = String(r.day);
+    earn(c.sql, p, sid, band, "att", d, Date.parse(d + "T08:00:00Z") || Date.now());
+  }
+  try {
+    for (const r of c.sql.exec(`SELECT w.pack AS pack, w.updated AS updated, l.title AS title FROM lpwork w LEFT JOIN lpack l ON l.id=w.pack WHERE w.student=? AND w.updated>=?`, sid, p.since).toArray()) {
+      earn(c.sql, p, sid, band, "activity", "lp:" + String(r.pack), Number(r.updated) || Date.now(), String(r.title || ""));
+    }
+  } catch { /* lesson packs table may not exist yet */ }
   const days = new Set(c.sql.exec(`SELECT day FROM activity WHERE student=?`, sid).toArray().map((r) => String(r.day)));
   for (const d of days) {
     const t = Date.parse(d + "T08:00:00Z");
@@ -181,7 +191,7 @@ export async function rcHandle(c: RcCtx, a: Act, action: string, input: Record<s
       if (!staff || !acc.view) return no("module_hidden");
       const cls = s(input.cls, 80);
       const studs = sql.exec(`SELECT id, name, cls, section FROM users WHERE role='student' AND COALESCE(disabled,0)=0 ${cls ? "AND cls=?" : ""} ORDER BY cls, section, name`, ...(cls ? [cls] : [])).toArray().filter((r) => c.inScope(a, String(r.id)));
-      if (input.sync === true && write) for (const r of studs.slice(0, 400)) await rcSync(c, String(r.id));
+      if (input.sync === true && write) for (const r of studs.slice(0, 400)) await rcSync(c, String(r.id), true);
       const students = studs.map((r) => ({ id: String(r.id), name: String(r.name), cls: String(r.cls || ""), section: String(r.section || ""), band: bandOf(String(r.cls || "")), ...balanceOf(sql, String(r.id), p) }));
       const ids = new Set(studs.map((r) => String(r.id)));
       const requests = sql.exec(`SELECT r.*, u.name AS sname, u.cls AS cls FROM rcred r LEFT JOIN users u ON u.id=r.student ORDER BY CASE r.status WHEN 'pending' THEN 0 WHEN 'approved' THEN 1 ELSE 2 END, r.at DESC LIMIT 300`).toArray().filter((r) => ids.has(String(r.student)) || a.role === "admin").map(redOut);

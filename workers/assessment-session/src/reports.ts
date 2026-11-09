@@ -181,7 +181,16 @@ export async function reportHandle(c: ReportCtx, a: Actor, action: string, input
       return { title: h.title, kind: h.kind, due: h.due, status: st, submittedAt: at || null, onTime: done && (!h.due || (at > 0 && at <= h.due)) };
     });
     const qr = c.sql.exec(`SELECT surah, from_ayah, to_ayah, grade, approved FROM tracker WHERE student=? AND approved>0 ORDER BY approved`, s.id).toArray().map((r) => ({ surah: Number(r.surah), from: Number(r.from_ayah), to: Number(r.to_ayah), grade: String(r.grade || "green"), at: Number(r.approved) }));
-    return { status: 200, body: { student: { ...s, groups: groups.filter((g) => g.students.includes(s.id)).map((g) => g.name) }, settings: S, scores: sc.map((x) => ({ ...x, band: band(x.p, S) })), homework: hw, quran: qr } };
+    const attRows = c.sql.exec(`SELECT status, COUNT(*) AS n FROM att WHERE student=? GROUP BY status`, s.id).toArray();
+    let ap = 0, al = 0, aa = 0, ae = 0;
+    for (const r of attRows) { const n = Number(r.n), st = String(r.status); if (st === "P") ap = n; else if (st === "L") al = n; else if (st === "A") aa = n; else if (st === "E") ae = n; }
+    const marked = ap + al + aa + ae;
+    const points = Number(c.sql.exec(`SELECT COALESCE(SUM(pts),0) AS n FROM pts WHERE student=?`, s.id).toArray()[0]?.n || 0);
+    const cards = Number(c.sql.exec(`SELECT COALESCE(SUM(amt),0) AS n FROM rc WHERE student=? AND amt>0`, s.id).toArray()[0]?.n || 0);
+    let activities = 0;
+    try { activities = Number(c.sql.exec(`SELECT COUNT(*) AS n FROM lpwork WHERE student=?`, s.id).toArray()[0]?.n || 0); } catch { /* */ }
+    activities += Number(c.sql.exec(`SELECT COUNT(*) AS n FROM rc WHERE student=? AND kind='activity' AND ref NOT LIKE 'lp:%'`, s.id).toArray()[0]?.n || 0);
+    return { status: 200, body: { student: { ...s, groups: groups.filter((g) => g.students.includes(s.id)).map((g) => g.name) }, settings: S, scores: sc.map((x) => ({ ...x, band: band(x.p, S) })), homework: hw, quran: qr, points, cards, attendance: { p: ap, l: al, a: aa, e: ae, pct: marked ? Math.round((100 * ap) / marked) : null }, activities } };
   }
   if (action !== "report-dept") return { status: 404, body: { error: "unknown_action" } };
 
@@ -260,6 +269,39 @@ export async function reportHandle(c: ReportCtx, a: Actor, action: string, input
     return { year: y, total: u.length, taught: u.filter((r) => r.status === "taught").length, inProgress: u.filter((r) => r.status === "in_progress").length, assessed };
   });
 
+  const attBy = new Map<string, { p: number; l: number; a: number; e: number }>();
+  for (const r of c.sql.exec(`SELECT student, status, COUNT(*) AS n FROM att GROUP BY student, status`).toArray()) {
+    if (!ids.has(String(r.student))) continue;
+    const o = attBy.get(String(r.student)) || { p: 0, l: 0, a: 0, e: 0 };
+    const st = String(r.status), n = Number(r.n);
+    if (st === "P") o.p += n; else if (st === "L") o.l += n; else if (st === "A") o.a += n; else if (st === "E") o.e += n;
+    attBy.set(String(r.student), o);
+  }
+  const ptsBy = new Map(c.sql.exec(`SELECT student, COALESCE(SUM(pts),0) AS n FROM pts GROUP BY student`).toArray().map((r) => [String(r.student), Number(r.n)]));
+  const cardsBy = new Map(c.sql.exec(`SELECT student, COALESCE(SUM(amt),0) AS n FROM rc WHERE amt>0 GROUP BY student`).toArray().map((r) => [String(r.student), Number(r.n)]));
+  const liveBy = new Map(c.sql.exec(`SELECT student, COUNT(*) AS n FROM rc WHERE kind='activity' AND ref NOT LIKE 'lp:%' GROUP BY student`).toArray().map((r) => [String(r.student), Number(r.n)]));
+  const lpBy = new Map<string, number>();
+  try { for (const r of c.sql.exec(`SELECT student, COUNT(*) AS n FROM lpwork GROUP BY student`).toArray()) lpBy.set(String(r.student), Number(r.n)); } catch { /* */ }
+  const engOf = (sid: string) => {
+    const at = attBy.get(sid) || { p: 0, l: 0, a: 0, e: 0 };
+    const marked = at.p + at.l + at.a + at.e;
+    return { attendance: { ...at, pct: marked ? Math.round((100 * at.p) / marked) : null }, points: ptsBy.get(sid) || 0, cards: cardsBy.get(sid) || 0, activities: (lpBy.get(sid) || 0) + (liveBy.get(sid) || 0) };
+  };
+  const engagement = {
+    byYear: years.map((y) => {
+      const st = sel.filter((s) => s.cls === y);
+      let p = 0, l = 0, ab = 0, ex = 0, cards = 0, points = 0, activities = 0;
+      for (const s of st) { const e = engOf(s.id); p += e.attendance.p; l += e.attendance.l; ab += e.attendance.a; ex += e.attendance.e; cards += e.cards; points += e.points; activities += e.activities; }
+      const marked = p + l + ab + ex;
+      return { year: y, students: st.length, present: p, late: l, absent: ab, pct: marked ? Math.round((100 * p) / marked) : null, cards, points, activities };
+    }),
+  };
+  const allMarked = engagement.byYear.reduce((t, r) => t + r.present + r.late + r.absent, 0);
+  const allPresent = engagement.byYear.reduce((t, r) => t + r.present, 0);
+  const allCards = engagement.byYear.reduce((t, r) => t + r.cards, 0);
+  const allPts = engagement.byYear.reduce((t, r) => t + r.points, 0);
+  const joined = sel.filter((s) => engOf(s.id).activities > 0).length;
+
   const withScore = per.filter((x) => x.att != null);
   const kpis = {
     students: sel.length, withScores: withScore.length,
@@ -268,15 +310,20 @@ export async function reportHandle(c: ReportCtx, a: Actor, action: string, input
     onTime: tot.exp ? Math.round((100 * tot.onTime) / tot.exp) : null, completion: tot.exp ? Math.round((100 * tot.done) / tot.exp) : null,
     quranGreen: (() => { const t = quran.reduce((s, q) => s + q.green + q.yellow + q.red, 0); return t ? Math.round((100 * quran.reduce((s, q) => s + q.green, 0)) / t) : null; })(),
     coverage: (() => { const t = coverage.reduce((s, x) => s + x.total, 0); return t ? Math.round((100 * coverage.reduce((s, x) => s + x.taught, 0)) / t) : null; })(),
+    attendance: allMarked ? Math.round((100 * allPresent) / allMarked) : null,
+    avgCards: sel.length ? Math.round(allCards / sel.length) : null,
+    avgPoints: sel.length ? Math.round(allPts / sel.length) : null,
+    activityRate: sel.length ? Math.round((100 * joined) / sel.length) : null,
     results: a.role === "admin" ? { total: sc.total, unmatched: sc.unmatched, ambiguous: sc.ambiguous, byId: sc.byId, ignored: sc.ignored } : { total: 0, unmatched: 0, ambiguous: 0 }, // school-wide counts: admin only
   };
   const studentsOut = per.map((x) => {
-    const q = qs.get(x.s.id); const h = hwStu.get(x.s.id);
-    return { ...x.s, n: x.n, att: x.att, attBand: x.attBand, first: x.first, latest: x.latest, delta: x.delta, progBand: x.progBand, quran: q || null, hw: h || null };
+    const q = qs.get(x.s.id); const h = hwStu.get(x.s.id); const e = engOf(x.s.id);
+    return { ...x.s, n: x.n, att: x.att, attBand: x.attBand, first: x.first, latest: x.latest, delta: x.delta, progBand: x.progBand, quran: q || null, hw: h || null, points: e.points, cards: e.cards, attendance: e.attendance, activities: e.activities };
   });
   // Hidden sections are excluded from the response (not just hidden in the page).
   const strip = (x: (typeof studentsOut)[number]) => ({ ...x, ...(acc.attainment ? {} : { att: null, attBand: null }), ...(acc.progress ? {} : { first: null, latest: null, delta: null, progBand: null }), ...(acc.quran ? {} : { quran: null }), ...(acc.homework ? {} : { hw: null }) });
   return { status: 200, body: { generated: Date.now(), filters: f, options, notSet, settings: S, access: acc,
     ...(acc.kpi ? { kpis } : {}), ...(acc.attainment ? { attainment } : {}), ...(acc.progress ? { progress } : {}), ...(acc.quran ? { quran } : {}), ...(acc.homework ? { homework } : {}), ...(acc.coverage ? { coverage } : {}),
+    ...((acc.kpi || acc.attainment || acc.progress) ? { engagement } : {}),
     ...(acc.drill ? { students: studentsOut.map(strip) } : {}) } };
 }

@@ -38,7 +38,7 @@ import { makeVapid, sendPush, type Vapid } from "./push";
 import { textReplaceAll } from "./textfix";
 import { scoreFromPct, systems, trackerHandle, trkInit } from "./tracker";
 import { qaHandle } from "./qa";
-import { rcHandle, rcInit, rcSync, type RcCtx } from "./rewards";
+import { balanceOf, rcHandle, rcInit, rcSync, type RcCtx } from "./rewards";
 import { MP_PERM, mpAll, mpCfg, mpOf, mpSave } from "./modperm";
 import { buildFeedback, fromGrade, overallOf, parseScores, type Scores } from "./quranScore";
 import { DurableObject } from "cloudflare:workers";
@@ -997,10 +997,23 @@ export class LmsStore extends DurableObject<LmsEnv> {
         notify: (uids, data) => { this.ctx.waitUntil(this.pushOut(uids, "qa_ready", data).catch(() => undefined)); } }, a, action, input);
     }
     if (/^pg-/.test(action)) return pageHandle({ sql: this.sql as never, acc: (x) => mpOf(this.sql as never, x as never, "lp"), subjectsOf: (uid) => { try { return JSON.parse(String(this.userRow("id=?", uid)?.subjects || "[]")) as string[]; } catch { return []; } } }, a as never, action, input);
-    if (/^lp-/.test(action)) return packHandle(this.packCtx(), a as never, action, input);
+    if (/^lp-/.test(action)) {
+      const res = await packHandle(this.packCtx(), a as never, action, input);
+      if (action === "lp-work-save" && res.status === 200 && a.role === "student") this.ctx.waitUntil(rcSync(this.rcCtx(), a.id).catch(() => undefined));
+      return res;
+    }
     if (action === "att-tt-shared") return { status: 200, body: { shared: ttShared(this.sql as never, a as never) } };
     if (/^rc-/.test(action)) return rcHandle(this.rcCtx(), a as never, action, input as Record<string, unknown>);
-    if (/^(att|beh|cur)-/.test(action) || action === "quiz-topics-sync") return modHandle({ sql: this.sql, hwList: () => this.allHomework().map((h) => ({ id: h.id, title: h.title, kind: h.kind, cls: h.cls, section: h.section, students: h.students, createdBy: h.createdBy })), inScope: (x, c, s, i) => this.inScope(x, c, s, i), userRow: (w, g) => this.userRow(w, g), mp: (x, m) => mpOf(this.sql as never, x, m), ttChanged: () => { this.ctx.waitUntil(this.planTT()); }, ttEnsure: () => { if (!this.ttPlanned) { this.ttPlanned = true; this.ctx.waitUntil(this.planTT()); } }, notify: (u, k, d) => this.notify(u, k, d), canReach: (x, ids) => this.packCtx().inScopeIds(x as never, ids.filter((i) => String(this.userRow("id=?", i)?.role || "") === "student")) }, action, a, input);
+    if (/^(att|beh|cur)-/.test(action) || action === "quiz-topics-sync") {
+      const res = await modHandle({ sql: this.sql, hwList: () => this.allHomework().map((h) => ({ id: h.id, title: h.title, kind: h.kind, cls: h.cls, section: h.section, students: h.students, createdBy: h.createdBy })), inScope: (x, c, s, i) => this.inScope(x, c, s, i), userRow: (w, g) => this.userRow(w, g), mp: (x, m) => mpOf(this.sql as never, x, m), ttChanged: () => { this.ctx.waitUntil(this.planTT()); }, ttEnsure: () => { if (!this.ttPlanned) { this.ttPlanned = true; this.ctx.waitUntil(this.planTT()); } }, notify: (u, k, d) => this.notify(u, k, d), canReach: (x, ids) => this.packCtx().inScopeIds(x as never, ids.filter((i) => String(this.userRow("id=?", i)?.role || "") === "student")) }, action, a, input);
+      if (action === "att-save" && res.status === 200) {
+        const marks = (Array.isArray(input.marks) ? input.marks : []) as { student?: unknown; status?: unknown }[];
+        for (const sid of [...new Set(marks.filter((m) => m.status === "P").map((m) => String(m.student || "")).filter(Boolean))].slice(0, 400)) {
+          this.ctx.waitUntil(rcSync(this.rcCtx(), sid).catch(() => undefined));
+        }
+      }
+      return res;
+    }
     switch (action) {
       case "dl-policy": return { status: 200, body: { audio: this.dlOf(a, "audio"), export: this.dlOf(a, "export") } };
       case "dl-grant": {
@@ -1335,9 +1348,14 @@ export class LmsStore extends DurableObject<LmsEnv> {
         // Students the teacher teaches (admin: all), with avatar + points total, for the "My classes" view.
         if (!isStaff(a)) return { status: 403, body: { error: "forbidden" } };
         const tot = new Map(this.sql.exec(`SELECT student, SUM(pts) AS t FROM pts GROUP BY student`).toArray().map((r) => [String(r.student), Number(r.t)]));
+        const cards = new Map(this.sql.exec(`SELECT student, COALESCE(SUM(amt),0) AS t FROM rc WHERE amt>0 GROUP BY student`).toArray().map((r) => [String(r.student), Number(r.t)]));
+        const attN = new Map<string, { p: number; n: number }>();
+        for (const r of this.sql.exec(`SELECT student, status, COUNT(*) AS n FROM att GROUP BY student, status`).toArray()) {
+          const o = attN.get(String(r.student)) || { p: 0, n: 0 }; const n = Number(r.n); o.n += n; if (String(r.status) === "P") o.p += n; attN.set(String(r.student), o);
+        }
         const students = this.sql.exec(`SELECT id, name, first_name, last_name, cls, section, gender, avatar, email, last_seen FROM users WHERE role='student' AND disabled=0 ORDER BY cls, section, name`).toArray()
           .filter((r) => this.inScope(a, String(r.cls || ""), String(r.section || ""), String(r.id)))
-          .map((r) => ({ id: String(r.id), name: String(r.name), cls: String(r.cls || ""), section: String(r.section || ""), avatar: avatarOf(r), parentEmail: Boolean(r.email), seen: Number(r.last_seen || 0), points: tot.get(String(r.id)) || 0 }));
+          .map((r) => { const a0 = attN.get(String(r.id)); return { id: String(r.id), name: String(r.name), cls: String(r.cls || ""), section: String(r.section || ""), avatar: avatarOf(r), parentEmail: Boolean(r.email), seen: Number(r.last_seen || 0), points: tot.get(String(r.id)) || 0, cards: cards.get(String(r.id)) || 0, attPct: a0 && a0.n ? Math.round((100 * a0.p) / a0.n) : null }; });
         return { status: 200, body: { students, assigned: a.role === "teacher" ? [...new Set((a.scope || []).filter((x) => x && x !== "\u0000"))] : [], canManage: stuCan(a, "view"), stuPerms: { view: stuCan(a, "view"), add: stuCan(a, "add"), edit: stuCan(a, "edit"), block: stuCan(a, "block"), delete: stuCan(a, "delete") }, now: Date.now() } };
       }
       case "act-publish": {
@@ -2666,7 +2684,18 @@ export class LmsStore extends DurableObject<LmsEnv> {
     if (streak >= 7) badges.push("streak_7");
     if (tracker.reduce((n, t) => n + (t.to - t.from + 1), 0) >= 50) badges.push("fifty_verses");
     if (tracker.some((t) => t.revCount >= 3)) badges.push("reviser");
-    return { stars, streak, greens, yellows, handed, badges, activeDays: days.size };
+    const attRows = this.sql.exec(`SELECT status, COUNT(*) AS n FROM att WHERE student=? GROUP BY status`, student).toArray();
+    let present = 0, late = 0, absent = 0, excused = 0;
+    for (const r of attRows) { const n = Number(r.n), st = String(r.status); if (st === "P") present = n; else if (st === "L") late = n; else if (st === "A") absent = n; else if (st === "E") excused = n; }
+    const marked = present + late + absent + excused;
+    const attPct = marked ? Math.round((100 * present) / marked) : null;
+    const points = Number(this.sql.exec(`SELECT COALESCE(SUM(pts),0) AS n FROM pts WHERE student=?`, student).toArray()[0]?.n || 0);
+    let cardBal = 0, lifetime = 0;
+    try { const b = balanceOf(this.sql as never, student); cardBal = b.balance; lifetime = b.lifetime; } catch { /* rewards not ready */ }
+    let activities = 0;
+    try { activities = Number(this.sql.exec(`SELECT COUNT(*) AS n FROM lpwork WHERE student=?`, student).toArray()[0]?.n || 0); } catch { /* */ }
+    activities += Number(this.sql.exec(`SELECT COUNT(*) AS n FROM rc WHERE student=? AND kind='activity' AND ref NOT LIKE 'lp:%'`, student).toArray()[0]?.n || 0);
+    return { stars, streak, greens, yellows, handed, badges, activeDays: days.size, cards: cardBal, lifetime, points, present, late, absent, attPct, activities };
   }
 
   /** Lazy reminders when a student opens the LMS: due within 24h / overdue, and revision due. One note per item per day. */

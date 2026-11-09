@@ -31,7 +31,7 @@ export type QuranData = { surah: number; from: number; to: number; reciter: stri
 export type GeneralData = { slides: Slide[]; question: string };
 export type Homework = { id: string; kind: "quran" | "general"; title: string; cls: string; section?: string; /** t422: subject + resolved Year(s) / Section(s) for display */ subject?: string; aud?: { years: string[]; sections: string[] }; students: string[]; data: QuranData | GeneralData; due: number | null; createdBy: string; created: number; locked?: boolean; lockedBy?: { surah: number; from: number; to: number; title: string } | null; late?: boolean };
 export type Comment = { by: string; text: string; at: number; audio?: string };
-export type RosterStudent = { id: string; name: string; cls: string; section: string; avatar: string; parentEmail: boolean; points: number; seen: number };
+export type RosterStudent = { id: string; name: string; cls: string; section: string; avatar: string; parentEmail: boolean; points: number; seen: number; cards?: number; attPct?: number | null };
 export type PointCat = { id: string; label: string; pts: number; icon: string };
 export type PointRow = { id: string; student: string; name: string; label: string; pts: number; icon: string; by: string; at: number };
 export type WallClass = { key: string; label: string; group?: boolean; count?: number; members?: { id: string; name: string }[] };
@@ -62,7 +62,7 @@ export type Submission = { versions?: Version[]; id: string; status: "draft" | "
 export type Grade = "green" | "yellow" | "red";
 export type Attempt = { n: number; audio: string; grade: Grade; by: string; at: number; scores?: Scores };
 export type TrackerRow = { surah: number; from: number; to: number; approved: number; grade?: Grade; hw?: string; revCount?: number; revDue?: number; scores?: Scores | null };
-export type Progress = { stars: number; streak: number; greens: number; yellows: number; handed: number; badges: string[]; activeDays: number };
+export type Progress = { stars: number; streak: number; greens: number; yellows: number; handed: number; badges: string[]; activeDays: number; cards?: number; lifetime?: number; points?: number; present?: number; late?: number; absent?: number; attPct?: number | null; activities?: number };
 export type Mistake = { ayah: number; word: number; text: string; note: string; audio?: string };
 export type MapRow = { id: string; name: string; cls: string; section: string; cells: Record<number, { grade: string; verses: number }> };
 
