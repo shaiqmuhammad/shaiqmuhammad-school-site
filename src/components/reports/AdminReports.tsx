@@ -64,14 +64,15 @@ export function AdminReports({ admin = true }: { admin?: boolean }) {
     const ExcelJS = (await import("exceljs")).default;
     const wb = new ExcelJS.Workbook();
     const sheet = (name: string, head: string[], rows: (string | number | null)[][]) => { const ws = wb.addWorksheet(name); ws.addRow(head).font = { bold: true }; rows.forEach((r) => ws.addRow(r.map((v) => v ?? ""))); ws.columns.forEach((c) => { c.width = 16; }); };
-    if (K) sheet("Summary", ["Measure", "Value"], [["Generated (Asia/Dubai)", dubai(data.generated)], ["Filters", JSON.stringify(filters)], ["Students", K.students], ["Students with scores", K.withScores], ["At or above expected %", K.atOrAbove], ["Expected progress or better %", K.expectedOrBetter], ["Homework on time %", K.onTime], ["Homework completion %", K.completion], ["Quran verses green %", K.quranGreen], ["Curriculum units taught %", K.coverage], ["Thresholds", `above ≥${S.above}, at ${S.at}–${S.above - 1}, below <${S.at}; progress better ≥+${S.progBetter}, expected ≥${S.progExpected}`], ["Assessment results not matched to a student", K.results.unmatched + K.results.ambiguous]]);
+    if (K) sheet("Summary", ["Measure", "Value"], [["Generated (Asia/Dubai)", dubai(data.generated)], ["Filters", JSON.stringify(filters)], ["Students", K.students], ["Students with scores", K.withScores], ["At or above expected %", K.atOrAbove], ["Expected progress or better %", K.expectedOrBetter], ["Homework on time %", K.onTime], ["Homework completion %", K.completion], ["Quran verses green %", K.quranGreen], ["Curriculum units taught %", K.coverage], ["Attendance present %", K.attendance ?? null], ["Average Reward Cards", K.avgCards ?? null], ["Average class points", K.avgPoints ?? null], ["Activity participation %", K.activityRate ?? null], ["Thresholds", `above ≥${S.above}, at ${S.at}–${S.above - 1}, below <${S.at}; progress better ≥+${S.progBetter}, expected ≥${S.progExpected}`], ["Assessment results not matched to a student", K.results.unmatched + K.results.ambiguous]]);
     if (data.attainment) sheet("Attainment", ["Year", "Students", "Above", "At", "Below", "No scores"], data.attainment.map((r) => [r.year, r.students, r.above, r.at, r.below, r.noData]));
     if (data.progress) sheet("Progress", ["Year", "Students", "Better", "Expected", "Below", "Needs 2+ scores"], data.progress.byYear.map((r) => [r.year, r.students, r.better, r.expected, r.below, r.noData]));
     if (data.quran) sheet("Quran", ["Year", "Students", "With data", "Green verses", "Yellow verses", "Red verses"], data.quran.map((r) => [r.year, r.students, r.withData, r.green, r.yellow, r.red]));
     if (data.homework) sheet("Homework", ["Year", "Expected", "Submitted", "On time"], data.homework!.byYear.map((r) => [r.year, r.exp, r.done, r.onTime]));
     if (data.coverage) sheet("Curriculum", ["Year", "Units", "Taught", "In progress", "Assessed"], data.coverage.map((r) => [r.year, r.total, r.taught, r.inProgress, r.assessed]));
-    if (data.students) sheet("Students", ["Name", "Year", "Section", "Subject", "Phase", "Gender", "SEN", "Scores", "Attainment %", "Band", "First %", "Latest %", "Change", "Progress", "HW expected", "HW submitted", "HW on time", "Quran green", "Quran yellow", "Quran red"],
-      data.students.map((s) => [s.name, s.cls, s.section, s.subject || "not set", s.phase || "not set", s.gender === "b" ? "Boy" : s.gender === "g" ? "Girl" : "not set", s.sen || "not set", s.n, s.att, s.attBand, s.first, s.latest, s.delta, s.progBand, s.hw?.exp ?? 0, s.hw?.done ?? 0, s.hw?.onTime ?? 0, s.quran?.green ?? 0, s.quran?.yellow ?? 0, s.quran?.red ?? 0]));
+    if (data.engagement) sheet("Engagement", ["Year", "Students", "Present", "Late", "Absent", "Attendance %", "Reward Cards", "Class points", "Activities"], data.engagement.byYear.map((r) => [r.year, r.students, r.present, r.late, r.absent, r.pct, r.cards, r.points, r.activities]));
+    if (data.students) sheet("Students", ["Name", "Year", "Section", "Subject", "Phase", "Gender", "SEN", "Scores", "Attainment %", "Band", "First %", "Latest %", "Change", "Progress", "HW expected", "HW submitted", "HW on time", "Quran green", "Quran yellow", "Quran red", "Attendance %", "Reward Cards", "Class points", "Activities"],
+      data.students.map((s) => [s.name, s.cls, s.section, s.subject || "not set", s.phase || "not set", s.gender === "b" ? "Boy" : s.gender === "g" ? "Girl" : "not set", s.sen || "not set", s.n, s.att, s.attBand, s.first, s.latest, s.delta, s.progBand, s.hw?.exp ?? 0, s.hw?.done ?? 0, s.hw?.onTime ?? 0, s.quran?.green ?? 0, s.quran?.yellow ?? 0, s.quran?.red ?? 0, s.attendance?.pct ?? null, s.cards ?? 0, s.points ?? 0, s.activities ?? 0]));
     const buf = await wb.xlsx.writeBuffer();
     downloadBlob(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), `department-report-${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
@@ -103,7 +104,7 @@ export function AdminReports({ admin = true }: { admin?: boolean }) {
 
   const studentTable = (list: RStudent[]) => list.length === 0 ? empty(tr("No students match.", "لا يوجد طلاب مطابقون.")) : (
     <div className="overflow-x-auto"><table className="w-full min-w-[560px] text-sm" data-testid="rep-student-table">
-      <thead><tr className="text-start text-xs opacity-75">{[tr("Student", "الطالب"), tr("Class", "الصف"), tr("Scores", "الدرجات"), tr("Attainment", "التحصيل"), tr("Progress", "التقدّم"), tr("Homework", "الواجبات"), tr("Quran", "القرآن")].map((h) => <th key={h} className="px-2 py-1 text-start">{h}</th>)}</tr></thead>
+      <thead><tr className="text-start text-xs opacity-75">{[tr("Student", "الطالب"), tr("Class", "الصف"), tr("Scores", "الدرجات"), tr("Attainment", "التحصيل"), tr("Progress", "التقدّم"), tr("Homework", "الواجبات"), tr("Quran", "القرآن"), tr("Attendance", "الحضور"), tr("Cards", "البطاقات"), tr("Points", "النقاط"), tr("Activities", "الأنشطة")].map((h) => <th key={h} className="px-2 py-1 text-start">{h}</th>)}</tr></thead>
       <tbody>{list.map((s) => (
         <tr key={s.id} className="border-t border-card-border">
           <td className="px-2 py-1.5"><button type="button" className="font-semibold text-[#0e7490] underline-offset-2 hover:underline dark:text-sky-300" onClick={() => openStudent(s.id)} data-testid="rep-student-open">{s.name}</button></td>
@@ -112,6 +113,10 @@ export function AdminReports({ admin = true }: { admin?: boolean }) {
           <td className="px-2">{s.delta == null ? "—" : `${s.delta > 0 ? "+" : ""}${s.delta} (${s.progBand})`}</td>
           <td className="px-2">{s.hw ? `${s.hw.done}/${s.hw.exp} · ${s.hw.onTime} ${tr("on time", "في الموعد")}` : "—"}</td>
           <td className="px-2">{s.quran ? `🟢${s.quran.green} 🟡${s.quran.yellow} 🔴${s.quran.red}` : "—"}</td>
+          <td className="px-2">{s.attendance?.pct == null ? "—" : `${s.attendance.pct}%`}</td>
+          <td className="px-2">{s.cards ?? "—"}</td>
+          <td className="px-2">{s.points ?? "—"}</td>
+          <td className="px-2">{s.activities ?? "—"}</td>
         </tr>))}</tbody>
     </table></div>
   );
@@ -121,7 +126,7 @@ export function AdminReports({ admin = true }: { admin?: boolean }) {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-xl font-extrabold">{tr("Department Report", "تقرير القسم")}</h2>
-          <p className="text-xs opacity-75">{tr("Attainment, progress, Quran, homework and curriculum coverage — calculated live from LMS records.", "التحصيل والتقدّم والقرآن والواجبات وتغطية المنهج — محسوبة مباشرة من سجلات المنصة.")}{data ? ` · ${tr("Generated", "أُنشئ")} ${dubai(data.generated)} (Dubai)` : ""}</p>
+          <p className="text-xs opacity-75">{tr("Attainment, progress, homework, Quran, attendance, Reward Cards, class points and activity participation — calculated live from LMS records.", "التحصيل والتقدّم والواجبات والقرآن والحضور وبطاقات المكافآت ونقاط الصف والمشاركة في الأنشطة — محسوبة مباشرة من سجلات المنصة.")}{data ? ` · ${tr("Generated", "أُنشئ")} ${dubai(data.generated)} (Dubai)` : ""}</p>
         </div>
         <div className="flex flex-wrap gap-2 print:hidden">
           <button type="button" className="btn-glass px-3 py-1.5 text-sm" onClick={() => load(filters)} disabled={loading}>{loading ? "…" : tr("Refresh", "تحديث")}</button>
@@ -160,7 +165,7 @@ export function AdminReports({ admin = true }: { admin?: boolean }) {
             ))}
           </div>
           <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {[[tr("Homework on time", "واجبات في الموعد"), pc(K.onTime)], [tr("Homework completion", "إنجاز الواجبات"), pc(K.completion)], [tr("Quran verses green", "آيات خضراء"), pc(K.quranGreen)], [tr("Curriculum units taught", "وحدات منجزة"), pc(K.coverage)]].map(([l, v]) => (
+            {[[tr("Homework on time", "واجبات في الموعد"), pc(K.onTime)], [tr("Homework completion", "إنجاز الواجبات"), pc(K.completion)], [tr("Quran verses green", "آيات خضراء"), pc(K.quranGreen)], [tr("Curriculum units taught", "وحدات منجزة"), pc(K.coverage)], [tr("Attendance (present)", "الحضور"), pc(K.attendance ?? null)], [tr("Reward Cards (avg)", "بطاقات المكافآت (متوسط)"), K.avgCards == null ? "—" : String(K.avgCards)], [tr("Class points (avg)", "نقاط الصف (متوسط)"), K.avgPoints == null ? "—" : String(K.avgPoints)], [tr("Joined an activity", "شارك في نشاط"), pc(K.activityRate ?? null)]].map(([l, v]) => (
               <div key={l} className="rounded-xl border border-card-border p-3 text-center" data-testid="rep-kpi"><div className="text-xl font-extrabold">{v}</div><div className="text-xs">{l}</div></div>
             ))}
           </div>
@@ -200,6 +205,22 @@ export function AdminReports({ admin = true }: { admin?: boolean }) {
                 <Donut testid="rep-quran-donut" segs={segsQ(data.quran!.reduce((t, q) => ({ green: t.green + q.green, yellow: t.yellow + q.yellow, red: t.red + q.red }), { green: 0, yellow: 0, red: 0 }))} center={(() => { const q = data.quran!; const t = q.reduce((a, x) => a + x.green + x.yellow + x.red, 0); return t ? `${Math.round((100 * q.reduce((a, x) => a + x.green, 0)) / t)}%` : "—"; })()} onPick={data.students ? (k) => pick("quran")("", k) : undefined} />
                 <StackedBars testid="rep-quran-chart" rows={data.quran.map((q) => ({ label: q.year, segs: segsQ(q), note: `${q.withData}/${q.students} ${tr("students with entries", "طلاب لديهم سجلات")}` }))} onPick={data.students ? pick("quran") : undefined} />
               </div>)}
+          </section>
+        )}
+        {data.engagement && (tab === "overview" || tab === "attainment" || tab === "progress") && (
+          <section className={card} data-testid="rep-engagement">
+            <h3 className="mb-1 font-extrabold">🃏 {tr("Reward Cards, attendance, points and activities", "بطاقات المكافآت والحضور والنقاط والأنشطة")}</h3>
+            <p className="mb-3 text-xs opacity-75">{tr("These feed each student's Reward Card wallet and sit alongside assessment attainment and progress. Homework handed in, Quran homework, present marks, positive class points, strong assessment scores and joining lessons or live activities all count.", "هذه تغذي محفظة بطاقات المكافآت لكل طالب وتظهر مع التحصيل والتقدّم. تسليم الواجبات وواجب القرآن والحضور والنقاط الإيجابية ونتائج التقييم القوية والمشاركة في الدروس والأنشطة تُحتسب كلها.")}</p>
+            {data.engagement.byYear.every((r) => !r.present && !r.cards && !r.points && !r.activities) ? empty(tr("No attendance, Reward Cards, class points or activity participation yet for this selection.", "لا يوجد حضور أو بطاقات أو نقاط أو مشاركة بعد.")) : (
+              <div className="overflow-x-auto"><table className="w-full min-w-[560px] text-sm" data-testid="rep-eng-table">
+                <thead><tr className="text-start text-xs opacity-75">{[tr("Year", "المرحلة"), tr("Present", "حاضر"), tr("Late", "متأخر"), tr("Absent", "غائب"), tr("Attendance", "الحضور"), tr("Reward Cards", "بطاقات المكافآت"), tr("Class points", "نقاط الصف"), tr("Activities", "الأنشطة")].map((h) => <th key={h} className="px-2 py-1 text-start">{h}</th>)}</tr></thead>
+                <tbody>{data.engagement.byYear.map((r) => (
+                  <tr key={r.year} className="border-t border-card-border">
+                    <td className="px-2 py-1.5 font-semibold">{r.year}</td><td className="px-2">{r.present}</td><td className="px-2">{r.late}</td><td className="px-2">{r.absent}</td>
+                    <td className="px-2">{r.pct == null ? "—" : `${r.pct}%`}</td><td className="px-2">{r.cards}</td><td className="px-2">{r.points}</td><td className="px-2">{r.activities}</td>
+                  </tr>))}</tbody>
+              </table></div>
+            )}
           </section>
         )}
         {data.homework && (tab === "overview" || tab === "homework") && (
@@ -281,6 +302,13 @@ function StudentPanel({ d, onClose, tr }: { d: StudentDetail; onClose: () => voi
         {d.homework.length === 0 ? <p className="text-sm opacity-75">{tr("No data yet.", "لا توجد بيانات بعد.")}</p> : <ul className="space-y-0.5 text-sm">{d.homework.map((h, i) => <li key={i}>{h.title} — {h.status === "none" ? tr("not started", "لم يبدأ") : h.status}{h.submittedAt ? ` · ${dday(h.submittedAt)}` : ""}{h.due ? ` · ${tr("due", "الموعد")} ${dday(h.due)}` : ""} {h.status !== "none" && h.status !== "draft" ? (h.onTime ? "✅" : "⏰") : ""}</li>)}</ul>}
         <h4 className="mt-3 text-sm font-bold">{tr("Quran tracker", "متابعة القرآن")}</h4>
         {d.quran.length === 0 ? <p className="text-sm opacity-75">{tr("No data yet.", "لا توجد بيانات بعد.")}</p> : <ul className="space-y-0.5 text-sm">{d.quran.map((q, i) => <li key={i}>{q.grade === "red" ? "🔴" : q.grade === "yellow" ? "🟡" : "🟢"} {tr("Surah", "سورة")} {q.surah}: {q.from}–{q.to} · {dday(q.at)}</li>)}</ul>}
+        <h4 className="mt-3 text-sm font-bold">{tr("Reward Cards, attendance, points and activities", "بطاقات المكافآت والحضور والنقاط والأنشطة")}</h4>
+        <ul className="space-y-0.5 text-sm" data-testid="rep-detail-engagement">
+          <li>🃏 {tr("Reward Cards earned", "بطاقات المكافآت المكتسبة")}: <b>{d.cards ?? 0}</b></li>
+          <li>⭐ {tr("Class points", "نقاط الصف")}: <b>{d.points ?? 0}</b></li>
+          <li>📅 {tr("Attendance", "الحضور")}: <b>{d.attendance?.pct == null ? "—" : `${d.attendance.pct}%`}</b>{d.attendance ? ` · ${tr("present", "حاضر")} ${d.attendance.p} · ${tr("late", "متأخر")} ${d.attendance.l} · ${tr("absent", "غائب")} ${d.attendance.a}` : ""}</li>
+          <li>🎯 {tr("Activities joined", "الأنشطة التي شارك فيها")}: <b>{d.activities ?? 0}</b></li>
+        </ul>
       </div>
     </div>
   );

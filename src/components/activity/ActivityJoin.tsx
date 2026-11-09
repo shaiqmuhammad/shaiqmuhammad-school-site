@@ -7,7 +7,7 @@ import { WallBoard, WallComposer, errorText } from "@/components/activity/WallBo
 import { ActivityStudentView } from "@/components/activity/ActivityViews";
 import { secondsLeft, useActivityState } from "@/components/activity/useActivityState";
 import { activityApi, ActivityError, ACTIVITY_LABELS, clearSeat, loadSeat, saveSeat, type ActivityInfo, type Seat } from "@/lib/activity";
-import { lmsSession } from "@/lib/lms";
+import { lmsApi, lmsSession } from "@/lib/lms";
 import { deviceId } from "@/lib/groupSession";
 import { useI18n } from "@/lib/i18n";
 
@@ -43,7 +43,7 @@ export function ActivityJoin({ code }: { code: string }) {
     // t312: any signed-in student goes straight in under their account name (no typing).
     if (!s || s.user.role !== "student") return;
     autoTried.current = true;
-    activityApi.join(code, s.user.name, deviceId()).then((r) => { const seat2 = { code, pid: r.pid, token: r.token, name: r.name }; saveSeat(seat2); setSeat(seat2); }).catch((e) => setJoinError(errorText(e, tr)));
+    activityApi.join(code, s.user.name, deviceId()).then((r) => { const seat2 = { code, pid: r.pid, token: r.token, name: r.name }; saveSeat(seat2); setSeat(seat2); lmsApi.rc("act", { code }).catch(() => undefined); }).catch((e) => setJoinError(errorText(e, tr)));
   }, [info, seat, code]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const who = seat ? { pid: seat.pid, token: seat.token } : null;
@@ -112,6 +112,7 @@ export function ActivityJoin({ code }: { code: string }) {
                 const s = { code, pid: r.pid, token: r.token, name: r.name };
                 saveSeat(s);
                 setSeat(s);
+                lmsApi.rc("act", { code }).catch(() => undefined);
               } catch (err) {
                 setJoinError(errorText(err, tr));
               } finally {
