@@ -9,8 +9,10 @@ import { WhoPicker, useWho } from "@/components/lms/WhoPicker";
 import { lmsApi, lmsErrorText, type Assignment } from "@/lib/lms";
 import { defaultCertificate, emptyQuestion, loadQuizzesData, normalizeQuiz, type Quiz } from "@/lib/quiz";
 import { useTr } from "@/components/lms/useLms";
-import { TopicContext, TopicPicker } from "@/components/tracker/TopicPicker";
+import { TopicContext, TopicPicker, loadCurUnits, topicInfoOf } from "@/components/tracker/TopicPicker";
 import { ScGroups, oneMarkSc, scProblems } from "@/components/tracker/ScGroups";
+import { AssessDraftTools } from "@/components/lms/AssessDraftTools";
+import { PaperDownloads } from "@/components/assessment/PaperDownloads";
 import { useI18n } from "@/lib/i18n";
 
 const qp = (k: string) => (typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get(k) || "");
@@ -46,9 +48,24 @@ export function LmsQuizEditPage() {
   const [status, setStatus] = useState("");
   useEffect(() => {
     const id = qp("id");
-    if (id) loadAnyQuiz(id, asAdmin).then((x) => setQ(x)).catch((e) => setStatus(lmsErrorText(e, tr)));
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- new blank assessment once on mount
-    else setQ(normalizeQuiz({ id: "", slug: "", title: "", description: "", timeLimitMinutes: 5, active: true, visible: false, showAnswers: true, questions: [emptyQuestion("multiple_choice")] }));
+    const copy = qp("copy");
+    const topic = qp("topic");
+    (async () => {
+      if (id) { setQ(await loadAnyQuiz(id, asAdmin)); return; }
+      if (copy) {
+        const x = await loadAnyQuiz(copy, asAdmin);
+        if (!x) { setStatus(tr("That assessment could not be copied.", "تعذّر نسخ هذا التقييم.")); return; }
+        setQ(normalizeQuiz({ ...x, id: "", slug: "", title: x.title ? `${x.title} (copy)` : "", topic: undefined, topicInfo: undefined }));
+        setStatus(tr("Copied. Choose the curriculum topic this copy belongs to, then save.", "تم النسخ. اختر موضوع المنهج لهذه النسخة ثم احفظ."));
+        return;
+      }
+      const blank = normalizeQuiz({ id: "", slug: "", title: "", description: "", timeLimitMinutes: 5, active: true, visible: false, showAnswers: true, questions: [emptyQuestion("multiple_choice")] });
+      if (topic) {
+        const u = (await loadCurUnits()).find((x) => x.id === topic);
+        if (u) { setQ({ ...blank, title: [u.subject, u.title].filter(Boolean).join(": "), description: [u.yr, u.term, u.wkFrom ? `Week ${u.wkFrom}` : ""].filter(Boolean).join(" · "), topic: u.id, topicInfo: topicInfoOf(u) }); return; }
+      }
+      setQ(blank);
+    })().catch((e) => setStatus(lmsErrorText(e, tr)));
   }, [asAdmin, tr]);
   const save = async () => {
     if (!q?.title.trim()) { setStatus(tr("Add a title first.", "أضف عنوانًا أولًا.")); return; }
@@ -72,6 +89,13 @@ export function LmsQuizEditPage() {
             </div>
           </div>
           <TopicPicker lang={lang} value={q.topic} onChange={(topic, info) => setQ({ ...q, topic: topic || undefined, topicInfo: info })} />
+          <AssessDraftTools topic={q.topic} asAdmin={asAdmin} tr={tr} onStatus={setStatus}
+            onMeta={(meta) => setQ((prev) => prev ? { ...prev, title: prev.title.trim() || meta.title || prev.title, description: prev.description.trim() || meta.description || prev.description } : prev)}
+            onApply={(qs, mode) => setQ((prev) => {
+              if (!prev) return prev;
+              const starter = prev.questions.length === 1 && !prev.questions[0].prompt.trim();
+              return { ...prev, questions: mode === "append" && !starter ? [...prev.questions, ...qs] : qs };
+            })} />
           <ScGroups lang={lang} topic={q.topic} questions={q.questions} onAdd={(nq) => setQ({ ...q, questions: [...q.questions, nq] })} />
           <TopicContext.Provider value={q.topic}>{q.questions.map((qq, i) => (
             <div key={qq.id || i} className="glass rounded-3xl p-4">
@@ -83,6 +107,7 @@ export function LmsQuizEditPage() {
             <span className="flex-1" />
             <span className="text-sm">{status}</span>
             <button type="button" className="rounded-full bg-sun px-5 py-2 text-sm font-bold text-[#0b1b2b]" onClick={save} data-testid="tquiz-save">{tr("Save", "حفظ")}</button>
+            <PaperDownloads quiz={q} asAdmin={asAdmin} />
           </div>
         </>}
       </div>

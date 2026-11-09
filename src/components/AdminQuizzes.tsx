@@ -7,13 +7,14 @@ import { TrkLink } from "@/components/tracker/TrkLink";
 import { useRouter } from "next/navigation";
 import { PaperDownloads } from "@/components/assessment/PaperDownloads";
 import { useMemo, useState, type FormEvent, type ReactNode } from "react";
-import { slugify } from "@/lib/content";
+import { newId, slugify } from "@/lib/content";
 import { HOST_DRAFT_KEY } from "@/lib/groupSession";
 import { useI18n } from "@/lib/i18n";
 import { ImageSizeHint } from "@/components/ImageSizeHint";
 import { downloadJson, getStoredGithubToken, publishJsonToGithub } from "@/lib/githubPublish";
 import { AdminQuestionEditor } from "@/components/AdminQuestionEditor";
 import { TopicContext, TopicPicker } from "@/components/tracker/TopicPicker";
+import { AssessDraftTools } from "@/components/lms/AssessDraftTools";
 import { ScGroups, oneMarkSc, scProblems } from "@/components/tracker/ScGroups";
 import { syncQuizTopics } from "@/lib/quizTopics";
 import {
@@ -163,6 +164,14 @@ export default function AdminQuizzes({ setStatus, onNeedToken, data, setData, re
             <Field label="Slug (URL)"><input className={input} value={editing.slug} onChange={(e) => setEditing({ ...editing, slug: slugify(e.target.value) })} required /></Field>
           </div>
           <TopicPicker lang={lang} value={editing.topic} taken={(id) => data.quizzes.find((q) => q.id !== editing.id && q.topic === id)?.title} onChange={(topic, info) => setEditing({ ...editing, topic: topic || undefined, topicInfo: info, ...(info && /^Year\s*\d+$/i.test(info.yr) ? { year: Number(info.yr.replace(/\D/g, "")) } : {}) })} />
+
+          <AssessDraftTools topic={editing.topic} asAdmin tr={(en, ar) => (lang === "ar" ? ar : en)} onStatus={setStatus}
+            onMeta={(meta) => setEditing((prev) => prev ? { ...prev, title: prev.title.trim() || meta.title || prev.title, description: prev.description.trim() || meta.description || prev.description } : prev)}
+            onApply={(qs, mode) => setEditing((prev) => {
+              if (!prev) return prev;
+              const starter = prev.questions.length === 1 && !prev.questions[0].prompt.trim();
+              return { ...prev, questions: mode === "append" && !starter ? [...prev.questions, ...qs] : qs };
+            })} />
           <SubjectTeacherFields testId="quiz-st" subject={editing.subject} teacher={editing.teacher} onChange={(v) => setEditing({ ...editing, ...v })} />
           <Field label="Description"><textarea className={input + " min-h-16"} value={editing.description} onChange={(e) => setEditing({ ...editing, description: e.target.value })} /></Field>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -272,6 +281,7 @@ export default function AdminQuizzes({ setStatus, onNeedToken, data, setData, re
               </button>
               <PaperDownloads quiz={quiz} />
               {quiz.visible && quiz.active && <a className="text-sm text-primary" href={`/assessments/${quiz.slug}`} target="_blank" rel="noreferrer">{tr("Open", "فتح")}</a>}
+              <button type="button" className="text-sm text-primary" data-testid="quiz-copy" onClick={() => setEditing(normalizeQuiz({ ...JSON.parse(JSON.stringify(quiz)), id: newId("quiz"), slug: "", title: quiz.title ? `${quiz.title} (copy)` : "", topic: undefined, topicInfo: undefined }))}>{tr("Duplicate", "نسخ")}</button>
               <button type="button" className="text-sm text-primary" onClick={() => setEditing(JSON.parse(JSON.stringify(quiz)) as Quiz)}>{tr("Edit", "تعديل")}</button>
               <button type="button" className="text-sm text-red-600" onClick={() => {
                 if (isSowSeed(quiz.id)) {

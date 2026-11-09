@@ -183,6 +183,12 @@ export function Curriculum({ asAdmin, student = false }: { asAdmin: boolean; stu
                           {!!u.lessons.length && <p className="mt-2 text-xs opacity-80"><b>{tr("Lessons", "الدروس")} ({u.lessons.length}):</b> {u.lessons.map((l) => l.title).join(" · ")}</p>}
                           {u.notes && <details className="mt-2 text-xs"><summary className="cursor-pointer font-bold opacity-70">{tr("Vocabulary & assessment ideas", "المفردات وأفكار التقييم")}</summary><p className="mt-1 whitespace-pre-line opacity-80" dir="auto">{u.notes}</p></details>}
                           <LinkRow u={u} student={student} tr={tr} qTitle={qTitle} />
+                          {!student && (() => {
+                            const qid = (u.links || []).find((l) => l.t === "quiz")?.id || u.quiz;
+                            return qid
+                              ? <a className="mt-2 inline-flex rounded-full bg-sky-100 px-2.5 py-1 text-xs font-bold text-sky-900 hover:underline" href={qid.startsWith("tq_") ? `/lms/quiz-edit?id=${encodeURIComponent(qid)}` : `/assessments/${encodeURIComponent(qid)}`} data-testid="cur-open-assess">🧪 {tr("Open assessment", "فتح التقييم")}</a>
+                              : <a className="mt-2 inline-flex rounded-full bg-sun px-2.5 py-1 text-xs font-bold text-[#0b1b2b] hover:underline" href={`/lms/quiz-edit?topic=${encodeURIComponent(u.id)}`} data-testid="cur-make-assess">✨ {tr("Create assessment from this topic", "إنشاء تقييم من هذا الموضوع")}</a>;
+                          })()}
                           <div className="mt-2 flex flex-wrap gap-1.5 text-xs">
                             {u.page && <a className="rounded-full bg-violet-100 px-2.5 py-1 font-bold text-violet-900 hover:underline" href={`/lms/lessons?p=${u.page}`}>📄 {pTitle(u.page)}</a>}
                             {u.resources.map((r, i) => <a key={i} className="rounded-full bg-black/5 px-2.5 py-1 font-bold hover:underline dark:bg-white/10" href={r.url} target="_blank" rel="noreferrer">🔗 {r.label || r.url}</a>)}
