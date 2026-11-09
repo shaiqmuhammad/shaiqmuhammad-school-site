@@ -7,18 +7,18 @@ import { modCall } from "@/lib/lmsMods";
 
 /** t315: Lesson Packs — white slides with elements. Positions/sizes are % of a 16:9 slide; text size is px on a 1600-wide slide. */
 export type ElText = { t: "text"; text: string; html?: string; color: string; bg?: string; font: string; size: number; bold?: boolean; italic?: boolean; align?: "start" | "center" | "end" };
-export type ElImg = { t: "img"; src: string };
+export type ElImg = { t: "img"; src: string; rot?: number; crop?: { l: number; t: number; r: number; b: number } };
 export type ElAudio = { t: "audio"; src: string };
 export type ElVideo = { t: "video"; src: string };
 export type ElDraw = { t: "draw"; paths: { c: string; w: number; d: number[] }[] };
 export type ElYt = { t: "yt"; vid: string; title?: string };
 export type ElAct = { t: "act"; code?: string; quiz?: string; label?: string };
-export type ElDoc = { t: "doc"; src: string; kind: "pptx" | "pdf"; name?: string };
+export type ElDoc = { t: "doc"; src: string; kind: "pptx" | "pdf"; name?: string; rot?: number; crop?: { l: number; t: number; r: number; b: number } };
 export type ElQuran = { t: "quran"; surah: number; from: number; to: number; reciter?: string; memorise?: boolean; memoAudio?: boolean; translit?: boolean; translation?: boolean; notes?: string };
-export type El = { id: string; x: number; y: number; w: number; h: number; by?: "t" | "s"; /** t429: teacher lock — can't be moved or deleted until unlocked */ lock?: boolean } & (ElText | ElImg | ElAudio | ElVideo | ElDraw | ElYt | ElAct | ElQuran | ElDoc);
+export type El = { id: string; x: number; y: number; w: number; h: number; by?: "t" | "s"; /** t429: teacher lock — can't be moved or deleted until unlocked */ lock?: boolean; rot?: number; crop?: { l: number; t: number; r: number; b: number } } & (ElText | ElImg | ElAudio | ElVideo | ElDraw | ElYt | ElAct | ElQuran | ElDoc);
 export type Part = "lesson" | "activity" | "homework";
 /** t429: part (lesson / activity / homework), timer seconds, instructions for students (+ recorded audio id). */
-export type Slide = { id: string; bg: string; els: El[]; part?: Part; timer?: number; instr?: string; instrAudio?: string };
+export type Slide = { id: string; bg: string; els: El[]; part?: Part; timer?: number; instr?: string; instrAudio?: string; rot?: number };
 export const PART_LABEL: Record<Part, [string, string, string, string]> = { lesson: ["🎤", "Lesson", "درس", "bg-[#1b3a57] text-[#f5c542]"], activity: ["✏️", "Activity", "نشاط", "bg-violet-600 text-white"], homework: ["📝", "Homework", "واجب", "bg-amber-500 text-[#1b2f44]"] };
 export const TIMERS = [0, 30, 60, 120, 180, 300, 600, 900, 1200, 1800, 2700, 3600];
 export const fmtT = (s: number) => (s >= 60 ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}` : `0:${String(s).padStart(2, "0")}`);

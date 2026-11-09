@@ -25,7 +25,12 @@ export function setFocus(on: boolean, withFullscreen = true) {
   ss.set(FOCUS, on);
   document.documentElement.classList.toggle("focus-mode", on && isActivityPath(location.pathname));
   if (on && withFullscreen) enterFullscreen();
-  if (!on && document.fullscreenElement) exitFullscreen();
+  if (!on && withFullscreen && document.fullscreenElement) exitFullscreen();
+  if (!on) {
+    try { sessionStorage.removeItem("sm-page-focus"); } catch { /* */ }
+    document.documentElement.classList.remove("page-focus");
+    window.dispatchEvent(new Event("sm-page-focus-sync"));
+  }
   emit();
 }
 export const useFocus = () => useSyncExternalStore(sub, () => ss.get(FOCUS), () => false);
