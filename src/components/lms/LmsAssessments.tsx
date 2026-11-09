@@ -171,7 +171,7 @@ function TeacherAssess({ quizzes, tr }: { quizzes: Quiz[]; tr: Tr }) {
   const facets = useFacets([...mine.map((m) => m.id), ...quizzes.map((q) => q.slug)], quizzes, false);
   const flt = useAssessFilter(facets, tr);
   const mineF = mine.filter((m) => flt.pass(m.id)), quizzesF = quizzes.filter((q) => flt.pass(q.slug));
-  const card = (id: string, title: string, own: boolean) => (
+  const card = (id: string, title: string, own: boolean, subject?: string) => (
     <li key={id} className="glass relative z-0 flex flex-col gap-3 rounded-3xl p-5 [&:has(details[open])]:z-50" data-testid={own ? "tquiz-card" : "lms-assess-card"}>
       <p className="truncate text-lg font-bold" dir="auto">{own ? "✏️ " : ""}{title || tr("Untitled", "بدون عنوان")}</p>
       <div className="flex flex-wrap items-center gap-1.5"><CurChip type="quiz" id={id} /><TrkLink id={id} /></div>
@@ -179,7 +179,7 @@ function TeacherAssess({ quizzes, tr }: { quizzes: Quiz[]; tr: Tr }) {
         <button type="button" className="rounded-full bg-header px-3 py-1.5 text-xs font-bold text-white" onClick={() => setAssignFor(assignFor === id ? null : id)} data-testid="lms-assess-assign">📌 {tr("Assign", "إسناد")}</button>
         <button type="button" className="rounded-full bg-sun px-3 py-1.5 text-xs font-bold text-[#0b1b2b]" onClick={() => host(id, title)} data-testid="lms-assess-host">▶ {tr("Start group session", "بدء جلسة جماعية")}</button>
         <a className="rounded-full border border-black/15 px-3 py-1.5 text-xs font-semibold dark:border-white/20" href={`/lms/quiz?id=${encodeURIComponent(id)}`}>👁 {tr("Preview", "معاينة")}</a>
-        <PaperDownloads id={id} load={loadAnyQuiz} className="inline-block" />
+        <PaperDownloads id={id} load={loadAnyQuiz} subject={subject} className="inline-block" />
         {own && <a className="rounded-full border border-black/15 px-3 py-1.5 text-xs font-semibold dark:border-white/20" href={`/lms/quiz-edit?copy=${encodeURIComponent(id)}`} data-testid="tquiz-copy">❐ {tr("Duplicate", "نسخ")}</a>}
         {own && <a className="rounded-full border border-black/15 px-3 py-1.5 text-xs font-semibold dark:border-white/20" href={`/lms/quiz-edit?id=${id}`} data-testid="tquiz-edit">✎ {tr("Edit", "تعديل")}</a>}
         {own && <button type="button" className="rounded-full px-3 py-1.5 text-xs text-rose-600" onClick={() => { if (confirm(tr("Delete this assessment?", "حذف هذا التقييم؟"))) lmsApi.tquizDelete(id).then(() => { loadMine(); setRefresh((r) => r + 1); }); }} data-testid="tquiz-delete">🗑 {tr("Delete", "حذف")}</button>}
@@ -200,7 +200,7 @@ function TeacherAssess({ quizzes, tr }: { quizzes: Quiz[]; tr: Tr }) {
       <section>
         <H2>{tr("School assessments you can use", "تقييمات المدرسة المتاحة لك")}</H2>
         {!quizzesF.length ? <p className="rounded-2xl bg-black/5 px-4 py-3 text-sm dark:bg-white/10" data-testid="lms-assess-none">{flt.active ? tr("No assessments match these filters.", "لا توجد تقييمات تطابق هذه المرشحات.") : tr("Your admin hasn't allowed you to host any school assessments yet.", "لم يسمح لك المسؤول باستخدام تقييمات المدرسة بعد.")}</p>
-          : <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" data-testid="lms-assess-list">{quizzesF.map((q) => card(q.slug, q.title, false))}</ul>}
+          : <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" data-testid="lms-assess-list">{quizzesF.map((q) => card(q.slug, q.title, false, q.subject))}</ul>}
       </section>
       <section><H2>{tr("Assigned", "المُسندة")}</H2><AssignedList refresh={refresh} /></section>
     </>

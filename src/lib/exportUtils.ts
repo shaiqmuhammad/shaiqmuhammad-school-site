@@ -83,6 +83,13 @@ export async function htmlBlocksToPdf(blocksHtml: string[], filename: string, op
     let used = 0;
     const room = pageH - pad * 2;
     for (const html of blocksHtml) {
+      if (html === "<!--pagebreak-->") {
+        if (pages[pages.length - 1].length) {
+          pages.push([]);
+          used = 0;
+        }
+        continue;
+      }
       measure.innerHTML = `<div class="blk">${html}</div>`;
       await Promise.all(Array.from(measure.querySelectorAll("img")).map((im) => (im.complete ? null : im.decode().catch(() => null))));
       const h = (measure.firstElementChild as HTMLElement).offsetHeight;

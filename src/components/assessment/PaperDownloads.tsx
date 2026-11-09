@@ -1,15 +1,30 @@
 "use client";
 
 import { DlGate } from "@/components/lms/DlGate";
-import { useState } from "react";
-import { downloadPaper, printWorksheet, type PaperFormat, type PaperKind } from "@/lib/paperExport";
+import { useEffect, useState } from "react";
+import { defaultPaperLang, downloadPaper, printWorksheet, type PaperFormat, type PaperKind, type PaperLang } from "@/lib/paperExport";
+import { lmsSession } from "@/lib/lms";
 import type { Quiz } from "@/lib/quiz";
 
-/** "Print / download" menu: colourful classroom worksheet plus a teacher answer key. */
-export function PaperDownloads({ quiz, id, load, asAdmin = false, className = "" }: { quiz?: Quiz; id?: string; load?: (id: string, asAdmin?: boolean) => Promise<Quiz | null>; asAdmin?: boolean; className?: string }) {
+const LANGS: { id: PaperLang; label: string }[] = [
+  { id: "en", label: "English" },
+  { id: "ar", label: "العربية" },
+  { id: "both", label: "Both" },
+];
+
+/** "Print / download" menu: clean A4 worksheet in the chosen language, plus a teacher answer key. */
+export function PaperDownloads({ quiz, id, load, asAdmin = false, className = "", subject }: { quiz?: Quiz; id?: string; load?: (id: string, asAdmin?: boolean) => Promise<Quiz | null>; asAdmin?: boolean; className?: string; subject?: string }) {
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
   const [loaded, setLoaded] = useState<Quiz | undefined>(quiz);
+  const [picked, setPicked] = useState(false);
+  const [lang, setLang] = useState<PaperLang>(() => defaultPaperLang(quiz?.subject || subject, lmsSession()?.user.subjects));
+
+  useEffect(() => {
+    if (picked) return;
+    const sub = (loaded || quiz)?.subject || subject;
+    setLang(defaultPaperLang(sub, lmsSession()?.user.subjects));
+  }, [loaded, quiz, subject, picked]);
 
   async function ensure(): Promise<Quiz | null> {
     if (loaded && loaded.questions?.length) return loaded;
@@ -32,7 +47,7 @@ export function PaperDownloads({ quiz, id, load, asAdmin = false, className = ""
     try {
       const q = await ensure();
       if (!q?.questions.length) { setErr("Add questions first."); return; }
-      await downloadPaper(q, kind, f);
+      await downloadPaper(q, kind, f, lang);
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -46,7 +61,7 @@ export function PaperDownloads({ quiz, id, load, asAdmin = false, className = ""
     try {
       const q = await ensure();
       if (!q?.questions.length) { setErr("Add questions first."); return; }
-      printWorksheet(q, kind);
+      printWorksheet(q, kind, lang);
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -61,12 +76,29 @@ export function PaperDownloads({ quiz, id, load, asAdmin = false, className = ""
   );
 
   return (
-    <DlGate kind="export"><details className={`relative z-10 open:z-50 ${className}`} data-testid="paper-downloads">
+    <DlGate kind="export"><details className={`relative z-10 open:z-50 ${className}`} data-testid="paper-downloads" onToggle={(e) => { if (e.currentTarget.open) void ensure(); }}>
       <summary className="cursor-pointer list-none rounded-full border border-card-border px-3 py-1 text-xs font-semibold">🖨 Print / download</summary>
-      <div className="absolute end-0 z-50 mt-2 w-72 space-y-2 rounded-xl border border-card-border bg-card p-3 text-sm shadow-xl">
-        <p className="text-[11px] leading-snug text-muted">Colourful worksheet for lessons and student books. Edit the questions in the system, then print again.</p>
+      <div className="absolute end-0 z-50 mt-2 w-80 space-y-2 rounded-xl border border-card-border bg-card p-3 text-sm shadow-xl">
+        <p className="text-[11px] leading-snug text-muted">Clean A4 worksheet for lessons and student books. Pick a language — English and Arabic are never mixed on the same page.</p>
+        <div>
+          <p className="mb-1 text-xs font-semibold uppercase text-muted">Language</p>
+          <div className="flex flex-wrap gap-1.5" data-testid="paper-lang">
+            {LANGS.map((opt) => (
+              <button
+                key={opt.id}
+                type="button"
+                data-testid={`paper-lang-${opt.id}`}
+                aria-pressed={lang === opt.id}
+                onClick={() => { setLang(opt.id); setPicked(true); }}
+                className={`rounded-full px-3 py-1 text-xs font-semibold ${lang === opt.id ? "bg-header text-white" : "border border-card-border"}`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
         <button type="button" disabled={!!busy} data-testid="print-worksheet" onClick={() => printIt("paper")} className="w-full rounded-full bg-sun px-3 py-1.5 text-xs font-bold text-[#0b1b2b] disabled:opacity-50">
-          {busy === "print-paper" ? "…" : "🖨 Print colourful worksheet"}
+          {busy === "print-paper" ? "…" : "🖨 Print worksheet"}
         </button>
         <div>
           <p className="mb-1 text-xs font-semibold uppercase text-muted">Student worksheet</p>
