@@ -172,7 +172,7 @@ function TeacherAssess({ quizzes, tr }: { quizzes: Quiz[]; tr: Tr }) {
   const flt = useAssessFilter(facets, tr);
   const mineF = mine.filter((m) => flt.pass(m.id)), quizzesF = quizzes.filter((q) => flt.pass(q.slug));
   const card = (id: string, title: string, own: boolean) => (
-    <li key={id} className="glass flex flex-col gap-3 rounded-3xl p-5" data-testid={own ? "tquiz-card" : "lms-assess-card"}>
+    <li key={id} className="glass relative z-0 flex flex-col gap-3 rounded-3xl p-5 [&:has(details[open])]:z-50" data-testid={own ? "tquiz-card" : "lms-assess-card"}>
       <p className="truncate text-lg font-bold" dir="auto">{own ? "✏️ " : ""}{title || tr("Untitled", "بدون عنوان")}</p>
       <div className="flex flex-wrap items-center gap-1.5"><CurChip type="quiz" id={id} /><TrkLink id={id} /></div>
       <div className="mt-auto flex flex-wrap gap-2">

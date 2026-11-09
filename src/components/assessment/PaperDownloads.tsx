@@ -61,9 +61,9 @@ export function PaperDownloads({ quiz, id, load, asAdmin = false, className = ""
   );
 
   return (
-    <DlGate kind="export"><details className={`relative ${className}`} data-testid="paper-downloads">
+    <DlGate kind="export"><details className={`relative z-10 open:z-50 ${className}`} data-testid="paper-downloads">
       <summary className="cursor-pointer list-none rounded-full border border-card-border px-3 py-1 text-xs font-semibold">🖨 Print / download</summary>
-      <div className="absolute end-0 z-20 mt-2 w-72 space-y-2 rounded-xl border border-card-border bg-card p-3 text-sm shadow-lg">
+      <div className="absolute end-0 z-50 mt-2 w-72 space-y-2 rounded-xl border border-card-border bg-card p-3 text-sm shadow-xl">
         <p className="text-[11px] leading-snug text-muted">Colourful worksheet for lessons and student books. Edit the questions in the system, then print again.</p>
         <button type="button" disabled={!!busy} data-testid="print-worksheet" onClick={() => printIt("paper")} className="w-full rounded-full bg-sun px-3 py-1.5 text-xs font-bold text-[#0b1b2b] disabled:opacity-50">
           {busy === "print-paper" ? "…" : "🖨 Print colourful worksheet"}

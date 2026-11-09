@@ -249,7 +249,7 @@ export default function AdminQuizzes({ setStatus, onNeedToken, data, setData, re
       <ul className="divide-y divide-card-border rounded-2xl bg-card ring-1 ring-card-border/50">
         {shown.length === 0 && <li className="px-4 py-3 text-sm text-muted">{flt.active ? "No assessments match these filters." : "No assessments yet."}</li>}
         {shown.map((quiz) => (
-          <li key={quiz.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+          <li key={quiz.id} className="relative z-0 flex flex-wrap items-center justify-between gap-3 px-4 py-3 [&:has(details[open])]:z-50">
             <div className="min-w-0">
               <p className="font-medium">{quiz.title}{quiz.titleAr ? <span className="ms-2 text-sm text-muted" dir="rtl">{quiz.titleAr}</span> : null}</p>
               <p className="text-xs text-muted">{quiz.year ? `Year ${quiz.year} · ` : ""}{isSowSeed(quiz.id) ? "SOW · " : ""}/assessments/{quiz.slug} · {quiz.questions.length} Qs · {quiz.timeLimitMinutes || "no"} min</p>
