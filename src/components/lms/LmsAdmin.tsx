@@ -809,6 +809,11 @@ function ClassroomAccess({ perms, toggle, chip }: { perms: string[]; toggle: (v:
           {tr("✏️ Whiteboard", "✏️ السبورة البيضاء")}
         </label>
         <p className="w-full text-xs opacity-75" data-testid="whiteboard-permission-hint">{tr("Whiteboard is off by default. Enable it separately, even when All activities is on.", "السبورة البيضاء مغلقة افتراضيًا. فعّلها بشكل مستقل حتى عند تشغيل كل الأنشطة.")}</p>
+        <label className={chip(perms.includes("act:rename")) + " inline-flex items-center gap-2 cursor-pointer"} data-testid="lms-act-rename-wrap">
+          <input type="checkbox" checked={perms.includes("act:rename")} onChange={() => toggle("act:rename")} data-testid="lms-act-rename" />
+          {tr("Rename activities", "إعادة تسمية الأنشطة")}
+        </label>
+        <p className="w-full text-xs opacity-75" data-testid="rename-permission-hint">{tr("Only teachers with this permission can rename a live or saved activity. It is not included in All activities.", "يمكن للمعلمين الذين لديهم هذه الصلاحية فقط إعادة تسمية نشاط مباشر أو محفوظ. لا يشملها خيار كل الأنشطة.")}</p>
       </div>
       <div className="flex flex-wrap gap-1.5">
         <button type="button" aria-pressed={allH} className={chip(allH)} onClick={() => toggle("host:*")} data-testid="lms-host-all">{tr("Host all assessments", "استضافة كل التقييمات")}</button>

@@ -21,7 +21,7 @@ export const SWATCHES = ["#bae6fd", "#fde68a", "#bbf7d0", "#ddd6fe", "#fecdd3", 
 export type TtData = {
   times: Record<string, { s: string; e: string }>; timetable: TtRow[]; now: { dow: number; hm: string; period: string }; current: TtRow | null;
   teachers: { id: string; name: string; subject: string; phase: string }[]; catalog: { subjects: string[]; classes: { id: string; name: string; sections: string[] }[] };
-  phases: string[]; depts: string[]; acc: { show: boolean; view: boolean; add: boolean; edit: boolean; delete: boolean; share?: boolean; xlsx?: boolean; pdf?: boolean; peers?: boolean; compare?: boolean; observe?: boolean }; lead: number; shared?: TtShare[];
+  phases: string[]; depts: string[]; acc: { show: boolean; view: boolean; add: boolean; edit: boolean; delete: boolean; share?: boolean; xlsx?: boolean; pdf?: boolean; peers?: boolean; compare?: boolean; observe?: boolean; cover?: boolean }; lead: number; shared?: TtShare[];
   secMap?: Record<string, string[]>; peers?: { id: string; name: string; same: boolean }[]; obs?: TtObs[];
   covers?: { id: string; day: string; dow: number; absent: string; absentName: string; cover: string; coverName: string; s: string; e: string; cls: string; subject: string }[];
   staff?: { id: string; name: string; phase: string; subjects: string[]; depts: string[]; classes: string[] }[];
@@ -196,9 +196,9 @@ export function TodayLessons() {
             {d.peers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
         )}
-        <a href="/lms/timetable?obs=1" className="rounded-full bg-[#f5c542] px-3 py-1 text-xs font-bold text-[#1b3a57]" data-testid="tt-dash-obs">👀 {tr("Peer observation", "ملاحظة زميل")}</a>
+        {d.acc.observe && <a href="/lms/timetable?obs=1" className="rounded-full bg-[#f5c542] px-3 py-1 text-xs font-bold text-[#1b3a57]" data-testid="tt-dash-obs">👀 {tr("Peer observation", "ملاحظة زميل")}</a>}
         <a href="/lms/timetable?year=1" className="rounded-full bg-[#1b3a57] px-3 py-1 text-xs font-bold text-[#f5c542]" data-testid="tt-dash-year">📅 {tr("Year calendar", "التقويم السنوي")}</a>
-        <a href="/lms/timetable?cover=1" className="rounded-full bg-rose-100 px-3 py-1 text-xs font-bold text-rose-900" data-testid="tt-dash-cover">🛟 {tr("Assign Cover", "تعيين احتياط")}</a>
+        {d.acc.cover && <a href="/lms/timetable?cover=1" className="rounded-full bg-rose-100 px-3 py-1 text-xs font-bold text-rose-900" data-testid="tt-dash-cover">🛟 {tr("Assign Cover", "تعيين احتياط")}</a>}
         <a href="/lms/timetable" className="rounded-full border border-black/10 px-3 py-1 text-xs font-bold" data-testid="tt-dash-dl">⬇️ {tr("Download", "تنزيل")}</a>
       </div>
       <div className="mb-2"><LeadPicker d={d} asAdmin={false} onSaved={load} /></div>
@@ -246,9 +246,9 @@ export function TimetableManager({ asAdmin, full = false }: { asAdmin: boolean; 
     if (typeof window === "undefined" || !d) return;
     const q = new URLSearchParams(window.location.search);
     const s = q.get("src"); if (s && !src) setSrc(s);
-    if (q.get("cover") === "1") setCoverOpen(true);
+    if (q.get("cover") === "1" && (asAdmin || d.acc.cover)) setCoverOpen(true);
     if (q.get("year") === "1") setView("year");
-    if (q.get("obs") === "1" && !asAdmin) { const p = (d.peers || []).find((x) => x.same || d.acc.observe); if (p && !s) setSrc(p.id); setView("day"); setMsg(p ? tr("Choose a colleague above, then press “Request to observe” on a lesson.", "اختر زميلًا أعلاه ثم اضغط «طلب ملاحظة» على حصة.") : tr("No colleagues in your department are available to observe yet.", "لا يوجد زملاء في قسمك متاحون للملاحظة بعد.")); }
+    if (q.get("obs") === "1" && !asAdmin && d.acc.observe) { const p = (d.peers || []).find((x) => x.same || d.acc.observe); if (p && !s) setSrc(p.id); setView("day"); setMsg(p ? tr("Choose a colleague above, then press “Request to observe” on a lesson.", "اختر زميلًا أعلاه ثم اضغط «طلب ملاحظة» على حصة.") : tr("No colleagues in your department are available to observe yet.", "لا يوجد زملاء في قسمك متاحون للملاحظة بعد.")); }
     if (q.get("new") === "1" && d.acc.add && !ed) setEd({ ...EMPTY, teacher: asAdmin ? "" : d.teachers[0]?.id || "" });
   }, [d]); // eslint-disable-line react-hooks/exhaustive-deps
   const onTtSubject = useCallback((subject: string) => setEd((e) => (e && e.subject !== subject ? { ...e, subject } : e)), []);
@@ -318,7 +318,7 @@ export function TimetableManager({ asAdmin, full = false }: { asAdmin: boolean; 
         {(asAdmin || full) && f.cls && sel("sec", tr("All sections", "كل الشعب"), (classes.find((c) => c.name === f.cls)?.sections || []).map((x) => [x, x]), "tt-f-sec")}
         {canAdd && <button type="button" className="rounded-full bg-sun px-4 py-1.5 text-sm font-bold text-[#0b1b2b]" onClick={() => setEd({ ...EMPTY, teacher: asAdmin ? "" : d.teachers[0]?.id || "" })} data-testid="tt-new">+ {tr("Add Event", "إضافة حدث")}</button>}
         <button type="button" className="rounded-full bg-[#1b3a57] px-4 py-1.5 text-sm font-bold text-[#f5c542]" onClick={() => setView("year")} data-testid="tt-year-open">📅 {tr("Year calendar", "التقويم السنوي")}</button>
-        {(asAdmin || canAdd || canEdit || canDel || d.acc.view) && <button type="button" className="rounded-full bg-rose-100 px-4 py-1.5 text-sm font-bold text-rose-900" onClick={() => setCoverOpen(true)} data-testid="tt-cover-open">🛟 {tr("Assign Cover", "تعيين احتياط")}</button>}
+        {(asAdmin || d.acc.cover) && <button type="button" className="rounded-full bg-rose-100 px-4 py-1.5 text-sm font-bold text-rose-900" onClick={() => setCoverOpen(true)} data-testid="tt-cover-open">🛟 {tr("Assign Cover", "تعيين احتياط")}</button>}
       </div>
       <div className="flex flex-wrap items-center gap-2" data-testid="tt-views">
         <div className="inline-flex overflow-hidden rounded-full bg-[#1b3a57] p-1" role="tablist">{(["today", "day", "timeline", "week", "year"] as const).map((v) => <button key={v} type="button" role="tab" aria-selected={view === v} onClick={() => setView(v)} className={`rounded-full px-3 py-1.5 text-sm font-bold ${view === v ? "bg-[#f5c542] text-[#1b3a57]" : "text-white/85"}`} data-testid={`tt-view-${v}`}>{v === "today" ? tr("Today", "اليوم") : v === "day" ? tr("Day", "يوم") : v === "timeline" ? tr("Timeline", "خط زمني") : v === "week" ? tr("Week", "أسبوع") : tr("Year", "سنة")}</button>)}</div>
@@ -330,7 +330,7 @@ export function TimetableManager({ asAdmin, full = false }: { asAdmin: boolean; 
         </div>
         <span className="flex-1" />
         {!asAdmin && !!d.peers?.length && (d.acc.peers || d.acc.observe) && <select className={fld + " !w-auto"} value={src} onChange={(e) => setSrc(e.target.value)} aria-label={tr("Whose timetable", "جدول من")} data-testid="tt-src"><option value="">{tr("My timetable", "جدولي")}</option>{d.peers.filter((p) => p.same || d.acc.observe).map((p) => <option key={p.id} value={p.id}>{p.name}{p.same ? "" : " ·"}</option>)}</select>}
-        {!asAdmin && <button type="button" className="rounded-full bg-[#f5c542] px-4 py-1.5 text-sm font-bold text-[#1b3a57]" onClick={() => { const p = (d.peers || []).find((x) => x.same || d.acc.observe); if (!p) { setMsg(tr("No colleagues in your department are available to observe yet.", "لا يوجد زملاء في قسمك متاحون للملاحظة بعد.")); return; } if (!src) setSrc(p.id); setView("day"); setMsg(tr("Choose a colleague above, then press “Request to observe” on a lesson.", "اختر زميلًا أعلاه ثم اضغط «طلب ملاحظة» على حصة.")); }} data-testid="tt-obs-request">👀 {tr("Request peer observation", "طلب ملاحظة زميل")}</button>}
+        {!asAdmin && d.acc.observe && <button type="button" className="rounded-full bg-[#f5c542] px-4 py-1.5 text-sm font-bold text-[#1b3a57]" onClick={() => { const p = (d.peers || []).find((x) => x.same || d.acc.observe); if (!p) { setMsg(tr("No colleagues in your department are available to observe yet.", "لا يوجد زملاء في قسمك متاحون للملاحظة بعد.")); return; } if (!src) setSrc(p.id); setView("day"); setMsg(tr("Choose a colleague above, then press “Request to observe” on a lesson.", "اختر زميلًا أعلاه ثم اضغط «طلب ملاحظة» على حصة.")); }} data-testid="tt-obs-request">👀 {tr("Request peer observation", "طلب ملاحظة زميل")}</button>}
         {(asAdmin || (d.acc.compare && !!d.peers?.length)) && <button type="button" className="rounded-full bg-[#1b3a57] px-4 py-1.5 text-sm font-bold text-[#f5c542]" onClick={() => setCmp(!cmp)} data-testid="tt-compare-btn">⚖️ {tr("Compare teachers", "مقارنة المعلمين")}</button>}
       </div>
       {ro && <p className="rounded-xl bg-sky-100 px-3 py-2 text-sm font-bold text-sky-900" data-testid="tt-ro">👁️ {tr(`Viewing ${d.peers?.find((p) => p.id === src)?.name || ""}'s timetable (read-only).`, `عرض جدول ${d.peers?.find((p) => p.id === src)?.name || ""} (للقراءة فقط).`)}</p>}

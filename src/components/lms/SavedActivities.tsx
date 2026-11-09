@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { AssessmentShell } from "@/components/assessment/AssessmentShell";
 import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
-import { useTr } from "@/components/lms/useLms";
+import { useLmsActor, useTr } from "@/components/lms/useLms";
 import { lmsApi, type SavedAct, type SavedRow } from "@/lib/lms";
 import { ACTIVITY_LABELS, type ActivityType } from "@/lib/activity";
 
@@ -17,6 +17,8 @@ type Full = SavedAct & { prompt: string; tok?: string; rows: SavedRow[] };
 /** t370: saved activity results — list, and a colourful printable sheet (question, each answer with name, class). */
 export function SavedActivitiesPage() {
   const { tr, lang } = useTr();
+  const { actor, asAdmin } = useLmsActor();
+  const canRename = asAdmin || actor?.role === "admin" || !!actor?.perms?.includes("act:rename");
   const [items, setItems] = useState<SavedAct[] | null>(null);
   const [one, setOne] = useState<Full | null>(null);
   const [err, setErr] = useState("");
@@ -52,6 +54,7 @@ export function SavedActivitiesPage() {
                 <span className="min-w-0 flex-1"><b className="block truncate" dir="auto">{x.title}</b><span className="text-xs opacity-70">{x.cls ? `${x.cls} · ` : ""}{fmt(x.at)} · {tr(`${x.n ?? 0} answers`, `${x.n ?? 0} إجابة`)}</span></span>
                 <a className="rounded-full bg-[#1b3a57] px-3 py-1.5 text-sm font-bold text-[#f5c542]" href={`/lms/activities/saved?id=${x.id}`}>👁 {tr("Open", "فتح")}</a>
                 <a className="rounded-full border border-black/15 px-3 py-1.5 text-sm font-bold" href={`/lms/activities/saved?id=${x.id}&print=1`}>🖨 PDF</a>
+                {canRename && <button type="button" className="rounded-full border border-black/15 px-3 py-1.5 text-sm font-bold" data-testid="saved-rename" onClick={async () => { const next = window.prompt(tr("Rename this activity", "إعادة تسمية هذا النشاط"), x.title); if (next == null) return; const name = next.trim().slice(0, 160); if (!name) return; try { const r = await lmsApi.actSaved({ id: x.id, rename: name }); setItems(r.items || []); } catch { /* permission or network */ } }}>{tr("Rename", "إعادة التسمية")}</button>}
                 <button type="button" className="rounded-full px-2 text-rose-600" onClick={() => { if (confirm(tr("Delete this saved result?", "حذف هذه النتيجة؟"))) lmsApi.actSaved({ del: x.id }).then((r) => setItems(r.items || [])); }} aria-label={tr("Delete", "حذف")}>🗑</button>
               </li>); })}
           </ul>
@@ -147,15 +150,24 @@ const chunk = <T,>(a: T[], n: number) => Array.from({ length: Math.ceil(a.length
 function activityPages(r: { type: string; title: string; prompt: string; rows: SavedRow[] }, { names, paper, tr }: { names: boolean; paper: "A4" | "A3"; tr: (en: string, ar: string) => string }): ReactNode[] | null {
   const big = paper === "A3";
   if (r.type === "whiteboard") {
-    const bg = r.rows.find((x) => x.kind === "bg");
-    const strokes: WbStroke[] = r.rows.filter((x) => x.kind === "stroke" || x.kind === "note").map((x, i) => ({ id: x.id || String(i), pid: x.pid || "", author: x.name || "", kind: x.kind!, d: (x.wb || {}) as WbStroke["d"] }));
+    const bgRow = r.rows.find((x) => x.kind === "bg");
+    const layout = (bgRow?.wb || {}) as Record<string, unknown>;
+    const all = r.rows.filter((x) => x.kind === "stroke" || x.kind === "note" || x.kind === "pic");
+    const maxPg = all.reduce((m, x) => Math.max(m, Math.floor(Number((x.wb as { pg?: number } | undefined)?.pg) || 0)), 0);
+    const pagesN = Math.max(1, Math.min(30, Number(layout.pages) || 1), maxPg + 1);
     const who = [...new Set(r.rows.filter((x) => x.kind && x.kind !== "bg" && x.pid !== "host" && x.name).map((x) => x.name!))];
-    return [(
-      <div key="wb" className="space-y-2 bg-[#fffbea] p-3">
-        <div className="overflow-hidden rounded-2xl ring-4 ring-[#1b3a57]/80"><BoardArt strokes={strokes} bg={String(bg?.wb?.bg || "blank")} names={names && bg?.wb?.labels !== false} centre={r.prompt || r.title} tr={tr} /></div>
-        {names && who.length > 0 && <p className="text-xs"><b>✏️ {tr("Drawn by", "رسم")}:</b> {who.join(" · ")}</p>}
-      </div>
-    )];
+    const bgs = Array.isArray(layout.bgs) ? layout.bgs.map((x) => String(x)) : [];
+    return Array.from({ length: pagesN }, (_, p) => {
+      const strokes: WbStroke[] = all.filter((x) => Math.floor(Number((x.wb as { pg?: number } | undefined)?.pg) || 0) === p).map((x, i) => ({ id: x.id || String(i), pid: x.pid || "", author: x.name || "", kind: x.kind!, d: (x.wb || {}) as WbStroke["d"] }));
+      const bg = String(bgs[p] || layout.bg || "blank");
+      return (
+        <div key={`wb-${p}`} className="space-y-2 bg-[#fffbea] p-3">
+          {pagesN > 1 && <p className="text-xs font-bold opacity-70">{tr(`Whiteboard page ${p + 1} of ${pagesN}`, `صفحة السبورة ${p + 1} من ${pagesN}`)}</p>}
+          <div className="overflow-hidden rounded-2xl ring-4 ring-[#1b3a57]/80"><BoardArt strokes={strokes} bg={bg} names={names && layout.labels !== false} centre={r.prompt || r.title} tr={tr} /></div>
+          {names && who.length > 0 && p === 0 && <p className="text-xs"><b>✏️ {tr("Drawn by", "رسم")}:</b> {who.join(" · ")}</p>}
+        </div>
+      );
+    });
   }
   if (r.type === "mindmap" && r.rows.length && r.rows.every((x) => x.id)) {
     const toItem = (x: SavedRow): ActivityItem => ({ id: x.id!, pid: x.pid || "s", mine: false, author: x.name || "", kind: x.kind === "recall" ? "recall" : "post", data: { text: x.answer, ...(x.parent ? { parent: x.parent } : {}) }, status: "approved", created: 0, pinned: 0, color: "", highlight: !!x.highlight, img: null, likes: x.likes || 0, liked: false, comments: [] });
