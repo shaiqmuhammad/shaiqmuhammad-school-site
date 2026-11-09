@@ -118,7 +118,7 @@ export function LmsStaffToolbar() {
       )}
       {who && (
         <Link href="/lms/account" title={`${ar ? "حسابي" : "My account"} · ${who.name}`} aria-label={`${ar ? "حسابي" : "My account"} — ${roleLabel}: ${who.name}`} className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full bg-white/15 ring-2 ring-white/40 transition hover:scale-105 hover:ring-sun" data-testid="lms-who">
-          {av ? <Avatar code={av} size={36} anim="happy" /> : <span aria-hidden>{who.role === "teacher" ? "🧑‍🏫" : who.role === "parent" ? "👨‍👩‍👧" : "🎒"}</span>}
+          {av ? <Avatar code={av} size={36} anim="idle" /> : <span aria-hidden>{who.role === "teacher" ? "🧑‍🏫" : who.role === "parent" ? "👨‍👩‍👧" : "🎒"}</span>}
         </Link>
       )}
       <AdminToolbar

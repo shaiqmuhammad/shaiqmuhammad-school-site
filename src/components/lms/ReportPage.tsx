@@ -2,7 +2,7 @@
 
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Avatar } from "@/components/lms/Avatar";
+import { Avatar, moodFromPoints } from "@/components/lms/Avatar";
 import { PointsCharts } from "@/components/lms/LmsClasses";
 import { CriteriaChart, TrackerEntries } from "@/components/lms/QuranScores";
 import { lmsApi, quranChapters, type Chapter, type ReportView } from "@/lib/lms";
@@ -33,7 +33,7 @@ export function ReportPage() {
         {!d && !bad && <p className="p-6 text-center opacity-70">{tr("Loading…", "جارٍ التحميل…")}</p>}
         {d && (
           <>
-            <section className="flex items-center gap-4 rounded-3xl bg-white p-5 shadow"><Avatar code={d.avatar} size={72} /><div><h1 className="text-2xl font-extrabold" dir="auto" data-testid="report-name">{d.name}</h1><p className="opacity-70">{[d.cls, d.section].filter(Boolean).join(" · ")}</p></div></section>
+            <section className="flex items-center gap-4 rounded-3xl bg-white p-5 shadow"><Avatar code={d.avatar} size={72} anim={moodFromPoints(pos + neg)} /><div><h1 className="text-2xl font-extrabold" dir="auto" data-testid="report-name">{d.name}</h1><p className="opacity-70">{[d.cls, d.section].filter(Boolean).join(" · ")}</p></div></section>
             {d.kind === "points" ? (
               <>
                 <div className="grid grid-cols-3 gap-3 text-center">

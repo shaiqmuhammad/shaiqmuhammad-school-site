@@ -39,22 +39,22 @@ export function rerollCode(gender = "", current = ""): string {
   return c;
 }
 
-/** Happy / excited / active follow effort and points. Sad is only a brief playful reaction
- * (for example when a teacher just deducted lesson points). Lower marks never assign bored or sleepy. */
+/** Faces follow points, progress and attainment.
+ * A good / positive point shows a smile, happy or excited face.
+ * A negative point (or a negative total) shows a sad face.
+ * Assessment scores use happy/excited for stronger attainment; lower marks stay idle, not sad. */
 export function moodFromPoints(points = 0, maxPts = 0, flash?: number): AvatarAnim {
-  if (flash !== undefined && flash > 0) return "celebrate";
-  if (flash !== undefined && flash < 0) return "sad";
-  const cap = Math.max(maxPts, 1);
+  if (flash !== undefined && flash > 0) return flash >= 3 ? "celebrate" : "excited";
+  if ((flash !== undefined && flash < 0) || points < 0) return "sad";
   if (points <= 0) return "idle";
-  if (points >= cap * 0.7 && points >= 8) return "excited";
-  if (points >= cap * 0.35 && points >= 4) return "happy";
-  return "active";
+  const cap = Math.max(maxPts, points, 1);
+  if (points >= cap * 0.6 || points >= 8) return "excited";
+  return "happy";
 }
 export function moodFromScore(pct = 0, rank?: number): AvatarAnim {
-  if (rank === 1) return "celebrate";
-  if (pct >= 85) return "excited";
-  if (pct >= 70) return "happy";
-  if (pct >= 50) return "active";
+  if (rank === 1 || pct >= 90) return "celebrate";
+  if (pct >= 75) return "excited";
+  if (pct >= 50) return "happy";
   return "idle";
 }
 

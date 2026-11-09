@@ -108,7 +108,7 @@ export function LmsClassesPage() {
       setFlash(Object.fromEntries(who.map((s) => [s.id, c.pts])));
       setRoster((rs) => (rs || []).map((s) => (who.some((w) => w.id === s.id) ? { ...s, points: s.points + c.pts } : s)));
       setToast(`${c.icon} ${c.label} ${c.pts > 0 ? "+" : ""}${c.pts} → ${who.length === 1 ? who[0].name : tr(`${who.length} students`, `${who.length} طلاب`)}`);
-      setTimeout(() => setFlash({}), 1400);
+      setTimeout(() => setFlash({}), 2600);
     } catch (e) { setErr(lmsErrorText(e, tr)); }
     setAward(null); setWhole(false);
   };
@@ -233,7 +233,7 @@ export function LmsClassesPage() {
       {award && (
         <Modal onClose={() => { setAward(null); setWhole(false); }} label={tr("Award points", "منح نقاط")}>
           <div className="mb-4 flex items-center gap-3">
-            {award.length === 1 ? <Avatar code={award[0].avatar} size={52} /> : <span className="grid h-[52px] w-[52px] place-items-center rounded-full bg-sun text-2xl">⭐</span>}
+            {award.length === 1 ? <Avatar code={award[0].avatar} size={52} anim={moodFromPoints(award[0].points, maxPts)} /> : <span className="grid h-[52px] w-[52px] place-items-center rounded-full bg-sun text-2xl">⭐</span>}
             <div><p className="text-lg font-extrabold" dir="auto">{whole || award.length > 1 ? tr(`Whole class (${award.length})`, `كل الصف (${award.length})`) : award[0].name}</p><p className="text-xs opacity-70">{tr("Tap a skill", "اختر مهارة")}</p></div>
           </div>
           <div className="grid grid-cols-2 gap-2" data-testid="award-cats">
