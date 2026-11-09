@@ -261,9 +261,28 @@ export class ClassActivity extends DurableObject<ActivityEnv> {
         if (!me) return { status: 403, body: { error: "removed" } };
         if (!isHost && !open()) return { status: 409, body: { error: "closed" } };
         // t423: whiteboard strokes / notes / undo (students only when the teacher allows drawing).
-        if (m.type === "whiteboard" && ["stroke", "note", "undo"].includes(str(input.kind, 20))) {
+        if (m.type === "whiteboard" && ["stroke", "note", "undo", "move"].includes(str(input.kind, 20))) {
           const k = str(input.kind, 20);
           if (!isHost && (m.settings.options as Json).draw !== true) return { status: 403, body: { error: "no_draw" } };
+          if (k === "move") {
+            const id = str(input.id, 20);
+            const row = this.sql.exec(`SELECT id, pid, kind, data FROM items WHERE id=? AND kind IN ('stroke','note','pic')`, id).toArray()[0];
+            if (!row) return { status: 404, body: { error: "not_found" } };
+            if (!isHost && String(row.pid) !== me.id) return { status: 403, body: { error: "not_yours" } };
+            const d = JSON.parse(String(row.data || "{}")) as Json;
+            const dx = Math.max(-1, Math.min(1, Number(input.dx) || 0));
+            const dy = Math.max(-1, Math.min(1, Number(input.dy) || 0));
+            const clamp = (v: number) => Math.round(Math.max(0, Math.min(1, v)) * 10000) / 10000;
+            if (String(row.kind) === "stroke" && Array.isArray(d.pts)) {
+              d.pts = (d.pts as unknown[]).map((v, i) => clamp(Number(v) + (i % 2 ? dy : dx)));
+            } else {
+              d.x = clamp(Number(d.x || 0) + dx);
+              d.y = clamp(Number(d.y || 0) + dy);
+            }
+            this.sql.exec(`UPDATE items SET data=? WHERE id=?`, JSON.stringify(d), id);
+            this.bump();
+            return { status: 200, body: { ok: true, id, status: "approved" } };
+          }
           if (!isHost && this.limited(me.id, "stroke")) return { status: 429, body: { error: "slow_down" } };
           if (k === "undo") {
             const last = this.sql.exec(`SELECT id FROM items WHERE pid=? AND kind IN ('stroke','note','pic') ORDER BY created DESC LIMIT 1`, me.id).toArray()[0];

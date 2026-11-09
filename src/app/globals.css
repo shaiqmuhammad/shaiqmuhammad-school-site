@@ -419,6 +419,7 @@ html [data-venn-label], html.dark [data-venn-label], html .dark [data-venn-label
 /* t429: sitewide Focus pill — hide top bars, menus, tickers and side chrome; keep the page itself. */
 html.page-focus [data-topbar], html.page-focus .admin-page-head, html.page-focus [data-pagechrome], html.page-focus #announcement-ticker, html.page-focus [data-testid=lms-tabs-top], html.page-focus [data-focus-hide], html.page-focus [data-testid=admin-date-row], html.page-focus [data-testid=lms-date-row] { display: none !important; }
 html.page-focus .pub-main, html.page-focus .lms-main { padding-top: 0 !important; }
+html.page-focus .lb-hide-work { display: none !important; }
 /* t429: Lesson Builder full-screen working mode — slide fits the landscape screen, tools always visible. */
 body.lb-work .lb-hide-work { display: none !important; }
 body.lb-work .lp-editor-full { min-height: 100dvh; border-radius: 0; }

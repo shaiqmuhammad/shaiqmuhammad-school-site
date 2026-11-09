@@ -328,7 +328,7 @@ export const lmsApi = {
   actSaved: (q: { id?: string; del?: string } = {}) => call<{ items?: SavedAct[]; item?: SavedAct & { prompt: string; tok?: string; subject?: string; topic?: string; rows: SavedRow[] } }>("act-saved", q, { asAdmin: !lmsSession() }),
   actLive: () => call<{ items: LiveActivity[] }>("act-live"),
   /** t441: Reward Cards (wallet, shop, plan). */
-  rc: <T = Record<string, unknown>>(action: string, body: Record<string, unknown> = {}) => call<T>(`rc-${action}`, body),
+  rc: <T = Record<string, unknown>>(action: string, body: Record<string, unknown> = {}) => call<T>(`rc-${action}`, body, { asAdmin: !lmsSession() && !!getServerSession() }),
   permSwitch: (ids: string[], perm: "shareCorrect", on: boolean) => call<{ ok: true; changed: number }>("perm-switch", { ids, perm, on }, { asAdmin: true }),
   myAssess: () => call<{ items: (ResultRecord & { level?: number; label?: string })[] }>("my-assess"),
   assessList: (asAdmin = false) => call<{ items: Assignment[] }>("assess-list", undefined, { asAdmin }),
