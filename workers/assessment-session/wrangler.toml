@@ -73,3 +73,7 @@ new_sqlite_classes = ["LmsStore"]
 [[migrations]]
 tag = "v7"
 new_sqlite_classes = ["SiteKV"]
+
+# Free Workers AI — drafts assessment questions from the curriculum.
+[ai]
+binding = "AI"

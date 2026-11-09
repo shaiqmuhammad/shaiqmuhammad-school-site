@@ -47,6 +47,7 @@ import { fetchParentReplies, sendAuto, sendParentMail, type MailEnv } from "./ma
 import { classLabel, ttFor, ttRows, ttSE, ttSecMap, ttShared, ttTimes } from "./lmsmods";
 import { pageHandle, pagesInit } from "./lpages";
 import { initMods, modHandle, pubQuizzes, tquizTopics, today as modToday } from "./lmsmods";
+import { bankFromTquizzes, draftFromCurriculum, parseImportText, unitFromRow } from "./tquizDraft";
 import { reportHandle } from "./reports";
 import { packHandle, packInit, packSweep, type PackCtx } from "./packs";
 import { renderEmail, renderText } from "./mail/template";
@@ -56,6 +57,8 @@ export interface LmsEnv extends AdminEnv, StorageEnv, MailEnv {
   LMS: DurableObjectNamespace<LmsStore>;
   /** base64 of 32 random bytes; enables admin PIN viewing. */
   LMS_PIN_KEY?: string;
+  /** Cloudflare Workers AI (free) — draft questions from the curriculum. */
+  AI?: { run(model: string, input: Record<string, unknown>): Promise<unknown> };
 }
 
 type Json = Record<string, unknown>;
@@ -1781,6 +1784,33 @@ export class LmsStore extends DurableObject<LmsEnv> {
         this.sql.exec(`DELETE FROM qassign WHERE quiz=?`, id);
         for (const c of this.sql.exec(`SELECT id, links, quiz FROM cur`).toArray()) { let l: { t: string; id: string }[] = []; try { l = JSON.parse(String(c.links || "[]")); } catch { l = []; } if (l.some((x) => x.id === id) || c.quiz === id) { const n = l.filter((x) => x.id !== id); this.sql.exec(`UPDATE cur SET links=?, quiz=? WHERE id=?`, JSON.stringify(n), n.find((x) => x.t === "quiz")?.id || "", String(c.id)); } }
         return { status: 200, body: { ok: true } };
+      }
+      case "tquiz-draft": {
+        if (a.role !== "admin" && a.role !== "teacher") return { status: 403, body: { error: "forbidden" } };
+        const topic = str(input.topic, 40);
+        if (!topic) return { status: 400, body: { error: "topic_required" } };
+        const row = this.sql.exec(`SELECT * FROM cur WHERE id=?`, topic).toArray()[0];
+        if (!row) return { status: 400, body: { error: "topic_unknown" } };
+        return { status: 200, body: await draftFromCurriculum(this.env, unitFromRow(row as Record<string, unknown>)) };
+      }
+      case "tquiz-bank": {
+        if (a.role !== "admin" && a.role !== "teacher") return { status: 403, body: { error: "forbidden" } };
+        const topic = str(input.topic, 40);
+        const row = topic ? this.sql.exec(`SELECT * FROM cur WHERE id=?`, topic).toArray()[0] : undefined;
+        const unit = row ? unitFromRow(row as Record<string, unknown>) : undefined;
+        const rows = this.sql.exec(`SELECT id, owner, title, data FROM tquiz ORDER BY updated DESC LIMIT 80`).toArray()
+          .filter((r) => a.role === "admin" || r.owner === a.id);
+        return { status: 200, body: { items: bankFromTquizzes(rows, unit) } };
+      }
+      case "tquiz-import": {
+        if (a.role !== "admin" && a.role !== "teacher") return { status: 403, body: { error: "forbidden" } };
+        const text = String(input.text || "").replace(/\r/g, "").slice(0, 80_000);
+        if (!text.trim()) return { status: 400, body: { error: "empty" } };
+        const topic = str(input.topic, 40);
+        const row = topic ? this.sql.exec(`SELECT * FROM cur WHERE id=?`, topic).toArray()[0] : undefined;
+        const questions = parseImportText(text, row ? unitFromRow(row as Record<string, unknown>) : undefined);
+        if (!questions.length) return { status: 400, body: { error: "import_empty" } };
+        return { status: 200, body: { questions, source: "import" } };
       }
 
 

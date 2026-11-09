@@ -338,6 +338,9 @@ export const lmsApi = {
   tquizGet: (id: string, asAdmin = false) => call<{ quiz: unknown }>("tquiz-get", { id }, { asAdmin }),
   tquizSave: (quiz: unknown, asAdmin = false) => call<{ ok: true; id: string }>("tquiz-save", { quiz }, { asAdmin }),
   tquizDelete: (id: string, asAdmin = false) => call<{ ok: true }>("tquiz-delete", { id }, { asAdmin }),
+  tquizDraft: (topic: string, asAdmin = false) => call<{ questions: unknown[]; source: "ai" | "curriculum"; title: string; description: string }>("tquiz-draft", { topic }, { asAdmin }),
+  tquizBank: (topic?: string, asAdmin = false) => call<{ items: { quizId: string; quizTitle: string; subject?: string; yr?: string; question: unknown }[] }>("tquiz-bank", { topic }, { asAdmin }),
+  tquizImport: (text: string, topic?: string, asAdmin = false) => call<{ questions: unknown[]; source: "import" }>("tquiz-import", { text, topic }, { asAdmin }),
   annList: (asAdmin = false) => call<{ items: Announcement[] }>("ann-list", undefined, { asAdmin }),
   annSave: (a: { title: string; body: string; aud: Announcement["aud"]; cls?: string; section?: string }) => call<{ ok: true; sent: number }>("ann-save", a, { asAdmin: true }),
   annDelete: (id: string) => call<{ ok: true }>("ann-delete", { id }, { asAdmin: true }),
@@ -377,6 +380,7 @@ export function lmsErrorText(e: unknown, tr: (en: string, ar: string) => string)
   const m: Record<string, [string, string]> = {
     topic_required: ["Choose the curriculum topic first — every assessment must be linked to one.", "اختر موضوع المنهج أولًا — يجب ربط كل تقييم بموضوع."],
     topic_unknown: ["That curriculum topic no longer exists. Choose another.", "موضوع المنهج هذا لم يعد موجودًا. اختر موضوعًا آخر."],
+    import_empty: ["I couldn't find questions in that file. Use a list like 1. Question… a) … b) …", "لم أجد أسئلة في هذا الملف. استخدم قائمة مثل: 1. السؤال… a) … b) …"],
     one_assessment_per_topic: ["A topic can have only one assessment.", "لكل موضوع تقييم واحد فقط."],
     download_not_allowed: ["Downloads are switched off for your account.", "التنزيل غير مفعّل لحسابك."],
     confirm_required: ["Please preview and confirm before sending.", "يرجى المعاينة والتأكيد قبل الإرسال."],
