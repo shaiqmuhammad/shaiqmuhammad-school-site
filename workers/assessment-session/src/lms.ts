@@ -1403,7 +1403,12 @@ export class LmsStore extends DurableObject<LmsEnv> {
         if (!isStaff(a)) return { status: 403, body: { error: "forbidden" } };
         const own = a.role === "admin" ? "1=1" : "owner=?";
         const args = a.role === "admin" ? [] : [a.id];
-        if (input.id) {
+        if (input.rename && input.id) {
+          if (a.viewAs || (a.role !== "admin" && !(a.perms || []).includes("act:rename"))) return { status: 403, body: { error: "rename_not_allowed" } };
+          const title = str(input.rename, 160);
+          if (!title) return { status: 400, body: { error: "bad_input" } };
+          this.sql.exec(`UPDATE actsave SET title=? WHERE id=? AND ${own}`, title, str(input.id, 40), ...args);
+        } else if (input.id) {
           const r = this.sql.exec(`SELECT * FROM actsave WHERE id=? AND ${own}`, str(input.id, 40), ...args).toArray()[0];
           if (!r) return { status: 404, body: { error: "not_found" } };
           return { status: 200, body: { item: { id: String(r.id), type: String(r.type), title: String(r.title), prompt: String(r.prompt), cls: String(r.cls), subject: String(r.subject || ""), topic: String(r.topic || ""), teacher: String(r.owner_name), at: Number(r.at), tok: String(r.tok || ""), rows: JSON.parse(String(r.data || "[]")) } } };
@@ -3393,7 +3398,8 @@ export async function teacherWithPerm(request: Request, env: LmsEnv, perm: strin
   if (perm.startsWith("act:") && u.perms.includes("hide:activities")) return false;
   if (perm === "act:any") return u.perms.some((p) => p.startsWith("act:"));
   // t423: the whiteboard is a new activity — it starts OFF and is not covered by "act:*" until admin ticks it.
-  if (perm === "act:whiteboard") return u.perms.includes(perm);
+  // t525: renaming activities is also off until admin ticks it in Permissions.
+  if (perm === "act:whiteboard" || perm === "act:rename") return u.perms.includes(perm);
   return u.perms.includes(perm) || u.perms.includes(perm.split(":")[0] + ":*");
 }
 
