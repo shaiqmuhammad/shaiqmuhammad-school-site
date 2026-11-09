@@ -58,14 +58,31 @@ export function PackEditor({ initial, acc, asAdmin, subjects, onClose }: { initi
   const [menu, setMenu] = useState<{ x: number; y: number; i: number } | null>(null);
   const [preview, setPreview] = useState(false);
   const [work, setWork] = useState(false);
+  const [hideRail, setHideRail] = useState(false);
+  const [canFs, setCanFs] = useState(false);
   const [metaOpen, setMetaOpen] = useState(!initial.id);
   const area = useRef<"rail" | "canvas">("canvas");
+  const canvasBox = useRef<HTMLDivElement>(null);
   const { roster, groups } = useRosterData();
   const canSave = p.id ? acc.edit : acc.add;
   const onSubject = useCallback((subject: string) => { setP((x) => (x.subject === subject ? x : { ...x, subject })); setDirty(true); }, []);
   const arabic = /^islamic a$/i.test(p.subject);
   // t321: full-screen editor (only the side menu stays).
   useEffect(() => { document.body.classList.add("lp-full"); return () => document.body.classList.remove("lp-full"); }, []);
+  useEffect(() => { setCanFs(!!document.fullscreenEnabled); }, []);
+  useEffect(() => {
+    const el = canvasBox.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (preview || typing(e.target)) return;
+      if (Math.abs(e.deltaY) < 30) return;
+      e.preventDefault();
+      setCur((c) => (e.deltaY > 0 ? Math.min(slides.length - 1, c + 1) : Math.max(0, c - 1)));
+      setSel(""); setPicked([]);
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [preview, slides.length]);
   useEffect(() => { modCall<{ items: CurUnit[] }>("cur-list", {}, asAdmin).then((r) => setUnits(r.items)).catch(() => setUnits([])); }, [asAdmin]);
   const ids = useMemo(() => (keys.length ? rosterIds(keys, roster, groups) : p.students), [keys, roster, groups, p.students]);
   const s = slides[Math.min(cur, slides.length - 1)];
@@ -184,7 +201,8 @@ export function PackEditor({ initial, acc, asAdmin, subjects, onClose }: { initi
         <span className={`rounded-full px-3 py-1 text-xs font-extrabold ${p.status === "published" ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-700"}`} data-testid="lp-status">{p.status === "published" ? (p.assignAt > Date.now() ? tr("Scheduled", "مجدول") : tr("Published", "منشور")) : tr("Draft", "مسودة")}</span>
         <span className="flex-1" />
         <button type="button" className={smallBtn} onClick={async () => { if (canSave && (dirty || !p.id)) { const sv = await save(true); if (!sv) return; } setPreview(true); }} disabled={!p.id && !canSave} title={tr("See it exactly as students will — nothing is assigned", "شاهده كما يراه الطلاب — بدون إسناد")} data-testid="lp-preview">👁 {tr("Preview", "معاينة")}</button>
-        <button type="button" className={smallBtn + (work ? " !bg-header !text-sun" : "")} onClick={toggleWork} title={tr("Full-screen working mode (Esc to leave)", "وضع العمل بملء الشاشة (Esc للخروج)")} data-testid="lp-work">{work ? "✕" : "⛶"} {work ? tr("Exit full screen", "إنهاء ملء الشاشة") : tr("Full screen", "ملء الشاشة")}</button>
+        <button type="button" className={smallBtn + (hideRail ? " !bg-header !text-sun" : "")} onClick={() => setHideRail((v) => !v)} title={tr("Hide or show the slides sidebar", "إخفاء شريط الشرائح أو إظهاره")} data-testid="lp-hide-rail">{hideRail ? "📑" : "🗂️"} {hideRail ? tr("Show slides", "إظهار الشرائح") : tr("Hide slides", "إخفاء الشرائح")}</button>
+        {!canFs && <button type="button" className={smallBtn + (work ? " !bg-header !text-sun" : "")} onClick={toggleWork} title={tr("Full-screen working mode (Esc to leave)", "وضع العمل بملء الشاشة (Esc للخروج)")} data-testid="lp-work">{work ? "✕" : "⛶"} {work ? tr("Exit full screen", "إنهاء ملء الشاشة") : tr("Full screen", "ملء الشاشة")}</button>}
         {canSave && <button type="button" className={smallBtn} disabled={saving} onClick={() => save()} data-testid="lp-save">💾 {saving ? "…" : tr("Save", "حفظ")}</button>}
         {canSave && p.status !== "published" && p.type !== "lesson" && <>
           <button type="button" className="rounded-full bg-header px-4 py-1.5 text-sm font-extrabold text-sun shadow" onClick={() => publish(false, true)} title={tr("Students get it straight away", "يصل للطلاب فورًا")} data-testid="lp-assign-now">⚡ {tr("Assign now", "إسناد الآن")}</button>
@@ -222,11 +240,11 @@ export function PackEditor({ initial, acc, asAdmin, subjects, onClose }: { initi
       {p.mode === "live" && p.status === "published" && p.id && <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-violet-50 px-4 py-2 text-sm font-bold text-violet-900" data-testid="lp-live-bar">📡 {p.live >= 0 ? tr(`Live — students follow slide ${p.live + 1}`, `مباشر — الطلاب يتابعون الشريحة ${p.live + 1}`) : tr("Live mode is ready.", "الوضع المباشر جاهز.")}
         <button type="button" className={smallBtn} onClick={async () => { await lp.live(p.id, cur, false, asAdmin); setP({ ...p, live: cur }); }} data-testid="lp-live-go">▶ {tr("Show this slide to students", "اعرض هذه الشريحة للطلاب")}</button>
         {p.live >= 0 && <button type="button" className={smallBtn} onClick={async () => { await lp.live(p.id, 0, true, asAdmin); setP({ ...p, live: -1 }); }} data-testid="lp-live-stop">⏹ {tr("End live", "إنهاء")}</button>}</div>}
-      <div className="grid gap-3 lg:grid-cols-[11rem_1fr]">
-        <ol className="flex gap-2 overflow-x-auto rounded-2xl bg-white/70 p-2 ring-1 ring-black/5 lg:max-h-[78vh] lg:flex-col lg:overflow-y-auto" onPointerDown={() => { area.current = "rail"; }} data-testid="lp-thumbs">
+      <div className={hideRail ? "" : "grid gap-3 lg:grid-cols-[11rem_1fr]"}>
+        {!hideRail && <ol className="flex gap-2 overflow-x-auto rounded-2xl bg-white/70 p-2 ring-1 ring-black/5 lg:max-h-[78vh] lg:flex-col lg:overflow-y-auto" onPointerDown={() => { area.current = "rail"; }} data-testid="lp-thumbs">
           {canSave && <li className="flex shrink-0 flex-col gap-1 lg:w-full">
             <label className="cursor-pointer rounded-2xl bg-gradient-to-r from-[#1b3a57] to-[#24507a] px-3 py-2 text-center text-xs font-extrabold text-[#f5c542] shadow ring-1 ring-[#f5c542]/50 transition hover:brightness-110" data-testid="lp-doc-add" title={tr("Each slide / page becomes its own editable slide", "كل شريحة / صفحة تصبح شريحة مستقلة قابلة للتعديل")}>⬆ {imp ? `${tr("Adding", "جارٍ الإضافة")} ${imp}…` : tr("Add PowerPoint / PDF", "إضافة PowerPoint / PDF")}<input type="file" accept=".pptx,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.presentationml.presentation" className="hidden" data-testid="lp-doc-input" onChange={async (e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) await importFile(f); }} /><input type="file" accept=".pptx" className="hidden" data-testid="lp-pptx-input" onChange={async (e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) await importFile(f); }} /></label>
-            <div className="flex gap-1"><button type="button" className={smallBtn + " flex-1 !px-2 !text-xs"} onClick={() => insertSlides([blankSlide()])} title={tr("New blank slide", "شريحة فارغة جديدة")} data-testid="lp-slide-add">➕ {tr("Slide", "شريحة")}</button><button type="button" className={smallBtn + " flex-1 !px-2 !text-xs"} onClick={() => putClip({ kind: "slides", slides: pickedIdx().map((i) => slides[i]) }, pickedIdx().slice(-1)[0])} title={tr("Duplicate (Ctrl/⌘+D)", "تكرار (Ctrl/⌘+D)")} data-testid="lp-slide-dup">⧉ {tr("Copy", "تكرار")}</button></div>
+            <div className="flex gap-1"><button type="button" className={smallBtn + " flex-1 !px-2 !text-xs"} onClick={() => insertSlides([blankSlide()])} title={tr("New blank slide", "شريحة فارغة جديدة")} data-testid="lp-slide-add">➕ {tr("Slide", "شريحة")}</button><button type="button" className={smallBtn + " flex-1 !px-2 !text-xs"} onClick={() => putClip({ kind: "slides", slides: pickedIdx().map((i) => slides[i]) }, pickedIdx().slice(-1)[0])} title={tr("Duplicate (Ctrl/⌘+D)", "تكرار (Ctrl/⌘+D)")} data-testid="lp-slide-dup">⧉ {tr("Duplicate", "تكرار")}</button></div>
             {picked.length > 1 && <p className="rounded-xl bg-sky-100 px-2 py-1 text-center text-[11px] font-bold text-sky-900" data-testid="lp-picked">{tr(`${picked.length} slides selected · Ctrl/⌘+C / X / Del`, `${picked.length} شرائح محددة`)}</p>}
           </li>}
           {slides.map((x, i) => { const on = i === cur || picked.includes(i); return <li key={x.id} className={`group relative w-32 shrink-0 lg:w-full ${dragI === i ? "opacity-40" : ""} ${overI === i && dragI !== null && dragI !== i ? "rounded-2xl ring-4 ring-[#f5c542]" : ""}`} draggable={canSave} onDragStart={(ev) => { setDragI(i); ev.dataTransfer.effectAllowed = "move"; ev.dataTransfer.setData("text/x-slide", String(i)); }} onDragOver={(ev) => { if (dragI !== null) { ev.preventDefault(); setOverI(i); } }} onDragEnd={() => { setDragI(null); setOverI(null); }} onDrop={(ev) => { ev.preventDefault(); if (dragI === null || dragI === i) return; const from = dragI; setSlides((a) => { const b = [...a]; const [m] = b.splice(from, 1); b.splice(i, 0, m); return b; }); setCur(i); setPicked([]); setDirty(true); setDragI(null); setOverI(null); }}
@@ -235,8 +253,8 @@ export function PackEditor({ initial, acc, asAdmin, subjects, onClose }: { initi
               onClick={(ev) => { area.current = "rail"; setSel(""); if (ev.shiftKey) { const a = Math.min(cur, i), b = Math.max(cur, i); setPicked(Array.from({ length: b - a + 1 }, (_, k) => a + k)); return; } if (ev.ctrlKey || ev.metaKey) { setPicked((pk) => { const base = pk.length ? pk : [cur]; return base.includes(i) ? base.filter((k) => k !== i) : [...base, i]; }); return; } setPicked([]); setCur(i); }} aria-label={tr(`Slide ${i + 1}`, `الشريحة ${i + 1}`)} aria-pressed={on} data-testid="lp-thumb"><SlideView slide={x} asAdmin={asAdmin} live={false} testId="lp-thumb-slide" />{(x.part || x.timer || x.instr) && <span className="pointer-events-none absolute start-2.5 top-2.5 flex gap-0.5">{x.part && <span className={`rounded-full px-1.5 py-px text-[10px] font-extrabold shadow ${PART_LABEL[x.part][3]}`} data-testid="lp-thumb-part">{PART_LABEL[x.part][0]} {tr(PART_LABEL[x.part][1], PART_LABEL[x.part][2])}</span>}{!!x.timer && <span className="rounded-full bg-white/90 px-1.5 py-px text-[10px] font-extrabold text-[#1b3a57] shadow">⏱{fmtT(x.timer)}</span>}{x.instr && <span className="rounded-full bg-white/90 px-1 py-px text-[10px] shadow">💬</span>}</span>}<span className="mt-1 inline-grid h-5 min-w-5 place-items-center rounded-full bg-white px-1.5 text-xs font-extrabold text-[#1b2f44] shadow-sm">{i + 1}</span></button>
             {canSave && <button type="button" className="absolute -end-1.5 -top-1.5 grid h-6 w-6 place-items-center rounded-full bg-white text-xs font-black text-rose-600 shadow-md ring-1 ring-rose-200 transition hover:bg-rose-600 hover:text-white sm:opacity-0 sm:group-hover:opacity-100 sm:focus:opacity-100" onClick={(ev) => { ev.stopPropagation(); delSlides(picked.includes(i) ? pickedIdx() : [i]); }} aria-label={tr(`Delete slide ${i + 1}`, `حذف الشريحة ${i + 1}`)} title={tr("Delete slide (Del)", "حذف الشريحة (Del)")} data-testid="lp-thumb-x">✕</button>}
           </li>; })}
-        </ol>
-        <div className="min-w-0 space-y-2" onPointerDown={() => { area.current = "canvas"; }}>
+        </ol>}
+        <div ref={canvasBox} className="min-w-0 space-y-2" onPointerDown={() => { area.current = "canvas"; }}>
           {canSave && <div className="sticky top-0 z-20"><AddTools compact={work} add={add} pen={pen} setPen={setPen} asAdmin={asAdmin} teacher onErr={setMsg} onUndoStroke={() => { const d = draw(); if (d) patch(d.id, { paths: d.paths.slice(0, -1) } as Partial<El>); }} onClearDraw={() => { const d = draw(); if (d) setSlide((x) => ({ ...x, els: x.els.filter((e) => e !== d) })); }} /></div>}
           {canSave && <div className="flex flex-wrap items-center gap-1.5 rounded-2xl bg-white/80 px-2 py-1.5 text-xs font-bold shadow-sm ring-1 ring-black/5" data-testid="lp-slide-meta">
             <span className="opacity-70">{picked.length > 1 ? tr(`${picked.length} slides are:`, `${picked.length} شرائح:`) : tr("This slide is:", "هذه الشريحة:")}</span>

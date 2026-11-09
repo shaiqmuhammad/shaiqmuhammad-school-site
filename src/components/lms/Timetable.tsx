@@ -30,6 +30,13 @@ export type TtData = {
 export type TtObs = { id: string; req: string; reqName: string; target: string; targetName: string; day: string; dow: number; s: string; e: string; cls: string; subject: string; note: string; status: string };
 export const DOW: [string, string][] = [["Sun", "الأحد"], ["Mon", "الاثنين"], ["Tue", "الثلاثاء"], ["Wed", "الأربعاء"], ["Thu", "الخميس"], ["Fri", "الجمعة"], ["Sat", "السبت"]];
 const PIDS = ["P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8"];
+export const pidLabel = (pid: string, tr: (en: string, ar: string) => string) => {
+  if (/^P\d+$/.test(pid)) return tr(`Period ${pid.slice(1)}`, `الحصة ${pid.slice(1)}`);
+  if (/^D\d+$/.test(pid)) return tr(`Duty ${pid.slice(1)}`, `مناوبة ${pid.slice(1)}`);
+  return pid;
+};
+const dutyKeys = (times: Record<string, unknown>) => Object.keys(times).filter((k) => /^D\d+$/.test(k)).sort((a, b) => Number(a.slice(1)) - Number(b.slice(1)));
+const periodIds = (times: Record<string, unknown> = {}) => [...PIDS, ...dutyKeys(times)];
 const card = "rounded-3xl bg-white/85 p-4 shadow-sm ring-1 ring-black/5 dark:bg-white/5 dark:ring-white/10";
 const fld = "w-full rounded-xl border border-black/10 bg-white px-3 py-2 text-sm dark:border-white/15 dark:bg-white/5";
 const pill = "rounded-full border border-black/10 px-3 py-1.5 text-sm font-bold dark:border-white/15";
@@ -60,7 +67,7 @@ export function GlassStrip({ rows, times, now, dow, onPick, testId = "tt-strip",
             <li key={r.id} className={`shrink-0 rounded-2xl border border-white/60 bg-white/65 px-3 py-2 text-[#1b2f44] shadow-lg backdrop-blur-md ${live ? "ring-4 ring-emerald-400" : ""} ${past ? "opacity-55" : ""}`} style={{ minWidth: `${w}rem`, backgroundImage: `linear-gradient(135deg, ${r.color || "#ffffffcc"}cc, #ffffffaa)` }} data-testid="tt-strip-item"
               onContextMenu={(e) => { if (!canEdit || locked) return; e.preventDefault(); onEdit?.(r); }}
               onDoubleClick={() => { if (canEdit && !locked) onEdit?.(r); }}>
-              <p className="text-xs font-extrabold">{span12(t)}{live ? ` · ${tr("Now", "الآن")} · ${left}${tr("m left", " د متبقية")}` : ""}</p>
+              <p className="text-xs font-extrabold">{r.period ? `${pidLabel(r.period, tr)} · ` : ""}{span12(t)}{live ? ` · ${tr("Now", "الآن")} · ${left}${tr("m left", " د متبقية")}` : ""}</p>
               <p className="text-[21px] font-black leading-tight" dir="auto">{r.obs ? r.title : secTxt(r) || r.title}</p>
               {ttlOf(r) && secTxt(r) && <p className="text-[21px] font-black leading-tight" dir="auto" data-testid="tt-title">{ttlOf(r)}</p>}
               <p className="text-xs opacity-80" dir="auto">{[r.teacherName, r.subject].filter(Boolean).join(" · ")}</p>
@@ -98,7 +105,7 @@ function DayTimeline({ rows, times, now, dow, onEdit, onDel, canEdit, canDel, st
           ))}
           {periods.map(([pid, tm]) => {
             const top = (toM(tm.s) / 60 - START) * PX, h = Math.max(8, ((toM(tm.e) - toM(tm.s)) / 60) * PX);
-            return <div key={pid} className="pointer-events-none absolute inset-x-0 rounded-lg bg-[#f5c542]/15" style={{ top, height: h }} data-testid="tt-period-band"><span className="absolute start-1 top-0.5 text-[10px] font-extrabold text-[#1b3a57]/70">{pid}</span></div>;
+            return <div key={pid} className="pointer-events-none absolute inset-x-0 rounded-lg bg-[#f5c542]/15" style={{ top, height: h }} data-testid="tt-period-band"><span className="absolute start-1 top-0.5 text-[10px] font-extrabold text-[#1b3a57]/70">{pidLabel(pid, tr)}</span></div>;
           })}
           {list.map((r, i) => {
             const tm = seOf(r, times); if (!tm.s || !tm.e) return null;
@@ -112,7 +119,7 @@ function DayTimeline({ rows, times, now, dow, onEdit, onDel, canEdit, canDel, st
                 style={{ top, height: h, marginInlineStart: `${(i % 3) * 4}px`, background: `linear-gradient(135deg, ${r.color || "#bae6fd"}ee, #ffffffcc)` }} data-testid="tt-tl-event"
                 onContextMenu={(e) => { if (!canEdit || locked) return; e.preventDefault(); onEdit?.(r); }}
                 onDoubleClick={() => { if (canEdit && !locked) onEdit?.(r); }}>
-                <p className="text-[11px] font-extrabold leading-tight">{span12(tm)}{live ? ` · ${left}${tr("m left", " د")}` : ""}</p>
+                <p className="text-[11px] font-extrabold leading-tight">{r.period ? `${pidLabel(r.period, tr)} · ` : ""}{span12(tm)}{live ? ` · ${left}${tr("m left", " د")}` : ""}</p>
                 <p className="truncate text-sm font-black" dir="auto">{r.obs ? r.title : secTxt(r) || r.title}</p>
                 <p className="truncate text-[11px] opacity-80">{[r.teacherName, r.subject, n ? `${n} 👥` : ""].filter(Boolean).join(" · ")}</p>
                 {(canEdit || canDel) && !locked && <p className="absolute end-1 top-1 flex gap-0.5">{canEdit && <button type="button" className="rounded-full bg-white/90 px-1 text-[10px]" onClick={() => onEdit?.(r)} data-testid="tt-edit">✎</button>}{canDel && <button type="button" className="rounded-full bg-white/90 px-1 text-[10px]" onClick={() => onDel?.(r)} data-testid="tt-del">🗑</button>}</p>}
@@ -287,17 +294,17 @@ export function TimetableManager({ asAdmin, full = false }: { asAdmin: boolean; 
   );
   const cell = (r: TtRow) => (
     <div key={r.id} style={r.color ? { background: r.color } : undefined} className={`rounded-xl bg-gradient-to-br ${r.color ? "" : tone(r.subject)} px-2 py-1.5 text-start text-xs text-[#1b2f44]`} data-testid="tt-cell">
-      <p className="font-extrabold" data-testid="tt-cell-time">{span12(seOf(r, d.times))}</p><p className="text-base font-black leading-tight" dir="auto">{r.obs ? r.title : secTxt(r)}</p>{ttlOf(r) && <p className="text-base font-black leading-tight" dir="auto" data-testid="tt-title">{ttlOf(r)}</p>}<p className="opacity-80" dir="auto">{[r.teacherName, r.subject].filter(Boolean).join(" · ")}{studentsOf(r) ? ` · ${studentsOf(r)} 👥` : ""}</p>
+      <p className="font-extrabold" data-testid="tt-cell-time">{r.period ? `${pidLabel(r.period, tr)} · ` : ""}{span12(seOf(r, d.times))}</p><p className="text-base font-black leading-tight" dir="auto">{r.obs ? r.title : secTxt(r)}</p>{ttlOf(r) && <p className="text-base font-black leading-tight" dir="auto" data-testid="tt-title">{ttlOf(r)}</p>}<p className="opacity-80" dir="auto">{[r.teacherName, r.subject].filter(Boolean).join(" · ")}{studentsOf(r) ? ` · ${studentsOf(r)} 👥` : ""}</p>
       {(canEdit || canDel) && !r.obs && <p className="mt-1 flex gap-1">{canEdit && <button type="button" className="rounded-full bg-white/70 px-1.5" onClick={() => { const t = seOf(r, d.times); setEd({ title: r.title || "", tAuto: !r.title, id: r.id, dows: [r.dow], period: r.period || "", cls: r.cls, sections: r.sections, teacher: r.teacher, subject: r.subject, phase: r.phase, dept: r.dept, same: true, s: t.s || "08:00", e: t.e || "08:45", per: {}, color: r.color || "" }); }} aria-label={tr("Edit", "تعديل")} data-testid="tt-edit">✎</button>}{canDel && <button type="button" className="rounded-full bg-white/70 px-1.5" onClick={() => del(r)} aria-label={tr("Delete", "حذف")} data-testid="tt-del">🗑</button>}</p>}
     </div>
   );
   const clsSections = classes.find((c) => c.name === ed?.cls)?.sections || [];
   const slotKey = (r: TtRow) => { const t = seOf(r, d.times); return t.s ? `${t.s}-${t.e}` : r.period; };
-  const slots = [...new Map(rows.map((r) => { const t = seOf(r, d.times); return [slotKey(r), { k: slotKey(r), s: t.s, e: t.e, label: t.s ? span12(t) : tr(`Period ${r.period.slice(1)}`, `الحصة ${r.period.slice(1)}`) }]; })).values()].sort((a, b) => (a.s || a.k).localeCompare(b.s || b.k));
+  const slots = [...new Map(rows.map((r) => { const t = seOf(r, d.times); return [slotKey(r), { k: slotKey(r), s: t.s, e: t.e, label: [r.period ? pidLabel(r.period, tr) : "", t.s ? span12(t) : ""].filter(Boolean).join(" · ") || r.period }]; })).values()].sort((a, b) => (a.s || a.k).localeCompare(b.s || b.k));
   return (
     <div className="space-y-3" data-testid="att-timetable">
       <div className="flex flex-wrap items-center gap-2">
-        <p className="text-sm font-semibold opacity-80" data-testid="tt-now">🕒 {tr(DOW[d.now.dow][0], DOW[d.now.dow][1])} {d.now.hm} {tr("(Dubai)", "(دبي)")} · {d.now.period ? tr(`Now: Period ${d.now.period.slice(1)}`, `الآن: الحصة ${d.now.period.slice(1)}`) : tr("No period running now", "لا توجد حصة الآن")}</p>
+        <p className="text-sm font-semibold opacity-80" data-testid="tt-now">🕒 {tr(DOW[d.now.dow][0], DOW[d.now.dow][1])} {d.now.hm} {tr("(Dubai)", "(دبي)")} · {d.now.period ? `${tr("Now:", "الآن:")} ${pidLabel(d.now.period, tr)}` : tr("No period running now", "لا توجد حصة الآن")}</p>
         <span className="flex-1" />
         <LeadPicker d={d} asAdmin={asAdmin} onSaved={load} />
         {asAdmin && <AdminLeads asAdmin={asAdmin} />}
@@ -331,6 +338,7 @@ export function TimetableManager({ asAdmin, full = false }: { asAdmin: boolean; 
       {cmp && <ComparePanel d={d} asAdmin={asAdmin} />}
       {!asAdmin && <ObsPanel d={d} onChange={load} />}
       {msg && <p className="rounded-xl bg-emerald-100 px-3 py-2 text-sm font-bold text-emerald-900" role="status" data-testid="tt-msg">{msg}</p>}
+      {asAdmin && <PeriodTimes onSaved={load} />}
       {ed && (
         <div className={card + " grid gap-3 sm:grid-cols-2 lg:grid-cols-4"} data-testid="tt-add">
           <fieldset className="sm:col-span-2 lg:col-span-4"><legend className="text-sm font-bold">{tr("Days", "الأيام")}</legend><div className="mt-1 flex flex-wrap gap-1.5">{DOW.map((x, i) => <button key={i} type="button" aria-pressed={ed.dows.includes(i)} onClick={() => setEd({ ...ed, dows: ed.dows.includes(i) ? (ed.dows.length > 1 ? ed.dows.filter((y) => y !== i) : ed.dows) : [...ed.dows, i] })} className={`${pill} ${ed.dows.includes(i) ? "!bg-header !text-white" : ""}`} data-testid={`tt-dow-${i}`}>{tr(x[0], x[1])}</button>)}</div></fieldset>
@@ -338,7 +346,7 @@ export function TimetableManager({ asAdmin, full = false }: { asAdmin: boolean; 
             <label className="flex flex-wrap items-center gap-2 text-sm font-bold">{tr("Period (optional)", "الحصة (اختياري)")}
               <select className={fld + " !w-auto"} value={ed.period} onChange={(e) => { const pid = e.target.value; const tm = d.times[pid]; setEd({ ...ed, period: pid, ...(tm ? { s: tm.s, e: tm.e, same: true } : {}) }); }} data-testid="tt-period">
                 <option value="">{tr("— custom time —", "— وقت مخصص —")}</option>
-                {PIDS.map((pid) => <option key={pid} value={pid}>{pid}{d.times[pid]?.s ? ` · ${h12(d.times[pid].s)}–${h12(d.times[pid].e)}` : ""}</option>)}
+                {periodIds(d.times).map((pid) => <option key={pid} value={pid}>{pidLabel(pid, tr)}{d.times[pid]?.s ? ` · ${h12(d.times[pid].s)}–${h12(d.times[pid].e)}` : ""}</option>)}
               </select>
             </label>
             <label className="flex items-center gap-2 text-sm font-bold"><input type="checkbox" checked={ed.same} onChange={(e) => setEd({ ...ed, same: e.target.checked })} data-testid="tt-same" /> {tr("Same start and end time for all chosen days", "نفس وقت البداية والنهاية لكل الأيام")}</label>
@@ -361,12 +369,14 @@ export function TimetableManager({ asAdmin, full = false }: { asAdmin: boolean; 
       )}
       <TtTools d={d} rows={rows} asAdmin={asAdmin} studentsOf={studentsOf} filt={[f.phase, f.dept, d.teachers.find((t) => t.id === f.teacher)?.name || "", f.subject, f.cls].filter(Boolean).join(" · ")} />
       {view === "today" && <GlassStrip rows={rows} times={d.times} now={d.now} dow={d.now.dow} testId="tt-today" onPick={ro && d.acc.observe ? (r) => askObs(r) : undefined} empty={tr("No events today 🌿 Enjoy your day!", "لا توجد أحداث اليوم 🌿 يومًا سعيدًا!")} canEdit={canEdit} canDel={canDel} onEdit={(r) => { const t = seOf(r, d.times); setEd({ title: r.title || "", tAuto: !r.title, id: r.id, dows: [r.dow], period: r.period || "", cls: r.cls, sections: r.sections, teacher: r.teacher, subject: r.subject, phase: r.phase, dept: r.dept, same: true, s: t.s || "08:00", e: t.e || "08:45", per: {}, color: r.color || "" }); }} onDel={del} />}
-      {view === "day" && <div className="space-y-2" data-testid="tt-dayview">{rows.filter((r) => r.dow === dSel).sort((a, b) => (seOf(a, d.times).s || "").localeCompare(seOf(b, d.times).s || "")).map((r) => <div key={r.id} className="flex items-start gap-3"><span className="w-28 shrink-0 pt-2 text-sm font-extrabold">{h12(seOf(r, d.times).s)}<br />{h12(seOf(r, d.times).e)}</span><div className="flex-1">{cell(r)}{ro && d.acc.observe && <button type="button" className="mt-1 rounded-full bg-[#1b3a57] px-2 py-0.5 text-xs font-bold text-[#f5c542]" onClick={() => askObs(r)} data-testid="tt-obs-ask">👀 {tr("Request to observe", "طلب ملاحظة")}</button>}</div></div>)}{!rows.some((r) => r.dow === dSel) && <p className="py-6 text-center opacity-60">{tr("No lessons on this day.", "لا توجد حصص في هذا اليوم.")}</p>}</div>}
+      {view === "day" && <div className="space-y-2" data-testid="tt-dayview">{rows.filter((r) => r.dow === dSel).sort((a, b) => (seOf(a, d.times).s || "").localeCompare(seOf(b, d.times).s || "")).map((r) => <div key={r.id} className="flex items-start gap-3"><span className="w-28 shrink-0 pt-2 text-sm font-extrabold">{r.period ? <span className="block text-[11px] opacity-70">{pidLabel(r.period, tr)}</span> : null}{h12(seOf(r, d.times).s)}<br />{h12(seOf(r, d.times).e)}</span><div className="flex-1">{cell(r)}{ro && d.acc.observe && <button type="button" className="mt-1 rounded-full bg-[#1b3a57] px-2 py-0.5 text-xs font-bold text-[#f5c542]" onClick={() => askObs(r)} data-testid="tt-obs-ask">👀 {tr("Request to observe", "طلب ملاحظة")}</button>}</div></div>)}{!rows.some((r) => r.dow === dSel) && <p className="py-6 text-center opacity-60">{tr("No lessons on this day.", "لا توجد حصص في هذا اليوم.")}</p>}</div>}
       {view === "week" && <>
       <div className="hidden overflow-x-auto md:block"><table className="w-full table-fixed border-separate border-spacing-1 text-sm" data-testid="tt-table"><thead><tr><th className="w-24 text-xs opacity-60">{tr("Time", "الوقت")}</th>{days.map((x) => <th key={x} className={`text-sm ${x === d.now.dow ? "text-emerald-600" : ""}`}>{tr(DOW[x][0], DOW[x][1])}</th>)}</tr></thead>
         <tbody>{slots.map((sl) => <tr key={sl.k}><td className="align-top text-xs font-bold opacity-70">{sl.label}</td>{days.map((x) => <td key={x} className={`align-top ${x === d.now.dow && sl.s && sl.s <= d.now.hm && d.now.hm < sl.e ? "rounded-xl ring-2 ring-emerald-400" : ""}`}><div className="space-y-1">{rows.filter((r) => r.dow === x && slotKey(r) === sl.k).map(cell)}</div></td>)}</tr>)}
         {!rows.length && <tr><td colSpan={days.length + 1} className="py-6 text-center opacity-60">{tr("No lessons yet.", "لا توجد حصص بعد.")}</td></tr>}</tbody></table></div>
-      <div className="space-y-3 md:hidden" data-testid="tt-list">{days.map((x) => { const l = rows.filter((r) => r.dow === x); return l.length ? <section key={x}><h3 className={`mb-1 font-extrabold ${x === d.now.dow ? "text-emerald-600" : ""}`}>{tr(DOW[x][0], DOW[x][1])}</h3><div className="grid gap-1.5">{l.sort((a, b) => (seOf(a, d.times).s || a.period).localeCompare(seOf(b, d.times).s || b.period)).map((r) => <div key={r.id} className="flex items-start gap-2"><span className="w-14 shrink-0 pt-1 text-xs font-bold opacity-70">{seOf(r, d.times).s || r.period}</span><div className="flex-1">{cell(r)}</div></div>)}</div></section> : null; })}{!rows.length && <p className="py-6 text-center opacity-60">{tr("No lessons yet.", "لا توجد حصص بعد.")}</p>}</div></>}
+      <div className="space-y-3 md:hidden" data-testid="tt-list">{days.map((x) => { const l = rows.filter((r) => r.dow === x); return l.length ? <section key={x}><h3 className={`mb-1 font-extrabold ${x === d.now.dow ? "text-emerald-600" : ""}`}>{tr(DOW[x][0], DOW[x][1])}</h3><div className="grid gap-1.5">{l.sort((a, b) => (seOf(a, d.times).s || a.period).localeCompare(seOf(b, d.times).s || b.period)).map((r) => <div key={r.id} className="flex items-start gap-2"><span className="w-16 shrink-0 pt-1 text-xs font-bold opacity-70">{r.period ? <span className="block">{pidLabel(r.period, tr)}</span> : null}{seOf(r, d.times).s || ""}</span><div className="flex-1">{cell(r)}</div></div>)}</div></section> : null; })}{!rows.length && <p className="py-6 text-center opacity-60">{tr("No lessons yet.", "لا توجد حصص بعد.")}</p>}</div></>}
+      {view === "timeline" && <DayTimeline rows={rows} times={d.times} now={d.now} dow={dSel} canEdit={canEdit} canDel={canDel} studentsOf={studentsOf} onEdit={(r) => { const t = seOf(r, d.times); setEd({ title: r.title || "", tAuto: !r.title, id: r.id, dows: [r.dow], period: r.period || "", cls: r.cls, sections: r.sections, teacher: r.teacher, subject: r.subject, phase: r.phase, dept: r.dept, same: true, s: t.s || "08:00", e: t.e || "08:45", per: {}, color: r.color || "" }); }} onDel={del} />}
+      {view === "year" && <YearCalendar rows={rows} times={d.times} weekOf={weekOf} canAdd={canAdd} onAdd={(iso) => { const dow = new Date(iso + "T12:00:00Z").getUTCDay(); setWeekOf(iso); setDay(dow); setEd({ ...EMPTY, teacher: asAdmin ? "" : d.teachers[0]?.id || "", dows: [dow] }); }} onPickDate={(iso) => { const dow = new Date(iso + "T12:00:00Z").getUTCDay(); setWeekOf(iso); setDay(dow); setView("timeline"); }} />}
       {!!d.shared?.length && <SharedList list={d.shared} times={d.times} asAdmin={asAdmin} onChange={load} />}
     </div>
   );
@@ -520,7 +530,7 @@ function AdminLeads({ asAdmin }: { asAdmin: boolean }) {
 }
 
 /** t433 #20–21: year calendar of the weekly pattern + print with QR. */
-function YearCalendar({ rows, times, weekOf, onPickDate }: { rows: TtRow[]; times: TtData["times"]; weekOf: string; onPickDate: (iso: string) => void }) {
+function YearCalendar({ rows, times, weekOf, onPickDate, canAdd, onAdd }: { rows: TtRow[]; times: TtData["times"]; weekOf: string; onPickDate: (iso: string) => void; canAdd?: boolean; onAdd?: (iso: string) => void }) {
   const { tr, lang } = useTr();
   const y0 = Number(weekOf.slice(0, 4)) || new Date().getFullYear();
   const [year, setYear] = useState(y0);
@@ -546,6 +556,7 @@ function YearCalendar({ rows, times, weekOf, onPickDate }: { rows: TtRow[]; time
         <b className="tabular-nums">{year}</b>
         <button type="button" className={pill} onClick={() => setYear(year + 1)}>›</button>
         <span className="flex-1" />
+        {canAdd && <button type="button" className="rounded-full bg-sun px-4 py-1.5 text-sm font-bold text-[#0b1b2b]" onClick={() => onAdd?.(weekOf)} data-testid="tt-year-add">+ {tr("Add event", "إضافة حدث")}</button>}
         <button type="button" className="rounded-full bg-[#1b3a57] px-4 py-1.5 text-sm font-bold text-[#f5c542]" onClick={printYear} data-testid="tt-year-print">⬇️ {tr("Print year", "طباعة السنة")}</button>
         <img src={qrImageUrl(`https://www.shaiqmuhammad.com/lms/timetable?year=${year}`, 72)} alt="QR" className="h-14 w-14 rounded-lg ring-1 ring-black/10" />
       </div>
@@ -564,14 +575,14 @@ function YearCalendar({ rows, times, weekOf, onPickDate }: { rows: TtRow[]; time
                   const iso = `${year}-${String(m + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
                   const dow = new Date(iso + "T12:00:00Z").getUTCDay();
                   const n = rows.filter((r) => r.dow === dow).length;
-                  return <button key={day} type="button" onClick={() => onPickDate(iso)} className={`rounded-md py-1 text-xs font-bold ${n ? "bg-[#f5c542]/40 text-[#1b3a57]" : "hover:bg-black/5"}`} data-testid="tt-year-day">{day}{n ? <span className="block text-[9px] opacity-70">{n}</span> : null}</button>;
+                  return <button key={day} type="button" onClick={() => (canAdd && onAdd ? onAdd(iso) : onPickDate(iso))} className={`rounded-md py-1 text-xs font-bold ${n ? "bg-[#f5c542]/40 text-[#1b3a57]" : "hover:bg-black/5"}`} data-testid="tt-year-day">{day}{n ? <span className="block text-[9px] opacity-70">{n}</span> : null}</button>;
                 })}
               </div>
             </div>
           );
         })}
       </div>
-      <p className="mt-2 text-xs opacity-60">{tr("Gold days follow the weekly timetable pattern. Tap a day to open its timeline.", "الأيام الذهبية تتبع النمط الأسبوعي. اضغط يومًا لفتح الخط الزمني.")}</p>
+      <p className="mt-2 text-xs opacity-60">{tr("Gold days follow the weekly timetable pattern. Tap a day to add an event for that weekday, or use Add event.", "الأيام الذهبية تتبع النمط الأسبوعي. اضغط يومًا لإضافة حدث لذلك اليوم، أو استخدم إضافة حدث.")}</p>
     </section>
   );
 }
@@ -694,6 +705,48 @@ function ObsPanel({ d, onChange }: { d: TtData; onChange: () => void }) {
           {!mine && o.status === "pending" && <><button type="button" className="rounded-full bg-emerald-600 px-3 py-1 font-bold text-white" onClick={() => reply(o.id, true)} data-testid="tt-obs-approve">{tr("Approve", "موافقة")}</button><button type="button" className="rounded-full bg-rose-600 px-3 py-1 font-bold text-white" onClick={() => reply(o.id, false)} data-testid="tt-obs-decline">{tr("Decline", "رفض")}</button></>}
           {(mine || o.status !== "pending") && <button type="button" className="text-xs underline" onClick={() => del(o.id)} data-testid="tt-obs-del">{tr("Remove", "إزالة")}</button>}
         </div>); })}
+    </section>
+  );
+}
+
+/** t516: period + duty timings editor — used on the admin timetable page and Attendance settings. */
+export function PeriodTimes({ onSaved }: { onSaved?: () => void } = {}) {
+  const { tr } = useTr();
+  const [t, setT] = useState<Record<string, { s: string; e: string }>>({});
+  const [msg, setMsg] = useState("");
+  useEffect(() => { modCall<{ times: Record<string, { s: string; e: string }> }>("att-times", {}, true).then((r) => setT(r.times || {})).catch(() => undefined); }, []);
+  const save = async () => {
+    try {
+      const r = await modCall<{ times: Record<string, { s: string; e: string }> }>("att-times-save", { times: t }, true);
+      setT(r.times); setMsg(tr("Saved.", "تم الحفظ.")); onSaved?.();
+    } catch (e) { setMsg(modErr(e, tr)); }
+  };
+  const duties = dutyKeys(t);
+  const addDuty = () => {
+    const n = duties.reduce((m, k) => Math.max(m, Number(k.slice(1)) || 0), 0) + 1;
+    setT({ ...t, [`D${n}`]: { s: "07:30", e: "08:00" } });
+  };
+  const row = (pid: string, label: string) => (
+    <div key={pid} className="flex flex-wrap items-center gap-2 text-sm" data-testid={`tt-time-row-${pid}`}>
+      <b className="w-28">{label}</b>
+      <input type="time" className={fld + " !w-auto"} value={t[pid]?.s || ""} onChange={(e) => setT({ ...t, [pid]: { s: e.target.value, e: t[pid]?.e || "" } })} aria-label={tr("Start", "البداية")} data-testid={`att-time-s-${pid}`} />
+      <span>–</span>
+      <input type="time" className={fld + " !w-auto"} value={t[pid]?.e || ""} onChange={(e) => setT({ ...t, [pid]: { s: t[pid]?.s || "", e: e.target.value } })} aria-label={tr("End", "النهاية")} data-testid={`att-time-e-${pid}`} />
+      {pid.startsWith("D") && <button type="button" className="text-xs font-bold text-rose-700 underline" onClick={() => { const n = { ...t }; delete n[pid]; setT(n); }} data-testid={`tt-duty-del-${pid}`}>{tr("Remove", "إزالة")}</button>}
+    </div>
+  );
+  return (
+    <section className={card + " max-w-xl space-y-2"} data-testid="att-times">
+      <h3 className="font-extrabold">⏱ {tr("Timetable settings — period timings", "إعدادات الجدول — أوقات الحصص")}</h3>
+      {PIDS.map((p) => row(p, pidLabel(p, tr)))}
+      <h4 className="pt-2 font-extrabold">🛡️ {tr("Duty timings", "أوقات المناوبة")}</h4>
+      <p className="text-xs opacity-70">{tr("Add start and end times for duties (morning duty, break duty, and so on). They appear as choices when you add a timetable event.", "أضف وقت بداية ونهاية للمناوبات (صباحية أو الاستراحة وغيرها). تظهر كخيارات عند إضافة حدث في الجدول.")}</p>
+      {duties.map((p) => row(p, pidLabel(p, tr)))}
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" className={pill} onClick={addDuty} data-testid="tt-duty-add">+ {tr("Add duty timing", "إضافة وقت مناوبة")}</button>
+        <button type="button" className="rounded-full bg-sun px-5 py-2 text-sm font-bold text-[#0b1b2b]" onClick={save} data-testid="att-times-save">{tr("Save timings", "حفظ الأوقات")}</button>
+      </div>
+      {msg && <p className="text-sm font-semibold" role="status">{msg}</p>}
     </section>
   );
 }

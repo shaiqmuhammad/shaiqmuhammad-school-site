@@ -1,6 +1,7 @@
 "use client";
 
 import { HwMeta, hwAud } from "@/components/lms/HwMeta";
+import { HwRemindBell } from "@/components/lms/HwRemind";
 import { TrkLink } from "@/components/tracker/TrkLink";
 import { CurChip } from "@/components/lms/mods/CurChip";
 import { Amiri_Quran } from "next/font/google";
@@ -460,6 +461,7 @@ export function LmsHomework() {
             {staff && (
               <div className="flex flex-wrap gap-2">
                 <button type="button" className={smallBtn} onClick={async () => { try { const r = await lmsApi.qrLinks(hw.id, {}, asAdmin); const { loadNameMode } = await import("@/lib/studentName"); const mode = await loadNameMode(asAdmin); await studentQrCardsPdf(hw, { lang: document.documentElement.dir === "rtl" ? "ar" : "en", mode, surahEn: ch?.name_simple, surahAr: ch?.name_arabic, verses: q ? `${tr("verses", "الآيات")} ${q.from}–${q.to}` : "", versesAr: q ? `الآيات ${q.from}–${q.to}` : "", teacher: r.teacher, links: r.links }); } catch { setErr(tr("Couldn't make the QR cards.", "تعذر إنشاء بطاقات QR.")); } }} data-testid="hw-qr-pdf">🔳 {tr("Student QR cards (PDF)", "بطاقات QR للطلاب (PDF)")}</button>
+                <HwRemindBell hw={hw.id} title={hw.title} asAdmin={asAdmin} />
                 <QrLinks hwId={hw.id} asAdmin={asAdmin} />
                 {hw.kind === "quran" && <LockList hwId={hw.id} asAdmin={asAdmin} />}
 {!sharedOnly && (hw.kind !== "quran" || qhwPerm(actor?.perms, actor?.role === "admin").edit) && (<button

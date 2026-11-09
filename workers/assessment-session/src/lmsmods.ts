@@ -683,8 +683,9 @@ function ttHandle(c: ModCtx, a: Actor, action: string, input: Json): { status: n
     if (a.role !== "admin" || a.viewAs) return forbid();
     const inT = (input.times && typeof input.times === "object" ? input.times : {}) as Record<string, Json>;
     const HM = /^([01]\d|2[0-3]):[0-5]\d$/;
+    const okKey = (k: string) => /^P[1-8]$/.test(k) || /^D([1-9]|1\d|20)$/.test(k);
     const out: Record<string, { s: string; e: string }> = {};
-    for (const k of PIDS) { const t = inT[k]; if (t && HM.test(String(t.s)) && HM.test(String(t.e)) && String(t.s) < String(t.e)) out[k] = { s: String(t.s), e: String(t.e) }; }
+    for (const k of Object.keys(inT)) { if (!okKey(k)) continue; const t = inT[k]; if (t && HM.test(String(t.s)) && HM.test(String(t.e)) && String(t.s) < String(t.e)) out[k] = { s: String(t.s), e: String(t.e) }; }
     sql.exec(`INSERT INTO settings (k, v) VALUES ('att:times', ?) ON CONFLICT(k) DO UPDATE SET v=excluded.v`, JSON.stringify(out));
     c.ttChanged?.();
     return { status: 200, body: { ok: true, times: out } };
@@ -823,9 +824,9 @@ function ttHandle(c: ModCtx, a: Actor, action: string, input: Json): { status: n
     : (Array.isArray(input.dows) ? input.dows : [input.dow]).map((x) => ({ dow: Math.floor(Number(x)), s: str(input.s, 5), e: str(input.e, 5) }));
   const days = dayList.filter((d) => d.dow >= 0 && d.dow <= 6).map((d) => (HM.test(d.s) && HM.test(d.e) && d.s < d.e ? d : { ...d, s: "", e: "" }));
   const dows = days.map((d) => d.dow);
-  const period = str(input.period, 4);
+  const period = str(input.period, 8);
   const color = /^#[0-9a-f]{6}$/i.test(String(input.color || "")) ? String(input.color) : "";
-  if (!dows.length || !(PIDS.includes(period) || days.every((d) => d.s))) return { status: 400, body: { error: "bad_input" } };
+  if (!dows.length || !(PIDS.includes(period) || /^D([1-9]|1\d|20)$/.test(period) || days.every((d) => d.s))) return { status: 400, body: { error: "bad_input" } };
   const tid = a.role === "admin" ? str(input.teacher, 40) : a.id; const tu = tid ? c.userRow("id=? AND role='teacher'", tid) : undefined;
   // t420: class is optional (staff events, duties, meetings); sections only make sense with a class.
   const sections = !str(input.cls, 80) ? [] : (Array.isArray(input.sections) ? input.sections.map((x) => str(x, 40)) : secList(input.section)).filter(Boolean).slice(0, 20);
