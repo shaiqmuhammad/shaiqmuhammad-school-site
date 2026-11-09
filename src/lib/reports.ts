@@ -10,7 +10,8 @@ export type PBand = "better" | "expected" | "below";
 export type ReportFilters = Partial<Record<"subject" | "phase" | "year" | "section" | "group" | "gender" | "sen", string>>;
 export type ReportSettings = { above: number; at: number; progBetter: number; progExpected: number };
 export type Hw3 = { exp: number; done: number; onTime: number };
-export type RStudent = { id: string; name: string; cls: string; section: string; gender: string; sen: string; phase: string; subject: string; n: number; att: number | null; attBand: Band | null; first: number | null; latest: number | null; delta: number | null; progBand: PBand | null; quran: { green: number; yellow: number; red: number } | null; hw: Hw3 | null };
+export type Att3 = { p: number; l: number; a: number; e?: number; pct: number | null };
+export type RStudent = { id: string; name: string; cls: string; section: string; gender: string; sen: string; phase: string; subject: string; n: number; att: number | null; attBand: Band | null; first: number | null; latest: number | null; delta: number | null; progBand: PBand | null; quran: { green: number; yellow: number; red: number } | null; hw: Hw3 | null; points?: number; cards?: number; attendance?: Att3; activities?: number };
 export const REP_SECTIONS = ["kpi", "attainment", "progress", "quran", "homework", "coverage", "drill"] as const;
 export const REP_KEYS = [...REP_SECTIONS, "pdf", "xlsx"] as const;
 export type RepKey = (typeof REP_KEYS)[number];
@@ -20,12 +21,13 @@ export type UnmatchedItem = { id: string; name: string; quizTitle: string; kind:
 export type DeptReport = {
   generated: number; options: { subjects: string[]; phases: string[]; years: string[]; sections: string[]; groups: { id: string; name: string }[] };
   notSet: { subject: number; phase: number; gender: number; sen: number }; settings: ReportSettings; access: Access;
-  kpis?: { students: number; withScores: number; atOrAbove: number | null; expectedOrBetter: number | null; onTime: number | null; completion: number | null; quranGreen: number | null; coverage: number | null; results: { total: number; unmatched: number; ambiguous: number; byId?: number; ignored?: number } };
+  kpis?: { students: number; withScores: number; atOrAbove: number | null; expectedOrBetter: number | null; onTime: number | null; completion: number | null; quranGreen: number | null; coverage: number | null; attendance?: number | null; avgCards?: number | null; avgPoints?: number | null; activityRate?: number | null; results: { total: number; unmatched: number; ambiguous: number; byId?: number; ignored?: number } };
   attainment?: { year: string; students: number; above: number; at: number; below: number; noData: number }[];
   progress?: { byYear: { year: string; students: number; better: number; expected: number; below: number; noData: number }[]; distribution: { lo: number; hi: number; n: number }[]; trend: { month: string; byYear: Record<string, number> }[] };
   quran?: { year: string; students: number; withData: number; green: number; yellow: number; red: number }[];
   homework?: Hw3 & { assignments: number; byYear: (Hw3 & { year: string })[]; trend: (Hw3 & { week: string })[] };
   coverage?: { year: string; total: number; taught: number; inProgress: number; assessed: number }[];
+  engagement?: { byYear: { year: string; students: number; present: number; late: number; absent: number; pct: number | null; cards: number; points: number; activities: number }[] };
   students?: RStudent[];
 };
 export type StudentDetail = {
@@ -33,6 +35,7 @@ export type StudentDetail = {
   scores: { t: number; p: number; title: string; kind: string; band: Band }[];
   homework: { title: string; kind: string; due: number | null; status: string; submittedAt: number | null; onTime: boolean }[];
   quran: { surah: number; from: number; to: number; grade: string; at: number }[];
+  points?: number; cards?: number; attendance?: Att3; activities?: number;
 };
 
 let asAdmin = true;

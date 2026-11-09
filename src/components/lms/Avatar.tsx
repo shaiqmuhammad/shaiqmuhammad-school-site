@@ -57,6 +57,16 @@ export function moodFromScore(pct = 0, rank?: number): AvatarAnim {
   if (pct >= 50) return "happy";
   return "idle";
 }
+/** Combines class points with Reward Cards, attendance and assessment scores. */
+export function moodFromProgress(opts: { points?: number; maxPts?: number; flash?: number; cards?: number; attPct?: number | null; score?: number | null }): AvatarAnim {
+  const fromPts = moodFromPoints(opts.points || 0, opts.maxPts || 0, opts.flash);
+  if (fromPts !== "idle") return fromPts;
+  if ((opts.score ?? 0) >= 75) return "excited";
+  if ((opts.score ?? 0) >= 50) return "happy";
+  if ((opts.cards ?? 0) >= 8 || (opts.attPct ?? 0) >= 90) return "excited";
+  if ((opts.cards ?? 0) > 0 || (opts.attPct ?? 0) >= 80) return "happy";
+  return "idle";
+}
 
 function Face({ skin, mood = "idle" }: { skin: string; mood?: AvatarAnim }) {
   const excited = mood === "excited" || mood === "celebrate";

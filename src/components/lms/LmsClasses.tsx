@@ -14,7 +14,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AssessmentShell } from "@/components/assessment/AssessmentShell";
 import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
 import { PresenceDot } from "@/components/lms/Presence";
-import { Avatar, moodFromPoints } from "@/components/lms/Avatar";
+import { Avatar, moodFromProgress } from "@/components/lms/Avatar";
 import { useTr } from "@/components/lms/useLms";
 import { modCall, modErr } from "@/lib/lmsMods";
 import { grpLabel, lmsApi, lmsErrorText, lmsSession, type PointCat, type PointRow, type RosterStudent, type StudentGroup } from "@/lib/lms";
@@ -212,7 +212,7 @@ export function LmsClassesPage() {
             {shown.map((s) => (
               <li key={s.id} className="group relative" data-testid="cls-card">
                 <button type="button" onPointerDown={() => pressStart(s)} onPointerUp={pressEnd} onPointerLeave={pressEnd} onContextMenu={(e) => { if (attMode) e.preventDefault(); }} onClick={() => { if (attMode) { if (lp.current.fired) { lp.current.fired = false; return; } mark(s, "P"); return; } setWhole(false); setAward([s]); }} className="relative flex w-full flex-col items-center gap-2 rounded-[1.75rem] border-2 border-white/80 p-4 pt-5 ring-1 ring-[#1b3a57]/10 text-center text-[#1b2f44] shadow-[0_6px_20px_rgba(27,58,87,0.12)] backdrop-blur-md transition hover:-translate-y-1 hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sun" style={{ background: `linear-gradient(155deg, ${PASTEL[shown.indexOf(s) % PASTEL.length]}e6, rgba(255,255,255,0.72))` }} aria-label={tr(`Award points to ${s.name}`, `منح نقاط لـ ${s.name}`)}>
-                  <span className="relative"><Avatar code={s.avatar} size={96} anim={moodFromPoints(s.points, maxPts, flash[s.id])} className="ring-4 ring-white shadow-lg transition group-hover:scale-105 dark:ring-white/20" /><PresenceDot seen={s.seen} className="absolute bottom-1 end-0" /></span>
+                  <span className="relative"><Avatar code={s.avatar} size={96} anim={moodFromProgress({ points: s.points, maxPts, flash: flash[s.id], cards: s.cards, attPct: s.attPct })} className="ring-4 ring-white shadow-lg transition group-hover:scale-105 dark:ring-white/20" /><PresenceDot seen={s.seen} className="absolute bottom-1 end-0" /></span>
                   <span className="line-clamp-2 min-h-[2.75rem] text-base font-extrabold leading-tight tracking-tight text-[#1b3a57] sm:text-lg" dir="auto" data-testid="cls-name">{s.name}</span>
                   {attMode && <span className={`rounded-full px-2.5 py-0.5 text-xs font-extrabold ${att[s.id]?.status === "P" ? "bg-emerald-100 text-emerald-900" : att[s.id]?.status === "L" ? "bg-amber-100 text-amber-900" : att[s.id]?.status === "A" ? "bg-rose-100 text-rose-900" : "bg-black/10"}`} data-testid="cls-att">{att[s.id]?.status === "P" ? tr("Present", "حاضر") : att[s.id]?.status === "L" ? tr("Late", "متأخر") : att[s.id]?.status === "A" ? tr("Absent", "غائب") : att[s.id]?.status === "E" ? tr("Excused", "بعذر") : tr("Not marked", "غير مسجّل")}</span>}
                   <span className={`rounded-full px-3 py-0.5 text-sm font-extrabold ${s.points < 0 ? "bg-rose-100 text-rose-800" : "bg-sun/80 text-[#0b1b2b]"}`} data-testid="cls-points">{s.points}</span>
@@ -233,7 +233,7 @@ export function LmsClassesPage() {
       {award && (
         <Modal onClose={() => { setAward(null); setWhole(false); }} label={tr("Award points", "منح نقاط")}>
           <div className="mb-4 flex items-center gap-3">
-            {award.length === 1 ? <Avatar code={award[0].avatar} size={52} anim={moodFromPoints(award[0].points, maxPts)} /> : <span className="grid h-[52px] w-[52px] place-items-center rounded-full bg-sun text-2xl">⭐</span>}
+            {award.length === 1 ? <Avatar code={award[0].avatar} size={52} anim={moodFromProgress({ points: award[0].points, maxPts, cards: award[0].cards, attPct: award[0].attPct })} /> : <span className="grid h-[52px] w-[52px] place-items-center rounded-full bg-sun text-2xl">⭐</span>}
             <div><p className="text-lg font-extrabold" dir="auto">{whole || award.length > 1 ? tr(`Whole class (${award.length})`, `كل الصف (${award.length})`) : award[0].name}</p><p className="text-xs opacity-70">{tr("Tap a skill", "اختر مهارة")}</p></div>
           </div>
           <div className="grid grid-cols-2 gap-2" data-testid="award-cats">

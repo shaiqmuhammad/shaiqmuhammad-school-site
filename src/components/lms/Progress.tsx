@@ -37,6 +37,14 @@ export function ProgressCard({ p }: { p: Progress }) {
         <div className="flex-1 rounded-2xl bg-amber-50 px-4 py-3 text-center dark:bg-amber-900/30"><p className="text-3xl font-black" data-testid="lms-stars">⭐ {p.stars}</p><p className="text-sm font-semibold opacity-70">{tr("stars", "نجوم")}</p></div>
         <div className="flex-1 rounded-2xl bg-emerald-50 px-4 py-3 text-center dark:bg-emerald-900/30"><p className="whitespace-nowrap text-2xl font-black sm:text-3xl">🟢{p.greens} 🟡{p.yellows}</p><p className="text-sm font-semibold opacity-70">{tr("passed", "ناجح")}</p></div>
       </div>
+      {(p.cards != null || p.points != null || p.attPct != null || p.activities != null) && (
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" data-testid="lms-progress-engagement">
+          <div className="rounded-2xl bg-amber-50 px-3 py-2 text-center dark:bg-amber-900/30"><p className="text-xl font-black">🃏 {p.cards ?? 0}</p><p className="text-xs font-semibold opacity-70">{tr("Reward Cards", "بطاقات المكافآت")}</p></div>
+          <div className="rounded-2xl bg-sky-50 px-3 py-2 text-center dark:bg-sky-900/30"><p className="text-xl font-black">{(p.points ?? 0) > 0 ? "+" : ""}{p.points ?? 0}</p><p className="text-xs font-semibold opacity-70">{tr("Class points", "نقاط الصف")}</p></div>
+          <div className="rounded-2xl bg-teal-50 px-3 py-2 text-center dark:bg-teal-900/30"><p className="text-xl font-black">{p.attPct == null ? "—" : `${p.attPct}%`}</p><p className="text-xs font-semibold opacity-70">{tr("Attendance", "الحضور")}</p></div>
+          <div className="rounded-2xl bg-violet-50 px-3 py-2 text-center dark:bg-violet-900/30"><p className="text-xl font-black">{p.activities ?? 0}</p><p className="text-xs font-semibold opacity-70">{tr("Activities", "الأنشطة")}</p></div>
+        </div>
+      )}
       <div className="flex flex-wrap gap-2" data-testid="lms-badges">
         {Object.entries(BADGES).map(([k, [icon, en, ar]]) => {
           const got = p.badges.includes(k);
