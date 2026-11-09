@@ -32,13 +32,25 @@ const color = (v: unknown) => (/^#[0-9a-f]{3,8}$/i.test(String(v || "")) ? Strin
 const FONTS = ["Nunito", "Arial", "Georgia", "Times New Roman", "Courier New", "Comic Sans MS", "Amiri", "Tajawal", "Verdana"];
 const MEDIA = /^lpm_[a-z0-9_]{6,40}$/i;
 const YT = /^[A-Za-z0-9_-]{6,20}$/;
+/** t469: display-only rotate (0–359) and crop insets (0–45% each side) — original media file is unchanged. */
+function xform(e: Json): Json {
+  const o: Json = {};
+  const rot = Math.round(num(e.rot, 0, 359, 0));
+  if (rot) o.rot = rot;
+  const raw = e.crop && typeof e.crop === "object" ? e.crop as Json : null;
+  if (raw) {
+    const crop = { l: num(raw.l, 0, 45, 0), t: num(raw.t, 0, 45, 0), r: num(raw.r, 0, 45, 0), b: num(raw.b, 0, 45, 0) };
+    if (crop.l || crop.t || crop.r || crop.b) o.crop = crop;
+  }
+  return o;
+}
 
 /** t395: rich text — only <b> <i> <u> <br>, no attributes. */
 const richHtml = (v: unknown) => String(v ?? "").slice(0, 8000).replace(/<(\/?)(b|i|u|br)\b[^>]*>/gi, "\u0001$1$2\u0002").replace(/<[^>]*>/g, "").replace(/[<>]/g, "").replace(/\u0001/g, "<").replace(/\u0002/g, ">");
 /** Element sanitiser — positions in % of a 16:9 slide. */
 function el(e: Json, student = false): Json | null {
   const t = String(e.t || "");
-  const base = { id: str(e.id, 30) || rid("e"), t, x: num(e.x, -20, 100), y: num(e.y, -20, 100), w: num(e.w, 1, 120, 30), h: num(e.h, 1, 120, 10), by: student ? "s" : "t", ...(!student && e.lock === true ? { lock: true } : {}) };
+  const base = { id: str(e.id, 30) || rid("e"), t, x: num(e.x, -20, 100), y: num(e.y, -20, 100), w: num(e.w, 1, 120, 30), h: num(e.h, 1, 120, 10), by: student ? "s" : "t", ...(!student && e.lock === true ? { lock: true } : {}), ...xform(e) };
   if (t === "text") return { ...base, ...(e.html ? { html: richHtml(e.html) } : {}), text: str(e.text, 4000), color: color(e.color) || "#1b2f44", bg: color(e.bg), font: FONTS.includes(String(e.font)) ? String(e.font) : "Nunito", size: num(e.size, 8, 160, 28), bold: e.bold === true, italic: e.italic === true, align: ["start", "center", "end"].includes(String(e.align)) ? String(e.align) : "start" };
   if (t === "img") return MEDIA.test(String(e.src)) ? { ...base, src: String(e.src) } : null;
   if (t === "audio") return MEDIA.test(String(e.src)) ? { ...base, src: String(e.src) } : null;
@@ -60,6 +72,7 @@ function slideMeta(s: Json): Json {
   const t = Math.trunc(Number(s?.timer) || 0); if (t > 0) o.timer = Math.min(7200, t);
   const ins = str(s?.instr, 2000); if (ins) o.instr = ins;
   if (MEDIA.test(String(s?.instrAudio || ""))) o.instrAudio = String(s.instrAudio);
+  const rot = Math.round(num(s?.rot, 0, 359, 0)); if (rot) o.rot = rot;
   return o;
 }
 function slides(v: unknown, student = false): Json[] {

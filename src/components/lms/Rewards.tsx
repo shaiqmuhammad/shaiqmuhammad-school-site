@@ -208,16 +208,26 @@ function StaffView() {
   );
 }
 
+export function AdminRewards() {
+  return (
+    <div className="mx-auto w-full max-w-6xl" data-testid="rc-admin">
+      <StaffView />
+    </div>
+  );
+}
+
 export function RewardsPage() {
   const { tr } = useTr();
-  const { actor, ready } = useLmsActor();
+  const { actor, ready, adminElsewhere } = useLmsActor();
   const staff = actor?.role === "admin" || actor?.role === "teacher";
+  const asAdmin = !actor && adminElsewhere;
   return (
     <AssessmentShell title={tr("Reward Cards", "بطاقات المكافآت")} exitHref="/lms" wide toolbar={actor ? <LmsStaffToolbar /> : undefined}>
       <div className="mx-auto w-full max-w-6xl flex-1 px-3 py-5 sm:px-6" data-testid="rc-page">
         {!ready ? <p className="p-8 text-center opacity-70">{tr("Loading…", "جارٍ التحميل…")}</p>
+          : asAdmin || (staff && (actor!.role === "admin" || actor!.mods?.rw?.view)) ? <StaffView />
           : !actor ? <p className="rounded-2xl bg-amber-100 px-4 py-3 text-amber-900"><a className="font-bold underline" href="/lms/login">{tr("Please sign in", "سجّل الدخول")}</a></p>
-          : staff ? (actor.role === "admin" || actor.mods?.rw?.view ? <StaffView /> : <p className="rounded-2xl bg-amber-100 px-4 py-3 text-amber-900">{tr("Reward Cards are not switched on for your account. Ask the admin (Permissions → Rewards).", "بطاقات المكافآت غير مفعّلة لحسابك. اطلب من الإدارة.")}</p>)
+          : staff ? <p className="rounded-2xl bg-amber-100 px-4 py-3 text-amber-900">{tr("Reward Cards are not switched on for your account. Ask the admin (Permissions → Rewards).", "بطاقات المكافآت غير مفعّلة لحسابك. اطلب من الإدارة.")}</p>
           : actor.role === "student" ? <StudentView /> : null}
       </div>
     </AssessmentShell>

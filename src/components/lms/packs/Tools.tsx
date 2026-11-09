@@ -118,6 +118,17 @@ export function ElProps({ e, set, del, front, back }: { e: El; set: (p: Partial<
           {(["start", "center", "end"] as const).map((al) => <button key={al} type="button" className={smallBtn + ((e.align || "start") === al ? " !bg-header !text-sun" : "")} onClick={() => set({ align: al } as Partial<El>)}>{al === "start" ? "⇤" : al === "center" ? "↔" : "⇥"}</button>)}
         </div>
       </>}
+      {(e.t === "img" || e.t === "doc") && <div className="space-y-1.5 rounded-xl bg-white/80 p-2" data-testid="lp-img-xform">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="font-extrabold">{tr("Crop & rotate", "قص وتدوير")}</span>
+          <button type="button" className={smallBtn} onClick={() => set({ rot: (((e.rot || 0) + 270) % 360) } as Partial<El>)} data-testid="lp-rot-left">↺ {tr("Left", "يسار")}</button>
+          <button type="button" className={smallBtn} onClick={() => set({ rot: (((e.rot || 0) + 90) % 360) } as Partial<El>)} data-testid="lp-rot-right">↻ {tr("Right", "يمين")}</button>
+          <button type="button" className={smallBtn} onClick={() => set({ rot: 0, crop: { l: 0, t: 0, r: 0, b: 0 } } as Partial<El>)} data-testid="lp-xform-reset">{tr("Reset", "إعادة")}</button>
+          {!!e.rot && <span className="text-xs opacity-70">{e.rot}°</span>}
+        </div>
+        <p className="text-[11px] font-normal opacity-70">{tr("This only changes how it looks on the slide — the original picture or file is not edited.", "هذا يغيّر الشكل على الشريحة فقط — الملف الأصلي لا يُعدَّل.")}</p>
+        <div className="grid grid-cols-2 gap-1.5 text-[11px] font-bold">{([["t", tr("Top", "أعلى")], ["b", tr("Bottom", "أسفل")], ["l", tr("Left", "يسار")], ["r", tr("Right", "يمين")]] as const).map(([k, lab]) => <label key={k} className="flex items-center gap-1">{lab}<input type="range" min={0} max={45} value={(e.crop || { l: 0, t: 0, r: 0, b: 0 })[k]} onChange={(ev) => set({ crop: { l: 0, t: 0, r: 0, b: 0, ...(e.crop || {}), [k]: Number(ev.target.value) } } as Partial<El>)} data-testid={`lp-crop-${k}`} className="flex-1" /></label>)}</div>
+      </div>}
       <div className="flex flex-wrap gap-1.5">
         {e.by !== "s" && <button type="button" className={smallBtn + (e.lock ? " !bg-header !text-sun" : "")} onClick={() => set({ lock: !e.lock } as Partial<El>)} title={tr("Locked items can't be moved or deleted by mistake", "العناصر المقفلة لا تُنقل ولا تُحذف بالخطأ")} data-testid="lp-el-lock">{e.lock ? "🔒 " + tr("Locked", "مقفل") : "🔓 " + tr("Lock", "قفل")}</button>}
         <button type="button" className={smallBtn} onClick={front}>⬆ {tr("Bring forward", "للأمام")}</button>

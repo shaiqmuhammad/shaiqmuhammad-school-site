@@ -1,6 +1,6 @@
 "use client";
 
-import { FocusCorner, FocusToggle, toggleFullscreen } from "@/components/FocusMode";
+import { FocusCorner } from "@/components/FocusMode";
 import { saveOptions } from "@/components/activity/common";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useLmsExit } from "@/lib/useLmsExit";
@@ -110,7 +110,6 @@ export function ActivityHost() {
   const [showJoin, setShowJoin] = useState(false);
   const [showPeople, setShowPeople] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [full, setFull] = useState(false);
   const [busy, setBusy] = useState(false);
   // t370: music + sound effects (teacher mute / volume; admin can switch off site-wide).
   const [snd, setSnd] = useState({ muted: false, vol: 0.5 });
@@ -131,12 +130,6 @@ export function ActivityHost() {
     document.addEventListener("pointerdown", kick);
     return () => document.removeEventListener("pointerdown", kick);
   }, [siteSnd]);
-
-  useEffect(() => {
-    const on = () => setFull(!!document.fullscreenElement);
-    document.addEventListener("fullscreenchange", on);
-    return () => document.removeEventListener("fullscreenchange", on);
-  }, []);
 
   useEffect(() => {
     if (!state) return;
@@ -198,17 +191,6 @@ export function ActivityHost() {
       >
         <span className="font-mono tracking-widest" dir="ltr">{code}</span>
       </button>
-      <button
-        type="button"
-        className="pill-on-navy h-9 w-9 justify-center"
-        aria-label={full ? tr("Exit full screen", "إنهاء ملء الشاشة") : tr("Full screen", "ملء الشاشة")}
-        title={full ? tr("Exit full screen", "إنهاء ملء الشاشة") : tr("Full screen", "ملء الشاشة")}
-        onClick={() => toggleFullscreen()}
-        data-testid="host-fullscreen"
-      >
-        {full ? "⤡" : "⤢"}
-      </button>
-      <FocusToggle className="pill-on-navy h-9 whitespace-nowrap px-3 text-sm font-bold" label={tr("Focus", "تركيز")} />
     </>
   );
 
