@@ -7,7 +7,7 @@ import { lmsApi } from "@/lib/lms";
 import { mailApi } from "@/lib/mail";
 import { AdminTtWidget } from "@/components/lms/Timetable";
 
-export type AdminHomeTab = "pages" | "quizzes" | "certificate" | "banners" | "announcements" | "teacher" | "forum" | "settings" | "students" | "teachers" | "lmshw" | "mail" | "activities" | "classes" | "timetable";
+export type AdminHomeTab = "pages" | "quizzes" | "certificate" | "banners" | "announcements" | "teacher" | "forum" | "settings" | "students" | "teachers" | "lmshw" | "mail" | "activities" | "classes" | "timetable" | "rewards";
 
 type Stat = { label: string; value: string; tab: AdminHomeTab };
 
@@ -71,6 +71,7 @@ export function AdminHome({ counts, refreshedAt, refreshing, hasToken, onTab }: 
     { tab: "mail", icon: "✉️", title: tr("Mail", "البريد"), sub: "contact@shaiqmuhammad.com" },
     { tab: "activities", icon: "🎲", title: tr("Activities", "الأنشطة"), sub: tr("Wall, wheel, polls, votes", "الجدار، العجلة، الاستطلاعات") },
     { tab: "classes", icon: "🏫", title: tr("Classes", "الصفوف"), sub: tr("Class view & Quran map", "عرض الصف وخريطة القرآن") },
+    { tab: "rewards", icon: "🃏", title: tr("Reward Cards", "بطاقات المكافآت"), sub: tr("Awards, plan and Reward Shop", "المنح والخطة ومتجر المكافآت") },
   ];
   // t283 shared admin filter: the counts follow the chosen Subject / Teacher / Year / Section.
   const sc = scope.active && scope.ready;

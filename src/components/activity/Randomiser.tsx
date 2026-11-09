@@ -7,7 +7,7 @@ import { useI18n } from "@/lib/i18n";
 import { sfxChime, sfxDrum } from "@/lib/sfx";
 import { SfxToggle } from "@/components/activity/SfxToggle";
 import { PickedAward } from "@/components/activity/PickedAward";
-import { FocusCorner, FocusToggle, useFocus } from "@/components/FocusMode";
+import { FocusCorner, useFocus } from "@/components/FocusMode";
 
 type Mode = "pick" | "groups" | "number";
 const GROUP_COLORS = ["bg-sky-100 dark:bg-sky-900/40", "bg-amber-100 dark:bg-amber-900/40", "bg-emerald-100 dark:bg-emerald-900/40", "bg-rose-100 dark:bg-rose-900/40", "bg-violet-100 dark:bg-violet-900/40", "bg-teal-100 dark:bg-teal-900/40"];
@@ -125,7 +125,6 @@ export function Randomiser() {
               </button>
             ))}
             <SfxToggle className="ms-auto" />
-            <FocusToggle className="rounded-full bg-header px-3 py-1.5 text-sm font-bold text-sun" label={tr("Focus", "تركيز")} />
           </div>
 
           {mode === "pick" && (

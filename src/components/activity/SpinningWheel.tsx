@@ -7,7 +7,7 @@ import { useI18n } from "@/lib/i18n";
 import { sfxChime, sfxTick } from "@/lib/sfx";
 import { SfxToggle } from "@/components/activity/SfxToggle";
 import { PickedAward } from "@/components/activity/PickedAward";
-import { FocusCorner, FocusToggle, useFocus } from "@/components/FocusMode";
+import { FocusCorner, useFocus } from "@/components/FocusMode";
 
 const COLORS = ["#16324f", "#f2c14e", "#2a9d8f", "#e76f51", "#3a86ff", "#8e7dbe", "#90be6d", "#f4a261"];
 const TEXT_ON = (c: string) => (c === "#f2c14e" || c === "#90be6d" || c === "#f4a261" ? "#16324f" : "#ffffff");
@@ -100,7 +100,6 @@ export function SpinningWheel() {
           <FocusCorner exitLabel={tr("Exit focus mode", "الخروج من وضع التركيز")} />
           <div className="flex w-full flex-wrap items-center justify-end gap-2" data-focus-hide>
             <SfxToggle />
-            <FocusToggle className="rounded-full bg-header px-3 py-1.5 text-sm font-bold text-sun" label={tr("Focus", "تركيز")} />
           </div>
           <div
             className={`relative w-full ${focus ? "max-w-[min(88vh,960px)]" : "max-w-[min(78vh,640px)]"} ${n >= 2 && !spinning ? "cursor-pointer" : ""} rounded-full outline-none focus-visible:ring-4 focus-visible:ring-sun`}
