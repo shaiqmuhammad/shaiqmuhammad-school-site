@@ -7,18 +7,18 @@ import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
 import { StudentLogins } from "@/components/lms/StudentLogins";
 import { useLmsActor, useTr } from "@/components/lms/useLms";
 import { lmsApi, lmsErrorText, lmsSession, stuUi } from "@/lib/lms";
-import { ANIMALS, Avatar } from "@/components/lms/Avatar";
+import { ANIMALS, AVATAR_MOODS, FLOWERS, HEROES, Avatar, type AvatarAnim } from "@/components/lms/Avatar";
 import { PushSettings } from "@/components/lms/PushSettings";
 import { modCall } from "@/lib/lmsMods";
 
 /** t303: students (and teachers) choose their own cartoon character. */
 function CharacterPicker() {
   const { tr } = useTr();
-  const [cur, setCur] = useState(""); const [kind, setKind] = useState("n"); const [msg, setMsg] = useState(""); const [photos, setPhotos] = useState(false);
+  const [cur, setCur] = useState(""); const [kind, setKind] = useState("n"); const [msg, setMsg] = useState(""); const [photos, setPhotos] = useState(false); const [mood, setMood] = useState<AvatarAnim>("happy");
   useEffect(() => { modCall<{ avatar: string; kind: string; photos?: boolean }>("my-avatar-kind", {}, false).then((r) => { setCur(r.avatar); setKind(r.kind); setPhotos(!!r.photos); }).catch(() => undefined); }, []);
   if (!cur) return null;
-  const pick = async (n: number, animal = false) => {
-    try { const r = await modCall<{ avatar: string }>("my-avatar", { n, ...(animal ? { kind: "a" } : {}) }, false); setCur(r.avatar); setMsg(tr("✅ Character saved!", "✅ تم حفظ الشخصية!")); window.dispatchEvent(new Event("sm-avatar")); } catch { setMsg(tr("Could not save. Try again.", "تعذّر الحفظ. حاول مجددًا.")); }
+  const pick = async (n: number, family?: "a" | "f" | "s") => {
+    try { const r = await modCall<{ avatar: string }>("my-avatar", { n, ...(family ? { kind: family } : {}) }, false); setCur(r.avatar); setMsg(tr("✅ Character saved!", "✅ تم حفظ الشخصية!")); window.dispatchEvent(new Event("sm-avatar")); } catch { setMsg(tr("Could not save. Try again.", "تعذّر الحفظ. حاول مجددًا.")); }
   };
   // t305: upload a photo — cropped to a centred square, resized to 128 px and compressed in the browser (max ~30 KB).
   const upload = async (f: File | undefined) => {
@@ -38,7 +38,12 @@ function CharacterPicker() {
   const removePhoto = async () => { try { const r = await modCall<{ avatar: string }>("my-photo", { remove: true }, false); setCur(r.avatar); setMsg(tr("Photo removed — your character is back.", "أزيلت الصورة — عادت شخصيتك.")); window.dispatchEvent(new Event("sm-avatar")); } catch { /* ignore */ } };
   return (
     <section className="mb-5 rounded-3xl bg-white/80 p-5 shadow-sm dark:bg-white/5" data-testid="char-picker">
-      <div className="mb-3 flex items-center gap-3"><Avatar code={cur} size={64} /><div><h2 className="text-lg font-extrabold">{tr("My character", "شخصيتي")}</h2><p className="text-sm opacity-70">{tr("Tap a character to use it everywhere.", "اضغط على شخصية لاستخدامها في كل مكان.")}</p></div></div>
+      <div className="mb-3 flex items-center gap-3"><Avatar code={cur} size={72} anim={mood} /><div><h2 className="text-lg font-extrabold">{tr("My character", "شخصيتي")}</h2><p className="text-sm opacity-70">{tr("Tap a character to use it everywhere. Faces change with effort and points in class — you can preview every expression here.", "اضغط على شخصية لاستخدامها في كل مكان. تتغير التعابير مع الجهد والنقاط في الصف — يمكنك معاينة كل تعبير هنا.")}</p></div></div>
+      <div className="mb-4 flex flex-wrap gap-1.5" data-testid="char-moods">
+        {AVATAR_MOODS.map((m) => (
+          <button key={m.id} type="button" aria-pressed={mood === m.id} onClick={() => setMood(m.id)} className={`rounded-full px-3 py-1 text-xs font-extrabold ${mood === m.id ? "bg-[#1b3a57] text-[#f5c542]" : "bg-black/[0.06] dark:bg-white/10"}`} data-testid="char-mood">{tr(m.en, m.ar)}</button>
+        ))}
+      </div>
       {photos && <div className="mb-3 flex flex-wrap items-center gap-2" data-testid="photo-controls">
         <label className="cursor-pointer rounded-full bg-sun px-4 py-2 text-sm font-bold text-[#0b1b2b]">📷 {tr("Upload my photo", "رفع صورتي")}<input type="file" accept="image/*" className="sr-only" onChange={(e) => { upload(e.target.files?.[0]); e.target.value = ""; }} data-testid="photo-input" /></label>
         {cur.startsWith("data:image/") && <button type="button" className="rounded-full border border-black/15 px-3 py-2 text-sm font-bold dark:border-white/20" onClick={removePhoto} data-testid="photo-remove">🗑 {tr("Remove photo", "إزالة الصورة")}</button>}
@@ -52,7 +57,19 @@ function CharacterPicker() {
       <h3 className="mb-2 mt-4 text-sm font-extrabold">🐾 {tr("Animal friends", "أصدقاء من الحيوانات")}</h3>
       <div className="grid grid-cols-4 gap-2 sm:grid-cols-6" data-testid="animal-opts">
         {Array.from({ length: ANIMALS }, (_, n) => { const c = `a${n}`; const on = c === cur; return (
-          <button key={c} type="button" aria-pressed={on} aria-label={tr(`Animal ${n + 1}`, `حيوان ${n + 1}`)} onClick={() => pick(n, true)} className={`grid place-items-center rounded-2xl p-1 transition hover:scale-105 ${on ? "bg-sun/60 ring-4 ring-sun" : "bg-black/[0.04] dark:bg-white/10"}`} data-testid="animal-opt"><Avatar code={c} size={56} /></button>
+          <button key={c} type="button" aria-pressed={on} aria-label={tr(`Animal ${n + 1}`, `حيوان ${n + 1}`)} onClick={() => pick(n, "a")} className={`grid place-items-center rounded-2xl p-1 transition hover:scale-105 ${on ? "bg-sun/60 ring-4 ring-sun" : "bg-black/[0.04] dark:bg-white/10"}`} data-testid="animal-opt"><Avatar code={c} size={56} /></button>
+        ); })}
+      </div>
+      <h3 className="mb-2 mt-4 text-sm font-extrabold">🌸 {tr("Flower friends", "أصدقاء من الزهور")}</h3>
+      <div className="grid grid-cols-4 gap-2 sm:grid-cols-6" data-testid="flower-opts">
+        {Array.from({ length: FLOWERS }, (_, n) => { const c = `f${n}`; const on = c === cur; return (
+          <button key={c} type="button" aria-pressed={on} aria-label={tr(`Flower ${n + 1}`, `زهرة ${n + 1}`)} onClick={() => pick(n, "f")} className={`grid place-items-center rounded-2xl p-1 transition hover:scale-105 ${on ? "bg-sun/60 ring-4 ring-sun" : "bg-black/[0.04] dark:bg-white/10"}`} data-testid="flower-opt"><Avatar code={c} size={56} /></button>
+        ); })}
+      </div>
+      <h3 className="mb-2 mt-4 text-sm font-extrabold">🦸 {tr("Super friends", "الأصدقاء الأبطال")}</h3>
+      <div className="grid grid-cols-4 gap-2 sm:grid-cols-6" data-testid="hero-opts">
+        {Array.from({ length: HEROES }, (_, n) => { const c = `s${n}`; const on = c === cur; return (
+          <button key={c} type="button" aria-pressed={on} aria-label={tr(`Hero ${n + 1}`, `بطل ${n + 1}`)} onClick={() => pick(n, "s")} className={`grid place-items-center rounded-2xl p-1 transition hover:scale-105 ${on ? "bg-sun/60 ring-4 ring-sun" : "bg-black/[0.04] dark:bg-white/10"}`} data-testid="hero-opt"><Avatar code={c} size={56} /></button>
         ); })}
       </div>
       {msg && <p className="mt-2 text-sm font-bold" role="status" data-testid="char-msg">{msg}</p>}
