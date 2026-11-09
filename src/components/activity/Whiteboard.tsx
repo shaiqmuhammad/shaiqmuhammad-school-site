@@ -9,7 +9,7 @@ import { activityApi, compressImage, type ActivityItem, type ActivityState, type
 export const WB_W = 1600, WB_H = 1000;
 const COLORS = ["#1b3a57", "#e11d48", "#2563eb", "#059669", "#d97706", "#7c3aed", "#0f172a", "#f5c542", "#db2777", "#0891b2", "#65a30d", "#ffffff"];
 const WB_FONTS = ["Nunito", "Amiri", "Tajawal", "Georgia", "Comic Sans MS", "Courier New", "Arial"];
-type Tool = "pen" | "pencil" | "brush" | "hl" | "er" | "text" | "line" | "arrow" | "rect" | "ellipse" | "tri";
+type Tool = "hand" | "pen" | "pencil" | "brush" | "hl" | "er" | "text" | "line" | "arrow" | "rect" | "ellipse" | "tri";
 const WIDTHS = [3, 6, 12, 20];
 export const WB_BGS: [string, string, string][] = [
   ["blank", "Blank", "فارغة"], ["lined", "Lined", "مسطّرة"], ["grid", "Grid", "شبكة"], ["dots", "Dots", "نقاط"],
@@ -51,15 +51,15 @@ export function BoardArt({ strokes, bg, names, centre, tr, extra }: { strokes: W
       <Background bg={bg} tr={tr} />
       {bg === "mind" && centre && <foreignObject x={590} y={400} width={420} height={200}><div style={{ display: "flex", height: "100%", alignItems: "center", justifyContent: "center", color: "#f5c542", fontWeight: 800, fontSize: 30, textAlign: "center", lineHeight: 1.15 }} dir="auto">{centre}</div></foreignObject>}
       {strokes.map((s) => s.kind === "pic" ? (
-        <image key={s.id} href={s.d.src} x={(s.d.x || 0) * WB_W} y={(s.d.y || 0) * WB_H} width={(s.d.w || 0.4) * WB_W} height={(s.d.h || 0.4) * WB_H} preserveAspectRatio="xMidYMid meet" data-testid="wb-pic" />
+        <image key={s.id} data-wb-id={s.id} href={s.d.src} x={(s.d.x || 0) * WB_W} y={(s.d.y || 0) * WB_H} width={(s.d.w || 0.4) * WB_W} height={(s.d.h || 0.4) * WB_H} preserveAspectRatio="xMidYMid meet" data-testid="wb-pic" />
       ) : s.kind === "note" ? (
-        <g key={s.id}>
+        <g key={s.id} data-wb-id={s.id}>
           {s.d.bg && <rect x={(s.d.x || 0) * WB_W - 8} y={(s.d.y || 0) * WB_H - 6} width={String(s.d.text || "").length * (s.d.w || 22) * 0.95 + 16} height={(s.d.w || 22) * 1.6 * 1.25 + 8} rx={10} fill={s.d.bg} />}
           <text x={(s.d.x || 0) * WB_W} y={(s.d.y || 0) * WB_H} fontSize={(s.d.w || 22) * 1.6} fontWeight={700} fill={s.d.c || "#1b3a57"} fontFamily={s.d.f || undefined} dominantBaseline="hanging">{s.d.text}</text>
           {names && s.pid !== "host" && <text x={(s.d.x || 0) * WB_W} y={(s.d.y || 0) * WB_H - 6} fontSize={16} fill="#64748b" fontWeight={600}>{s.author}</text>}
         </g>
       ) : (
-        <path key={s.id} d={pathOf(s.d.pts || []) + (s.d.cl ? "Z" : "")} fill={s.d.fill && s.d.cl ? s.d.fill : "none"} fillOpacity={0.35} markerEnd={s.d.ar ? "url(#wb-arrow)" : undefined} stroke={s.d.er ? "#ffffff" : s.d.c || "#1b3a57"} strokeOpacity={s.d.hl ? 0.35 : s.d.o || 1} strokeWidth={(s.d.w || 4) * (s.d.hl ? 3 : 1) * (s.d.er ? 4 : 1)} strokeLinecap="round" strokeLinejoin="round" />
+        <path key={s.id} data-wb-id={s.id} d={pathOf(s.d.pts || []) + (s.d.cl ? "Z" : "")} fill={s.d.fill && s.d.cl ? s.d.fill : "none"} fillOpacity={0.35} markerEnd={s.d.ar ? "url(#wb-arrow)" : undefined} stroke={s.d.er ? "#ffffff" : s.d.c || "#1b3a57"} strokeOpacity={s.d.hl ? 0.35 : s.d.o || 1} strokeWidth={(s.d.w || 4) * (s.d.hl ? 3 : 1) * (s.d.er ? 4 : 1)} strokeLinecap="round" strokeLinejoin="round" />
       ))}
       {labelled.map((s) => <text key={`n${s.id}`} x={(s.d.pts?.[0] || 0) * WB_W + 8} y={(s.d.pts?.[1] || 0) * WB_H - 10} fontSize={17} fontWeight={700} fill="#475569" stroke="#fff" strokeWidth={4} paintOrder="stroke" data-testid="wb-name">{s.author}</text>)}
       {extra}
@@ -69,7 +69,38 @@ export function BoardArt({ strokes, bg, names, centre, tr, extra }: { strokes: W
 
 export const strokesOf = (state: ActivityState): WbStroke[] => state.items.filter((i) => i.kind === "stroke" || i.kind === "note" || (i.kind === "pic" && i.img)).map((i) => ({ id: i.id, pid: i.pid, author: i.author, kind: i.kind, d: i.kind === "pic" ? { ...i.data, src: activityApi.imgUrl(state.code, i.img!) } : i.data }));
 
-/** Interactive board: draws locally, sends each finished stroke. */
+/** Hit-test the topmost picture, note, or stroke under a normalised board point. */
+function distSeg(x: number, y: number, x1: number, y1: number, x2: number, y2: number) {
+  const dx = x2 - x1, dy = y2 - y1, l2 = dx * dx + dy * dy;
+  if (!l2) return Math.hypot(x - x1, y - y1);
+  const t = Math.max(0, Math.min(1, ((x - x1) * dx + (y - y1) * dy) / l2));
+  return Math.hypot(x - (x1 + t * dx), y - (y1 + t * dy));
+}
+function hitItem(strokes: WbStroke[], x: number, y: number): WbStroke | null {
+  for (let i = strokes.length - 1; i >= 0; i--) {
+    const s = strokes[i];
+    if (s.id.startsWith("tmp")) continue;
+    if (s.kind === "pic") {
+      const px = s.d.x || 0, py = s.d.y || 0, w = s.d.w || 0.4, h = s.d.h || 0.4;
+      if (x >= px && x <= px + w && y >= py && y <= py + h) return s;
+    } else if (s.kind === "note") {
+      const px = s.d.x || 0, py = s.d.y || 0, fs = s.d.w || 22;
+      const tw = (String(s.d.text || "").length * fs * 0.6 + 16) / WB_W;
+      const th = (fs * 2 + 10) / WB_H;
+      if (x >= px - 8 / WB_W && x <= px + Math.max(0.06, tw) && y >= py - 8 / WB_H && y <= py + Math.max(0.04, th)) return s;
+    } else {
+      const pts = s.d.pts || [];
+      const thresh = 16 / Math.min(WB_W, WB_H);
+      for (let j = 0; j + 3 < pts.length; j += 2) {
+        if (distSeg(x, y, pts[j], pts[j + 1], pts[j + 2], pts[j + 3]) < thresh) return s;
+      }
+      if (pts.length >= 2 && Math.hypot(x - pts[0], y - pts[1]) < thresh) return s;
+    }
+  }
+  return null;
+}
+
+/** Interactive board: draws on a live SVG path (no per-point React redraws); hand tool moves items. */
 function Board({ code, who, state, reload, canDraw, isHost }: { code: string; who: Who; state: ActivityState; reload: () => void; canDraw: boolean; isHost: boolean }) {
   const { tr } = useTr();
   const o = state.settings.options;
@@ -78,6 +109,10 @@ function Board({ code, who, state, reload, canDraw, isHost }: { code: string; wh
   const [font, setFont] = useState("Nunito");
   const [noteBg, setNoteBg] = useState("");
   const start = useRef<[number, number] | null>(null);
+  const curRef = useRef<number[] | null>(null);
+  const livePath = useRef<SVGPathElement>(null);
+  const dragRef = useRef<{ id: string; x0: number; y0: number; dx: number; dy: number } | null>(null);
+  const raf = useRef(0);
   const SHAPES: Tool[] = ["line", "arrow", "rect", "ellipse", "tri"];
   const shapePts = (a: [number, number], x: number, y: number): number[] => {
     const [x0, y0] = a; const r4 = (v: number) => Math.round(v * 10000) / 10000;
@@ -90,20 +125,44 @@ function Board({ code, who, state, reload, canDraw, isHost }: { code: string; wh
   const strokeData = (pts: number[]) => ({ pts, c: color, w: tool === "pencil" ? Math.max(1, Math.round(width / 2)) : tool === "brush" ? width * 2.5 : width, hl: tool === "hl", er: tool === "er", ...(tool === "pencil" ? { o: 0.75 } : tool === "brush" ? { o: 0.9 } : {}), ...(SHAPES.includes(tool) && tool !== "line" && tool !== "arrow" ? { cl: true, ...(fill ? { fill: color } : {}) } : {}), ...(tool === "arrow" ? { ar: true } : {}) });
   const [color, setColor] = useState(COLORS[0]);
   const [width, setWidth] = useState(WIDTHS[1]);
-  const [cur, setCur] = useState<number[] | null>(null);
   const [pending, setPending] = useState<WbStroke[]>([]);
   const [err, setErr] = useState("");
   const svgBox = useRef<HTMLDivElement>(null);
-  const pt = (e: React.PointerEvent) => { const r = svgBox.current!.getBoundingClientRect(); return [Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)), Math.max(0, Math.min(1, (e.clientY - r.top) / r.height))]; };
+  const pt = (e: { clientX: number; clientY: number }) => { const r = svgBox.current!.getBoundingClientRect(); return [Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)), Math.max(0, Math.min(1, (e.clientY - r.top) / r.height))] as [number, number]; };
+  const paintLive = () => {
+    raf.current = 0;
+    const el = livePath.current;
+    const pts = curRef.current;
+    if (!el) return;
+    if (!pts || pts.length < 2) { el.setAttribute("d", ""); return; }
+    const d = strokeData(pts);
+    el.setAttribute("d", pathOf(pts) + (d.cl ? "Z" : ""));
+    el.setAttribute("fill", d.fill && d.cl ? String(d.fill) : "none");
+    el.setAttribute("fill-opacity", "0.35");
+    if (d.ar) el.setAttribute("marker-end", "url(#wb-arrow)"); else el.removeAttribute("marker-end");
+    el.setAttribute("stroke", d.er ? "#ffffff" : d.c || "#1b3a57");
+    el.setAttribute("stroke-opacity", String(d.hl ? 0.35 : d.o || 1));
+    el.setAttribute("stroke-width", String((d.w || 4) * (d.hl ? 3 : 1) * (d.er ? 4 : 1)));
+  };
+  const schedule = () => { if (!raf.current) raf.current = requestAnimationFrame(paintLive); };
   const send = async (p: Parameters<typeof activityApi.post>[2], local: WbStroke) => {
     setPending((x) => [...x, local]); setErr("");
     try { await activityApi.post(code, who, p); await reload(); } catch (e) { setErr(actErr(e, tr)); }
-    setPending((x) => x.filter((s) => s.id !== local.id));
+    setPending((x) => x.filter((st) => st.id !== local.id));
   };
   const down = (e: React.PointerEvent) => {
     if (!canDraw) return;
     e.preventDefault();
     const [x, y] = pt(e);
+    if (tool === "hand") {
+      const hit = hitItem([...strokesOf(state), ...pending], x, y);
+      if (!hit) return;
+      const mine = hit.pid === "me" || ("pid" in who && hit.pid === who.pid);
+      if (!isHost && !mine) return;
+      (e.target as Element).setPointerCapture?.(e.pointerId);
+      dragRef.current = { id: hit.id, x0: x, y0: y, dx: 0, dy: 0 };
+      return;
+    }
     if (tool === "text") {
       const t = window.prompt(tr("Text to add on the board:", "النص لإضافته على السبورة:"))?.trim();
       if (t) send({ kind: "note", text: t.slice(0, 200), x, y, c: color, w: width * 3 + 12, f: font, ...(noteBg ? { bg: noteBg } : {}) } as never, { id: `tmp${Date.now()}`, pid: "me", author: "", kind: "note", d: { text: t, x, y, c: color, w: width * 3 + 12, f: font, bg: noteBg || undefined } });
@@ -111,29 +170,55 @@ function Board({ code, who, state, reload, canDraw, isHost }: { code: string; wh
     }
     (e.target as Element).setPointerCapture?.(e.pointerId);
     start.current = [x, y];
-    setCur([x, y]);
+    curRef.current = [x, y];
+    schedule();
   };
   const move = (e: React.PointerEvent) => {
-    if (!cur) return;
-    const [x, y] = pt(e);
-    if (SHAPES.includes(tool) && start.current) { setCur(shapePts(start.current, x, y)); return; }
-    const lx = cur[cur.length - 2], ly = cur[cur.length - 1];
-    if (Math.hypot((x - lx) * WB_W, (y - ly) * WB_H) < 4 || cur.length >= 1600) return;
-    setCur([...cur, x, y]);
+    if (dragRef.current) {
+      const [x, y] = pt(e);
+      const d = dragRef.current;
+      d.dx = x - d.x0; d.dy = y - d.y0;
+      const node = svgBox.current?.querySelector(`[data-wb-id="${d.id}"]`);
+      if (node) node.setAttribute("transform", `translate(${d.dx * WB_W} ${d.dy * WB_H})`);
+      return;
+    }
+    if (!curRef.current) return;
+    const evs = typeof e.nativeEvent.getCoalescedEvents === "function" ? e.nativeEvent.getCoalescedEvents() : [e.nativeEvent];
+    const pts = curRef.current;
+    for (const ev of evs) {
+      const [x, y] = pt(ev);
+      if (SHAPES.includes(tool) && start.current) { const next = shapePts(start.current, x, y); pts.length = 0; pts.push(...next); continue; }
+      const lx = pts[pts.length - 2], ly = pts[pts.length - 1];
+      if (pts.length >= 2 && Math.hypot((x - lx) * WB_W, (y - ly) * WB_H) < 1.2) continue;
+      if (pts.length >= 4000) continue;
+      pts.push(x, y);
+    }
+    schedule();
   };
   const up = () => {
-    if (!cur) return;
-    const pts = cur; setCur(null);
+    if (dragRef.current) {
+      const d = dragRef.current; dragRef.current = null;
+      const node = svgBox.current?.querySelector(`[data-wb-id="${d.id}"]`);
+      if (node) node.removeAttribute("transform");
+      if (Math.hypot(d.dx * WB_W, d.dy * WB_H) < 4) return;
+      activityApi.post(code, who, { kind: "move", id: d.id, dx: d.dx, dy: d.dy }).then(reload).catch((er) => setErr(actErr(er, tr)));
+      return;
+    }
+    const pts = curRef.current; curRef.current = null; start.current = null;
+    if (livePath.current) livePath.current.setAttribute("d", "");
+    if (raf.current) { cancelAnimationFrame(raf.current); raf.current = 0; }
+    if (!pts) return;
     if (pts.length < 4 && SHAPES.includes(tool)) return;
-    const d = strokeData(pts);
-    send({ kind: "stroke", ...d } as never, { id: `tmp${Date.now()}`, pid: "me", author: "", kind: "stroke", d });
+    const data = strokeData(pts);
+    send({ kind: "stroke", ...data } as never, { id: `tmp${Date.now()}`, pid: "me", author: "", kind: "stroke", d: data });
   };
-  const all = [...strokesOf(state), ...pending, ...(cur ? [{ id: "cur", pid: "me", author: "", kind: "stroke", d: strokeData(cur) }] : [])];
+  const all = [...strokesOf(state), ...pending];
   const btn = (on: boolean) => `${hostChip(on)} !px-3`;
   return (
     <div className="space-y-2" data-testid="wb">
       {canDraw && (
         <div className="glass flex flex-wrap items-center gap-1.5 rounded-2xl p-2" data-focus-keep data-testid="wb-tools">
+          <button type="button" className={btn(tool === "hand")} onClick={() => setTool("hand")} data-testid="wb-hand">✋ {tr("Hand", "يد")}</button>
           <button type="button" className={btn(tool === "pen")} onClick={() => setTool("pen")} data-testid="wb-pen">🖊️ {tr("Pen", "قلم")}</button>
           <button type="button" className={btn(tool === "pencil")} onClick={() => setTool("pencil")} data-testid="wb-pencil">✏️ {tr("Pencil", "رصاص")}</button>
           <button type="button" className={btn(tool === "brush")} onClick={() => setTool("brush")} data-testid="wb-brush">🖌️ {tr("Brush", "فرشاة")}</button>
@@ -164,8 +249,8 @@ function Board({ code, who, state, reload, canDraw, isHost }: { code: string; wh
           {isHost && "hostKey" in who && <button type="button" className={btn(false)} onClick={async () => { if (!confirm(tr("Clear the whole board?", "مسح السبورة كلها؟"))) return; await activityApi.moderate(code, who.hostKey, "clear", { kind: "stroke" }).catch(() => undefined); await activityApi.moderate(code, who.hostKey, "clear", { kind: "note" }).catch(() => undefined); await activityApi.moderate(code, who.hostKey, "clear", { kind: "pic" }).catch(() => undefined); reload(); }} data-testid="wb-clear">🗑️ {tr("Clear", "مسح")}</button>}
         </div>
       )}
-      <div ref={svgBox} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} className={`overflow-hidden rounded-[24px] shadow-xl ring-4 ring-[#1b3a57]/80 ${canDraw ? "cursor-crosshair touch-none" : ""}`} data-testid="wb-board">
-        <BoardArt strokes={all} bg={String(o.bg || "blank")} names={o.labels !== false && !state.settings.hideNames} centre={state.prompt || state.title} tr={tr} />
+      <div ref={svgBox} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} className={`overflow-hidden rounded-[24px] shadow-xl ring-4 ring-[#1b3a57]/80 ${canDraw ? (tool === "hand" ? "cursor-grab touch-none" : "cursor-crosshair touch-none") : ""}`} data-testid="wb-board">
+        <BoardArt strokes={all} bg={String(o.bg || "blank")} names={o.labels !== false && !state.settings.hideNames} centre={state.prompt || state.title} tr={tr} extra={<path ref={livePath} fill="none" strokeLinecap="round" strokeLinejoin="round" pointerEvents="none" />} />
       </div>
       {!canDraw && <p className="text-center text-sm font-semibold opacity-80" data-testid="wb-viewonly">👀 {tr("Watching the board — your teacher will let you draw when it's your turn.", "تشاهد السبورة — سيسمح لك المعلم بالرسم عندما يحين دورك.")}</p>}
       {err && <p className="text-sm font-semibold text-rose-700" role="alert">{err}</p>}

@@ -40,6 +40,7 @@ import { LmsAdmin } from "@/components/lms/LmsAdmin";
 import { StudentLogins } from "@/components/lms/StudentLogins";
 import { LmsSetup } from "@/components/lms/LmsSetup";
 import { AdminLmsHomework } from "@/components/lms/AdminLmsHomework";
+import { AdminRewards } from "@/components/lms/Rewards";
 import { AdminMail } from "@/components/AdminMail";
 import { AdminClasses } from "@/components/lms/AdminClasses";
 import AdminQuizzes from "@/components/AdminQuizzes";
@@ -66,8 +67,8 @@ import { AdminHome } from "@/components/AdminHome";
 import AdminSettings from "@/components/AdminSettings";
 import { useI18n } from "@/lib/i18n";
 
-type Tab = "timetable" | "logins" | "groups" | "downloads" | "parents" | "attendance" | "behaviour" | "curriculum" | "youtube" | "sitepages" | "home" | "pages" | "quizzes" | "certificate" | "banners" | "announcements" | "teacher" | "forum" | "results" | "activities" | "settings" | "students" | "teachers" | "setup" | "lmshw" | "classes" | "mail" | "homepage" | "staff" | "messages" | "notices" | "vcomments" | "reports" | "wall" | "tracker" | "asys" | "qa";
-const HASH_TABS: Tab[] = ["timetable", "logins", "groups", "downloads", "parents", "attendance", "behaviour", "curriculum", "youtube", "sitepages", "pages", "quizzes", "certificate", "banners", "announcements", "teacher", "forum", "results", "activities", "settings", "students", "teachers", "setup", "classes", "lmshw", "mail", "homepage", "staff", "messages", "notices", "vcomments", "reports", "wall", "tracker", "asys", "qa"];
+type Tab = "timetable" | "logins" | "groups" | "downloads" | "parents" | "attendance" | "behaviour" | "curriculum" | "youtube" | "sitepages" | "home" | "pages" | "quizzes" | "certificate" | "banners" | "announcements" | "teacher" | "forum" | "results" | "activities" | "settings" | "students" | "teachers" | "setup" | "lmshw" | "classes" | "mail" | "homepage" | "staff" | "messages" | "notices" | "vcomments" | "reports" | "wall" | "tracker" | "asys" | "qa" | "rewards";
+const HASH_TABS: Tab[] = ["timetable", "logins", "groups", "downloads", "parents", "attendance", "behaviour", "curriculum", "youtube", "sitepages", "pages", "quizzes", "certificate", "banners", "announcements", "teacher", "forum", "results", "activities", "settings", "students", "teachers", "setup", "classes", "lmshw", "mail", "homepage", "staff", "messages", "notices", "vcomments", "reports", "wall", "tracker", "asys", "qa", "rewards"];
 const emptyPage = (): ContentPage => ({ id: newId("page"), slug: "", title: "", excerpt: "", body: "", published: true, updatedAt: new Date().toISOString() });
 
 export default function AdminCms() {
@@ -386,6 +387,7 @@ export default function AdminCms() {
         {tab==="notices" && <div className="mt-6"><PushSettings asAdmin /></div>}
         {tab==="setup" && <LmsSetup />}
         {tab==="lmshw" && <AdminLmsHomework />}
+        {tab==="rewards" && <AdminRewards />}
         {tab==="mail" && <AdminMail />}
         {tab==="classes" && <AdminClasses />}
         {tab==="attendance" && <Attendance asAdmin />}

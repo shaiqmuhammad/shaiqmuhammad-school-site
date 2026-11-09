@@ -2,6 +2,7 @@
 import { RewardCardsTile } from "@/components/lms/Rewards";
 import { PackDash } from "@/components/lms/packs/PackDash";
 import { HwMeta, hwAud } from "@/components/lms/HwMeta";
+import { HwRemindBell } from "@/components/lms/HwRemind";
 import { applyPref, MenuEditor, useMyPages, useUiPrefs } from "@/components/lms/MenuPrefs";
 import { TodayLessons } from "@/components/lms/Timetable";
 
@@ -252,8 +253,8 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
                   const c = h.counts || {};
                   const q = h.data as QuranData;
                   return (
-                    <li key={h.id}>
-                      <a href={`/lms/homework?id=${h.id}`} className={card + " flex flex-wrap items-center gap-3 hover:shadow-lg"} data-testid="lms-hw-row">
+                    <li key={h.id} className="flex flex-wrap items-center gap-2">
+                      <a href={`/lms/homework?id=${h.id}`} className={card + " flex min-w-0 flex-1 flex-wrap items-center gap-3 hover:shadow-lg"} data-testid="lms-hw-row">
                         <span className="text-2xl" aria-hidden>{h.kind === "quran" ? "📖" : "📝"}</span>
                         <span className="min-w-0 flex-1">
                           <span className="block font-bold" dir="auto">{h.title}</span>
@@ -271,6 +272,7 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
                           <span className={`rounded-full px-2 py-1 ${STATUS_STYLE.none}`}>{h.assigned ?? 0} {tr("assigned", "مُسند")}</span>
                         </span>
                       </a>
+                      <HwRemindBell hw={h.id} title={h.title} asAdmin={asAdmin} />
                     </li>
                   );
                 })}
@@ -288,8 +290,8 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
                   const c = h.counts || {};
                   const q = h.data as QuranData;
                   return (
-                    <li key={h.id}>
-                      <a href={`/lms/homework?id=${h.id}`} className={card + " flex flex-wrap items-center gap-3 hover:shadow-lg"} data-testid="lms-hw-row">
+                    <li key={h.id} className="flex flex-wrap items-center gap-2">
+                      <a href={`/lms/homework?id=${h.id}`} className={card + " flex min-w-0 flex-1 flex-wrap items-center gap-3 hover:shadow-lg"} data-testid="lms-hw-row">
                         <span className="text-2xl" aria-hidden>{h.kind === "quran" ? "📖" : "📝"}</span>
                         <span className="min-w-0 flex-1">
                           <span className="block font-bold" dir="auto">{h.title}</span>
@@ -307,6 +309,7 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
                           <span className={`rounded-full px-2 py-1 ${STATUS_STYLE.none}`}>{h.assigned ?? 0} {tr("assigned", "مُسند")}</span>
                         </span>
                       </a>
+                      <HwRemindBell hw={h.id} title={h.title} asAdmin={asAdmin} />
                     </li>
                   );
                 })}
@@ -324,8 +327,8 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
                   const c = h.counts || {};
                   const q = h.data as QuranData;
                   return (
-                    <li key={h.id}>
-                      <a href={`/lms/homework?id=${h.id}`} className={card + " flex flex-wrap items-center gap-3 hover:shadow-lg"} data-testid="lms-hw-row">
+                    <li key={h.id} className="flex flex-wrap items-center gap-2">
+                      <a href={`/lms/homework?id=${h.id}`} className={card + " flex min-w-0 flex-1 flex-wrap items-center gap-3 hover:shadow-lg"} data-testid="lms-hw-row">
                         <span className="text-2xl" aria-hidden>{h.kind === "quran" ? "📖" : "📝"}</span>
                         <span className="min-w-0 flex-1">
                           <span className="block font-bold" dir="auto">{h.title}</span>
@@ -343,6 +346,7 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
                           <span className={`rounded-full px-2 py-1 ${STATUS_STYLE.none}`}>{h.assigned ?? 0} {tr("assigned", "مُسند")}</span>
                         </span>
                       </a>
+                      <HwRemindBell hw={h.id} title={h.title} asAdmin={asAdmin} />
                     </li>
                   );
                 })}

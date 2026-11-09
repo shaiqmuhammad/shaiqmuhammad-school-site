@@ -1,6 +1,6 @@
 "use client";
 
-import { TimetableManager } from "@/components/lms/Timetable";
+import { PeriodTimes, TimetableManager } from "@/components/lms/Timetable";
 import { DlGate } from "@/components/lms/DlGate";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLmsActor, useTr } from "@/components/lms/useLms";
@@ -12,7 +12,6 @@ const ST: Status[] = ["P", "A", "L", "E"];
 export type AttTimes = { times: Record<string, { s: string; e: string }>; timetable: TtRow[]; now: { dow: number; hm: string; period: string }; current: TtRow | null; teachers: { id: string; name: string; subject: string; phase: string }[] };
 export type TtRow = { id: string; dow: number; period: string; cls: string; section: string; teacher: string; teacherName: string; subject: string; phase: string; dept: string };
 const DOW: [string, string][] = [["Sun", "الأحد"], ["Mon", "الاثنين"], ["Tue", "الثلاثاء"], ["Wed", "الأربعاء"], ["Thu", "الخميس"], ["Fri", "الجمعة"], ["Sat", "السبت"]];
-const PIDS = ["P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8"];
 
 export function AttendancePage() { return <ModPage title="Attendance Register" perm="att">{(asAdmin) => <Attendance asAdmin={asAdmin} />}</ModPage>; }
 
@@ -262,29 +261,6 @@ function Settings() {
     </div>
   );
 }
-
-/** t302: admin saves the start/end time of each period; the register opens the period running now. */
-function PeriodTimes() {
-  const { tr } = useTr();
-  const [t, setT] = useState<Record<string, { s: string; e: string }>>({});
-  const [msg, setMsg] = useState("");
-  useEffect(() => { modCall<AttTimes>("att-times", {}, true).then((r) => setT(r.times)).catch(() => undefined); }, []);
-  const save = async () => { try { const r = await modCall<{ times: AttTimes["times"] }>("att-times-save", { times: t }, true); setT(r.times); setMsg(tr("Saved.", "تم الحفظ.")); } catch (e) { setMsg(modErr(e, tr)); } };
-  return (
-    <div className={cardCls + " mt-4 max-w-xl space-y-2"} data-testid="att-times">
-      <h3 className="font-extrabold">⏱ {tr("Period timings", "أوقات الحصص")}</h3>
-      {PIDS.map((p) => (
-        <div key={p} className="flex items-center gap-2 text-sm"><b className="w-20">{tr(`Period ${p.slice(1)}`, `الحصة ${p.slice(1)}`)}</b>
-          <input type="time" className={field + " w-auto!"} value={t[p]?.s || ""} onChange={(e) => setT({ ...t, [p]: { s: e.target.value, e: t[p]?.e || "" } })} aria-label={tr("Start", "البداية")} data-testid={`att-time-s-${p}`} />–
-          <input type="time" className={field + " w-auto!"} value={t[p]?.e || ""} onChange={(e) => setT({ ...t, [p]: { s: t[p]?.s || "", e: e.target.value } })} aria-label={tr("End", "النهاية")} data-testid={`att-time-e-${p}`} />
-        </div>
-      ))}
-      <button type="button" className={btnCta} onClick={save} data-testid="att-times-save">{tr("Save timings", "حفظ الأوقات")}</button>
-      <Toast msg={msg} />
-    </div>
-  );
-}
-
 
 /** t304: register history — every register taken for a class in a date range (student × day/period), with the reason on hover. */
 function History({ asAdmin }: { asAdmin: boolean }) {
