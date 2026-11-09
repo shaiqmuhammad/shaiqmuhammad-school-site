@@ -439,7 +439,7 @@ export class AssessmentSession extends DurableObject<Env> {
           joinedAt: now,
           ...(deviceId ? { deviceId } : {}),
           ...(typeof body.lmsStudent === "string" && body.lmsStudent ? { lmsStudent: body.lmsStudent } : {}),
-          ...(typeof body.av === "string" && /^[abgn]\d{1,2}$/.test(body.av) ? { av: body.av } : {}),
+          ...(typeof body.av === "string" && /^[abgnfs]\d{1,2}$/.test(body.av) ? { av: body.av } : {}),
         };
         await this.saveParticipant(p);
         return { status: 200, body: { participantId: p.id, token: p.token, name: p.name, ...this.info(now, { selfId: p.id }) } };

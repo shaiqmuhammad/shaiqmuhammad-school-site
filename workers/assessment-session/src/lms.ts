@@ -99,7 +99,7 @@ function avatarOf(r: Record<string, unknown>): string {
   const av = String(r.avatar || "");
   // t305: uploaded profile photo (teachers only since t329 — students always get a character).
   if (av.startsWith("data:image/") && r.role !== "student") return av;
-  if (/^a\d{1,2}$/.test(av) && Number(av.slice(1)) < AV_N) return av; // t329: animal characters, for everyone
+  if (/^[afs]\d{1,2}$/.test(av) && Number(av.slice(1)) < AV_N) return av; // t329/t521: animals, flowers and heroes, for everyone
   if (/^[bgn]\d{1,2}$/.test(av) && av[0] === g && Number(av.slice(1)) < AV_N) return av;
   let h = 7; for (const c of String(r.id)) h = (h * 31 + c.charCodeAt(0)) >>> 0;
   return `${g}${h % 12}`;
@@ -665,7 +665,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     const r = this.userRow("id=?", uid);
     if (!r || r.role !== "student") return "";
     const c = avatarOf(r);
-    return /^[abgn]\d{1,2}$/.test(c) ? c : "";
+    return /^[abgnfs]\d{1,2}$/.test(c) ? c : "";
   }
   async actor(uid: string, pv = ""): Promise<Actor | null> {
     const r = this.userRow("id=?", uid);
@@ -1255,7 +1255,8 @@ export class LmsStore extends DurableObject<LmsEnv> {
         const g = u0.gender === "b" || u0.gender === "g" ? String(u0.gender) : "n";
         const n = Math.floor(Number(input.n));
         if (!(n >= 0 && n < AV_N)) return { status: 400, body: { error: "bad_input" } };
-        const code = `${input.kind === "a" ? "a" : g}${n}`;
+        const fam = input.kind === "a" || input.kind === "f" || input.kind === "s" ? String(input.kind) : g;
+        const code = `${fam}${n}`;
         this.sql.exec(`UPDATE users SET avatar=? WHERE id=?`, code, a.id);
         return { status: 200, body: { avatar: code, kind: g } };
       }

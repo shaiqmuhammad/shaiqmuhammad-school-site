@@ -2,7 +2,7 @@
 
 import { DlGate } from "@/components/lms/DlGate";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Avatar, ANIMALS } from "@/components/lms/Avatar";
+import { ANIMALS, Avatar, moodFromScore } from "@/components/lms/Avatar";
 import { SfxToggle } from "@/components/activity/SfxToggle";
 import { sfxFanfare } from "@/lib/sfx";
 import type { ResultRow, SessionResults } from "@/lib/groupSession";
@@ -91,7 +91,7 @@ export function Podium({ rows, lang, saved }: { rows: ResultRow[] | { p: number;
               <div className="mt-1 flex w-full flex-wrap items-end justify-center gap-2">
                 {who.slice(0, 4).map((r, i) => (
                   <div key={i} className="flex min-w-0 flex-col items-center" data-testid="podium-person">
-                    <Avatar code={r.av || nameAvatar(r.name)} size={saved ? 40 : who.length > 2 ? 56 : 76} anim={saved ? undefined : s.rank === 1 ? "celebrate" : "idle"} className="ring-4 ring-white/80 shadow-lg" />
+                    <Avatar code={r.av || nameAvatar(r.name)} size={saved ? 40 : who.length > 2 ? 56 : 76} anim={saved ? undefined : moodFromScore(r.percentage ?? who[0].percentage, s.rank)} className="ring-4 ring-white/80 shadow-lg" />
                     <p dir="auto" className={`mt-1 max-w-[9rem] truncate font-extrabold text-white ${saved ? "text-xs" : "text-sm sm:text-lg"}`}>{r.name}</p>
                   </div>
                 ))}
