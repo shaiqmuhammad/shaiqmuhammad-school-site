@@ -12,6 +12,7 @@ import { lmsApi, lmsSession } from "@/lib/lms";
 import { listPublishedQuizzes, loadQuizzesData, type Quiz } from "@/lib/quiz";
 import { useI18n } from "@/lib/i18n";
 import { AssignForm, AssignedList, loadAnyQuiz } from "@/components/lms/LmsQuiz";
+import { PaperDownloads } from "@/components/assessment/PaperDownloads";
 import { HOST_DRAFT_KEY } from "@/lib/groupSession";
 import type { Assignment } from "@/lib/lms";
 import type { ResultRecord } from "@/lib/resultsRecord";
@@ -178,6 +179,8 @@ function TeacherAssess({ quizzes, tr }: { quizzes: Quiz[]; tr: Tr }) {
         <button type="button" className="rounded-full bg-header px-3 py-1.5 text-xs font-bold text-white" onClick={() => setAssignFor(assignFor === id ? null : id)} data-testid="lms-assess-assign">📌 {tr("Assign", "إسناد")}</button>
         <button type="button" className="rounded-full bg-sun px-3 py-1.5 text-xs font-bold text-[#0b1b2b]" onClick={() => host(id, title)} data-testid="lms-assess-host">▶ {tr("Start group session", "بدء جلسة جماعية")}</button>
         <a className="rounded-full border border-black/15 px-3 py-1.5 text-xs font-semibold dark:border-white/20" href={`/lms/quiz?id=${encodeURIComponent(id)}`}>👁 {tr("Preview", "معاينة")}</a>
+        <PaperDownloads id={id} load={loadAnyQuiz} className="inline-block" />
+        {own && <a className="rounded-full border border-black/15 px-3 py-1.5 text-xs font-semibold dark:border-white/20" href={`/lms/quiz-edit?copy=${encodeURIComponent(id)}`} data-testid="tquiz-copy">❐ {tr("Duplicate", "نسخ")}</a>}
         {own && <a className="rounded-full border border-black/15 px-3 py-1.5 text-xs font-semibold dark:border-white/20" href={`/lms/quiz-edit?id=${id}`} data-testid="tquiz-edit">✎ {tr("Edit", "تعديل")}</a>}
         {own && <button type="button" className="rounded-full px-3 py-1.5 text-xs text-rose-600" onClick={() => { if (confirm(tr("Delete this assessment?", "حذف هذا التقييم؟"))) lmsApi.tquizDelete(id).then(() => { loadMine(); setRefresh((r) => r + 1); }); }} data-testid="tquiz-delete">🗑 {tr("Delete", "حذف")}</button>}
       </div>
