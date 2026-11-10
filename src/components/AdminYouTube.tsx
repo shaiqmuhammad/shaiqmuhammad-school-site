@@ -197,7 +197,7 @@ function Upload({ cfg, reload }: { cfg: YtAdminConfig | null; reload: () => void
 const PLACES: [PageRow["place"], string, string][] = [["none", "Not in a menu", "خارج القوائم"], ["top", "Top menu", "القائمة العليا"], ["resources", "Students Resources dropdown", "قائمة موارد الطلاب"], ["footer", "Footer links", "روابط التذييل"]];
 const blank = (): Partial<PageRow> => ({ title: "", titleAr: "", slug: "", body: "", bodyAr: "", place: "resources", order: 50, visible: true });
 
-/** Admin → Pages & menu: add / edit / delete website pages and choose where they appear in the menus. */
+/** Admin → Pages and menus: add / edit / delete website pages and choose where they appear in the menus. */
 export function AdminPageManager() {
   const { lang } = useI18n();
   const tr = (en: string, ar: string) => (lang === "ar" ? ar : en);
@@ -215,7 +215,7 @@ export function AdminPageManager() {
   return (
     <div className="space-y-5" data-testid="admin-page-manager">
       <section className="glass rounded-3xl p-5">
-        <div className="flex items-center gap-2"><h2 className="me-auto text-xl font-bold">{tr("Pages & menu", "الصفحات والقوائم")}</h2><button type="button" className={cta} onClick={() => setEd(blank())} data-testid="page-new">＋ {tr("New page", "صفحة جديدة")}</button></div>
+        <div className="flex items-center gap-2"><h2 className="me-auto text-xl font-bold">{tr("Pages and menus", "الصفحات والقوائم")}</h2><button type="button" className={cta} onClick={() => setEd(blank())} data-testid="page-new">＋ {tr("New page", "صفحة جديدة")}</button></div>
         <p className="mt-1 text-sm opacity-80">{tr("Create pages (text, headings, lists, images, YouTube links in the body play inside the page) and choose the menu where they appear. Playlist pages are managed under YouTube.", "أنشئ صفحات (نصوص وعناوين وقوائم وصور، وروابط يوتيوب في المحتوى تُعرض داخل الصفحة) واختر القائمة التي تظهر فيها. صفحات قوائم التشغيل تُدار من قسم YouTube.")}</p>
         {msg && <p className="mt-2 rounded-xl bg-sun/30 px-3 py-2 text-sm font-semibold" role="status">{msg}</p>}
       </section>

@@ -28,7 +28,6 @@ type Props = {
 };
 
 const GROUPS: { id: string; en: string; ar: string; ids: Tab[] }[] = [
-  { id: "site", en: "Settings", ar: "إعدادات الموقع", ids: ["homepage", "teacher", "banners", "announcements", "youtube", "sitepages", "settings", "backup"] },
   { id: "teach", en: "Teaching and Learning", ar: "التعليم والتعلّم", ids: ["setup", "curriculum", "timetable", "pages", "classes", "rewards"] },
   { id: "members", en: "Members", ar: "الأعضاء", ids: ["students", "teachers", "logins", "parents", "groups", "downloads", "staff", "attendance", "behaviour"] },
   { id: "assess", en: "Assessment", ar: "التقييم", ids: ["quizzes", "lmshw", "certificate", "results", "tracker", "reports", "asys", "qa"] },
@@ -152,6 +151,68 @@ function MailIcon({ unread, onClick, label }: { unread: number; onClick: () => v
   );
 }
 
+/** Website settings pages live in the header gear menu (not the sidebar). */
+const SITE_TABS: Tab[] = ["homepage", "teacher", "banners", "announcements", "youtube", "sitepages", "settings", "backup"];
+const SITE_CRUMB = { id: "site", en: "Settings", ar: "الإعدادات" };
+const groupOf = (id: Tab) => (SITE_TABS.includes(id) ? SITE_CRUMB : GROUPS.find((x) => x.ids.includes(id)));
+
+function SettingsGear({ tab, onTab, labelFor }: { tab: Tab; onTab: (t: Tab) => void; labelFor: (id: Tab) => string }) {
+  const { lang } = useI18n();
+  const settingsLabel = lang === "ar" ? "الإعدادات" : "Settings";
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  const active = SITE_TABS.includes(tab);
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => { if (!box.current?.contains(e.target as Node)) setOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onKey); };
+  }, [open]);
+  return (
+    <div className="relative shrink-0" ref={box}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        title={settingsLabel}
+        aria-label={settingsLabel}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        data-testid="admin-settings-icon"
+        className={`glass relative inline-flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full hover:ring-2 hover:ring-[var(--yellow-border)] ${active ? "bg-header text-white ring-2 ring-header" : "text-heading"}`}
+      >
+        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <circle cx="12" cy="12" r="3" />
+          <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
+        </svg>
+      </button>
+      {open && (
+        <div
+          role="menu"
+          aria-label={settingsLabel}
+          data-testid="admin-settings-menu"
+          className="absolute end-0 top-full z-50 mt-2 min-w-[14rem] overflow-hidden rounded-2xl border border-black/10 bg-white py-1 text-heading shadow-lg dark:border-white/10 dark:bg-[#0f1f30]"
+        >
+          {SITE_TABS.map((id) => (
+            <button
+              key={id}
+              type="button"
+              role="menuitem"
+              aria-current={tab === id ? "page" : undefined}
+              onClick={() => { setOpen(false); onTab(id); }}
+              className={`flex w-full items-center gap-2.5 px-3 py-2 text-start text-sm font-semibold transition ${tab === id ? "bg-header text-white" : "hover:bg-black/[0.05] dark:hover:bg-white/10"}`}
+            >
+              <Icon className="h-4 w-4">{ICONS[id]}</Icon>
+              {labelFor(id)}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const WIDE = ["logins", "groups", "downloads", "parents", "attendance", "behaviour", "curriculum", "youtube", "sitepages", "students", "teachers", "classes", "lmshw", "mail", "home", "homepage", "rewards"];
 
 export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPublishAll, onLogout, pendingCount = 0, onBell, children }: Props) {
@@ -209,7 +270,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
   const drawerRef = useRef<HTMLDivElement>(null);
   const homeLabel = tr("Admin home — refresh content", "الرئيسية وتحديث المحتوى");
   const label = (id: Tab) =>
-    id === "home" ? tr("Dashboard", "لوحة التحكم") : id === "announcements" ? tr("Announcements", "الإعلانات") : id === "results" ? tr("Results", "النتائج") : id === "reports" ? tr("Department Report", "تقرير القسم") : id === "wall" ? tr("Class Wall", "جدار الصف") : id === "tracker" ? tr("Assessment Tracker", "متتبع التقييم") : id === "asys" ? tr("Attainment & Progress Systems", "أنظمة التحصيل والتقدّم") : id === "qa" ? tr("Progress Check QA", "ضمان جودة فحص التقدم") : id === "timetable" ? tr("Timetable", "الجدول الدراسي") : id === "activities" ? tr("Activities", "الأنشطة") : id === "students" ? tr("Students", "الطلاب") : id === "teachers" ? tr("Teachers", "المعلمون") : id === "setup" ? tr("Classes & Subjects", "الصفوف والمواد") : id === "lmshw" ? tr("Homework", "الواجبات") : id === "rewards" ? tr("Reward Cards", "بطاقات المكافآت") : id === "mail" ? tr("Mail", "البريد") : id === "homepage" ? tr("Homepage", "الصفحة الرئيسية") : id === "logins" ? tr("Student Logins", "بيانات دخول الطلاب") : id === "groups" ? tr("Groups", "المجموعات") : id === "downloads" ? tr("Downloads", "التنزيلات") : id === "parents" ? tr("Parents", "أولياء الأمور") : id === "attendance" ? tr("Attendance", "الحضور") : id === "behaviour" ? tr("Behaviour", "السلوك") : id === "curriculum" ? tr("Curriculum", "المنهج") : id === "classes" ? tr("Classes", "الصفوف") : id === "staff" ? tr("Staff", "الموظفون") : id === "vcomments" ? tr("Video comments", "تعليقات الفيديو") : id === "messages" ? tr("Messages", "الرسائل") : id === "notices" ? tr("Class announcements", "إعلانات الصفوف") : id === "pages" ? tr("Lesson Builder", "منشئ الدروس") : id === "youtube" ? "YouTube" : id === "sitepages" ? tr("Pages & menu", "الصفحات والقوائم") : id === "backup" ? tr("Backup", "النسخ الاحتياطي") : t(`admin.tab.${id}`);
+    id === "home" ? tr("Dashboard", "لوحة التحكم") : id === "announcements" ? tr("Announcements", "الإعلانات") : id === "results" ? tr("Results", "النتائج") : id === "reports" ? tr("Department Report", "تقرير القسم") : id === "wall" ? tr("Class Wall", "جدار الصف") : id === "tracker" ? tr("Assessment Tracker", "متتبع التقييم") : id === "asys" ? tr("Attainment & Progress Systems", "أنظمة التحصيل والتقدّم") : id === "qa" ? tr("Progress Check QA", "ضمان جودة فحص التقدم") : id === "timetable" ? tr("Timetable", "الجدول الدراسي") : id === "activities" ? tr("Activities", "الأنشطة") : id === "students" ? tr("Students", "الطلاب") : id === "teachers" ? tr("Teachers", "المعلمون") : id === "setup" ? tr("Classes & Subjects", "الصفوف والمواد") : id === "lmshw" ? tr("Homework", "الواجبات") : id === "rewards" ? tr("Reward Cards", "بطاقات المكافآت") : id === "mail" ? tr("Mail", "البريد") : id === "homepage" ? tr("Web Pages", "صفحات الموقع") : id === "logins" ? tr("Student Logins", "بيانات دخول الطلاب") : id === "groups" ? tr("Groups", "المجموعات") : id === "downloads" ? tr("Downloads", "التنزيلات") : id === "parents" ? tr("Parents", "أولياء الأمور") : id === "attendance" ? tr("Attendance", "الحضور") : id === "behaviour" ? tr("Behaviour", "السلوك") : id === "curriculum" ? tr("Curriculum", "المنهج") : id === "classes" ? tr("Classes", "الصفوف") : id === "staff" ? tr("Staff", "الموظفون") : id === "vcomments" ? tr("Video comments", "تعليقات الفيديو") : id === "messages" ? tr("Messages", "الرسائل") : id === "notices" ? tr("Class announcements", "إعلانات الصفوف") : id === "pages" ? tr("Lesson Builder", "منشئ الدروس") : id === "youtube" ? "YouTube" : id === "sitepages" ? tr("Pages and menus", "الصفحات والقوائم") : id === "backup" ? tr("Backup", "النسخ الاحتياطي") : t(`admin.tab.${id}`);
 
   useEffect(() => {
     try {
@@ -395,6 +456,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
           <FocusPill />
           <FullscreenToggle />
           </div>
+          <SettingsGear tab={tab} onTab={onTab} labelFor={label} />
         </div>
         <div className="flex items-center justify-between gap-2 border-t border-black/5 px-3 py-1.5 dark:border-white/10" data-testid="admin-date-row"><GregPill tone="light" compact /><HijriPill tone="light" compact /></div>
         {<div className="border-t border-black/5 px-3 pb-2 pt-1.5 dark:border-white/10">{quickStrip(true)}</div>}
@@ -428,7 +490,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
         </div>
       )}
 
-      <main className="lms-main admin-main min-w-0 flex-1" data-group={GROUPS.find((x) => x.ids.includes(tab))?.id || "home"}>
+      <main className="lms-main admin-main min-w-0 flex-1" data-group={groupOf(tab)?.id || "home"}>
         <div data-frame data-topbar className="sticky top-0 z-30 hidden items-center gap-3 border-b border-black/10 bg-white px-6 py-2.5 dark:border-white/10 dark:bg-[#0f1f30] lg:flex" data-testid="admin-toolbar-wrap">
           <GregPill tone="light" />
           <div className="min-w-0 flex-1">{quickStrip()}</div>
@@ -437,6 +499,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
             <AdminToolbar variant="glass" onLogout={onLogout} msg={<MsgIcon variant="glass" asAdmin onClick={() => onTab("messages")} />} bell={<LmsBell asAdmin testId="admin-bell" variant={"glass"} extra={onBell ? { count: pendingCount, label: tr(`${pendingCount} forum post${pendingCount === 1 ? "" : "s"} waiting for approval`, `${pendingCount} مشاركة في المنتدى بانتظار الموافقة`), onClick: onBell } : undefined} />} />
           <FocusPill />
           <FullscreenToggle />
+          <SettingsGear tab={tab} onTab={onTab} labelFor={label} />
         </div>
         <div className={`mx-auto px-4 sm:px-8 ${tab === "mail" ? "py-3 lg:py-3" : "py-6 lg:py-8"} ${tab === "mail" || WIDE.includes(tab) ? "max-w-none" : collapsed ? "max-w-5xl" : "max-w-4xl"}`}>
           <div className="mb-6 flex items-center justify-between gap-3 lg:hidden">
@@ -446,7 +509,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
           {tab !== "home" && tab !== "mail" && (
             <header className="admin-page-head mb-5 flex flex-wrap items-end gap-3 border-b border-black/5 pb-4 dark:border-white/10" data-testid="admin-page-header">
               <div className="min-w-0 flex-1">
-                <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-primary/80">{(() => { const g = GROUPS.find((x) => x.ids.includes(tab)); return g ? tr(g.en, g.ar) : ""; })()}</p>
+                <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-primary/80">{(() => { const g = groupOf(tab); return g ? tr(g.en, g.ar) : ""; })()}</p>
                 <h1 className="mt-0.5 text-2xl font-extrabold tracking-tight sm:text-[1.75rem]" data-testid="admin-page-title">{label(tab)}</h1>
                 {(DESC[tab] || MOD_DESC[tab]) && <p className="mt-1 max-w-3xl text-sm text-muted">{tr((DESC[tab] || MOD_DESC[tab])![0], (DESC[tab] || MOD_DESC[tab])![1])}</p>}
               </div>

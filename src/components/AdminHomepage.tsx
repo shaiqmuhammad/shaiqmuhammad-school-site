@@ -14,7 +14,7 @@ const input = "mt-1 w-full rounded-xl border border-card-border bg-card-solid px
 const iconBtn = "inline-flex h-8 w-8 items-center justify-center rounded-full text-sm hover:bg-black/10 disabled:opacity-30 dark:hover:bg-white/10";
 const pill = "inline-flex items-center gap-1.5 rounded-full border border-black/10 bg-white/70 px-3 py-1.5 text-sm font-semibold hover:bg-black/5 dark:border-white/15 dark:bg-white/5 dark:hover:bg-white/10";
 
-/** Admin → Homepage: order, show/hide, edit and add sections of the public home page (homepage.json). */
+/** Admin → Web Pages: order, show/hide, edit and add sections of the public home page (homepage.json). */
 export default function AdminHomepage({ setStatus, onNeedToken, data, setData }: Props) {
   const { lang } = useI18n();
   const tr = (en: string, ar: string) => (lang === "ar" ? ar : en);
@@ -125,7 +125,7 @@ export default function AdminHomepage({ setStatus, onNeedToken, data, setData }:
     <section className="space-y-5" data-testid="admin-homepage">
       <header className="flex flex-wrap items-center gap-2">
         <div className="min-w-0 flex-1">
-          <h2 className="admin-tab-title text-2xl font-extrabold">{tr("Homepage builder", "منشئ الصفحة الرئيسية")}</h2>
+          <h2 className="admin-tab-title text-2xl font-extrabold">{tr("Web Pages", "صفحات الموقع")}</h2>
           <p className="text-sm opacity-70">{tr("Order, show/hide and edit the sections of the home page, or add your own. Changes go live after Publish.", "رتّب أقسام الصفحة الرئيسية وأظهرها أو أخفها وعدّلها أو أضف أقسامك. تظهر التغييرات بعد النشر.")}</p>
         </div>
         <button type="button" className={pill} onClick={() => setAdding(!adding)} data-testid="home-add">＋ {tr("Add section", "إضافة قسم")}</button>
