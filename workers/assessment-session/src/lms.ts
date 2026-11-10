@@ -42,7 +42,7 @@ import { balanceOf, rcHandle, rcInit, rcSync, type RcCtx } from "./rewards";
 import { MP_PERM, mpAll, mpCfg, mpOf, mpSave } from "./modperm";
 import { buildFeedback, fromGrade, overallOf, parseScores, type Scores } from "./quranScore";
 import { DurableObject } from "cloudflare:workers";
-import { corsHeaders, reply, verifyToken, type AdminEnv } from "./admin";
+import { corsHeaders, reply, siteUrlFor, verifyToken, type AdminEnv } from "./admin";
 import { fetchParentReplies, sendAuto, sendParentMail, type MailEnv } from "./mail/mailbox";
 import { classLabel, ttFor, ttRows, ttSE, ttSecMap, ttShared, ttTimes } from "./lmsmods";
 import { pageHandle, pagesInit } from "./lpages";
@@ -729,7 +729,8 @@ export class LmsStore extends DurableObject<LmsEnv> {
         const u = this.userRow("id=?", uid);
         const to = String(u?.email || "");
         if (!to || u?.disabled) continue;
-        const link = data.hw ? `https://www.shaiqmuhammad.com/lms/homework?id=${encodeURIComponent(String(data.hw))}` : "https://www.shaiqmuhammad.com/lms";
+        const base = siteUrlFor(this.env as unknown as AdminEnv);
+        const link = data.hw ? `${base}/lms/homework?id=${encodeURIComponent(String(data.hw))}` : `${base}/lms`;
         this.ctx.waitUntil(sendAuto(this.env as LmsEnv, to, `${tpl[0]} — ${String(u?.name || "")}`.slice(0, 150), { heading: tpl[0], paragraphs: [`Assalamu alaikum,`, `${fill(tpl[1])}${u?.role === "student" ? ` (${String(u?.name)})` : ""}`], button: { label: "Open", url: link }, note: "This is an automatic message — please don't reply. Questions: contact@shaiqmuhammad.com" }).catch(() => false));
       }
     }
@@ -1750,7 +1751,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) return { status: 400, body: { error: "no_parent_email" } };
         let tok = String(this.sql.exec(`SELECT token FROM rtok WHERE student=? AND kind=?`, sid, kind).toArray()[0]?.token || "");
         if (!tok || input.reset === true) { this.sql.exec(`DELETE FROM rtok WHERE student=? AND kind=?`, sid, kind); tok = b64url(crypto.getRandomValues(new Uint8Array(24))); this.sql.exec(`INSERT INTO rtok (token, student, kind, by, created) VALUES (?, ?, ?, ?, ?)`, tok, sid, kind, a.id, Date.now()); }
-        const url = `https://www.shaiqmuhammad.com/r?t=${tok}`;
+        const url = `${siteUrlFor(this.env as unknown as AdminEnv)}/r?t=${tok}`;
         const title = kind === "quran" ? "Quran learning report" : "Points & behaviour report";
         const mail = { heading: `${title} — ${String(u.name)}`, paragraphs: ["Assalamu alaikum,", `Here is ${String(u.name)}'s ${title.toLowerCase()} from ${a.name}. The link opens a private, read-only page (no login needed). Please don't share it.`], button: { label: "View report", url }, note: "Automatic message — please don't reply. Questions: contact@shaiqmuhammad.com" };
         const subject = `${title} — ${String(u.name)}`;

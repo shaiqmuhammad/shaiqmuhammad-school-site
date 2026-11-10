@@ -10,6 +10,10 @@
  * Failed logins are limited per IP (10 per 15 minutes) by the AdminGuard Durable Object.
  */
 import { DurableObject } from "cloudflare:workers";
+import {
+  checkPassword, deviceOf, hashPassword, IDLE_MS, maskIp, MAX_SESSION_MS, newBackupCodes, newTotpSecret, normBackup,
+  otpauthUri, passwordProblem, sha256Hex, totpMatch, type AuthState, type LogEntry,
+} from "./security";
 
 export interface AdminEnv {
   ADMIN_GUARD: DurableObjectNamespace<AdminGuard>;
@@ -17,13 +21,18 @@ export interface AdminEnv {
   GITHUB_PAT?: string;
   ADMIN_PASSWORD_SHA256?: string;
   SESSION_SIGNING_KEY?: string;
+  MIGRATE_KEY?: string;
 }
 
 const REPO = "shaiqmuhammad/shaiqmuhammad-school-site";
 const BRANCH = "main";
-const SESSION_DAYS = 30;
 const MAX_FAILS = 10;
 const FAIL_WINDOW_MS = 15 * 60 * 1000;
+/** All IPs together: this many wrong passwords in 15 minutes pauses sign-in for everyone (slows a spread-out attack). */
+const GLOBAL_MAX_FAILS = 60;
+const GLOBAL_LOCK_MS = 10 * 60 * 1000;
+const AUTH_DO = "__auth__";
+const GLOBAL_DO = "__global__";
 const MAX_BODY_BYTES = 16_000_000;
 const MAX_FILE_BYTES = 6_000_000;
 const MAX_FILES = 20;
@@ -38,8 +47,49 @@ const ALLOWED_PATHS = [
 
 const ALLOWED_ORIGINS = new Set(["https://www.shaiqmuhammad.com", "https://shaiqmuhammad.com"]);
 
+/** Extra site address saved in Admin → Site & branding (only after it already serves this website). */
+const extraOrigins = new Set<string>();
+let originsAt = 0;
+let siteBase = "https://www.shaiqmuhammad.com";
+export const BRAND_KEY = "site:brand";
+
+type KvStub = { get(k: string): Promise<string | null>; set(k: string, v: string): Promise<void> };
+const siteKv = (env: AdminEnv): KvStub | null => {
+  const ns = (env as unknown as { SITE?: DurableObjectNamespace }).SITE;
+  return ns ? (ns.get(ns.idFromName("main")) as unknown as KvStub) : null;
+};
+
+function applyCanonical(host: string) {
+  extraOrigins.clear();
+  if (host) {
+    const bare = host.replace(/^www\./, "");
+    extraOrigins.add(`https://${bare}`);
+    extraOrigins.add(`https://www.${bare}`);
+    siteBase = `https://${host}`;
+  } else siteBase = "https://www.shaiqmuhammad.com";
+}
+
+/** Refreshes the saved main site address at most every 5 minutes per isolate (one small read). */
+export async function loadSiteOrigin(env: AdminEnv, force = false): Promise<string> {
+  if (!force && Date.now() - originsAt < 300_000) return siteBase;
+  originsAt = Date.now();
+  try {
+    const raw = await siteKv(env)?.get(BRAND_KEY);
+    const host = raw ? String((JSON.parse(raw) as { canonical?: string }).canonical || "") : "";
+    applyCanonical(/^[a-z0-9.-]+\.[a-z]{2,}$/.test(host) ? host : "");
+  } catch {
+    // keep the last known value
+  }
+  return siteBase;
+}
+/** Main site address for links (default https://www.shaiqmuhammad.com); refreshes in the background when stale. */
+export function siteUrlFor(env: AdminEnv): string {
+  if (Date.now() - originsAt >= 300_000) void loadSiteOrigin(env).catch(() => undefined);
+  return siteBase;
+}
+
 export function originAllowed(origin: string): boolean {
-  return ALLOWED_ORIGINS.has(origin) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+  return ALLOWED_ORIGINS.has(origin) || extraOrigins.has(origin) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
 }
 
 export function corsHeaders(origin: string | null): Record<string, string> {
@@ -102,42 +152,78 @@ async function hmac(key: string, data: string): Promise<Uint8Array> {
   return new Uint8Array(await crypto.subtle.sign("HMAC", k, enc.encode(data)));
 }
 
-async function issueToken(env: AdminEnv): Promise<{ token: string; exp: number }> {
-  const exp = Date.now() + SESSION_DAYS * 864e5;
-  const payload = b64url(enc.encode(JSON.stringify({ sub: "admin", exp, n: b64url(crypto.getRandomValues(new Uint8Array(9))) })));
+type TokenData = { sub?: string; v?: number; exp?: number; lt?: number; pv?: number };
+
+async function issueToken(env: AdminEnv, pv: number, lt = Date.now()): Promise<{ token: string; exp: number }> {
+  const exp = Math.min(Date.now() + IDLE_MS, lt + MAX_SESSION_MS);
+  const data: TokenData & { n: string } = { sub: "admin", v: 2, exp, lt, pv, n: b64url(crypto.getRandomValues(new Uint8Array(9))) };
+  const payload = b64url(enc.encode(JSON.stringify(data)));
   const sig = b64url(await hmac(env.SESSION_SIGNING_KEY!, payload));
   return { token: `${payload}.${sig}`, exp };
 }
 
-export async function verifyToken(env: AdminEnv, header: string | null): Promise<{ exp: number } | null> {
+const authStub = (env: AdminEnv) => env.ADMIN_GUARD.get(env.ADMIN_GUARD.idFromName(AUTH_DO));
+let pvCache = { v: -1, at: 0 };
+async function currentPv(env: AdminEnv): Promise<number> {
+  if (pvCache.v >= 0 && Date.now() - pvCache.at < 10_000) return pvCache.v;
+  const v = await authStub(env).pv();
+  pvCache = { v, at: Date.now() };
+  return v;
+}
+
+/**
+ * Valid admin session: signed, v2, not expired (12 h idle / 7 days max) and issued for the current password
+ * version (a password change or "sign out other devices" ends older sessions).
+ */
+export async function verifyToken(env: AdminEnv, header: string | null): Promise<{ exp: number; lt: number; pv: number } | null> {
   if (!env.SESSION_SIGNING_KEY || !header?.startsWith("Bearer ")) return null;
   const [payload, sig] = header.slice(7).trim().split(".");
   if (!payload || !sig) return null;
   const expected = b64url(await hmac(env.SESSION_SIGNING_KEY, payload));
   if (!safeEqual(sig, expected)) return null;
+  let data: TokenData;
   try {
-    const data = JSON.parse(new TextDecoder().decode(b64urlDecode(payload))) as { sub?: string; exp?: number };
-    if (data.sub !== "admin" || !data.exp || data.exp < Date.now()) return null;
-    return { exp: data.exp };
+    data = JSON.parse(new TextDecoder().decode(b64urlDecode(payload))) as TokenData;
   } catch {
     return null;
   }
+  const now = Date.now();
+  if (data.sub !== "admin" || data.v !== 2 || !data.exp || data.exp < now || !data.lt || data.lt + MAX_SESSION_MS < now) return null;
+  if (typeof data.pv !== "number" || data.pv !== (await currentPv(env))) return null;
+  return { exp: data.exp, lt: data.lt, pv: data.pv };
 }
 
-/** Per-IP failed-login counter (one tiny Durable Object per IP). */
+/**
+ * Failed-login counters (one tiny Durable Object per IP, plus "__global__" for all IPs together) and, in the
+ * "__auth__" instance, the admin password hash / two-step secret / sign-in log. Never included in backups.
+ */
 export class AdminGuard extends DurableObject {
-  private async recent(): Promise<number[]> {
+  private async recent(windowMs = FAIL_WINDOW_MS): Promise<number[]> {
     const now = Date.now();
-    return ((await this.ctx.storage.get<number[]>("fails")) ?? []).filter((t) => now - t < FAIL_WINDOW_MS);
+    return ((await this.ctx.storage.get<number[]>("fails")) ?? []).filter((t) => now - t < windowMs);
   }
+  /** Seconds to wait. Per IP: 3+ wrong tries add a growing pause (2, 4, 8 … 60 s); 10 in 15 min lock that IP for 15 min. */
   async check(): Promise<number> {
     const list = await this.recent();
-    return list.length >= MAX_FAILS ? Math.ceil((list[0] + FAIL_WINDOW_MS - Date.now()) / 1000) : 0;
+    const now = Date.now();
+    if (list.length >= MAX_FAILS) return Math.max(1, Math.ceil((list[list.length - MAX_FAILS] + FAIL_WINDOW_MS - now) / 1000));
+    if (list.length >= 3) {
+      const until = list[list.length - 1] + Math.min(2 ** (list.length - 2), 60) * 1000;
+      if (until > now) return Math.ceil((until - now) / 1000);
+    }
+    return 0;
+  }
+  /** All IPs together (instance "__global__"). */
+  async checkGlobal(): Promise<number> {
+    const list = await this.recent();
+    if (list.length < GLOBAL_MAX_FAILS) return 0;
+    const until = list[list.length - 1] + GLOBAL_LOCK_MS;
+    return until > Date.now() ? Math.ceil((until - Date.now()) / 1000) : 0;
   }
   async fail(): Promise<void> {
     const list = await this.recent();
     list.push(Date.now());
-    await this.ctx.storage.put("fails", list.slice(-MAX_FAILS * 2));
+    await this.ctx.storage.put("fails", list.slice(-GLOBAL_MAX_FAILS * 2));
   }
   async clear(): Promise<void> {
     await this.ctx.storage.delete("fails");
@@ -149,6 +235,51 @@ export class AdminGuard extends DurableObject {
     if (list.length >= max) return false;
     list.push(now);
     await this.ctx.storage.put("hits", list);
+    return true;
+  }
+
+  // ---- "__auth__" instance ----
+  private async state(): Promise<AuthState> {
+    return (await this.ctx.storage.get<AuthState>("auth")) ?? { pv: 1, log: [] };
+  }
+  async authGet(): Promise<AuthState> {
+    return this.state();
+  }
+  async pv(): Promise<number> {
+    return (await this.state()).pv;
+  }
+  /** Merge a change; bump=true ends every existing session. Returns the new password version. */
+  async authUpdate(patch: Partial<Omit<AuthState, "pv" | "log">> & { clearPw?: boolean; clearTotp?: boolean; clearPending?: boolean }, bump = false, log?: LogEntry): Promise<number> {
+    const s = await this.state();
+    const { clearPw, clearTotp, clearPending, ...rest } = patch;
+    const next: AuthState = { ...s, ...rest };
+    if (clearPw) delete next.pw;
+    if (clearTotp) delete next.totp;
+    if (clearPending) delete next.pending;
+    if (bump) next.pv = (s.pv || 1) + 1;
+    if (log) next.log = [log, ...(s.log || [])].slice(0, 40);
+    await this.ctx.storage.put("auth", next);
+    return next.pv;
+  }
+  async authLog(e: LogEntry): Promise<void> {
+    await this.authUpdate({}, false, e);
+  }
+  /** Uses one backup code (by SHA-256) — true when it was unused. */
+  async useBackup(hash: string): Promise<boolean> {
+    const s = await this.state();
+    if (!s.totp?.enabled) return false;
+    const i = s.totp.backup.indexOf(hash);
+    if (i < 0) return false;
+    s.totp.backup.splice(i, 1);
+    await this.ctx.storage.put("auth", s);
+    return true;
+  }
+  /** Records the TOTP step just used; false when that code (or a later one) was already used. */
+  async useStep(step: number): Promise<boolean> {
+    const s = await this.state();
+    if (!s.totp?.enabled || step <= (s.totp.lastStep || 0)) return false;
+    s.totp.lastStep = step;
+    await this.ctx.storage.put("auth", s);
     return true;
   }
 }
@@ -267,42 +398,263 @@ export async function publish(env: AdminEnv, files: InFile[], message: string): 
   return { status: 409, body: { error: "busy_try_again" } };
 }
 
+type Body = Record<string, unknown>;
+async function bodyOf(request: Request): Promise<Body> {
+  try {
+    const b = (await request.json()) as Body;
+    return b && typeof b === "object" ? b : {};
+  } catch {
+    return {};
+  }
+}
+const sv = (v: unknown, max = 500) => (typeof v === "string" ? v.slice(0, max) : "");
+
+function logEntry(request: Request, ok: boolean, what: string): LogEntry {
+  const cf = (request as unknown as { cf?: { country?: string; city?: string } }).cf;
+  return {
+    t: Date.now(),
+    ok,
+    what,
+    ua: deviceOf(request.headers.get("User-Agent") || ""),
+    ip: maskIp(request.headers.get("CF-Connecting-IP") || ""),
+    where: [cf?.city, cf?.country].filter(Boolean).join(", ").slice(0, 60),
+  };
+}
+
+/** Rate limits shared by sign-in and every "confirm your password" step. Returns a 429 Response or null. */
+async function guardWait(request: Request, env: AdminEnv, origin: string | null) {
+  const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+  const guard = env.ADMIN_GUARD.get(env.ADMIN_GUARD.idFromName(ip));
+  const global = env.ADMIN_GUARD.get(env.ADMIN_GUARD.idFromName(GLOBAL_DO));
+  const wait = Math.max(await guard.check(), await global.checkGlobal());
+  const res = wait > 0 ? reply(origin, { error: "too_many_attempts", retryAfter: wait }, 429, { "Retry-After": String(wait) }) : null;
+  return { res, fail: async () => { await guard.fail(); await global.fail(); }, clear: () => guard.clear() };
+}
+
+/** Two-step code (6 digits) or a one-time backup code. */
+async function checkSecondStep(env: AdminEnv, st: AuthState, code: string): Promise<boolean> {
+  if (!st.totp?.enabled) return true;
+  const c = code.trim();
+  if (/^\d{3}\s?\d{3}$/.test(c)) {
+    const step = await totpMatch(st.totp.secret, c, st.totp.lastStep || 0);
+    return step > 0 && (await authStub(env).useStep(step));
+  }
+  const n = normBackup(c);
+  return n.length === 8 && (await authStub(env).useBackup(await sha256Hex(n)));
+}
+
+/* ---------- Site & branding (public read, admin write) ---------- */
+const HEX = /^#[0-9a-f]{6}$/i;
+const clean = (v: unknown, max: number) => sv(v, max).replace(/[<>\u0000-\u001f]/g, "").trim();
+function normBrand(raw: Body, prevCanonical = ""): Body {
+  const th = (raw.theme && typeof raw.theme === "object" ? raw.theme : {}) as Body;
+  return {
+    nameEn: clean(raw.nameEn, 60),
+    nameAr: clean(raw.nameAr, 60),
+    taglineEn: clean(raw.taglineEn, 140),
+    taglineAr: clean(raw.taglineAr, 140),
+    theme: {
+      preset: clean(th.preset, 30),
+      header: HEX.test(sv(th.header)) ? sv(th.header).toLowerCase() : "",
+      sun: HEX.test(sv(th.sun)) ? sv(th.sun).toLowerCase() : "",
+      mode: th.mode === "dark" ? "dark" : "light",
+    },
+    canonical: prevCanonical,
+    updatedAt: Date.now(),
+  };
+}
+const HOST_RE = /^(?=.{4,253}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,24}$/;
+export const SITE_MARKER = "shaiqmuhammad-school-site";
+
 export async function handleAdmin(request: Request, env: AdminEnv, action: string): Promise<Response> {
   const origin = request.headers.get("Origin");
+  await loadSiteOrigin(env);
   if (origin && !originAllowed(origin)) return reply(null, { error: "origin_not_allowed" }, 403);
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders(origin) });
 
   const configured = Boolean(env.GITHUB_PAT && env.ADMIN_PASSWORD_SHA256 && env.SESSION_SIGNING_KEY);
 
   if (action === "ping") return reply(origin, { ok: true, configured });
+
+  // Public: site name, tagline, colours and main address (read by every page at runtime).
+  if (action === "brand" && request.method === "GET") {
+    const raw = await siteKv(env)?.get(BRAND_KEY);
+    return new Response(JSON.stringify({ ok: true, brand: raw ? JSON.parse(raw) : null }), {
+      headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "public, max-age=60", ...corsHeaders(origin) },
+    });
+  }
+
   if (!configured) return reply(origin, { error: "not_configured" }, 503);
+
+  // Emergency reset (assistant only, with the deploy-time MIGRATE_KEY): forget the changed password and two-step
+  // sign-in so the original ADMIN_PASSWORD_SHA256 secret works again. Ends every session.
+  if (action === "reset-auth") {
+    if (request.method !== "POST" || !env.MIGRATE_KEY || request.headers.get("X-Migrate-Key") !== env.MIGRATE_KEY) return reply(origin, { error: "not_found" }, 404);
+    await authStub(env).authUpdate({ clearPw: true, clearTotp: true, clearPending: true }, true, logEntry(request, true, "reset"));
+    pvCache = { v: -1, at: 0 };
+    return reply(origin, { ok: true });
+  }
 
   if (action === "login") {
     if (request.method !== "POST") return reply(origin, { error: "method" }, 405);
-    const ip = request.headers.get("CF-Connecting-IP") || "unknown";
-    const guard = env.ADMIN_GUARD.get(env.ADMIN_GUARD.idFromName(ip));
-    const wait = await guard.check();
-    if (wait > 0) return reply(origin, { error: "too_many_attempts", retryAfter: wait }, 429, { "Retry-After": String(wait) });
-    let password = "";
-    try {
-      const body = (await request.json()) as { password?: unknown };
-      password = typeof body?.password === "string" ? body.password : "";
-    } catch {
-      password = "";
-    }
-    const actual = password ? hex(await crypto.subtle.digest("SHA-256", enc.encode(password))) : "";
-    if (!actual || !safeEqual(actual, env.ADMIN_PASSWORD_SHA256!.trim().toLowerCase())) {
-      await guard.fail();
+    const g = await guardWait(request, env, origin);
+    if (g.res) return g.res;
+    const body = await bodyOf(request);
+    const password = sv(body.password);
+    const st = await authStub(env).authGet();
+    if (!(await checkPassword(st, env.ADMIN_PASSWORD_SHA256, password))) {
+      await g.fail();
+      await authStub(env).authLog(logEntry(request, false, "wrong_password"));
       return reply(origin, { error: "wrong_password" }, 401);
     }
-    await guard.clear();
-    return reply(origin, { ok: true, ...(await issueToken(env)) });
+    if (st.totp?.enabled) {
+      const code = sv(body.code, 40);
+      if (!code) return reply(origin, { error: "code_required" }, 401);
+      if (!(await checkSecondStep(env, st, code))) {
+        await g.fail();
+        await authStub(env).authLog(logEntry(request, false, "wrong_code"));
+        return reply(origin, { error: "wrong_code" }, 401);
+      }
+    }
+    await g.clear();
+    await authStub(env).authLog(logEntry(request, true, st.totp?.enabled ? "signin_2step" : "signin"));
+    return reply(origin, { ok: true, ...(await issueToken(env, st.pv)) });
   }
 
   const session = await verifyToken(env, request.headers.get("Authorization"));
   if (!session) return reply(origin, { error: "unauthorized" }, 401);
 
   if (action === "status") return reply(origin, { ok: true, exp: session.exp, publishing: true });
+
+  // Sliding 12-hour session (never past 7 days from sign-in).
+  if (action === "refresh") return reply(origin, { ok: true, ...(await issueToken(env, session.pv, session.lt)) });
+
+  if (action === "security" && request.method === "GET") {
+    const st = await authStub(env).authGet();
+    return reply(origin, {
+      ok: true,
+      changedPassword: Boolean(st.pw),
+      changedAt: st.pw?.changedAt || 0,
+      twoStep: Boolean(st.totp?.enabled),
+      twoStepSince: st.totp?.enabledAt || 0,
+      backupLeft: st.totp?.backup.length || 0,
+      log: (st.log || []).slice(0, 20),
+      session: { since: session.lt, exp: session.exp, maxEnd: session.lt + MAX_SESSION_MS },
+      policy: { minLength: 10, idleHours: IDLE_MS / 3600_000, maxDays: MAX_SESSION_MS / 864e5 },
+    });
+  }
+
+  const POST_ONLY = ["change-password", "signout-all", "totp-setup", "totp-enable", "totp-disable", "totp-backup", "brand-save", "domain-check"];
+  if (POST_ONLY.includes(action)) {
+    if (request.method !== "POST") return reply(origin, { error: "method" }, 405);
+    const body = await bodyOf(request);
+    const auth = authStub(env);
+
+    if (action === "brand-save" || action === "domain-check") {
+      const kv = siteKv(env);
+      if (!kv) return reply(origin, { error: "not_configured" }, 503);
+      const prevRaw = await kv.get(BRAND_KEY);
+      const prev = prevRaw ? (JSON.parse(prevRaw) as Body) : {};
+      if (action === "brand-save") {
+        const b = normBrand((body.brand && typeof body.brand === "object" ? body.brand : {}) as Body, sv(prev.canonical, 253));
+        await kv.set(BRAND_KEY, JSON.stringify(b));
+        return reply(origin, { ok: true, brand: b });
+      }
+      // Main site address: only saved once the new address already opens this website (so links never break).
+      const host = sv(body.domain, 260).trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+      if (body.clear === true || host === "" || /(^|\.)shaiqmuhammad\.com$/.test(host)) {
+        const b = { ...prev, canonical: "", updatedAt: Date.now() };
+        await kv.set(BRAND_KEY, JSON.stringify(b));
+        await loadSiteOrigin(env, true);
+        return reply(origin, { ok: true, brand: b, connected: true });
+      }
+      if (!HOST_RE.test(host)) return reply(origin, { error: "bad_domain" }, 400);
+      let connected = false;
+      try {
+        const r = await fetch(`https://${host}/site-id.txt?t=${Date.now()}`, { redirect: "follow", cf: { cacheTtl: 0 } } as RequestInit);
+        connected = r.ok && (await r.text()).includes(SITE_MARKER);
+      } catch {
+        connected = false;
+      }
+      if (!connected) return reply(origin, { ok: false, error: "not_connected", domain: host }, 409);
+      const b = { ...prev, canonical: host, updatedAt: Date.now() };
+      await kv.set(BRAND_KEY, JSON.stringify(b));
+      await loadSiteOrigin(env, true);
+      return reply(origin, { ok: true, brand: b, connected: true });
+    }
+
+    if (action === "signout-all") {
+      const pv = await auth.authUpdate({}, true, logEntry(request, true, "signout_all"));
+      pvCache = { v: pv, at: Date.now() };
+      return reply(origin, { ok: true, ...(await issueToken(env, pv)) });
+    }
+
+    // Everything below re-checks the password (rate-limited like sign-in).
+    const g = await guardWait(request, env, origin);
+    if (g.res) return g.res;
+    const st = await auth.authGet();
+    if (action !== "totp-enable") {
+      if (!(await checkPassword(st, env.ADMIN_PASSWORD_SHA256, sv(body.current ?? body.password)))) {
+        await g.fail();
+        await auth.authLog(logEntry(request, false, `${action}:wrong_password`));
+        return reply(origin, { error: "wrong_password" }, 401);
+      }
+    }
+
+    if (action === "change-password") {
+      const next = sv(body.next, 300);
+      const problem = passwordProblem(next);
+      if (problem) return reply(origin, { error: problem }, 400);
+      if (await checkPassword(st, env.ADMIN_PASSWORD_SHA256, next)) return reply(origin, { error: "same_as_old" }, 400);
+      if (st.totp?.enabled && !(await checkSecondStep(env, st, sv(body.code, 40)))) {
+        await g.fail();
+        return reply(origin, { error: body.code ? "wrong_code" : "code_required" }, 401);
+      }
+      const pw = await hashPassword(next);
+      const pv = await auth.authUpdate({ pw }, true, logEntry(request, true, "password_changed"));
+      pvCache = { v: pv, at: Date.now() };
+      await g.clear();
+      return reply(origin, { ok: true, ...(await issueToken(env, pv)) });
+    }
+
+    if (action === "totp-setup") {
+      if (st.totp?.enabled) return reply(origin, { error: "already_on" }, 409);
+      const secret = newTotpSecret();
+      await auth.authUpdate({ pending: { secret, at: Date.now() } });
+      return reply(origin, { ok: true, secret, uri: otpauthUri(secret, "admin") });
+    }
+    if (action === "totp-enable") {
+      const pend = st.pending;
+      if (!pend || Date.now() - pend.at > 30 * 60_000) return reply(origin, { error: "setup_expired" }, 400);
+      const step = await totpMatch(pend.secret, sv(body.code, 20), 0);
+      if (step < 0) {
+        await g.fail();
+        return reply(origin, { error: "wrong_code" }, 401);
+      }
+      const codes = newBackupCodes();
+      const backup = await Promise.all(codes.map((c) => sha256Hex(normBackup(c))));
+      await auth.authUpdate({ totp: { secret: pend.secret, enabled: true, backup, lastStep: step, enabledAt: Date.now() }, clearPending: true }, false, logEntry(request, true, "two_step_on"));
+      await g.clear();
+      return reply(origin, { ok: true, backupCodes: codes });
+    }
+    if (action === "totp-disable" || action === "totp-backup") {
+      if (!st.totp?.enabled) return reply(origin, { error: "not_on" }, 409);
+      if (!(await checkSecondStep(env, st, sv(body.code, 40)))) {
+        await g.fail();
+        return reply(origin, { error: "wrong_code" }, 401);
+      }
+      await g.clear();
+      if (action === "totp-disable") {
+        await auth.authUpdate({ clearTotp: true }, false, logEntry(request, true, "two_step_off"));
+        return reply(origin, { ok: true });
+      }
+      const fresh = await auth.authGet();
+      const codes = newBackupCodes();
+      const backup = await Promise.all(codes.map((c) => sha256Hex(normBackup(c))));
+      if (fresh.totp) await auth.authUpdate({ totp: { ...fresh.totp, backup } }, false, logEntry(request, true, "backup_codes_new"));
+      return reply(origin, { ok: true, backupCodes: codes });
+    }
+  }
 
   if (action === "publish") {
     if (request.method !== "POST") return reply(origin, { error: "method" }, 405);

@@ -31,7 +31,7 @@
  * recorded automatically once they have ended.
  */
 import { DurableObject } from "cloudflare:workers";
-import { handleAdmin, type AdminEnv } from "./admin";
+import { handleAdmin, loadSiteOrigin, type AdminEnv } from "./admin";
 import { handleForum } from "./forum";
 import { handleResults, resultsStore, type ResultRecord, type ResultsEnv } from "./results";
 import { handleActivity, type ActivityEnv } from "./activity";
@@ -577,6 +577,8 @@ export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     const parts = url.pathname.replace(/\/+$/, "").split("/").filter(Boolean);
+    // Saved main site address (Admin → Site & branding) is also an allowed browser origin.
+    if (parts[0] === "api" && request.headers.get("Origin")) await loadSiteOrigin(env as unknown as AdminEnv).catch(() => "");
     // Admin publishing (own CORS: site origins only). See ./admin.ts.
     if (parts[0] === "api" && parts[1] === "sys" && request.method === "POST") {
       const mk = (env as unknown as { MIGRATE_KEY?: string }).MIGRATE_KEY;
