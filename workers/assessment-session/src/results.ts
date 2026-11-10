@@ -12,6 +12,8 @@
  * Individual attempts are scored in the student's browser (the site is static), so a determined
  * student could post a fake score; records show "individual" so the teacher can tell them apart.
  */
+import { sysOp } from "./sysdump";
+import { bkOp } from "./bkstore";
 import { DurableObject } from "cloudflare:workers";
 import { textReplaceAll } from "./textfix";
 import { corsHeaders, originAllowed, reply, verifyToken, type AdminEnv } from "./admin";
@@ -114,6 +116,9 @@ export class ResultsStore extends DurableObject {
     if (!cols.has("podium")) sql.exec("ALTER TABLE records ADD COLUMN podium TEXT DEFAULT ''");
     this.ready = true;
   }
+
+  async sys(op: string, input: Record<string, unknown>) { this.init(); return sysOp(this.ctx.storage, op, input); }
+  async bk(op: string, input: Record<string, unknown>) { this.init(); return bkOp(this.ctx.storage, op, input); }
 
   private insert(r: ResultRecord) {
     this.ctx.storage.sql.exec(

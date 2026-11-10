@@ -10,6 +10,8 @@
  *        -> merges the post into public/content/forum.json on main (one commit) -> {ok, commitSha, forum}
  *   POST /api/forum/reject   (admin Bearer) {id} -> {ok}
  */
+import { sysOp } from "./sysdump";
+import { bkOp } from "./bkstore";
 import { DurableObject } from "cloudflare:workers";
 import { corsHeaders, gh, originAllowed, publish, reply, verifyToken, type AdminEnv } from "./admin";
 
@@ -47,6 +49,8 @@ export class ForumQueue extends DurableObject {
     const map = await this.ctx.storage.list<PendingPost>({ prefix: "p:" });
     return [...map.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   }
+  async sys(op: string, input: Record<string, unknown>) { return sysOp(this.ctx.storage, op, input); }
+  async bk(op: string, input: Record<string, unknown>) { return bkOp(this.ctx.storage, op, input); }
   async count(): Promise<number> {
     return (await this.ctx.storage.list({ prefix: "p:" })).size;
   }

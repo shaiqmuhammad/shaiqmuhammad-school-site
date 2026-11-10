@@ -24,6 +24,7 @@
 import { DurableObject } from "cloudflare:workers";
 import { corsHeaders, reply, verifyToken, type AdminEnv } from "./admin";
 import { rosterGate, teacherIdOf, teacherWithPerm, type LmsEnv } from "./lms";
+import { bkOp } from "./bkstore";
 
 export interface ActivityEnv extends AdminEnv {
   ACTIVITIES: DurableObjectNamespace<ClassActivity>;
@@ -148,6 +149,9 @@ export class ClassActivity extends DurableObject<ActivityEnv> {
     this.sql.exec(`CREATE TABLE IF NOT EXISTS imgs (id TEXT PRIMARY KEY, mime TEXT, bytes BLOB, size INTEGER)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS rl (who TEXT, kind TEXT, t INTEGER)`);
   }
+
+  /** Admin → Backup (see ./backup.ts). */
+  async bk(op: string, input: Record<string, unknown>) { return bkOp(this.ctx.storage, op, input); }
 
   private meta(): Meta | null {
     const row = this.sql.exec(`SELECT v FROM meta WHERE k='meta'`).toArray()[0];

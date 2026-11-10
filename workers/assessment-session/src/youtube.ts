@@ -12,6 +12,8 @@
  * Upload needs Google OAuth (secrets GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET); everything else works without any key.
  */
 import { DurableObject } from "cloudflare:workers";
+import { sysOp } from "./sysdump";
+import { bkOp } from "./bkstore";
 import { corsHeaders, reply, verifyToken, type AdminEnv } from "./admin";
 
 export interface YtEnv extends AdminEnv {
@@ -34,7 +36,40 @@ export class SiteKV extends DurableObject {
   }
   async get(k: string): Promise<string | null> { const r = this.sql.exec(`SELECT v FROM kv WHERE k=?`, k).toArray()[0]; return r ? String(r.v) : null; }
   async set(k: string, v: string): Promise<void> { this.sql.exec(`INSERT INTO kv (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v=excluded.v`, k, v); }
+  async sys(op: string, input: Record<string, unknown>) { return sysOp(this.ctx.storage, op, input); }
+  async bk(op: string, input: Record<string, unknown>) { return bkOp(this.ctx.storage, op, input); }
   async del(k: string): Promise<void> { this.sql.exec(`DELETE FROM kv WHERE k=?`, k); }
+
+  // ---- Admin → Backup file vault (only used on the separate "backups" instance; see ./backup.ts) ----
+  private vInit() {
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS bk_files (key TEXT PRIMARY KEY, kind TEXT, data INTEGER, created INTEGER, size INTEGER, rows INTEGER, chunks INTEGER, done INTEGER DEFAULT 0)`);
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS bk_chunks (key TEXT, i INTEGER, bytes BLOB, PRIMARY KEY (key, i))`);
+  }
+  async vaultPut(key: string, i: number, bytes: Uint8Array): Promise<void> {
+    this.vInit();
+    this.sql.exec(`INSERT OR IGNORE INTO bk_files (key, created, done) VALUES (?, ?, 0)`, key, Date.now());
+    this.sql.exec(`INSERT OR REPLACE INTO bk_chunks (key, i, bytes) VALUES (?, ?, ?)`, key, i, bytes);
+  }
+  async vaultFinish(key: string, m: { kind: string; data: boolean; created: number; size: number; rows: number; chunks: number }): Promise<void> {
+    this.vInit();
+    this.sql.exec(`INSERT OR REPLACE INTO bk_files (key, kind, data, created, size, rows, chunks, done) VALUES (?, ?, ?, ?, ?, ?, ?, 1)`, key, m.kind, m.data ? 1 : 0, m.created, m.size, m.rows, m.chunks);
+  }
+  async vaultList(): Promise<{ key: string; kind: string; data: boolean; created: number; size: number; rows: number; chunks: number }[]> {
+    this.vInit();
+    // Drop half-written files (a run that failed part-way) after a day.
+    for (const r of this.sql.exec(`SELECT key FROM bk_files WHERE done=0 AND created < ?`, Date.now() - 86_400_000).toArray()) await this.vaultDelete(String(r.key));
+    return this.sql.exec(`SELECT * FROM bk_files WHERE done=1 ORDER BY created DESC`).toArray().map((r) => ({ key: String(r.key), kind: String(r.kind), data: Number(r.data) === 1, created: Number(r.created), size: Number(r.size), rows: Number(r.rows), chunks: Number(r.chunks) }));
+  }
+  async vaultChunk(key: string, i: number): Promise<ArrayBuffer | null> {
+    this.vInit();
+    const r = this.sql.exec(`SELECT bytes FROM bk_chunks WHERE key=? AND i=?`, key, i).toArray()[0];
+    return r ? (r.bytes as ArrayBuffer) : null;
+  }
+  async vaultDelete(key: string): Promise<void> {
+    this.vInit();
+    this.sql.exec(`DELETE FROM bk_chunks WHERE key=?`, key);
+    this.sql.exec(`DELETE FROM bk_files WHERE key=?`, key);
+  }
 }
 
 type Vid = { id: string; title: string; duration: string; published: string };
