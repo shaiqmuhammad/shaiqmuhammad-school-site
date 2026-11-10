@@ -17,7 +17,7 @@ export type SiteIdentity = {
   /** Main site address without https:// ("" = the deployment's default, school: www.shaiqmuhammad.com). */
   canonical: string;
   /** Email identity shown on automatic emails ("" = deployment default). */
-  mail?: { fromName: string; contact: string; info: string; footer?: string; logoPath?: string; siteLogoPath?: string };
+  mail?: MailIdentity;
   /** Saved branding presets (applied with one click, e.g. together with a main-address switch). */
   presets?: BrandPreset[];
   updatedAt?: number;
@@ -40,6 +40,52 @@ export const THEME_PRESETS: { id: string; en: string; ar: string; header: string
   { id: "charcoal", en: "Charcoal", ar: "فحمي", header: "#2f3640", sun: "#f5a623" },
   { id: "ocean", en: "Ocean blue", ar: "أزرق محيطي", header: "#0b4f8a", sun: "#ffd166" },
 ];
+
+
+/** Keep address lists in sync with workers/assessment-session/src/mail/identity.ts */
+export const MAIL_EMAIL_RE = /^[^\s@<>"]{1,64}@[a-z0-9.-]+\.[a-z]{2,24}$/i;
+export function isMailAddress(v: string): boolean {
+  return MAIL_EMAIL_RE.test(v.trim());
+}
+
+export const MAIL_QUICK_PICKS: { id: string; email: string; en: string; ar: string }[] = [
+  { id: "alm-support", email: "support@almudarris.com", en: "Support · almudarris.com", ar: "الدعم · almudarris.com" },
+  { id: "alm-admin", email: "admin@almudarris.com", en: "Admin · almudarris.com", ar: "الإدارة · almudarris.com" },
+  { id: "alm-billing", email: "billings@almudarris.com", en: "Billing · almudarris.com", ar: "الفوترة · almudarris.com" },
+  { id: "icloud", email: "shaiqmuhammad@icloud.com", en: "iCloud", ar: "iCloud" },
+  { id: "info", email: "info@shaiqmuhammad.com", en: "Info · shaiqmuhammad.com", ar: "المعلومات · shaiqmuhammad.com" },
+  { id: "support", email: "support@shaiqmuhammad.com", en: "Support · shaiqmuhammad.com", ar: "الدعم · shaiqmuhammad.com" },
+  { id: "contact", email: "contact@shaiqmuhammad.com", en: "Contact · shaiqmuhammad.com", ar: "التواصل · shaiqmuhammad.com" },
+];
+
+export const MAIL_SENDER_TYPES = ["notify", "account", "billing", "reports", "contact"] as const;
+export type MailSenderType = (typeof MAIL_SENDER_TYPES)[number];
+export const MAIL_SENDER_DEFAULTS: Record<MailSenderType, string> = {
+  notify: "support@almudarris.com",
+  account: "admin@almudarris.com",
+  billing: "billings@almudarris.com",
+  reports: "billings@almudarris.com",
+  contact: "support@almudarris.com",
+};
+export const MAIL_SENDER_LABELS: Record<MailSenderType, { en: string; ar: string }> = {
+  notify: { en: "Notifications & reminders", ar: "الإشعارات والتذكيرات" },
+  account: { en: "Account & security", ar: "الحساب والأمان" },
+  billing: { en: "Billing & receipts", ar: "الفوترة والإيصالات" },
+  reports: { en: "Reports", ar: "التقارير" },
+  contact: { en: "Replies & contact", ar: "الردود والتواصل" },
+};
+
+export type MailIdentity = {
+  fromName: string;
+  contact: string;
+  info: string;
+  footer?: string;
+  logoPath?: string;
+  siteLogoPath?: string;
+  siteLogoPngPath?: string;
+  senders?: Partial<Record<MailSenderType, string>>;
+  allowedFrom?: string[];
+};
 
 export const emptyIdentity: SiteIdentity = {
   nameEn: "",
@@ -67,7 +113,27 @@ export function normalizeIdentity(raw: unknown): SiteIdentity {
       mode: th.mode === "dark" ? "dark" : "light",
     },
     canonical: /^[a-z0-9.-]+\.[a-z]{2,}$/.test(s(r.canonical, 253)) ? s(r.canonical, 253) : "",
-    mail: (() => { const m = (r.mail && typeof r.mail === "object" ? r.mail : {}) as Record<string, unknown>; const logo = (v: unknown) => { const p = s(v, 80); return /^\/(logo\.(svg|png|jpe?g)|brand\/[A-Za-z0-9._-]+)$/i.test(p) ? p : ""; }; return { fromName: s(m.fromName, 60), contact: s(m.contact, 120), info: s(m.info, 120), footer: s(m.footer, 200), logoPath: logo(m.logoPath), siteLogoPath: logo(m.siteLogoPath) }; })(),
+    mail: (() => {
+      const m = (r.mail && typeof r.mail === "object" ? r.mail : {}) as Record<string, unknown>;
+      const logo = (v: unknown) => { const p = s(v, 80); return /^\/(logo(-email)?\.(svg|png|jpe?g)|brand\/[A-Za-z0-9._-]+)$/i.test(p) ? p : ""; };
+      const senders: MailIdentity["senders"] = {};
+      const rawSenders = (m.senders && typeof m.senders === "object" ? m.senders : {}) as Record<string, unknown>;
+      for (const typ of MAIL_SENDER_TYPES) {
+        const v = typeof rawSenders[typ] === "string" ? rawSenders[typ].trim().toLowerCase() : "";
+        if (isMailAddress(v)) senders[typ] = v;
+      }
+      const allowedRaw = Array.isArray(m.allowedFrom) ? m.allowedFrom : typeof m.allowedFrom === "string" ? String(m.allowedFrom).split(",") : [];
+      const allowedFrom: string[] = [];
+      const seen = new Set<string>();
+      for (const raw of allowedRaw.slice(0, 40)) {
+        const v = (typeof raw === "string" ? raw : "").trim().toLowerCase();
+        if (!isMailAddress(v) || seen.has(v)) continue;
+        seen.add(v);
+        allowedFrom.push(v);
+        if (allowedFrom.length >= 20) break;
+      }
+      return { fromName: s(m.fromName, 60), contact: s(m.contact, 120), info: s(m.info, 120), footer: s(m.footer, 200), logoPath: logo(m.logoPath), siteLogoPath: logo(m.siteLogoPath), siteLogoPngPath: logo(m.siteLogoPngPath), senders, allowedFrom };
+    })(),
     presets: Array.isArray(r.presets) ? (r.presets as unknown[]).slice(0, 8).map((p) => {
       const q = (p && typeof p === "object" ? p : {}) as Record<string, unknown>;
       const t = (q.theme && typeof q.theme === "object" ? q.theme : {}) as Record<string, unknown>;

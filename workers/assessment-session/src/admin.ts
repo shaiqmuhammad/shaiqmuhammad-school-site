@@ -11,9 +11,9 @@
  */
 import { DurableObject } from "cloudflare:workers";
 import { DEPLOY, initDeployment, ownHosts, servesThisSite, verifiedCandidate } from "./deployment";
-import { CONTACT, FROM_NAME, INFO, MAIL_FOOTER, MAIL_HEADER, MAIL_LOGO, MAIL_SUN, SITE_NAME, SITE_URL, renderEmail, renderText, setMailIdentity } from "./mail/template";
+import { CONTACT, FROM_NAME, INFO, MAIL_FOOTER, MAIL_HEADER, MAIL_LOGO, MAIL_SENDERS, MAIL_SUN, SITE_NAME, SITE_URL, renderEmail, renderText, setMailIdentity } from "./mail/template";
 import { autoFrom, mailReady, publicMailAllowedFrom, type MailEnv } from "./mail/mailbox";
-import { safeLogoPath } from "./mail/identity";
+import { MAIL_SENDER_TYPES, normAllowedList, normSenders, safeLogoPath, senderForType } from "./mail/identity";
 import {
   checkPassword, deviceOf, hashPassword, IDLE_MS, maskIp, MAX_SESSION_MS, newBackupCodes, newTotpSecret, normBackup,
   otpauthUri, passwordProblem, sha256Hex, totpMatch, type AuthState, type LogEntry,
@@ -85,7 +85,10 @@ function applyMail(b: { mail?: MailCfg; nameEn?: string; nameAr?: string; theme?
     sun: b?.theme?.sun || "",
     logoPath: m?.logoPath || "",
     siteLogoPath: m?.siteLogoPath || "",
+    siteLogoPngPath: m?.siteLogoPngPath || "",
     footer: m?.footer || "",
+    senders: m?.senders || {},
+    allowedFrom: m?.allowedFrom || [],
   });
 }
 
@@ -472,7 +475,12 @@ async function checkSecondStep(env: AdminEnv, st: AuthState, code: string): Prom
 }
 
 /* ---------- Site & branding (public read, admin write) ---------- */
-export type MailCfg = { fromName?: string; contact?: string; info?: string; footer?: string; logoPath?: string; siteLogoPath?: string };
+export type MailCfg = {
+  fromName?: string; contact?: string; info?: string; footer?: string;
+  logoPath?: string; siteLogoPath?: string; siteLogoPngPath?: string;
+  senders?: Record<string, string>;
+  allowedFrom?: string[];
+};
 const EMAIL = /^[^\s@<>"]{1,64}@[a-z0-9.-]+\.[a-z]{2,24}$/i;
 function normMail(raw: unknown): MailCfg {
   const r = (raw && typeof raw === "object" ? raw : {}) as Body;
@@ -485,6 +493,9 @@ function normMail(raw: unknown): MailCfg {
     footer: clean(r.footer, 200),
     logoPath: logo(r.logoPath),
     siteLogoPath: logo(r.siteLogoPath),
+    siteLogoPngPath: logo(r.siteLogoPngPath),
+    senders: normSenders(r.senders),
+    allowedFrom: normAllowedList(r.allowedFrom),
   };
 }
 function normPresets(raw: unknown): Body[] {
@@ -668,8 +679,14 @@ export async function handleAdmin(request: Request, env: AdminEnv, action: strin
       const prevRaw = kv ? await kv.get(BRAND_KEY) : null;
       const saved = prevRaw ? (JSON.parse(prevRaw) as Body) : {};
       const draft = (body.brand && typeof body.brand === "object" ? body.brand : null) as Body | null;
-      applyMail(draft ? normBrand(draft, sv(saved.canonical, 253), saved) : saved);
-      const from = autoFrom(menv);
+      const branded = draft ? normBrand(draft, sv(saved.canonical, 253), saved) : saved;
+      applyMail(branded);
+      const from = autoFrom(menv, "notify");
+      const fromByType: Record<string, { from: string; fellBack: boolean; wanted: string }> = {};
+      for (const typ of MAIL_SENDER_TYPES) {
+        const r = autoFrom(menv, typ);
+        fromByType[typ] = { from: r.from, fellBack: r.fellBack, wanted: senderForType(typ, MAIL_SENDERS, INFO) };
+      }
       const sample = {
         heading: "Sample email",
         paragraphs: ["Assalamu alaikum,", "This is a preview of how automatic emails look with the current name, colours and logo. Nothing was sent."],
@@ -685,6 +702,7 @@ export async function handleAdmin(request: Request, env: AdminEnv, action: strin
         text,
         from: from.from,
         fromFellBack: from.fellBack,
+        fromByType,
         fromName: `${FROM_NAME} (no-reply)`,
         replyTo: CONTACT,
         info: INFO,

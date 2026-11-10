@@ -107,7 +107,7 @@ export async function handleContact(request: Request, env: LmsEnv, ctx: Executio
           heading: `Thank you, ${m.name}!`,
           paragraphs: ["We received your message and will reply soon, in shaa Allah.", `Your message:\n${m.message.slice(0, 1000)}`],
           note: `This is an automatic acknowledgement. To add anything, write to ${CONTACT}.`,
-        });
+        }, "contact");
       } catch (e) { mailErr = (e as Error).message.slice(0, 200); }
     })();
   }

@@ -10,7 +10,8 @@ import { applyThemeCss } from "@/components/SiteIdentity";
 import AdminMainAddress from "@/components/AdminMainAddress";
 import {
   allPresets, cacheIdentity, cachedIdentity, contrastWarnings, DEFAULT_HEADER, DEFAULT_MAIL_HEADER, DEFAULT_MAIL_SUN, DEFAULT_SUN, emptyIdentity, fetchIdentity,
-  normalizeIdentity, THEME_PRESETS, themeCss, type SiteIdentity,
+  isMailAddress, MAIL_QUICK_PICKS, MAIL_SENDER_DEFAULTS, MAIL_SENDER_LABELS, MAIL_SENDER_TYPES, normalizeIdentity, THEME_PRESETS, themeCss,
+  type MailIdentity, type SiteIdentity,
 } from "@/lib/siteIdentity";
 import {
   BRAND_DIR, brandUrl, DEFAULT_FAVICON_URL, DEFAULT_LOGO_URL, GITHUB_SETTINGS_PATH, normalizeSettings,
@@ -28,6 +29,39 @@ function Card({ title, children, testid }: { title: string; children: ReactNode;
 const input = "mt-1 w-full rounded-xl border border-card-border bg-card-solid px-3 py-2 text-sm outline-none focus:border-sun-border focus:ring-2 focus:ring-sun/40";
 const btn = "rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50";
 const btn2 = "rounded-full border border-card-border px-4 py-2 text-sm font-semibold hover:bg-black/[0.04] dark:hover:bg-white/10 disabled:opacity-50";
+
+
+function AddressPicks({ label, value, onChange, placeholder, testid, allowed, tr, ar, className = "" }: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  testid: string;
+  allowed: string[];
+  tr: (en: string, a: string) => string;
+  ar: boolean;
+  className?: string;
+}) {
+  const v = value.trim().toLowerCase();
+  const warn = Boolean(v && allowed.length > 0 && !allowed.includes(v));
+  return (
+    <div className={`block font-medium ${className}`.trim()}>
+      <span>{label}</span>
+      <div className="mt-1 flex flex-wrap gap-1">
+        {MAIL_QUICK_PICKS.map((p) => {
+          const on = v === p.email;
+          return (
+            <button key={p.id} type="button" aria-pressed={on} onClick={() => onChange(on ? "" : p.email)} className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold ${on ? "border-sun-border ring-2 ring-sun/50" : "border-card-border"}`} data-testid={`${testid}-pick-${p.id}`}>
+              {ar ? p.ar : p.en}
+            </button>
+          );
+        })}
+      </div>
+      <input dir="ltr" type="email" value={value} maxLength={120} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} className={input} data-testid={testid} />
+      {warn && <p className="mt-1 text-xs text-amber-800 dark:text-amber-200">{tr("This address is not on the allowed list, so iCloud will send from the connected account instead.", "هذا العنوان ليس في القائمة المسموحة، لذلك سيرسل iCloud من الحساب المتصل بدلاً منه.")}</p>}
+    </div>
+  );
+}
 
 type Props = {
   siteSettings: SiteSettings;
@@ -50,6 +84,8 @@ export default function AdminBranding({ siteSettings, setSiteSettings, setStatus
   const [emailBusy, setEmailBusy] = useState(false);
   const [mailStatus, setMailStatus] = useState<{ mailConnected: boolean; allowedFrom: string[] } | null>(null);
   const [serverPreview, setServerPreview] = useState<string>("");
+  const [extraDraft, setExtraDraft] = useState("");
+  const [extraErr, setExtraErr] = useState("");
 
   useEffect(() => {
     const c = cachedIdentity();
@@ -86,6 +122,7 @@ export default function AdminBranding({ siteSettings, setSiteSettings, setStatus
       mail: {
         ...(next.mail || { fromName: "", contact: "", info: "" }),
         siteLogoPath: siteSettings.brand.logoPath || next.mail?.siteLogoPath || "",
+        siteLogoPngPath: siteSettings.brand.logoEmailPath || next.mail?.siteLogoPngPath || "",
       },
     };
     const r = await securityCall<{ brand: unknown }>("brand-save", { brand: payload });
@@ -118,13 +155,22 @@ export default function AdminBranding({ siteSettings, setSiteSettings, setStatus
   const applyPreset = (id: string) => { const p = allPresets(saved).find((x) => x.id === id); if (p) setD({ ...d, nameEn: p.nameEn, nameAr: p.nameAr, taglineEn: p.taglineEn, taglineAr: p.taglineAr, theme: p.theme }); };
 
   // ---- email sender ----
-  const mail = d.mail || { fromName: "", contact: "", info: "", footer: "", logoPath: "", siteLogoPath: "" };
-  const setMail = (m: Partial<typeof mail>) => setD({ ...d, mail: { ...mail, ...m } });
+  const mail: MailIdentity = d.mail || { fromName: "", contact: "", info: "", footer: "", logoPath: "", siteLogoPath: "", siteLogoPngPath: "", senders: {}, allowedFrom: [] };
+  const setMail = (m: Partial<MailIdentity>) => setD({ ...d, mail: { ...mail, ...m } });
+  const allowedNow = Array.from(new Set([...(mailStatus?.allowedFrom || []), ...(mail.allowedFrom || [])].map((a) => a.trim().toLowerCase()).filter(Boolean)));
+  function addAllowedAddress() {
+    const v = extraDraft.trim().toLowerCase();
+    if (!isMailAddress(v)) { setExtraErr(tr("Enter a valid email address, like name@icloud.com.", "أدخل عنوان بريد صالحًا، مثل name@icloud.com.")); return; }
+    const list = Array.from(new Set([...(mail.allowedFrom || []), v]));
+    setMail({ allowedFrom: list.slice(0, 20) });
+    setExtraDraft("");
+    setExtraErr("");
+  }
 
   const nameNow = ar ? d.nameAr || d.nameEn || siteConfig.name : d.nameEn || siteConfig.name;
   const logoSrc = pending.logo?.dataUrl || brandUrl(siteSettings.brand.logoPath, siteSettings.brand.version, DEFAULT_LOGO_URL);
   const pendingCount = (pending.logo ? 1 : 0) + (pending.favicon ? 1 : 0);
-  const emailLogoSrc = emailPending?.dataUrl || brandUrl(mail.logoPath || "", "", brandUrl(siteSettings.brand.logoPath, siteSettings.brand.version, DEFAULT_LOGO_URL));
+  const emailLogoSrc = emailPending?.dataUrl || brandUrl(mail.logoPath || "", "", brandUrl(siteSettings.brand.logoEmailPath || siteSettings.brand.logoPath, siteSettings.brand.version, DEFAULT_LOGO_URL));
   async function publishEmailLogo() {
     const token = getStoredGithubToken();
     if (!token) { setStatus("Publishing isn't connected on this device. Sign out and sign in again."); return; }
@@ -138,9 +184,11 @@ export default function AdminBranding({ siteSettings, setSiteSettings, setStatus
       setStatus(`Uploading ${BRAND_DIR}/${file}…`);
       const r = await publishBinaryToGithub(`${BRAND_DIR}/${file}`, dataUrl, token, "chore(brand): upload email-logo via admin");
       if (!r.ok) { setStatus(`email logo upload failed: ${r.error}`); return; }
+      const nextMail = { ...mail, logoPath: `/brand/${file}` };
       setMail({ logoPath: `/brand/${file}` });
       setEmailPending(null);
-      setStatus(`Published ${BRAND_DIR}/${file}. Press “Save name, colours & email” so outgoing mail uses it. Site rebuilds in ~2–5 min. ${r.htmlUrl || ""}`);
+      setStatus(`Published ${BRAND_DIR}/${file}. Saving so outgoing mail uses it. Site rebuilds in ~2–5 min. ${r.htmlUrl || ""}`);
+      await save({ ...d, mail: nextMail }, tr("Email logo published and saved. Site rebuilds in ~2–5 min.", "نُشر شعار البريد وحُفظ. يُعاد بناء الموقع خلال ٢–٥ دقائق."));
     } catch (e) {
       setStatus(`Publish failed: ${e instanceof Error ? e.message : String(e)} (check your connection).`);
     } finally {
@@ -170,8 +218,15 @@ export default function AdminBranding({ siteSettings, setSiteSettings, setStatus
         setStatus(`Uploading ${BRAND_DIR}/${file}…`);
         const r = await publishBinaryToGithub(`${BRAND_DIR}/${file}`, img.dataUrl, token, `chore(brand): upload ${kind} via admin`);
         if (!r.ok) { setStatus(`${kind} upload failed: ${r.error}`); return; }
-        if (kind === "logo") next.brand.logoPath = `/brand/${file}`;
-        else {
+        if (kind === "logo") {
+          next.brand.logoPath = `/brand/${file}`;
+          if (img.png512) {
+            setStatus(`Uploading ${BRAND_DIR}/logo-email.png…`);
+            const rPng = await publishBinaryToGithub(`${BRAND_DIR}/logo-email.png`, img.png512, token, "chore(brand): upload logo-email.png via admin");
+            if (!rPng.ok) { setStatus(`email PNG upload failed: ${rPng.error}`); return; }
+            next.brand.logoEmailPath = "/brand/logo-email.png";
+          }
+        } else {
           next.brand.faviconPath = `/brand/${file}`;
           if (!img.png512) { setStatus("Could not prepare the 512px favicon. Please try another image."); return; }
           setStatus(`Uploading ${BRAND_DIR}/favicon-512.png…`);
@@ -187,7 +242,10 @@ export default function AdminBranding({ siteSettings, setSiteSettings, setStatus
       if (!r.ok) { setStatus(r.error || "failed"); return; }
       setSiteSettings(next);
       setPending({ logo: null, favicon: null });
+      const nextMail = { ...mail, siteLogoPath: next.brand.logoPath || "", siteLogoPngPath: next.brand.logoEmailPath || "" };
+      setMail({ siteLogoPath: nextMail.siteLogoPath, siteLogoPngPath: nextMail.siteLogoPngPath });
       setStatus(`Published ${GITHUB_SETTINGS_PATH}${uploaded ? " and brand images" : ""}. Site rebuilds in ~2–5 min. ${r.htmlUrl || ""}`);
+      await save({ ...d, mail: nextMail }, tr("Logo & icons published. Emails will use this logo after the site rebuilds (~2–5 min).", "نُشر الشعار والأيقونات. ستستخدم الرسائل هذا الشعار بعد إعادة بناء الموقع (نحو ٢–٥ دقائق)."));
     } catch (e) {
       setStatus(`Publish failed: ${e instanceof Error ? e.message : String(e)} (check your connection).`);
     } finally {
@@ -200,7 +258,7 @@ export default function AdminBranding({ siteSettings, setSiteSettings, setStatus
     setSiteSettings({
       ...siteSettings,
       brand: kind === "logo"
-        ? { ...siteSettings.brand, logoPath: "" }
+        ? { ...siteSettings.brand, logoPath: "", logoEmailPath: "" }
         : { ...siteSettings.brand, faviconPath: "", faviconPngPath: "" },
     });
     setStatus(`${kind === "logo" ? "Logo" : "Favicon"} set back to the default — press “Publish logo & icons” to apply.`);
@@ -231,6 +289,7 @@ export default function AdminBranding({ siteSettings, setSiteSettings, setStatus
             onPick={(img) => setPending((p) => ({ ...p, logo: img }))}
             onReset={() => resetBrand("logo")}
             onError={setStatus}
+            preferPng
           />
           <BrandUpload
             kind="favicon"
@@ -329,28 +388,50 @@ export default function AdminBranding({ siteSettings, setSiteSettings, setStatus
         <p className="text-muted">{tr("Name, addresses, footer and logo on automatic emails (sign-in details, reminders, reports). Leave a field empty to keep this site's built-in value. The mailbox password stays a server secret and is never stored here.", "الاسم والعناوين والتذييل والشعار في الرسائل التلقائية (بيانات الدخول، التذكيرات، التقارير). اترك الحقل فارغًا للإبقاء على القيمة الافتراضية. تبقى كلمة مرور صندوق البريد سرًا على الخادم ولا تُحفظ هنا.")}</p>
         <p className="text-sm" data-testid="mail-connected">{mailStatus?.mailConnected ? tr("Mail account: connected", "حساب البريد: متصل") : tr("Mail account: not connected — sending needs the mailbox password, kept as a server secret. Ask your assistant to add it.", "حساب البريد: غير متصل — الإرسال يحتاج كلمة مرور الصندوق، وتُحفظ كسرّ على الخادم. اطلب من مساعدك إضافتها.")}</p>
         <div className="grid gap-3 sm:grid-cols-2">
-          <label className="block font-medium">{tr("Sender name", "اسم المرسل")}<input value={mail.fromName} maxLength={60} placeholder={siteConfig.name} onChange={(e) => setMail({ fromName: e.target.value })} className={input} data-testid="mail-from-name" /></label>
-          <label className="block font-medium">{tr("Sender email (From)", "عنوان المرسل (From)")}<input dir="ltr" type="email" value={mail.info} maxLength={120} placeholder={tr("usually the no-reply address", "عادةً عنوان عدم الرد")} onChange={(e) => setMail({ info: e.target.value })} className={input} data-testid="mail-info" /></label>
-          <label className="block font-medium sm:col-span-2">{tr("Reply-To address", "عنوان الرد")}<input dir="ltr" type="email" value={mail.contact} maxLength={120} placeholder={siteConfig.email} onChange={(e) => setMail({ contact: e.target.value })} className={input} data-testid="mail-contact" /></label>
+          <label className="block font-medium sm:col-span-2">{tr("Sender name", "اسم المرسل")}<input value={mail.fromName} maxLength={60} placeholder={siteConfig.name} onChange={(e) => setMail({ fromName: e.target.value })} className={input} data-testid="mail-from-name" /></label>
+          <AddressPicks label={tr("Default From address", "عنوان المرسل الافتراضي")} value={mail.info} onChange={(v) => setMail({ info: v })} placeholder={tr("usually the no-reply address", "عادةً عنوان عدم الرد")} testid="mail-info" allowed={allowedNow} tr={tr} ar={ar} />
+          <AddressPicks label={tr("Reply-To address", "عنوان الرد")} value={mail.contact} onChange={(v) => setMail({ contact: v })} placeholder={siteConfig.email} testid="mail-contact" allowed={allowedNow} tr={tr} ar={ar} className="sm:col-span-2" />
           <label className="block font-medium sm:col-span-2">{tr("Footer / contact line", "سطر التذييل / التواصل")}<input value={mail.footer || ""} maxLength={200} placeholder={tr("Questions? Write to (reply-to address) · this website", "أسئلة؟ راسل (عنوان الرد) · هذا الموقع")} onChange={(e) => setMail({ footer: e.target.value })} className={input} data-testid="mail-footer" /></label>
         </div>
-        <p className="text-xs text-muted">{tr("iCloud can only send from addresses on the connected Apple account (and its aliases). If the From address is not one of those, mail is sent from the connected account instead.", "iCloud يرسل فقط من العناوين المرتبطة بحساب Apple المتصل (ومرادفاته). إذا لم يكن عنوان المرسل منها، تُرسل الرسالة من الحساب المتصل بدلاً منه.")}</p>
-        {mail.info.trim() && mailStatus && mailStatus.allowedFrom.length > 0 && !mailStatus.allowedFrom.includes(mail.info.trim().toLowerCase()) && (
-          <p className="rounded-lg bg-amber-50 px-3 py-2 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200" data-testid="mail-from-warn">{tr("This From address is not on the allowed list for this mailbox, so emails will be sent from the connected account until you add it as an iCloud alias (or ask for it to be allowed).", "عنوان المرسل هذا ليس في القائمة المسموحة لهذا الصندوق، لذلك ستُرسل الرسائل من الحساب المتصل حتى تضيفه كعنوان مرادف في iCloud (أو يُسمح به).")}</p>
+        <p className="font-medium">{tr("From address by email type", "عنوان المرسل حسب نوع الرسالة")}</p>
+        <p className="text-xs text-muted">{tr("Each kind of automatic email can use a different From address. Leave a row empty to keep its built-in default.", "يمكن لكل نوع من الرسائل التلقائية استخدام عنوان مرسل مختلف. اترك الصف فارغًا للإبقاء على القيمة الافتراضية.")}</p>
+        <div className="grid gap-3" data-testid="mail-senders">
+          {MAIL_SENDER_TYPES.map((typ) => (
+            <AddressPicks key={typ} label={ar ? MAIL_SENDER_LABELS[typ].ar : MAIL_SENDER_LABELS[typ].en} value={(mail.senders && mail.senders[typ]) || ""} onChange={(v) => setMail({ senders: { ...(mail.senders || {}), [typ]: v } })} placeholder={MAIL_SENDER_DEFAULTS[typ]} testid={`mail-sender-${typ}`} allowed={allowedNow} tr={tr} ar={ar} />
+          ))}
+        </div>
+        <p className="font-medium">{tr("Other iCloud addresses", "عناوين iCloud أخرى")}</p>
+        <p className="text-xs text-muted">{tr("Add any other iCloud address or alias of the connected account that you want to use as From. Addresses are saved with this site (no new password). iCloud only sends from aliases of the connected account; any other address falls back to that account.", "أضف أي عنوان iCloud أو مرادف للحساب المتصل تريد استخدامه كمرسل. تُحفظ العناوين مع هذا الموقع (بدون كلمة مرور جديدة). iCloud يرسل فقط من مرادفات الحساب المتصل، وأي عنوان آخر يُستبدل بالحساب المتصل.")}</p>
+        <ul className="space-y-1" data-testid="mail-allowed-list">
+          {(mail.allowedFrom || []).map((addr) => (
+            <li key={addr} className="flex flex-wrap items-center gap-2 rounded-xl border border-card-border px-3 py-1.5">
+              <span dir="ltr" className="min-w-0 flex-1 break-all text-sm">{addr}</span>
+              <button type="button" className={btn2} onClick={() => setMail({ allowedFrom: (mail.allowedFrom || []).filter((a) => a !== addr) })} data-testid={`mail-allowed-remove-${addr}`}>{tr("Remove", "إزالة")}</button>
+            </li>
+          ))}
+        </ul>
+        <div className="flex max-w-xl flex-wrap gap-2">
+          <input dir="ltr" type="email" value={extraDraft} maxLength={120} placeholder={tr("name@icloud.com or another alias", "name@icloud.com أو مرادف آخر")} onChange={(e) => { setExtraDraft(e.target.value); setExtraErr(""); }} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addAllowedAddress(); } }} className="min-w-0 flex-1 rounded-xl border border-card-border bg-card-solid px-3 py-2 text-sm" data-testid="mail-allowed-input" />
+          <button type="button" className={btn2} onClick={addAllowedAddress} data-testid="mail-allowed-add">{tr("Add address", "إضافة عنوان")}</button>
+        </div>
+        {extraErr && <p className="text-xs text-amber-800 dark:text-amber-200" data-testid="mail-allowed-error">{extraErr}</p>}
+        <p className="text-xs text-muted">{tr("iCloud only sends from aliases of the connected account. If a From address is not one of those, mail is sent from the connected account instead.", "iCloud يرسل فقط من مرادفات الحساب المتصل. إذا لم يكن عنوان المرسل منها، تُرسل الرسالة من الحساب المتصل بدلاً منه.")}</p>
+        {mail.info.trim() && allowedNow.length > 0 && !allowedNow.includes(mail.info.trim().toLowerCase()) && (
+          <p className="rounded-lg bg-amber-50 px-3 py-2 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200" data-testid="mail-from-warn">{tr("This From address is not on the allowed list for this mailbox, so emails will be sent from the connected account until you add it as an iCloud alias (or add it to the list above and save).", "عنوان المرسل هذا ليس في القائمة المسموحة لهذا الصندوق، لذلك ستُرسل الرسائل من الحساب المتصل حتى تضيفه كعنوان مرادف في iCloud (أو تضيفه إلى القائمة أعلاه ثم تحفظ).")}</p>
         )}
         <BrandUpload
           kind="logo"
-          preferPng
-          title={tr("Email logo", "شعار البريد")}
-          hint={tr("Shown at the top of emails. Use a PNG or JPG (many mail apps cannot show SVG). Reset uses the main site logo. The file is published to the live site as /brand/email-logo.png so mail apps can load it.", "يظهر أعلى الرسائل. استخدم PNG أو JPG (كثير من تطبيقات البريد لا تعرض SVG). إعادة الافتراضي تستخدم شعار الموقع. يُنشر الملف على الموقع الحي كي تتمكّن تطبيقات البريد من تحميله.")}
-          currentUrl={emailPending?.dataUrl || brandUrl(mail.logoPath || "", "", brandUrl(siteSettings.brand.logoPath, siteSettings.brand.version, DEFAULT_LOGO_URL))}
+          title={tr("Email logo (optional override)", "شعار البريد (اختياري)")}
+          hint={tr("Emails use the Logo & icons image by default (a PNG copy is published for mail apps that cannot show SVG). Upload here only if you want a different image on emails. Reset goes back to the site logo.", "تستخدم الرسائل شعار «الشعار والأيقونات» افتراضيًا (وتُنشر نسخة PNG لتطبيقات البريد التي لا تعرض SVG). ارفع هنا فقط إذا أردت صورة مختلفة في الرسائل. إعادة الافتراضي تعود لشعار الموقع.")}
+          currentUrl={emailPending?.dataUrl || brandUrl(mail.logoPath || "", "", brandUrl(siteSettings.brand.logoEmailPath || siteSettings.brand.logoPath, siteSettings.brand.version, DEFAULT_LOGO_URL))}
           isCustom={!!mail.logoPath}
           pending={emailPending}
           onPick={setEmailPending}
           onReset={() => { setEmailPending(null); setMail({ logoPath: "" }); }}
+          preferPng
           onError={setStatus}
         />
-        {emailPending && <p className="rounded-lg bg-gold-soft px-3 py-2 text-sm">{tr("New email logo ready — press “Publish email logo”, then “Save name, colours & email”.", "شعار البريد الجديد جاهز — اضغط «نشر شعار البريد» ثم «حفظ الاسم والألوان والبريد».")}</p>}
+        {emailPending && <p className="rounded-lg bg-gold-soft px-3 py-2 text-sm">{tr("New email logo ready — press “Publish email logo”. It will be saved automatically.", "شعار البريد الجديد جاهز — اضغط «نشر شعار البريد». سيُحفظ تلقائيًا.")}</p>}
         <div className="flex flex-wrap gap-2">
           <button type="button" disabled={emailBusy || !emailPending} className={btn} onClick={() => void publishEmailLogo()} data-testid="publish-email-logo">{emailBusy ? tr("Publishing…", "جارٍ النشر…") : tr("Publish email logo", "نشر شعار البريد")}</button>
         </div>

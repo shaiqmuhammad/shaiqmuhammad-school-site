@@ -2,8 +2,8 @@
 import { classifyParts, decodeTextPart, decodeTransfer, flattenStructure, parseEnvelope, withImap, type ImapAccount, type Tok } from "./imap";
 import { latin1ToBytes } from "./socket";
 import { buildMime, sendMail, type OutMail } from "./smtp";
-import { CONTACT, FROM_NAME, INFO, renderEmail, renderText, type Branded } from "./template";
-import { publicAllowedFrom, resolveFrom, uniqueEmails } from "./identity";
+import { CONTACT, FROM_NAME, INFO, MAIL_EXTRA_ALLOWED, MAIL_SENDERS, renderEmail, renderText, type Branded, type MailSenderType } from "./template";
+import { publicAllowedFrom, resolveFrom, senderForType, uniqueEmails } from "./identity";
 import { DEPLOY } from "../deployment";
 
 export interface MailEnv {
@@ -14,38 +14,39 @@ export interface MailEnv {
   MAIL_ALLOWED_FROM?: string;
 }
 
-export function mailAllowedFrom(env: MailEnv): string[] {
-  return uniqueEmails(
-    publicAllowedFrom({
-      mailContact: DEPLOY.mailContact,
-      mailInfo: DEPLOY.mailInfo,
-      contact: CONTACT,
-      info: INFO,
-      extra: env.MAIL_ALLOWED_FROM,
-    }),
-    [env.ICLOUD_SMTP_USER, env.ICLOUD_APPLE_ID],
-  );
-}
-
-export function publicMailAllowedFrom(env: MailEnv): string[] {
-  return publicAllowedFrom({
+function allowedOpts(env: MailEnv) {
+  return {
     mailContact: DEPLOY.mailContact,
     mailInfo: DEPLOY.mailInfo,
     contact: CONTACT,
     info: INFO,
     extra: env.MAIL_ALLOWED_FROM,
-  });
+    saved: MAIL_EXTRA_ALLOWED,
+  };
+}
+
+export function mailAllowedFrom(env: MailEnv): string[] {
+  return uniqueEmails(publicAllowedFrom(allowedOpts(env)), [env.ICLOUD_SMTP_USER, env.ICLOUD_APPLE_ID]);
+}
+
+export function publicMailAllowedFrom(env: MailEnv): string[] {
+  return publicAllowedFrom(allowedOpts(env));
 }
 
 const authAddr = (env: MailEnv) => (env.ICLOUD_SMTP_USER || env.ICLOUD_APPLE_ID || "").trim();
 
-/** From for automatic / no-reply mail (INFO), falling back to the connected account if needed. */
-export function autoFrom(env: MailEnv) {
-  return resolveFrom(INFO, mailAllowedFrom(env), authAddr(env));
+export function fromForType(env: MailEnv, type: MailSenderType = "notify") {
+  const wanted = senderForType(type, MAIL_SENDERS, INFO);
+  return resolveFrom(wanted, mailAllowedFrom(env), authAddr(env));
 }
-/** From for personal / parent mail (CONTACT), falling back to the connected account if needed. */
+
+/** From for automatic / no-reply mail, using the type's configured sender (default: notifications). */
+export function autoFrom(env: MailEnv, type: MailSenderType = "notify") {
+  return fromForType(env, type);
+}
+/** From for personal / parent mail (replies & contact). */
 export function personalFrom(env: MailEnv) {
-  return resolveFrom(CONTACT, mailAllowedFrom(env), authAddr(env));
+  return fromForType(env, "contact");
 }
 
 /** The Apple account also holds arabzmart.com + personal mail: the server only ever lists/opens mail to/from contact@shaiqmuhammad.com (IMAP SEARCH). */
@@ -174,11 +175,11 @@ export async function sendPersonal(env: MailEnv, m: { to: string[]; cc?: string[
 }
 
 /** Automatic, no-reply style mail from info@ with Reply-To contact@. Silently skipped when mail isn't configured. */
-export async function sendAuto(env: MailEnv, to: string | string[], subject: string, e: Branded): Promise<boolean> {
+export async function sendAuto(env: MailEnv, to: string | string[], subject: string, e: Branded, type: MailSenderType = "notify"): Promise<boolean> {
   if (!mailReady(env)) return false;
   const list = (Array.isArray(to) ? to : [to]).filter((x) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x));
   if (!list.length) return false;
-  await sendMail(smtpAcct(env), { from: autoFrom(env).from, fromName: `${FROM_NAME} (no-reply)`, to: list, replyTo: CONTACT, subject, text: renderText(e), html: renderEmail(e) });
+  await sendMail(smtpAcct(env), { from: autoFrom(env, type).from, fromName: `${FROM_NAME} (no-reply)`, to: list, replyTo: CONTACT, subject, text: renderText(e), html: renderEmail(e) });
   return true;
 }
 

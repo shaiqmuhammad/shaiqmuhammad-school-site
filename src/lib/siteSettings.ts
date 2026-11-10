@@ -22,6 +22,8 @@ export type BrandSettings = {
   faviconPath: string;
   /** 512px PNG rendered in the browser from the favicon upload (used by scripts/gen-icons.mjs). */
   faviconPngPath: string;
+  /** PNG of the site logo for emails (mail apps often cannot show SVG). "" = built-in /logo-email.png. */
+  logoEmailPath: string;
   /** Changes on every upload; appended as ?v= so browsers/CDN pick up the new file. */
   version: string;
 };
@@ -31,7 +33,7 @@ export const DEFAULT_FAVICON_URL = SITE_FAVICON;
 export const BRAND_DIR = "public/brand";
 
 export const emptySocial: SocialLinks = { facebook: "", instagram: "", tiktok: "", x: "", linkedin: "" };
-export const emptyBrand: BrandSettings = { logoPath: "", faviconPath: "", faviconPngPath: "", version: "" };
+export const emptyBrand: BrandSettings = { logoPath: "", faviconPath: "", faviconPngPath: "", logoEmailPath: "", version: "" };
 
 export const DEFAULT_WHATSAPP_NUMBER = "+971545705552";
 /** Tawk.to live chat IDs (embed https://embed.tawk.to/<property>/<widget>). */
@@ -64,6 +66,13 @@ function brandPath(value: unknown): string {
   return /^\/brand\/[A-Za-z0-9._-]+$/.test(v) ? v : "";
 }
 
+/** Email-logo PNG: an uploaded /brand/… file, or the built-in /logo-email.png. */
+function emailLogoPath(value: unknown): string {
+  const v = str(value);
+  if (v === "/logo-email.png") return v;
+  return brandPath(v);
+}
+
 export function normalizeSettings(
   raw: (Partial<Omit<SiteSettings, "social" | "brand">> & { social?: Partial<SocialLinks>; brand?: Partial<BrandSettings> }) | null | undefined,
 ): SiteSettings {
@@ -78,6 +87,7 @@ export function normalizeSettings(
       logoPath: brandPath(raw?.brand?.logoPath),
       faviconPath: brandPath(raw?.brand?.faviconPath),
       faviconPngPath: brandPath(raw?.brand?.faviconPngPath),
+      logoEmailPath: emailLogoPath(raw?.brand?.logoEmailPath),
       version: str(raw?.brand?.version).replace(/[^A-Za-z0-9-]/g, "").slice(0, 32),
     },
   };

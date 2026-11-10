@@ -200,6 +200,41 @@ writeFileSync(join(pub, "favicon.ico"), ico([{ png: png32, size: 32 }, { png: pn
 writeFileSync(join(pub, "icon-32.png"), png32);
 writeFileSync(join(pub, "apple-touch-icon.png"), png180);
 writeFileSync(join(pub, "icon-192.png"), png192);
+// PNG companion for emails (many mail apps cannot show SVG). Prefer a published
+// /brand/logo-email.png, else a raster site logo, else the JPEG inside logo.svg.
+function writeEmailLogo() {
+  const out = join(pub, "logo-email.png");
+  const candidates = [];
+  try {
+    const settings = JSON.parse(readFileSync(join(pub, "content", "settings.json"), "utf8"));
+    const b = settings?.brand || {};
+    for (const p of [b.logoEmailPath, "/brand/logo-email.png", b.logoPath]) {
+      if (typeof p === "string" && /^\/(logo-email\.png|brand\/[A-Za-z0-9._-]+\.(png|jpe?g))$/i.test(p)) candidates.push(p);
+    }
+  } catch { /* no settings */ }
+  candidates.push("/brand/logo-email.png");
+  const seen = new Set();
+  for (const p of candidates) {
+    if (seen.has(p)) continue;
+    seen.add(p);
+    const file = join(pub, p.slice(1));
+    if (!existsSync(file)) continue;
+    try {
+      const sq = square(decodeRaster(file));
+      writeFileSync(out, encodePng(onWhite(scaleTo(sq.data, sq.size, 512)), 512, 512));
+      console.log(`gen-icons: wrote logo-email.png (512) from ${p}`);
+      return;
+    } catch (e) {
+      console.warn(`gen-icons: could not use ${p} for email logo (${e.message})`);
+    }
+  }
+  const photo = jpeg.decode(embedded("logo.svg", "jpeg"), { useTArray: true, formatAsRGBA: true });
+  const sq = square({ data: Buffer.from(photo.data), width: photo.width, height: photo.height });
+  writeFileSync(out, encodePng(onWhite(scaleTo(sq.data, sq.size, 512)), 512, 512));
+  console.log("gen-icons: wrote logo-email.png (512) from logo.svg");
+}
+writeEmailLogo();
+
 console.log(
   `gen-icons: wrote favicon.ico (32+64), icon-32.png, apple-touch-icon.png (180), icon-192.png from ${brand ? brand.path : "built-in artwork"}`,
 );

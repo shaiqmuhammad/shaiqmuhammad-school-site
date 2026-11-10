@@ -1,8 +1,10 @@
 /** Branded HTML email (navy + yellow, logo, footer with contact@). Inline styles only (email clients). */
 // Per deployment (worker variables MAIL_* / SITE_*; Admin → Site & branding → Email sender overrides). School defaults.
 import {
-  DEFAULT_MAIL_HEADER, DEFAULT_MAIL_SUN, defaultMailFooter, mailFooterLine, mailLogoUrl, safeMailColor, siteLabel as hostLabel,
+  DEFAULT_MAIL_HEADER, DEFAULT_MAIL_LOGO_PNG, DEFAULT_MAIL_SUN, defaultMailFooter, mailFooterLine, mailLogoUrl, safeMailColor, siteLabel as hostLabel,
+  type MailSenderType, type MailSenders,
 } from "./identity";
+export type { MailSenderType, MailSenders } from "./identity";
 
 export let SITE_URL = "https://www.shaiqmuhammad.com";
 export let CONTACT = "contact@shaiqmuhammad.com";
@@ -13,9 +15,12 @@ export let MAIL_HEADER = DEFAULT_MAIL_HEADER;
 export let MAIL_SUN = DEFAULT_MAIL_SUN;
 let LOGO_PATH = "";
 let SITE_LOGO_PATH = "";
+let SITE_LOGO_PNG_PATH = "";
 let FOOTER_RAW = "";
-export let MAIL_LOGO = `${SITE_URL}/logo.svg`;
+export let MAIL_LOGO = `${SITE_URL}${DEFAULT_MAIL_LOGO_PNG}`;
 export let MAIL_FOOTER = defaultMailFooter(CONTACT, SITE_URL);
+export let MAIL_SENDERS: MailSenders = {};
+export let MAIL_EXTRA_ALLOWED: string[] = [];
 
 export function setMailIdentity(m: {
   siteUrl?: string;
@@ -27,7 +32,10 @@ export function setMailIdentity(m: {
   sun?: string;
   logoPath?: string;
   siteLogoPath?: string;
+  siteLogoPngPath?: string;
   footer?: string;
+  senders?: MailSenders;
+  allowedFrom?: string[];
 }) {
   if (m.siteUrl) SITE_URL = m.siteUrl.replace(/\/+$/, "");
   if (m.contact !== undefined) CONTACT = m.contact;
@@ -38,9 +46,12 @@ export function setMailIdentity(m: {
   if (m.sun !== undefined) MAIL_SUN = safeMailColor(m.sun, DEFAULT_MAIL_SUN);
   if (m.logoPath !== undefined) LOGO_PATH = m.logoPath || "";
   if (m.siteLogoPath !== undefined) SITE_LOGO_PATH = m.siteLogoPath || "";
-  MAIL_LOGO = mailLogoUrl(SITE_URL, LOGO_PATH, SITE_LOGO_PATH);
+  if (m.siteLogoPngPath !== undefined) SITE_LOGO_PNG_PATH = m.siteLogoPngPath || "";
+  MAIL_LOGO = mailLogoUrl(SITE_URL, LOGO_PATH, SITE_LOGO_PATH, SITE_LOGO_PNG_PATH);
   if (m.footer !== undefined) FOOTER_RAW = m.footer || "";
   MAIL_FOOTER = mailFooterLine(FOOTER_RAW, CONTACT, SITE_URL);
+  if (m.senders !== undefined) MAIL_SENDERS = m.senders || {};
+  if (m.allowedFrom !== undefined) MAIL_EXTRA_ALLOWED = m.allowedFrom || [];
   DEFAULT_SIG = { ...DEFAULT_SIG, name: FROM_NAME, email: CONTACT, website: SITE_URL };
 }
 
