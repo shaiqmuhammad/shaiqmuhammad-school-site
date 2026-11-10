@@ -32,6 +32,7 @@
  */
 import { DurableObject } from "cloudflare:workers";
 import { handleAdmin, loadSiteOrigin, type AdminEnv } from "./admin";
+import { ASSETS, initDeployment, refreshCandidate } from "./deployment";
 import { handleForum } from "./forum";
 import { handleResults, resultsStore, type ResultRecord, type ResultsEnv } from "./results";
 import { handleActivity, type ActivityEnv } from "./activity";
@@ -561,6 +562,36 @@ export class AssessmentSession extends DurableObject<Env> {
   }
 }
 
+/**
+ * "Remember this iPad" for copies that serve their own files (the school site uses the Pages Function
+ * functions/api/remember.ts). Same rules: first-party HttpOnly cookie, students only, same-origin writes.
+ */
+async function handleRemember(request: Request, env: Env): Promise<Response> {
+  const NAME = "sm_rem", MAX_AGE = 180 * 86400;
+  const out = (b: unknown, status = 200, extra: Record<string, string> = {}) =>
+    new Response(JSON.stringify(b), { status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store", ...extra } });
+  const set = (v: string, age: number) => `${NAME}=${encodeURIComponent(v)}; Max-Age=${age}; Path=/api/remember; HttpOnly; Secure; SameSite=Strict`;
+  if (request.method === "GET") {
+    const m = (request.headers.get("Cookie") || "").match(/(?:^|;\s*)sm_rem=([^;]+)/);
+    if (!m) return out({ token: null });
+    const [token, device] = decodeURIComponent(m[1]).split("~");
+    const want = request.headers.get("X-SM-Device") || "";
+    if (want && device && want !== device) return out({ token: null });
+    return out({ token, device });
+  }
+  if (request.method !== "POST") return out({ error: "method" }, 405);
+  const o = request.headers.get("Origin");
+  if (o && o !== new URL(request.url).origin) return out({ error: "origin" }, 403);
+  const b = (await request.json().catch(() => ({}))) as { token?: string; device?: string; forget?: boolean };
+  if (b.forget) return out({ ok: true }, 200, { "Set-Cookie": set("", 0) });
+  const token = String(b.token || "").slice(0, 2000), device = String(b.device || "").replace(/[^a-zA-Z0-9-]/g, "").slice(0, 64);
+  if (!token || !device) return out({ error: "bad_input" }, 400);
+  const r = await handleLms(new Request(new URL("/api/lms/me", request.url), { headers: { Authorization: `Bearer ${token}` } }), env, "me").catch(() => null);
+  const me = r && r.ok ? ((await r.json().catch(() => null)) as { user?: { role?: string } } | null) : null;
+  if (me?.user?.role !== "student") return out({ error: "students_only" }, 403);
+  return out({ ok: true }, 200, { "Set-Cookie": set(`${token}~${device}`, MAX_AGE) });
+}
+
 async function readBody(request: Request, limit: number): Promise<Record<string, unknown> | null> {
   if (request.method !== "POST") return {};
   const text = await request.text();
@@ -577,8 +608,16 @@ export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     const parts = url.pathname.replace(/\/+$/, "").split("/").filter(Boolean);
-    // Saved main site address (Admin → Site & branding) is also an allowed browser origin.
-    if (parts[0] === "api" && request.headers.get("Origin")) await loadSiteOrigin(env as unknown as AdminEnv).catch(() => "");
+    initDeployment(env);
+    // A copy that serves its own website files (Al-Mudarris): everything outside /api is the static site.
+    if (ASSETS && parts[0] !== "api") return ASSETS.fetch(request);
+    if (ASSETS && parts[0] === "api" && parts[1] === "remember") return handleRemember(request, env);
+    // Saved main site address (Admin → Site & branding) is also an allowed browser origin; known extra addresses
+    // (SITE_CANDIDATES, e.g. almudarris.com) only while they really serve this website.
+    if (parts[0] === "api" && request.headers.get("Origin")) {
+      await loadSiteOrigin(env as unknown as AdminEnv).catch(() => "");
+      await refreshCandidate(request.headers.get("Origin")).catch(() => undefined);
+    }
     // Admin publishing (own CORS: site origins only). See ./admin.ts.
     if (parts[0] === "api" && parts[1] === "sys" && request.method === "POST") {
       const mk = (env as unknown as { MIGRATE_KEY?: string }).MIGRATE_KEY;
@@ -657,6 +696,7 @@ export default {
   },
   /** Daily cron (22:15 UTC = 02:15 Asia/Dubai): runs Admin → Backup when a schedule is saved and due. */
   async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    initDeployment(env);
     ctx.waitUntil(scheduledBackup(env as unknown as BackupEnv, controller.scheduledTime));
   },
 };

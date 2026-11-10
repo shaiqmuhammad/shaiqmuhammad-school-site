@@ -5,8 +5,9 @@ import { securityCall } from "@/lib/adminServer";
 import { useI18n } from "@/lib/i18n";
 import { siteConfig } from "@/content/site";
 import { applyThemeCss } from "@/components/SiteIdentity";
+import AdminMainAddress from "@/components/AdminMainAddress";
 import {
-  cacheIdentity, cachedIdentity, contrastWarnings, DEFAULT_HEADER, DEFAULT_HOST, DEFAULT_SUN, emptyIdentity, fetchIdentity,
+  allPresets, cacheIdentity, cachedIdentity, contrastWarnings, DEFAULT_HEADER, DEFAULT_SUN, emptyIdentity, fetchIdentity,
   normalizeIdentity, THEME_PRESETS, themeCss, type SiteIdentity,
 } from "@/lib/siteIdentity";
 
@@ -71,26 +72,25 @@ export default function AdminBranding() {
     void save({ ...emptyIdentity, canonical: saved.canonical }, tr("Back to the original name and colours.", "تمت العودة إلى الاسم والألوان الأصلية."));
   };
 
-  // ---- domain ----
-  const [dom, setDom] = useState("");
-  const [domMsg, setDomMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const [domBusy, setDomBusy] = useState(false);
-  const here = typeof window !== "undefined" ? window.location.host : "";
-  const mainHost = saved.canonical || DEFAULT_HOST;
-  async function checkDomain(clear = false) {
-    setDomBusy(true); setDomMsg(null);
-    const r = await securityCall<{ brand: unknown; domain: string }>("domain-check", clear ? { clear: true } : { domain: dom });
-    setDomBusy(false);
-    if (r.ok && r.brand) {
-      const v = normalizeIdentity(r.brand);
-      setSaved((s) => ({ ...s, canonical: v.canonical })); setD((x) => ({ ...x, canonical: v.canonical })); cacheIdentity({ ...cachedIdentity() || emptyIdentity, canonical: v.canonical });
-      setDomMsg({ ok: true, text: clear ? tr("The main address is www.shaiqmuhammad.com again.", "العنوان الرئيسي عاد إلى www.shaiqmuhammad.com.") : tr(`Saved. ${v.canonical} is now the main address used in QR codes, shared links and emails.`, `تم الحفظ. ${v.canonical} هو الآن العنوان الرئيسي.`) });
-      setDom("");
-    } else if (r.error === "not_connected") {
-      setDomMsg({ ok: false, text: tr(`${r.domain || dom} doesn't open this website yet, so nothing was changed (links keep using ${mainHost}). Connect it first — see the steps below — then press "Check & use" again.`, `${r.domain || dom} لا يفتح هذا الموقع بعد، لذا لم يتغير شيء. اربطه أولًا ثم اضغط "تحقق واستخدم" مرة أخرى.`) });
-    } else if (r.error === "bad_domain") setDomMsg({ ok: false, text: tr("That doesn't look like a web address. Type it like: www.myschool.com", "هذا لا يبدو عنوان موقع. اكتبه مثل: www.myschool.com") });
-    else setDomMsg({ ok: false, text: tr(`Couldn't check (${r.error || r.status}).`, `تعذّر التحقق (${r.error || r.status}).`) });
+  // ---- presets ----
+  const [presetLabel, setPresetLabel] = useState("");
+  const savedPresets = saved.presets || [];
+  async function savePresets(list: NonNullable<SiteIdentity["presets"]>, note: string) {
+    await save({ ...saved, presets: list }, note);
   }
+  function addPreset() {
+    const label = presetLabel.trim().slice(0, 40);
+    if (!label) return;
+    const id = label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 30) || `p${Date.now() % 100000}`;
+    const p = { id, label, nameEn: d.nameEn, nameAr: d.nameAr, taglineEn: d.taglineEn, taglineAr: d.taglineAr, theme: d.theme };
+    void savePresets([...savedPresets.filter((x) => x.id !== id), p].slice(0, 8), tr(`Preset "${label}" saved. Pick it under Main address to switch name & colours with the address.`, `تم حفظ "${label}". اختره في العنوان الرئيسي لتبديل الاسم والألوان مع العنوان.`));
+    setPresetLabel("");
+  }
+  const applyPreset = (id: string) => { const p = allPresets(saved).find((x) => x.id === id); if (p) setD({ ...d, nameEn: p.nameEn, nameAr: p.nameAr, taglineEn: p.taglineEn, taglineAr: p.taglineAr, theme: p.theme }); };
+
+  // ---- email sender ----
+  const mail = d.mail || { fromName: "", contact: "", info: "" };
+  const setMail = (m: Partial<typeof mail>) => setD({ ...d, mail: { ...mail, ...m } });
 
   const nameNow = ar ? d.nameAr || d.nameEn || siteConfig.name : d.nameEn || siteConfig.name;
 
@@ -158,32 +158,34 @@ export default function AdminBranding() {
         <button type="button" className={btn2} disabled={busy} onClick={resetDefault} data-testid="brand-reset">{tr("Reset to default", "إعادة الافتراضي")}</button>
       </div>
 
-      <Card title={tr("Website address (domain)", "عنوان الموقع (النطاق)")} testid="brand-domain">
-        <ul className="space-y-1">
-          <li>{tr("Main address:", "العنوان الرئيسي:")} <b dir="ltr">{mainHost}</b> {!saved.canonical && <span className="text-xs text-muted">{tr("(also shaiqmuhammad.com)", "(وأيضًا shaiqmuhammad.com)")}</span>}</li>
-          <li>{tr("You're on:", "أنت على:")} <b dir="ltr">{here}</b></li>
+      <Card title={tr("Branding presets", "قوالب الهوية")} testid="brand-presets">
+        <p className="text-muted">{tr("A preset is a saved name + colours. Use one here (then press Save), or choose it under Main address to switch it together with the address.", "القالب اسم وألوان محفوظة. طبّقه هنا (ثم اضغط حفظ)، أو اختره في العنوان الرئيسي ليتبدّل مع العنوان.")}</p>
+        <ul className="flex flex-wrap gap-2">
+          {allPresets(saved).map((p) => (
+            <li key={p.id} className="flex items-center gap-1 rounded-full border border-card-border px-2 py-1">
+              <span className="inline-flex"><span className="h-3.5 w-3.5 rounded-s-full" style={{ background: p.theme.header || DEFAULT_HEADER }} /><span className="h-3.5 w-3.5 rounded-e-full" style={{ background: p.theme.sun || DEFAULT_SUN }} /></span>
+              <button type="button" className="px-1 text-sm font-semibold hover:underline" onClick={() => applyPreset(p.id)} data-testid={`preset-use-${p.id}`}>{p.label}</button>
+              {savedPresets.some((x) => x.id === p.id) && <button type="button" aria-label={tr("Delete preset", "حذف القالب")} className="px-1 text-xs text-muted hover:text-red-600" disabled={busy} onClick={() => void savePresets(savedPresets.filter((x) => x.id !== p.id), tr("Preset deleted.", "تم حذف القالب."))}>✕</button>}
+            </li>
+          ))}
         </ul>
-        <p className="text-muted">{tr("The main address is used in student login QR codes, classroom join links, timetable QR codes and links in emails. shaiqmuhammad.com keeps working either way.", "يُستخدم العنوان الرئيسي في رموز QR لدخول الطلاب وروابط الانضمام والجدول وروابط البريد. يبقى shaiqmuhammad.com يعمل في كل الأحوال.")}</p>
-        <div className="max-w-md">
-          <label className="block font-medium">{tr("New address you want", "العنوان الجديد الذي تريده")}<input dir="ltr" value={dom} onChange={(e) => setDom(e.target.value)} placeholder="www.myschool.com" className={input} data-testid="brand-domain-input" /></label>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <button type="button" className={btn} disabled={domBusy || !dom.trim()} onClick={() => checkDomain(false)} data-testid="brand-domain-check">{domBusy ? tr("Checking…", "جارٍ التحقق…") : tr("Check & use", "تحقق واستخدم")}</button>
-            {saved.canonical && <button type="button" className={btn2} disabled={domBusy} onClick={() => checkDomain(true)}>{tr("Use www.shaiqmuhammad.com again", "العودة إلى www.shaiqmuhammad.com")}</button>}
-          </div>
-        </div>
-        {domMsg && <p className={`rounded-lg px-3 py-2 ${domMsg.ok ? "bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200" : "bg-amber-50 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200"}`} role="status" data-testid="brand-domain-msg">{domMsg.text}</p>}
-        <div className="rounded-xl bg-black/[0.03] p-4 dark:bg-white/5">
-          <p className="font-bold">{tr("How to change the domain — step by step", "كيف تغيّر النطاق — خطوة بخطوة")}</p>
-          <ol className="mt-2 list-decimal space-y-1.5 ps-5">
-            <li>{tr("Buy the new name (for example myschool.com) from a registrar such as Cloudflare, GoDaddy or Namecheap.", "اشترِ الاسم الجديد (مثل myschool.com) من مسجّل نطاقات مثل Cloudflare أو GoDaddy أو Namecheap.")}</li>
-            <li>{tr("Connect it to this website in Cloudflare: Workers & Pages → the website project → Custom domains → Set up a custom domain, and add both myschool.com and www.myschool.com. Cloudflare shows the DNS records to add (it does this for you if the domain is on Cloudflare).", "اربطه بالموقع في Cloudflare: Workers & Pages ← مشروع الموقع ← Custom domains ← أضف myschool.com و www.myschool.com. يعرض Cloudflare سجلات DNS المطلوبة.")}</li>
-            <li>{tr("Wait until the new address opens this website with a padlock (usually a few minutes, sometimes up to a day).", "انتظر حتى يفتح العنوان الجديد هذا الموقع بعلامة القفل (عادة دقائق، وأحيانًا حتى يوم).")}</li>
-            <li>{tr("Type it above and press \"Check & use\". It is only saved once it really opens this website, so links never break.", "اكتبه أعلاه واضغط \"تحقق واستخدم\". لا يُحفظ إلا بعد أن يفتح الموقع فعلًا، حتى لا تنكسر الروابط.")}</li>
-            <li>{tr("Keep shaiqmuhammad.com renewed for a while so old printed QR codes and bookmarks keep working.", "جدّد shaiqmuhammad.com لفترة حتى تبقى رموز QR المطبوعة والروابط القديمة تعمل.")}</li>
-          </ol>
-          <p className="mt-3 rounded-lg bg-sun/30 px-3 py-2 text-heading">💬 {tr("Prefer not to touch Cloudflare? Ask your assistant: \"connect my new domain myschool.com\" — it can add the domain in Cloudflare, allow it on the school server and check everything for you. No passwords or Cloudflare keys are stored in this website.", "لا تريد التعامل مع Cloudflare؟ اطلب من مساعدك: \"اربط نطاقي الجديد\" — يمكنه إضافته في Cloudflare والسماح به في خادم المدرسة والتحقق من كل شيء. لا تُحفظ أي كلمات مرور أو مفاتيح Cloudflare في هذا الموقع.")}</p>
+        <div className="flex max-w-md flex-wrap gap-2">
+          <input value={presetLabel} maxLength={40} onChange={(e) => setPresetLabel(e.target.value)} placeholder={tr("Preset name, e.g. Al-Mudarris", "اسم القالب، مثل المدرّس")} className="min-w-0 flex-1 rounded-xl border border-card-border bg-card-solid px-3 py-2 text-sm" data-testid="preset-label" />
+          <button type="button" className={btn2} disabled={busy || !presetLabel.trim()} onClick={addPreset} data-testid="preset-save">{tr("Save the name & colours above as a preset", "احفظ الاسم والألوان أعلاه كقالب")}</button>
         </div>
       </Card>
+
+      <Card title={tr("Email sender", "مرسل البريد")} testid="brand-mail">
+        <p className="text-muted">{tr("Name and addresses on automatic emails (sign-in details, reminders, reports). Leave empty to use this site's built-in sender. Sending also needs the mailbox password, which is kept as a server secret — ask your assistant to add it.", "الاسم والعناوين في الرسائل التلقائية (بيانات الدخول، التذكيرات، التقارير). اتركها فارغة لاستخدام المرسل الافتراضي. يحتاج الإرسال أيضًا كلمة مرور البريد، وتُحفظ كسرّ على الخادم — اطلب من مساعدك إضافتها.")}</p>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <label className="block font-medium">{tr("Sender name", "اسم المرسل")}<input value={mail.fromName} maxLength={60} placeholder={siteConfig.name} onChange={(e) => setMail({ fromName: e.target.value })} className={input} data-testid="mail-from-name" /></label>
+          <label className="block font-medium">{tr("Contact address (replies)", "عنوان التواصل (الردود)")}<input dir="ltr" type="email" value={mail.contact} maxLength={120} placeholder={siteConfig.email} onChange={(e) => setMail({ contact: e.target.value })} className={input} data-testid="mail-contact" /></label>
+          <label className="block font-medium">{tr("No-reply address", "عنوان عدم الرد")}<input dir="ltr" type="email" value={mail.info} maxLength={120} placeholder={tr("same as contact", "مثل عنوان التواصل")} onChange={(e) => setMail({ info: e.target.value })} className={input} data-testid="mail-info" /></label>
+        </div>
+        <p className="text-xs text-muted">{tr("Saved with \"Save name & colours\" above.", "يُحفظ مع زر \"حفظ الاسم والألوان\" أعلاه.")}</p>
+      </Card>
+
+      <AdminMainAddress saved={saved} onSaved={(v) => { setSaved(v); setD(v); }} />
     </div>
   );
 }

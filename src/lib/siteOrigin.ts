@@ -1,6 +1,6 @@
 /** Device cache of Admin → Site & branding (written by lib/siteIdentity.ts). */
 export const IDENTITY_CACHE_KEY = "sm_site_identity_v1";
-const DEFAULT_HOST = "www.shaiqmuhammad.com";
+import { DEFAULT_HOST, OWN_HOSTS } from "@/lib/deployment";
 
 function savedHost(): string {
   try {
@@ -21,7 +21,7 @@ export function siteOrigin(): string {
   const saved = savedHost();
   if (typeof window === "undefined") return `https://${saved || DEFAULT_HOST}`;
   const host = window.location.hostname;
-  if (/(^|\.)shaiqmuhammad\.com$/.test(host)) return `https://${saved || DEFAULT_HOST}`;
+  if (OWN_HOSTS.includes(host)) return `https://${saved || DEFAULT_HOST}`;
   if (saved && (host === saved || host === saved.replace(/^www\./, "") || `www.${host}` === saved)) return `https://${saved}`;
   return window.location.origin;
 }

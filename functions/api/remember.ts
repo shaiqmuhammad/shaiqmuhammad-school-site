@@ -6,10 +6,11 @@
  *  POST {forget:true}    → clears it.
  * Teachers, admins and parents are never remembered here. A PIN change/reset invalidates the stored token server-side.
  */
-const API = "https://assessment-session.shaiqmuhammad.workers.dev";
+// Per deployment: Pages variable ASSESSMENT_API_URL (a copy of the site points at its own worker). School default.
+const DEFAULT_API = "https://assessment-session.shaiqmuhammad.workers.dev";
 const NAME = "sm_rem";
 const MAX_AGE = 180 * 86400;
-type Ctx = { request: Request };
+type Ctx = { request: Request; env?: { ASSESSMENT_API_URL?: string } };
 const cookieOf = (req: Request) => { const m = (req.headers.get("Cookie") || "").match(/(?:^|;\s*)sm_rem=([^;]+)/); return m ? decodeURIComponent(m[1]) : ""; };
 const set = (v: string, age: number) => `${NAME}=${encodeURIComponent(v)}; Max-Age=${age}; Path=/api/remember; HttpOnly; Secure; SameSite=Strict`;
 const json = (b: unknown, status = 200, extra: Record<string, string> = {}) => new Response(JSON.stringify(b), { status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store", ...extra } });
@@ -24,8 +25,11 @@ export async function onRequestGet({ request }: Ctx) {
   return json({ token, device });
 }
 
-export async function onRequestPost({ request }: Ctx) {
-  if (request.headers.get("Origin") && !/^https:\/\/(www\.)?shaiqmuhammad\.com$|\.pages\.dev$/.test(request.headers.get("Origin") || "")) return json({ error: "origin" }, 403);
+export async function onRequestPost({ request, env }: Ctx) {
+  const API = (env?.ASSESSMENT_API_URL || DEFAULT_API).replace(/\/$/, "");
+  // Same-origin only (whatever address the site is opened on: shaiqmuhammad.com, almudarris.com, pages.dev …).
+  const o = request.headers.get("Origin");
+  if (o && o !== new URL(request.url).origin) return json({ error: "origin" }, 403);
   const b = (await request.json().catch(() => ({}))) as { token?: string; device?: string; forget?: boolean };
   if (b.forget) return json({ ok: true }, 200, { "Set-Cookie": set("", 0) });
   const token = String(b.token || "").slice(0, 2000), device = String(b.device || "").replace(/[^a-zA-Z0-9-]/g, "").slice(0, 64);

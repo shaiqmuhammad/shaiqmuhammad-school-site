@@ -117,3 +117,27 @@ Group sessions run on a Cloudflare Worker with one Durable Object per session. S
 ## Brand
 
 - **Shaiq Muhammad** — student learning platform · **shaiqmuhammad.com** · Dubai, UAE
+
+## One codebase, two sites (school + Al-Mudarris copy)
+
+The same code on `main` builds two **independent** websites. Nothing is forked: every future feature reaches both.
+
+| | School (shaiqmuhammad.com) | Al-Mudarris copy |
+|---|---|---|
+| Website | Cloudflare Pages, built from `main` | `almudarris-session` worker with static assets (later: its own Pages project) |
+| Server + data | worker `assessment-session` | worker `almudarris-session`: its own, empty Durable Objects |
+| Build settings | none (defaults) | `variants/almudarris/build.env` |
+| Worker variables | none (defaults) | `variants/almudarris/worker.vars.json` |
+| Logo, favicon, starter content | `public/` | `variants/almudarris/public/` (copied over `public/` at build time) |
+
+How it works:
+
+- `src/lib/deployment.ts` reads `NEXT_PUBLIC_*` build variables (site id, API address, default address, name, email). `NEXT_PUBLIC_ASSESSMENT_API_URL=""` means "same address" (the copy's worker serves the site and its API together).
+- `scripts/deploy-variant.mjs` (runs first in `npm run build`) writes `public/site-id.txt` from `NEXT_PUBLIC_SITE_ID` and, when `SITE_VARIANT` is set, copies `variants/<name>/public/` over `public/`.
+- `workers/assessment-session/src/deployment.ts` reads the worker variables: `SITE_ID`, `SITE_ORIGINS` (always allowed), `SITE_CANDIDATES` (allowed **only while** that address really serves this site, checked live at `/site-id.txt`), `SITE_URL`, `SITE_NAME`, `MAIL_*`, `YT_HANDLE`, `CONTENT_REPO`/`CONTENT_BRANCH`. With no variables the worker behaves exactly as the school worker always did.
+- Admin publishing (GitHub) only works where `GITHUB_PAT` is set. The copy has none, so its Admin can never change this repo's `main`; it signs in and runs the LMS normally.
+- Email sends only when the mailbox secrets **and** a sender address exist (Admin → Site & branding → Email sender). The copy has neither, so it sends nothing until they are added.
+
+Build the copy: `set -a; . variants/almudarris/build.env; set +a; npm run build` → upload `out/` as the worker's assets.
+
+Admin → ⚙ → Site & branding → **Main address** lists every known address with a live status chip, a one-click **Make this the main address** (optionally switching name & colours to a saved preset) and **Switch back**. QR codes, join links, timetable links and email links follow the main address straight away.

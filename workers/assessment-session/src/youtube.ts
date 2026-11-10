@@ -11,6 +11,7 @@
  * Nothing here links out to YouTube: the site only plays videos through youtube-nocookie.com embeds.
  * Upload needs Google OAuth (secrets GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET); everything else works without any key.
  */
+import { DEPLOY, initDeployment } from "./deployment";
 import { DurableObject } from "cloudflare:workers";
 import { sysOp } from "./sysdump";
 import { bkOp } from "./bkstore";
@@ -22,8 +23,8 @@ export interface YtEnv extends AdminEnv {
   GOOGLE_CLIENT_SECRET?: string;
 }
 
-const HANDLE = "@shaiqmuhammad";
-const SITE_ORIGIN = "https://www.shaiqmuhammad.com";
+// Per deployment: YT_HANDLE worker variable ("" = no channel), links back to SITE_URL. See ./deployment.ts.
+const handle = () => DEPLOY.ytHandle;
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
 const FRESH_S = 1800;
 
@@ -31,6 +32,7 @@ const FRESH_S = 1800;
 export class SiteKV extends DurableObject {
   private get sql() { return this.ctx.storage.sql; }
   constructor(ctx: DurableObjectState, env: unknown) {
+    initDeployment(env);
     super(ctx, env as never);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT)`);
   }
@@ -165,7 +167,8 @@ const readHidden = async (env: YtEnv) => new Set(await readJ<string[]>(env, "yth
 const readHiddenPl = async (env: YtEnv) => new Set(await readJ<string[]>(env, "ythiddenpl", []));
 
 const channel = () => cached("channel", FRESH_S, async () => {
-  const [v, p] = await Promise.all([collect(`https://www.youtube.com/${HANDLE}/videos`, 14), collect(`https://www.youtube.com/${HANDLE}/playlists`, 4)]);
+  if (!handle()) return { channelId: "", videos: [], playlists: [], updated: Date.now() };
+  const [v, p] = await Promise.all([collect(`https://www.youtube.com/${handle()}/videos`, 14), collect(`https://www.youtube.com/${handle()}/playlists`, 4)]);
   return { channelId: v.channelId || p.channelId, videos: v.videos, playlists: p.playlists, updated: Date.now() };
 });
 
@@ -222,7 +225,7 @@ export async function handleYt(request: Request, env: YtEnv, rest: string[]): Pr
     if (sub === "oauth-callback") {
       const code = url.searchParams.get("code") || "", state = url.searchParams.get("state") || "";
       const ok = state && (await kv(env).get(`oauth-state:${state}`));
-      const back = (m: string) => Response.redirect(`${SITE_ORIGIN}/admin/#youtube?yt=${m}`, 302);
+      const back = (m: string) => Response.redirect(`${DEPLOY.siteUrl}/admin/#youtube?yt=${m}`, 302);
       if (!ok || !code || !env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) return back("denied");
       await kv(env).del(`oauth-state:${state}`);
       const r = await fetch("https://oauth2.googleapis.com/token", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ code, client_id: env.GOOGLE_CLIENT_ID, client_secret: env.GOOGLE_CLIENT_SECRET, redirect_uri: `${url.origin}/api/yt/oauth-callback`, grant_type: "authorization_code" }) });
@@ -292,7 +295,7 @@ export async function handleYt(request: Request, env: YtEnv, rest: string[]): Pr
         if (!at) return reply(origin, { error: "not_connected" }, 400);
         const privacy = ["public", "unlisted", "private"].includes(String(body.privacy)) ? String(body.privacy) : "private";
         const meta = { snippet: { title: clean(body.title, 100) || "Untitled", description: clean(body.description, 4900), categoryId: "27" }, status: { privacyStatus: privacy, selfDeclaredMadeForKids: body.madeForKids === true } };
-        const r = await fetch("https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status", { method: "POST", headers: { Authorization: `Bearer ${at}`, "Content-Type": "application/json; charset=UTF-8", "X-Upload-Content-Type": clean(body.mime, 60) || "video/*", "X-Upload-Content-Length": String(Number(body.size) || 0), Origin: SITE_ORIGIN }, body: JSON.stringify(meta) });
+        const r = await fetch("https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status", { method: "POST", headers: { Authorization: `Bearer ${at}`, "Content-Type": "application/json; charset=UTF-8", "X-Upload-Content-Type": clean(body.mime, 60) || "video/*", "X-Upload-Content-Length": String(Number(body.size) || 0), Origin: DEPLOY.siteUrl }, body: JSON.stringify(meta) });
         const loc = r.headers.get("Location");
         if (!r.ok || !loc) return reply(origin, { error: "init_failed", detail: (await r.text()).slice(0, 300) }, 502);
         return reply(origin, { uploadUrl: loc });

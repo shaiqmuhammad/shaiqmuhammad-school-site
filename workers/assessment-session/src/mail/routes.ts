@@ -5,7 +5,7 @@
 import { corsHeaders, reply, verifyToken } from "../admin";
 import type { LmsEnv } from "../lms";
 import { verifySmtp } from "./smtp";
-import { CONTACT, DEFAULT_SIG, parseSig, sigHtml, sigText, type Signature } from "./template";
+import { CONTACT, INFO, SITE_NAME, DEFAULT_SIG, parseSig, sigHtml, sigText, type Signature } from "./template";
 import { folders, getMessage, getPart, listMessages, mailReady, sendAuto, sendPersonal, sendToContact, setSeen, deleteMsgs, unreadInbox } from "./mailbox";
 
 const str = (v: unknown, n: number) => String(v ?? "").trim().slice(0, n);
@@ -29,8 +29,8 @@ export async function handleMail(request: Request, env: LmsEnv, action: string, 
         try { out.imap = `ok (${await unreadInbox(env)} unread)`; } catch (e) { out.imap = (e as Error).message.slice(0, 160); }
         if (body.send === true && out.smtp === "ok") {
           const at = new Date().toLocaleString("en-GB", { timeZone: "Asia/Dubai" });
-          try { await sendPersonal(env, { to: [CONTACT], subject: `Test from contact@ (${at} UAE)`, text: "Test message sent from contact@shaiqmuhammad.com via iCloud SMTP." }); out.fromContact = "ok"; } catch (e) { out.fromContact = (e as Error).message.slice(0, 160); }
-          try { await sendAuto(env, CONTACT, `Test from info@ (${at} UAE)`, { heading: "Test email", paragraphs: ["Automatic notifications from info@shaiqmuhammad.com are working."] }); out.fromInfo = "ok"; } catch (e) { out.fromInfo = (e as Error).message.slice(0, 160); }
+          try { await sendPersonal(env, { to: [CONTACT], subject: `Test from contact@ (${at} UAE)`, text: `Test message sent from ${CONTACT} via iCloud SMTP.` }); out.fromContact = "ok"; } catch (e) { out.fromContact = (e as Error).message.slice(0, 160); }
+          try { await sendAuto(env, CONTACT, `Test from info@ (${at} UAE)`, { heading: "Test email", paragraphs: [`Automatic notifications from ${INFO} are working.`] }); out.fromInfo = "ok"; } catch (e) { out.fromInfo = (e as Error).message.slice(0, 160); }
         }
         return reply(origin, out);
       }
@@ -103,10 +103,10 @@ export async function handleContact(request: Request, env: LmsEnv, ctx: Executio
       try {
         await sendToContact(env, m);
         await store.contactEmailed(saved.id!);
-        await sendAuto(env, m.email, "We received your message — Shaiq Muhammad", {
+        await sendAuto(env, m.email, `We received your message — ${SITE_NAME}`, {
           heading: `Thank you, ${m.name}!`,
           paragraphs: ["We received your message and will reply soon, in shaa Allah.", `Your message:\n${m.message.slice(0, 1000)}`],
-          note: "This is an automatic acknowledgement. To add anything, write to contact@shaiqmuhammad.com.",
+          note: `This is an automatic acknowledgement. To add anything, write to ${CONTACT}.`,
         });
       } catch (e) { mailErr = (e as Error).message.slice(0, 200); }
     })();

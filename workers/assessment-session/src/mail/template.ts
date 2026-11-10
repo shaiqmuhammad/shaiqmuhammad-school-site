@@ -1,7 +1,19 @@
 /** Branded HTML email (navy + yellow, logo, footer with contact@). Inline styles only (email clients). */
-export const SITE_URL = "https://www.shaiqmuhammad.com";
-export const CONTACT = "contact@shaiqmuhammad.com";
-export const INFO = "info@shaiqmuhammad.com";
+// Per deployment (worker variables MAIL_* / SITE_*; Admin → Site & branding → Email sender overrides). School defaults.
+export let SITE_URL = "https://www.shaiqmuhammad.com";
+export let CONTACT = "contact@shaiqmuhammad.com";
+export let INFO = "info@shaiqmuhammad.com";
+export let FROM_NAME = "Shaiq Muhammad";
+export let SITE_NAME = "Shaiq Muhammad";
+export function setMailIdentity(m: { siteUrl?: string; contact?: string; info?: string; fromName?: string; siteName?: string }) {
+  if (m.siteUrl) SITE_URL = m.siteUrl;
+  if (m.contact !== undefined) CONTACT = m.contact;
+  if (m.info !== undefined) INFO = m.info || m.contact || "";
+  if (m.fromName) FROM_NAME = m.fromName;
+  if (m.siteName) SITE_NAME = m.siteName;
+  DEFAULT_SIG = { ...DEFAULT_SIG, name: FROM_NAME, email: CONTACT, website: SITE_URL };
+}
+const siteLabel = () => SITE_URL.replace(/^https?:\/\/(www\.)?/, "");
 
 export function esc(s: string) {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
@@ -21,7 +33,7 @@ export function renderEmail(e: Branded) {
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:18px;overflow:hidden;box-shadow:0 4px 18px rgba(27,58,87,.08)">
 <tr><td style="background:#1b3a57;padding:18px 24px;text-align:${align}">
 <a href="${SITE_URL}" style="text-decoration:none;color:#ffffff"><img src="${SITE_URL}/logo.svg" width="40" height="40" alt="" style="vertical-align:middle;border-radius:50%;border:2px solid #f5c542;background:#fff">
-<span style="vertical-align:middle;margin:0 10px;font-size:18px;font-weight:700;color:#ffffff">Shaiq Muhammad</span></a>
+<span style="vertical-align:middle;margin:0 10px;font-size:18px;font-weight:700;color:#ffffff">${esc(SITE_NAME)}</span></a>
 </td></tr>
 <tr><td style="height:4px;background:#f5c542"></td></tr>
 <tr><td dir="${dir}" style="padding:28px 26px 10px;text-align:${align}">
@@ -29,16 +41,16 @@ export function renderEmail(e: Branded) {
 ${e.note ? `<p style="margin:16px 0 0;font-size:13px;color:#6b7a8c">${esc(e.note)}</p>` : ""}
 </td></tr>
 <tr><td style="padding:18px 26px 24px;border-top:1px solid #e6ebf1;font-size:13px;color:#6b7a8c;text-align:center">
-Questions? Write to <a href="mailto:${CONTACT}" style="color:#1b3a57;font-weight:700">${CONTACT}</a> · <a href="${SITE_URL}" style="color:#1b3a57">shaiqmuhammad.com</a>
+Questions? Write to <a href="mailto:${CONTACT}" style="color:#1b3a57;font-weight:700">${CONTACT}</a> · <a href="${SITE_URL}" style="color:#1b3a57">${siteLabel()}</a>
 </td></tr></table></td></tr></table></body></html>`;
 }
 
 export function renderText(e: Branded) {
-  return [e.heading, "", ...e.paragraphs, ...(e.button ? ["", `${e.button.label}: ${e.button.url}`] : []), ...(e.note ? ["", e.note] : []), "", "—", `Shaiq Muhammad · ${SITE_URL}`, `Questions: ${CONTACT}`].join("\n");
+  return [e.heading, "", ...e.paragraphs, ...(e.button ? ["", `${e.button.label}: ${e.button.url}`] : []), ...(e.note ? ["", e.note] : []), "", "—", `${SITE_NAME} · ${SITE_URL}`, `Questions: ${CONTACT}`].join("\n");
 }
 
 export type Signature = { on: boolean; name: string; title: string; email: string; website: string; phone?: string; logo: boolean };
-export const DEFAULT_SIG: Signature = { on: true, name: "Shaiq Muhammad", title: "Teacher", email: CONTACT, website: SITE_URL, logo: true };
+export let DEFAULT_SIG: Signature = { on: true, name: "Shaiq Muhammad", title: "Teacher", email: CONTACT, website: SITE_URL, logo: true };
 export function parseSig(raw: string): Signature {
   try { const j = JSON.parse(raw); return { ...DEFAULT_SIG, ...j, on: j.on !== false, logo: j.logo !== false }; } catch { return DEFAULT_SIG; }
 }

@@ -3,6 +3,7 @@
  * Saved on the school server (not in the build), read by every page at runtime and cached on the device,
  * so changes show without rebuilding the website.
  */
+import { IS_SCHOOL } from "@/lib/deployment";
 import { ASSESSMENT_API_BASE } from "@/lib/groupSession";
 import { siteConfig } from "@/content/site";
 
@@ -13,14 +14,19 @@ export type SiteIdentity = {
   taglineEn: string;
   taglineAr: string;
   theme: SiteTheme;
-  /** Main site address without https:// ("" = www.shaiqmuhammad.com). */
+  /** Main site address without https:// ("" = the deployment's default, school: www.shaiqmuhammad.com). */
   canonical: string;
+  /** Email sender shown on automatic emails ("" = deployment default). */
+  mail?: { fromName: string; contact: string; info: string };
+  /** Saved branding presets (applied with one click, e.g. together with a main-address switch). */
+  presets?: BrandPreset[];
   updatedAt?: number;
 };
+export type BrandPreset = { id: string; label: string; nameEn: string; nameAr: string; taglineEn: string; taglineAr: string; theme: SiteTheme };
 
 export const DEFAULT_HEADER = "#1b3a57";
 export const DEFAULT_SUN = "#f3c969";
-export const DEFAULT_HOST = "www.shaiqmuhammad.com";
+export { DEFAULT_HOST } from "@/lib/deployment";
 
 export const THEME_PRESETS: { id: string; en: string; ar: string; header: string; sun: string }[] = [
   { id: "classic", en: "Classic navy", ar: "كحلي كلاسيكي", header: DEFAULT_HEADER, sun: DEFAULT_SUN },
@@ -58,8 +64,25 @@ export function normalizeIdentity(raw: unknown): SiteIdentity {
       mode: th.mode === "dark" ? "dark" : "light",
     },
     canonical: /^[a-z0-9.-]+\.[a-z]{2,}$/.test(s(r.canonical, 253)) ? s(r.canonical, 253) : "",
+    mail: (() => { const m = (r.mail && typeof r.mail === "object" ? r.mail : {}) as Record<string, unknown>; return { fromName: s(m.fromName, 60), contact: s(m.contact, 120), info: s(m.info, 120) }; })(),
+    presets: Array.isArray(r.presets) ? (r.presets as unknown[]).slice(0, 8).map((p) => {
+      const q = (p && typeof p === "object" ? p : {}) as Record<string, unknown>;
+      const t = (q.theme && typeof q.theme === "object" ? q.theme : {}) as Record<string, unknown>;
+      return { id: s(q.id, 30), label: s(q.label, 40), nameEn: s(q.nameEn, 60), nameAr: s(q.nameAr, 60), taglineEn: s(q.taglineEn, 140), taglineAr: s(q.taglineAr, 140),
+        theme: { preset: s(t.preset, 30), header: HEX.test(s(t.header, 7)) ? s(t.header, 7).toLowerCase() : "", sun: HEX.test(s(t.sun, 7)) ? s(t.sun, 7).toLowerCase() : "", mode: t.mode === "dark" ? "dark" : "light" } as SiteTheme };
+    }) : [],
     updatedAt: Number(r.updatedAt) || 0,
   };
+}
+
+/** Built-in presets (always offered); saved presets with the same id replace them. */
+export const BUILTIN_PRESETS: BrandPreset[] = [
+  { id: "shaiq", label: IS_SCHOOL ? "Shaiq Muhammad" : "Original", nameEn: "", nameAr: "", taglineEn: "", taglineAr: "", theme: { preset: "classic", header: "", sun: "", mode: "light" } },
+  { id: "almudarris", label: "Al-Mudarris", nameEn: "Al-Mudarris", nameAr: "المدرّس", taglineEn: "Learning platform", taglineAr: "منصة تعليمية", theme: { preset: "teal", header: "#155e63", sun: "#f2c14e", mode: "light" } },
+];
+export function allPresets(i: SiteIdentity | null): BrandPreset[] {
+  const saved = (i?.presets || []).filter((p) => p.id);
+  return [...BUILTIN_PRESETS.filter((b) => !saved.some((p) => p.id === b.id)), ...saved];
 }
 
 /* ---------- colour maths ---------- */

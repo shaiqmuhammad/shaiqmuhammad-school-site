@@ -10,6 +10,8 @@
  * Failed logins are limited per IP (10 per 15 minutes) by the AdminGuard Durable Object.
  */
 import { DurableObject } from "cloudflare:workers";
+import { DEPLOY, initDeployment, ownHosts, servesThisSite, verifiedCandidate } from "./deployment";
+import { setMailIdentity } from "./mail/template";
 import {
   checkPassword, deviceOf, hashPassword, IDLE_MS, maskIp, MAX_SESSION_MS, newBackupCodes, newTotpSecret, normBackup,
   otpauthUri, passwordProblem, sha256Hex, totpMatch, type AuthState, type LogEntry,
@@ -24,8 +26,8 @@ export interface AdminEnv {
   MIGRATE_KEY?: string;
 }
 
-const REPO = "shaiqmuhammad/shaiqmuhammad-school-site";
-const BRANCH = "main";
+// Publishing target (per deployment: CONTENT_REPO / CONTENT_BRANCH, see ./deployment.ts).
+const repo = () => DEPLOY.repo;
 const MAX_FAILS = 10;
 const FAIL_WINDOW_MS = 15 * 60 * 1000;
 /** All IPs together: this many wrong passwords in 15 minutes pauses sign-in for everyone (slows a spread-out attack). */
@@ -45,12 +47,11 @@ const ALLOWED_PATHS = [
   /^public\/uploads\/[A-Za-z0-9._-]+(\/[A-Za-z0-9._-]+)*$/,
 ];
 
-const ALLOWED_ORIGINS = new Set(["https://www.shaiqmuhammad.com", "https://shaiqmuhammad.com"]);
 
 /** Extra site address saved in Admin → Site & branding (only after it already serves this website). */
 const extraOrigins = new Set<string>();
 let originsAt = 0;
-let siteBase = "https://www.shaiqmuhammad.com";
+let siteBase = "";
 export const BRAND_KEY = "site:brand";
 
 type KvStub = { get(k: string): Promise<string | null>; set(k: string, v: string): Promise<void> };
@@ -66,30 +67,48 @@ function applyCanonical(host: string) {
     extraOrigins.add(`https://${bare}`);
     extraOrigins.add(`https://www.${bare}`);
     siteBase = `https://${host}`;
-  } else siteBase = "https://www.shaiqmuhammad.com";
+  } else siteBase = DEPLOY.siteUrl;
+}
+
+/** Email sender from Admin → Site & branding (empty fields fall back to the deployment defaults). */
+function applyMail(m: MailCfg | undefined) {
+  setMailIdentity({
+    siteUrl: siteBase || DEPLOY.siteUrl,
+    contact: m?.contact || DEPLOY.mailContact,
+    info: m?.info || m?.contact || DEPLOY.mailInfo,
+    fromName: m?.fromName || DEPLOY.mailFromName,
+    siteName: DEPLOY.siteName,
+  });
 }
 
 /** Refreshes the saved main site address at most every 5 minutes per isolate (one small read). */
 export async function loadSiteOrigin(env: AdminEnv, force = false): Promise<string> {
-  if (!force && Date.now() - originsAt < 300_000) return siteBase;
+  initDeployment(env);
+  if (!force && originsAt && Date.now() - originsAt < 300_000) return siteBase || DEPLOY.siteUrl;
   originsAt = Date.now();
   try {
     const raw = await siteKv(env)?.get(BRAND_KEY);
-    const host = raw ? String((JSON.parse(raw) as { canonical?: string }).canonical || "") : "";
+    const b = raw ? (JSON.parse(raw) as { canonical?: string; mail?: MailCfg }) : {};
+    const host = String(b.canonical || "");
     applyCanonical(/^[a-z0-9.-]+\.[a-z]{2,}$/.test(host) ? host : "");
+    applyMail(b.mail);
   } catch {
     // keep the last known value
   }
-  return siteBase;
+  return siteBase || DEPLOY.siteUrl;
 }
-/** Main site address for links (default https://www.shaiqmuhammad.com); refreshes in the background when stale. */
+/** Main site address for links (default SITE_URL, school: https://www.shaiqmuhammad.com); refreshes in the background when stale. */
 export function siteUrlFor(env: AdminEnv): string {
+  initDeployment(env);
   if (Date.now() - originsAt >= 300_000) void loadSiteOrigin(env).catch(() => undefined);
-  return siteBase;
+  return siteBase || DEPLOY.siteUrl;
 }
 
 export function originAllowed(origin: string): boolean {
-  return ALLOWED_ORIGINS.has(origin) || extraOrigins.has(origin) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+  if (DEPLOY.origins.includes(origin) || extraOrigins.has(origin) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return true;
+  // Other known addresses (e.g. almudarris.com) only while they really serve this website (live check, see ./deployment.ts).
+  const m = /^https:\/\/([a-z0-9.-]+)$/.exec(origin);
+  return Boolean(m && verifiedCandidate(m[1]));
 }
 
 export function corsHeaders(origin: string | null): Record<string, string> {
@@ -287,7 +306,8 @@ export class AdminGuard extends DurableObject {
 type GhInit = { method?: string; body?: unknown };
 
 export async function gh<T>(env: AdminEnv, path: string, init: GhInit = {}): Promise<{ status: number; data: T }> {
-  const res = await fetch(`https://api.github.com/repos/${REPO}${path}`, {
+  if (!env.GITHUB_PAT) return { status: 503, data: { error: "publishing_off", message: "Publishing is not set up for this site (no GitHub key)." } as unknown as T };
+  const res = await fetch(`https://api.github.com/repos/${repo()}${path}`, {
     method: init.method ?? "GET",
     headers: {
       Accept: "application/vnd.github+json",
@@ -346,7 +366,7 @@ export async function publish(env: AdminEnv, files: InFile[], message: string): 
   }
 
   for (let attempt = 0; attempt < 3; attempt++) {
-    const ref = await gh<{ object?: { sha: string } }>(env, `/git/ref/heads/${BRANCH}`);
+    const ref = await gh<{ object?: { sha: string } }>(env, `/git/ref/heads/${DEPLOY.branch}`);
     if (ref.status !== 200 || !ref.data.object) return { status: 502, body: { error: "github_ref", githubStatus: ref.status } };
     const headSha = ref.data.object.sha;
     const head = await gh<{ tree?: { sha: string } }>(env, `/git/commits/${headSha}`);
@@ -385,11 +405,11 @@ export async function publish(env: AdminEnv, files: InFile[], message: string): 
       body: { message, tree: newTree.data.sha, parents: [headSha] },
     });
     if (commit.status !== 201 || !commit.data.sha) return { status: 502, body: { error: "github_commit_create", githubStatus: commit.status } };
-    const upd = await gh(env, `/git/refs/heads/${BRANCH}`, { method: "PATCH", body: { sha: commit.data.sha, force: false } });
+    const upd = await gh(env, `/git/refs/heads/${DEPLOY.branch}`, { method: "PATCH", body: { sha: commit.data.sha, force: false } });
     if (upd.status === 200) {
       return {
         status: 200,
-        body: { ok: true, commitSha: commit.data.sha, htmlUrl: `https://github.com/${REPO}/commit/${commit.data.sha}`, files: results },
+        body: { ok: true, commitSha: commit.data.sha, htmlUrl: `https://github.com/${repo()}/commit/${commit.data.sha}`, files: results },
       };
     }
     // 422 = main moved while we were working (another publish); rebuild on the new head.
@@ -444,9 +464,29 @@ async function checkSecondStep(env: AdminEnv, st: AuthState, code: string): Prom
 }
 
 /* ---------- Site & branding (public read, admin write) ---------- */
+export type MailCfg = { fromName?: string; contact?: string; info?: string };
+const EMAIL = /^[^\s@<>"]{1,64}@[a-z0-9.-]+\.[a-z]{2,24}$/i;
+function normMail(raw: unknown): MailCfg {
+  const r = (raw && typeof raw === "object" ? raw : {}) as Body;
+  const e = (v: unknown) => (EMAIL.test(sv(v, 120).trim()) ? sv(v, 120).trim().toLowerCase() : "");
+  return { fromName: clean(r.fromName, 60), contact: e(r.contact), info: e(r.info) };
+}
+function normPresets(raw: unknown): Body[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.slice(0, 8).map((p, i) => {
+    const r = (p && typeof p === "object" ? p : {}) as Body;
+    const th = (r.theme && typeof r.theme === "object" ? r.theme : {}) as Body;
+    return {
+      id: clean(r.id, 30).replace(/[^a-z0-9-]/gi, "") || `p${i + 1}`,
+      label: clean(r.label, 40) || `Preset ${i + 1}`,
+      nameEn: clean(r.nameEn, 60), nameAr: clean(r.nameAr, 60), taglineEn: clean(r.taglineEn, 140), taglineAr: clean(r.taglineAr, 140),
+      theme: { preset: clean(th.preset, 30), header: HEX.test(sv(th.header)) ? sv(th.header).toLowerCase() : "", sun: HEX.test(sv(th.sun)) ? sv(th.sun).toLowerCase() : "", mode: th.mode === "dark" ? "dark" : "light" },
+    };
+  });
+}
 const HEX = /^#[0-9a-f]{6}$/i;
 const clean = (v: unknown, max: number) => sv(v, max).replace(/[<>\u0000-\u001f]/g, "").trim();
-function normBrand(raw: Body, prevCanonical = ""): Body {
+function normBrand(raw: Body, prevCanonical = "", prev: Body = {}): Body {
   const th = (raw.theme && typeof raw.theme === "object" ? raw.theme : {}) as Body;
   return {
     nameEn: clean(raw.nameEn, 60),
@@ -460,21 +500,24 @@ function normBrand(raw: Body, prevCanonical = ""): Body {
       mode: th.mode === "dark" ? "dark" : "light",
     },
     canonical: prevCanonical,
+    mail: normMail(raw.mail !== undefined ? raw.mail : prev.mail),
+    presets: normPresets(raw.presets !== undefined ? raw.presets : prev.presets),
     updatedAt: Date.now(),
   };
 }
 const HOST_RE = /^(?=.{4,253}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,24}$/;
-export const SITE_MARKER = "shaiqmuhammad-school-site";
 
 export async function handleAdmin(request: Request, env: AdminEnv, action: string): Promise<Response> {
+  initDeployment(env);
   const origin = request.headers.get("Origin");
   await loadSiteOrigin(env);
   if (origin && !originAllowed(origin)) return reply(null, { error: "origin_not_allowed" }, 403);
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders(origin) });
 
-  const configured = Boolean(env.GITHUB_PAT && env.ADMIN_PASSWORD_SHA256 && env.SESSION_SIGNING_KEY);
+  // Sign-in only needs the password + signing key; publishing to GitHub is optional per deployment (GITHUB_PAT).
+  const configured = Boolean(env.ADMIN_PASSWORD_SHA256 && env.SESSION_SIGNING_KEY);
 
-  if (action === "ping") return reply(origin, { ok: true, configured });
+  if (action === "ping") return reply(origin, { ok: true, configured, publishing: Boolean(env.GITHUB_PAT), site: DEPLOY.siteId });
 
   // Public: site name, tagline, colours and main address (read by every page at runtime).
   if (action === "brand" && request.method === "GET") {
@@ -524,7 +567,21 @@ export async function handleAdmin(request: Request, env: AdminEnv, action: strin
   const session = await verifyToken(env, request.headers.get("Authorization"));
   if (!session) return reply(origin, { error: "unauthorized" }, 401);
 
-  if (action === "status") return reply(origin, { ok: true, exp: session.exp, publishing: true });
+  if (action === "status") return reply(origin, { ok: true, exp: session.exp, publishing: Boolean(env.GITHUB_PAT) });
+
+  // Main address card: which known addresses open THIS website right now (live check) and are accepted here.
+  if (action === "domain-status") {
+    const kv = siteKv(env);
+    const raw = kv ? await kv.get(BRAND_KEY) : null;
+    const canonical = raw ? sv((JSON.parse(raw) as Body).canonical, 253) : "";
+    const hosts = [...new Set([...ownHosts(), ...DEPLOY.candidates, ...(canonical ? [canonical] : [])])].slice(0, 12);
+    const rows = await Promise.all(hosts.map(async (h) => {
+      const own = ownHosts().includes(h);
+      const serves = await servesThisSite(h, true);
+      return { host: h, own, serves, accepted: serves && (own || DEPLOY.candidates.includes(h) || h === canonical) };
+    }));
+    return reply(origin, { ok: true, site: DEPLOY.siteId, main: canonical || DEPLOY.siteUrl.replace(/^https:\/\//, ""), defaultMain: DEPLOY.siteUrl.replace(/^https:\/\//, ""), hosts: rows });
+  }
 
   // Sliding 12-hour session (never past 7 days from sign-in).
   if (action === "refresh") return reply(origin, { ok: true, ...(await issueToken(env, session.pv, session.lt)) });
@@ -556,26 +613,22 @@ export async function handleAdmin(request: Request, env: AdminEnv, action: strin
       const prevRaw = await kv.get(BRAND_KEY);
       const prev = prevRaw ? (JSON.parse(prevRaw) as Body) : {};
       if (action === "brand-save") {
-        const b = normBrand((body.brand && typeof body.brand === "object" ? body.brand : {}) as Body, sv(prev.canonical, 253));
+        const b = normBrand((body.brand && typeof body.brand === "object" ? body.brand : {}) as Body, sv(prev.canonical, 253), prev);
         await kv.set(BRAND_KEY, JSON.stringify(b));
+        await loadSiteOrigin(env, true);
         return reply(origin, { ok: true, brand: b });
       }
       // Main site address: only saved once the new address already opens this website (so links never break).
       const host = sv(body.domain, 260).trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
-      if (body.clear === true || host === "" || /(^|\.)shaiqmuhammad\.com$/.test(host)) {
+      const defHost = DEPLOY.siteUrl.replace(/^https:\/\//, "");
+      if (body.clear === true || host === "" || host === defHost) {
         const b = { ...prev, canonical: "", updatedAt: Date.now() };
         await kv.set(BRAND_KEY, JSON.stringify(b));
         await loadSiteOrigin(env, true);
         return reply(origin, { ok: true, brand: b, connected: true });
       }
       if (!HOST_RE.test(host)) return reply(origin, { error: "bad_domain" }, 400);
-      let connected = false;
-      try {
-        const r = await fetch(`https://${host}/site-id.txt?t=${Date.now()}`, { redirect: "follow", cf: { cacheTtl: 0 } } as RequestInit);
-        connected = r.ok && (await r.text()).includes(SITE_MARKER);
-      } catch {
-        connected = false;
-      }
+      const connected = await servesThisSite(host, true);
       if (!connected) return reply(origin, { ok: false, error: "not_connected", domain: host }, 409);
       const b = { ...prev, canonical: host, updatedAt: Date.now() };
       await kv.set(BRAND_KEY, JSON.stringify(b));
@@ -621,7 +674,7 @@ export async function handleAdmin(request: Request, env: AdminEnv, action: strin
       if (st.totp?.enabled) return reply(origin, { error: "already_on" }, 409);
       const secret = newTotpSecret();
       await auth.authUpdate({ pending: { secret, at: Date.now() } });
-      return reply(origin, { ok: true, secret, uri: otpauthUri(secret, "admin") });
+      return reply(origin, { ok: true, secret, uri: otpauthUri(secret, "admin", DEPLOY.siteId === "shaiqmuhammad-school-site" ? "Shaiq Admin" : `${DEPLOY.siteName} Admin`) });
     }
     if (action === "totp-enable") {
       const pend = st.pending;

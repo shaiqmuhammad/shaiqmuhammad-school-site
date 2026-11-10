@@ -1,6 +1,7 @@
+import { API_BASE } from "@/lib/deployment";
 import { getServerSession } from "@/lib/adminServer";
 
-export const API = "https://assessment-session.shaiqmuhammad.workers.dev/api/yt";
+export const API = `${API_BASE}/api/yt`;
 export type YtVideo = { id: string; title: string; duration: string; published: string };
 export type YtPlaylist = { id: string; title: string; count: string };
 export type PlCfg = { id: string; title: string; slug: string; order: number; visible: boolean };

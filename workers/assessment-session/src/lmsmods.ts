@@ -1,3 +1,4 @@
+import { ASSETS, DEPLOY } from "./deployment";
 import { catPhases, loadCat } from "./catx";
 /**
  * LMS modules: Attendance Register, Behaviour Management, Curriculum Management.
@@ -66,7 +67,8 @@ let pubCache: { at: number; items: PubQuiz[] } | null = null;
 export async function pubQuizzes(force = false): Promise<PubQuiz[]> {
   if (!force && pubCache && Date.now() - pubCache.at < 120e3) return pubCache.items;
   try {
-    const r = await fetch(`https://www.shaiqmuhammad.com/content/quizzes.json?t=${Date.now()}`, { headers: { "User-Agent": "Mozilla/5.0 (assessment-session)" } });
+    // Own website's published list (copies that serve their own files read them directly, never another site).
+    const r = ASSETS ? await ASSETS.fetch(new Request("https://assets.local/content/quizzes.json")) : await fetch(`${DEPLOY.siteUrl}/content/quizzes.json?t=${Date.now()}`, { headers: { "User-Agent": "Mozilla/5.0 (assessment-session)" } });
     const j = (await r.json()) as { quizzes?: Record<string, unknown>[] };
     const items = (j.quizzes || []).map((q) => ({ slug: String(q.slug || ""), title: String(q.title || ""), titleAr: String(q.titleAr || ""), topic: String(q.topic || ""), visible: q.visible !== false, active: q.active !== false && q.published !== false }));
     pubCache = { at: Date.now(), items };

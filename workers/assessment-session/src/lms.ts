@@ -1,3 +1,4 @@
+import { initDeployment } from "./deployment";
 import { loadCat, catPhases, rulePhase, ruleDept } from "./catx";
 /**
  * LMS phase 1: student/teacher accounts (username + PIN), homework (Quran + general), review, tracker.
@@ -249,6 +250,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
   private sql: SqlStorage;
   private files: BlobStore;
   constructor(ctx: DurableObjectState, env: LmsEnv) {
+    initDeployment(env);
     super(ctx, env);
     this.sql = ctx.storage.sql;
     // Recordings: R2 when bound, else chunked inside this Durable Object's SQLite.

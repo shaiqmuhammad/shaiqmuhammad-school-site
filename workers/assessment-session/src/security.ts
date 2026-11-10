@@ -128,8 +128,8 @@ export async function totpMatch(secretB32: string, code: string, lastStep = 0, n
 export function newTotpSecret(): string {
   return base32(crypto.getRandomValues(new Uint8Array(20)));
 }
-export function otpauthUri(secret: string, label: string): string {
-  return `otpauth://totp/${encodeURIComponent("Shaiq Admin")}:${encodeURIComponent(label)}?secret=${secret}&issuer=${encodeURIComponent("Shaiq Admin")}&algorithm=SHA1&digits=6&period=30`;
+export function otpauthUri(secret: string, label: string, issuer = "Shaiq Admin"): string {
+  return `otpauth://totp/${encodeURIComponent(issuer)}:${encodeURIComponent(label)}?secret=${secret}&issuer=${encodeURIComponent(issuer)}&algorithm=SHA1&digits=6&period=30`;
 }
 const BC = "abcdefghjkmnpqrstuvwxyz23456789";
 export function newBackupCodes(n = 10): string[] {

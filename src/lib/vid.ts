@@ -1,4 +1,5 @@
-const BASE = "https://assessment-session.shaiqmuhammad.workers.dev/api/lms";
+import { API_BASE } from "@/lib/deployment";
+const BASE = `${API_BASE}/api/lms`;
 export type VidComment = { name: string; role: string; text: string; at: number };
 export type VidInfo = { likes: number; liked: boolean; comments: VidComment[]; pendingMine: number };
 

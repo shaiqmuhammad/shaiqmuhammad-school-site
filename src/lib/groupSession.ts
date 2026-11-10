@@ -1,3 +1,4 @@
+import { API_BASE } from "@/lib/deployment";
 import { studentLoginToken } from "@/lib/lmsToken";
 import { siteOrigin } from "@/lib/siteOrigin";
 import type { Quiz, QuizQuestion } from "@/lib/quiz";
@@ -7,8 +8,7 @@ import type { Quiz, QuizQuestion } from "@/lib/quiz";
  * Default: the deployed workers.dev URL. Override at build time with NEXT_PUBLIC_ASSESSMENT_API_URL
  * (e.g. "" to use a same-origin /api route, or http://127.0.0.1:8787 for `wrangler dev`).
  */
-const DEFAULT_API = "https://assessment-session.shaiqmuhammad.workers.dev";
-export const ASSESSMENT_API_BASE = (process.env.NEXT_PUBLIC_ASSESSMENT_API_URL ?? DEFAULT_API).replace(/\/$/, "");
+export const ASSESSMENT_API_BASE = API_BASE;
 
 export type SessionStatus = "lobby" | "countdown" | "running" | "ended";
 

@@ -1,0 +1,13 @@
+{
+  "SITE_ID": "almudarris-site",
+  "SITE_ORIGINS": "https://almudarris-session.shaiqmuhammad.workers.dev",
+  "SITE_CANDIDATES": "school.almudarris.com,www.almudarris.com,almudarris.com,almudarris-site.pages.dev",
+  "SITE_URL": "https://almudarris-session.shaiqmuhammad.workers.dev",
+  "SITE_NAME": "Al-Mudarris",
+  "CONTENT_REPO": "shaiqmuhammad/shaiqmuhammad-school-site",
+  "CONTENT_BRANCH": "almudarris-content",
+  "MAIL_CONTACT": "",
+  "MAIL_INFO": "",
+  "MAIL_FROM_NAME": "Al-Mudarris",
+  "YT_HANDLE": ""
+}

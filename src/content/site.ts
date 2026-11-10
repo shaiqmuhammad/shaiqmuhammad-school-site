@@ -1,15 +1,19 @@
+import { IS_SCHOOL, SITE_TEXT } from "@/lib/deployment";
+
 export const siteConfig = {
-  name: "Shaiq Muhammad",
-  shortName: "SM Learn",
-  domain: "shaiqmuhammad.com",
-  tagline: "A calm learning home for students of Shaiq Muhammad",
-  description:
-    "Educational learning platform for students of Shaiq Muhammad — Quran and Hadith encyclopedias, assessments and video classes.",
+  // Per deployment (src/lib/deployment.ts): the school by default, e.g. Al-Mudarris for the copy.
+  name: SITE_TEXT.name,
+  shortName: SITE_TEXT.shortName,
+  domain: SITE_TEXT.domain,
+  tagline: SITE_TEXT.tagline,
+  description: IS_SCHOOL
+    ? "Educational learning platform for students of Shaiq Muhammad — Quran and Hadith encyclopedias, assessments and video classes."
+    : `${SITE_TEXT.name} — Quran and Hadith encyclopedias, assessments, lessons and video classes.`,
   location: "Dubai, United Arab Emirates",
   address: "Dubai, UAE",
-  email: "contact@shaiqmuhammad.com",
+  email: SITE_TEXT.email,
   locale: "en-GB",
-  copyright: "© Shaiq Muhammad. All rights reserved.",
+  copyright: `© ${SITE_TEXT.name}. All rights reserved.`,
 } as const;
 
 /**

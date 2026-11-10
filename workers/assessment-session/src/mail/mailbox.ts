@@ -2,7 +2,7 @@
 import { classifyParts, decodeTextPart, decodeTransfer, flattenStructure, parseEnvelope, withImap, type ImapAccount, type Tok } from "./imap";
 import { latin1ToBytes } from "./socket";
 import { buildMime, sendMail, type OutMail } from "./smtp";
-import { CONTACT, INFO, renderEmail, renderText, type Branded } from "./template";
+import { CONTACT, FROM_NAME, INFO, renderEmail, renderText, type Branded } from "./template";
 
 export interface MailEnv {
   ICLOUD_APPLE_ID?: string;
@@ -11,9 +11,10 @@ export interface MailEnv {
 }
 
 /** The Apple account also holds arabzmart.com + personal mail: the server only ever lists/opens mail to/from contact@shaiqmuhammad.com (IMAP SEARCH). */
-const C = '"contact@shaiqmuhammad.com"';
-const SCOPE = `OR OR TO ${C} CC ${C} FROM ${C}`;
-export const mailReady = (env: MailEnv) => Boolean((env.ICLOUD_SMTP_USER || env.ICLOUD_APPLE_ID) && env.ICLOUD_APP_PASSWORD);
+const C = () => `"${CONTACT}"`;
+const SCOPE_OF = () => `OR OR TO ${C()} CC ${C()} FROM ${C()}`;
+/** Mail needs the account secrets AND a sender address (a copy of the site without them simply sends nothing). */
+export const mailReady = (env: MailEnv) => Boolean((env.ICLOUD_SMTP_USER || env.ICLOUD_APPLE_ID) && env.ICLOUD_APP_PASSWORD && CONTACT);
 const imapAcct = (env: MailEnv): ImapAccount => ({ host: "imap.mail.me.com", port: 993, user: (env.ICLOUD_SMTP_USER || env.ICLOUD_APPLE_ID || ""), pass: env.ICLOUD_APP_PASSWORD || "" });
 const smtpAcct = (env: MailEnv) => ({ host: "smtp.mail.me.com", port: 587, user: (env.ICLOUD_SMTP_USER || env.ICLOUD_APPLE_ID || ""), pass: env.ICLOUD_APP_PASSWORD || "" });
 
@@ -43,7 +44,7 @@ export async function folders(env: MailEnv) {
     for (const f of list) {
       try {
         await s.select(f.path, true);
-        out.push({ path: f.path, name: f.name, total: (await s.uidSearch(SCOPE)).length, unread: (await s.uidSearch(`UNSEEN ${SCOPE}`)).length });
+        out.push({ path: f.path, name: f.name, total: (await s.uidSearch(SCOPE_OF())).length, unread: (await s.uidSearch(`UNSEEN ${SCOPE_OF()}`)).length });
       } catch { out.push({ path: f.path, name: f.name, total: 0, unread: 0 }); }
     }
     const order = (n: string) => (/^inbox$/i.test(n) ? 0 : /sent/i.test(n) ? 1 : /draft/i.test(n) ? 2 : /junk|spam/i.test(n) ? 4 : /trash|deleted/i.test(n) ? 5 : 3);
@@ -54,14 +55,14 @@ export async function folders(env: MailEnv) {
 export async function unreadInbox(env: MailEnv) {
   return withImap(imapAcct(env), async (s) => {
     await s.select("INBOX", true);
-    return (await s.uidSearch(`UNSEEN ${SCOPE}`)).length;
+    return (await s.uidSearch(`UNSEEN ${SCOPE_OF()}`)).length;
   });
 }
 
 export async function listMessages(env: MailEnv, folder: string, page = 0, size = 30) {
   return withImap(imapAcct(env), async (s) => {
     await s.select(folder, true);
-    const uids = (await s.uidSearch(SCOPE)).reverse();
+    const uids = (await s.uidSearch(SCOPE_OF())).reverse();
     const slice = uids.slice(page * size, page * size + size);
     if (!slice.length) return { total: uids.length, items: [] };
     const rows = await s.uidFetch(slice.join(","), "UID FLAGS INTERNALDATE RFC822.SIZE ENVELOPE BODYSTRUCTURE");
@@ -77,7 +78,7 @@ export async function listMessages(env: MailEnv, folder: string, page = 0, size 
 export async function getMessage(env: MailEnv, folder: string, uid: number) {
   return withImap(imapAcct(env), async (s) => {
     await s.select(folder, false);
-    if (!(await s.uidSearch(`UID ${uid} ${SCOPE}`)).includes(uid)) return null;
+    if (!(await s.uidSearch(`UID ${uid} ${SCOPE_OF()}`)).includes(uid)) return null;
     const [m] = await s.uidFetch(String(uid), "UID FLAGS ENVELOPE BODYSTRUCTURE");
     if (!m) return null;
     const env2 = parseEnvelope(m.get("ENVELOPE") ?? undefined);
@@ -101,7 +102,7 @@ export async function getMessage(env: MailEnv, folder: string, uid: number) {
 export async function getPart(env: MailEnv, folder: string, uid: number, part: string) {
   return withImap(imapAcct(env), async (s) => {
     await s.select(folder, true);
-    if (!(await s.uidSearch(`UID ${uid} ${SCOPE}`)).includes(uid)) return null;
+    if (!(await s.uidSearch(`UID ${uid} ${SCOPE_OF()}`)).includes(uid)) return null;
     const [m] = await s.uidFetch(String(uid), "UID BODYSTRUCTURE");
     const info = flattenStructure(m?.get("BODYSTRUCTURE") ?? undefined).find((p) => p.part === part);
     if (!info) return null;
@@ -127,7 +128,7 @@ export async function deleteMsgs(env: MailEnv, folder: string, uids: number[]) {
 /** Personal mail from contact@ (compose/reply); a copy is saved to Sent. */
 export async function sendPersonal(env: MailEnv, m: { to: string[]; cc?: string[]; subject: string; text: string; inReplyTo?: string; attachments?: OutMail["attachments"]; sig?: { html: string; text: string } }) {
   const html = `<div style="font-family:Segoe UI,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6"><div style="white-space:pre-wrap">${m.text.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]!)}</div>${m.sig?.html || ""}</div>`;
-  const { raw } = await sendMail(smtpAcct(env), { from: CONTACT, fromName: "Shaiq Muhammad", to: m.to, cc: m.cc, subject: m.subject, text: m.text + (m.sig ? "\n" + m.sig.text : ""), html, attachments: m.attachments, headers: m.inReplyTo ? { "In-Reply-To": m.inReplyTo, References: m.inReplyTo } : undefined });
+  const { raw } = await sendMail(smtpAcct(env), { from: CONTACT, fromName: FROM_NAME, to: m.to, cc: m.cc, subject: m.subject, text: m.text + (m.sig ? "\n" + m.sig.text : ""), html, attachments: m.attachments, headers: m.inReplyTo ? { "In-Reply-To": m.inReplyTo, References: m.inReplyTo } : undefined });
   await withImap(imapAcct(env), async (s) => {
     const sent = (await s.list()).find((f) => f.flags.includes("\\sent") || /^sent( messages)?$/i.test(f.name));
     if (sent) await s.append(sent.path, raw);
@@ -139,7 +140,7 @@ export async function sendAuto(env: MailEnv, to: string | string[], subject: str
   if (!mailReady(env)) return false;
   const list = (Array.isArray(to) ? to : [to]).filter((x) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x));
   if (!list.length) return false;
-  await sendMail(smtpAcct(env), { from: INFO, fromName: "Shaiq Muhammad (no-reply)", to: list, replyTo: CONTACT, subject, text: renderText(e), html: renderEmail(e) });
+  await sendMail(smtpAcct(env), { from: INFO, fromName: `${FROM_NAME} (no-reply)`, to: list, replyTo: CONTACT, subject, text: renderText(e), html: renderEmail(e) });
   return true;
 }
 
@@ -156,7 +157,7 @@ export async function sendToContact(env: MailEnv, m: { name: string; email: stri
 }
 
 /** ---- Parent mail (teacher ↔ parent). Sent from contact@ with a tokenized Reply-To (contact+pm<token>@); replies are mirrored from INBOX/Junk by that token. ---- */
-export const parentReplyTo = (token: string) => `contact+${token}@shaiqmuhammad.com`;
+export const parentReplyTo = (token: string) => CONTACT.replace("@", `+${token}@`);
 
 export async function sendParentMail(env: MailEnv, m: { to: string; token: string; subject: string; html: string; text: string; messageId: string; fromName: string }) {
   const { raw } = await sendMail(smtpAcct(env), { from: CONTACT, fromName: m.fromName, to: [m.to], replyTo: parentReplyTo(m.token), subject: m.subject, text: m.text, html: m.html, messageId: m.messageId });
