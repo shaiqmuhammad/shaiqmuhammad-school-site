@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { enterFullscreen, exitFullscreen } from "@/components/FocusMode";
+import { setPageFocus, usePageFocus } from "@/components/FullscreenToggle";
 import { qrSvg } from "@/lib/qrLocal";
 import { actErr, hostChip, saveOptions, useTr, type Tr } from "@/components/activity/common";
 import { activityApi, compressImage, type ActivityItem, type ActivityState, type Who } from "@/lib/activity";
@@ -33,6 +35,8 @@ export const bgOf = (o: Record<string, unknown>, page: number) => {
   const bgs = Array.isArray(o.bgs) ? o.bgs : [];
   return String(bgs[page] || o.bg || "blank");
 };
+const WbFillCtx = createContext(false);
+
 const boardFill = (bg: string) => bg === "chalk" ? "#1a3d2a" : bg === "navy" ? "#15344c" : bg === "cream" ? "#fbf4e4" : "#ffffff";
 const darkBg = (bg: string) => bg === "chalk" || bg === "navy";
 
@@ -273,6 +277,8 @@ function Board({ code, who, state, reload, canDraw, isHost }: { code: string; wh
   const svgBox = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const panDrag = useRef<{ x: number; y: number; sl: number; st: number } | null>(null);
+  const ptrType = useRef<string | null>(null);
+  const upRef = useRef<(e?: React.PointerEvent | PointerEvent) => void>(() => undefined);
   const [grabbing, setGrabbing] = useState(false);
   const pageRef = useRef(page);
   pageRef.current = page;
@@ -294,7 +300,11 @@ function Board({ code, who, state, reload, canDraw, isHost }: { code: string; wh
     ...(SHAPES.includes(tool) && tool !== "line" && tool !== "arrow" ? { cl: true, ...(fill ? { fill: color } : {}) } : {}),
     ...(tool === "arrow" ? { ar: true } : {}),
   });
-  const pt = (e: { clientX: number; clientY: number }) => { const r = (stageRef.current || svgBox.current)!.getBoundingClientRect(); return [Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)), Math.max(0, Math.min(1, (e.clientY - r.top) / r.height))] as [number, number]; };
+  const pt = (e: { clientX: number; clientY: number }) => {
+    const r = (stageRef.current || svgBox.current)?.getBoundingClientRect();
+    const w = r?.width || 1, h = r?.height || 1;
+    return [Math.max(0, Math.min(1, (e.clientX - (r?.left || 0)) / w)), Math.max(0, Math.min(1, (e.clientY - (r?.top || 0)) / h))] as [number, number];
+  };
   const cssSize = () => { const r = (stageRef.current || svgBox.current)?.getBoundingClientRect(); return [r?.width || 1, r?.height || 1] as [number, number]; };
   const all = [...strokesOf(state), ...pending];
   const onPage = all.filter((s) => pageOf(s) === page);
@@ -347,25 +357,67 @@ function Board({ code, who, state, reload, canDraw, isHost }: { code: string; wh
     setPending((x) => [...x, local]); setErr("");
     try { await activityApi.post(code, who, p); } catch (e) { setErr(actErr(e, tr)); setPending((x) => x.filter((st) => st.id !== local.id)); }
   };
+  const capturePtr = (id: number) => {
+    const el = svgBox.current;
+    if (!el) return;
+    try { el.setPointerCapture(id); } catch { /* pointer already gone (some IR frames) */ }
+  };
+  const releasePtr = (id: number | null) => {
+    const el = svgBox.current;
+    if (!el || id == null) return;
+    try { if (el.hasPointerCapture?.(id)) el.releasePointerCapture(id); } catch { /* */ }
+  };
+  const abortStroke = () => {
+    curRef.current = null;
+    start.current = null;
+    curWs.current = [];
+    lastScreen.current = null;
+    if (raf.current) { cancelAnimationFrame(raf.current); raf.current = 0; }
+    const live = liveRef.current; if (live) { const r = cssSize(); live.getContext("2d")?.clearRect(0, 0, r[0], r[1]); }
+    panDrag.current = null;
+    if (dragRef.current) {
+      const d = dragRef.current; dragRef.current = null;
+      const node = svgBox.current?.querySelector(`[data-wb-id="${d.id}"]`);
+      if (node) node.removeAttribute("transform");
+    }
+    setGrabbing(false);
+  };
   const down = (e: React.PointerEvent) => {
-    if (!canDraw || !e.isPrimary) return;
+    if (!canDraw) return;
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    if (e.buttons === 0 && e.pointerType === "mouse") return;
+    // Do not require isPrimary: IR smart-boards and Windows Ink often report the
+    // stylus or a later finger as a non-primary pointer (hover, palm, or a
+    // companion mouse pointer is already "primary"), which used to drop the stroke.
+    if (ptr.current != null && ptr.current !== e.pointerId) {
+      if (e.pointerType === "pen" && ptrType.current !== "pen") {
+        const old = ptr.current;
+        abortStroke();
+        releasePtr(old);
+        ptr.current = null;
+        ptrType.current = null;
+      } else {
+        return;
+      }
+    }
     e.preventDefault();
     const [x, y] = pt(e);
     ptr.current = e.pointerId;
+    ptrType.current = e.pointerType;
     lastScreen.current = [e.clientX, e.clientY];
     if (tool === "hand") {
       const hit = hitItem(onPage, x, y);
       if (hit) {
         const mine = hit.pid === "me" || ("pid" in who && hit.pid === who.pid);
         if (isHost || mine) {
-          svgBox.current?.setPointerCapture?.(e.pointerId);
+          capturePtr(e.pointerId);
           dragRef.current = { id: hit.id, x0: x, y0: y, dx: 0, dy: 0 };
           return;
         }
       }
       const box = svgBox.current;
       if (!box) return;
-      svgBox.current?.setPointerCapture?.(e.pointerId);
+      capturePtr(e.pointerId);
       panDrag.current = { x: e.clientX, y: e.clientY, sl: box.scrollLeft, st: box.scrollTop };
       setGrabbing(true);
       return;
@@ -375,7 +427,7 @@ function Board({ code, who, state, reload, canDraw, isHost }: { code: string; wh
       if (t) send({ kind: "note", text: t.slice(0, 200), x, y, c: color, w: width * 3 + 12, f: font, pg: page, ...(noteBg ? { bg: noteBg } : {}) } as never, { id: `tmp${Date.now()}`, pid: "me", author: "", kind: "note", d: { text: t, x, y, c: color, w: width * 3 + 12, f: font, bg: noteBg || undefined, pg: page } });
       return;
     }
-    svgBox.current?.setPointerCapture?.(e.pointerId);
+    capturePtr(e.pointerId);
     start.current = [x, y];
     curRef.current = [x, y];
     curWs.current = [tipWidth(tool, width, e.nativeEvent, null)];
@@ -383,6 +435,7 @@ function Board({ code, who, state, reload, canDraw, isHost }: { code: string; wh
   };
   const move = (e: React.PointerEvent) => {
     if (ptr.current != null && e.pointerId !== ptr.current) return;
+    if (ptr.current === e.pointerId) e.preventDefault();
     if (panDrag.current && svgBox.current) {
       const d = panDrag.current;
       svgBox.current.scrollLeft = d.sl - (e.clientX - d.x);
@@ -398,7 +451,13 @@ function Board({ code, who, state, reload, canDraw, isHost }: { code: string; wh
       return;
     }
     if (!curRef.current) return;
-    const evs = typeof e.nativeEvent.getCoalescedEvents === "function" ? e.nativeEvent.getCoalescedEvents() : [e.nativeEvent];
+    let evs: PointerEvent[];
+    try {
+      evs = typeof e.nativeEvent.getCoalescedEvents === "function" ? e.nativeEvent.getCoalescedEvents() : [e.nativeEvent];
+      if (!evs.length) evs = [e.nativeEvent];
+    } catch {
+      evs = [e.nativeEvent];
+    }
     const pts = curRef.current;
     for (const ev of evs) {
       const [x, y] = pt(ev);
@@ -412,10 +471,13 @@ function Board({ code, who, state, reload, canDraw, isHost }: { code: string; wh
     }
     schedule();
   };
-  const up = (e?: React.PointerEvent) => {
+  const up = (e?: React.PointerEvent | PointerEvent) => {
     if (e && ptr.current != null && e.pointerId !== ptr.current) return;
+    const id = ptr.current;
     ptr.current = null;
+    ptrType.current = null;
     lastScreen.current = null;
+    releasePtr(e?.pointerId ?? id);
     if (panDrag.current) { panDrag.current = null; setGrabbing(false); return; }
     if (dragRef.current) {
       const d = dragRef.current; dragRef.current = null;
@@ -437,6 +499,32 @@ function Board({ code, who, state, reload, canDraw, isHost }: { code: string; wh
     const data = strokeData(slim, !SHAPES.includes(tool) && slimW.length === slim.length / 2 ? slimW : undefined);
     send({ kind: "stroke", ...data } as never, { id: `tmp${Date.now()}`, pid: "me", author: "", kind: "stroke", d: data });
   };
+  upRef.current = up;
+  useEffect(() => {
+    const box = svgBox.current;
+    if (!box || !canDraw) return;
+    const opts: AddEventListenerOptions = { passive: false, capture: true };
+    const block = (ev: Event) => { ev.preventDefault(); };
+    // Native non-passive listeners: React's delegated events cannot always
+    // preventDefault on touch, so the page/board would still scroll and cancel the pointer.
+    box.addEventListener("touchstart", block, opts);
+    box.addEventListener("touchmove", block, opts);
+    box.addEventListener("pointerdown", block, opts);
+    const onMove = (ev: Event) => { if (ptr.current != null) ev.preventDefault(); };
+    box.addEventListener("pointermove", onMove, opts);
+    const onLost = (ev: PointerEvent) => { if (ptr.current === ev.pointerId) upRef.current(ev); };
+    box.addEventListener("lostpointercapture", onLost);
+    const onCtx = (ev: Event) => ev.preventDefault();
+    box.addEventListener("contextmenu", onCtx);
+    return () => {
+      box.removeEventListener("touchstart", block, opts);
+      box.removeEventListener("touchmove", block, opts);
+      box.removeEventListener("pointerdown", block, opts);
+      box.removeEventListener("pointermove", onMove, opts);
+      box.removeEventListener("lostpointercapture", onLost);
+      box.removeEventListener("contextmenu", onCtx);
+    };
+  }, [canDraw]);
   const goPage = (i: number) => {
     const n = Math.max(0, Math.min(pageCount - 1, i));
     setPage(n);
@@ -463,10 +551,11 @@ function Board({ code, who, state, reload, canDraw, isHost }: { code: string; wh
     saveOptions(code, who.hostKey, state, { pages: last, page: next }).then(() => { setPage(next); reload(); });
   };
   const btn = (on: boolean) => `${hostChip(on)} !px-3`;
+  const fillScreen = useContext(WbFillCtx);
   return (
-    <div className="space-y-2" data-testid="wb">
+    <div className={fillScreen ? "flex h-full min-h-0 flex-col gap-2" : "space-y-2"} data-testid="wb">
       {canDraw && (
-        <div className="glass flex flex-wrap items-center gap-1.5 rounded-2xl p-2" data-focus-keep data-testid="wb-tools">
+        <div className="glass flex shrink-0 flex-wrap items-center gap-1.5 rounded-2xl p-2" data-focus-keep data-testid="wb-tools">
           <button type="button" className={btn(tool === "hand")} onClick={() => setTool("hand")} data-testid="wb-hand">✋ {tr("Hand", "يد")}</button>
           <button type="button" className={btn(tool === "pen")} onClick={() => setTool("pen")} data-testid="wb-pen">🖊️ {tr("Pen", "قلم")}</button>
           <button type="button" className={btn(tool === "pencil")} onClick={() => setTool("pencil")} data-testid="wb-pencil">✏️ {tr("Pencil", "رصاص")}</button>
@@ -500,7 +589,7 @@ function Board({ code, who, state, reload, canDraw, isHost }: { code: string; wh
           {isHost && "hostKey" in who && <button type="button" className={btn(false)} onClick={async () => { if (!confirm(tr("Clear the whole board?", "مسح السبورة كلها؟"))) return; await activityApi.moderate(code, who.hostKey, "clear", { kind: "stroke" }).catch(() => undefined); await activityApi.moderate(code, who.hostKey, "clear", { kind: "note" }).catch(() => undefined); await activityApi.moderate(code, who.hostKey, "clear", { kind: "pic" }).catch(() => undefined); reload(); }} data-testid="wb-clear">🗑️ {tr("Clear", "مسح")}</button>}
         </div>
       )}
-      <div className="flex flex-wrap items-center gap-1.5" data-focus-keep data-testid="wb-pages">
+      <div className="flex shrink-0 flex-wrap items-center gap-1.5" data-focus-keep data-testid="wb-pages">
         <button type="button" className={btn(false)} disabled={page <= 0} onClick={() => goPage(page - 1)} aria-label={tr("Previous page", "الصفحة السابقة")}>◀</button>
         {Array.from({ length: pageCount }, (_, i) => <button key={i} type="button" className={btn(page === i)} onClick={() => goPage(i)} data-testid={`wb-page-${i}`}>{i + 1}</button>)}
         <button type="button" className={btn(false)} disabled={page >= pageCount - 1} onClick={() => goPage(page + 1)} aria-label={tr("Next page", "الصفحة التالية")}>▶</button>
@@ -514,7 +603,7 @@ function Board({ code, who, state, reload, canDraw, isHost }: { code: string; wh
           </label>
         </>}
       </div>
-      <div ref={svgBox} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onWheel={(e) => { if (curRef.current || dragRef.current || panDrag.current) return; const box = svgBox.current; if (box && box.scrollHeight > box.clientHeight + 4) { const atTop = box.scrollTop <= 0 && e.deltaY < 0; const atBot = box.scrollTop + box.clientHeight >= box.scrollHeight - 2 && e.deltaY > 0; if (!atTop && !atBot) { e.preventDefault(); box.scrollTop += e.deltaY; return; } } if (pageCount < 2) return; if (Math.abs(e.deltaY) < 24) return; goPage(page + (e.deltaY > 0 ? 1 : -1)); }} className={`relative max-h-[min(70vh,calc(100dvh-14rem))] overflow-auto rounded-[24px] shadow-xl ring-4 ring-[#1b3a57]/80 ${canDraw ? (tool === "hand" ? (grabbing ? "cursor-grabbing touch-none" : "cursor-grab touch-none") : "cursor-crosshair touch-none") : ""}`} style={canDraw ? { touchAction: "none", overscrollBehavior: "none" } : undefined} data-testid="wb-board">
+      <div ref={svgBox} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onLostPointerCapture={up} onContextMenu={canDraw ? (e) => e.preventDefault() : undefined} onWheel={(e) => { if (curRef.current || dragRef.current || panDrag.current) return; const box = svgBox.current; if (box && box.scrollHeight > box.clientHeight + 4) { const atTop = box.scrollTop <= 0 && e.deltaY < 0; const atBot = box.scrollTop + box.clientHeight >= box.scrollHeight - 2 && e.deltaY > 0; if (!atTop && !atBot) { e.preventDefault(); box.scrollTop += e.deltaY; return; } } if (pageCount < 2) return; if (Math.abs(e.deltaY) < 24) return; goPage(page + (e.deltaY > 0 ? 1 : -1)); }} className={`relative overflow-auto rounded-[24px] shadow-xl ring-4 ring-[#1b3a57]/80 ${fillScreen ? "min-h-0 flex-1 max-h-none" : "max-h-[min(70vh,calc(100dvh-14rem))]"} ${canDraw ? `wb-draw-surface ${tool === "hand" ? (grabbing ? "cursor-grabbing" : "cursor-grab") : "cursor-crosshair"}` : ""}`} style={canDraw ? { touchAction: "none", overscrollBehavior: "none", userSelect: "none", WebkitUserSelect: "none" } : undefined} data-testid="wb-board">
         <div ref={stageRef} className="relative w-full" data-testid="wb-stage">
           <BoardArt strokes={onPage} bg={bg} names={o.labels !== false && !state.settings.hideNames} centre={state.prompt || state.title} tr={tr} inkOnCanvas extra={<path fill="none" strokeLinecap="round" strokeLinejoin="round" pointerEvents="none" />} />
           <canvas ref={inkRef} className="pointer-events-none absolute inset-0 h-full w-full bg-transparent" data-testid="wb-ink" />
@@ -533,12 +622,18 @@ export function WhiteboardStudent({ code, who, state, closed, reload }: { code: 
 }
 
 
-/** Minimize / restore, and detach into a Document Picture-in-Picture window like the class timer. */
+/** Minimize / restore, detach into a Document Picture-in-Picture window, plus Full screen and Focus. */
 function WbChrome({ children }: { children: ReactNode }) {
   const { tr } = useTr();
   const [min, setMin] = useState(false);
   const [pip, setPip] = useState<Window | null>(null);
   const [pipMsg, setPipMsg] = useState("");
+  const [fill, setFill] = useState(false);
+  const fillRef = useRef(false);
+  fillRef.current = fill;
+  const pipRef = useRef<Window | null>(null);
+  pipRef.current = pip;
+  const focusOn = usePageFocus();
   useEffect(() => () => { try { pip?.close(); } catch { /* */ } }, [pip]);
   const popOut = async () => {
     const dpip = (window as unknown as { documentPictureInPicture?: { requestWindow: (o: { width: number; height: number }) => Promise<Window>; window?: Window | null } }).documentPictureInPicture;
@@ -551,23 +646,84 @@ function WbChrome({ children }: { children: ReactNode }) {
       w.document.body.style.margin = "0";
       w.document.body.style.background = "#fff";
       w.document.title = tr("Whiteboard", "السبورة");
-      w.addEventListener("pagehide", () => setPip(null));
+      w.addEventListener("pagehide", () => { setPip(null); setFill(false); });
       setPip(w); setPipMsg(""); setMin(false);
     } catch { setPipMsg(tr("The browser blocked the pop-out window.", "منع المتصفح النافذة العائمة.")); }
   };
+  const hostDoc = () => pipRef.current?.document ?? document;
+  const leaveFill = (keepFocusFs = false) => {
+    setFill(false);
+    document.documentElement.classList.remove("wb-board-fill");
+    const pop = pipRef.current;
+    if (pop?.document.fullscreenElement) pop.document.exitFullscreen?.().catch(() => undefined);
+    if (keepFocusFs || document.documentElement.classList.contains("page-focus")) return;
+    if (document.fullscreenElement) exitFullscreen();
+  };
+  const goFill = () => {
+    if (fill) { leaveFill(true); return; }
+    setMin(false);
+    setFill(true);
+    if (!pip) document.documentElement.classList.add("wb-board-fill");
+    const d = hostDoc();
+    const root = d.documentElement;
+    if (d.fullscreenEnabled) root.requestFullscreen?.().catch(() => undefined);
+    else if (!pip) enterFullscreen();
+  };
+  const goFocus = () => {
+    const next = !focusOn;
+    setPageFocus(next);
+    setMin(false);
+    if (next) {
+      enterFullscreen();
+      const d = pip?.document;
+      if (d?.fullscreenEnabled) d.documentElement.requestFullscreen?.().catch(() => undefined);
+    } else {
+      exitFullscreen();
+      if (pip?.document.fullscreenElement) pip.document.exitFullscreen?.().catch(() => undefined);
+    }
+  };
+  useEffect(() => {
+    if (!fill && !focusOn) return;
+    const d = hostDoc();
+    const onFs = () => { if (!d.fullscreenElement && !document.fullscreenElement && fillRef.current) leaveFill(); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (fillRef.current) leaveFill();
+    };
+    d.addEventListener("fullscreenchange", onFs);
+    document.addEventListener("fullscreenchange", onFs);
+    d.addEventListener("keydown", onKey);
+    if (d !== document) document.addEventListener("keydown", onKey);
+    return () => {
+      d.removeEventListener("fullscreenchange", onFs);
+      document.removeEventListener("fullscreenchange", onFs);
+      d.removeEventListener("keydown", onKey);
+      if (d !== document) document.removeEventListener("keydown", onKey);
+    };
+  }, [fill, focusOn, pip]);
+  useEffect(() => () => { document.documentElement.classList.remove("wb-board-fill"); }, []);
+  const chip = "inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-extrabold text-[#f5c542] hover:bg-white/10";
   const bar = (
-    <div className={`flex items-center gap-1 bg-[#1b3a57] px-3 py-1.5 text-white ${pip || min ? "" : "rounded-t-2xl"}`} data-testid="wb-chrome">
-      <span className="flex-1 text-xs font-extrabold uppercase tracking-wider text-[#f5c542]">✏️ {tr("Whiteboard", "السبورة")}</span>
+    <div className={`flex flex-wrap items-center gap-1 bg-[#1b3a57] px-3 py-1.5 text-white ${pip || min || fill ? "" : "rounded-t-2xl"}`} data-focus-keep data-testid="wb-chrome">
+      <span className="min-w-0 flex-1 text-xs font-extrabold uppercase tracking-wider text-[#f5c542]">✏️ {tr("Whiteboard", "السبورة")}</span>
+      <button type="button" className={chip} onClick={goFill} aria-pressed={fill} title={fill ? tr("Exit full screen (Esc)", "إنهاء ملء الشاشة (Esc)") : tr("Full screen — whiteboard fills the screen", "ملء الشاشة — السبورة تملأ الشاشة")} aria-label={fill ? tr("Exit full screen", "إنهاء ملء الشاشة") : tr("Full screen", "ملء الشاشة")} data-testid="wb-full">⛶ {fill ? tr("Exit full screen", "إنهاء ملء الشاشة") : tr("Full screen", "ملء الشاشة")}</button>
+      <button type="button" className={chip} onClick={goFocus} aria-pressed={focusOn} title={tr("Focus — hide menus and bars", "وضع التركيز — إخفاء القوائم")} aria-label={focusOn ? tr("Exit Focus", "إنهاء التركيز") : tr("Focus", "تركيز")} data-testid="wb-focus">
+        <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden><circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="3" /></svg>{focusOn ? tr("Exit Focus", "إنهاء التركيز") : tr("Focus", "تركيز")}
+      </button>
+      {(fill || focusOn) && <button type="button" className={chip + " ring-1 ring-[#f5c542]/60"} onClick={() => { if (fill) leaveFill(); if (focusOn) { setPageFocus(false); exitFullscreen(); if (pip?.document.fullscreenElement) pip.document.exitFullscreen?.().catch(() => undefined); } }} title={tr("Exit (Esc)", "خروج (Esc)")} aria-label={tr("Exit (Esc)", "خروج (Esc)")} data-testid="wb-fill-exit">✕ {tr("Exit", "خروج")}</button>}
       <button type="button" className="rounded-full px-1.5 text-sm" hidden={!!pip} onClick={() => setMin((v) => !v)} title={min ? tr("Restore whiteboard", "إظهار السبورة") : tr("Minimize whiteboard", "تصغير السبورة")} aria-label={min ? tr("Restore whiteboard", "إظهار السبورة") : tr("Minimize whiteboard", "تصغير السبورة")} data-testid="wb-min">{min ? "▢" : "▭"}</button>
       <button type="button" className="rounded-full px-1.5 text-sm" onClick={() => (pip ? pip.close() : popOut())} title={pip ? tr("Back to the page", "العودة إلى الصفحة") : tr("Pop out (stays on top)", "نافذة عائمة (فوق التطبيقات)")} aria-label={pip ? tr("Back to the page", "العودة إلى الصفحة") : tr("Pop out (stays on top)", "نافذة عائمة")} data-testid="wb-popout">{pip ? "↩" : "⧉"}</button>
     </div>
   );
+  const filling = fill && !pip;
   const ui = (
-    <div className={pip ? "relative flex h-screen w-screen flex-col bg-white" : "overflow-hidden rounded-3xl ring-1 ring-black/10 dark:ring-white/15"} data-testid="wb-frame">
+    <WbFillCtx.Provider value={fill || !!pip}>
+    <div className={`${pip || filling ? "relative flex h-full min-h-0 w-full flex-col bg-white dark:bg-[#0d1b2a]" : "overflow-hidden rounded-3xl ring-1 ring-black/10 dark:ring-white/15"} ${filling ? "fixed inset-0 z-[2400] h-dvh w-dvw rounded-none" : ""} ${pip ? "h-screen w-screen" : ""}`} data-wb-fill={fill || undefined} data-testid="wb-frame">
       {bar}
       {pipMsg && !pip && <p className="bg-amber-100 px-3 py-1.5 text-xs font-bold text-amber-900" role="status" data-testid="wb-pip-msg">{pipMsg}</p>}
-      {!min && <div className={pip ? "min-h-0 flex-1 overflow-auto p-2" : "p-1"}>{children}</div>}
+      {!min && <div className={pip || filling ? "flex min-h-0 flex-1 flex-col overflow-hidden p-2" : "p-1"}>{children}</div>}
     </div>
+    </WbFillCtx.Provider>
   );
   if (pip) return <>{createPortal(ui, pip.document.body)}<button type="button" onClick={() => pip.close()} className="rounded-full bg-[#1b3a57] px-4 py-2 text-sm font-extrabold text-[#f5c542] shadow-lg" data-testid="wb-pip-placeholder">⧉ {tr("Whiteboard is in the pop-out window — tap to bring back", "السبورة في النافذة العائمة — اضغط لإرجاعها")}</button></>;
   return ui;

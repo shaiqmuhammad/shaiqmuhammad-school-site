@@ -450,3 +450,18 @@ body.lb-work .lb-fit { max-width: calc((100dvh - 8rem) * 16 / 9); }
 }
 .lb-compact .lb-tl { display: none; }
 .lb-compact > button, .lb-compact > label { padding: 0.45rem 0.6rem; font-size: 1.15rem; }
+
+/* Whiteboard fill-screen: keep the class timer usable on top of the board. */
+html.wb-board-fill { overflow: hidden; }
+html.wb-board-fill [data-testid=class-timer] { z-index: 2600 !important; }
+
+/* touch-action is not inherited. Smart-board / finger / pen hits land on SVG
+   children (lines, text, images). If those stay at the default "auto", the
+   browser treats the stroke as a pan/zoom, fires pointercancel, and ink dies. */
+[data-testid="wb-board"].wb-draw-surface,
+[data-testid="wb-board"].wb-draw-surface * {
+  touch-action: none !important;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}

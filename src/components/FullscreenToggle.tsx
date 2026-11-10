@@ -19,6 +19,7 @@ const FK = "sm-page-focus";
 const fl = new Set<() => void>();
 const fsub = (f: () => void) => { fl.add(f); return () => { fl.delete(f); }; };
 const fget = () => { try { return sessionStorage.getItem(FK) === "1"; } catch { return false; } };
+export const usePageFocus = () => useSyncExternalStore(fsub, fget, () => false);
 export function setPageFocus(on: boolean) {
   try { if (on) sessionStorage.setItem(FK, "1"); else sessionStorage.removeItem(FK); } catch { /* */ }
   document.documentElement.classList.toggle("page-focus", on);
