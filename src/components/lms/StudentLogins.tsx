@@ -32,7 +32,7 @@ export function StudentLogins({ asAdmin, perms = [] }: { asAdmin: boolean; perms
   const byGroup = !asAdmin;
   useEffect(() => { if (byGroup) lmsApi.grpList(false).then((r) => setGroups(r.items.filter((g) => g.assigned))).catch(() => undefined); }, [byGroup]);
   const canRegen = asAdmin || stuUi(perms, "edit");
-  const load = useCallback(() => { lmsApi.loginsList(asAdmin).then((r) => setItems(r.items)).catch((e) => { setItems([]); setErr(lmsErrorText(e, tr)); }); }, [asAdmin, tr]);
+  const load = useCallback(() => { lmsApi.loginsList(asAdmin).then((r) => { setItems(r.items); setErr(""); }).catch((e) => { setItems([]); setErr(lmsErrorText(e, tr)); }); }, [asAdmin, tr]);
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load(); }, [load]);
   const classes = useMemo(() => [...new Set((items || []).map((s) => [s.cls, s.section].join("|")))].sort(clsCmp), [items]);
@@ -78,6 +78,7 @@ export function StudentLogins({ asAdmin, perms = [] }: { asAdmin: boolean; perms
         <span className="self-center text-sm font-bold" data-testid="logins-count">{list.length}</span>
       </div>
       {err && <p className="rounded-2xl bg-rose-100 px-4 py-2 text-sm text-rose-800" role="alert">{err}</p>}
+      {items?.some((s) => !s.pin) && <p className="rounded-2xl bg-amber-100 px-4 py-2 text-sm text-amber-950 dark:bg-amber-900/40 dark:text-amber-100" role="status" data-testid="logins-pin-unavailable">{tr("Names, User IDs and login QR codes are shown. Existing PINs cannot be displayed because the PIN viewing key was not moved with the school data. Students can still sign in with their current PINs.", "تظهر الأسماء ومعرّفات المستخدم ورموز QR للدخول. لا يمكن عرض الأرقام السرية الحالية لأن مفتاح عرض الرقم السري لم يُنقل مع بيانات المدرسة. يمكن للطلاب الاستمرار في الدخول بأرقامهم السرية الحالية.")}</p>}
       {items === null ? <p className="opacity-70">{tr("Loading…", "جارٍ التحميل…")}</p> : !list.length ? <p className="rounded-2xl bg-white/70 p-6 text-center opacity-70 dark:bg-white/5" data-testid="logins-empty">{tr("No students to show.", "لا يوجد طلاب.")}</p> : (
         <div className="space-y-6">
           {(byGroup ? sections : [{ id: "_", title: "", students: list }]).map((sec) => (

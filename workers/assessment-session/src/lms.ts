@@ -2112,7 +2112,6 @@ export class LmsStore extends DurableObject<LmsEnv> {
         // Admin: everyone. Teachers with student "View": only students inside their own classes/sections.
         const tview = a.role === "teacher" && !a.viewAs && stuCan(a, "view");
         if (a.role !== "admin" && !tview) return { status: 403, body: { error: "forbidden" } };
-        if (!(await pinKey(this.env))) return { status: 503, body: { error: "pin_key_missing" } };
         const ids = strList(input.ids, 3000);
         let rows = this.sql.exec(`SELECT id, role, cls, section, pin_enc FROM users`).toArray();
         if (ids.length) rows = rows.filter((r) => ids.includes(String(r.id)));
@@ -2126,7 +2125,6 @@ export class LmsStore extends DurableObject<LmsEnv> {
         // Student Logins cards: username, PIN and the QR login token for every student the caller may see.
         const tview = a.role === "teacher" && !a.viewAs && stuCan(a, "view");
         if (a.role !== "admin" && !tview) return { status: 403, body: { error: "forbidden" } };
-        if (!(await pinKey(this.env))) return { status: 503, body: { error: "pin_key_missing" } };
         const rows = this.sql.exec(`SELECT * FROM users WHERE role='student' ORDER BY cls, section, name`).toArray().filter((r) => a.role === "admin" || this.inScope(a, String(r.cls || ""), String(r.section || ""), String(r.id)));
         const items = [];
         for (const r of rows) {
