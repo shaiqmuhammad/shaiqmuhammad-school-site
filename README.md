@@ -141,3 +141,5 @@ How it works:
 Build the copy: `set -a; . variants/almudarris/build.env; set +a; npm run build` → upload `out/` as the worker's assets.
 
 Admin → ⚙ → Site & branding → **Main address** lists every known address with a live status chip, a one-click **Make this the main address** (optionally switching name & colours to a saved preset) and **Switch back**. QR codes, join links, timetable links and email links follow the main address straight away.
+
+Deploying the copy (no Pages project yet): build with the variables above, upload `out/` through the Workers static-assets upload session for `almudarris-session`, then upload the worker code with `keep_bindings: ["secret_text"]` so its own secrets stay. Its secrets (admin password hash, signing key, migrate key, PIN key) were generated fresh for the copy and are never shared with the school worker.

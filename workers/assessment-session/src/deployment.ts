@@ -82,7 +82,9 @@ export async function servesThisSite(host: string, force = false): Promise<boole
   if (!force && c && Date.now() - c.at < ttl) return c.ok;
   let ok = false;
   try {
-    const r = await fetch(`https://${host}/site-id.txt?t=${Date.now()}`, { redirect: "follow", signal: AbortSignal.timeout(6000), cf: { cacheTtl: 0 } } as RequestInit);
+    // A worker can't fetch its own address: when it serves the site itself, its own addresses are answered from its files.
+    const self = ASSETS && DEPLOY.origins.includes(`https://${host}`);
+    const r = self ? await ASSETS!.fetch(new Request(`https://${host}/site-id.txt`)) : await fetch(`https://${host}/site-id.txt?t=${Date.now()}`, { redirect: "follow", signal: AbortSignal.timeout(6000), cf: { cacheTtl: 0 } } as RequestInit);
     ok = r.ok && (await r.text()).trim().split(/\r?\n/)[0].trim() === DEPLOY.siteId;
   } catch {
     ok = false;
