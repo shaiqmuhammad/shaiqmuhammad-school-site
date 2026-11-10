@@ -15,6 +15,19 @@ const listeners = new Set<() => void>();
 const emit = () => listeners.forEach((f) => f());
 const sub = (f: () => void) => { listeners.add(f); document.addEventListener("fullscreenchange", f); return () => { listeners.delete(f); document.removeEventListener("fullscreenchange", f); }; };
 
+/** Ask one element to go full screen (iPad / some smartboard browsers may refuse — caller should apply a CSS fallback). */
+export async function requestElFullscreen(el: HTMLElement | null): Promise<boolean> {
+  if (!el) return false;
+  const req = el.requestFullscreen || (el as HTMLElement & { webkitRequestFullscreen?: () => Promise<void> }).webkitRequestFullscreen;
+  if (!req) return false;
+  try {
+    await req.call(el);
+    return document.fullscreenElement === el || !!(el as HTMLElement & { webkitFullscreenElement?: Element }).webkitFullscreenElement;
+  } catch {
+    return false;
+  }
+}
+
 export function enterFullscreen() { ss.set(FS, true); emit(); return document.documentElement.requestFullscreen?.().catch(() => undefined); }
 export function exitFullscreen() { ss.set(FS, false); emit(); if (document.fullscreenElement) document.exitFullscreen().catch(() => undefined); }
 export function toggleFullscreen() { if (document.fullscreenElement) exitFullscreen(); else enterFullscreen(); }

@@ -431,12 +431,14 @@ html [data-venn-label], html.dark [data-venn-label], html .dark [data-venn-label
 @keyframes av-sway { 0%, 100% { transform: rotate(-3deg) } 50% { transform: rotate(3deg) } }
 @keyframes av-snooze { 0%, 100% { transform: translateY(3px) } 50% { transform: translateY(5px) } }
 /* t429: sitewide Focus pill — hide top bars, menus, tickers and side chrome; keep the page itself. */
-html.page-focus [data-topbar], html.page-focus .admin-page-head, html.page-focus [data-pagechrome], html.page-focus #announcement-ticker, html.page-focus [data-testid=lms-tabs-top], html.page-focus [data-focus-hide], html.page-focus [data-testid=admin-date-row], html.page-focus [data-testid=lms-date-row] { display: none !important; }
+html.page-focus [data-topbar], html.page-focus .admin-page-head, html.page-focus [data-pagechrome], html.page-focus #announcement-ticker, html.page-focus [data-testid=lms-tabs], html.page-focus [data-testid=lms-tabs-top], html.page-focus [data-focus-hide], html.page-focus [data-testid=admin-date-row], html.page-focus [data-testid=lms-date-row] { display: none !important; }
 html.page-focus .pub-main, html.page-focus .lms-main { padding-top: 0 !important; }
 html.page-focus .lb-hide-work { display: none !important; }
 /* t429: Lesson Builder full-screen working mode — slide fits the landscape screen, tools always visible. */
 body.lb-work .lb-hide-work { display: none !important; }
-body.lb-work .lp-editor-full { min-height: 100dvh; border-radius: 0; }
+body.lb-work [data-testid=lms-tabs], body.lb-work [data-testid=lms-tabs-top] { display: none !important; }
+body.lb-work .lp-editor-full { position: fixed; inset: 0; z-index: 2147483000; min-height: 100dvh; overflow: auto; border-radius: 0; margin: 0; }
+html.page-focus [data-focus-keep], body.lb-work [data-focus-keep] { display: revert !important; }
 .lb-fit { width: 100%; max-width: calc((100dvh - 11rem) * 16 / 9); margin-inline: auto; }
 body.lb-work .lb-fit { max-width: calc((100dvh - 8rem) * 16 / 9); }
 /* t429: printable slides with QR */

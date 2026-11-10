@@ -16,6 +16,8 @@ import { AudioRecorder } from "@/components/lms/Audio";
 import { InstrAudio } from "./SlideView";
 import { QuranSetup } from "./QuranSetup";
 import { SubjectPick } from "@/components/lms/SubjectPick";
+import { requestElFullscreen } from "@/components/FocusMode";
+import { registerSlideFocus, setPageFocus } from "@/components/FullscreenToggle";
 
 /** t321: accent colours per pack type. */
 const ACCENT: Record<PackType, { wrap: string; on: string; off: string; ring: string }> = {
@@ -59,17 +61,17 @@ export function PackEditor({ initial, acc, asAdmin, subjects, onClose }: { initi
   const [preview, setPreview] = useState(false);
   const [work, setWork] = useState(false);
   const [hideRail, setHideRail] = useState(false);
-  const [canFs, setCanFs] = useState(false);
   const [metaOpen, setMetaOpen] = useState(!initial.id);
   const area = useRef<"rail" | "canvas">("canvas");
   const canvasBox = useRef<HTMLDivElement>(null);
+  const root = useRef<HTMLDivElement>(null);
+  const fsOk = useRef(false);
   const { roster, groups } = useRosterData();
   const canSave = p.id ? acc.edit : acc.add;
   const onSubject = useCallback((subject: string) => { setP((x) => (x.subject === subject ? x : { ...x, subject })); setDirty(true); }, []);
   const arabic = /^islamic a$/i.test(p.subject);
   // t321: full-screen editor (only the side menu stays).
   useEffect(() => { document.body.classList.add("lp-full"); return () => document.body.classList.remove("lp-full"); }, []);
-  useEffect(() => { setCanFs(!!document.fullscreenEnabled); }, []);
   useEffect(() => {
     const el = canvasBox.current;
     if (!el) return;
@@ -133,7 +135,7 @@ export function PackEditor({ initial, acc, asAdmin, subjects, onClose }: { initi
       if (k === "Delete" || k === "Backspace") { if (sel && area.current === "canvas") { ev.preventDefault(); delEl(sel); } else if (area.current === "rail" && slides.length) { ev.preventDefault(); delSlides(pickedIdx()); } return; }
       if (mod && k.toLowerCase() === "d") { ev.preventDefault(); if (sel && area.current === "canvas") putClip({ kind: "els", els: s.els.filter((e) => e.id === sel) }); else putClip({ kind: "slides", slides: pickedIdx().map((i) => slides[i]) }, pickedIdx().slice(-1)[0]); return; }
       if (mod && k.toLowerCase() === "a" && area.current === "rail") { ev.preventDefault(); setPicked(slides.map((_, i) => i)); return; }
-      if (k === "Escape") { setSel(""); setPicked([]); setMenu(null); return; }
+      if (k === "Escape") { if (work) { if (!document.fullscreenElement) { ev.preventDefault(); void leaveFocus(); } return; } setSel(""); setPicked([]); setMenu(null); return; }
       if (sel && area.current === "canvas" && /^Arrow/.test(k)) { const e = s.els.find((x) => x.id === sel); if (!e || e.lock) return; ev.preventDefault(); const d = ev.shiftKey ? 5 : 0.5; patch(sel, { x: Math.round((e.x + (k === "ArrowLeft" ? -d : k === "ArrowRight" ? d : 0)) * 10) / 10, y: Math.round((e.y + (k === "ArrowUp" ? -d : k === "ArrowDown" ? d : 0)) * 10) / 10 }); return; }
       if (k === "PageDown" || (area.current === "rail" && k === "ArrowDown")) { ev.preventDefault(); setCur((c) => Math.min(slides.length - 1, c + 1)); setSel(""); setPicked([]); }
       if (k === "PageUp" || (area.current === "rail" && k === "ArrowUp")) { ev.preventDefault(); setCur((c) => Math.max(0, c - 1)); setSel(""); setPicked([]); }
@@ -146,9 +148,29 @@ export function PackEditor({ initial, acc, asAdmin, subjects, onClose }: { initi
     window.addEventListener("keydown", k); document.addEventListener("copy", c); document.addEventListener("cut", x); document.addEventListener("paste", v);
     return () => { window.removeEventListener("keydown", k); document.removeEventListener("copy", c); document.removeEventListener("cut", x); document.removeEventListener("paste", v); };
   }, []);
-  // t429: teacher full-screen working mode (landscape fit, tools always visible).
-  useEffect(() => { document.body.classList.toggle("lb-work", work); if (!work) return; const f = () => { if (!document.fullscreenElement) setWork(false); }; document.addEventListener("fullscreenchange", f); return () => { document.removeEventListener("fullscreenchange", f); document.body.classList.remove("lb-work"); }; }, [work]);
-  const toggleWork = () => { if (work) { setWork(false); if (document.fullscreenElement) document.exitFullscreen().catch(() => undefined); } else { setWork(true); document.documentElement.requestFullscreen?.().catch(() => undefined); } };
+  // t578: Focus opens the current slide in browser full screen (CSS fallback on iPad / some smartboards), keeping the tool tabs.
+  useEffect(() => {
+    document.body.classList.toggle("lb-work", work);
+    if (!work) return;
+    const f = () => { if (!document.fullscreenElement && fsOk.current) { fsOk.current = false; setWork(false); setPageFocus(false); } };
+    document.addEventListener("fullscreenchange", f);
+    return () => { document.removeEventListener("fullscreenchange", f); document.body.classList.remove("lb-work"); };
+  }, [work]);
+  const enterFocus = async () => {
+    setWork(true);
+    setPageFocus(true);
+    fsOk.current = await requestElFullscreen(root.current);
+  };
+  const leaveFocus = async () => {
+    fsOk.current = false;
+    setWork(false);
+    setPageFocus(false);
+    if (document.fullscreenElement) await document.exitFullscreen().catch(() => undefined);
+  };
+  const toggleWork = async () => { if (work) await leaveFocus(); else await enterFocus(); };
+  const slideApi = useRef({ enter: enterFocus, exit: leaveFocus });
+  slideApi.current = { enter: enterFocus, exit: leaveFocus };
+  useEffect(() => registerSlideFocus({ enter: () => slideApi.current.enter(), exit: () => slideApi.current.exit() }), []);
   const onPaste = async (ev: React.ClipboardEvent) => {
     if (typing(ev.target) || preview) return;
     if (!canSave) return;
@@ -195,14 +217,14 @@ export function PackEditor({ initial, acc, asAdmin, subjects, onClose }: { initi
   const setSlideMeta = (q: Partial<Slide>) => setSlide((x) => ({ ...x, ...q }));
   const lbl = "block text-sm font-bold";
   return (
-    <div className={`lp-editor-full space-y-4 rounded-3xl border-2 bg-gradient-to-br p-3 text-[#1b2f44] shadow-xl backdrop-blur-md sm:p-4 ${ACCENT[p.type].wrap}`} data-testid="lp-editor">
+    <div ref={root} className={`lp-editor-full space-y-4 rounded-3xl border-2 bg-gradient-to-br p-3 text-[#1b2f44] shadow-xl backdrop-blur-md sm:p-4 ${ACCENT[p.type].wrap}`} data-testid="lp-editor">
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" className={smallBtn} onClick={async () => { if (dirty && canSave) await save(true); onClose(); }} data-testid="lp-back">← {LB_ICON} {tr(LB_EN, LB_AR)}</button>
         <span className={`rounded-full px-3 py-1 text-xs font-extrabold ${p.status === "published" ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-700"}`} data-testid="lp-status">{p.status === "published" ? (p.assignAt > Date.now() ? tr("Scheduled", "مجدول") : tr("Published", "منشور")) : tr("Draft", "مسودة")}</span>
         <span className="flex-1" />
         <button type="button" className={smallBtn} onClick={async () => { if (canSave && (dirty || !p.id)) { const sv = await save(true); if (!sv) return; } setPreview(true); }} disabled={!p.id && !canSave} title={tr("See it exactly as students will — nothing is assigned", "شاهده كما يراه الطلاب — بدون إسناد")} data-testid="lp-preview">👁 {tr("Preview", "معاينة")}</button>
         <button type="button" className={smallBtn + (hideRail ? " !bg-header !text-sun" : "")} onClick={() => setHideRail((v) => !v)} title={tr("Hide or show the slides sidebar", "إخفاء شريط الشرائح أو إظهاره")} data-testid="lp-hide-rail">{hideRail ? "📑" : "🗂️"} {hideRail ? tr("Show slides", "إظهار الشرائح") : tr("Hide slides", "إخفاء الشرائح")}</button>
-        {!canFs && <button type="button" className={smallBtn + (work ? " !bg-header !text-sun" : "")} onClick={toggleWork} title={tr("Full-screen working mode (Esc to leave)", "وضع العمل بملء الشاشة (Esc للخروج)")} data-testid="lp-work">{work ? "✕" : "⛶"} {work ? tr("Exit full screen", "إنهاء ملء الشاشة") : tr("Full screen", "ملء الشاشة")}</button>}
+        <button type="button" className={smallBtn + (work ? " !bg-header !text-sun" : "")} onClick={() => void toggleWork()} title={work ? tr("Exit Focus (Esc)", "إنهاء التركيز (Esc)") : tr("Focus — open this slide full screen, with the text, picture and camera tools", "تركيز — افتح هذه الشريحة بملء الشاشة مع أدوات النص والصورة والكاميرا")} data-testid="lp-work">{work ? "✕" : "🎯"} {work ? tr("Exit Focus", "إنهاء التركيز") : tr("Focus", "تركيز")}</button>
         {canSave && <button type="button" className={smallBtn} disabled={saving} onClick={() => save()} data-testid="lp-save">💾 {saving ? "…" : tr("Save", "حفظ")}</button>}
         {canSave && p.status !== "published" && p.type !== "lesson" && <>
           <button type="button" className="rounded-full bg-header px-4 py-1.5 text-sm font-extrabold text-sun shadow" onClick={() => publish(false, true)} title={tr("Students get it straight away", "يصل للطلاب فورًا")} data-testid="lp-assign-now">⚡ {tr("Assign now", "إسناد الآن")}</button>

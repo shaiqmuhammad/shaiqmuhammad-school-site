@@ -8,6 +8,8 @@ import { qrSvg } from "@/lib/qrLocal";
 import { InstrAudio } from "./SlideView";
 import { PART_LABEL, fmtT } from "@/lib/packs";
 import { AddTools, ElProps, withId, type Pen } from "./Tools";
+import { requestElFullscreen } from "@/components/FocusMode";
+import { registerSlideFocus, setPageFocus } from "@/components/FullscreenToggle";
 
 /** t315: student view of a pack — teacher slides + the student's own layer (type, draw, picture, record), auto-saved.
  *  Live packs follow the teacher's slide. `review` = teacher looking at one student's copy (read-only). */
@@ -27,19 +29,30 @@ export function PackPlayer({ id, asAdmin = false, review, preview = false, locke
   const [printing, setPrinting] = useState(false);
   const swipe = useRef<{ x: number; y: number } | null>(null);
   const [full, setFull] = useState(!!autoFull); // t396: opened from the list → full screen (document fullscreen from the click, else full-window)
-  const [canFs, setCanFs] = useState(false);
   const box = useRef<HTMLElement | null>(null);
-  useEffect(() => { setCanFs(!!document.fullscreenEnabled); }, []);
-  // t389: real full screen (Fullscreen API; Esc exits). Falls back to a full-window overlay where the API is missing (e.g. iPhone).
-  const toggleFull = async () => {
-    if (document.fullscreenElement) { await document.exitFullscreen().catch(() => undefined); return; }
-    if (full) { setFull(false); return; }
-    const el = box.current;
-    if (el?.requestFullscreen) { try { await el.requestFullscreen(); setFull(true); return; } catch { /* fall back */ } }
+  const fsOk = useRef(false);
+  // t578: Focus opens this slide in browser full screen (CSS fallback on iPad / some smartboards), keeping the tool tabs.
+  const enterFocus = async () => {
     setFull(true);
+    setPageFocus(true);
+    fsOk.current = await requestElFullscreen(box.current);
   };
-  useEffect(() => { const f = () => { if (!document.fullscreenElement) setFull(false); }; document.addEventListener("fullscreenchange", f); return () => document.removeEventListener("fullscreenchange", f); }, []);
-  useEffect(() => { if (!full) return; const k = (e: KeyboardEvent) => { if (e.key === "Escape" && !document.fullscreenElement) setFull(false); }; window.addEventListener("keydown", k); return () => window.removeEventListener("keydown", k); }, [full]);
+  const leaveFocus = async () => {
+    fsOk.current = false;
+    setFull(false);
+    setPageFocus(false);
+    if (document.fullscreenElement) await document.exitFullscreen().catch(() => undefined);
+  };
+  const toggleFull = async () => { if (full) await leaveFocus(); else await enterFocus(); };
+  const slideApi = useRef({ enter: enterFocus, exit: leaveFocus });
+  slideApi.current = { enter: enterFocus, exit: leaveFocus };
+  useEffect(() => registerSlideFocus({ enter: () => slideApi.current.enter(), exit: () => slideApi.current.exit() }), []);
+  useEffect(() => {
+    const f = () => { if (!document.fullscreenElement && fsOk.current) { fsOk.current = false; setFull(false); setPageFocus(false); } };
+    document.addEventListener("fullscreenchange", f);
+    return () => document.removeEventListener("fullscreenchange", f);
+  }, []);
+  useEffect(() => { if (!full) return; const k = (e: KeyboardEvent) => { if (e.key === "Escape" && !document.fullscreenElement) { setFull(false); setPageFocus(false); } }; window.addEventListener("keydown", k); return () => window.removeEventListener("keydown", k); }, [full]);
   const student = !review && !preview && !asAdmin;
   const load = useCallback(() => (review ? lp.work(id, review.student, asAdmin).then((r) => { setPack(r.pack || null); setWork(r.work || []); }) : lp.get(id, asAdmin).then((r) => { setPack(r.pack); setWork(r.work || []); })).catch((e) => setMsg(String((e as Error).message))), [id, asAdmin, review]);
   useEffect(() => { load(); }, [load]);
@@ -113,11 +126,11 @@ export function PackPlayer({ id, asAdmin = false, review, preview = false, locke
         <span className="flex-1" />
         {left !== null && !review && <span className={`rounded-full px-3 py-0.5 font-mono text-base font-extrabold tabular-nums shadow ${left === 0 ? "bg-rose-600 text-white" : left <= 30 ? "animate-pulse bg-amber-400 text-[#1b2f44]" : "bg-[#1b3a57] text-[#f5c542]"}`} title={slideLeft !== null ? tr("Time for this slide", "وقت هذه الشريحة") : tr("Time for the activity", "وقت النشاط")} data-testid="lp-timer-left">⏱ {left === 0 ? tr("Time's up!", "انتهى الوقت!") : fmtT(left)}</span>}
         {staffView && <button type="button" className={smallBtn} onClick={doPrint} disabled={printing} title={tr("Colourful printable with QR code", "نسخة ملوّنة للطباعة مع رمز QR")} data-testid="lp-print">🖨 {printing ? "…" : tr("Print / PDF", "طباعة / PDF")}</button>}
-        {(!canFs || (full && typeof document !== "undefined" && !document.fullscreenElement)) && <button type="button" className={smallBtn} onClick={toggleFull} title={tr("Full screen (Esc to exit)", "ملء الشاشة (Esc للخروج)")} data-testid="lp-full">{full ? "✕" : "⛶"} {full ? tr("Exit", "خروج") : tr("Full screen", "ملء الشاشة")}</button>}
+        <button type="button" className={smallBtn} onClick={() => void toggleFull()} title={full ? tr("Exit Focus (Esc)", "إنهاء التركيز (Esc)") : tr("Focus — open this slide full screen, with the text, picture and camera tools", "تركيز — افتح هذه الشريحة بملء الشاشة مع أدوات النص والصورة والكاميرا")} data-testid="lp-full" data-focus-keep>{full ? "✕" : "🎯"} {full ? tr("Exit Focus", "إنهاء التركيز") : tr("Focus", "تركيز")}</button>
       </div>
       {(s.instr || s.instrAudio) && <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-sky-200 bg-sky-50/95 px-3 py-2 text-sm font-semibold text-[#1b2f44] shadow-sm" data-testid="lp-player-instr"><span className="text-lg" aria-hidden>💬</span>{s.instr && <p className="min-w-0 flex-1 whitespace-pre-wrap" dir="auto">{s.instr}</p>}{s.instrAudio && <InstrAudio id={s.instrAudio} asAdmin={asAdmin} />}</div>}
-      {editable && <AddTools compact={full} add={(e) => { const el = withId({ ...e, ...(e.t === "text" ? { y: Math.min(80, 40 + layer.filter((x) => x.t === "text").length * 8) } : {}), by: "s" } as Omit<El, "id">); setLayer((l) => [...l, el]); setSel(el.id); }} pen={pen} setPen={setPen} asAdmin={asAdmin} teacher={false} onErr={setMsg}
-        onUndoStroke={() => { const d = draw(); if (d) setLayer((l) => l.map((e) => (e === d ? { ...d, paths: d.paths.slice(0, -1) } : e))); }} onClearDraw={() => { const d = draw(); if (d) setLayer((l) => l.filter((e) => e !== d)); }} />}
+      {editable && <div data-focus-keep data-testid="lp-player-tools"><AddTools compact={full} add={(e) => { const el = withId({ ...e, ...(e.t === "text" ? { y: Math.min(80, 40 + layer.filter((x) => x.t === "text").length * 8) } : {}), by: "s" } as Omit<El, "id">); setLayer((l) => [...l, el]); setSel(el.id); }} pen={pen} setPen={setPen} asAdmin={asAdmin} teacher={false} onErr={setMsg}
+        onUndoStroke={() => { const d = draw(); if (d) setLayer((l) => l.map((e) => (e === d ? { ...d, paths: d.paths.slice(0, -1) } : e))); }} onClearDraw={() => { const d = draw(); if (d) setLayer((l) => l.filter((e) => e !== d)); }} /></div>}
       <div className={`relative ${full ? "flex min-h-0 flex-1 items-center justify-center" : ""}`}
         onPointerDown={(ev) => { if (!pen && ev.pointerType !== "mouse") swipe.current = { x: ev.clientX, y: ev.clientY }; }}
         onPointerUp={(ev) => { const st = swipe.current; swipe.current = null; if (!st || live || pen) return; const dx = ev.clientX - st.x, dy = ev.clientY - st.y; if (Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy) * 1.5) go(dx < 0 === (document.dir !== "rtl") ? 1 : -1); }}>
