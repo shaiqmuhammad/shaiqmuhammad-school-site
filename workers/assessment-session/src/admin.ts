@@ -11,7 +11,9 @@
  */
 import { DurableObject } from "cloudflare:workers";
 import { DEPLOY, initDeployment, ownHosts, servesThisSite, verifiedCandidate } from "./deployment";
-import { setMailIdentity } from "./mail/template";
+import { CONTACT, FROM_NAME, INFO, MAIL_FOOTER, MAIL_HEADER, MAIL_LOGO, MAIL_SUN, SITE_NAME, SITE_URL, renderEmail, renderText, setMailIdentity } from "./mail/template";
+import { autoFrom, mailReady, publicMailAllowedFrom, type MailEnv } from "./mail/mailbox";
+import { safeLogoPath } from "./mail/identity";
 import {
   checkPassword, deviceOf, hashPassword, IDLE_MS, maskIp, MAX_SESSION_MS, newBackupCodes, newTotpSecret, normBackup,
   otpauthUri, passwordProblem, sha256Hex, totpMatch, type AuthState, type LogEntry,
@@ -70,14 +72,20 @@ function applyCanonical(host: string) {
   } else siteBase = DEPLOY.siteUrl;
 }
 
-/** Email sender from Admin → Site & branding (empty fields fall back to the deployment defaults). */
-function applyMail(m: MailCfg | undefined) {
+/** Email identity from Admin → Site & branding (empty fields fall back to today's deployment defaults). */
+function applyMail(b: { mail?: MailCfg; nameEn?: string; nameAr?: string; theme?: { header?: string; sun?: string } } | undefined) {
+  const m = b?.mail;
   setMailIdentity({
     siteUrl: siteBase || DEPLOY.siteUrl,
     contact: m?.contact || DEPLOY.mailContact,
     info: m?.info || m?.contact || DEPLOY.mailInfo,
     fromName: m?.fromName || DEPLOY.mailFromName,
-    siteName: DEPLOY.siteName,
+    siteName: (typeof b?.nameEn === "string" && b.nameEn.trim()) || (typeof b?.nameAr === "string" && b.nameAr.trim()) || DEPLOY.siteName,
+    header: b?.theme?.header || "",
+    sun: b?.theme?.sun || "",
+    logoPath: m?.logoPath || "",
+    siteLogoPath: m?.siteLogoPath || "",
+    footer: m?.footer || "",
   });
 }
 
@@ -88,10 +96,10 @@ export async function loadSiteOrigin(env: AdminEnv, force = false): Promise<stri
   originsAt = Date.now();
   try {
     const raw = await siteKv(env)?.get(BRAND_KEY);
-    const b = raw ? (JSON.parse(raw) as { canonical?: string; mail?: MailCfg }) : {};
+    const b = raw ? (JSON.parse(raw) as { canonical?: string; mail?: MailCfg; nameEn?: string; nameAr?: string; theme?: { header?: string; sun?: string } }) : {};
     const host = String(b.canonical || "");
     applyCanonical(/^[a-z0-9.-]+\.[a-z]{2,}$/.test(host) ? host : "");
-    applyMail(b.mail);
+    applyMail(b);
   } catch {
     // keep the last known value
   }
@@ -464,12 +472,20 @@ async function checkSecondStep(env: AdminEnv, st: AuthState, code: string): Prom
 }
 
 /* ---------- Site & branding (public read, admin write) ---------- */
-export type MailCfg = { fromName?: string; contact?: string; info?: string };
+export type MailCfg = { fromName?: string; contact?: string; info?: string; footer?: string; logoPath?: string; siteLogoPath?: string };
 const EMAIL = /^[^\s@<>"]{1,64}@[a-z0-9.-]+\.[a-z]{2,24}$/i;
 function normMail(raw: unknown): MailCfg {
   const r = (raw && typeof raw === "object" ? raw : {}) as Body;
   const e = (v: unknown) => (EMAIL.test(sv(v, 120).trim()) ? sv(v, 120).trim().toLowerCase() : "");
-  return { fromName: clean(r.fromName, 60), contact: e(r.contact), info: e(r.info) };
+  const logo = (v: unknown) => safeLogoPath(sv(v, 80));
+  return {
+    fromName: clean(r.fromName, 60),
+    contact: e(r.contact),
+    info: e(r.info),
+    footer: clean(r.footer, 200),
+    logoPath: logo(r.logoPath),
+    siteLogoPath: logo(r.siteLogoPath),
+  };
 }
 function normPresets(raw: unknown): Body[] {
   if (!Array.isArray(raw)) return [];
@@ -569,6 +585,16 @@ export async function handleAdmin(request: Request, env: AdminEnv, action: strin
 
   if (action === "status") return reply(origin, { ok: true, exp: session.exp, publishing: Boolean(env.GITHUB_PAT) });
 
+  // Mail account: connected or not only (never the app password or the Apple ID). Allowed From list is the public aliases.
+  if (action === "mail-status") {
+    const menv = env as unknown as MailEnv;
+    return reply(origin, {
+      ok: true,
+      mailConnected: mailReady(menv),
+      allowedFrom: publicMailAllowedFrom(menv),
+    });
+  }
+
   // Main address card: which known addresses open THIS website right now (live check) and are accepted here.
   if (action === "domain-status") {
     const kv = siteKv(env);
@@ -601,7 +627,7 @@ export async function handleAdmin(request: Request, env: AdminEnv, action: strin
     });
   }
 
-  const POST_ONLY = ["change-password", "signout-all", "totp-setup", "totp-enable", "totp-disable", "totp-backup", "brand-save", "domain-check"];
+  const POST_ONLY = ["change-password", "signout-all", "totp-setup", "totp-enable", "totp-disable", "totp-backup", "brand-save", "domain-check", "mail-preview"];
   if (POST_ONLY.includes(action)) {
     if (request.method !== "POST") return reply(origin, { error: "method" }, 405);
     const body = await bodyOf(request);
@@ -634,6 +660,44 @@ export async function handleAdmin(request: Request, env: AdminEnv, action: strin
       await kv.set(BRAND_KEY, JSON.stringify(b));
       await loadSiteOrigin(env, true);
       return reply(origin, { ok: true, brand: b, connected: true });
+    }
+
+    if (action === "mail-preview") {
+      const menv = env as unknown as MailEnv;
+      const kv = siteKv(env);
+      const prevRaw = kv ? await kv.get(BRAND_KEY) : null;
+      const saved = prevRaw ? (JSON.parse(prevRaw) as Body) : {};
+      const draft = (body.brand && typeof body.brand === "object" ? body.brand : null) as Body | null;
+      applyMail(draft ? normBrand(draft, sv(saved.canonical, 253), saved) : saved);
+      const from = autoFrom(menv);
+      const sample = {
+        heading: "Sample email",
+        paragraphs: ["Assalamu alaikum,", "This is a preview of how automatic emails look with the current name, colours and logo. Nothing was sent."],
+        button: { label: "Open the website", url: SITE_URL },
+        note: "Preview only — this message was not sent.",
+      };
+      const html = renderEmail(sample);
+      const text = renderText(sample);
+      applyMail(saved);
+      return reply(origin, {
+        ok: true,
+        html,
+        text,
+        from: from.from,
+        fromFellBack: from.fellBack,
+        fromName: `${FROM_NAME} (no-reply)`,
+        replyTo: CONTACT,
+        info: INFO,
+        contact: CONTACT,
+        siteName: SITE_NAME,
+        siteUrl: SITE_URL,
+        logoUrl: MAIL_LOGO,
+        footer: MAIL_FOOTER,
+        header: MAIL_HEADER,
+        sun: MAIL_SUN,
+        mailConnected: mailReady(menv),
+        allowedFrom: publicMailAllowedFrom(menv),
+      });
     }
 
     if (action === "signout-all") {

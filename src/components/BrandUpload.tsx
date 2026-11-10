@@ -47,7 +47,7 @@ export function toSquarePng(dataUrl: string, size: number): Promise<string> {
 }
 
 /** Upload / preview / reset for the site logo or favicon (used on Admin → Site & branding). */
-export function BrandUpload({ kind, title, hint, currentUrl, isCustom, pending, onPick, onReset, onError }: {
+export function BrandUpload({ kind, title, hint, currentUrl, isCustom, pending, onPick, onReset, onError, preferPng = false }: {
   kind: "logo" | "favicon";
   title: string;
   hint: string;
@@ -57,6 +57,8 @@ export function BrandUpload({ kind, title, hint, currentUrl, isCustom, pending, 
   onPick: (img: PendingImage | null) => void;
   onReset: () => void;
   onError: (msg: string) => void;
+  /** Email logos: also rasterize so mail apps that cannot show SVG still have a PNG. */
+  preferPng?: boolean;
 }) {
   const { lang } = useI18n();
   const tr = (en: string, ar: string) => (lang === "ar" ? ar : en);
@@ -66,6 +68,7 @@ export function BrandUpload({ kind, title, hint, currentUrl, isCustom, pending, 
     if (pending.width !== pending.height) warn.push(tr("This image is not square — it will be cropped to a square when used as an icon.", "هذه الصورة ليست مربعة — ستُقصّ إلى مربع عند استخدامها كأيقونة."));
     if (pending.width < 192 || pending.height < 192) warn.push(tr("Smaller than 192 × 192 px — it may look blurry on some screens.", "أصغر من ١٩٢ × ١٩٢ بكسل — قد تبدو ضبابية على بعض الشاشات."));
   }
+  if (preferPng && pending?.ext === "svg") warn.push(tr("Many email apps cannot show an SVG. A PNG copy will be used for emails if this image can be converted.", "كثير من تطبيقات البريد لا تعرض SVG. سيتم استخدام نسخة PNG في الرسائل إن أمكن تحويل الصورة."));
 
   async function pick(file: File | undefined) {
     if (!file) return;
@@ -86,7 +89,9 @@ export function BrandUpload({ kind, title, hint, currentUrl, isCustom, pending, 
         width = dim.w;
         height = dim.h;
       }
-      if (kind === "favicon") png512 = await toSquarePng(dataUrl, 512);
+      if (kind === "favicon" || preferPng) {
+        try { png512 = await toSquarePng(dataUrl, 512); } catch { png512 = undefined; }
+      }
       onPick({ name: file.name, ext, mime, dataUrl, bytes: file.size, width, height, png512 });
     } catch {
       onError(tr("Could not read that image. Please try another file.", "تعذّر قراءة هذه الصورة. جرّب ملفًا آخر."));

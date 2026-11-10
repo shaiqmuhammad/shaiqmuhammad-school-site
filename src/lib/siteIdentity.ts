@@ -16,8 +16,8 @@ export type SiteIdentity = {
   theme: SiteTheme;
   /** Main site address without https:// ("" = the deployment's default, school: www.shaiqmuhammad.com). */
   canonical: string;
-  /** Email sender shown on automatic emails ("" = deployment default). */
-  mail?: { fromName: string; contact: string; info: string };
+  /** Email identity shown on automatic emails ("" = deployment default). */
+  mail?: { fromName: string; contact: string; info: string; footer?: string; logoPath?: string; siteLogoPath?: string };
   /** Saved branding presets (applied with one click, e.g. together with a main-address switch). */
   presets?: BrandPreset[];
   updatedAt?: number;
@@ -26,6 +26,9 @@ export type BrandPreset = { id: string; label: string; nameEn: string; nameAr: s
 
 export const DEFAULT_HEADER = "#1b3a57";
 export const DEFAULT_SUN = "#f3c969";
+/** Email template defaults (unchanged from the original navy / yellow used in mail today). */
+export const DEFAULT_MAIL_HEADER = "#1b3a57";
+export const DEFAULT_MAIL_SUN = "#f5c542";
 export { DEFAULT_HOST } from "@/lib/deployment";
 
 export const THEME_PRESETS: { id: string; en: string; ar: string; header: string; sun: string }[] = [
@@ -64,7 +67,7 @@ export function normalizeIdentity(raw: unknown): SiteIdentity {
       mode: th.mode === "dark" ? "dark" : "light",
     },
     canonical: /^[a-z0-9.-]+\.[a-z]{2,}$/.test(s(r.canonical, 253)) ? s(r.canonical, 253) : "",
-    mail: (() => { const m = (r.mail && typeof r.mail === "object" ? r.mail : {}) as Record<string, unknown>; return { fromName: s(m.fromName, 60), contact: s(m.contact, 120), info: s(m.info, 120) }; })(),
+    mail: (() => { const m = (r.mail && typeof r.mail === "object" ? r.mail : {}) as Record<string, unknown>; const logo = (v: unknown) => { const p = s(v, 80); return /^\/(logo\.(svg|png|jpe?g)|brand\/[A-Za-z0-9._-]+)$/i.test(p) ? p : ""; }; return { fromName: s(m.fromName, 60), contact: s(m.contact, 120), info: s(m.info, 120), footer: s(m.footer, 200), logoPath: logo(m.logoPath), siteLogoPath: logo(m.siteLogoPath) }; })(),
     presets: Array.isArray(r.presets) ? (r.presets as unknown[]).slice(0, 8).map((p) => {
       const q = (p && typeof p === "object" ? p : {}) as Record<string, unknown>;
       const t = (q.theme && typeof q.theme === "object" ? q.theme : {}) as Record<string, unknown>;

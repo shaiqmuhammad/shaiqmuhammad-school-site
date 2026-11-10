@@ -3,11 +3,49 @@ import { classifyParts, decodeTextPart, decodeTransfer, flattenStructure, parseE
 import { latin1ToBytes } from "./socket";
 import { buildMime, sendMail, type OutMail } from "./smtp";
 import { CONTACT, FROM_NAME, INFO, renderEmail, renderText, type Branded } from "./template";
+import { publicAllowedFrom, resolveFrom, uniqueEmails } from "./identity";
+import { DEPLOY } from "../deployment";
 
 export interface MailEnv {
   ICLOUD_APPLE_ID?: string;
   ICLOUD_SMTP_USER?: string;
   ICLOUD_APP_PASSWORD?: string;
+  /** Comma list of extra From addresses this Apple account may send as (aliases). */
+  MAIL_ALLOWED_FROM?: string;
+}
+
+export function mailAllowedFrom(env: MailEnv): string[] {
+  return uniqueEmails(
+    publicAllowedFrom({
+      mailContact: DEPLOY.mailContact,
+      mailInfo: DEPLOY.mailInfo,
+      contact: CONTACT,
+      info: INFO,
+      extra: env.MAIL_ALLOWED_FROM,
+    }),
+    [env.ICLOUD_SMTP_USER, env.ICLOUD_APPLE_ID],
+  );
+}
+
+export function publicMailAllowedFrom(env: MailEnv): string[] {
+  return publicAllowedFrom({
+    mailContact: DEPLOY.mailContact,
+    mailInfo: DEPLOY.mailInfo,
+    contact: CONTACT,
+    info: INFO,
+    extra: env.MAIL_ALLOWED_FROM,
+  });
+}
+
+const authAddr = (env: MailEnv) => (env.ICLOUD_SMTP_USER || env.ICLOUD_APPLE_ID || "").trim();
+
+/** From for automatic / no-reply mail (INFO), falling back to the connected account if needed. */
+export function autoFrom(env: MailEnv) {
+  return resolveFrom(INFO, mailAllowedFrom(env), authAddr(env));
+}
+/** From for personal / parent mail (CONTACT), falling back to the connected account if needed. */
+export function personalFrom(env: MailEnv) {
+  return resolveFrom(CONTACT, mailAllowedFrom(env), authAddr(env));
 }
 
 /** The Apple account also holds arabzmart.com + personal mail: the server only ever lists/opens mail to/from contact@shaiqmuhammad.com (IMAP SEARCH). */
@@ -128,7 +166,7 @@ export async function deleteMsgs(env: MailEnv, folder: string, uids: number[]) {
 /** Personal mail from contact@ (compose/reply); a copy is saved to Sent. */
 export async function sendPersonal(env: MailEnv, m: { to: string[]; cc?: string[]; subject: string; text: string; inReplyTo?: string; attachments?: OutMail["attachments"]; sig?: { html: string; text: string } }) {
   const html = `<div style="font-family:Segoe UI,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6"><div style="white-space:pre-wrap">${m.text.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]!)}</div>${m.sig?.html || ""}</div>`;
-  const { raw } = await sendMail(smtpAcct(env), { from: CONTACT, fromName: FROM_NAME, to: m.to, cc: m.cc, subject: m.subject, text: m.text + (m.sig ? "\n" + m.sig.text : ""), html, attachments: m.attachments, headers: m.inReplyTo ? { "In-Reply-To": m.inReplyTo, References: m.inReplyTo } : undefined });
+  const { raw } = await sendMail(smtpAcct(env), { from: personalFrom(env).from, fromName: FROM_NAME, to: m.to, cc: m.cc, subject: m.subject, text: m.text + (m.sig ? "\n" + m.sig.text : ""), html, attachments: m.attachments, headers: m.inReplyTo ? { "In-Reply-To": m.inReplyTo, References: m.inReplyTo } : undefined });
   await withImap(imapAcct(env), async (s) => {
     const sent = (await s.list()).find((f) => f.flags.includes("\\sent") || /^sent( messages)?$/i.test(f.name));
     if (sent) await s.append(sent.path, raw);
@@ -140,7 +178,7 @@ export async function sendAuto(env: MailEnv, to: string | string[], subject: str
   if (!mailReady(env)) return false;
   const list = (Array.isArray(to) ? to : [to]).filter((x) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x));
   if (!list.length) return false;
-  await sendMail(smtpAcct(env), { from: INFO, fromName: `${FROM_NAME} (no-reply)`, to: list, replyTo: CONTACT, subject, text: renderText(e), html: renderEmail(e) });
+  await sendMail(smtpAcct(env), { from: autoFrom(env).from, fromName: `${FROM_NAME} (no-reply)`, to: list, replyTo: CONTACT, subject, text: renderText(e), html: renderEmail(e) });
   return true;
 }
 
@@ -148,7 +186,7 @@ export async function sendAuto(env: MailEnv, to: string | string[], subject: str
  * (SMTP from our own account to itself is filed as Junk by iCloud.) Reply-To = the sender. */
 export async function sendToContact(env: MailEnv, m: { name: string; email: string; subject: string; message: string }) {
   const raw = buildMime({
-    from: INFO, fromName: `${m.name.replace(/[",:;<>@]/g, " ").slice(0, 60)} (website)`, to: [CONTACT], replyTo: m.email,
+    from: autoFrom(env).from, fromName: `${m.name.replace(/[",:;<>@]/g, " ").slice(0, 60)} (website)`, to: [CONTACT], replyTo: m.email,
     subject: `[Contact] ${m.subject || "New message"}`.slice(0, 200),
     text: `From: ${m.name} <${m.email}>\n\n${m.message}`,
     html: renderEmail({ heading: m.subject || "New contact message", paragraphs: [`From: ${m.name} <${m.email}>`, m.message], note: "Reply to this email to answer the sender directly." }),
@@ -160,7 +198,7 @@ export async function sendToContact(env: MailEnv, m: { name: string; email: stri
 export const parentReplyTo = (token: string) => CONTACT.replace("@", `+${token}@`);
 
 export async function sendParentMail(env: MailEnv, m: { to: string; token: string; subject: string; html: string; text: string; messageId: string; fromName: string }) {
-  const { raw } = await sendMail(smtpAcct(env), { from: CONTACT, fromName: m.fromName, to: [m.to], replyTo: parentReplyTo(m.token), subject: m.subject, text: m.text, html: m.html, messageId: m.messageId });
+  const { raw } = await sendMail(smtpAcct(env), { from: personalFrom(env).from, fromName: m.fromName, to: [m.to], replyTo: parentReplyTo(m.token), subject: m.subject, text: m.text, html: m.html, messageId: m.messageId });
   await withImap(imapAcct(env), async (s) => {
     const sent = (await s.list()).find((f) => f.flags.includes("\\sent") || /^sent( messages)?$/i.test(f.name));
     if (sent) await s.append(sent.path, raw);

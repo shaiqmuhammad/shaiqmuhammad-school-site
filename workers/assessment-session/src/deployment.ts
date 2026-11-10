@@ -10,6 +10,7 @@
  *   SITE_NAME        name used in emails / notifications / the two-step app label
  *   CONTENT_REPO / CONTENT_BRANCH   where Admin → publish writes (only when GITHUB_PAT is set)
  *   MAIL_CONTACT / MAIL_INFO / MAIL_FROM_NAME   email sender defaults (Admin → Site & branding can override)
+ *   MAIL_ALLOWED_FROM  comma list of extra From addresses this mailbox may send as (iCloud aliases)
  */
 import { setMailIdentity } from "./mail/template";
 
@@ -24,6 +25,7 @@ export type DeployEnv = {
   MAIL_CONTACT?: string;
   MAIL_INFO?: string;
   MAIL_FROM_NAME?: string;
+  MAIL_ALLOWED_FROM?: string;
   YT_HANDLE?: string;
 };
 

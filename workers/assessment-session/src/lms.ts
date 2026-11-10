@@ -51,7 +51,7 @@ import { initMods, modHandle, pubQuizzes, tquizTopics, today as modToday } from 
 import { bankFromTquizzes, draftFromCurriculum, parseImportText, unitFromRow } from "./tquizDraft";
 import { reportHandle } from "./reports";
 import { packHandle, packInit, packSweep, type PackCtx } from "./packs";
-import { renderEmail, renderText } from "./mail/template";
+import { CONTACT, FROM_NAME, SITE_URL, renderEmail, renderText } from "./mail/template";
 import { blobStore, sqliteChunkStore, type BlobStore, type StorageEnv } from "./storage";
 import { bkOp } from "./bkstore";
 import { sysOp } from "./sysdump";
@@ -1755,7 +1755,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         if (!tok || input.reset === true) { this.sql.exec(`DELETE FROM rtok WHERE student=? AND kind=?`, sid, kind); tok = b64url(crypto.getRandomValues(new Uint8Array(24))); this.sql.exec(`INSERT INTO rtok (token, student, kind, by, created) VALUES (?, ?, ?, ?, ?)`, tok, sid, kind, a.id, Date.now()); }
         const url = `${siteUrlFor(this.env as unknown as AdminEnv)}/r?t=${tok}`;
         const title = kind === "quran" ? "Quran learning report" : "Points & behaviour report";
-        const mail = { heading: `${title} — ${String(u.name)}`, paragraphs: ["Assalamu alaikum,", `Here is ${String(u.name)}'s ${title.toLowerCase()} from ${a.name}. The link opens a private, read-only page (no login needed). Please don't share it.`], button: { label: "View report", url }, note: "Automatic message — please don't reply. Questions: contact@shaiqmuhammad.com" };
+        const mail = { heading: `${title} — ${String(u.name)}`, paragraphs: ["Assalamu alaikum,", `Here is ${String(u.name)}'s ${title.toLowerCase()} from ${a.name}. The link opens a private, read-only page (no login needed). Please don't share it.`], button: { label: "View report", url }, note: `Automatic message — please don't reply. Questions: ${CONTACT}` };
         const subject = `${title} — ${String(u.name)}`;
         if (input.preview === true) return { status: 200, body: { to: a.role === "admin" ? to : to.replace(/^(.).*(@.*)$/, "$1•••$2"), subject, ...mail, url } };
         const ok = await sendAuto(this.env as LmsEnv, to, subject, mail).catch(() => false);
@@ -1932,7 +1932,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         const token = String(th.thread);
         const msgid = `pm-${hex(crypto.getRandomValues(new Uint8Array(8)))}@shaiqmuhammad.com`;
         const fullSubject = `[PM-${token.slice(2)}] ${subject}`.slice(0, 200);
-        try { await sendParentMail(this.env as LmsEnv, { to, token, subject: fullSubject, html: renderEmail(mail), text: renderText(mail), messageId: msgid, fromName: "Shaiq Muhammad School" }); } catch (e) { return { status: 502, body: { error: "mail_error", detail: (e as Error).message.slice(0, 120) } }; }
+        try { await sendParentMail(this.env as LmsEnv, { to, token, subject: fullSubject, html: renderEmail(mail), text: renderText(mail), messageId: msgid, fromName: FROM_NAME }); } catch (e) { return { status: 502, body: { error: "mail_error", detail: (e as Error).message.slice(0, 120) } }; }
         this.sql.exec(`INSERT INTO pmsg (id, thread, student, teacher, dir, subject, body, created, msgid, read) VALUES (?, ?, ?, ?, 'out', ?, ?, ?, ?, 1)`, rid("pm"), token, sid, a.id, subject, text, Date.now(), msgid);
         return { status: 200, body: { ok: true, thread: token } };
       }
@@ -2419,7 +2419,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         if (!u?.email) return { status: 400, body: { error: "no_email" } };
         const pin = u.pin_enc ? await openPin(this.env as LmsEnv, String(u.pin_enc)).catch(() => "") : "";
         if (!pin) return { status: 409, body: { error: "reset_pin_first" } };
-        const ok = await sendAuto(this.env as LmsEnv, String(u.email), "Your sign-in details — Shaiq Muhammad", { heading: `Sign-in details for ${String(u.name)}`, paragraphs: ["Assalamu alaikum,", `Username: ${String(u.username)}`, `PIN: ${pin}`, "Keep this PIN private."], button: { label: "Sign in", url: "https://www.shaiqmuhammad.com/lms/login" }, note: "Automatic message — please don't reply. Questions: contact@shaiqmuhammad.com" }).catch(() => false);
+        const ok = await sendAuto(this.env as LmsEnv, String(u.email), "Your sign-in details — Shaiq Muhammad", { heading: `Sign-in details for ${String(u.name)}`, paragraphs: ["Assalamu alaikum,", `Username: ${String(u.username)}`, `PIN: ${pin}`, "Keep this PIN private."], button: { label: "Sign in", url: "https://www.shaiqmuhammad.com/lms/login" }, note: `Automatic message — please don't reply. Questions: ${CONTACT}` }).catch(() => false);
         return ok ? { status: 200, body: { ok: true } } : { status: 503, body: { error: "mail_not_configured" } };
       }
 

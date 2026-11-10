@@ -9,7 +9,7 @@ import { siteConfig } from "@/content/site";
 import { applyThemeCss } from "@/components/SiteIdentity";
 import AdminMainAddress from "@/components/AdminMainAddress";
 import {
-  allPresets, cacheIdentity, cachedIdentity, contrastWarnings, DEFAULT_HEADER, DEFAULT_SUN, emptyIdentity, fetchIdentity,
+  allPresets, cacheIdentity, cachedIdentity, contrastWarnings, DEFAULT_HEADER, DEFAULT_MAIL_HEADER, DEFAULT_MAIL_SUN, DEFAULT_SUN, emptyIdentity, fetchIdentity,
   normalizeIdentity, THEME_PRESETS, themeCss, type SiteIdentity,
 } from "@/lib/siteIdentity";
 import {
@@ -46,12 +46,19 @@ export default function AdminBranding({ siteSettings, setSiteSettings, setStatus
   const [busy, setBusy] = useState(false);
   const [logoBusy, setLogoBusy] = useState(false);
   const [pending, setPending] = useState<{ logo: PendingImage | null; favicon: PendingImage | null }>({ logo: null, favicon: null });
+  const [emailPending, setEmailPending] = useState<PendingImage | null>(null);
+  const [emailBusy, setEmailBusy] = useState(false);
+  const [mailStatus, setMailStatus] = useState<{ mailConnected: boolean; allowedFrom: string[] } | null>(null);
+  const [serverPreview, setServerPreview] = useState<string>("");
 
   useEffect(() => {
     const c = cachedIdentity();
     // eslint-disable-next-line react-hooks/set-state-in-effect -- device cache is read after hydration
     if (c) { setSaved(c); setD(c); }
     fetchIdentity().then((f) => { const v = f || emptyIdentity; setSaved(v); setD(v); cacheIdentity(f); }).catch(() => undefined);
+    securityCall<{ mailConnected: boolean; allowedFrom: string[] }>("mail-status").then((r) => {
+      if (r.ok) setMailStatus({ mailConnected: !!r.mailConnected, allowedFrom: Array.isArray(r.allowedFrom) ? r.allowedFrom : [] });
+    }).catch(() => undefined);
   }, []);
 
   const header = d.theme.header || DEFAULT_HEADER;
@@ -74,7 +81,14 @@ export default function AdminBranding({ siteSettings, setSiteSettings, setStatus
 
   async function save(next: SiteIdentity, note?: string) {
     setBusy(true); setMsg(null);
-    const r = await securityCall<{ brand: unknown }>("brand-save", { brand: next });
+    const payload = {
+      ...next,
+      mail: {
+        ...(next.mail || { fromName: "", contact: "", info: "" }),
+        siteLogoPath: siteSettings.brand.logoPath || next.mail?.siteLogoPath || "",
+      },
+    };
+    const r = await securityCall<{ brand: unknown }>("brand-save", { brand: payload });
     setBusy(false);
     if (r.ok && r.brand) {
       const v = normalizeIdentity(r.brand);
@@ -104,12 +118,43 @@ export default function AdminBranding({ siteSettings, setSiteSettings, setStatus
   const applyPreset = (id: string) => { const p = allPresets(saved).find((x) => x.id === id); if (p) setD({ ...d, nameEn: p.nameEn, nameAr: p.nameAr, taglineEn: p.taglineEn, taglineAr: p.taglineAr, theme: p.theme }); };
 
   // ---- email sender ----
-  const mail = d.mail || { fromName: "", contact: "", info: "" };
+  const mail = d.mail || { fromName: "", contact: "", info: "", footer: "", logoPath: "", siteLogoPath: "" };
   const setMail = (m: Partial<typeof mail>) => setD({ ...d, mail: { ...mail, ...m } });
 
   const nameNow = ar ? d.nameAr || d.nameEn || siteConfig.name : d.nameEn || siteConfig.name;
   const logoSrc = pending.logo?.dataUrl || brandUrl(siteSettings.brand.logoPath, siteSettings.brand.version, DEFAULT_LOGO_URL);
   const pendingCount = (pending.logo ? 1 : 0) + (pending.favicon ? 1 : 0);
+  const emailLogoSrc = emailPending?.dataUrl || brandUrl(mail.logoPath || "", "", brandUrl(siteSettings.brand.logoPath, siteSettings.brand.version, DEFAULT_LOGO_URL));
+  async function publishEmailLogo() {
+    const token = getStoredGithubToken();
+    if (!token) { setStatus("Publishing isn't connected on this device. Sign out and sign in again."); return; }
+    if (!emailPending) return;
+    setEmailBusy(true);
+    try {
+      const raster = emailPending.png512;
+      const ext = raster ? "png" : emailPending.ext === "jpg" ? "jpg" : emailPending.ext;
+      const file = `email-logo.${ext}`;
+      const dataUrl = raster || emailPending.dataUrl;
+      setStatus(`Uploading ${BRAND_DIR}/${file}…`);
+      const r = await publishBinaryToGithub(`${BRAND_DIR}/${file}`, dataUrl, token, "chore(brand): upload email-logo via admin");
+      if (!r.ok) { setStatus(`email logo upload failed: ${r.error}`); return; }
+      setMail({ logoPath: `/brand/${file}` });
+      setEmailPending(null);
+      setStatus(`Published ${BRAND_DIR}/${file}. Press “Save name, colours & email” so outgoing mail uses it. Site rebuilds in ~2–5 min. ${r.htmlUrl || ""}`);
+    } catch (e) {
+      setStatus(`Publish failed: ${e instanceof Error ? e.message : String(e)} (check your connection).`);
+    } finally {
+      setEmailBusy(false);
+    }
+  }
+
+  async function loadServerPreview() {
+    setServerPreview("");
+    const r = await securityCall<{ html?: string; error?: string }>("mail-preview", { brand: d });
+    if (r.ok && r.html) setServerPreview(r.html);
+    else setStatus(tr("Could not load the server preview. Sign in again and retry.", "تعذّر تحميل معاينة الخادم. سجّل الدخول مجددًا ثم أعد المحاولة."));
+  }
+
 
   async function publishLogo() {
     const token = getStoredGithubToken();
@@ -258,7 +303,7 @@ export default function AdminBranding({ siteSettings, setSiteSettings, setStatus
 
       {msg && <p className={`rounded-lg px-3 py-2 text-sm ${msg.ok ? "bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200" : "bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300"}`} role="status" data-testid="brand-msg">{msg.text}</p>}
       <div className="flex flex-wrap gap-2">
-        <button type="button" className={btn} disabled={busy || !dirty} onClick={() => save(d)} data-testid="brand-save">{busy ? tr("Saving…", "جارٍ الحفظ…") : tr("Save name & colours", "حفظ الاسم والألوان")}</button>
+        <button type="button" className={btn} disabled={busy || !dirty} onClick={() => save(d)} data-testid="brand-save">{busy ? tr("Saving…", "جارٍ الحفظ…") : tr("Save name, colours & email", "حفظ الاسم والألوان والبريد")}</button>
         <button type="button" className={btn2} disabled={busy || !dirty} onClick={() => setD(saved)}>{tr("Undo changes", "تراجع")}</button>
         <button type="button" className={btn2} disabled={busy} onClick={resetDefault} data-testid="brand-reset">{tr("Reset to default", "إعادة الافتراضي")}</button>
       </div>
@@ -281,13 +326,57 @@ export default function AdminBranding({ siteSettings, setSiteSettings, setStatus
       </Card>
 
       <Card title={tr("Email sender", "مرسل البريد")} testid="brand-mail">
-        <p className="text-muted">{tr("Name and addresses on automatic emails (sign-in details, reminders, reports). Leave empty to use this site's built-in sender. Sending also needs the mailbox password, which is kept as a server secret — ask your assistant to add it.", "الاسم والعناوين في الرسائل التلقائية (بيانات الدخول، التذكيرات، التقارير). اتركها فارغة لاستخدام المرسل الافتراضي. يحتاج الإرسال أيضًا كلمة مرور البريد، وتُحفظ كسرّ على الخادم — اطلب من مساعدك إضافتها.")}</p>
-        <div className="grid gap-3 sm:grid-cols-3">
+        <p className="text-muted">{tr("Name, addresses, footer and logo on automatic emails (sign-in details, reminders, reports). Leave a field empty to keep this site's built-in value. The mailbox password stays a server secret and is never stored here.", "الاسم والعناوين والتذييل والشعار في الرسائل التلقائية (بيانات الدخول، التذكيرات، التقارير). اترك الحقل فارغًا للإبقاء على القيمة الافتراضية. تبقى كلمة مرور صندوق البريد سرًا على الخادم ولا تُحفظ هنا.")}</p>
+        <p className="text-sm" data-testid="mail-connected">{mailStatus?.mailConnected ? tr("Mail account: connected", "حساب البريد: متصل") : tr("Mail account: not connected — sending needs the mailbox password, kept as a server secret. Ask your assistant to add it.", "حساب البريد: غير متصل — الإرسال يحتاج كلمة مرور الصندوق، وتُحفظ كسرّ على الخادم. اطلب من مساعدك إضافتها.")}</p>
+        <div className="grid gap-3 sm:grid-cols-2">
           <label className="block font-medium">{tr("Sender name", "اسم المرسل")}<input value={mail.fromName} maxLength={60} placeholder={siteConfig.name} onChange={(e) => setMail({ fromName: e.target.value })} className={input} data-testid="mail-from-name" /></label>
-          <label className="block font-medium">{tr("Contact address (replies)", "عنوان التواصل (الردود)")}<input dir="ltr" type="email" value={mail.contact} maxLength={120} placeholder={siteConfig.email} onChange={(e) => setMail({ contact: e.target.value })} className={input} data-testid="mail-contact" /></label>
-          <label className="block font-medium">{tr("No-reply address", "عنوان عدم الرد")}<input dir="ltr" type="email" value={mail.info} maxLength={120} placeholder={tr("same as contact", "مثل عنوان التواصل")} onChange={(e) => setMail({ info: e.target.value })} className={input} data-testid="mail-info" /></label>
+          <label className="block font-medium">{tr("Sender email (From)", "عنوان المرسل (From)")}<input dir="ltr" type="email" value={mail.info} maxLength={120} placeholder={tr("usually the no-reply address", "عادةً عنوان عدم الرد")} onChange={(e) => setMail({ info: e.target.value })} className={input} data-testid="mail-info" /></label>
+          <label className="block font-medium sm:col-span-2">{tr("Reply-To address", "عنوان الرد")}<input dir="ltr" type="email" value={mail.contact} maxLength={120} placeholder={siteConfig.email} onChange={(e) => setMail({ contact: e.target.value })} className={input} data-testid="mail-contact" /></label>
+          <label className="block font-medium sm:col-span-2">{tr("Footer / contact line", "سطر التذييل / التواصل")}<input value={mail.footer || ""} maxLength={200} placeholder={tr("Questions? Write to (reply-to address) · this website", "أسئلة؟ راسل (عنوان الرد) · هذا الموقع")} onChange={(e) => setMail({ footer: e.target.value })} className={input} data-testid="mail-footer" /></label>
         </div>
-        <p className="text-xs text-muted">{tr("Saved with \"Save name & colours\" above.", "يُحفظ مع زر \"حفظ الاسم والألوان\" أعلاه.")}</p>
+        <p className="text-xs text-muted">{tr("iCloud can only send from addresses on the connected Apple account (and its aliases). If the From address is not one of those, mail is sent from the connected account instead.", "iCloud يرسل فقط من العناوين المرتبطة بحساب Apple المتصل (ومرادفاته). إذا لم يكن عنوان المرسل منها، تُرسل الرسالة من الحساب المتصل بدلاً منه.")}</p>
+        {mail.info.trim() && mailStatus && mailStatus.allowedFrom.length > 0 && !mailStatus.allowedFrom.includes(mail.info.trim().toLowerCase()) && (
+          <p className="rounded-lg bg-amber-50 px-3 py-2 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200" data-testid="mail-from-warn">{tr("This From address is not on the allowed list for this mailbox, so emails will be sent from the connected account until you add it as an iCloud alias (or ask for it to be allowed).", "عنوان المرسل هذا ليس في القائمة المسموحة لهذا الصندوق، لذلك ستُرسل الرسائل من الحساب المتصل حتى تضيفه كعنوان مرادف في iCloud (أو يُسمح به).")}</p>
+        )}
+        <BrandUpload
+          kind="logo"
+          preferPng
+          title={tr("Email logo", "شعار البريد")}
+          hint={tr("Shown at the top of emails. Use a PNG or JPG (many mail apps cannot show SVG). Reset uses the main site logo. The file is published to the live site as /brand/email-logo.png so mail apps can load it.", "يظهر أعلى الرسائل. استخدم PNG أو JPG (كثير من تطبيقات البريد لا تعرض SVG). إعادة الافتراضي تستخدم شعار الموقع. يُنشر الملف على الموقع الحي كي تتمكّن تطبيقات البريد من تحميله.")}
+          currentUrl={emailPending?.dataUrl || brandUrl(mail.logoPath || "", "", brandUrl(siteSettings.brand.logoPath, siteSettings.brand.version, DEFAULT_LOGO_URL))}
+          isCustom={!!mail.logoPath}
+          pending={emailPending}
+          onPick={setEmailPending}
+          onReset={() => { setEmailPending(null); setMail({ logoPath: "" }); }}
+          onError={setStatus}
+        />
+        {emailPending && <p className="rounded-lg bg-gold-soft px-3 py-2 text-sm">{tr("New email logo ready — press “Publish email logo”, then “Save name, colours & email”.", "شعار البريد الجديد جاهز — اضغط «نشر شعار البريد» ثم «حفظ الاسم والألوان والبريد».")}</p>}
+        <div className="flex flex-wrap gap-2">
+          <button type="button" disabled={emailBusy || !emailPending} className={btn} onClick={() => void publishEmailLogo()} data-testid="publish-email-logo">{emailBusy ? tr("Publishing…", "جارٍ النشر…") : tr("Publish email logo", "نشر شعار البريد")}</button>
+        </div>
+        <p className="font-medium">{tr("Sample email", "رسالة نموذجية")}</p>
+        <div className="overflow-hidden rounded-2xl border border-card-border bg-[#f3f6fa] p-3" data-testid="mail-preview">
+          <div className="mx-auto max-w-lg overflow-hidden rounded-2xl bg-white shadow-sm">
+            <div className="flex items-center gap-3 px-4 py-3 text-white" style={{ background: (d.theme.header || DEFAULT_MAIL_HEADER) }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={emailLogoSrc} alt="" width={40} height={40} className="h-10 w-10 rounded-full border-2 bg-white object-cover" style={{ borderColor: d.theme.sun || DEFAULT_MAIL_SUN }} />
+              <span className="font-bold">{d.nameEn || d.nameAr || siteConfig.name}</span>
+            </div>
+            <div className="h-1" style={{ background: d.theme.sun || DEFAULT_MAIL_SUN }} />
+            <div className="space-y-2 px-5 py-5 text-[#1f2d3d]">
+              <p className="text-lg font-extrabold" style={{ color: d.theme.header || DEFAULT_MAIL_HEADER }}>{tr("Sample email", "رسالة نموذجية")}</p>
+              <p>{tr("Assalamu alaikum,", "السلام عليكم،")}</p>
+              <p>{tr("This is a preview of how automatic emails look with the current name, colours and logo.", "هذه معاينة لشكل الرسائل التلقائية بالاسم والألوان والشعار الحالي.")}</p>
+              <span className="inline-block rounded-full px-4 py-2 text-xs font-bold" style={{ background: d.theme.sun || DEFAULT_MAIL_SUN, color: d.theme.header || DEFAULT_MAIL_HEADER }}>{tr("Open the website", "افتح الموقع")}</span>
+            </div>
+            <p className="border-t border-[#e6ebf1] px-5 py-3 text-center text-xs text-[#6b7a8c]">{(mail.footer || "").trim() || tr("Questions? Write to (reply-to address) · this website", "أسئلة؟ راسل (عنوان الرد) · هذا الموقع")}</p>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" className={btn2} disabled={busy} onClick={() => void loadServerPreview()} data-testid="mail-server-preview">{tr("Exact server preview (nothing is sent)", "معاينة الخادم الدقيقة (لا يُرسل شيء)")}</button>
+        </div>
+        {serverPreview && <iframe title={tr("Server email preview", "معاينة رسالة الخادم")} sandbox="" srcDoc={serverPreview} className="h-[420px] w-full rounded-xl border border-card-border bg-white" data-testid="mail-server-preview-frame" />}
+        <p className="text-xs text-muted">{tr("Saved with “Save name, colours & email” above.", "يُحفظ مع زر «حفظ الاسم والألوان والبريد» أعلاه.")}</p>
       </Card>
 
       <AdminMainAddress saved={saved} onSaved={(v) => { setSaved(v); setD(v); }} />
