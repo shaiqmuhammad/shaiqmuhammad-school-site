@@ -64,7 +64,7 @@ export function QuranHomework() {
               <div className="mt-3 flex flex-wrap gap-2">
                 <HwRemindBell hw={h.id} title={h.title} />
                 <a className={btn + " !py-1"} href={`/lms/homework?id=${h.id}`} data-testid="qhw-open">{tr("Open / review", "فتح / مراجعة")}</a>
-                {q.edit && !(actor?.role === "teacher" && h.createdBy !== actor.id && ((h.data as { share?: { teachers?: string[] } }).share?.teachers || []).includes(actor.id)) && <button type="button" className={btn + " !py-1"} onClick={() => setEditor(h)} data-testid="qhw-edit">✎ {tr("Edit", "تعديل")}</button>}
+                {q.edit && !(actor?.role === "teacher" && h.createdBy !== actor.id && ((h.data as { share?: { teachers?: string[] } }).share?.teachers || []).includes(actor.id)) && <button type="button" className={btn + " !py-1"} onClick={() => setEditor(h)} title={tr("Edit", "تعديل")} aria-label={tr("Edit", "تعديل")} data-testid="qhw-edit">✎</button>}
                 {q.del && !(actor?.role === "teacher" && h.createdBy !== actor.id && ((h.data as { share?: { teachers?: string[] } }).share?.teachers || []).includes(actor.id)) && <button type="button" className={btn + " !py-1"} onClick={() => del(h)} data-testid="qhw-del">🗑</button>}
               </div>
             </article>

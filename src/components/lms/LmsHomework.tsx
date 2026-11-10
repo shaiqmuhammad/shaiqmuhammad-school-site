@@ -11,6 +11,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
 import { LmsDashboard, NeedLogin } from "@/components/lms/LmsDashboard";
+import { HomeworkHubTabs, hwBucket, type DashHw, type HwHubTab } from "@/components/lms/HwHub";
 import { AudioClip, AudioRecorder } from "@/components/lms/Audio";
 import { AssessmentShell, primaryBtn } from "@/components/assessment/AssessmentShell";
 import { HomeworkEditor } from "@/components/lms/HomeworkEditor";
@@ -440,9 +441,16 @@ export function LmsHomework() {
   // /lms/homework/ without an id: the separate Homework list page.
   if (!id) return <LmsDashboard only="homework" />;
 
+  const openTab: HwHubTab = d?.homework ? hwBucket({
+    ...d.homework,
+    assigned: (d.subs?.length || 0) + (d.notStarted?.length || 0),
+    counts: (d.subs || []).reduce((c, s) => { c[s.status] = (c[s.status] || 0) + 1; return c; }, {} as Record<string, number>),
+  } as DashHw) : "assigned";
+
   return (
     <AssessmentShell title={hw?.title || tr("Homework", "واجب")} exitHref={actor?.role === "parent" ? "/lms/family" : "/lms/homework"} wide={staff} toolbar={actor ? <LmsStaffToolbar /> : undefined}>
       <div className="mx-auto w-full max-w-5xl flex-1 space-y-4 px-3 py-5 sm:px-6" data-testid="lms-homework">
+        {staff && <HomeworkHubTabs tab={openTab} />}
         {err && <p className="rounded-xl bg-rose-100 px-4 py-2 text-rose-800" role="alert">{err}</p>}
         {!hw ? (
           !err && <p className="p-10 text-center opacity-70">{tr("Loading…", "جارٍ التحميل…")}</p>
@@ -500,7 +508,7 @@ export function LmsHomework() {
                 {(() => {
                   const quran = d.homework.kind === "quran";
                   // Quran: a graded submission (Save grade) moves to "Corrected"; likes/comments never move it. Stable order (by submit time).
-                  const isCorr = (s: NonNullable<Data["subs"]>[number]) => quran && !!s.grade && (s.status === "approved" || s.status === "returned" || (s.status === "submitted" && (s.attempts || []).length > 0)); // t369: graded work stays in Corrected; a resubmission ALSO shows in To review
+                  const isCorr = (s: NonNullable<Data["subs"]>[number]) => quran ? !!s.grade && (s.status === "approved" || s.status === "returned" || (s.status === "submitted" && (s.attempts || []).length > 0)) : s.status === "approved"; // t369: graded Quran / approved general work stays in Corrected; a resubmission ALSO shows in To review
                   const all = [...(d?.subs || [])].sort((x, y) => (y.submittedAt || 0) - (x.submittedAt || 0) || x.name.localeCompare(y.name));
                   // t302: commented after the last submit = waiting for the student; it leaves the review list until they respond.
                   const waits = (s: NonNullable<Data["subs"]>[number]) => !quran && s.status === "submitted" && (s.comments || []).some((m) => (m.at || 0) > (s.submittedAt || 0)); // t335: Quran work stays in "To review" until Save grade
@@ -511,12 +519,10 @@ export function LmsHomework() {
                   return (
                     <>
                       <h2 className="text-xl font-bold">{tr("Submissions", "التسليمات")} ({all.length})</h2>
-                      {quran && (
-                        <div className="flex flex-wrap gap-2" role="tablist">
-                          <button type="button" role="tab" aria-selected={subTab === "cur"} onClick={() => setSubTab("cur")} className={`rounded-full px-4 py-1.5 text-sm font-extrabold ${subTab === "cur" ? "bg-header text-white" : "bg-black/5 dark:bg-white/10"}`} data-testid="subs-tab-current">📥 {tr("To review", "للمراجعة")} ({all.filter(toRev).length})</button>
-                          <button type="button" role="tab" aria-selected={subTab === "corr"} onClick={() => setSubTab("corr")} className={`rounded-full px-4 py-1.5 text-sm font-extrabold ${subTab === "corr" ? "bg-header text-white" : "bg-black/5 dark:bg-white/10"}`} data-testid="subs-tab-corrected">✅ {tr("Corrected", "المصحَّح")} ({nCorr})</button>
-                        </div>
-                      )}
+                      <div className="flex flex-wrap gap-2" role="tablist">
+                        <button type="button" role="tab" aria-selected={subTab === "cur"} onClick={() => setSubTab("cur")} className={`rounded-full px-4 py-1.5 text-sm font-extrabold ${subTab === "cur" ? "bg-header text-white" : "bg-black/5 dark:bg-white/10"}`} data-testid="subs-tab-current">📥 {tr("To review", "للمراجعة")} ({all.filter(toRev).length})</button>
+                        <button type="button" role="tab" aria-selected={subTab === "corr"} onClick={() => setSubTab("corr")} className={`rounded-full px-4 py-1.5 text-sm font-extrabold ${subTab === "corr" ? "bg-header text-white" : "bg-black/5 dark:bg-white/10"}`} data-testid="subs-tab-corrected">✅ {tr("Corrected", "المصحَّح")} ({nCorr})</button>
+                      </div>
                       {gradeMsg && <p className="rounded-2xl bg-emerald-100 px-4 py-2 font-bold text-emerald-900" role="status" data-testid="grade-saved-msg">{gradeMsg}</p>}
                       {subTab !== "corr" && waiting.length > 0 && <p className="rounded-2xl bg-sky-50 px-3 py-2 text-sm font-semibold text-sky-900 dark:bg-sky-900/30 dark:text-sky-100" data-testid="subs-waiting">💬 {tr(`Waiting for the student to respond: ${waiting.map((w) => w.name).join(", ")}`, `بانتظار رد الطالب: ${waiting.map((w) => w.name).join("، ")}`)}</p>}
                       {list.length === 0 && <p className="text-sm opacity-70" data-testid="subs-empty">{subTab === "corr" ? tr("Nothing corrected yet.", "لا يوجد واجب مصحّح بعد.") : tr("Nothing waiting for review.", "لا شيء بانتظار المراجعة.")}</p>}

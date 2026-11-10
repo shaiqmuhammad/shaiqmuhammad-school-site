@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { qrSvg } from "@/lib/qrLocal";
 import { actErr, hostChip, saveOptions, useTr, type Tr } from "@/components/activity/common";
 import { activityApi, compressImage, type ActivityItem, type ActivityState, type Who } from "@/lib/activity";
@@ -78,7 +79,8 @@ const pathOf = (pts: number[]) => {
 
 function StrokeSvg({ s }: { s: WbStroke }) {
   const pts = s.d.pts || [], ws = s.d.ws, hl = !!s.d.hl, er = !!s.d.er;
-  const color = er ? "#ffffff" : s.d.c || "#1b3a57";
+  if (er) return null;
+  const color = s.d.c || "#1b3a57";
   const op = hl ? 0.35 : s.d.o || 1;
   const base = (s.d.w || 4) * (hl ? 3 : 1) * (er ? 4 : 1);
   if (ws && ws.length >= 2 && pts.length >= 4 && !s.d.cl) {
@@ -269,6 +271,9 @@ function Board({ code, who, state, reload, canDraw, isHost }: { code: string; wh
   const dragRef = useRef<{ id: string; x0: number; y0: number; dx: number; dy: number } | null>(null);
   const raf = useRef(0);
   const svgBox = useRef<HTMLDivElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const panDrag = useRef<{ x: number; y: number; sl: number; st: number } | null>(null);
+  const [grabbing, setGrabbing] = useState(false);
   const pageRef = useRef(page);
   pageRef.current = page;
   const bg = bgOf(o, page);
@@ -289,14 +294,14 @@ function Board({ code, who, state, reload, canDraw, isHost }: { code: string; wh
     ...(SHAPES.includes(tool) && tool !== "line" && tool !== "arrow" ? { cl: true, ...(fill ? { fill: color } : {}) } : {}),
     ...(tool === "arrow" ? { ar: true } : {}),
   });
-  const pt = (e: { clientX: number; clientY: number }) => { const r = svgBox.current!.getBoundingClientRect(); return [Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)), Math.max(0, Math.min(1, (e.clientY - r.top) / r.height))] as [number, number]; };
-  const cssSize = () => { const r = svgBox.current?.getBoundingClientRect(); return [r?.width || 1, r?.height || 1] as [number, number]; };
+  const pt = (e: { clientX: number; clientY: number }) => { const r = (stageRef.current || svgBox.current)!.getBoundingClientRect(); return [Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)), Math.max(0, Math.min(1, (e.clientY - r.top) / r.height))] as [number, number]; };
+  const cssSize = () => { const r = (stageRef.current || svgBox.current)?.getBoundingClientRect(); return [r?.width || 1, r?.height || 1] as [number, number]; };
   const all = [...strokesOf(state), ...pending];
   const onPage = all.filter((s) => pageOf(s) === page);
   const inkList = useRef(onPage);
   inkList.current = onPage;
   const fitAndPaint = () => {
-    const box = svgBox.current, ink = inkRef.current, live = liveRef.current;
+    const box = stageRef.current || svgBox.current, ink = inkRef.current, live = liveRef.current;
     if (!box || !ink || !live) return;
     const r = box.getBoundingClientRect();
     const dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -312,7 +317,7 @@ function Board({ code, who, state, reload, canDraw, isHost }: { code: string; wh
   };
   const paintLive = () => {
     raf.current = 0;
-    const live = liveRef.current, box = svgBox.current;
+    const live = liveRef.current, box = stageRef.current || svgBox.current;
     if (!live || !box) return;
     const r = box.getBoundingClientRect();
     const ctx = live.getContext("2d"); if (!ctx) return;
@@ -330,7 +335,7 @@ function Board({ code, who, state, reload, canDraw, isHost }: { code: string; wh
   const schedule = () => { if (!raf.current) raf.current = requestAnimationFrame(paintLive); };
   useEffect(() => { fitAndPaint(); }, [onPage, page, bg]);
   useEffect(() => {
-    const box = svgBox.current; if (!box) return;
+    const box = stageRef.current || svgBox.current; if (!box) return;
     const ro = new ResizeObserver(() => fitAndPaint());
     ro.observe(box);
     return () => ro.disconnect();
@@ -350,11 +355,19 @@ function Board({ code, who, state, reload, canDraw, isHost }: { code: string; wh
     lastScreen.current = [e.clientX, e.clientY];
     if (tool === "hand") {
       const hit = hitItem(onPage, x, y);
-      if (!hit) return;
-      const mine = hit.pid === "me" || ("pid" in who && hit.pid === who.pid);
-      if (!isHost && !mine) return;
+      if (hit) {
+        const mine = hit.pid === "me" || ("pid" in who && hit.pid === who.pid);
+        if (isHost || mine) {
+          svgBox.current?.setPointerCapture?.(e.pointerId);
+          dragRef.current = { id: hit.id, x0: x, y0: y, dx: 0, dy: 0 };
+          return;
+        }
+      }
+      const box = svgBox.current;
+      if (!box) return;
       svgBox.current?.setPointerCapture?.(e.pointerId);
-      dragRef.current = { id: hit.id, x0: x, y0: y, dx: 0, dy: 0 };
+      panDrag.current = { x: e.clientX, y: e.clientY, sl: box.scrollLeft, st: box.scrollTop };
+      setGrabbing(true);
       return;
     }
     if (tool === "text") {
@@ -370,6 +383,12 @@ function Board({ code, who, state, reload, canDraw, isHost }: { code: string; wh
   };
   const move = (e: React.PointerEvent) => {
     if (ptr.current != null && e.pointerId !== ptr.current) return;
+    if (panDrag.current && svgBox.current) {
+      const d = panDrag.current;
+      svgBox.current.scrollLeft = d.sl - (e.clientX - d.x);
+      svgBox.current.scrollTop = d.st - (e.clientY - d.y);
+      return;
+    }
     if (dragRef.current) {
       const [x, y] = pt(e);
       const d = dragRef.current;
@@ -397,6 +416,7 @@ function Board({ code, who, state, reload, canDraw, isHost }: { code: string; wh
     if (e && ptr.current != null && e.pointerId !== ptr.current) return;
     ptr.current = null;
     lastScreen.current = null;
+    if (panDrag.current) { panDrag.current = null; setGrabbing(false); return; }
     if (dragRef.current) {
       const d = dragRef.current; dragRef.current = null;
       const node = svgBox.current?.querySelector(`[data-wb-id="${d.id}"]`);
@@ -494,10 +514,12 @@ function Board({ code, who, state, reload, canDraw, isHost }: { code: string; wh
           </label>
         </>}
       </div>
-      <div ref={svgBox} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onWheel={(e) => { if (curRef.current || dragRef.current || pageCount < 2) return; if (Math.abs(e.deltaY) < 24) return; goPage(page + (e.deltaY > 0 ? 1 : -1)); }} className={`relative overflow-hidden rounded-[24px] shadow-xl ring-4 ring-[#1b3a57]/80 ${canDraw ? (tool === "hand" ? "cursor-grab touch-none" : "cursor-crosshair touch-none") : ""}`} style={canDraw ? { touchAction: "none", overscrollBehavior: "none" } : undefined} data-testid="wb-board">
-        <BoardArt strokes={onPage} bg={bg} names={o.labels !== false && !state.settings.hideNames} centre={state.prompt || state.title} tr={tr} inkOnCanvas extra={<path fill="none" strokeLinecap="round" strokeLinejoin="round" pointerEvents="none" />} />
-        <canvas ref={inkRef} className="pointer-events-none absolute inset-0 h-full w-full" data-testid="wb-ink" />
-        <canvas ref={liveRef} className="pointer-events-none absolute inset-0 h-full w-full" data-testid="wb-live" />
+      <div ref={svgBox} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onWheel={(e) => { if (curRef.current || dragRef.current || panDrag.current) return; const box = svgBox.current; if (box && box.scrollHeight > box.clientHeight + 4) { const atTop = box.scrollTop <= 0 && e.deltaY < 0; const atBot = box.scrollTop + box.clientHeight >= box.scrollHeight - 2 && e.deltaY > 0; if (!atTop && !atBot) { e.preventDefault(); box.scrollTop += e.deltaY; return; } } if (pageCount < 2) return; if (Math.abs(e.deltaY) < 24) return; goPage(page + (e.deltaY > 0 ? 1 : -1)); }} className={`relative max-h-[min(70vh,calc(100dvh-14rem))] overflow-auto rounded-[24px] shadow-xl ring-4 ring-[#1b3a57]/80 ${canDraw ? (tool === "hand" ? (grabbing ? "cursor-grabbing touch-none" : "cursor-grab touch-none") : "cursor-crosshair touch-none") : ""}`} style={canDraw ? { touchAction: "none", overscrollBehavior: "none" } : undefined} data-testid="wb-board">
+        <div ref={stageRef} className="relative w-full" data-testid="wb-stage">
+          <BoardArt strokes={onPage} bg={bg} names={o.labels !== false && !state.settings.hideNames} centre={state.prompt || state.title} tr={tr} inkOnCanvas extra={<path fill="none" strokeLinecap="round" strokeLinejoin="round" pointerEvents="none" />} />
+          <canvas ref={inkRef} className="pointer-events-none absolute inset-0 h-full w-full bg-transparent" data-testid="wb-ink" />
+          <canvas ref={liveRef} className="pointer-events-none absolute inset-0 h-full w-full bg-transparent" data-testid="wb-live" />
+        </div>
       </div>
       {!canDraw && <p className="text-center text-sm font-semibold opacity-80" data-testid="wb-viewonly">👀 {tr("Watching the board — your teacher will let you draw when it's your turn.", "تشاهد السبورة — سيسمح لك المعلم بالرسم عندما يحين دورك.")}</p>}
       {err && <p className="text-sm font-semibold text-rose-700" role="alert">{err}</p>}
@@ -508,6 +530,47 @@ function Board({ code, who, state, reload, canDraw, isHost }: { code: string; wh
 export function WhiteboardStudent({ code, who, state, closed, reload }: { code: string; who: Who; state: ActivityState; closed: boolean; reload: () => void }) {
   const pid = "pid" in who ? who.pid : "";
   return <Board code={code} who={who} state={state} reload={reload} canDraw={!closed && studentMayDraw(state.settings.options, pid)} isHost={false} />;
+}
+
+
+/** Minimize / restore, and detach into a Document Picture-in-Picture window like the class timer. */
+function WbChrome({ children }: { children: ReactNode }) {
+  const { tr } = useTr();
+  const [min, setMin] = useState(false);
+  const [pip, setPip] = useState<Window | null>(null);
+  const [pipMsg, setPipMsg] = useState("");
+  useEffect(() => () => { try { pip?.close(); } catch { /* */ } }, [pip]);
+  const popOut = async () => {
+    const dpip = (window as unknown as { documentPictureInPicture?: { requestWindow: (o: { width: number; height: number }) => Promise<Window>; window?: Window | null } }).documentPictureInPicture;
+    if (!dpip) { setPipMsg(tr("Pop-out needs Chrome or Edge (version 116 or newer).", "النافذة العائمة تحتاج كروم أو إيدج (116 أو أحدث).")); return; }
+    try {
+      if (dpip.window) { dpip.window.focus(); return; }
+      const w = await dpip.requestWindow({ width: 1100, height: 740 });
+      for (const el of Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))) w.document.head.appendChild(el.cloneNode(true));
+      w.document.documentElement.className = document.documentElement.className.replace(/\bdark\b/, "");
+      w.document.body.style.margin = "0";
+      w.document.body.style.background = "#fff";
+      w.document.title = tr("Whiteboard", "السبورة");
+      w.addEventListener("pagehide", () => setPip(null));
+      setPip(w); setPipMsg(""); setMin(false);
+    } catch { setPipMsg(tr("The browser blocked the pop-out window.", "منع المتصفح النافذة العائمة.")); }
+  };
+  const bar = (
+    <div className={`flex items-center gap-1 bg-[#1b3a57] px-3 py-1.5 text-white ${pip || min ? "" : "rounded-t-2xl"}`} data-testid="wb-chrome">
+      <span className="flex-1 text-xs font-extrabold uppercase tracking-wider text-[#f5c542]">✏️ {tr("Whiteboard", "السبورة")}</span>
+      <button type="button" className="rounded-full px-1.5 text-sm" hidden={!!pip} onClick={() => setMin((v) => !v)} title={min ? tr("Restore whiteboard", "إظهار السبورة") : tr("Minimize whiteboard", "تصغير السبورة")} aria-label={min ? tr("Restore whiteboard", "إظهار السبورة") : tr("Minimize whiteboard", "تصغير السبورة")} data-testid="wb-min">{min ? "▢" : "▭"}</button>
+      <button type="button" className="rounded-full px-1.5 text-sm" onClick={() => (pip ? pip.close() : popOut())} title={pip ? tr("Back to the page", "العودة إلى الصفحة") : tr("Pop out (stays on top)", "نافذة عائمة (فوق التطبيقات)")} aria-label={pip ? tr("Back to the page", "العودة إلى الصفحة") : tr("Pop out (stays on top)", "نافذة عائمة")} data-testid="wb-popout">{pip ? "↩" : "⧉"}</button>
+    </div>
+  );
+  const ui = (
+    <div className={pip ? "relative flex h-screen w-screen flex-col bg-white" : "overflow-hidden rounded-3xl ring-1 ring-black/10 dark:ring-white/15"} data-testid="wb-frame">
+      {bar}
+      {pipMsg && !pip && <p className="bg-amber-100 px-3 py-1.5 text-xs font-bold text-amber-900" role="status" data-testid="wb-pip-msg">{pipMsg}</p>}
+      {!min && <div className={pip ? "min-h-0 flex-1 overflow-auto p-2" : "p-1"}>{children}</div>}
+    </div>
+  );
+  if (pip) return <>{createPortal(ui, pip.document.body)}<button type="button" onClick={() => pip.close()} className="rounded-full bg-[#1b3a57] px-4 py-2 text-sm font-extrabold text-[#f5c542] shadow-lg" data-testid="wb-pip-placeholder">⧉ {tr("Whiteboard is in the pop-out window — tap to bring back", "السبورة في النافذة العائمة — اضغط لإرجاعها")}</button></>;
+  return ui;
 }
 
 export function WhiteboardHost({ code, hostKey, state, reload }: { code: string; hostKey: string; state: ActivityState; reload: () => void; big: boolean }) {
@@ -528,7 +591,9 @@ export function WhiteboardHost({ code, hostKey, state, reload }: { code: string;
   const revokeAll = () => saveOptions(code, hostKey, state, { draw: false, writers: [] }).then(reload);
   return (
     <div className="space-y-3">
+      <WbChrome>
       <Board code={code} who={{ hostKey }} state={state} reload={reload} canDraw isHost />
+      </WbChrome>
       <div className="flex flex-wrap items-center gap-2" data-focus-keep data-testid="wb-access">
         <button type="button" className={hostChip(allOn)} onClick={allowAll} data-testid="wb-draw">🖐️ {tr("Everyone can write", "الجميع يمكنهم الكتابة")}</button>
         <button type="button" className={hostChip(!allOn && writers.length === 0)} onClick={revokeAll} data-testid="wb-draw-none">🚫 {tr("Take access back from all", "سحب الإذن من الجميع")}</button>

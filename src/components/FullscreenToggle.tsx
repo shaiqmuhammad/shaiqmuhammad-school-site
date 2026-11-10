@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
-import { isActivityPath, setFocus, toggleFullscreen } from "@/components/FocusMode";
+import { enterFullscreen, exitFullscreen, isActivityPath, setFocus, toggleFullscreen } from "@/components/FocusMode";
 const sub = (f: () => void) => { document.addEventListener("fullscreenchange", f); return () => document.removeEventListener("fullscreenchange", f); };
 /** t396: global full-screen toggle (⛶ / ✕). Esc exits (browser default); the icon follows the real state. Hidden where the API is missing (iPhone). */
 export function FullscreenToggle({ className = "" }: { className?: string }) {
@@ -31,17 +31,17 @@ export function FocusPill({ className = "" }: { className?: string }) {
     const sync = () => fl.forEach((f) => f());
     window.addEventListener("sm-page-focus-sync", sync);
     if (!on) return () => window.removeEventListener("sm-page-focus-sync", sync);
-    const k = (e: KeyboardEvent) => { if (e.key === "Escape") { setPageFocus(false); if (isActivityPath(location.pathname)) setFocus(false, false); } };
+    const k = (e: KeyboardEvent) => { if (e.key === "Escape") { setPageFocus(false); exitFullscreen(); if (isActivityPath(location.pathname)) setFocus(false, false); } };
     window.addEventListener("keydown", k);
     return () => { window.removeEventListener("keydown", k); window.removeEventListener("sm-page-focus-sync", sync); };
   }, [on]);
   const ar = typeof document !== "undefined" && document.documentElement.lang === "ar";
   const activity = typeof location !== "undefined" && isActivityPath(location.pathname);
-  const go = () => { const next = !on; setPageFocus(next); if (activity) setFocus(next, false); };
+  const go = () => { const next = !on; setPageFocus(next); if (next) enterFullscreen(); else exitFullscreen(); if (activity) setFocus(next, false); };
   return <>
     <button type="button" onClick={go} aria-pressed={on} title={ar ? "وضع التركيز — إخفاء القوائم" : "Focus — hide menus and bars"} data-testid="page-focus"
       className={"inline-flex h-8 shrink-0 items-center gap-1 rounded-full border border-[#f5c542]/70 bg-[#1b3a57] px-2.5 text-xs font-extrabold text-[#f5c542] shadow-sm hover:bg-[#244a6b] " + className}>
       <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden><circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="3" /></svg>{ar ? "تركيز" : "Focus"}</button>
-    {on && !activity && typeof document !== "undefined" && createPortal(<button type="button" onClick={() => setPageFocus(false)} className="page-focus-exit fixed end-3 top-3 z-[4500] inline-flex items-center gap-1.5 rounded-full bg-[#1b3a57]/85 px-3 py-1.5 text-xs font-extrabold text-[#f5c542] shadow-lg ring-1 ring-[#f5c542]/60 backdrop-blur opacity-70 transition hover:opacity-100" data-testid="page-focus-exit">✕ {ar ? "إنهاء التركيز" : "Exit Focus"}</button>, document.body)}
+    {on && !activity && typeof document !== "undefined" && createPortal(<button type="button" onClick={() => { setPageFocus(false); exitFullscreen(); }} className="page-focus-exit fixed end-3 top-3 z-[4500] inline-flex items-center gap-1.5 rounded-full bg-[#1b3a57]/85 px-3 py-1.5 text-xs font-extrabold text-[#f5c542] shadow-lg ring-1 ring-[#f5c542]/60 backdrop-blur opacity-70 transition hover:opacity-100" data-testid="page-focus-exit">✕ {ar ? "إنهاء التركيز" : "Exit Focus"}</button>, document.body)}
   </>;
 }

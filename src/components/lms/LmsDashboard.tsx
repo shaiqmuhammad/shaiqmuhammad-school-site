@@ -19,9 +19,7 @@ import { AssessmentShell, primaryBtn } from "@/components/assessment/AssessmentS
 import { HomeworkEditor } from "@/components/lms/HomeworkEditor";
 import { Certificates, Leaderboard, LeaderboardSetting, ProgressCard, RevisionList } from "@/components/lms/Progress";
 import { Avatar } from "@/components/lms/Avatar";
-import { QuranHomework } from "@/components/lms/mods/QuranHomework";
-import { CorrectedList } from "@/components/lms/mods/CorrectedHomework";
-import { qhwPerm } from "@/lib/lmsMods";
+import { TeacherHomeworkHub, tabFromLocation, type HwHubTab } from "@/components/lms/HwHub";
 import { exportAllHomeworkZip } from "@/components/lms/lmsFiles";
 import { STATUS_STYLE, card, smallBtn, statusLabel, useLmsActor, useTr, GRADE_STYLE, gradeLabel } from "@/components/lms/useLms";
 import { lmsApi, lmsErrorText, lmsSignOut, mpShown, quranChapters, type Chapter, type QuranData } from "@/lib/lms";
@@ -57,12 +55,14 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
   const [dash, setDash] = useState<Dash | null>(null);
   const [err, setErr] = useState("");
   const [creating, setCreating] = useState(false);
-  // t302: teacher Homeworks hub tabs (Quran / General / Assigned / Corrected with Quran|General sub-tabs).
-  const [hubTab, setHubTab] = useState<"quran" | "general" | "assigned" | "corrected" | "add">("general");
-  const [addKey, setAddKey] = useState(0); // t430: fresh "Add homework" form after each save
-  const [addMsg, setAddMsg] = useState("");
-  const [corrSub, setCorrSub] = useState<"quran" | "general">("quran");
-  useEffect(() => { const h = window.location.hash.replace("#", ""); if (h === "quran" || h === "general" || h === "assigned" || h === "corrected") setHubTab(h); }, []);
+  const [hubTab, setHubTab] = useState<HwHubTab>("homeworks");
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- deep link from ?tab= / leftover hash
+  useEffect(() => {
+    const t0 = tabFromLocation();
+    setHubTab(t0);
+    const h = window.location.hash.replace("#", "");
+    if (h === "add") setCreating(true);
+  }, []);
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [busy, setBusy] = useState(false);
 
@@ -88,7 +88,6 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
 
   const surahName = (n: number) => chapters.find((c) => c.id === n)?.[lang === "ar" ? "name_arabic" : "name_simple"] || `${tr("Surah", "سورة")} ${n}`;
   const staff = actor?.role === "teacher" || actor?.role === "admin";
-  const qOk = actor?.role === "teacher" && qhwPerm(actor?.perms).show && qhwPerm(actor?.perms).view;
   useEffect(() => {
     if (!actor) return;
     const want = `${staff ? tr("Teacher Dashboard", "لوحة المعلم") : tr("Student Dashboard", "لوحة الطالب")} | Shaiq Muhammad`;
@@ -210,7 +209,7 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
         ) : (
           <>
             <div className="flex flex-wrap items-center gap-2">
-              {canAssign && !creating && <button type="button" className={primaryBtn} onClick={() => setCreating(true)} data-testid="lms-new-hw">+ {tr("New homework", "واجب جديد")}</button>}
+              {canAssign && !creating && <button type="button" className={primaryBtn} onClick={() => setCreating(true)} data-testid="lms-new-hw">+ {tr("New Homework", "واجب جديد")}</button>}
               <DlGate kind="export"><button
                 type="button"
                 className={smallBtn}
@@ -231,92 +230,19 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
               (dash as { quran?: { add: boolean } }).quran && !(dash as { quran?: { add: boolean } }).quran!.add ? <a href="/lms/material?new=homework" className="inline-block rounded-full bg-sun px-4 py-2 font-extrabold text-[#1b2f44]" data-testid="hw-kind-pack">📑 {tr("New homework as slides (Lesson Pack)", "واجب جديد بالشرائح")}</a> : <HomeworkEditor classes={dash.classes || []} students={dash.students || []} catalog={dash.catalog} scope={dash.scope} asAdmin={asAdmin} kinds={(dash as { quran?: { add: boolean } }).quran && !(dash as { quran?: { add: boolean } }).quran!.add ? ["general"] : ["quran", "general"]} onCancel={() => setCreating(false)} onSaved={(id) => router.push(`/lms/homework?id=${id}`)} />
             )}
             {hwOnly && staff ? (
-              <section id="homework" className="scroll-mt-28 space-y-4" data-testid="hw-hub">
-                <div className="flex flex-wrap gap-2" role="tablist" data-testid="hw-hub-tabs">
-                  {([["quran", "📖", "Quran", "القرآن"], ["general", "📝", "General", "عام"], ["assigned", "📋", "Assigned Homework", "الواجبات المسندة"], ["corrected", "✅", "Corrected Homework", "الواجبات المصحَّحة"], ["add", "➕", "Add homework", "إضافة واجب"]] as const).filter(([id]) => (id !== "quran" || qOk) && (id !== "add" || canAssign)).map(([id, ic, en, ar]) => (
-                    <button key={id} type="button" role="tab" aria-selected={hubTab === id} onClick={() => setHubTab(id)} className={`rounded-full px-4 py-2 text-sm font-extrabold shadow-sm transition ${hubTab === id ? "bg-header text-white" : "bg-white text-[#1b2f44] hover:bg-sun/50 dark:bg-white/10 dark:text-white"}`} data-testid={`hw-tab-${id}`}>{ic} {tr(en, ar)}</button>
-                  ))}
-                </div>
-                {hubTab === "add" && canAssign ? <div className="space-y-2" data-testid="hw-add-tab">
-                  {addMsg && <p className="rounded-xl bg-emerald-100 px-3 py-2 text-sm font-bold text-emerald-900" role="status" data-testid="hw-add-msg">{addMsg}</p>}
-                  {(dash as { quran?: { add: boolean } }).quran && !(dash as { quran?: { add: boolean } }).quran!.add ? <a href="/lms/material?new=homework" className="inline-block rounded-full bg-sun px-4 py-2 font-extrabold text-[#1b2f44]">📑 {tr("New homework as slides (Lesson Pack)", "واجب جديد بالشرائح")}</a>
-                    : <HomeworkEditor key={addKey} classes={dash.classes || []} students={dash.students || []} catalog={dash.catalog} scope={dash.scope} asAdmin={asAdmin} kinds={["quran", "general"]} onCancel={() => setHubTab("quran")} onSaved={(id) => { setAddMsg(tr("Homework created ✓ — add another below, or open it from Assigned Homework.", "تم إنشاء الواجب ✓ — أضف واجبًا آخر بالأسفل أو افتحه من الواجبات المسندة.")); setAddKey((k) => k + 1); void id; load(); }} />}
-                </div> : hubTab === "quran" && qOk ? <QuranHomework /> : hubTab === "corrected" ? (
-                  <div className="space-y-3">
-                    <div className="flex gap-2" role="tablist" data-testid="corr-sub-tabs">
-                      {qOk && <button type="button" role="tab" aria-selected={corrSub === "quran"} onClick={() => setCorrSub("quran")} className={`rounded-full px-3 py-1.5 text-sm font-bold ${corrSub === "quran" ? "bg-sun text-[#0b1b2b]" : "bg-black/5 dark:bg-white/10"}`} data-testid="corr-sub-quran">📖 {tr("Quran", "القرآن")}</button>}
-                      <button type="button" role="tab" aria-selected={corrSub === "general" || !qOk} onClick={() => setCorrSub("general")} className={`rounded-full px-3 py-1.5 text-sm font-bold ${corrSub === "general" || !qOk ? "bg-sun text-[#0b1b2b]" : "bg-black/5 dark:bg-white/10"}`} data-testid="corr-sub-general">📝 {tr("General", "عام")}</button>
-                    </div>
-                    {corrSub === "quran" && qOk ? <CorrectedList asAdmin={false} /> : (() => { const rows = dash.homework.filter((h) => h.kind !== "quran" && ((h.counts || {}).approved || 0) > 0); return rows.length ? (<>
-              <ul className="space-y-2">
-                {rows.map((h) => {
-                  const c = h.counts || {};
-                  const q = h.data as QuranData;
-                  return (
-                    <li key={h.id} className="flex flex-wrap items-center gap-2">
-                      <a href={`/lms/homework?id=${h.id}`} className={card + " flex min-w-0 flex-1 flex-wrap items-center gap-3 hover:shadow-lg"} data-testid="lms-hw-row">
-                        <span className="text-2xl" aria-hidden>{h.kind === "quran" ? "📖" : "📝"}</span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block font-bold" dir="auto">{h.title}</span>
-                          <HwMeta {...hwAud(h)} className="my-0.5" />
-                          <span className="block text-sm opacity-75">
-                            {h.kind === "quran" ? `${surahName(q.surah)} ${q.from}–${q.to} · ` : ""}
-                            {h.students.length ? tr(`${h.students.length} students`, `${h.students.length} طلاب`) : [h.cls, h.section].filter(Boolean).join(" · ") || tr("All students", "كل الطلاب")}
-                            {h.due ? ` · ${tr("due", "التسليم")} ${new Date(h.due).toLocaleDateString(lang === "ar" ? "ar" : "en-GB")}` : ""}
-                          </span>
-                        </span>
-                        <span className="flex flex-wrap gap-1 text-xs font-bold">
-                          <span className={`rounded-full px-2 py-1 ${STATUS_STYLE.submitted}`} data-testid="lms-count-submitted">{Math.max(0, (c.submitted || 0) - (c.waiting || 0))} {tr("to review", "للمراجعة")}</span>
-                          {(c.waiting || 0) > 0 && <span className="rounded-full bg-sky-100 px-2 py-1 text-sky-900" data-testid="lms-count-waiting">💬 {c.waiting} {tr("waiting for student", "بانتظار الطالب")}</span>}
-                          <span className={`rounded-full px-2 py-1 ${STATUS_STYLE.approved}`}>{c.approved || 0} ✓</span>
-                          <span className={`rounded-full px-2 py-1 ${STATUS_STYLE.none}`}>{h.assigned ?? 0} {tr("assigned", "مُسند")}</span>
-                        </span>
-                      </a>
-                      <HwRemindBell hw={h.id} title={h.title} asAdmin={asAdmin} />
-                    </li>
-                  );
-                })}
-              </ul>
-                    </>) : <p className={card + " opacity-80"} data-testid="corr-general-empty">{tr("No corrected general homework yet.", "لا توجد واجبات عامة مصحّحة بعد.")}</p>; })()}
-                  </div>
-                ) : (() => {
-                  const open2 = (h: (typeof dash.homework)[number]) => { const c = h.counts || {}; return !((c.waiting || 0) > 0 && (c.submitted || 0) - (c.waiting || 0) <= 0); };
-                  const rows = dash.homework.filter((h) => hubTab === "assigned" || (h.kind !== "quran" && open2(h)));
-                  return (<>
-                    {hubTab === "general" && <p className="text-sm opacity-70" data-testid="hw-hub-note">{tr("Homework you have commented on moves to “Assigned Homework” until the student responds.", "الواجب الذي علّقت عليه ينتقل إلى «الواجبات المسندة» حتى يرد الطالب.")}</p>}
-                    {rows.length === 0 && <p className={card + " opacity-80"} data-testid="hw-hub-empty">{tr("Nothing here right now.", "لا شيء هنا الآن.")}</p>}
-              <ul className="space-y-2">
-                {rows.map((h) => {
-                  const c = h.counts || {};
-                  const q = h.data as QuranData;
-                  return (
-                    <li key={h.id} className="flex flex-wrap items-center gap-2">
-                      <a href={`/lms/homework?id=${h.id}`} className={card + " flex min-w-0 flex-1 flex-wrap items-center gap-3 hover:shadow-lg"} data-testid="lms-hw-row">
-                        <span className="text-2xl" aria-hidden>{h.kind === "quran" ? "📖" : "📝"}</span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block font-bold" dir="auto">{h.title}</span>
-                          <HwMeta {...hwAud(h)} className="my-0.5" />
-                          <span className="block text-sm opacity-75">
-                            {h.kind === "quran" ? `${surahName(q.surah)} ${q.from}–${q.to} · ` : ""}
-                            {h.students.length ? tr(`${h.students.length} students`, `${h.students.length} طلاب`) : [h.cls, h.section].filter(Boolean).join(" · ") || tr("All students", "كل الطلاب")}
-                            {h.due ? ` · ${tr("due", "التسليم")} ${new Date(h.due).toLocaleDateString(lang === "ar" ? "ar" : "en-GB")}` : ""}
-                          </span>
-                        </span>
-                        <span className="flex flex-wrap gap-1 text-xs font-bold">
-                          <span className={`rounded-full px-2 py-1 ${STATUS_STYLE.submitted}`} data-testid="lms-count-submitted">{Math.max(0, (c.submitted || 0) - (c.waiting || 0))} {tr("to review", "للمراجعة")}</span>
-                          {(c.waiting || 0) > 0 && <span className="rounded-full bg-sky-100 px-2 py-1 text-sky-900" data-testid="lms-count-waiting">💬 {c.waiting} {tr("waiting for student", "بانتظار الطالب")}</span>}
-                          <span className={`rounded-full px-2 py-1 ${STATUS_STYLE.approved}`}>{c.approved || 0} ✓</span>
-                          <span className={`rounded-full px-2 py-1 ${STATUS_STYLE.none}`}>{h.assigned ?? 0} {tr("assigned", "مُسند")}</span>
-                        </span>
-                      </a>
-                      <HwRemindBell hw={h.id} title={h.title} asAdmin={asAdmin} />
-                    </li>
-                  );
-                })}
-              </ul>
-                  </>);
-                })()}
-              </section>
+              <TeacherHomeworkHub
+                dash={dash}
+                chapters={chapters}
+                asAdmin={!!asAdmin}
+                canAssign={!!canAssign}
+                tab={hubTab}
+                onTab={(id) => {
+                  setHubTab(id);
+                  const href = id === "homeworks" ? "/lms/homework" : `/lms/homework?tab=${id}`;
+                  window.history.replaceState(null, "", href);
+                }}
+                onReload={load}
+              />
             ) : (
             <section id="homework" className="scroll-mt-28">
               <h2 className="mb-3 text-xl font-bold">{tr("Homework", "الواجبات")} ({dash.homework.length})</h2>

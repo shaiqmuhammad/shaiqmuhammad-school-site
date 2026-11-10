@@ -104,7 +104,7 @@ export function LmsTabs() {
   ];
   const loginsTab: Tab[] = staff && stuUi(actor.perms || [], "view") ? [{ id: "logins", href: "/lms/logins", en: "Student Logins", ar: "دخول الطلاب", icon: "", lvl: 3 }] : [];
   const acctTab: Tab[] = [{ id: "acct", href: "/lms/account", en: "My account", ar: "حسابي", icon: "", lvl: 3 }];
-  const qTab: Tab[] = false && staff && qp.show ? [{ id: "qhw", href: "/lms/quran", en: "Quran Homework", ar: "واجب القرآن", icon: I.quran, lvl: 2 }, ...(qp.view ? [{ id: "corr", href: "/lms/corrected", en: "Corrected", ar: "المصحَّح", icon: "", lvl: 2 } as Tab] : [])] : [];
+  const qTab: Tab[] = false && staff && qp.show ? [{ id: "qhw", href: "/lms/homework", en: "Quran Homework", ar: "واجب القرآن", icon: I.quran, lvl: 2 }, ...(qp.view ? [{ id: "corr", href: "/lms/homework?tab=corrected", en: "Corrected", ar: "المصحَّح", icon: "", lvl: 2 } as Tab] : [])] : [];
   const PARENT: Tab[] = [
     { id: "dash", href: "/lms/family", en: "Dashboard", ar: "اللوحة", icon: I.dash, lvl: 0 },
     { id: "hw", href: "/lms/family", hash: "#homework", en: "Homework", ar: "الواجبات", icon: I.hw, lvl: 0 },
@@ -127,8 +127,8 @@ export function LmsTabs() {
   // t310: pages the user can open that are not in the default menu — listed in the editor, hidden until switched on.
   const more: Tab[] = isParent ? [] : [
     ...(staff ? [{ id: "lib", href: "/lms/library", en: "Learning Libraries", ar: "مكتبات التعلم", icon: "", lvl: 3 } as Tab] : []),
-    ...(staff && qp.show ? [{ id: "qhw", href: "/lms/quran", en: "Quran Homework", ar: "واجب القرآن", icon: "", lvl: 3 } as Tab] : []),
-    ...(staff && qp.view ? [{ id: "corr", href: "/lms/corrected", en: "Corrected", ar: "المصحَّح", icon: "", lvl: 3 } as Tab] : []),
+    ...(staff && qp.show ? [{ id: "qhw", href: "/lms/homework", en: "Quran Homework", ar: "واجب القرآن", icon: "", lvl: 3 } as Tab] : []),
+    ...(staff && qp.view ? [{ id: "corr", href: "/lms/homework?tab=corrected", en: "Corrected", ar: "المصحَّح", icon: "", lvl: 3 } as Tab] : []),
   ].filter((t) => !tabs0.some((x) => x.id === t.id));
   const allTabs = [...tabs0, ...more];
   const defHidden = more.map((t) => t.id);
