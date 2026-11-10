@@ -9,7 +9,7 @@ order, and the class results table (name, score, correct, wrong, %) is computed 
 - Students never receive the answer key during the attempt (`correct`, `blanks`, explanations stripped).
 - Sessions self-delete 24 h after creation (DO alarm).
 
-Live URL: `https://assessment-session.hidden-wildflower-498c.workers.dev`
+Live URL: `https://assessment-session.shaiqmuhammad.workers.dev`
 (the site uses it by default; override with `NEXT_PUBLIC_ASSESSMENT_API_URL` at build time).
 
 ## Deploy / update

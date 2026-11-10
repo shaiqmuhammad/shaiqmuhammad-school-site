@@ -166,7 +166,7 @@ function Upload({ cfg, reload }: { cfg: YtAdminConfig | null; reload: () => void
           <ol className="list-decimal space-y-1 ps-5">
             <li>{tr("In Google Cloud Console create a project and enable “YouTube Data API v3”.", "في Google Cloud Console أنشئ مشروعًا وفعّل «YouTube Data API v3».")}</li>
             <li>{tr("OAuth consent screen: type External, add yourself as a Test user (the Google account that owns the channel).", "شاشة الموافقة: النوع External وأضف حسابك كمستخدم تجريبي (حساب مالك القناة).")}</li>
-            <li>{tr("Credentials → Create OAuth client ID → Web application. Authorised redirect URI:", "Credentials ← Create OAuth client ID ← Web application. عنوان إعادة التوجيه:")} <code className="break-all rounded bg-black/10 px-1" dir="ltr">{o?.redirectUri || "https://assessment-session.hidden-wildflower-498c.workers.dev/api/yt/oauth-callback"}</code></li>
+            <li>{tr("Credentials → Create OAuth client ID → Web application. Authorised redirect URI:", "Credentials ← Create OAuth client ID ← Web application. عنوان إعادة التوجيه:")} <code className="break-all rounded bg-black/10 px-1" dir="ltr">{o?.redirectUri || "https://assessment-session.shaiqmuhammad.workers.dev/api/yt/oauth-callback"}</code></li>
             <li>{tr("Send the Client ID and Client secret to your assistant (or run: npx wrangler secret put GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET in workers/assessment-session).", "أرسل Client ID وClient secret إلى مساعدك (أو نفّذ wrangler secret put لكل منهما).")}</li>
             <li>{tr("Come back here and press “Connect YouTube” once.", "ارجع إلى هنا واضغط «ربط يوتيوب» مرة واحدة.")}</li>
           </ol>

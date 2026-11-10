@@ -4,6 +4,8 @@
 name = "assessment-session"
 main = "src/index.ts"
 compatibility_date = "2025-03-01"
+# School (Workers Paid) account; keeps deploys off the old Arabz Mart account.
+account_id = "e5f14924b70fda6515161da204acc32a"
 
 [[durable_objects.bindings]]
 name = "SESSIONS"

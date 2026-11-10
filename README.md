@@ -91,7 +91,7 @@ Formerly "Quizzes" (`/quizzes/*` 301-redirects to `/assessments/*`). Content sta
 
 Group sessions run on a Cloudflare Worker with one Durable Object per session. See `workers/assessment-session/README.md`.
 
-- Default API URL: `https://assessment-session.hidden-wildflower-498c.workers.dev`. Override it at build time with `NEXT_PUBLIC_ASSESSMENT_API_URL`.
+- Default API URL: `https://assessment-session.shaiqmuhammad.workers.dev`. Override it at build time with `NEXT_PUBLIC_ASSESSMENT_API_URL`.
 - Deploy with wrangler 3 (works on Node 20): `cd workers/assessment-session && npm install && npx wrangler deploy`.
 - Optional: `npx wrangler secret put HOST_SECRET` requires a teacher secret to create sessions.
 - Sessions are deleted automatically after 24 h.
