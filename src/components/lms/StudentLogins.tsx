@@ -1,5 +1,6 @@
 "use client";
 import { clsCmp } from "@/lib/classSort";
+import { siteOrigin } from "@/lib/siteOrigin";
 import { useAdminScope } from "@/components/AdminScope";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -13,7 +14,7 @@ import { loadNameMode, pickName, type NameMode } from "@/lib/studentName";
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] || c);
 const sc = "rounded-full border border-black/15 bg-white px-3 py-1.5 text-sm dark:border-white/20 dark:bg-black/20";
-const urlOf = (t: string) => `${window.location.origin}/lms/qr/?t=${t}`;
+const urlOf = (t: string) => `${siteOrigin()}/lms/qr/?t=${t}`;
 
 /** Student Logins: big cards with username, PIN and a login QR for every student the viewer may see (admin: all; teacher: own classes). */
 export function StudentLogins({ asAdmin, perms = [] }: { asAdmin: boolean; perms?: string[] }) {

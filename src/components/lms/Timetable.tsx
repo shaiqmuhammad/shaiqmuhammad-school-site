@@ -11,6 +11,7 @@ import { modCall, modErr, pdfTable } from "@/lib/lmsMods";
 import { classLabel } from "@/lib/classLabel";
 import { RosterPicker, rosterIds, useRosterData } from "@/components/lms/ClassLaunch";
 import { qrImageUrl } from "@/lib/groupSession";
+import { siteOrigin } from "@/lib/siteOrigin";
 import { ttGridDocx, ttGridPdf, ttGridXlsx, type TtGrid } from "@/lib/ttPrint";
 
 export type TtRow = { id: string; dow: number; period: string; cls: string; sections: string[]; teacher: string; teacherName: string; subject: string; phase: string; dept: string; s?: string; e?: string; color?: string; title?: string; obs?: string };
@@ -446,7 +447,7 @@ function TtTools({ d, rows, asAdmin, filt, studentsOf }: { d: TtData; rows: TtRo
         {okP && <button type="button" className={btn} onClick={() => ttGridDocx(grid(), `timetable${ar ? "-ar" : ""}.docx`)} data-testid="tt-docx">⬇️ Word</button>}
         {okX && <button type="button" className={btn} onClick={() => ttGridXlsx(grid(), `timetable${ar ? "-ar" : ""}.xlsx`)} data-testid="tt-xlsx">⬇️ Excel</button>}
         {okS && <button type="button" className={btn} onClick={() => setShare(!share)} data-testid="tt-share">📤 {tr("Share", "مشاركة")}</button>}
-        <img src={qrImageUrl("https://www.shaiqmuhammad.com/lms/timetable", 56)} alt="QR" className="ms-auto h-12 w-12 rounded-lg ring-1 ring-black/10" data-testid="tt-qr" />
+        <img src={qrImageUrl(`${siteOrigin()}/lms/timetable`, 56)} alt="QR" className="ms-auto h-12 w-12 rounded-lg ring-1 ring-black/10" data-testid="tt-qr" />
       </div>
       {share && <SharePanel d={d} rows={rows} title={title} asAdmin={asAdmin} onDone={() => setShare(false)} />}
     </div>
@@ -558,7 +559,7 @@ function YearCalendar({ rows, times, weekOf, onPickDate, canAdd, onAdd }: { rows
         <span className="flex-1" />
         {canAdd && <button type="button" className="rounded-full bg-sun px-4 py-1.5 text-sm font-bold text-[#0b1b2b]" onClick={() => onAdd?.(weekOf)} data-testid="tt-year-add">+ {tr("Add event", "إضافة حدث")}</button>}
         <button type="button" className="rounded-full bg-[#1b3a57] px-4 py-1.5 text-sm font-bold text-[#f5c542]" onClick={printYear} data-testid="tt-year-print">⬇️ {tr("Print year", "طباعة السنة")}</button>
-        <img src={qrImageUrl(`https://www.shaiqmuhammad.com/lms/timetable?year=${year}`, 72)} alt="QR" className="h-14 w-14 rounded-lg ring-1 ring-black/10" />
+        <img src={qrImageUrl(`${siteOrigin()}/lms/timetable?year=${year}`, 72)} alt="QR" className="h-14 w-14 rounded-lg ring-1 ring-black/10" />
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {Array.from({ length: 12 }, (_, m) => {

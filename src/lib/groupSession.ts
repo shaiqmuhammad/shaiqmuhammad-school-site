@@ -1,4 +1,5 @@
 import { studentLoginToken } from "@/lib/lmsToken";
+import { siteOrigin } from "@/lib/siteOrigin";
 import type { Quiz, QuizQuestion } from "@/lib/quiz";
 
 /**
@@ -158,11 +159,7 @@ export function clockOffset(serverNow: number, sentAt: number, receivedAt: numbe
  * forwarded to the home page by the registrar, so the live site always uses www.
  */
 export function joinUrl(code: string): string {
-  const origin =
-    typeof window === "undefined" || /(^|\.)shaiqmuhammad\.com$/.test(window.location.hostname)
-      ? "https://www.shaiqmuhammad.com"
-      : window.location.origin;
-  return `${origin}/join?code=${encodeURIComponent(code)}`;
+  return `${siteOrigin()}/join?code=${encodeURIComponent(code)}`;
 }
 
 const DEVICE_KEY = "sm_group_device_v1";

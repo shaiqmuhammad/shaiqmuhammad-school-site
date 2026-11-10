@@ -1,6 +1,7 @@
 "use client";
 
 import { getServerSession } from "@/lib/adminServer";
+import { siteOrigin } from "@/lib/siteOrigin";
 import { ASSESSMENT_API_BASE } from "@/lib/groupSession";
 import { sortBy } from "@/lib/classSort";
 import { rememberForget, rememberOn, rememberSave, rememberedToken } from "@/lib/remember";
@@ -490,7 +491,7 @@ export const RECITERS = [
   ["Husary_Muallim_128kbps", "Al-Husary (Teacher / repeat)"],
 ] as const;
 
-export const homeworkUrl = (id: string) => `${typeof window !== "undefined" ? window.location.origin : "https://www.shaiqmuhammad.com"}/lms/homework?id=${encodeURIComponent(id)}`;
+export const homeworkUrl = (id: string) => `${siteOrigin()}/lms/homework?id=${encodeURIComponent(id)}`;
 
 /** Group name with its subject, for pickers and tabs. */
 export const grpLabel = (g: { name: string; subject?: string }) => (g.subject ? `${g.name} · ${g.subject}` : g.name);
