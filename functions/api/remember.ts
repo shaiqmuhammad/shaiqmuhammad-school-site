@@ -6,7 +6,7 @@
  *  POST {forget:true}    → clears it.
  * Teachers, admins and parents are never remembered here. A PIN change/reset invalidates the stored token server-side.
  */
-const API = "https://assessment-session.hidden-wildflower-498c.workers.dev";
+const API = "https://assessment-session.shaiqmuhammad.workers.dev";
 const NAME = "sm_rem";
 const MAX_AGE = 180 * 86400;
 type Ctx = { request: Request };

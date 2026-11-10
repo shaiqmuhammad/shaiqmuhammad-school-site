@@ -1,6 +1,6 @@
 import { getServerSession } from "@/lib/adminServer";
 
-export const API = "https://assessment-session.hidden-wildflower-498c.workers.dev/api/yt";
+export const API = "https://assessment-session.shaiqmuhammad.workers.dev/api/yt";
 export type YtVideo = { id: string; title: string; duration: string; published: string };
 export type YtPlaylist = { id: string; title: string; count: string };
 export type PlCfg = { id: string; title: string; slug: string; order: number; visible: boolean };
