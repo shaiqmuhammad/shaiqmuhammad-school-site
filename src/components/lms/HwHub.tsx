@@ -55,11 +55,6 @@ function isLive(h: DashHw) {
   return (h.assigned ?? 0) > 0 && !(assignAt > Date.now());
 }
 
-function hasActivity(h: DashHw) {
-  const c = countsOf(h);
-  return c.draft + c.submitted + c.approved + c.returned > 0;
-}
-
 function toReview(h: DashHw) {
   const c = countsOf(h);
   return Math.max(0, c.submitted - c.waiting);
@@ -72,13 +67,13 @@ function isFullyCorrected(h: DashHw) {
 }
 
 /**
- * Homeworks = created and not yet in progress (unassigned, scheduled, or assigned with no student work yet).
- * Assigned homework = live with students and some activity, not fully corrected.
+ * Homeworks = created but not yet assigned (unassigned or scheduled for later).
+ * Assigned homework = live with students (assigned count > 0 and assignAt not in the future), even if no one has started.
  * Corrected Homeworks = every assignee approved, nothing left to review.
  */
 export function hwBucket(h: DashHw): HwHubTab {
   if (isFullyCorrected(h)) return "corrected";
-  if (isLive(h) && hasActivity(h)) return "assigned";
+  if (isLive(h)) return "assigned";
   return "homeworks";
 }
 
@@ -186,6 +181,7 @@ export function HwPortionGrid({
             return (
               <article key={h.id} className={cardCls} data-testid="hw-portion">
                 <p className="text-lg font-extrabold" dir="auto">{h.kind === "quran" ? "📖" : "📝"} {h.title}</p>
+                {isActivity(h) && <span className="mt-1 inline-flex rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-extrabold text-violet-900 dark:bg-violet-900/40 dark:text-violet-100" data-testid="hw-activity-badge">{tr("Activity", "نشاط")}</span>}
                 {h.kind === "quran" && <TrkLink id={h.id} kind="hw" asAdmin={asAdmin} />}
                 {qd && <p className="text-sm opacity-80">{sn(qd.surah)} · {qd.from}–{qd.to}</p>}
                 <p className="mt-1 text-xs opacity-70">{[h.cls, h.section].filter(Boolean).join(" · ") || (h.students.length ? tr("Selected students", "طلاب محددون") : tr("All students", "كل الطلاب"))}{h.due ? ` · ⏰ ${new Date(h.due).toLocaleDateString(lang === "ar" ? "ar" : "en-GB")}` : ""}</p>
@@ -236,11 +232,11 @@ export function TeacherHomeworkHub({
   const { actor } = useLmsActor();
   const qOk = actor?.role === "teacher" && qhwPerm(actor?.perms).show && qhwPerm(actor?.perms).view;
   const extra = { classes: dash.classes || [], students: dash.students || [], catalog: dash.catalog, scope: dash.scope };
-  const rows = dash.homework.filter((h) => !isActivity(h) && hwBucket(h) === tab);
+  const rows = dash.homework.filter((h) => hwBucket(h) === tab);
   const empty =
-    tab === "homeworks" ? tr("No homework waiting to be assigned. Newly created homework stays here until students start work, then it moves to Assigned homework.", "لا توجد واجبات بانتظار الإسناد. يبقى الواجب الجديد هنا حتى يبدأ الطلاب العمل، ثم ينتقل إلى الواجبات المسندة.")
-    : tab === "assigned" ? tr("No assigned homework in progress.", "لا توجد واجبات مسندة قيد العمل.")
-    : tr("No corrected homework yet.", "لا توجد واجبات مصحّحة بعد.");
+    tab === "homeworks" ? tr("No homework or activities waiting to be assigned. Once you assign them to students, they move to Assigned homework.", "لا توجد واجبات أو أنشطة بانتظار الإسناد. بعد إسنادها للطلاب تنتقل إلى الواجبات المسندة.")
+    : tab === "assigned" ? tr("No assigned homework or activities.", "لا توجد واجبات أو أنشطة مسندة.")
+    : tr("No corrected homework or activities yet.", "لا توجد واجبات أو أنشطة مصحّحة بعد.");
   return (
     <section id="homework" className="scroll-mt-28 space-y-4" data-testid="hw-hub">
       <div className="flex flex-wrap items-center gap-2">
@@ -250,7 +246,7 @@ export function TeacherHomeworkHub({
       {tab === "corrected" ? (
         <div className="space-y-6">
           {qOk && <CorrectedList asAdmin={false} />}
-          <HwPortionGrid items={rows} chapters={chapters} asAdmin={asAdmin} canAssign={canAssign} empty={qOk && !rows.length ? tr("No corrected general homework yet.", "لا توجد واجبات عامة مصحّحة بعد.") : empty} onChange={onReload} extra={extra} />
+          <HwPortionGrid items={rows} chapters={chapters} asAdmin={asAdmin} canAssign={canAssign} empty={qOk && !rows.length ? tr("No corrected general homework or activities yet.", "لا توجد واجبات أو أنشطة عامة مصحّحة بعد.") : empty} onChange={onReload} extra={extra} />
         </div>
       ) : (
         <HwPortionGrid items={rows} chapters={chapters} asAdmin={asAdmin} canAssign={canAssign} empty={empty} onChange={onReload} extra={extra} />
