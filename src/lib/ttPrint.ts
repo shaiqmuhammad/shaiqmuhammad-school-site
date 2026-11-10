@@ -1,3 +1,5 @@
+import { siteConfig } from "@/content/site";
+import { siteOrigin } from "@/lib/siteOrigin";
 /** t437: printable period × day timetable grid (PDF / Excel / Word) in the school sample style, system colours. */
 import { dlGrant } from "@/lib/dl";
 import { downloadBlob } from "@/lib/exportUtils";
@@ -8,11 +10,11 @@ export type TtGridCell = { text: string; color?: string };
 export type TtGrid = { title: string; subtitle: string; cols: TtCol[]; days: { name: string; count: number; cells: (TtGridCell | null)[] }[]; totalLessons: number; totalStudents: number; rtl: boolean; L: { period: string; days: string; lessons: string; totalL: string; totalS: string } };
 
 const NAVY = "#1b3a57", GOLD = "#f5c542", CREAM = "#fffaf0", INK = "#1b2f44";
-const URL_TT = "https://www.shaiqmuhammad.com/lms/timetable";
+const urlTT = () => `${siteOrigin()}/lms/timetable`;
 const hex = (c?: string) => (c && /^#[0-9a-f]{6}$/i.test(c) ? c : "");
 
 async function qrData(): Promise<string> {
-  try { const b = await (await fetch(qrImageUrl(URL_TT, 200))).blob(); return await new Promise((ok) => { const r = new FileReader(); r.onload = () => ok(String(r.result)); r.onerror = () => ok(""); r.readAsDataURL(b); }); } catch { return ""; }
+  try { const b = await (await fetch(qrImageUrl(urlTT(), 200))).blob(); return await new Promise((ok) => { const r = new FileReader(); r.onload = () => ok(String(r.result)); r.onerror = () => ok(""); r.readAsDataURL(b); }); } catch { return ""; }
 }
 const loadImg = (src: string) => new Promise<HTMLImageElement | null>((ok) => { if (!src) return ok(null); const i = new Image(); i.onload = () => ok(i); i.onerror = () => ok(null); i.src = src; });
 
@@ -44,7 +46,7 @@ export async function ttGridPdf(g: TtGrid, filename: string) {
   });
   const fy = top + hh + 6 + g.days.length * rowH + 10;
   [[g.L.totalL, g.totalLessons], [g.L.totalS, g.totalStudents]].forEach(([l, v], k) => { const bx = M + k * 230; c.fillStyle = NAVY; rr(bx, fy, 220, 40, 20); c.fill(); c.fillStyle = "#fff"; c.font = `700 14px ${font}`; c.textAlign = "left"; c.fillText(String(l), bx + 18, fy + 20); c.fillStyle = GOLD; c.font = `900 18px ${font}`; c.textAlign = "right"; c.fillText(String(v), bx + 202, fy + 20); c.textAlign = "center"; });
-  c.fillStyle = "#8a97a3"; c.font = `11px ${font}`; c.textAlign = "right"; c.fillText(`shaiqmuhammad.com · ${new Date().toLocaleDateString("en-GB")}`, W - M, H - 18);
+  c.fillStyle = "#8a97a3"; c.font = `11px ${font}`; c.textAlign = "right"; c.fillText(`${siteConfig.domain} · ${new Date().toLocaleDateString("en-GB")}`, W - M, H - 18);
   const pdf = new jsPDF({ orientation: "landscape", unit: "pt", format: "a3" });
   pdf.addImage(cv.toDataURL("image/jpeg", 0.93), "JPEG", 0, 0, W, H); pdf.save(filename);
 }
@@ -67,7 +69,7 @@ export async function ttGridXlsx(g: TtGrid, filename: string) {
     d.cells.forEach((cell, i) => { const c = r.getCell(i + 2); c.value = cell?.text || ""; c.fill = fill(cell ? hex(cell.color) || "#e8eef5" : "#ffffff"); c.font = { bold: true, size: 10, color: { argb: "FF1B2F44" } }; c.alignment = { horizontal: "center", vertical: "middle", wrapText: true }; c.border = B; }); });
   const fr = 7 + g.days.length;
   [[g.L.totalL, g.totalLessons], [g.L.totalS, g.totalStudents]].forEach(([l, v], k) => { const a = ws.getCell(fr + k, 1), b = ws.getCell(fr + k, 2); a.value = String(l); b.value = Number(v); [a, b].forEach((c, z) => { c.fill = fill(NAVY); c.font = { bold: true, color: { argb: z ? "FFF5C542" : "FFFFFFFF" } }; c.alignment = { horizontal: "center", vertical: "middle" }; c.border = B; }); });
-  ws.getCell(fr + 3, 1).value = { text: URL_TT, hyperlink: URL_TT };
+  ws.getCell(fr + 3, 1).value = { text: urlTT(), hyperlink: urlTT() };
   downloadBlob(new Blob([await wb.xlsx.writeBuffer()], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), filename);
 }
 
@@ -80,7 +82,7 @@ export async function ttGridDocx(g: TtGrid, filename: string) {
   const cell = (kids: InstanceType<typeof D.Paragraph>[], bg: string) => new D.TableCell({ children: kids, shading: { type: D.ShadingType.CLEAR, color: "auto", fill: bg }, verticalAlign: D.VerticalAlign.CENTER, borders, margins: { top: 60, bottom: 60, left: 40, right: 40 } });
   const head = new D.TableRow({ tableHeader: true, children: [cell([p(g.L.period, { color: "FFFFFF" }), p(g.L.days, { color: gold })], nav), ...g.cols.map((c) => cell([p(c.label, { color: "FFFFFF", size: 18 }), p(c.s && c.e ? `${c.s} – ${c.e}` : "", { color: gold, size: 13 })], nav))] });
   const body = g.days.map((d) => new D.TableRow({ height: { value: 900, rule: D.HeightRule.ATLEAST }, children: [cell([p(d.name, { color: nav, size: 22 }), p(`${d.count} ${g.L.lessons}`, { color: nav, size: 14 })], gold), ...d.cells.map((c) => cell([p(c?.text || "")], c ? (hex(c.color) || "#e8eef5").slice(1) : "FFFFFF"))] }));
-  let qr: Uint8Array | null = null; try { qr = new Uint8Array(await (await fetch(qrImageUrl(URL_TT, 200))).arrayBuffer()); } catch { qr = null; }
+  let qr: Uint8Array | null = null; try { qr = new Uint8Array(await (await fetch(qrImageUrl(urlTT(), 200))).arrayBuffer()); } catch { qr = null; }
   const doc = new D.Document({ sections: [{ properties: { page: { size: { orientation: D.PageOrientation.LANDSCAPE, width: 16838, height: 11906 }, margin: { top: 500, bottom: 500, left: 500, right: 500 } } }, children: [
     new D.Table({ width: { size: 100, type: D.WidthType.PERCENTAGE }, rows: [new D.TableRow({ children: [cell([p(g.title, { color: "FFFFFF", size: 36 }), p(g.subtitle, { color: gold, size: 22 })], nav)] })] }),
     new D.Paragraph({ text: "" }),

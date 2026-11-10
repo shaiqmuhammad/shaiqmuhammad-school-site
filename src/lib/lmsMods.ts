@@ -1,4 +1,5 @@
 "use client";
+import { siteConfig } from "@/content/site";
 
 import { getServerSession } from "@/lib/adminServer";
 import { dlGrant } from "@/lib/dl";
@@ -100,7 +101,7 @@ export async function pdfTable(opts: { title: string; subtitle?: string; headers
     };
     row(opts.headers, true, 0);
     opts.rows.slice(p * perPage, (p + 1) * perPage).forEach((r, i) => row(r, false, i));
-    c.fillStyle = "#8a97a3"; c.font = `10px ${font}`; c.fillText(`shaiqmuhammad.com · ${new Date().toLocaleDateString("en-GB")} · ${p + 1}/${pages}`, M, H - 16);
+    c.fillStyle = "#8a97a3"; c.font = `10px ${font}`; c.fillText(`${siteConfig.domain} · ${new Date().toLocaleDateString("en-GB")} · ${p + 1}/${pages}`, M, H - 16);
     void n;
     if (p) pdf.addPage();
     pdf.addImage(cv.toDataURL("image/jpeg", 0.92), "JPEG", 0, 0, 842, 595);

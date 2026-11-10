@@ -1,5 +1,6 @@
 "use client";
 
+import { siteConfig } from "@/content/site";
 import { useEffect, useState } from "react";
 import { activityApi, ACTIVITY_LABELS, loadHosted, saveHosted, type HostedActivity } from "@/lib/activity";
 import { qrSvg } from "@/lib/qrLocal";
@@ -117,7 +118,7 @@ export function ClassNames({ names, setNames, hideNames = [] }: { names: string[
         <div className="mb-3 flex flex-wrap items-center gap-4 rounded-2xl bg-sun/30 p-3" data-testid="lobby">
           <span className="rounded-xl bg-white p-1" dangerouslySetInnerHTML={{ __html: qrSvg(`${window.location.origin}/join?code=${lobby.code}`, 132) }} data-testid="lobby-qr" />
           <div className="min-w-0">
-            <p className="text-sm font-bold">{tr("Join at shaiqmuhammad.com → Join, code:", "انضم من shaiqmuhammad.com ← انضم، الرمز:")}</p>
+            <p className="text-sm font-bold">{tr(`Join at ${siteConfig.domain} → Join, code:`, `انضم من ${siteConfig.domain} ← انضم، الرمز:`)}</p>
             <p className="font-mono text-4xl font-black tracking-widest" data-testid="lobby-code">{lobby.code}</p>
             <p className="text-sm">{tr(`${names.length} joined`, `انضم ${names.length}`)}</p>
             <button type="button" className="mt-1 rounded-full bg-header px-3 py-1 text-xs font-bold text-sun" onClick={() => setLobby(null)} data-testid="lobby-close">{tr("Close joining", "إيقاف الانضمام")}</button>

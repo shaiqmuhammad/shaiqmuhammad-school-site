@@ -1,4 +1,5 @@
 "use client";
+import { siteConfig } from "@/content/site";
 import { useEffect, useState } from "react";
 import { AssessmentShell } from "@/components/assessment/AssessmentShell";
 import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
@@ -136,7 +137,7 @@ export function ResultSheet({ r, lang, qr, names = true, paper = "A4" }: { r: { 
             </header>
           )}
           {body}
-          <footer className="flex justify-between bg-[#f5c542] px-6 py-2 text-xs font-bold text-[#1b3a57]"><span>shaiqmuhammad.com</span>{pages.length > 1 && <span data-testid="result-pageno">{tr(`Page ${k + 1} of ${pages.length}`, `صفحة ${k + 1} من ${pages.length}`)}</span>}</footer>
+          <footer className="flex justify-between bg-[#f5c542] px-6 py-2 text-xs font-bold text-[#1b3a57]"><span>{siteConfig.domain}</span>{pages.length > 1 && <span data-testid="result-pageno">{tr(`Page ${k + 1} of ${pages.length}`, `صفحة ${k + 1} من ${pages.length}`)}</span>}</footer>
         </div>
       ))}
     </div>

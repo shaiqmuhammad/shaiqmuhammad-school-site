@@ -1,4 +1,5 @@
 "use client";
+import { siteConfig } from "@/content/site";
 
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -50,7 +51,7 @@ export function ReportPage() {
             )}
           </>
         )}
-        <footer className="pb-4 text-center text-xs opacity-60">{tr("Private read-only report · Questions: contact@shaiqmuhammad.com", "تقرير خاص للقراءة فقط · للاستفسار: contact@shaiqmuhammad.com")}</footer>
+        <footer className="pb-4 text-center text-xs opacity-60">{tr(`Private read-only report · Questions: ${siteConfig.email}`, `تقرير خاص للقراءة فقط · للاستفسار: ${siteConfig.email}`)}</footer>
       </div>
     </main>
   );
