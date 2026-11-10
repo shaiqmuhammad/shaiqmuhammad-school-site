@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { AssessmentShell, primaryBtn } from "@/components/assessment/AssessmentShell";
 import { ClassNames, loadNames, randInt, saveNames } from "@/components/activity/ClassNames";
+import { AbsentHiddenNote, useAbsentFilter } from "@/components/activity/useAbsentFilter";
 import { useI18n } from "@/lib/i18n";
 import { sfxChime, sfxTick } from "@/lib/sfx";
 import { SfxToggle } from "@/components/activity/SfxToggle";
@@ -17,7 +18,9 @@ const SPIN_MS = 5200;
 export function SpinningWheel() {
   const { lang } = useI18n();
   const tr = (en: string, ar: string) => (lang === "ar" ? ar : en);
-  const [names, setNames] = useState<string[]>([]);
+  const [allNames, setAllNames] = useState<string[]>([]);
+  const att = useAbsentFilter(allNames);
+  const names = att.names;
   const [rotation, setRotation] = useState(0);
   const [spinning, setSpinning] = useState(false);
   const [winner, setWinner] = useState<string | null>(null);
@@ -28,7 +31,7 @@ export function SpinningWheel() {
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setNames(loadNames());
+    setAllNames(loadNames());
   }, []);
 
   const n = names.length;
@@ -72,8 +75,8 @@ export function SpinningWheel() {
 
   function closeWinner() {
     if (winner && removeWinner) {
-      const next = names.filter((x) => x !== winner);
-      setNames(next);
+      const next = allNames.filter((x) => x !== winner);
+      setAllNames(next);
       saveNames(next);
     }
     setWinner(null);
@@ -84,7 +87,7 @@ export function SpinningWheel() {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") closeWinner(); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [winner, removeWinner, names]);
+  }, [winner, removeWinner, allNames]);
 
   const R = 200;
   const showLabels = n <= 60;
@@ -167,7 +170,8 @@ export function SpinningWheel() {
         </div>
 
         <aside className="space-y-4" data-focus-hide>
-          <ClassNames names={names} setNames={setNames} />
+          <AbsentHiddenNote hidden={att.hidden} include={att.include} onToggle={() => att.setInclude((v) => !v)} />
+          <ClassNames names={allNames} setNames={setAllNames} hideNames={att.include ? [] : allNames.filter((n) => !names.includes(n))} />
           <div className="glass flex flex-col gap-2 rounded-3xl p-4 text-sm">
                         <label className="inline-flex items-center gap-2 font-semibold">
               <input type="checkbox" checked={removeWinner} onChange={(e) => setRemoveWinner(e.target.checked)} data-testid="wheel-remove-winner" /> ✂️ {tr("Remove the winner after each spin", "إزالة الفائز بعد كل دورة")}

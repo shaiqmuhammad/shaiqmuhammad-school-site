@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { HomeworkEditor } from "@/components/lms/HomeworkEditor";
 import { HwMeta, hwAud } from "@/components/lms/HwMeta";
@@ -61,16 +61,32 @@ function toReview(h: DashHw) {
   return Math.max(0, c.submitted - c.waiting);
 }
 
-/** Fully corrected: every assignee has been approved and nothing is left to review. */
+/** Every assignee has been approved and nothing is left to review — leaves the Assigned tab. */
 function isFullyCorrected(h: DashHw) {
   const assigned = h.assigned ?? 0;
   return assigned > 0 && countsOf(h).approved >= assigned && toReview(h) === 0;
 }
 
 /**
+ * A homework/activity has been corrected if any work on it has been marked done:
+ *  - Quran: a graded submission (including "needs practice" / returned), a resubmission
+ *    that still has a grade, or teacher feedback — those come from lmsApi.corrected().
+ *    approved/returned counts are a fallback when that list isn't loaded yet.
+ *  - General homework and lesson activities: at least one approved submission.
+ * This is the same meaning as the old Corrected list and the per-homework "Corrected" sub-tab,
+ * not "every student has been approved".
+ */
+export function hasCorrectedWork(h: DashHw, quranCorrectedHw?: Set<string>) {
+  if (quranCorrectedHw?.has(h.id)) return true;
+  const c = countsOf(h);
+  if (h.kind === "quran") return c.approved > 0 || c.returned > 0;
+  return c.approved > 0;
+}
+
+/**
  * Homeworks = created but not yet assigned (unassigned or scheduled for later).
- * Assigned homework = live with students (assigned count > 0 and assignAt not in the future), even if no one has started.
- * Corrected Homeworks = every assignee approved, nothing left to review.
+ * Assigned homework = live with students, unless every assignee is already approved.
+ * (The Corrected tab uses hasCorrectedWork and can overlap with Assigned.)
  */
 export function hwBucket(h: DashHw): HwHubTab {
   if (isFullyCorrected(h)) return "corrected";
@@ -136,6 +152,8 @@ export function HwPortionGrid({
   empty,
   onChange,
   extra,
+  openToCorrected = false,
+  correctedCounts,
 }: {
   items: DashHw[];
   chapters: Chapter[];
@@ -144,6 +162,8 @@ export function HwPortionGrid({
   empty: string;
   onChange: () => void;
   extra: { classes: { cls: string; students: number }[]; students: DashStudent[]; catalog?: Catalog; scope?: string[] };
+  openToCorrected?: boolean;
+  correctedCounts?: Record<string, number>;
 }) {
   const { tr, lang } = useTr();
   const { actor } = useLmsActor();
@@ -212,10 +232,13 @@ export function HwPortionGrid({
           <span className="rounded-full bg-slate-200 px-2 py-0.5 text-slate-800 dark:bg-white/10 dark:text-white">{tr("Assigned", "مُسند")} {h.assigned ?? 0}</span>
           <span className="rounded-full bg-amber-100 px-2 py-0.5 text-amber-900">{tr("Submitted", "مُسلَّم")} {c.submitted}</span>
           <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-emerald-900">{tr("Approved", "مقبول")} {c.approved}</span>
+          {(correctedCounts?.[h.id] || (h.kind === "quran" ? c.approved + c.returned : c.approved)) > 0 && (
+            <span className="rounded-full bg-sky-100 px-2 py-0.5 text-sky-900 dark:bg-sky-900/40 dark:text-sky-100" data-testid="hw-corrected-n">✅ {tr("Corrected", "مصحَّح")} {correctedCounts?.[h.id] ?? (h.kind === "quran" ? c.approved + c.returned : c.approved)}</span>
+          )}
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
           {remind && <HwRemindBell hw={h.id} title={h.title} asAdmin={asAdmin} />}
-          <a className={btn + " !py-1"} href={`/lms/homework?id=${h.id}`} data-testid="hw-portion-open">{tr("Open / review", "فتح / مراجعة")}</a>
+          <a className={btn + " !py-1"} href={`/lms/homework?id=${h.id}${openToCorrected ? "#corrected" : ""}`} data-testid="hw-portion-open">{tr("Open / review", "فتح / مراجعة")}</a>
           {canEdit(h) && (
             <button type="button" className={btn + " !py-1"} onClick={() => setEditor(h)} title={tr("Edit", "تعديل")} aria-label={tr("Edit", "تعديل")} data-testid="hw-portion-edit">✎</button>
           )}
@@ -305,7 +328,18 @@ export function TeacherHomeworkHub({
 }) {
   const { tr } = useTr();
   const extra = { classes: dash.classes || [], students: dash.students || [], catalog: dash.catalog, scope: dash.scope };
-  const rows = dash.homework.filter((h) => hwBucket(h) === tab);
+  const [quranCorr, setQuranCorr] = useState<{ ids: Set<string>; n: Record<string, number> }>({ ids: new Set(), n: {} });
+  useEffect(() => {
+    let live = true;
+    lmsApi.corrected(asAdmin).then((r) => {
+      if (!live) return;
+      const n: Record<string, number> = {};
+      for (const x of r.items) n[x.hw] = (n[x.hw] || 0) + 1;
+      setQuranCorr({ ids: new Set(Object.keys(n)), n });
+    }).catch(() => { if (live) setQuranCorr({ ids: new Set(), n: {} }); });
+    return () => { live = false; };
+  }, [asAdmin, dash.homework]);
+  const rows = dash.homework.filter((h) => tab === "corrected" ? hasCorrectedWork(h, quranCorr.ids) : hwBucket(h) === tab);
   const empty =
     tab === "homeworks" ? tr("No homework or activities waiting to be assigned. Once you assign them to students, they move to Assigned homework.", "لا توجد واجبات أو أنشطة بانتظار الإسناد. بعد إسنادها للطلاب تنتقل إلى الواجبات المسندة.")
     : tab === "assigned" ? tr("No assigned homework or activities.", "لا توجد واجبات أو أنشطة مسندة.")
@@ -316,7 +350,7 @@ export function TeacherHomeworkHub({
         <HomeworkHubTabs tab={tab} onTab={onTab} />
         {toolbar}
       </div>
-      <HwPortionGrid items={rows} chapters={chapters} asAdmin={asAdmin} canAssign={canAssign} empty={empty} onChange={onReload} extra={extra} />
+      <HwPortionGrid items={rows} chapters={chapters} asAdmin={asAdmin} canAssign={canAssign} empty={empty} onChange={onReload} extra={extra} openToCorrected={tab === "corrected"} correctedCounts={tab === "corrected" ? { ...Object.fromEntries(rows.map((h) => [h.id, h.kind === "quran" ? 0 : countsOf(h).approved])), ...quranCorr.n } : quranCorr.n} />
     </section>
   );
 }

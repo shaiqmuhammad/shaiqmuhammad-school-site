@@ -11,7 +11,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
 import { LmsDashboard, NeedLogin } from "@/components/lms/LmsDashboard";
-import { HomeworkHubTabs, hwBucket, type DashHw, type HwHubTab } from "@/components/lms/HwHub";
+import { HomeworkHubTabs, hasCorrectedWork, hwBucket, type DashHw, type HwHubTab } from "@/components/lms/HwHub";
 import { AudioClip, AudioRecorder } from "@/components/lms/Audio";
 import { AssessmentShell, primaryBtn } from "@/components/assessment/AssessmentShell";
 import { HomeworkEditor } from "@/components/lms/HomeworkEditor";
@@ -441,11 +441,13 @@ export function LmsHomework() {
   // /lms/homework/ without an id: the separate Homework list page.
   if (!id) return <LmsDashboard only="homework" />;
 
-  const openTab: HwHubTab = d?.homework ? hwBucket({
+  const openHw: DashHw | null = d?.homework ? {
     ...d.homework,
     assigned: (d.subs?.length || 0) + (d.notStarted?.length || 0),
     counts: (d.subs || []).reduce((c, s) => { c[s.status] = (c[s.status] || 0) + 1; return c; }, {} as Record<string, number>),
-  } as DashHw) : "assigned";
+  } as DashHw : null;
+  const fromCorr = typeof window !== "undefined" && window.location.hash === "#corrected";
+  const openTab: HwHubTab = openHw ? (fromCorr && hasCorrectedWork(openHw) ? "corrected" : hwBucket(openHw)) : "assigned";
 
   return (
     <AssessmentShell title={hw?.title || tr("Homework", "واجب")} exitHref={actor?.role === "parent" ? "/lms/family" : "/lms/homework"} wide={staff} toolbar={actor ? <LmsStaffToolbar /> : undefined}>

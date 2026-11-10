@@ -59,10 +59,12 @@ export function shuffled<T>(items: T[]): T[] {
 }
 
 /** Class list editor shared by the wheel and the randomiser: type names, or pull them from a live activity. */
-export function ClassNames({ names, setNames }: { names: string[]; setNames: (n: string[]) => void }) {
+export function ClassNames({ names, setNames, hideNames = [] }: { names: string[]; setNames: (n: string[]) => void; hideNames?: string[] }) {
   const { lang } = useI18n();
   const tr = (en: string, ar: string) => (lang === "ar" ? ar : en);
-  const [text, setText] = useState(names.join("\n"));
+  const visible = hideNames.length ? names.filter((n) => !hideNames.includes(n)) : names;
+  const visKey = visible.join("\n");
+  const [text, setText] = useState(visKey);
   const [hosted, setHosted] = useState<HostedActivity[]>([]);
   const [pick, setPick] = useState("");
   const [msg, setMsg] = useState("");
@@ -74,8 +76,8 @@ export function ClassNames({ names, setNames }: { names: string[]; setNames: (n:
   useEffect(() => {
     // Keep the box in sync when names change elsewhere (e.g. a winner is removed).
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setText((t) => (parseNames(t).join("\n") === names.join("\n") ? t : names.join("\n")));
-  }, [names]);
+    setText((t) => (parseNames(t).join("\n") === visKey ? t : visKey));
+  }, [visKey]);
 
   const apply = (list: string[]) => {
     setNames(list);
@@ -125,7 +127,7 @@ export function ClassNames({ names, setNames }: { names: string[]; setNames: (n:
         <button type="button" className="mb-3 rounded-full bg-sun px-4 py-1.5 text-sm font-bold text-[#0b1b2b]" onClick={openLobby} data-testid="lobby-open">🙋 {tr("Start with random people (code / QR)", "ابدأ مع أشخاص عشوائيين (رمز / QR)")}</button>
       )}
       <label className="block text-sm font-bold" htmlFor="class-names-text">
-        {tr("Names (one per line)", "الأسماء (اسم في كل سطر)")} · <span className="tabular-nums">{names.length}</span>
+        {tr("Names (one per line)", "الأسماء (اسم في كل سطر)")} · <span className="tabular-nums">{visible.length}</span>
       </label>
       <textarea
         id="class-names-text"
@@ -133,7 +135,9 @@ export function ClassNames({ names, setNames }: { names: string[]; setNames: (n:
         value={text}
         onChange={(e) => {
           setText(e.target.value);
-          apply(parseNames(e.target.value));
+          const typed = parseNames(e.target.value);
+          const kept = hideNames.filter((n) => names.includes(n) && !typed.includes(n));
+          apply([...typed, ...kept]);
         }}
         placeholder={tr("Aisha\nBilal\nMaryam", "عائشة\nبلال\nمريم")}
         dir="auto"

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { AssessmentShell, primaryBtn } from "@/components/assessment/AssessmentShell";
 import { ClassNames, loadNames, randInt, shuffled } from "@/components/activity/ClassNames";
+import { AbsentHiddenNote, useAbsentFilter } from "@/components/activity/useAbsentFilter";
 import { useI18n } from "@/lib/i18n";
 import { sfxChime, sfxDrum } from "@/lib/sfx";
 import { SfxToggle } from "@/components/activity/SfxToggle";
@@ -16,7 +17,9 @@ const GROUP_COLORS = ["bg-sky-100 dark:bg-sky-900/40", "bg-amber-100 dark:bg-amb
 export function Randomiser() {
   const { lang } = useI18n();
   const tr = (en: string, ar: string) => (lang === "ar" ? ar : en);
-  const [names, setNames] = useState<string[]>([]);
+  const [allNames, setAllNames] = useState<string[]>([]);
+  const att = useAbsentFilter(allNames);
+  const names = att.names;
   const [mode, setMode] = useState<Mode>("pick");
   // picker
   const [noRepeat, setNoRepeat] = useState(true);
@@ -39,7 +42,7 @@ export function Randomiser() {
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setNames(loadNames());
+    setAllNames(loadNames());
   }, []);
 
   useEffect(() => {
@@ -199,7 +202,8 @@ export function Randomiser() {
           )}
         </div>
         <aside data-focus-hide>
-          <ClassNames names={names} setNames={(l) => { setNames(l); setUsed((u) => u.filter((x) => l.includes(x))); }} />
+          <AbsentHiddenNote hidden={att.hidden} include={att.include} onToggle={() => att.setInclude((v) => !v)} />
+          <ClassNames names={allNames} setNames={(l) => { setAllNames(l); setUsed((u) => u.filter((x) => l.includes(x))); }} hideNames={att.include ? [] : allNames.filter((n) => !names.includes(n))} />
         </aside>
       </div>
       {reveal && (
