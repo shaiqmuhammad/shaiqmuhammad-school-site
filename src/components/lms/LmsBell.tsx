@@ -88,7 +88,7 @@ export function LmsBell({ asAdmin = false, variant = "navy", extra, testId = "lm
       case "message":
         return {
           heading: tr("New message", "رسالة جديدة"),
-          detail: by && title ? `${by}: ${title}` : by ? tr(`from ${by}`, `من ${by}`) : title || undefined,
+          detail: [by && title ? `${by}: ${title}` : by ? tr(`from ${by}`, `من ${by}`) : title, n.data.body].filter(Boolean).join("\n") || undefined,
         };
       case "approved": return { heading: tr(`${t} was approved`, `تم قبول ${t}`) };
       case "act_whiteboard": return { heading: tr(`${by} started a whiteboard: ${t}`, `بدأ ${by} سبورة بيضاء: ${t}`) };
@@ -107,9 +107,9 @@ export function LmsBell({ asAdmin = false, variant = "navy", extra, testId = "lm
       case "hw_reminder":
         return {
           heading: tr("Homework reminder", "تذكير بالواجب"),
-          detail: by
+          detail: [by
             ? tr(`${by}: please complete and submit ${t || title}`, `${by}: يرجى إكمال وتسليم ${t || title}`)
-            : (t || title || undefined),
+            : (t || title || undefined), n.data.body].filter(Boolean).join("\n") || undefined,
         };
       case "hw_shared":
         return {
@@ -230,7 +230,7 @@ export function LmsBell({ asAdmin = false, variant = "navy", extra, testId = "lm
       </button>
       {open && pos && createPortal(
         // Portal on <body> with a top-layer z-index so page headers, drawers and sliders never cover it; full-width sheet on phones.
-        <div ref={panel} dir={ar ? "rtl" : "ltr"} style={pos.mobile ? { top: pos.top } : ar ? { top: pos.top, left: Math.max(8, pos.left) } : { top: pos.top, right: Math.max(8, pos.right) }} className={`fixed z-[2147483000] overflow-hidden ${pos.mobile ? "inset-x-2 rounded-2xl" : "w-80 rounded-2xl"} border border-black/10 bg-white text-start text-sm text-heading shadow-2xl dark:border-white/15 dark:bg-[#13202e] dark:text-white`} role="dialog" aria-label={tr("Notifications", "الإشعارات")} data-testid={`${testId}-panel`}>
+        <div ref={panel} dir={ar ? "rtl" : "ltr"} style={pos.mobile ? { top: pos.top } : ar ? { top: pos.top, left: Math.max(8, pos.left) } : { top: pos.top, right: Math.max(8, pos.right) }} className={`fixed z-[2147483000] overflow-hidden ${pos.mobile ? "inset-x-2 rounded-2xl" : "w-96 max-w-[calc(100vw-1rem)] rounded-2xl"} border border-black/10 bg-white text-start text-sm text-heading shadow-2xl dark:border-white/15 dark:bg-[#13202e] dark:text-white`} role="dialog" aria-label={tr("Notifications", "الإشعارات")} data-testid={`${testId}-panel`}>
           <p className="border-b border-black/5 px-4 py-2.5 font-bold dark:border-white/10">{tr("Notifications", "الإشعارات")}</p>
           <ul className="max-h-[min(24rem,70vh)] overflow-y-auto">
             {extra && extra.count > 0 && (
@@ -247,22 +247,41 @@ export function LmsBell({ asAdmin = false, variant = "navy", extra, testId = "lm
                 </a>
               </li>
             )}
-            {items.map((n) => {
-              const L = lines(n);
+            {(() => {
+              const remindKinds = new Set(["lesson", "reminder", "hw_reminder", "lp_due"]);
+              const full = (n: Note) => {
+                const L = lines(n);
+                const body = (n.data.body || "").trim();
+                const detail = [L.detail, body && body !== L.detail && body !== L.heading ? body : ""].filter(Boolean).join("\n") || undefined;
+                return { ...L, detail };
+              };
+              const row = (n: Note) => {
+                const L = full(n);
+                return (
+                  <li key={n.id}>
+                    <a href={href(n)} className={`flex items-start gap-2 px-4 py-2.5 hover:bg-black/5 dark:hover:bg-white/5 ${n.read ? "" : "bg-sky-50 font-semibold dark:bg-sky-900/30"}`} onClick={() => setOpen(false)} data-testid={`${testId}-item`}>
+                      <span aria-hidden className="shrink-0">{ICON[n.kind] || "🔔"}</span>
+                      <span className="min-w-0 flex-1 whitespace-pre-wrap break-words" dir="auto">
+                        <span className="block">{L.heading}</span>
+                        {L.detail ? <span className="mt-0.5 block text-xs font-normal opacity-80 whitespace-pre-wrap break-words">{L.detail}</span> : null}
+                      </span>
+                      <span className="shrink-0 text-xs opacity-60">{ago(n.created)}</span>
+                    </a>
+                  </li>
+                );
+              };
+              const reminders = items.filter((n) => remindKinds.has(n.kind));
+              const other = items.filter((n) => !remindKinds.has(n.kind));
               return (
-                <li key={n.id}>
-                  <a href={href(n)} className={`flex items-start gap-2 px-4 py-2.5 hover:bg-black/5 dark:hover:bg-white/5 ${n.read ? "" : "bg-sky-50 font-semibold dark:bg-sky-900/30"}`} onClick={() => setOpen(false)} data-testid={`${testId}-item`}>
-                    <span aria-hidden className="shrink-0">{ICON[n.kind] || "🔔"}</span>
-                    <span className="min-w-0 flex-1 whitespace-normal break-words" dir="auto">
-                      <span className="block">{L.heading}</span>
-                      {L.detail ? <span className="mt-0.5 block text-xs font-normal opacity-70">{L.detail}</span> : null}
-                    </span>
-                    <span className="shrink-0 text-xs opacity-60">{ago(n.created)}</span>
-                  </a>
-                </li>
+                <>
+                  {reminders.length > 0 && <li className="px-4 py-1.5 text-[11px] font-extrabold uppercase tracking-wide opacity-60" data-testid={`${testId}-reminders-label`}>{tr("Reminders", "التذكيرات")}</li>}
+                  {reminders.map(row)}
+                  {other.length > 0 && reminders.length > 0 && <li className="px-4 py-1.5 text-[11px] font-extrabold uppercase tracking-wide opacity-60">{tr("Notifications", "الإشعارات")}</li>}
+                  {other.map(row)}
+                  {!items.length && !mail && !(extra && extra.count > 0) && <li className="px-4 py-6 text-center opacity-60">{tr("Nothing new.", "لا جديد.")}</li>}
+                </>
               );
-            })}
-            {!items.length && !mail && !(extra && extra.count > 0) && <li className="px-4 py-6 text-center opacity-60">{tr("Nothing new.", "لا جديد.")}</li>}
+            })()}
           </ul>
         </div>,
         document.body,

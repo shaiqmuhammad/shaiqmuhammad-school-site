@@ -1,11 +1,13 @@
 "use client";
 
 import { LmsTabs } from "@/components/lms/LmsTabs";
+import { LmsBell } from "@/components/lms/LmsBell";
 import { useLmsExit } from "@/lib/useLmsExit";
 import Link from "next/link";
 import { GregPill, HijriPill } from "@/components/DatePills";
-import { lmsRenew } from "@/lib/lms";
-import { useEffect, useRef, type ReactNode } from "react";
+import { getServerSession } from "@/lib/adminServer";
+import { lmsRenew, lmsSession } from "@/lib/lms";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { FocusPill, FullscreenToggle } from "@/components/FullscreenToggle";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -49,6 +51,20 @@ export function alarmBeep(dur = 0.18, freq = 880) {
   } catch { /* ignore */ }
 }
 
+/** Header bell on every LMS / signed-in AssessmentShell page (student, teacher, and admin tools that use this shell). */
+function HeaderBell() {
+  const [mode, setMode] = useState<"lms" | "admin" | null>(null);
+  useEffect(() => {
+    const path = window.location.pathname;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- session is only readable after hydration
+    if (path.startsWith("/admin") && (getServerSession() || lmsSession())) setMode("admin");
+    else if (lmsSession()) setMode("lms");
+    else setMode(null);
+  }, []);
+  if (!mode) return null;
+  return <LmsBell asAdmin={mode === "admin"} variant="navy" />;
+}
+
 export function AssessmentShell({ title, exitHref = "/assessments", onExit, secondsLeft, alarm = false, progress, actions, toolbar, wide = false, children }: Props) {
   const { a } = useAssessmentText();
   const exitTo = useLmsExit(exitHref);
@@ -78,7 +94,7 @@ export function AssessmentShell({ title, exitHref = "/assessments", onExit, seco
       {rail && <LmsTabs />}
       <div className="relative z-10 flex min-w-0 flex-1 flex-col">
       <header data-focus-hide data-frame data-topbar className="sticky top-0 z-30 border-b border-[#0f2438] bg-header pt-[env(safe-area-inset-top)] text-white" data-testid="lms-header">
-        <div className={`mx-auto flex ${wide ? "max-w-[1800px]" : "max-w-5xl"} items-center gap-3 px-3 py-2.5 sm:px-6`}>
+        <div className={`mx-auto flex ${wide ? "max-w-[1800px]" : "max-w-5xl"} min-w-0 items-center gap-2 px-3 py-2.5 sm:gap-3 sm:px-6`}>
           <Link
             href={exitTo}
             onClick={(e) => {
@@ -92,11 +108,11 @@ export function AssessmentShell({ title, exitHref = "/assessments", onExit, seco
               <path d="M6 6l12 12M18 6L6 18" />
             </svg>
           </Link>
-          {rail && <span className="hidden md:inline-flex"><GregPill /></span>}
+          {rail && <span className="hidden md:inline-flex shrink-0"><GregPill /></span>}
           {title ? (
             <p className="min-w-0 flex-1 truncate text-sm font-extrabold text-white sm:text-base">{title}</p>
           ) : (
-            <span className="flex-1" />
+            <span className="min-w-0 flex-1" />
           )}
           {showTimer && (
             <div
@@ -119,16 +135,19 @@ export function AssessmentShell({ title, exitHref = "/assessments", onExit, seco
               <span dir="ltr">{formatClock(secondsLeft as number)}</span>
             </div>
           )}
-          {rail && <span className="hidden md:inline-flex"><HijriPill /></span>}
-          {actions}
-          <FocusPill />
-          <FullscreenToggle />
-          {toolbar ?? (
-            <>
-              <LanguageToggle variant="navy" />
-              <ThemeToggle variant="navy" />
-            </>
-          )}
+          {rail && <span className="hidden md:inline-flex shrink-0"><HijriPill /></span>}
+          <div className="-my-1 flex min-w-0 shrink-0 items-center gap-1.5 overflow-x-auto py-1 [scrollbar-width:none]" data-testid="lms-top-icons">
+            {actions}
+            <HeaderBell />
+            <FocusPill />
+            <FullscreenToggle />
+            {toolbar ?? (
+              <>
+                <LanguageToggle variant="navy" />
+                <ThemeToggle variant="navy" />
+              </>
+            )}
+          </div>
         </div>
         {rail && <div className="flex items-center justify-between gap-2 border-t border-white/10 px-3 py-1.5 md:hidden" data-testid="lms-date-row"><GregPill compact /><HijriPill compact /></div>}
         {progress && progress.total > 0 && (

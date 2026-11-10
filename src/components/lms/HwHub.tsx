@@ -1,13 +1,14 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { HomeworkEditor } from "@/components/lms/HomeworkEditor";
+import { HwMeta, hwAud } from "@/components/lms/HwMeta";
 import { HwRemindBell } from "@/components/lms/HwRemind";
 import { TrkLink } from "@/components/tracker/TrkLink";
 import { btn, cardCls } from "@/components/lms/mods/ModUi";
-import { CorrectedList } from "@/components/lms/mods/CorrectedHomework";
 import { useLmsActor, useTr } from "@/components/lms/useLms";
+import { clsCmp, sortCls } from "@/lib/classSort";
 import { lmsApi, lmsErrorText, type Catalog, type Chapter, type DashStudent, type Homework, type QuranData } from "@/lib/lms";
 import { qhwPerm } from "@/lib/lmsMods";
 
@@ -77,6 +78,21 @@ export function hwBucket(h: DashHw): HwHubTab {
   return "homeworks";
 }
 
+
+function yearOf(h: DashHw) {
+  const years = sortCls(hwAud(h).years.filter(Boolean));
+  if (years.length) return years.join(" · ");
+  return h.students.length ? "__sel" : "__all";
+}
+
+function sectionOf(h: DashHw) {
+  return sortCls(hwAud(h).sections.filter(Boolean)).join(" · ");
+}
+
+function groupKey(h: DashHw) {
+  return `${yearOf(h)}|${sectionOf(h)}`;
+}
+
 export function HwHubTabs({ tab, onTab, className = "" }: { tab: HwHubTab; onTab: (t: HwHubTab) => void; className?: string }) {
   const { tr } = useTr();
   return (
@@ -135,7 +151,34 @@ export function HwPortionGrid({
   const [editor, setEditor] = useState<DashHw | null>(null);
   const [msg, setMsg] = useState("");
   const [bad, setBad] = useState(false);
+  const [yr, setYr] = useState("");
+  const [sec, setSec] = useState("");
   const sn = (n: number) => chapters.find((c) => c.id === n)?.[lang === "ar" ? "name_arabic" : "name_simple"] || `${tr("Surah", "سورة")} ${n}`;
+
+  const years = useMemo(() => sortCls([...new Set(items.flatMap((h) => hwAud(h).years.filter(Boolean)))]), [items]);
+  const shown = useMemo(() => items.filter((h) => {
+    const a = hwAud(h);
+    if (yr && !a.years.includes(yr)) return false;
+    if (sec && !a.sections.includes(sec)) return false;
+    return true;
+  }), [items, yr, sec]);
+  const sections = useMemo(() => sortCls([...new Set(shown.flatMap((h) => hwAud(h).sections.filter(Boolean)))]), [shown]);
+  const groups = useMemo(() => {
+    const map = new Map<string, DashHw[]>();
+    for (const h of shown) {
+      const k = groupKey(h);
+      const list = map.get(k) || [];
+      list.push(h);
+      map.set(k, list);
+    }
+    return [...map.entries()].sort((a, b) => clsCmp(a[0], b[0])).map(([key, rows]) => {
+      const [year, section = ""] = key.split("|");
+      return { key, year, section, rows };
+    });
+  }, [shown]);
+
+  const yearLabel = (y: string) => y === "__sel" ? tr("Selected students", "طلاب محددون") : y === "__all" ? tr("All students", "كل الطلاب") : y;
+  const sectionLabel = (s: string) => s || tr("All sections", "كل الشعب");
 
   const del = async (h: DashHw) => {
     if (!confirm(tr("Delete this homework and all submissions?", "حذف هذا الواجب وكل التسليمات؟"))) return;
@@ -152,6 +195,37 @@ export function HwPortionGrid({
 
   const canEdit = (h: DashHw) => !sharedOnly(h, actor?.id, actor?.role) && (h.kind !== "quran" ? canAssign || actor?.role === "admin" : q.edit);
   const canDel = (h: DashHw) => !sharedOnly(h, actor?.id, actor?.role) && (h.kind !== "quran" ? canAssign || actor?.role === "admin" : q.del);
+
+  const card = (h: DashHw) => {
+    const qd = h.kind === "quran" ? (h.data as QuranData) : null;
+    const c = countsOf(h);
+    const remind = isLive(h) && !isFullyCorrected(h);
+    return (
+      <article key={h.id} className={cardCls} data-testid="hw-portion">
+        <p className="text-lg font-extrabold" dir="auto">{h.kind === "quran" ? "📖" : "📝"} {h.title}</p>
+        {isActivity(h) && <span className="mt-1 inline-flex rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-extrabold text-violet-900 dark:bg-violet-900/40 dark:text-violet-100" data-testid="hw-activity-badge">{tr("Activity", "نشاط")}</span>}
+        {h.kind === "quran" && <TrkLink id={h.id} kind="hw" asAdmin={asAdmin} />}
+        <HwMeta {...hwAud(h)} className="mt-1" />
+        {qd && <p className="text-sm opacity-80">{sn(qd.surah)} · {qd.from}–{qd.to}</p>}
+        {h.due ? <p className="mt-1 text-xs opacity-70">⏰ {new Date(h.due).toLocaleDateString(lang === "ar" ? "ar" : "en-GB")}</p> : null}
+        <p className="mt-2 flex flex-wrap gap-1.5 text-xs font-bold">
+          <span className="rounded-full bg-slate-200 px-2 py-0.5 text-slate-800 dark:bg-white/10 dark:text-white">{tr("Assigned", "مُسند")} {h.assigned ?? 0}</span>
+          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-amber-900">{tr("Submitted", "مُسلَّم")} {c.submitted}</span>
+          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-emerald-900">{tr("Approved", "مقبول")} {c.approved}</span>
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {remind && <HwRemindBell hw={h.id} title={h.title} asAdmin={asAdmin} />}
+          <a className={btn + " !py-1"} href={`/lms/homework?id=${h.id}`} data-testid="hw-portion-open">{tr("Open / review", "فتح / مراجعة")}</a>
+          {canEdit(h) && (
+            <button type="button" className={btn + " !py-1"} onClick={() => setEditor(h)} title={tr("Edit", "تعديل")} aria-label={tr("Edit", "تعديل")} data-testid="hw-portion-edit">✎</button>
+          )}
+          {canDel(h) && (
+            <button type="button" className={btn + " !py-1"} onClick={() => del(h)} title={tr("Delete", "حذف")} aria-label={tr("Delete", "حذف")} data-testid="hw-portion-del">🗑</button>
+          )}
+        </div>
+      </article>
+    );
+  };
 
   return (
     <div className="space-y-3">
@@ -171,36 +245,37 @@ export function HwPortionGrid({
           />
         </div>
       )}
-      {!items.length ? (
+      {!!items.length && (
+        <div className="flex flex-wrap items-center gap-1.5" data-testid="hw-year-filter">
+          <button type="button" aria-pressed={!yr} onClick={() => { setYr(""); setSec(""); }} className={`rounded-full px-3 py-1.5 text-xs font-extrabold ${!yr ? "bg-header text-white" : "bg-white text-[#1b2f44] ring-1 ring-black/10 dark:bg-white/10 dark:text-white"}`} data-testid="hw-year-all">{tr("All years", "كل الصفوف")}</button>
+          {years.map((y) => (
+            <button key={y} type="button" aria-pressed={yr === y} onClick={() => { setYr(yr === y ? "" : y); setSec(""); }} className={`rounded-full px-3 py-1.5 text-xs font-extrabold ${yr === y ? "bg-header text-white" : "bg-white text-[#1b2f44] ring-1 ring-black/10 dark:bg-white/10 dark:text-white"}`} data-testid="hw-year-chip">{y}</button>
+          ))}
+        </div>
+      )}
+      {!!items.length && sections.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5" data-testid="hw-sec-filter">
+          <button type="button" aria-pressed={!sec} onClick={() => setSec("")} className={`rounded-full px-3 py-1.5 text-xs font-extrabold ${!sec ? "bg-[#f5c542] text-[#1b3a57]" : "bg-white text-[#1b2f44] ring-1 ring-black/10 dark:bg-white/10 dark:text-white"}`} data-testid="hw-sec-all">{tr("All sections", "كل الشعب")}</button>
+          {sections.map((s) => (
+            <button key={s} type="button" aria-pressed={sec === s} onClick={() => setSec(sec === s ? "" : s)} className={`rounded-full px-3 py-1.5 text-xs font-extrabold ${sec === s ? "bg-[#f5c542] text-[#1b3a57]" : "bg-white text-[#1b2f44] ring-1 ring-black/10 dark:bg-white/10 dark:text-white"}`} data-testid="hw-sec-chip">{s}</button>
+          ))}
+        </div>
+      )}
+      {!items.length || !shown.length ? (
         <p className={cardCls + " text-center opacity-70"} data-testid="hw-hub-empty">{empty}</p>
       ) : (
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3" data-testid="hw-portion-grid">
-          {items.map((h) => {
-            const qd = h.kind === "quran" ? (h.data as QuranData) : null;
-            const c = countsOf(h);
+        <div className="space-y-6" data-testid="hw-portion-groups">
+          {groups.map((g, i) => {
+            const prev = groups[i - 1];
+            const showYear = !prev || prev.year !== g.year;
             return (
-              <article key={h.id} className={cardCls} data-testid="hw-portion">
-                <p className="text-lg font-extrabold" dir="auto">{h.kind === "quran" ? "📖" : "📝"} {h.title}</p>
-                {isActivity(h) && <span className="mt-1 inline-flex rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-extrabold text-violet-900 dark:bg-violet-900/40 dark:text-violet-100" data-testid="hw-activity-badge">{tr("Activity", "نشاط")}</span>}
-                {h.kind === "quran" && <TrkLink id={h.id} kind="hw" asAdmin={asAdmin} />}
-                {qd && <p className="text-sm opacity-80">{sn(qd.surah)} · {qd.from}–{qd.to}</p>}
-                <p className="mt-1 text-xs opacity-70">{[h.cls, h.section].filter(Boolean).join(" · ") || (h.students.length ? tr("Selected students", "طلاب محددون") : tr("All students", "كل الطلاب"))}{h.due ? ` · ⏰ ${new Date(h.due).toLocaleDateString(lang === "ar" ? "ar" : "en-GB")}` : ""}</p>
-                <p className="mt-2 flex flex-wrap gap-1.5 text-xs font-bold">
-                  <span className="rounded-full bg-slate-200 px-2 py-0.5 text-slate-800 dark:bg-white/10 dark:text-white">{tr("Assigned", "مُسند")} {h.assigned ?? 0}</span>
-                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-amber-900">{tr("Submitted", "مُسلَّم")} {c.submitted}</span>
-                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-emerald-900">{tr("Approved", "مقبول")} {c.approved}</span>
-                </p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <HwRemindBell hw={h.id} title={h.title} asAdmin={asAdmin} />
-                  <a className={btn + " !py-1"} href={`/lms/homework?id=${h.id}`} data-testid="hw-portion-open">{tr("Open / review", "فتح / مراجعة")}</a>
-                  {canEdit(h) && (
-                    <button type="button" className={btn + " !py-1"} onClick={() => setEditor(h)} title={tr("Edit", "تعديل")} aria-label={tr("Edit", "تعديل")} data-testid="hw-portion-edit">✎</button>
-                  )}
-                  {canDel(h) && (
-                    <button type="button" className={btn + " !py-1"} onClick={() => del(h)} title={tr("Delete", "حذف")} aria-label={tr("Delete", "حذف")} data-testid="hw-portion-del">🗑</button>
-                  )}
+              <section key={g.key} className="space-y-3" data-testid="hw-year-group">
+                {showYear && <h3 className="text-lg font-extrabold text-[#1b3a57] dark:text-white" data-testid="hw-year-heading">🏫 {tr("Year", "الصف")}: {yearLabel(g.year)}</h3>}
+                <h4 className="text-sm font-extrabold opacity-80" data-testid="hw-sec-heading">👥 {tr("Section", "الشعبة")}: {sectionLabel(g.section)}</h4>
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3" data-testid="hw-portion-grid">
+                  {g.rows.map(card)}
                 </div>
-              </article>
+              </section>
             );
           })}
         </div>
@@ -229,8 +304,6 @@ export function TeacherHomeworkHub({
   toolbar?: ReactNode;
 }) {
   const { tr } = useTr();
-  const { actor } = useLmsActor();
-  const qOk = actor?.role === "teacher" && qhwPerm(actor?.perms).show && qhwPerm(actor?.perms).view;
   const extra = { classes: dash.classes || [], students: dash.students || [], catalog: dash.catalog, scope: dash.scope };
   const rows = dash.homework.filter((h) => hwBucket(h) === tab);
   const empty =
@@ -243,14 +316,7 @@ export function TeacherHomeworkHub({
         <HomeworkHubTabs tab={tab} onTab={onTab} />
         {toolbar}
       </div>
-      {tab === "corrected" ? (
-        <div className="space-y-6">
-          {qOk && <CorrectedList asAdmin={false} />}
-          <HwPortionGrid items={rows} chapters={chapters} asAdmin={asAdmin} canAssign={canAssign} empty={qOk && !rows.length ? tr("No corrected general homework or activities yet.", "لا توجد واجبات أو أنشطة عامة مصحّحة بعد.") : empty} onChange={onReload} extra={extra} />
-        </div>
-      ) : (
-        <HwPortionGrid items={rows} chapters={chapters} asAdmin={asAdmin} canAssign={canAssign} empty={empty} onChange={onReload} extra={extra} />
-      )}
+      <HwPortionGrid items={rows} chapters={chapters} asAdmin={asAdmin} canAssign={canAssign} empty={empty} onChange={onReload} extra={extra} />
     </section>
   );
 }

@@ -8,7 +8,6 @@ import { Avatar } from "@/components/lms/Avatar";
 import { modCall } from "@/lib/lmsMods";
 import { useRouter } from "next/navigation";
 import { AdminToolbar } from "@/components/AdminToolbar";
-import { LmsBell } from "@/components/lms/LmsBell";
 import { MsgIcon } from "@/components/lms/Messages";
 import { viewAs, lmsSession, lmsSignOut } from "@/lib/lms";
 import { useI18n } from "@/lib/i18n";
@@ -114,7 +113,7 @@ export function LmsStaffToolbar() {
       {who?.role === "student" && <JoinButton lang={lang} />}
       {who && who.role !== "parent" && (
         // t308: "Hello 👋 Teacher/Student <Full name>" (Arabic: Islamic A students see their Arabic name); the avatar opens My account.
-        <span className="min-w-0 max-w-[9.5rem] truncate text-sm font-bold text-white sm:max-w-[22rem]" dir="auto" title={greet} data-testid="lms-greet">{greet}</span>
+        <span className="hidden min-w-0 max-w-[9.5rem] truncate text-sm font-bold text-white sm:inline sm:max-w-[14rem] lg:max-w-[22rem]" dir="auto" title={greet} data-testid="lms-greet">{greet}</span>
       )}
       {who && (
         <Link href="/lms/account" title={`${ar ? "حسابي" : "My account"} · ${who.name}`} aria-label={`${ar ? "حسابي" : "My account"} — ${roleLabel}: ${who.name}`} className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full bg-white/15 ring-2 ring-white/40 transition hover:scale-105 hover:ring-sun" data-testid="lms-who">
@@ -123,7 +122,6 @@ export function LmsStaffToolbar() {
       )}
       <AdminToolbar
         variant="navy"
-        bell={who ? <LmsBell /> : undefined}
         msg={who && who.role !== "parent" ? <MsgIcon href="/lms/messages" /> : undefined}
         onLogout={() => {
           lmsSignOut();
