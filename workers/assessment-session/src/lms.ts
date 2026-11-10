@@ -52,9 +52,12 @@ import { reportHandle } from "./reports";
 import { packHandle, packInit, packSweep, type PackCtx } from "./packs";
 import { renderEmail, renderText } from "./mail/template";
 import { blobStore, sqliteChunkStore, type BlobStore, type StorageEnv } from "./storage";
+import { bkOp } from "./bkstore";
 
 export interface LmsEnv extends AdminEnv, StorageEnv, MailEnv {
   LMS: DurableObjectNamespace<LmsStore>;
+  /** One-time key used to copy LMS data to the paid school Cloudflare account. */
+  MIGRATE_KEY?: string;
   /** base64 of 32 random bytes; enables admin PIN viewing. */
   LMS_PIN_KEY?: string;
   /** Cloudflare Workers AI (free) — draft questions from the curriculum. */
@@ -961,8 +964,86 @@ export class LmsStore extends DurableObject<LmsEnv> {
   }
   private adminSeen() { return Number(this.sql.exec(`SELECT v FROM settings WHERE k='seen:admin'`).toArray()[0]?.v || 0); }
 
+  /** Copy every LMS SQLite table in small pages so we can move the school data to another Cloudflare account. */
+  private cellOut(v: unknown): unknown {
+    if (v == null) return v;
+    if (v instanceof ArrayBuffer || ArrayBuffer.isView(v)) {
+      const u = v instanceof ArrayBuffer ? new Uint8Array(v) : new Uint8Array(v.buffer, v.byteOffset, v.byteLength);
+      let s = "";
+      const step = 0x8000;
+      for (let i = 0; i < u.length; i += step) s += String.fromCharCode(...u.subarray(i, i + step));
+      return { $b64: btoa(s) };
+    }
+    return v;
+  }
+  private cellIn(v: unknown): unknown {
+    if (v && typeof v === "object" && "$b64" in (v as { $b64?: unknown })) {
+      const s = String((v as { $b64: string }).$b64 || "");
+      return Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+    }
+    return v;
+  }
+  private sysTables() {
+    return this.sql.exec(`SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%'`).toArray().map((r) => String(r.name)).filter((n) => /^\w+$/.test(n));
+  }
+  private sysMigrate(action: string, a: Actor, input: Json): Reply {
+    if (a.role !== "admin" || a.viewAs) return { status: 403, body: { error: "admin_only" } };
+    if (action === "sys-restore") {
+      // Tables some modules only create on first use.
+      this.sql.exec(`CREATE TABLE IF NOT EXISTS myacts (code TEXT PRIMARY KEY, owner TEXT, type TEXT, title TEXT, host_key TEXT, created INTEGER)`);
+      this.sql.exec(`CREATE TABLE IF NOT EXISTS stddoc (subject TEXT PRIMARY KEY, name TEXT, mime TEXT, lang TEXT, size INTEGER, at INTEGER)`);
+      this.sql.exec(`CREATE TABLE IF NOT EXISTS stddoc_c (subject TEXT, i INTEGER, data TEXT, PRIMARY KEY (subject, i))`);
+      this.sql.exec(`CREATE TABLE IF NOT EXISTS tt_sent (k TEXT PRIMARY KEY, at INTEGER)`);
+      this.sql.exec(`CREATE TABLE IF NOT EXISTS qa_rep (k TEXT PRIMARY KEY, filters TEXT, data TEXT, by_id TEXT, by_name TEXT, at INTEGER, created INTEGER)`);
+    }
+    const tables = this.sysTables();
+    if (action === "sys-backup") {
+      const table = str(input.table, 80);
+      if (!table) return { status: 200, body: { tables } };
+      if (!tables.includes(table)) return { status: 404, body: { error: "unknown_table" } };
+      const offset = Math.max(0, Math.floor(Number(input.offset) || 0));
+      const def = table === "blob_chunks" || table.includes("chunk") ? 8 : 40;
+      const limit = Math.min(80, Math.max(1, Math.floor(Number(input.limit) || def)));
+      const rows = this.sql.exec(`SELECT * FROM "${table}" LIMIT ? OFFSET ?`, limit, offset).toArray().map((row) => {
+        const out: Record<string, unknown> = {};
+        for (const [k, v] of Object.entries(row)) out[k] = this.cellOut(v);
+        return out;
+      });
+      return { status: 200, body: { table, offset, limit, rows, done: rows.length < limit } };
+    }
+    const table = str(input.table, 80);
+    if (!/^\w+$/.test(table) || !tables.includes(table)) return { status: 400, body: { error: "unknown_table" } };
+    const rows = Array.isArray(input.rows) ? (input.rows as Record<string, unknown>[]) : [];
+    if (input.replace === true || Number(input.offset || 0) === 0) this.sql.exec(`DELETE FROM "${table}"`);
+    let n = 0;
+    for (const row of rows) {
+      if (!row || typeof row !== "object") continue;
+      const cols = Object.keys(row).filter((c) => /^\w+$/.test(c));
+      if (!cols.length) continue;
+      const vals = cols.map((c) => this.cellIn(row[c]));
+      this.sql.exec(`INSERT INTO "${table}" (${cols.map((c) => `"${c}"`).join(",")}) VALUES (${cols.map(() => "?").join(",")})`, ...vals);
+      n++;
+    }
+    this.tsCache.clear();
+    this.stuSubsCache = null;
+    return { status: 200, body: { table, inserted: n } };
+  }
+
+  /** Admin → Backup (see ./backup.ts): page through tables / write them back on restore. Admin checks happen in the worker. */
+  async bk(op: string, input: Json): Promise<Json> {
+    const r = await bkOp(this.ctx.storage, op, input);
+    if (op === "load") { this.tsCache.clear(); this.stuSubsCache = null; this.seenAt.clear(); }
+    return r;
+  }
+  /** Classroom-activity codes the school keeps (for a full backup of each activity). */
+  async bkActCodes(): Promise<string[]> {
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS myacts (code TEXT PRIMARY KEY, owner TEXT, type TEXT, title TEXT, host_key TEXT, created INTEGER)`);
+    return this.sql.exec(`SELECT code FROM myacts ORDER BY created DESC LIMIT 400`).toArray().map((r) => String(r.code)).filter((c) => /^[A-Z0-9]{5}$/.test(c));
+  }
+
   async handle(action: string, a: Actor, input: Json): Promise<Reply> {
-    if (/save|delete|assign|copy|catalog-|import|bulk/.test(action) || (action === "users" && input && (input as Json).users)) { this.tsCache.clear(); this.stuSubsCache = null; }
+    if (/save|delete|assign|copy|catalog-|import|bulk|sys-restore/.test(action) || (action === "users" && input && (input as Json).users)) { this.tsCache.clear(); this.stuSubsCache = null; }
+    if (action === "sys-backup" || action === "sys-restore") return this.sysMigrate(action, a, input);
     if (!a.viewAs) this.presence(a);
     // Per-module Show/Hide for teachers ("hide:<module>" in perms). Hidden modules answer 403 on the server, not just in the menu.
     if (a.role === "teacher") {
@@ -3317,7 +3398,7 @@ export async function handleLms(request: Request, env: LmsEnv, action: string): 
   let body: Json = {};
   if (request.method === "POST") {
     const text = await request.text();
-    if (text.length > (action === "std-doc-save" ? 14_500_000 : action === "wall-post" ? 2_200_000 : /^(lp-(save|work-save)|pg-(save|import))$/.test(action) ? 950_000 : 200_000)) return reply(origin, { error: "too_large" }, 413);
+    if (text.length > (action === "std-doc-save" || action === "sys-restore" ? 14_500_000 : action === "wall-post" ? 2_200_000 : /^(lp-(save|work-save)|pg-(save|import))$/.test(action) ? 950_000 : 200_000)) return reply(origin, { error: "too_large" }, 413);
     try {
       body = JSON.parse(text || "{}") as Json;
     } catch {
@@ -3369,6 +3450,10 @@ export async function handleLms(request: Request, env: LmsEnv, action: string): 
     const q0: Json = { ...Object.fromEntries(new URL(request.url).searchParams), ...body, ip: request.headers.get("CF-Connecting-IP") || "?" };
     const r0 = (await store.vid(action, a0 && !a0.viewAs ? a0 : null, q0)) as unknown as Reply;
     return reply(origin, r0.body, r0.status);
+  }
+  if ((action === "sys-backup" || (action === "sys-restore" && (env as unknown as { MIGRATE_RESTORE?: string }).MIGRATE_RESTORE === "1")) && env.MIGRATE_KEY && request.headers.get("X-Migrate-Key") === env.MIGRATE_KEY) {
+    const r = (await store.handle(action, { id: "admin", role: "admin", name: "Admin", cls: "", perms: [...PERMS] }, body)) as unknown as Reply;
+    return reply(origin, r.body, r.status);
   }
   const actor = await lmsActor(request, env, store);
   if (!actor) return reply(origin, { error: "unauthorized" }, 401);

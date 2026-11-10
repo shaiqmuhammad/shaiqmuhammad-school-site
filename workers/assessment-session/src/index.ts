@@ -39,6 +39,7 @@ import { handleLms, rosterGate, studentIdOf, studentAvatar, type LmsEnv } from "
 import { handleYt, SiteKV, type YtEnv } from "./youtube";
 import { handleCert } from "./cert";
 import { handleContact, handleMail } from "./mail/routes";
+import { handleBackup, scheduledBackup, type BackupEnv } from "./backup";
 import { describeAnswer, describeCorrect, isAnswered, normalizeQuiz, quizMaxScore, scoreQuestion, wordBank, type Quiz, type QuizQuestion } from "../../../src/lib/quiz";
 
 export { AdminGuard } from "./admin";
@@ -577,7 +578,22 @@ export default {
     const url = new URL(request.url);
     const parts = url.pathname.replace(/\/+$/, "").split("/").filter(Boolean);
     // Admin publishing (own CORS: site origins only). See ./admin.ts.
+    if (parts[0] === "api" && parts[1] === "sys" && request.method === "POST") {
+      const mk = (env as unknown as { MIGRATE_KEY?: string }).MIGRATE_KEY;
+      if (!mk || request.headers.get("X-Migrate-Key") !== mk) return json({ error: "not_found" }, 404);
+      const op = parts[2] || "";
+      if (op === "load" && (env as unknown as { MIGRATE_RESTORE?: string }).MIGRATE_RESTORE !== "1") return json({ error: "restore_disabled" }, 403);
+      const inp = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+      const e = env as unknown as Record<string, DurableObjectNamespace>;
+      const which = String(inp.store || "");
+      const nameOf: Record<string, [string, string]> = { results: ["RESULTS", "main"], site: ["SITE", "main"], forum: ["FORUM_QUEUE", "queue"] };
+      const m = nameOf[which];
+      if (!m || !["dump", "load", "count"].includes(op)) return json({ error: "bad_request" }, 400);
+      const stub = e[m[0]].get(e[m[0]].idFromName(m[1])) as unknown as { sys(op: string, i: Record<string, unknown>): Promise<unknown> };
+      return json(await stub.sys(op, inp));
+    }
     if (parts[0] === "api" && parts[1] === "admin") return handleAdmin(request, env, parts[2] || "");
+    if (parts[0] === "api" && parts[1] === "backup") return handleBackup(request, env as unknown as BackupEnv, parts[2] || "");
     if (parts[0] === "api" && parts[1] === "forum") return handleForum(request, env, parts[2] || "");
     if (parts[0] === "api" && parts[1] === "results") return handleResults(request, env, parts[2] || "", (h) => studentIdOf(env as unknown as LmsEnv, h));
     if (parts[0] === "api" && parts[1] === "activity") return handleActivity(request, env, parts);
@@ -632,5 +648,9 @@ export default {
     const stub = env.SESSIONS.get(env.SESSIONS.idFromName(code));
     const reply = (await stub.handle(action, request.method, input)) as unknown as Reply;
     return json(reply.body, reply.status);
+  },
+  /** Daily cron (22:15 UTC = 02:15 Asia/Dubai): runs Admin → Backup when a schedule is saved and due. */
+  async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    ctx.waitUntil(scheduledBackup(env as unknown as BackupEnv, controller.scheduledTime));
   },
 };
