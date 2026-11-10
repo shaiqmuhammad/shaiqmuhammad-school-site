@@ -10,6 +10,7 @@ import { PwaInstall } from "@/components/PwaInstall";
 import { siteConfig } from "@/content/site";
 import { langInitScript } from "@/lib/langStorage";
 import { SiteBrandProvider } from "@/components/SiteBrand";
+import { SiteIdentityProvider } from "@/components/SiteIdentity";
 import { brandUrl } from "@/lib/siteSettings";
 import { loadSiteSettingsSync } from "@/lib/siteSettingsServer";
 import "./globals.css";
@@ -83,6 +84,7 @@ export default function RootLayout({
       </head>
       <body className="flex min-h-full flex-col bg-background text-foreground">
         <ThemeProvider>
+          <SiteIdentityProvider>
           <SiteBrandProvider brand={brand} social={settings.social}>
             <AnnouncementTicker />
             <div data-focus-hide className="contents"><Header /></div>
@@ -91,6 +93,7 @@ export default function RootLayout({
             <FullscreenKeeper />
             <PwaInstall />
           </SiteBrandProvider>
+          </SiteIdentityProvider>
         </ThemeProvider>
       </body>
     </html>

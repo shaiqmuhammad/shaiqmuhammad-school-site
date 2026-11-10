@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { isImmersivePath } from "@/lib/immersive";
 import { useEffect, useRef, useState } from "react";
-import { navLinks, resourceLinks, siteConfig, type ResourceLink } from "@/content/site";
+import { navLinks, resourceLinks, type ResourceLink } from "@/content/site";
 import { HadithScrollIcon, QuranBookIcon } from "@/components/EncyclopediaIcons";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -12,6 +12,7 @@ import { InstallAppButton } from "@/components/PwaInstall";
 import { useI18n } from "@/lib/i18n";
 import { useDynNav } from "@/lib/dynNav";
 import { useLogoUrl } from "@/components/SiteBrand";
+import { useSiteName, useSiteTagline } from "@/components/SiteIdentity";
 import { LmsHeaderButton } from "@/components/lms/LmsEntry";
 
 const samePath = (pathname: string, href: string) => pathname.replace(/\/$/, "") === href || pathname.startsWith(href + "/");
@@ -133,6 +134,8 @@ export function Header() {
   const [open, setOpen] = useState(false);
   const [resOpen, setResOpen] = useState(() => resourceLinks.some((r) => samePath(pathname || "", r.href)));
   const { t, lang } = useI18n();
+  const siteName = useSiteName();
+  const siteTagline = useSiteTagline();
   const resLinks = useResourceLinks();
   const dynTop = useDynNav().top;
   const logoUrl = useLogoUrl();
@@ -158,9 +161,9 @@ export function Header() {
           />
           <span className="min-w-0 leading-tight max-[419px]:sr-only">
             <span className="block text-[13px] font-extrabold tracking-tight text-white group-hover:text-sun sm:whitespace-nowrap sm:text-base">
-              {siteConfig.name}
+              {siteName}
             </span>
-            <span className="hidden whitespace-nowrap text-xs text-white/70 sm:block lg:hidden xl:block">{t("header.tagline")}</span>
+            <span className="hidden whitespace-nowrap text-xs text-white/70 sm:block lg:hidden xl:block">{siteTagline || t("header.tagline")}</span>
           </span>
         </Link>
 

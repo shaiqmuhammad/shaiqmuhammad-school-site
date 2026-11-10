@@ -193,7 +193,7 @@ export default function AdminSettings({ siteSettings, setSiteSettings, setStatus
       </div>
 
       <Block title={tr("Admin login", "دخول المشرف")}>
-        <p className="text-sm text-muted">Private URL: <code>/admin/login</code> (not linked anywhere on the public site — bookmark it). Password is checked against a SHA-256 hash (ADMIN_PASSWORD_SHA256 in src/lib/adminAuth.ts, or NEXT_PUBLIC_ADMIN_PASSWORD_HASH env). No plaintext password is stored in the code. Signing in is remembered on this device for 30 days (every tab); use “Log out” to end it.</p>
+        <p className="text-sm text-muted">Private URL: <code>/admin/login</code> (not linked anywhere on the public site — bookmark it). The password is checked only by the school server and stored there as a salted, slow hash — nothing about it is in the website code. Sign-ins last 12 hours without use (7 days at most). Change the password, turn on two-step sign-in and see recent sign-ins in the gear menu → Security.</p>
       </Block>
     </section>
   );

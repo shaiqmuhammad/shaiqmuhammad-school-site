@@ -7,10 +7,13 @@ import { encyclopediaLinks, footerLinks, siteConfig } from "@/content/site";
 import { useI18n } from "@/lib/i18n";
 import { useDynNav } from "@/lib/dynNav";
 import { SocialLinks } from "@/components/SocialLinks";
+import { useSiteName, useSiteTagline } from "@/components/SiteIdentity";
 
 export function Footer() {
   const pathname = usePathname();
   const { t } = useI18n();
+  const siteName = useSiteName();
+  const siteTagline = useSiteTagline();
   const dynFooter = useDynNav().footer;
   if (pathname.startsWith("/admin")) return null;
   if (isImmersivePath(pathname)) return null;
@@ -20,8 +23,8 @@ export function Footer() {
     <footer className="mt-auto bg-footer text-white/80">
       <div className="mx-auto grid max-w-6xl gap-10 px-4 py-12 sm:px-6 md:grid-cols-3">
         <div>
-          <p className="text-lg font-extrabold text-white">{siteConfig.name}</p>
-          <p className="mt-2 text-sm text-white/75">{t("footer.tagline", siteConfig.tagline)}</p>
+          <p className="text-lg font-extrabold text-white">{siteName}</p>
+          <p className="mt-2 text-sm text-white/75">{siteTagline || t("footer.tagline", siteConfig.tagline)}</p>
           <p className="mt-3 text-sm text-white/75">{t("footer.location", siteConfig.location)}</p>
           <SocialLinks className="mt-4" />
         </div>
