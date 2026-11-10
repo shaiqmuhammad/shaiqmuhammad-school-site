@@ -138,7 +138,7 @@ export default function AdminBackup() {
     <section className="space-y-6" data-testid="admin-backup">
       <div>
         <h2>{tr("Backup", "النسخ الاحتياطي")}</h2>
-        <p className="mt-1 max-w-3xl text-sm text-muted">{tr("A backup is a copy of the live school system (and, if you choose, all school data) that you can keep and use to put things back later. The website code itself is already kept safely in GitHub, so this page does not download the website files.", "النسخة الاحتياطية نسخة من نظام المدرسة الحالي (ومن كل بيانات المدرسة إن اخترت) تحتفظ بها لتعيد الأمور لاحقًا. شيفرة الموقع نفسها محفوظة في GitHub، لذلك لا تنزّل هذه الصفحة ملفات الموقع.")}</p>
+        <p className="mt-1 max-w-3xl text-sm text-muted">{tr("A backup is a copy of the live school system (and, if you choose, all school data) that you can keep and use to put things back later. The website code itself is already kept safely in GitHub — including the logo, favicon and settings.json — so this page does not download the website files.", "النسخة الاحتياطية نسخة من نظام المدرسة الحالي (ومن كل بيانات المدرسة إن اخترت) تحتفظ بها لتعيد الأمور لاحقًا. شيفرة الموقع نفسها محفوظة في GitHub — بما فيها الشعار وأيقونة المتصفح وsettings.json — لذلك لا تنزّل هذه الصفحة ملفات الموقع.")}</p>
       </div>
       {loadErr && <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-800 dark:bg-rose-950/40 dark:text-rose-200" role="alert">{loadErr}</p>}
 

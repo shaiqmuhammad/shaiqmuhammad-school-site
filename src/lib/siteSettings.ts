@@ -1,3 +1,5 @@
+import { SITE_FAVICON, SITE_LOGO } from "@/lib/deployment";
+
 export type SiteSettings = {
   tawkPropertyId: string;
   tawkWidgetId: string;
@@ -14,9 +16,9 @@ export type SocialKey = (typeof SOCIAL_KEYS)[number];
 export type SocialLinks = Record<SocialKey, string>;
 
 export type BrandSettings = {
-  /** Site path of the uploaded logo, e.g. "/brand/logo.png". "" = default /logo.svg. */
+  /** Site path of the uploaded logo, e.g. "/brand/logo.png". "" = this deployment's default logo. */
   logoPath: string;
-  /** Site path of the uploaded favicon source, e.g. "/brand/favicon.svg". "" = default icons. */
+  /** Site path of the uploaded favicon source, e.g. "/brand/favicon.svg". "" = this deployment's default favicon. */
   faviconPath: string;
   /** 512px PNG rendered in the browser from the favicon upload (used by scripts/gen-icons.mjs). */
   faviconPngPath: string;
@@ -24,7 +26,8 @@ export type BrandSettings = {
   version: string;
 };
 
-export const DEFAULT_LOGO_URL = "/logo.svg";
+export const DEFAULT_LOGO_URL = SITE_LOGO;
+export const DEFAULT_FAVICON_URL = SITE_FAVICON;
 export const BRAND_DIR = "public/brand";
 
 export const emptySocial: SocialLinks = { facebook: "", instagram: "", tiktok: "", x: "", linkedin: "" };

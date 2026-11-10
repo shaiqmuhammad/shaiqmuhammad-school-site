@@ -19,7 +19,7 @@ export function useSiteBrand(): SiteBrand {
   return useContext(SiteBrandContext);
 }
 
-/** Uploaded logo (cache-busted) or the built-in /logo.svg. */
+/** Uploaded logo (cache-busted) or this deployment's default logo. */
 export function useLogoUrl(): string {
   const { brand } = useSiteBrand();
   return brandUrl(brand.logoPath, brand.version, DEFAULT_LOGO_URL);

@@ -8,8 +8,15 @@
  *   NEXT_PUBLIC_DEFAULT_HOST       main address used for links until Admin picks another
  *   NEXT_PUBLIC_SITE_ADDRESSES     comma list of addresses that belong to this site (shown in Admin → Main address)
  *   NEXT_PUBLIC_SITE_NAME / _NAME_AR / _SHORT_NAME / _TAGLINE / _EMAIL / _DOMAIN   built-in name and contact
+ *   NEXT_PUBLIC_LOGO_URL / NEXT_PUBLIC_FAVICON_URL   default logo and favicon when settings.json brand paths are empty
  */
 const env = (v: string | undefined, def: string) => (v === undefined || v === "" ? def : v);
+
+/** Root-relative public path only (e.g. /logo.svg). Anything else falls back to the default. */
+function publicPath(v: string | undefined, def: string): string {
+  const raw = env(v, def);
+  return /^\/[A-Za-z0-9._/-]+$/.test(raw) && !raw.includes("..") ? raw : def;
+}
 
 export const SITE_ID = env(process.env.NEXT_PUBLIC_SITE_ID, "shaiqmuhammad-school-site");
 export const IS_SCHOOL = SITE_ID === "shaiqmuhammad-school-site";
@@ -28,3 +35,9 @@ export const SITE_TEXT = {
   tagline: env(process.env.NEXT_PUBLIC_SITE_TAGLINE, "A calm learning home for students of Shaiq Muhammad"),
   email: env(process.env.NEXT_PUBLIC_SITE_EMAIL, "contact@shaiqmuhammad.com"),
 };
+
+/** Default logo / favicon for this deployment when settings.json has empty brand.logoPath / faviconPath.
+ *  A site copy can overlay public/logo.svg and public/favicon.svg, and/or set these env vars. */
+export const SITE_LOGO = publicPath(process.env.NEXT_PUBLIC_LOGO_URL, "/logo.svg");
+export const SITE_FAVICON = publicPath(process.env.NEXT_PUBLIC_FAVICON_URL, "/favicon.svg");
+

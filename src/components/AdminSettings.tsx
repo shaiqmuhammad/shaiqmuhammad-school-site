@@ -4,10 +4,10 @@ import { useEffect, useState, type ReactNode } from "react";
 import { GITHUB_BRANCH, GITHUB_REPO } from "@/lib/content";
 import { setAdminAuthenticated } from "@/lib/adminAuth";
 import { getServerSession, serverReachable } from "@/lib/adminServer";
-import { clearStoredGithubToken, downloadJson, getStoredGithubToken, isServerPublishing, publishBinaryToGithub, publishJsonToGithub, setStoredGithubToken } from "@/lib/githubPublish";
+import { clearStoredGithubToken, downloadJson, getStoredGithubToken, isServerPublishing, publishJsonToGithub, setStoredGithubToken } from "@/lib/githubPublish";
 import { useI18n } from "@/lib/i18n";
 import {
-  BRAND_DIR, brandUrl, DEFAULT_LOGO_URL, GITHUB_SETTINGS_PATH, normalizeSettings, safeSocialUrl,
+  GITHUB_SETTINGS_PATH, normalizeSettings, safeSocialUrl,
   SOCIAL_KEYS, type SiteSettings, type SocialKey,
 } from "@/lib/siteSettings";
 
@@ -42,40 +42,18 @@ export default function AdminSettings({ siteSettings, setSiteSettings, setStatus
   const session = viaServer ? getServerSession() : null;
   const [busy, setBusy] = useState(false);
 
-  const [pending, setPending] = useState<{ logo: PendingImage | null; favicon: PendingImage | null }>({ logo: null, favicon: null });
-
-  /** Commits pending logo/favicon uploads (Contents API, base64), then settings.json with their paths. */
+  /** Publishes chat/social and the current settings.json (logo paths stay as already saved). */
   async function publishSettings() {
     const token = getStoredGithubToken();
     if (!token) { setStatus("Publishing isn't connected on this device. Sign out and sign in again."); return; }
     setBusy(true);
     const next = normalizeSettings(siteSettings);
-    let uploaded = false;
     try {
-      for (const kind of ["logo", "favicon"] as const) {
-        const img = pending[kind];
-        if (!img) continue;
-        const file = `${kind}.${img.ext}`;
-        setStatus(`Uploading ${BRAND_DIR}/${file}…`);
-        const r = await publishBinaryToGithub(`${BRAND_DIR}/${file}`, img.dataUrl, token, `chore(brand): upload ${kind} via admin`);
-        if (!r.ok) { setStatus(`${kind} upload failed: ${r.error}`); return; }
-        if (kind === "logo") next.brand.logoPath = `/brand/${file}`;
-        else {
-          next.brand.faviconPath = `/brand/${file}`;
-          setStatus(`Uploading ${BRAND_DIR}/favicon-512.png…`);
-          const r2 = await publishBinaryToGithub(`${BRAND_DIR}/favicon-512.png`, img.png512, token, "chore(brand): upload favicon-512.png via admin");
-          if (!r2.ok) { setStatus(`favicon PNG upload failed: ${r2.error}`); return; }
-          next.brand.faviconPngPath = "/brand/favicon-512.png";
-        }
-        uploaded = true;
-      }
-      if (uploaded) next.brand.version = Date.now().toString(36);
       setStatus("Publishing settings.json…");
       const r = await publishJsonToGithub(GITHUB_SETTINGS_PATH, next, token, "chore(settings): update settings.json via admin");
       if (!r.ok) { setStatus(r.error || "failed"); return; }
       setSiteSettings(next);
-      setPending({ logo: null, favicon: null });
-      setStatus(`Published ${GITHUB_SETTINGS_PATH}${uploaded ? " and brand images" : ""}. Site rebuilds in ~2–5 min. ${r.htmlUrl || ""}`);
+      setStatus(`Published ${GITHUB_SETTINGS_PATH}. Site rebuilds in ~2–5 min. ${r.htmlUrl || ""}`);
     } catch (e) {
       setStatus(`Publish failed: ${e instanceof Error ? e.message : String(e)} (check your connection).`);
     } finally {
@@ -84,17 +62,6 @@ export default function AdminSettings({ siteSettings, setSiteSettings, setStatus
   }
 
   const setSocial = (k: SocialKey, v: string) => setSiteSettings({ ...siteSettings, social: { ...siteSettings.social, [k]: v } });
-  const resetBrand = (kind: "logo" | "favicon") => {
-    setPending((p) => ({ ...p, [kind]: null }));
-    setSiteSettings({
-      ...siteSettings,
-      brand: kind === "logo"
-        ? { ...siteSettings.brand, logoPath: "" }
-        : { ...siteSettings.brand, faviconPath: "", faviconPngPath: "" },
-    });
-    setStatus(`${kind === "logo" ? "Logo" : "Favicon"} set back to the default — press “Publish settings” to apply.`);
-  };
-  const pendingCount = (pending.logo ? 1 : 0) + (pending.favicon ? 1 : 0);
 
   return (
     <section className="space-y-10">
@@ -155,35 +122,9 @@ export default function AdminSettings({ siteSettings, setSiteSettings, setStatus
         </div>
       </Block>
 
-      <Block title={tr("Branding", "الهوية البصرية")}>
-        <p className="text-xs text-muted">{tr("PNG, JPG or SVG, up to 1 MB. Use a square image, ideally 512 × 512 px. Files are committed to public/brand/ when you press “Publish settings”.", "PNG أو JPG أو SVG حتى ١ ميغابايت. استخدم صورة مربعة، ويفضل ٥١٢ × ٥١٢ بكسل. تُرفع الملفات إلى public/brand/ عند الضغط على «نشر الإعدادات».")}</p>
-        <div className="grid gap-4 md:grid-cols-2">
-          <BrandUpload
-            kind="logo"
-            title={tr("Logo", "الشعار")}
-            hint={tr("Header, admin sidebar and the default teacher photo. Shown in a circle — keep the subject centred.", "يظهر في رأس الموقع ولوحة الإدارة وصورة المعلم الافتراضية داخل دائرة — اجعل العنصر في المنتصف.")}
-            currentUrl={brandUrl(siteSettings.brand.logoPath, siteSettings.brand.version, DEFAULT_LOGO_URL)}
-            isCustom={!!siteSettings.brand.logoPath}
-            pending={pending.logo}
-            onPick={(img) => setPending((p) => ({ ...p, logo: img }))}
-            onReset={() => resetBrand("logo")}
-            onError={setStatus}
-          />
-          <BrandUpload
-            kind="favicon"
-            title={tr("Favicon", "أيقونة المتصفح")}
-            hint={tr("Browser tab + iPhone/iPad home-screen icon. A simple, bold shape reads best at 32 px.", "أيقونة علامة التبويب والشاشة الرئيسية في iPhone/iPad. الشكل البسيط الواضح أفضل عند ٣٢ بكسل.")}
-            currentUrl={brandUrl(siteSettings.brand.faviconPath, siteSettings.brand.version, "/favicon.svg")}
-            isCustom={!!siteSettings.brand.faviconPath}
-            pending={pending.favicon}
-            onPick={(img) => setPending((p) => ({ ...p, favicon: img }))}
-            onReset={() => resetBrand("favicon")}
-            onError={setStatus}
-          />
-        </div>
-        {pendingCount > 0 && (
-          <p className="rounded-lg bg-gold-soft px-3 py-2 text-sm" data-testid="brand-pending">{tr(`${pendingCount} new image(s) ready — press “Publish settings” to upload.`, `${pendingCount} صورة جديدة جاهزة — اضغط «نشر الإعدادات» للرفع.`)}</p>
-        )}
+      <Block title={tr("Logo and site identity", "الشعار وهوية الموقع")}>
+        <p className="text-sm text-muted">{tr("The logo, favicon, site name and colours all live in one place: the gear menu → Site & branding.", "الشعار وأيقونة المتصفح واسم الموقع والألوان كلها في مكان واحد: قائمة الترس ← الموقع والهوية.")}</p>
+        <a href="#branding" className={btnGhost + " inline-block"} data-testid="open-site-branding">{tr("Open Site & branding", "فتح الموقع والهوية")}</a>
       </Block>
 
       <div className="flex flex-wrap gap-2">
@@ -204,101 +145,6 @@ const SOCIAL_PLACEHOLDER: Record<SocialKey, string> = {
   facebook: "https://facebook.com/…", instagram: "https://instagram.com/…", tiktok: "https://tiktok.com/@…",
   x: "https://x.com/…", linkedin: "https://linkedin.com/in/…",
 };
-
-type PendingImage = { dataUrl: string; ext: "png" | "jpg" | "svg"; name: string; width: number; height: number; bytes: number; png512: string };
-
-const MAX_BYTES = 1024 * 1024;
-const TYPES: Record<string, PendingImage["ext"]> = { "image/png": "png", "image/jpeg": "jpg", "image/svg+xml": "svg" };
-
-function readAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(String(r.result));
-    r.onerror = () => reject(r.error);
-    r.readAsDataURL(file);
-  });
-}
-
-/** Draws the image centred ("contain") on a transparent square canvas → PNG data URL. */
-async function toSquarePng(dataUrl: string, size = 512): Promise<{ png: string; width: number; height: number }> {
-  const img = new Image();
-  img.src = dataUrl;
-  await img.decode();
-  const w = img.naturalWidth || size;
-  const h = img.naturalHeight || size;
-  const canvas = document.createElement("canvas");
-  canvas.width = canvas.height = size;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("Canvas not available");
-  const scale = Math.min(size / w, size / h);
-  const dw = w * scale, dh = h * scale;
-  ctx.imageSmoothingQuality = "high";
-  ctx.drawImage(img, (size - dw) / 2, (size - dh) / 2, dw, dh);
-  return { png: canvas.toDataURL("image/png"), width: img.naturalWidth, height: img.naturalHeight };
-}
-
-function BrandUpload({ kind, title, hint, currentUrl, isCustom, pending, onPick, onReset, onError }: {
-  kind: "logo" | "favicon"; title: string; hint: string; currentUrl: string; isCustom: boolean;
-  pending: PendingImage | null; onPick: (img: PendingImage | null) => void; onReset: () => void; onError: (s: string) => void;
-}) {
-  const { lang } = useI18n();
-  const tr = (en: string, ar: string) => (lang === "ar" ? ar : en);
-  const preview = pending?.dataUrl || currentUrl;
-
-  async function pick(file: File | undefined) {
-    if (!file) return;
-    const ext = TYPES[file.type] || (/\.svg$/i.test(file.name) ? "svg" : /\.png$/i.test(file.name) ? "png" : /\.jpe?g$/i.test(file.name) ? "jpg" : undefined);
-    if (!ext) { onError(`${file.name}: please choose a PNG, JPG or SVG image.`); return; }
-    if (file.size > MAX_BYTES) { onError(`${file.name} is ${(file.size / 1024 / 1024).toFixed(1)} MB — please use an image under 1 MB.`); return; }
-    try {
-      const dataUrl = await readAsDataUrl(file);
-      const { png, width, height } = await toSquarePng(dataUrl);
-      onPick({ dataUrl, ext, name: file.name, width, height, bytes: file.size, png512: png });
-    } catch {
-      onError(`${file.name} could not be read as an image.`);
-    }
-  }
-
-  const warn: string[] = [];
-  if (pending && pending.ext !== "svg") {
-    if (pending.width && pending.height && Math.abs(pending.width - pending.height) > 2) warn.push(tr("Not square — it will be centred with empty space.", "الصورة ليست مربعة — ستُوسَّط مع فراغ."));
-    if (Math.min(pending.width, pending.height) < 512) warn.push(tr(`Only ${pending.width}×${pending.height}px — 512×512 or larger looks sharper.`, `الأبعاد ${pending.width}×${pending.height} فقط — ٥١٢×٥١٢ أو أكبر أوضح.`));
-  }
-
-  return (
-    <div className="rounded-xl border border-card-border p-4" data-testid={`brand-${kind}`}>
-      <div className="flex items-start gap-4">
-        <div className="flex shrink-0 flex-col items-center gap-2">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={preview} alt="" width={80} height={80} className={`h-20 w-20 bg-accent-soft object-cover ${kind === "logo" ? "rounded-full" : "rounded-lg object-contain p-1"}`} data-testid={`brand-${kind}-preview`} />
-          {kind === "favicon" && (
-            <div className="flex items-end gap-2" aria-hidden>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={pending?.png512 || preview} alt="" width={16} height={16} className="h-4 w-4 object-contain" />
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={pending?.png512 || preview} alt="" width={32} height={32} className="h-8 w-8 object-contain" />
-            </div>
-          )}
-        </div>
-        <div className="min-w-0 flex-1 space-y-2">
-          <p className="font-medium">{title} <span className="text-xs font-normal text-muted">· {pending ? tr("new (not yet published)", "جديد (لم يُنشر بعد)") : isCustom ? tr("custom", "مخصص") : tr("default", "افتراضي")}</span></p>
-          <p className="text-xs text-muted">{hint}</p>
-          <p className="text-xs text-muted">{tr("Recommended: square, 512 × 512 px, PNG/JPG/SVG, max 1 MB.", "المقترح: مربعة ٥١٢ × ٥١٢ بكسل، PNG/JPG/SVG، بحد أقصى ١ ميغابايت.")}</p>
-          {pending && <p className="break-all text-xs">{pending.name} · {pending.ext.toUpperCase()}{pending.ext !== "svg" ? ` · ${pending.width}×${pending.height}px` : ""} · {Math.ceil(pending.bytes / 1024)} KB</p>}
-          {warn.map((w) => <p key={w} className="text-xs text-amber-700 dark:text-amber-400">{w}</p>)}
-          <div className="flex flex-wrap gap-2 pt-1">
-            <label className={btnGhost + " cursor-pointer"}>
-              {tr("Upload…", "رفع…")}
-              <input type="file" accept="image/png,image/jpeg,image/svg+xml,.png,.jpg,.jpeg,.svg" className="sr-only" data-testid={`brand-${kind}-input`} onChange={(e) => { void pick(e.target.files?.[0]); e.target.value = ""; }} />
-            </label>
-            {pending && <button type="button" className={btnGhost} onClick={() => onPick(null)}>{tr("Cancel", "إلغاء")}</button>}
-            {(isCustom || pending) && <button type="button" className={btnGhost} onClick={onReset} data-testid={`brand-${kind}-reset`}>{tr("Reset to default", "إعادة الافتراضي")}</button>}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function Block({ title, children }: { title: string; children: ReactNode }) {
   return (

@@ -11,7 +11,7 @@ import { siteConfig } from "@/content/site";
 import { langInitScript } from "@/lib/langStorage";
 import { SiteBrandProvider } from "@/components/SiteBrand";
 import { SiteIdentityProvider } from "@/components/SiteIdentity";
-import { brandUrl } from "@/lib/siteSettings";
+import { brandUrl, DEFAULT_FAVICON_URL } from "@/lib/siteSettings";
 import { loadSiteSettingsSync } from "@/lib/siteSettingsServer";
 import "./globals.css";
 
@@ -41,7 +41,7 @@ const svgIcon = brand.faviconPath
   ? brand.faviconPath.endsWith(".svg")
     ? [{ url: brandUrl(brand.faviconPath, brand.version, ""), type: "image/svg+xml" }]
     : []
-  : [{ url: "/favicon.svg", type: "image/svg+xml" }];
+  : [{ url: DEFAULT_FAVICON_URL, type: "image/svg+xml" }];
 const v = brand.faviconPath && brand.version ? `?v=${encodeURIComponent(brand.version)}` : "";
 
 // Opaque phone status-bar colour (updated per page by <ThemeColor />); content never shows through it.

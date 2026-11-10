@@ -438,7 +438,7 @@ export default function AdminCms() {
         )}
         {tab==="backup" && <AdminBackup />}
         {tab==="security" && <AdminSecurity />}
-        {tab==="branding" && <AdminBranding />}
+        {tab==="branding" && <AdminBranding siteSettings={siteSettings} setSiteSettings={setSiteSettings} setStatus={setStatus} hasToken={hasToken} />}
         {tab==="settings" && (
           <AdminSettings
             siteSettings={siteSettings}

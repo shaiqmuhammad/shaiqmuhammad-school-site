@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { securityCall } from "@/lib/adminServer";
+import { BrandUpload, type PendingImage } from "@/components/BrandUpload";
+import { downloadJson, getStoredGithubToken, publishBinaryToGithub, publishJsonToGithub } from "@/lib/githubPublish";
 import { useI18n } from "@/lib/i18n";
 import { siteConfig } from "@/content/site";
 import { applyThemeCss } from "@/components/SiteIdentity";
@@ -10,6 +12,10 @@ import {
   allPresets, cacheIdentity, cachedIdentity, contrastWarnings, DEFAULT_HEADER, DEFAULT_SUN, emptyIdentity, fetchIdentity,
   normalizeIdentity, THEME_PRESETS, themeCss, type SiteIdentity,
 } from "@/lib/siteIdentity";
+import {
+  BRAND_DIR, brandUrl, DEFAULT_FAVICON_URL, DEFAULT_LOGO_URL, GITHUB_SETTINGS_PATH, normalizeSettings,
+  type SiteSettings,
+} from "@/lib/siteSettings";
 
 function Card({ title, children, testid }: { title: string; children: ReactNode; testid?: string }) {
   return (
@@ -23,7 +29,14 @@ const input = "mt-1 w-full rounded-xl border border-card-border bg-card-solid px
 const btn = "rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50";
 const btn2 = "rounded-full border border-card-border px-4 py-2 text-sm font-semibold hover:bg-black/[0.04] dark:hover:bg-white/10 disabled:opacity-50";
 
-export default function AdminBranding() {
+type Props = {
+  siteSettings: SiteSettings;
+  setSiteSettings: Dispatch<SetStateAction<SiteSettings>>;
+  setStatus: (s: string) => void;
+  hasToken: boolean;
+};
+
+export default function AdminBranding({ siteSettings, setSiteSettings, setStatus, hasToken }: Props) {
   const { lang } = useI18n();
   const ar = lang === "ar";
   const tr = (en: string, a: string) => (ar ? a : en);
@@ -31,6 +44,8 @@ export default function AdminBranding() {
   const [d, setD] = useState<SiteIdentity>(emptyIdentity);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [logoBusy, setLogoBusy] = useState(false);
+  const [pending, setPending] = useState<{ logo: PendingImage | null; favicon: PendingImage | null }>({ logo: null, favicon: null });
 
   useEffect(() => {
     const c = cachedIdentity();
@@ -93,6 +108,58 @@ export default function AdminBranding() {
   const setMail = (m: Partial<typeof mail>) => setD({ ...d, mail: { ...mail, ...m } });
 
   const nameNow = ar ? d.nameAr || d.nameEn || siteConfig.name : d.nameEn || siteConfig.name;
+  const logoSrc = pending.logo?.dataUrl || brandUrl(siteSettings.brand.logoPath, siteSettings.brand.version, DEFAULT_LOGO_URL);
+  const pendingCount = (pending.logo ? 1 : 0) + (pending.favicon ? 1 : 0);
+
+  async function publishLogo() {
+    const token = getStoredGithubToken();
+    if (!token) { setStatus("Publishing isn't connected on this device. Sign out and sign in again."); return; }
+    setLogoBusy(true);
+    const next = normalizeSettings(siteSettings);
+    let uploaded = false;
+    try {
+      for (const kind of ["logo", "favicon"] as const) {
+        const img = pending[kind];
+        if (!img) continue;
+        const file = `${kind}.${img.ext}`;
+        setStatus(`Uploading ${BRAND_DIR}/${file}…`);
+        const r = await publishBinaryToGithub(`${BRAND_DIR}/${file}`, img.dataUrl, token, `chore(brand): upload ${kind} via admin`);
+        if (!r.ok) { setStatus(`${kind} upload failed: ${r.error}`); return; }
+        if (kind === "logo") next.brand.logoPath = `/brand/${file}`;
+        else {
+          next.brand.faviconPath = `/brand/${file}`;
+          if (!img.png512) { setStatus("Could not prepare the 512px favicon. Please try another image."); return; }
+          setStatus(`Uploading ${BRAND_DIR}/favicon-512.png…`);
+          const r2 = await publishBinaryToGithub(`${BRAND_DIR}/favicon-512.png`, img.png512, token, "chore(brand): upload favicon-512.png via admin");
+          if (!r2.ok) { setStatus(`favicon PNG upload failed: ${r2.error}`); return; }
+          next.brand.faviconPngPath = "/brand/favicon-512.png";
+        }
+        uploaded = true;
+      }
+      if (uploaded) next.brand.version = Date.now().toString(36);
+      setStatus("Publishing settings.json…");
+      const r = await publishJsonToGithub(GITHUB_SETTINGS_PATH, next, token, "chore(settings): update settings.json via admin");
+      if (!r.ok) { setStatus(r.error || "failed"); return; }
+      setSiteSettings(next);
+      setPending({ logo: null, favicon: null });
+      setStatus(`Published ${GITHUB_SETTINGS_PATH}${uploaded ? " and brand images" : ""}. Site rebuilds in ~2–5 min. ${r.htmlUrl || ""}`);
+    } catch (e) {
+      setStatus(`Publish failed: ${e instanceof Error ? e.message : String(e)} (check your connection).`);
+    } finally {
+      setLogoBusy(false);
+    }
+  }
+
+  const resetBrand = (kind: "logo" | "favicon") => {
+    setPending((p) => ({ ...p, [kind]: null }));
+    setSiteSettings({
+      ...siteSettings,
+      brand: kind === "logo"
+        ? { ...siteSettings.brand, logoPath: "" }
+        : { ...siteSettings.brand, faviconPath: "", faviconPngPath: "" },
+    });
+    setStatus(`${kind === "logo" ? "Logo" : "Favicon"} set back to the default — press “Publish logo & icons” to apply.`);
+  };
 
   return (
     <div className="space-y-5" data-testid="admin-branding">
@@ -103,7 +170,44 @@ export default function AdminBranding() {
           <label className="block font-medium">{tr("Short tagline (English)", "شعار قصير (بالإنجليزية)")}<input value={d.taglineEn} maxLength={140} placeholder="Student learning platform" onChange={(e) => setD({ ...d, taglineEn: e.target.value })} className={input} /></label>
           <label className="block font-medium">{tr("Short tagline (Arabic)", "شعار قصير (بالعربية)")}<input dir="rtl" value={d.taglineAr} maxLength={140} placeholder="منصة تعليمية للطلاب" onChange={(e) => setD({ ...d, taglineAr: e.target.value })} className={input} /></label>
         </div>
-        <p className="text-xs text-muted">{tr("Shown in the website header and footer, the Admin menu, the sign-in page and browser tab titles. Leave empty to keep the original. The logo and favicon are changed in Settings → Branding uploads.", "يظهر في رأس الموقع وتذييله وقائمة الإدارة وصفحة الدخول وعناوين التبويبات. اتركه فارغًا للإبقاء على الأصلي.")}</p>
+        <p className="text-xs text-muted">{tr("Shown in the website header and footer, the Admin menu, the sign-in page and browser tab titles. Leave empty to keep the original.", "يظهر في رأس الموقع وتذييله وقائمة الإدارة وصفحة الدخول وعناوين التبويبات. اتركه فارغًا للإبقاء على الأصلي.")}</p>
+      </Card>
+
+      <Card title={tr("Logo & icons", "الشعار والأيقونات")} testid="brand-logo">
+        <p className="text-xs text-muted">{tr("Shown in the header, footer, sign-in page and emails. PNG, JPG or SVG, up to 1 MB. Use a square image, ideally 512 × 512 px. Files are saved under public/brand/ and the same settings.json keys as before, so a published logo stays in place. Each site copy can use its own default logo file (and optional NEXT_PUBLIC_LOGO_URL / NEXT_PUBLIC_FAVICON_URL) when these paths are empty.", "يظهر في رأس الموقع وتذييله وصفحة الدخول والرسائل. PNG أو JPG أو SVG حتى ١ ميغابايت. استخدم صورة مربعة، ويفضل ٥١٢ × ٥١٢ بكسل. تُحفظ الملفات في public/brand/ وبنفس مفاتيح settings.json السابقة حتى يبقى الشعار المنشور كما هو. يمكن لكل نسخة من الموقع استخدام شعارها الافتراضي عندما تكون هذه المسارات فارغة.")}</p>
+        <div className="grid gap-4 md:grid-cols-2">
+          <BrandUpload
+            kind="logo"
+            title={tr("Logo", "الشعار")}
+            hint={tr("Header, footer, admin sidebar, sign-in and the default teacher photo. Shown in a circle — keep the subject centred.", "يظهر في رأس الموقع وتذييله ولوحة الإدارة وصفحة الدخول وصورة المعلم الافتراضية داخل دائرة — اجعل العنصر في المنتصف.")}
+            currentUrl={brandUrl(siteSettings.brand.logoPath, siteSettings.brand.version, DEFAULT_LOGO_URL)}
+            isCustom={!!siteSettings.brand.logoPath}
+            pending={pending.logo}
+            onPick={(img) => setPending((p) => ({ ...p, logo: img }))}
+            onReset={() => resetBrand("logo")}
+            onError={setStatus}
+          />
+          <BrandUpload
+            kind="favicon"
+            title={tr("Favicon", "أيقونة المتصفح")}
+            hint={tr("Browser tab + iPhone/iPad home-screen icon. A simple, bold shape reads best at 32 px.", "أيقونة علامة التبويب والشاشة الرئيسية في iPhone/iPad. الشكل البسيط الواضح أفضل عند ٣٢ بكسل.")}
+            currentUrl={brandUrl(siteSettings.brand.faviconPath, siteSettings.brand.version, DEFAULT_FAVICON_URL)}
+            isCustom={!!siteSettings.brand.faviconPath}
+            pending={pending.favicon}
+            onPick={(img) => setPending((p) => ({ ...p, favicon: img }))}
+            onReset={() => resetBrand("favicon")}
+            onError={setStatus}
+          />
+        </div>
+        {pendingCount > 0 && (
+          <p className="rounded-lg bg-gold-soft px-3 py-2 text-sm" data-testid="brand-pending">{tr(`${pendingCount} new image(s) ready — press “Publish logo & icons” to upload.`, `${pendingCount} صورة جديدة جاهزة — اضغط «نشر الشعار والأيقونات» للرفع.`)}</p>
+        )}
+        {!hasToken && <p className="text-xs text-muted">{tr("Publishing isn't connected on this device — open Settings, or sign out and sign in again.", "النشر غير متصل على هذا الجهاز — افتح الإعدادات، أو سجّل الخروج ثم الدخول مجددًا.")}</p>}
+        <div className="flex flex-wrap gap-2">
+          <button type="button" disabled={logoBusy} className={btn} onClick={publishLogo} data-testid="publish-logo">{logoBusy ? tr("Publishing…", "جارٍ النشر…") : tr("Publish logo & icons", "نشر الشعار والأيقونات")}</button>
+          <button type="button" className={btn2} onClick={() => downloadJson(normalizeSettings(siteSettings), "settings.json")}>{tr("Download settings.json", "تنزيل settings.json")}</button>
+        </div>
+        <p className="text-xs text-muted">{tr("Logo files and settings.json are kept in GitHub with the website (also included in “Publish all” from the top of Admin). The school-data backup page does not download these website files.", "ملفات الشعار وsettings.json محفوظة في GitHub مع الموقع (وتُدرج أيضًا عند «نشر الكل» أعلى الإدارة). صفحة النسخ الاحتياطي لبيانات المدرسة لا تنزّل ملفات الموقع هذه.")}</p>
       </Card>
 
       <Card title={tr("Colours & theme", "الألوان والمظهر")} testid="brand-theme">
@@ -134,7 +238,8 @@ export default function AdminBranding() {
         <p className="font-medium">{tr("Live preview", "معاينة مباشرة")} <span className="text-xs font-normal text-muted">{tr("(this Admin page also shows the colours while you edit)", "(تظهر الألوان في صفحة الإدارة أثناء التعديل)")}</span></p>
         <div className="overflow-hidden rounded-2xl border border-card-border" data-testid="brand-preview">
           <div className="flex items-center gap-3 px-4 py-3 text-white" style={{ background: header }}>
-            <span className="h-8 w-8 rounded-full border-2 bg-white" style={{ borderColor: sun }} />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={logoSrc} alt="" width={32} height={32} className="h-8 w-8 rounded-full border-2 bg-white object-cover" style={{ borderColor: sun }} data-testid="brand-preview-logo" />
             <span className="leading-tight"><b className="block">{nameNow}</b><span className="text-xs opacity-75">{(ar ? d.taglineAr : d.taglineEn) || tr("Student learning platform", "منصة تعليمية للطلاب")}</span></span>
             <span className="ms-auto rounded-full px-3 py-1 text-xs font-bold" style={{ background: sun, color: "#0b1b2b" }}>{tr("Sign in", "دخول")}</span>
           </div>
