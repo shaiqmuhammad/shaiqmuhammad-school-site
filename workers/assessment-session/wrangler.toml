@@ -79,3 +79,9 @@ new_sqlite_classes = ["SiteKV"]
 # Free Workers AI — drafts assessment questions from the curriculum.
 [ai]
 binding = "AI"
+
+
+# One daily check at 22:15 UTC (= 02:15 Asia/Dubai). It only makes a backup when Admin → Backup has a
+# daily / weekly (Sunday) / monthly (1st) schedule saved.
+[triggers]
+crons = ["15 22 * * *"]
