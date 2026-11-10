@@ -44,6 +44,19 @@ export async function sysOp(storage: DurableObjectStorage, op: string, input: Js
     }
     return { table, inserted: n };
   }
+  if (op === "merge") {
+    // Insert-if-missing (never deletes or overwrites existing rows). Used to copy records that are missing on this account.
+    if (!/^\w+$/.test(table) || !tables.includes(table)) return { error: "unknown_table" };
+    const rows = Array.isArray(input.rows) ? (input.rows as Json[]) : [];
+    let n = 0;
+    for (const row of rows) {
+      const cols = Object.keys(row || {}).filter((c) => /^\w+$/.test(c));
+      if (!cols.length) continue;
+      sql.exec(`INSERT OR IGNORE INTO "${table}" (${cols.map((c) => `"${c}"`).join(",")}) VALUES (${cols.map(() => "?").join(",")})`, ...cols.map((c) => cellIn(row[c])));
+      n += Number(sql.exec(`SELECT changes() AS c`).one().c) > 0 ? 1 : 0;
+    }
+    return { table, inserted: n, sent: rows.length };
+  }
   if (op === "count") {
     const out: Json = {};
     for (const t of tables) out[t] = Number(sql.exec(`SELECT COUNT(*) AS c FROM "${t}"`).one().c);

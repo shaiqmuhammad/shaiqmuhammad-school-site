@@ -586,9 +586,13 @@ export default {
       const inp = (await request.json().catch(() => ({}))) as Record<string, unknown>;
       const e = env as unknown as Record<string, DurableObjectNamespace>;
       const which = String(inp.store || "");
-      const nameOf: Record<string, [string, string]> = { results: ["RESULTS", "main"], site: ["SITE", "main"], forum: ["FORUM_QUEUE", "queue"] };
-      const m = nameOf[which];
-      if (!m || !["dump", "load", "count"].includes(op)) return json({ error: "bad_request" }, 400);
+      const nameOf: Record<string, [string, string]> = { results: ["RESULTS", "main"], site: ["SITE", "main"], forum: ["FORUM_QUEUE", "queue"], lms: ["LMS", "main"] };
+      // Classroom activities: one Durable Object per 5-character code.
+      const actCode = String(inp.name || "").toUpperCase();
+      const m = which === "activity" ? (/^[A-Z0-9]{5}$/.test(actCode) ? (["ACTIVITIES", actCode] as [string, string]) : undefined) : nameOf[which];
+      if (!m || !["dump", "load", "count", "merge"].includes(op)) return json({ error: "bad_request" }, 400);
+      // The LMS store is only reachable here for counts and insert-if-missing (full dump/restore stays on /api/lms/sys-*).
+      if (which === "lms" && !["count", "merge"].includes(op)) return json({ error: "bad_request" }, 400);
       const stub = e[m[0]].get(e[m[0]].idFromName(m[1])) as unknown as { sys(op: string, i: Record<string, unknown>): Promise<unknown> };
       return json(await stub.sys(op, inp));
     }

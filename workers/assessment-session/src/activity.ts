@@ -25,6 +25,7 @@ import { DurableObject } from "cloudflare:workers";
 import { corsHeaders, reply, verifyToken, type AdminEnv } from "./admin";
 import { rosterGate, teacherIdOf, teacherWithPerm, type LmsEnv } from "./lms";
 import { bkOp } from "./bkstore";
+import { sysOp } from "./sysdump";
 
 export interface ActivityEnv extends AdminEnv {
   ACTIVITIES: DurableObjectNamespace<ClassActivity>;
@@ -152,6 +153,12 @@ export class ClassActivity extends DurableObject<ActivityEnv> {
 
   /** Admin → Backup (see ./backup.ts). */
   async bk(op: string, input: Record<string, unknown>) { return bkOp(this.ctx.storage, op, input); }
+  /** Account migration (X-Migrate-Key, see ./sysdump.ts). After an insert-if-missing copy, re-arm the expiry alarm. */
+  async sys(op: string, input: Record<string, unknown>) {
+    const r = await sysOp(this.ctx.storage, op, input);
+    if (op === "merge") { const m = this.meta(); if (m && Date.now() < m.expiresAt && !(await this.ctx.storage.getAlarm())) await this.ctx.storage.setAlarm(m.expiresAt); }
+    return r;
+  }
 
   private meta(): Meta | null {
     const row = this.sql.exec(`SELECT v FROM meta WHERE k='meta'`).toArray()[0];

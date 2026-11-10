@@ -53,6 +53,7 @@ import { packHandle, packInit, packSweep, type PackCtx } from "./packs";
 import { renderEmail, renderText } from "./mail/template";
 import { blobStore, sqliteChunkStore, type BlobStore, type StorageEnv } from "./storage";
 import { bkOp } from "./bkstore";
+import { sysOp } from "./sysdump";
 
 export interface LmsEnv extends AdminEnv, StorageEnv, MailEnv {
   LMS: DurableObjectNamespace<LmsStore>;
@@ -60,6 +61,8 @@ export interface LmsEnv extends AdminEnv, StorageEnv, MailEnv {
   MIGRATE_KEY?: string;
   /** base64 of 32 random bytes; enables admin PIN viewing. */
   LMS_PIN_KEY?: string;
+  /** "1" on a retired copy of this worker (old account): no timetable reminder alarms there. */
+  LMS_RETIRED?: string;
   /** Cloudflare Workers AI (free) — draft questions from the curriculum. */
   AI?: { run(model: string, input: Record<string, unknown>): Promise<unknown> };
 }
@@ -758,12 +761,14 @@ export class LmsStore extends DurableObject<LmsEnv> {
     return best;
   }
   async planTT() {
+    if (this.env.LMS_RETIRED === "1") { await this.ctx.storage.deleteAlarm(); return; }
     const n = this.ttNext();
     if (!n) { await this.ctx.storage.deleteAlarm(); return; }
     await this.ctx.storage.setAlarm(n + 2000);
   }
   private ttPlanned = false;
   async alarm() {
+    if (this.env.LMS_RETIRED === "1") { await this.ctx.storage.deleteAlarm(); return; }
     try { this.ttTick(); } finally { await this.planTT(); }
   }
   ttTick(nowMs = Date.now(), zzOnly = false) {
@@ -1030,6 +1035,8 @@ export class LmsStore extends DurableObject<LmsEnv> {
   }
 
   /** Admin → Backup (see ./backup.ts): page through tables / write them back on restore. Admin checks happen in the worker. */
+  /** Account migration (X-Migrate-Key; the worker only allows count / insert-if-missing here). */
+  async sys(op: string, input: Json): Promise<Json> { return sysOp(this.ctx.storage, op, input); }
   async bk(op: string, input: Json): Promise<Json> {
     const r = await bkOp(this.ctx.storage, op, input);
     if (op === "load") { this.tsCache.clear(); this.stuSubsCache = null; this.seenAt.clear(); }
