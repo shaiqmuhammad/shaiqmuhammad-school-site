@@ -7,7 +7,6 @@ import {
   isAdminAuthenticated,
   isAdminConfigured,
   setAdminAuthenticated,
-  verifyAdminPassword,
 } from "@/lib/adminAuth";
 import { getServerSession, serverLogin } from "@/lib/adminServer";
 import { clearLegacyGithubToken } from "@/lib/githubPublish";
@@ -15,6 +14,7 @@ import { useLogoUrl } from "@/components/SiteBrand";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useI18n } from "@/lib/i18n";
+import { SiteNameText } from "@/components/SiteIdentity";
 
 /** Same-site page to return to after signing in (?next=/lms/students), else /admin. */
 function nextPath(): string {
@@ -30,6 +30,8 @@ export default function AdminLoginPage() {
   const [error, setError] = useState("");
   const [configured, setConfigured] = useState(true);
   const [checking, setChecking] = useState(false);
+  const [needCode, setNeedCode] = useState(false);
+  const [code, setCode] = useState("");
 
   useEffect(() => {
     clearLegacyGithubToken();
@@ -48,21 +50,26 @@ export default function AdminLoginPage() {
       return;
     }
     setChecking(true);
-    const ok = await verifyAdminPassword(password).catch(() => false);
-    if (ok) {
-      // Also open a 30-day publishing session on the server (no GitHub key on this device).
-      const server = await serverLogin(password).catch(() => ({ ok: false as const, reason: "unreachable" as const }));
-      setChecking(false);
-      if (!server.ok && server.reason === "too_many_attempts") {
-        setError(lang === "ar" ? "محاولات كثيرة. حاول مرة أخرى بعد قليل." : "Too many attempts. Please try again in a few minutes.");
-        return;
-      }
+    // The password is checked only by the school server (nothing about it is in this page's code).
+    const server = await serverLogin(password, needCode ? code : "").catch(() => ({ ok: false as const, reason: "unreachable" as const }));
+    setChecking(false);
+    if (server.ok) {
       setAdminAuthenticated(true);
       router.replace(nextPath());
-    } else {
-      setChecking(false);
-      setError(t("adminLogin.incorrect"));
+      return;
     }
+    const ar = lang === "ar";
+    if (server.reason === "code_required") {
+      setNeedCode(true);
+      return;
+    }
+    if (server.reason === "wrong_code") setError(ar ? "الرمز غير صحيح أو مستخدم من قبل. جرّب الرمز الجديد من التطبيق." : "That code is wrong or was already used. Try the newest code from your authenticator app.");
+    else if (server.reason === "too_many_attempts") {
+      const mins = Math.max(1, Math.ceil((("retryAfter" in server && server.retryAfter) || 60) / 60));
+      setError(ar ? `محاولات كثيرة. حاول مرة أخرى بعد ${mins} دقيقة.` : `Too many attempts. Please try again in ${mins} minute${mins === 1 ? "" : "s"}.`);
+    } else if (server.reason === "unreachable") setError(ar ? "تعذّر الاتصال بالخادم. تحقق من الإنترنت وحاول مرة أخرى." : "Couldn't reach the server. Check your connection and try again.");
+    else if (server.reason === "error") setError(ar ? "حدث خطأ. حاول مرة أخرى." : "Something went wrong. Please try again.");
+    else setError(t("adminLogin.incorrect"));
   }
 
   return (
@@ -82,7 +89,7 @@ export default function AdminLoginPage() {
           data-testid="login-logo"
           className="h-26 w-26 rounded-full border-4 border-sun bg-white object-cover shadow-[0_10px_30px_-10px_rgba(23,52,79,0.45)]"
         />
-        <p className="mt-3 text-lg font-extrabold text-heading">Shaiq Muhammad — Admin</p>
+        <p className="mt-3 text-lg font-extrabold text-heading"><SiteNameText /> — Admin</p>
       </div>
       <p className="eyebrow">{t("adminLogin.eyebrow")}</p>
       <h1 className="mt-2 text-2xl font-extrabold tracking-tight">{t("adminLogin.title")}</h1>
@@ -102,6 +109,24 @@ export default function AdminLoginPage() {
             required
           />
         </div>
+        {needCode && (
+          <div data-testid="login-code-step">
+            <label htmlFor="code" className="block text-sm font-medium">
+              {lang === "ar" ? "رمز التحقق (6 أرقام) أو رمز احتياطي" : "6-digit code from your authenticator app (or a backup code)"}
+            </label>
+            <input
+              id="code"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              autoFocus
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              className="mt-1.5 w-full rounded-xl border border-card-border bg-card-solid px-3 py-2 text-center font-mono text-lg tracking-[0.3em] outline-none focus:border-sun-border focus:ring-2 focus:ring-sun/40"
+              data-testid="login-code"
+              required
+            />
+          </div>
+        )}
         {error && (
           <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300">
             {error}

@@ -1,4 +1,4 @@
-import { ADMIN_SERVER_SESSION_KEY } from "@/lib/adminAuth";
+import { ADMIN_SERVER_SESSION_KEY, isCurrentTokenFormat } from "@/lib/adminAuth";
 import { ASSESSMENT_API_BASE } from "@/lib/groupSession";
 
 /**
@@ -16,7 +16,10 @@ export function getServerSession(): ServerSession | null {
     const raw = localStorage.getItem(ADMIN_SERVER_SESSION_KEY);
     if (!raw) return null;
     const s = JSON.parse(raw) as ServerSession;
-    if (s?.token && Number(s.exp) > Date.now()) return s;
+    if (s?.token && Number(s.exp) > Date.now() && isCurrentTokenFormat(s.token)) {
+      maybeRefresh(s);
+      return s;
+    }
     localStorage.removeItem(ADMIN_SERVER_SESSION_KEY);
   } catch {
     // storage unavailable or malformed
@@ -32,27 +35,59 @@ export function clearServerSession(): void {
   }
 }
 
-export type ServerLoginResult = { ok: true } | { ok: false; reason: "wrong_password" | "too_many_attempts" | "unreachable" | "error"; retryAfter?: number };
+function storeSession(token: string, exp: number) {
+  try {
+    localStorage.setItem(ADMIN_SERVER_SESSION_KEY, JSON.stringify({ token, exp }));
+    localStorage.setItem("sm_admin_last_refresh", String(Date.now()));
+  } catch {
+    // storage unavailable
+  }
+}
 
-/** Exchange the admin password for a 30-day publishing session (stored on this device). */
-export async function serverLogin(password: string): Promise<ServerLoginResult> {
+/**
+ * Sessions end after 12 hours without use (7 days at most): while Admin is being used, swap the token for a
+ * fresh one at most every 15 minutes.
+ */
+let refreshing = false;
+function maybeRefresh(s: ServerSession) {
+  if (refreshing || typeof window === "undefined") return;
+  const last = Number(localStorage.getItem("sm_admin_last_refresh") || 0);
+  if (Date.now() - last < 15 * 60_000) return;
+  refreshing = true;
+  localStorage.setItem("sm_admin_last_refresh", String(Date.now()));
+  fetch(`${ADMIN_API}/refresh`, { method: "POST", headers: { Authorization: `Bearer ${s.token}` } })
+    .then(async (res) => {
+      const d = (await res.json().catch(() => ({}))) as { token?: string; exp?: number };
+      if (res.ok && d.token && d.exp) storeSession(d.token, d.exp);
+      else if (res.status === 401) clearServerSession();
+    })
+    .catch(() => undefined)
+    .finally(() => { refreshing = false; });
+}
+
+export type ServerLoginResult =
+  | { ok: true }
+  | { ok: false; reason: "wrong_password" | "code_required" | "wrong_code" | "too_many_attempts" | "unreachable" | "error"; retryAfter?: number };
+
+/** Exchange the admin password (and two-step code when switched on) for a session stored on this device. */
+export async function serverLogin(password: string, code = ""): Promise<ServerLoginResult> {
   let res: Response;
   try {
     res = await fetch(`${ADMIN_API}/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ password }),
+      body: JSON.stringify(code ? { password, code } : { password }),
     });
   } catch {
     return { ok: false, reason: "unreachable" };
   }
-  const data = (await res.json().catch(() => ({}))) as { token?: string; exp?: number; retryAfter?: number };
+  const data = (await res.json().catch(() => ({}))) as { token?: string; exp?: number; retryAfter?: number; error?: string };
   if (res.ok && data.token && data.exp) {
-    localStorage.setItem(ADMIN_SERVER_SESSION_KEY, JSON.stringify({ token: data.token, exp: data.exp }));
+    storeSession(data.token, data.exp);
     localStorage.setItem("sm_admin_login_at", String(Date.now()));
     return { ok: true };
   }
-  if (res.status === 401) return { ok: false, reason: "wrong_password" };
+  if (res.status === 401) return { ok: false, reason: data.error === "code_required" ? "code_required" : data.error === "wrong_code" ? "wrong_code" : "wrong_password" };
   if (res.status === 429) return { ok: false, reason: "too_many_attempts", retryAfter: data.retryAfter };
   return { ok: false, reason: "error" };
 }
@@ -149,4 +184,40 @@ export async function forumApprove(
 
 export async function forumReject(id: string): Promise<boolean> {
   return (await forumAdmin<{ ok?: boolean }>("reject", { id })).ok;
+}
+
+/* ---------- Admin → Security ---------- */
+
+export type SignInLog = { t: number; ok: boolean; what: string; ua: string; ip: string; where: string };
+export type SecurityInfo = {
+  changedPassword: boolean;
+  changedAt: number;
+  twoStep: boolean;
+  twoStepSince: number;
+  backupLeft: number;
+  log: SignInLog[];
+  session: { since: number; exp: number; maxEnd: number };
+  policy: { minLength: number; idleHours: number; maxDays: number };
+};
+export type SecReply<T = Record<string, unknown>> = Partial<T> & { ok: boolean; status: number; error?: string; retryAfter?: number };
+
+/** Calls an admin security action; a returned token replaces this device's session (others are signed out). */
+export async function securityCall<T = Record<string, unknown>>(action: string, body?: unknown): Promise<SecReply<T>> {
+  const session = getServerSession();
+  if (!session) return { ok: false, status: 401, error: "unauthorized" } as SecReply<T>;
+  let res: Response;
+  try {
+    res = await fetch(`${ADMIN_API}/${action}`, {
+      method: body === undefined ? "GET" : "POST",
+      headers: { Authorization: `Bearer ${session.token}`, ...(body === undefined ? {} : { "Content-Type": "application/json" }) },
+      body: body === undefined ? undefined : JSON.stringify(body),
+      cache: "no-store",
+    });
+  } catch {
+    return { ok: false, status: 0, error: "network" } as SecReply<T>;
+  }
+  const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (res.ok && typeof data.token === "string" && typeof data.exp === "number") storeSession(data.token, data.exp);
+  if (res.status === 401 && data.error === "unauthorized") clearServerSession();
+  return { ...(data as Partial<T>), ok: res.ok && data.ok !== false, status: res.status, error: typeof data.error === "string" ? data.error : undefined, retryAfter: Number(data.retryAfter) || undefined };
 }

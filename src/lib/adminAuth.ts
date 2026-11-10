@@ -1,27 +1,18 @@
 export const ADMIN_SESSION_KEY = "sm_admin_authenticated";
 export const ADMIN_PREVIEW_KEY = "sm_admin_preview_data";
-/** Signed 30-day publishing session from the Worker (see lib/adminServer.ts). */
+/** Signed admin session from the Worker (12 h since last use, 7 days max; see lib/adminServer.ts). */
 export const ADMIN_SERVER_SESSION_KEY = "sm_admin_server_session";
 
 /**
- * SHA-256 (hex, lowercase) of the admin password. Only the hash is stored — never the plaintext.
- * Generate with: printf %s 'your-password' | sha256sum | cut -d' ' -f1
- * NEXT_PUBLIC_ADMIN_PASSWORD_HASH (build-time env) overrides this constant when set.
+ * The admin password is checked only by the school server (workers/assessment-session/src/admin.ts):
+ * nothing about it — not even a hash — is shipped in the website code.
  */
-export const ADMIN_PASSWORD_SHA256 = "19340acab16306dd9c33f9a90668727fe4e237582a6e42e442c29f3b1efa4aec";
-
-export function getAdminPasswordHash(): string {
-  const fromEnv = process.env.NEXT_PUBLIC_ADMIN_PASSWORD_HASH?.trim().toLowerCase() || "";
-  const hash = fromEnv || ADMIN_PASSWORD_SHA256.trim().toLowerCase();
-  return /^[0-9a-f]{64}$/.test(hash) ? hash : "";
-}
-
 export function isAdminConfigured(): boolean {
-  return Boolean(getAdminPasswordHash());
+  return true;
 }
 
-/** How long a sign-in is remembered on this device (shared by every tab, survives restarts). */
-export const ADMIN_SESSION_DAYS = 30;
+/** Upper bound for the local "signed in" flag; the server session itself lasts 12 h since last use (7 days max). */
+export const ADMIN_SESSION_DAYS = 7;
 
 export function isAdminAuthenticated(): boolean {
   if (typeof window === "undefined") return false;
@@ -29,11 +20,11 @@ export function isAdminAuthenticated(): boolean {
     const raw = localStorage.getItem(ADMIN_SESSION_KEY);
     if (raw) {
       const exp = Number(JSON.parse(raw)?.exp) || 0;
-      if (exp > Date.now()) return true;
+      if (exp > Date.now() && hasServerToken()) return true;
       localStorage.removeItem(ADMIN_SESSION_KEY);
     }
-    // Sign-in from an older build (per-tab sessionStorage): upgrade it to the 30-day device session.
-    if (sessionStorage.getItem(ADMIN_SESSION_KEY) === "1") {
+    // Sign-in from an older build (per-tab sessionStorage): upgrade it to the device session.
+    if (sessionStorage.getItem(ADMIN_SESSION_KEY) === "1" && hasServerToken()) {
       setAdminAuthenticated(true);
       return true;
     }
@@ -56,21 +47,23 @@ export function setAdminAuthenticated(ok: boolean): void {
   }
 }
 
-export async function sha256Hex(input: string): Promise<string> {
-  const bytes = new TextEncoder().encode(input);
-  const digest = await globalThis.crypto.subtle.digest("SHA-256", bytes);
-  return Array.from(new Uint8Array(digest))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
+/** A server session (signed, unexpired) is stored on this device. */
+function hasServerToken(): boolean {
+  try {
+    const s = JSON.parse(localStorage.getItem(ADMIN_SERVER_SESSION_KEY) || "null") as { token?: string; exp?: number } | null;
+    return Boolean(s?.token && Number(s.exp) > Date.now() && isCurrentTokenFormat(s.token));
+  } catch {
+    return false;
+  }
 }
 
-/** Compare SHA-256(input) with the configured hash (constant-time over the hex string). */
-export async function verifyAdminPassword(input: string): Promise<boolean> {
-  const expected = getAdminPasswordHash();
-  if (!expected || !input) return false;
-  const actual = await sha256Hex(input);
-  if (actual.length !== expected.length) return false;
-  let diff = 0;
-  for (let i = 0; i < actual.length; i++) diff |= actual.charCodeAt(i) ^ expected.charCodeAt(i);
-  return diff === 0;
+/** Sessions from before the security update (no version stamp) are no longer accepted by the server. */
+export function isCurrentTokenFormat(token: string): boolean {
+  try {
+    const p = token.split(".")[0].replace(/-/g, "+").replace(/_/g, "/");
+    const d = JSON.parse(atob(p + "===".slice((p.length + 3) % 4))) as { v?: number };
+    return d.v === 2;
+  } catch {
+    return false;
+  }
 }
