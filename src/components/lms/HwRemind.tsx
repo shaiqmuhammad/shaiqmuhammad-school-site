@@ -5,7 +5,8 @@ import { hwRemind } from "@/lib/lms";
 import { useTr } from "@/components/lms/useLms";
 
 /** t402: bell on an assigned homework pack — reminds ONLY assigned students who have not submitted (count + confirm first, 3-hour cooldown). */
-export function HwRemindBell({ hw, title, asAdmin = false, className = "" }: { hw: string; title: string; asAdmin?: boolean; className?: string }) {
+/** t587: iconOnly + btnClass let the homework portion cards show a bell-only button styled exactly like their Edit / Delete buttons. */
+export function HwRemindBell({ hw, title, asAdmin = false, className = "", iconOnly = false, btnClass }: { hw: string; title: string; asAdmin?: boolean; className?: string; iconOnly?: boolean; btnClass?: string }) {
   const { tr } = useTr();
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
@@ -27,7 +28,7 @@ export function HwRemindBell({ hw, title, asAdmin = false, className = "" }: { h
   };
   return (
     <span className="inline-flex flex-wrap items-center gap-1.5">
-      <button type="button" onClick={go} disabled={busy} className={"rounded-full bg-[#1b3a57] px-3 py-1 text-sm font-extrabold text-[#f5c542] shadow disabled:opacity-60 " + className} title={tr("Remind students who have not submitted", "تذكير الطلاب الذين لم يسلّموا")} aria-label={tr(`Remind students who have not submitted ${title}`, `تذكير من لم يسلّم ${title}`)} data-testid="hw-remind">🔔 {tr("Remind", "تذكير")}</button>
+      <button type="button" onClick={go} disabled={busy} className={(btnClass ?? "rounded-full bg-[#1b3a57] px-3 py-1 text-sm font-extrabold text-[#f5c542] shadow disabled:opacity-60") + " " + className} title={iconOnly ? tr("Remind", "تذكير") : tr("Remind students who have not submitted", "تذكير الطلاب الذين لم يسلّموا")} aria-label={tr(`Remind students who have not submitted ${title}`, `تذكير من لم يسلّم ${title}`)} data-testid="hw-remind">{iconOnly ? <span aria-hidden>🔔</span> : <>🔔 {tr("Remind", "تذكير")}</>}</button>
       {msg && <span role="status" className="text-xs font-semibold" data-testid="hw-remind-msg">{msg}</span>}
     </span>
   );

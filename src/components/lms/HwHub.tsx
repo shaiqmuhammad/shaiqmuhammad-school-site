@@ -236,9 +236,10 @@ export function HwPortionGrid({
             <span className="rounded-full bg-sky-100 px-2 py-0.5 text-sky-900 dark:bg-sky-900/40 dark:text-sky-100" data-testid="hw-corrected-n">✅ {tr("Corrected", "مصحَّح")} {correctedCounts?.[h.id] ?? (h.kind === "quran" ? c.approved + c.returned : c.approved)}</span>
           )}
         </p>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {remind && <HwRemindBell hw={h.id} title={h.title} asAdmin={asAdmin} />}
-          <a className={btn + " !py-1"} href={`/lms/homework?id=${h.id}${openToCorrected ? "#corrected" : ""}`} data-testid="hw-portion-open">{tr("Open / review", "فتح / مراجعة")}</a>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          {/* t587: Open / review takes the navy-and-gold pill style Remind used to have; Remind is now a bell-only button like Edit and Delete. */}
+          <a className="inline-flex items-center justify-center rounded-full bg-[#1b3a57] px-3 py-1 text-sm font-extrabold text-[#f5c542] shadow transition hover:brightness-110" href={`/lms/homework?id=${h.id}${openToCorrected ? "#corrected" : ""}`} data-testid="hw-portion-open">{tr("Open / review", "فتح / مراجعة")}</a>
+          {remind && <HwRemindBell hw={h.id} title={h.title} asAdmin={asAdmin} iconOnly btnClass={btn + " !py-1"} />}
           {canEdit(h) && (
             <button type="button" className={btn + " !py-1"} onClick={() => setEditor(h)} title={tr("Edit", "تعديل")} aria-label={tr("Edit", "تعديل")} data-testid="hw-portion-edit">✎</button>
           )}
