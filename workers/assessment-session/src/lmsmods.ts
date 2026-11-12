@@ -561,6 +561,45 @@ export type TtRow = { id: string; dow: number; period: string; cls: string; sect
 /** t317: a lesson's own times win over its period's saved times. */
 export const ttSE = (r: TtRow, times: Record<string, { s: string; e: string }>) => ({ s: r.s || times[r.period]?.s || "", e: r.e || times[r.period]?.e || "" });
 const secList = (v: unknown) => String(v || "").split(",").map((x) => x.trim()).filter(Boolean);
+
+/** Copy the source teacher's lesson, activity and homework packs for this class onto another teacher's account.
+ *  Draft copies only — nothing is published and no student work or balances change. */
+function copyClassPacks(sql: SqlStorage, fromId: string, toId: string, toName: string, spec: { cls: string; section: string; subject: string; lesson: string; kind: "cover" | "obs"; ref: string }) {
+  try {
+    if (!fromId || !toId || fromId === toId) return 0;
+    if (!sql.exec(`SELECT name FROM sqlite_master WHERE type='table' AND name='lpack'`).toArray().length) return 0;
+    const secs = secList(spec.section);
+    const rows = sql.exec(`SELECT * FROM lpack WHERE owner=? AND type IN ('lesson','activity','homework','quran')`, fromId).toArray();
+    const taken = new Set(sql.exec(`SELECT topic FROM lpack WHERE owner=?`, toId).toArray().map((x) => { try { return String((JSON.parse(String(x.topic || "{}")) as { xfer?: string }).xfer || ""); } catch { return ""; } }));
+    let n = 0;
+    for (const r of rows) {
+      const subject = String(r.subject || "");
+      if (spec.subject && subject && subject.toLowerCase() !== spec.subject.toLowerCase()) continue;
+      let aud: string[] = [], students: string[] = [], topic: Record<string, unknown> = {};
+      try { aud = JSON.parse(String(r.aud || "[]")); } catch { aud = []; }
+      try { students = JSON.parse(String(r.students || "[]")); } catch { students = []; }
+      try { topic = JSON.parse(String(r.topic || "{}")); } catch { topic = {}; }
+      const token = `${spec.kind}:${spec.ref}:${r.id}`;
+      if (taken.has(token)) continue;
+      const classHit = !spec.cls || aud.some((a) => a === spec.cls || a.startsWith(`${spec.cls}|`)) || students.some((sid) => {
+        const u = sql.exec(`SELECT cls, section FROM users WHERE id=?`, sid).toArray()[0];
+        if (!u || String(u.cls || "") !== spec.cls) return false;
+        return !secs.length || secs.includes(String(u.section || ""));
+      });
+      if (!classHit) continue;
+      const tag = spec.kind === "cover" ? "Cover Lesson work / عمل حصة الاحتياط" : "Peer observation / ملاحظة زميل";
+      const title = [spec.subject || subject, spec.cls, spec.lesson || String(r.title || ""), tag].filter(Boolean).join(" · ").slice(0, 160);
+      const nid = rid("lp");
+      const now = Date.now();
+      sql.exec(`INSERT INTO lpack (id, owner, owner_name, title, type, subject, aud, students, topic, slides, mode, assign_at, due, status, hw, live, tpl, notified, due_notified, created, updated) VALUES (?, ?, ?, ?, ?, ?, '[]', '[]', ?, ?, 'self', 0, 0, 'draft', '', -1, 0, 0, 0, ?, ?)`, nid, toId, toName.slice(0, 120), title, String(r.type), subject, JSON.stringify({ ...topic, xfer: token }), String(r.slides || "[]"), now, now);
+      taken.add(token);
+      n++;
+    }
+    return n;
+  } catch {
+    return 0;
+  }
+}
 export function ttTimes(sql: SqlStorage): Record<string, { s: string; e: string }> {
   try { const raw = sql.exec(`SELECT v FROM settings WHERE k='att:times'`).toArray()[0]; return raw ? JSON.parse(String(raw.v)) : {}; } catch { return {}; }
 }
@@ -619,7 +658,7 @@ function ttCoverRows(sql: SqlStorage, uid: string | null, from?: string, to?: st
 function ttHandle(c: ModCtx, a: Actor, action: string, input: Json): { status: number; body: Json } {
   const sql = c.sql;
   const acc0: { show: boolean; view: boolean; add: boolean; edit: boolean; delete: boolean; share?: boolean; peers?: boolean; compare?: boolean; observe?: boolean; cover?: boolean } = c.mp ? c.mp(a, "tt") : { show: true, view: true, add: a.role === "admin", edit: a.role === "admin", delete: a.role === "admin", share: a.role === "admin" };
-  const acc = a.role === "student" ? { ...acc0, add: false, edit: false, delete: false } : acc0;
+  const acc = a.role === "student" || a.role === "parent" ? { ...acc0, add: false, edit: false, delete: false, share: false, peers: false, compare: false, observe: false, cover: false } : acc0;
   if (action === "att-times") {
     if (!acc.view) return { status: 403, body: { error: "module_hidden" } };
     const times = ttTimes(sql), now = dubaiNow();
@@ -657,7 +696,7 @@ function ttHandle(c: ModCtx, a: Actor, action: string, input: Json): { status: n
     const coverRows: TtRow[] = coverSrc.map((x) => ({
       id: "cover-" + x.id, dow: x.dow, period: "", cls: x.cls, sections: secList(x.section), teacher: x.cover === a.id || a.role === "admin" ? x.cover : x.absent, teacherName: x.coverName,
       subject: x.subject, phase: "", dept: "", s: x.s, e: x.e, color: "#fecdd3",
-      title: x.cover === a.id ? `🛟 Cover · ${x.absentName}` : `🛟 Covered by ${x.coverName}`,
+      title: x.cover === a.id ? `🛟 ${[x.subject, x.cls, x.title, x.day].filter(Boolean).join(" · ")} · Cover` : `🛟 Covered by ${x.coverName}${x.day ? ` · ${x.day}` : ""}`,
     }));
     const timetableOut = [...tt, ...coverRows];
     return { status: 200, body: { secMap, peers, staff: staffList, obs, covers, scope, times, timetable: timetableOut, shared, now: { dow: now.dow, hm: now.hm, period: cur }, current, teachers, catalog, phases: (loadCat(sql as never), catPhases()), depts: [...new Set([...depts, ...sql.exec(`SELECT name FROM catalog WHERE kind='dept'`).toArray().map((r) => String(r.name))])].sort(), acc, lead: pref ? Number(pref.v) : 5 } };
@@ -727,6 +766,7 @@ function ttHandle(c: ModCtx, a: Actor, action: string, input: Json): { status: n
     if (String(o.target) !== a.id || String(o.status) !== "pending") return forbid();
     const status = input.approve ? "approved" : "declined";
     sql.exec(`UPDATE ttobs SET status=? WHERE id=?`, status, String(o.id));
+    if (status === "approved") copyClassPacks(sql, String(o.target), String(o.req), String(o.req_name || ""), { cls: String(o.cls || ""), section: "", subject: String(o.subject || ""), lesson: `${hm12(String(o.s))}–${hm12(String(o.e))}`, kind: "obs", ref: String(o.id) });
     c.notify?.([String(o.req)], "tt_observe_reply", { by: a.name, day: String(o.day), time: hm12(String(o.s)), status });
     return { status: 200, body: { ok: true, status } };
   }
@@ -769,6 +809,7 @@ function ttHandle(c: ModCtx, a: Actor, action: string, input: Json): { status: n
     const id = rid("tc");
     sql.exec(`INSERT INTO ttcover (id, day, dow, tt_id, absent, absent_name, cover, cover_name, s, e, cls, section, subject, title, note, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       id, day, dow, str(input.ttId, 40), absent, String(au.name), cover, String(cu.name), s0, e0, str(input.cls, 80), str(input.section, 80), str(input.subject, 80), str(input.title, 120), str(input.note, 300), Date.now());
+    copyClassPacks(sql, absent, cover, String(cu.name), { cls: str(input.cls, 80), section: str(input.section, 80), subject: str(input.subject, 80), lesson: str(input.title, 120), kind: "cover", ref: id });
     c.notify?.([cover], "tt_cover", { by: a.name, day, time: hm12(s0), cls: str(input.cls, 80), absent: String(au.name), subject: str(input.subject, 80) });
     return { status: 200, body: { ok: true, id } };
   }
