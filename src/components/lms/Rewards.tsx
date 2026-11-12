@@ -4,17 +4,18 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AssessmentShell } from "@/components/assessment/AssessmentShell";
 import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
 import { useLmsActor, useTr } from "@/components/lms/useLms";
-import { lmsApi, lmsErrorText } from "@/lib/lms";
+import { lmsApi, lmsErrorText, lmsSession } from "@/lib/lms";
+import { downloadExcellenceCert, ExcellenceDesign, EXC_DEFAULT, type ExcDesign } from "@/components/lms/ExcellenceCert";
 
 const NAVY = "#1b3a57", GOLD = "#f5c542";
 type Band = "a" | "b" | "c";
 type Hist = { at: number; amt: number; label: string; kind: string; by: string; icon: string };
-type Item = { id: string; name: string; nameAr: string; icon: string; cost: number; stock: number; bands: string; on: boolean; pos: number };
-type Req = { id: string; student: string; sname: string; cls: string; name: string; icon: string; cost: number; status: string; by: string; note: string; at: number };
-type Me = { on: boolean; band: Band; balance: number; lifetime: number; spent: number; history: Hist[]; shop: Item[]; requests: Req[]; rules: Record<string, number>; cap: number; labels: Record<string, [string, string]> };
+type Item = { id: string; name: string; nameAr: string; icon: string; cost: number; stock: number; bands: string; on: boolean; pos: number; kind?: string };
+type Req = { id: string; item?: string; student: string; sname: string; cls: string; name: string; icon: string; cost: number; status: string; by: string; note: string; at: number };
+type Me = { on: boolean; band: Band; balance: number; lifetime: number; spent: number; history: Hist[]; shop: Item[]; requests: Req[]; rules: Record<string, number>; cap: number; labels: Record<string, [string, string]>; excellence?: string[]; design?: ExcDesign };
 type Plan = { on: boolean; deduct: boolean; legacy: boolean; resetAt: number; since: number; cap: Record<Band, number>; rules: Record<string, Record<Band, number>>; manualMax: number };
 type Stu = { id: string; name: string; cls: string; section: string; band: Band; balance: number; lifetime: number };
-type Staff = { acc: { view: boolean; add: boolean; edit: boolean }; plan: Plan; students: Stu[]; requests: Req[]; shop: Item[]; classes: string[]; labels: Record<string, [string, string]>; admin: boolean };
+type Staff = { acc: { view: boolean; add: boolean; edit: boolean }; plan: Plan; students: Stu[]; requests: Req[]; shop: Item[]; classes: string[]; labels: Record<string, [string, string]>; admin: boolean; design?: ExcDesign | null };
 
 export const BANDS: [Band, string, string][] = [["a", "FS2 – Y2", "FS2 – Y2"], ["b", "Y3 – Y6", "Y3 – Y6"], ["c", "Y7 – Y13", "Y7 – Y13"]];
 const LEVELS: [number, string, string, string][] = [[0, "Bronze", "برونزي", "🥉"], [50, "Silver", "فضي", "🥈"], [150, "Gold", "ذهبي", "🥇"], [300, "Platinum", "بلاتيني", "💎"], [600, "Noor Legend", "أسطورة النور", "🌟"]];
@@ -104,7 +105,7 @@ function StudentView() {
       </section>
       {me.requests.length > 0 && <section className="glass rounded-3xl p-4">
         <h3 className="mb-2 text-lg font-extrabold">📦 {tr("My requests", "طلباتي")}</h3>
-        <ul className="space-y-1.5">{me.requests.map((r) => <li key={r.id} className="flex flex-wrap items-center gap-2 text-sm"><span>{r.icon}</span><b dir="auto">{r.name}</b><span className="opacity-70">🃏 {r.cost} · {date(r.at)}</span><span className={`rounded-full px-2 py-0.5 text-xs font-bold ${ST[r.status]?.[2] || ""}`}>{ST[r.status] ? tr(ST[r.status][0], ST[r.status][1]) : r.status}</span>{r.status === "pending" && <button type="button" className="text-xs underline" onClick={() => lmsApi.rc("cancel", { id: r.id }).then(load).catch(() => undefined)}>{tr("Cancel", "إلغاء")}</button>}</li>)}</ul>
+        <ul className="space-y-1.5">{me.requests.map((r) => { const cert = (me.excellence || []).includes(r.item || "") && r.status !== "cancelled" && r.status !== "rejected"; const who = lmsSession()?.user; return <li key={r.id} className="flex flex-wrap items-center gap-2 text-sm"><span>{r.icon}</span><b dir="auto">{r.name}</b><span className="opacity-70">🃏 {r.cost} · {date(r.at)}</span><span className={`rounded-full px-2 py-0.5 text-xs font-bold ${ST[r.status]?.[2] || ""}`}>{ST[r.status] ? tr(ST[r.status][0], ST[r.status][1]) : r.status}</span>{r.status === "pending" && <button type="button" className="text-xs underline" onClick={() => lmsApi.rc("cancel", { id: r.id }).then(load).catch(() => undefined)}>{tr("Cancel", "إلغاء")}</button>}{cert && who && <button type="button" className="rounded-full bg-[#1b3a57] px-3 py-1 text-xs font-bold text-[#f5c542]" data-testid="exc-download" onClick={() => downloadExcellenceCert({ name: who.name, cls: who.cls || "", at: r.at }, me.design || EXC_DEFAULT, lang)}>{tr("Download certificate", "تنزيل الشهادة")}</button>}</li>; })}</ul>
       </section>}
       <section className="glass rounded-3xl p-4">
         <h3 className="mb-2 text-lg font-extrabold">🕘 {tr("Card history", "سجل البطاقات")}</h3>
@@ -136,7 +137,7 @@ function StaffView() {
   const decide = (id: string, status: string) => lmsApi.rc("decide", { id, status }).then(() => load()).catch((e) => setMsg(lmsErrorText(e, tr)));
   const savePlan = () => plan && lmsApi.rc<{ plan: Plan }>("plan-save", { plan }).then((r) => { setPlan(r.plan); setMsg(tr("Plan saved.", "تم حفظ الخطة.")); load(); }).catch((e) => setMsg(lmsErrorText(e, tr)));
   const saveItem = () => edit && lmsApi.rc("shop-save", edit as Record<string, unknown>).then(() => { setEdit(null); load(); }).catch((e) => setMsg(lmsErrorText(e, tr)));
-  const tabs: [string, string, string, boolean][] = [["stu", "Students", "الطلاب", true], ["req", `Requests${pending ? ` (${pending})` : ""}`, `الطلبات${pending ? ` (${pending})` : ""}`, true], ["plan", "Plan", "الخطة", d.admin], ["shop", "Shop items", "عناصر المتجر", d.admin]];
+  const tabs: [string, string, string, boolean][] = [["stu", "Students", "الطلاب", true], ["req", `Requests${pending ? ` (${pending})` : ""}`, `الطلبات${pending ? ` (${pending})` : ""}`, true], ["plan", "Plan", "الخطة", d.admin], ["shop", "Shop items", "عناصر المتجر", d.admin], ["cert", "Certificate", "الشهادة", !!d.design]];
   const ST: Record<string, string> = { pending: "bg-amber-100 text-amber-900", approved: "bg-emerald-100 text-emerald-900", fulfilled: "bg-sky-100 text-sky-900", rejected: "bg-rose-100 text-rose-900", cancelled: "bg-slate-100 text-slate-700" };
   return (
     <div className="space-y-4">
@@ -192,6 +193,7 @@ function StaffView() {
           <button type="button" className={`${btn} bg-rose-100 text-rose-900`} onClick={() => confirm(tr("Start a new term? Every balance goes back to 0 (history is kept).", "بدء فصل جديد؟ ستعود الأرصدة إلى 0 (يبقى السجل).")) && lmsApi.rc("reset").then(() => { setMsg(tr("New term started — balances reset.", "بدأ فصل جديد.")); load(); }).catch(() => undefined)}>{tr("Term reset", "إعادة ضبط الفصل")}</button>
           {d.plan.resetAt > 0 && <span className="self-center text-xs opacity-60">{tr("Last reset", "آخر إعادة ضبط")}: {new Date(d.plan.resetAt).toLocaleDateString()}</span>}</div>
       </section>}
+      {tab === "cert" && d.design && <ExcellenceDesign design={d.design} />}
       {tab === "shop" && <section className="space-y-2">
         <button type="button" className={gold} style={{ background: GOLD }} onClick={() => setEdit({ name: "", nameAr: "", icon: "🎁", cost: 20, stock: -1, bands: "abc", on: true, pos: 50 })}>+ {tr("Add item", "إضافة عنصر")}</button>
         {d.shop.map((it) => <div key={it.id} className={`flex flex-wrap items-center gap-2 rounded-2xl bg-white p-3 text-sm shadow-sm dark:bg-white/5 ${it.on ? "" : "opacity-50"}`}><span className="text-2xl">{it.icon}</span><b className="flex-1" dir="auto">{lang === "ar" && it.nameAr ? it.nameAr : it.name}</b><span>🃏 {it.cost}</span><span className="opacity-60">{it.stock < 0 ? "∞" : it.stock} · {BANDS.filter(([b]) => it.bands.includes(b)).map((x) => x[1]).join(", ")}</span><button type="button" className="underline" onClick={() => setEdit(it)}>{tr("Edit", "تعديل")}</button><button type="button" className="text-rose-600 underline" onClick={() => confirm(tr("Delete item?", "حذف العنصر؟")) && lmsApi.rc("shop-delete", { id: it.id }).then(() => load())}>{tr("Delete", "حذف")}</button></div>)}
@@ -201,7 +203,7 @@ function StaffView() {
         <div className="flex gap-2"><input className={`${inp} w-16 text-center`} value={edit.icon || ""} onChange={(e) => setEdit({ ...edit, icon: e.target.value })} aria-label="icon" /><input className={`${inp} flex-1`} placeholder="Name (English)" value={edit.name || ""} onChange={(e) => setEdit({ ...edit, name: e.target.value })} /></div>
         <input className={`${inp} w-full`} dir="rtl" placeholder="الاسم بالعربية" value={edit.nameAr || ""} onChange={(e) => setEdit({ ...edit, nameAr: e.target.value })} />
         <div className="flex flex-wrap gap-3 text-sm"><label>{tr("Cost", "السعر")} <input type="number" min={1} className={`${inp} w-20`} value={edit.cost} onChange={(e) => setEdit({ ...edit, cost: Number(e.target.value) })} /></label><label>{tr("Stock (−1 = unlimited)", "المخزون (−1 = غير محدود)")} <input type="number" min={-1} className={`${inp} w-20`} value={edit.stock} onChange={(e) => setEdit({ ...edit, stock: Number(e.target.value) })} /></label><label>{tr("Order", "الترتيب")} <input type="number" className={`${inp} w-16`} value={edit.pos} onChange={(e) => setEdit({ ...edit, pos: Number(e.target.value) })} /></label></div>
-        <div className="flex flex-wrap gap-3 text-sm">{BANDS.map(([b, en]) => <label key={b} className="flex items-center gap-1"><input type="checkbox" checked={(edit.bands || "").includes(b)} onChange={(e) => setEdit({ ...edit, bands: e.target.checked ? (edit.bands || "") + b : (edit.bands || "").replace(b, "") })} />{en}</label>)}<label className="flex items-center gap-1"><input type="checkbox" checked={edit.on !== false} onChange={(e) => setEdit({ ...edit, on: e.target.checked })} />{tr("Visible", "ظاهر")}</label></div>
+        <div className="flex flex-wrap gap-3 text-sm">{BANDS.map(([b, en]) => <label key={b} className="flex items-center gap-1"><input type="checkbox" checked={(edit.bands || "").includes(b)} onChange={(e) => setEdit({ ...edit, bands: e.target.checked ? (edit.bands || "") + b : (edit.bands || "").replace(b, "") })} />{en}</label>)}<label className="flex items-center gap-1"><input type="checkbox" checked={edit.on !== false} onChange={(e) => setEdit({ ...edit, on: e.target.checked })} />{tr("Visible", "ظاهر")}</label><label className="flex items-center gap-1"><input type="checkbox" checked={edit.kind === "excellence"} onChange={(e) => setEdit({ ...edit, kind: e.target.checked ? "excellence" : "" })} data-testid="rc-item-excellence" />{tr("Excellence Certificate", "شهادة التميز")}</label></div>
         <div className="flex gap-2"><button type="button" className={gold} style={{ background: GOLD }} onClick={saveItem}>{tr("Save", "حفظ")}</button><button type="button" className={`${btn} bg-black/5`} onClick={() => setEdit(null)}>{tr("Cancel", "إلغاء")}</button></div>
       </div></div>}
     </div>

@@ -7,13 +7,13 @@
 type Sql = { exec: (q: string, ...b: unknown[]) => { toArray: () => Record<string, unknown>[] } };
 type Act = { role: string; perms?: string[]; subj?: string[] };
 export const MP_MODS = ["trk", "rep", "aps", "tt", "lp", "qa", "rw"] as const;
-export const MP_KEYS = ["show", "view", "add", "edit", "delete", "xlsx", "pdf", "isams", "share", "dl", "peers", "compare", "observe", "cover"] as const;
+export const MP_KEYS = ["show", "view", "add", "edit", "delete", "xlsx", "pdf", "isams", "share", "dl", "peers", "compare", "observe", "cover", "qmap", "exc"] as const;
 export type MpMod = (typeof MP_MODS)[number];
 export type MpKey = (typeof MP_KEYS)[number];
 export type MpAcc = Record<MpKey, boolean>;
 type Part = Partial<Record<MpMod, Partial<MpAcc>>>;
 export type MpCfg = { global: Part; roles: Record<string, Part>; subjects: Record<string, Part> };
-export const MP_PERM = /^mp:(trk|rep|aps|tt|lp|qa|rw):(show|view|add|edit|delete|xlsx|pdf|isams|share|dl|peers|compare|observe|cover):(on|off)$/;
+export const MP_PERM = /^mp:(trk|rep|aps|tt|lp|qa|rw):(show|view|add|edit|delete|xlsx|pdf|isams|share|dl|peers|compare|observe|cover|qmap|exc):(on|off)$/;
 const pick = (o: unknown): Part => {
   const out: Part = {}; const x = (o && typeof o === "object" ? o : {}) as Record<string, Record<string, unknown>>;
   for (const m of MP_MODS) { const r: Partial<MpAcc> = {}; for (const k of MP_KEYS) if (typeof x[m]?.[k] === "boolean") r[k] = x[m][k] as boolean; if (Object.keys(r).length) out[m] = r; }
@@ -40,7 +40,9 @@ export function mpOf(sql: Sql, a: Act, mod: MpMod, cfg = mpCfg(sql)): MpAcc {
   // t336: Progress Check QA starts OFF for teachers (admin turns View / Add / Edit / Download on per teacher, role or subject).
   if (mod === "qa") for (const k of MP_KEYS) out[k] = k === "show";
   // t441: Reward Cards — teachers start with View + Add (award); Edit (approve redemptions) is off until admin allows it.
-  if (mod === "rw") out.edit = false;
+  // Excellence Certificate design stays off until the admin turns it on. Quran-map PDF starts on (admin can turn it off).
+  if (mod === "rw") { out.edit = false; out.exc = false; }
+  if (mod === "lp") out.qmap = true;
   // t384: viewing other teachers' timetables, comparing and peer observation start OFF for every teacher.
   // t438: peer view / compare / observation now default ON for teachers (admin can still switch them off).
   Object.assign(out, cfg.global[mod] || {}, cfg.roles[a.role]?.[mod] || {});
