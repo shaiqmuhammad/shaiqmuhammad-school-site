@@ -25,6 +25,28 @@ const TAB_ITEMS: { id: HwHubTab; ic: string; en: string; ar: string }[] = [
 ];
 
 const OPEN_PILL = "inline-flex items-center justify-center rounded-full bg-[#1b3a57] px-3 py-1 text-sm font-extrabold text-[#f5c542] shadow transition hover:brightness-110";
+/** Same lift as the class cards on My classes, and the same eight colour pairs. */
+const PORTION_LIFT = "transition hover:-translate-y-1 hover:shadow-2xl";
+const PORTION_WASH = [
+  "from-sky-100 via-white to-blue-50 dark:from-sky-950/70 dark:via-[#13202e] dark:to-blue-950/50",
+  "from-amber-100 via-white to-orange-50 dark:from-amber-950/60 dark:via-[#13202e] dark:to-orange-950/40",
+  "from-emerald-100 via-white to-teal-50 dark:from-emerald-950/60 dark:via-[#13202e] dark:to-teal-950/40",
+  "from-pink-100 via-white to-rose-50 dark:from-pink-950/60 dark:via-[#13202e] dark:to-rose-950/40",
+  "from-violet-100 via-white to-violet-50 dark:from-violet-950/60 dark:via-[#13202e] dark:to-violet-950/40",
+  "from-teal-100 via-white to-cyan-50 dark:from-teal-950/60 dark:via-[#13202e] dark:to-cyan-950/40",
+  "from-orange-100 via-white to-red-50 dark:from-orange-950/50 dark:via-[#13202e] dark:to-red-950/40",
+  "from-lime-100 via-white to-green-50 dark:from-lime-950/50 dark:via-[#13202e] dark:to-green-950/40",
+];
+const PORTION_BAR = [
+  "from-sky-400 to-blue-600",
+  "from-amber-400 to-orange-500",
+  "from-emerald-400 to-teal-600",
+  "from-pink-400 to-rose-600",
+  "from-violet-400 to-violet-600",
+  "from-teal-400 to-cyan-600",
+  "from-orange-400 to-red-600",
+  "from-lime-400 to-green-600",
+];
 
 /** Read the hub tab from ?tab= or a leftover hash (#quran / #general / #assigned / #corrected / #review). */
 export function tabFromLocation(): HwHubTab {
@@ -235,13 +257,16 @@ export function HwPortionGrid({
   const canEdit = (h: DashHw) => !sharedOnly(h, actor?.id, actor?.role) && (h.kind !== "quran" ? canAssign || actor?.role === "admin" : q.edit);
   const canDel = (h: DashHw) => !sharedOnly(h, actor?.id, actor?.role) && (h.kind !== "quran" ? canAssign || actor?.role === "admin" : q.del);
 
-  const card = (h: DashHw) => {
+  const card = (h: DashHw, i = 0) => {
     const qd = h.kind === "quran" ? (h.data as QuranData) : null;
     const c = countsOf(h);
     const remind = isLive(h) && !isFullyCorrected(h);
+    const n = i % PORTION_WASH.length;
+    const icon = h.kind === "quran" ? "📖" : isActivity(h) ? "🎲" : "📝";
     return (
-      <article key={h.id} className={cardCls} data-testid="hw-portion">
-        <p className="text-lg font-extrabold" dir="auto">{h.kind === "quran" ? "📖" : "📝"} {h.title}</p>
+      <article key={h.id} className={`group relative overflow-hidden rounded-2xl border border-black/10 bg-gradient-to-br p-4 pt-5 shadow-md ring-1 ring-black/5 dark:border-white/10 ${PORTION_WASH[n]} ${PORTION_LIFT}`} data-testid="hw-portion">
+        <span className={`pointer-events-none absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r ${PORTION_BAR[n]}`} aria-hidden />
+        <p className="text-xl font-extrabold leading-tight text-heading sm:text-2xl" dir="auto"><span className="me-1 inline-block origin-center transition group-hover:scale-110" aria-hidden>{icon}</span>{h.title}</p>
         {isActivity(h) && <span className="mt-1 inline-flex rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-extrabold text-violet-900 dark:bg-violet-900/40 dark:text-violet-100" data-testid="hw-activity-badge">{tr("Activity", "نشاط")}</span>}
         {h.kind === "quran" && <TrkLink id={h.id} kind="hw" asAdmin={asAdmin} />}
         <HwMeta {...hwAud(h)} className="mt-1" />
@@ -308,7 +333,7 @@ export function HwPortionGrid({
         <p className={cardCls + " text-center opacity-70"} data-testid="hw-hub-empty">{empty}</p>
       ) : (
         <div className="space-y-6" data-testid="hw-portion-groups">
-          {groups.map((g, i) => {
+          {(() => { let n = 0; return groups.map((g, i) => {
             const prev = groups[i - 1];
             const showYear = !prev || prev.year !== g.year;
             return (
@@ -316,11 +341,11 @@ export function HwPortionGrid({
                 {showYear && <h3 className="text-lg font-extrabold text-[#1b3a57] dark:text-white" data-testid="hw-year-heading">🏫 {tr("Year", "الصف")}: {yearLabel(g.year)}</h3>}
                 <h4 className="text-sm font-extrabold opacity-80" data-testid="hw-sec-heading">👥 {tr("Section", "الشعبة")}: {sectionLabel(g.section)}</h4>
                 <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3" data-testid="hw-portion-grid">
-                  {g.rows.map(card)}
+                  {g.rows.map((h) => card(h, n++))}
                 </div>
               </section>
             );
-          })}
+          }); })()}
         </div>
       )}
     </div>
