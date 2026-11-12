@@ -201,7 +201,7 @@ export function SpinningWheel() {
           </div>
           <div className="relative rounded-[28px] bg-white px-10 py-10 text-center shadow-2xl dark:bg-[#10263b]" onClick={(e) => e.stopPropagation()}>
             <p className="break-words text-6xl font-black text-navy dark:text-sun sm:text-7xl" dir="auto">{winner}</p>
-            <PickedAward name={winner} />
+            <PickedAward name={winner} onAwarded={closeWinner} />
           </div>
         </div>
       )}
