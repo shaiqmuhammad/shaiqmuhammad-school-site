@@ -16,11 +16,11 @@ const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&
 const sc = "rounded-full border border-black/15 bg-white px-3 py-1.5 text-sm dark:border-white/20 dark:bg-black/20";
 const urlOf = (t: string) => `${siteOrigin()}/lms/qr/?t=${t}`;
 
-/** Student Logins: big cards with username, PIN and a login QR for every student the viewer may see (admin: all; teacher: own classes). */
+/** Student Logins: big cards with username, password and a login QR for every student the viewer may see (admin: all; teacher: own classes). */
 export function StudentLogins({ asAdmin, perms = [] }: { asAdmin: boolean; perms?: string[] }) {
   const { tr, lang } = useTr();
   const [nameMode, setNameMode] = useState<NameMode>("auto");
-  // t302: PINs stay hidden until the eye button is pressed (per card).
+  // t302: passwords stay hidden until the eye button is pressed (per card).
   const [shown, setShown] = useState<Set<string>>(new Set());
   useEffect(() => { loadNameMode(asAdmin).then(setNameMode).catch(() => undefined); }, [asAdmin]);
   const [items, setItems] = useState<LoginCard[] | null>(null);
@@ -56,17 +56,30 @@ export function StudentLogins({ asAdmin, perms = [] }: { asAdmin: boolean; perms
     try { const r = await lmsApi.loginTokenReset(s.id, asAdmin); setItems((x) => (x || []).map((y) => (y.id === s.id ? { ...y, token: r.token } : y))); } catch (e) { setErr(lmsErrorText(e, tr)); }
     setBusy("");
   };
+  // t579: give a student a new generated password (shown straight away behind the eye button).
+  const resetPw = async (s: LoginCard) => {
+    if (!confirm(tr(`Give ${s.name} a new password? The old password stops working and the student signs in again with the new one.`, `إعطاء ${s.name} كلمة مرور جديدة؟ ستتوقف كلمة المرور القديمة ويسجّل الطالب الدخول بالكلمة الجديدة.`))) return;
+    setBusy(s.id);
+    try {
+      const r = await lmsApi.loginPinReset(s.id, asAdmin);
+      setItems((x) => (x || []).map((y) => (y.id === s.id ? { ...y, pin: r.pin } : y)));
+      setShown((x) => new Set(x).add(s.id));
+      setErr("");
+    } catch (e) { setErr(lmsErrorText(e, tr)); }
+    setBusy("");
+  };
+  const hiddenCount = (items || []).filter((s) => !s.pin).length;
   const print = () => {
     const w = window.open("", "_blank");
     if (!w) { setErr(tr("Allow pop-ups to print.", "اسمح بالنوافذ المنبثقة للطباعة.")); return; }
-    const cards = list.map((s) => `<div class="c"><h2 dir="auto">${esc(pickName(s.name, s.nameAr, lang, nameMode))}</h2><p class="k">${esc([clsNum(s.cls), s.section ? secLetter(s.section) : ""].filter(Boolean).join(" · "))}</p><div class="r"><span>User ID</span><b>${esc(s.username)}</b></div><div class="r"><span>PIN</span><b>${esc(s.pin || "—")}</b></div><div class="qr">${qrSvg(urlOf(s.token), 190)}</div><p class="n">Scan to sign in · امسح للدخول</p></div>`).join("");
+    const cards = list.map((s) => `<div class="c"><h2 dir="auto">${esc(pickName(s.name, s.nameAr, lang, nameMode))}</h2><p class="k">${esc([clsNum(s.cls), s.section ? secLetter(s.section) : ""].filter(Boolean).join(" · "))}</p><div class="r"><span>User ID</span><b>${esc(s.username)}</b></div><div class="r"><span>Password · كلمة المرور</span><b>${esc(s.pin || "—")}</b></div><div class="qr">${qrSvg(urlOf(s.token), 190)}</div><p class="n">Scan to sign in · امسح للدخول</p></div>`).join("");
     w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Student logins</title><style>body{font-family:system-ui,"Noto Naskh Arabic","Segoe UI",Tahoma,sans-serif;margin:12px}.g{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.c{border:2px solid #16324f;border-radius:14px;padding:12px;text-align:center;break-inside:avoid}h2{margin:0;font-size:20px;color:#16324f}.k{margin:2px 0 8px;color:#555}.r{display:flex;justify-content:space-between;border-top:1px solid #ddd;padding:5px 4px;font-size:15px}.r b{font-family:monospace;font-size:18px}.qr{margin:8px 0 2px}.n{margin:0;font-size:12px;color:#555}@media print{body{margin:0}}</style></head><body><div class="g">${cards}</div><script>window.onload=function(){setTimeout(function(){window.print()},300)}</script></body></html>`);
     w.document.close();
   };
   return (
     <div className="space-y-4" data-testid="student-logins">
       <div className="flex flex-wrap items-end gap-3">
-        <div className="min-w-0 flex-1"><h2 className="text-2xl font-extrabold tracking-tight">🔑 {tr("Student Logins", "بيانات دخول الطلاب")}</h2><p className="text-sm opacity-70">{tr("Username, PIN and a login QR for each student. Keep these private — anyone with a card can sign in as that student.", "اسم المستخدم والرقم السري ورمز QR لكل طالب. احتفظ بها بسرية — من يملك البطاقة يمكنه الدخول كالطالب.")}</p></div>
+        <div className="min-w-0 flex-1"><h2 className="text-2xl font-extrabold tracking-tight">🔑 {tr("Student Logins", "بيانات دخول الطلاب")}</h2><p className="text-sm opacity-70">{tr("Username, password and a login QR for each student. Keep these private — anyone with a card can sign in as that student.", "اسم المستخدم وكلمة المرور ورمز QR لكل طالب. احتفظ بها بسرية — من يملك البطاقة يمكنه الدخول كالطالب.")}</p></div>
         <DlGate kind="export"><button type="button" className={sc + " font-bold"} onClick={print} disabled={!list.length} data-testid="logins-print">🖨 {tr(`Print / PDF (${list.length})`, `طباعة / PDF (${list.length})`)}</button></DlGate>
       </div>
       <div className="flex flex-wrap gap-2">
@@ -79,7 +92,9 @@ export function StudentLogins({ asAdmin, perms = [] }: { asAdmin: boolean; perms
         <span className="self-center text-sm font-bold" data-testid="logins-count">{list.length}</span>
       </div>
       {err && <p className="rounded-2xl bg-rose-100 px-4 py-2 text-sm text-rose-800" role="alert">{err}</p>}
-      {items?.some((s) => !s.pin) && <p className="rounded-2xl bg-amber-100 px-4 py-2 text-sm text-amber-950 dark:bg-amber-900/40 dark:text-amber-100" role="status" data-testid="logins-pin-unavailable">{tr("Names, User IDs and login QR codes are shown. Existing PINs cannot be displayed because the PIN viewing key was not moved with the school data. Students can still sign in with their current PINs.", "تظهر الأسماء ومعرّفات المستخدم ورموز QR للدخول. لا يمكن عرض الأرقام السرية الحالية لأن مفتاح عرض الرقم السري لم يُنقل مع بيانات المدرسة. يمكن للطلاب الاستمرار في الدخول بأرقامهم السرية الحالية.")}</p>}
+      {hiddenCount > 0 && <p className="rounded-2xl bg-amber-100 px-4 py-2 text-sm text-amber-950 dark:bg-amber-900/40 dark:text-amber-100" role="status" data-testid="logins-pin-unavailable">{canRegen
+        ? tr(`${hiddenCount} saved password(s) can't be shown, because they were saved before the school moved servers. Those students can still sign in with their current password. Press "Reset password" on a card to give that student a new one — it then shows with the eye button.`, `لا يمكن عرض ${hiddenCount} من كلمات المرور المحفوظة لأنها حُفظت قبل نقل المدرسة إلى الخادم الجديد. يمكن لهؤلاء الطلاب الاستمرار في الدخول بكلمة المرور الحالية. اضغط "إعادة تعيين كلمة المرور" على البطاقة لإعطاء الطالب كلمة جديدة — ستظهر بعدها بزر العين.`)
+        : tr(`${hiddenCount} saved password(s) can't be shown, because they were saved before the school moved servers. Those students can still sign in with their current password. Ask the admin to reset a password if a student needs a new one.`, `لا يمكن عرض ${hiddenCount} من كلمات المرور المحفوظة لأنها حُفظت قبل نقل المدرسة إلى الخادم الجديد. يمكن لهؤلاء الطلاب الاستمرار في الدخول بكلمة المرور الحالية. اطلب من المدير إعادة تعيين كلمة المرور إذا احتاج الطالب إلى كلمة جديدة.`)}</p>}
       {items === null ? <p className="opacity-70">{tr("Loading…", "جارٍ التحميل…")}</p> : !list.length ? <p className="rounded-2xl bg-white/70 p-6 text-center opacity-70 dark:bg-white/5" data-testid="logins-empty">{tr("No students to show.", "لا يوجد طلاب.")}</p> : (
         <div className="space-y-6">
           {(byGroup ? sections : [{ id: "_", title: "", students: list }]).map((sec) => (
@@ -92,11 +107,13 @@ export function StudentLogins({ asAdmin, perms = [] }: { asAdmin: boolean; perms
               <p className="text-sm opacity-70">{clsNum(s.cls)}{s.section ? secLetter(s.section) : ""}{s.disabled ? ` · ${tr("Blocked", "موقوف")}` : ""}</p>
               <dl className="mt-2 divide-y divide-black/10 rounded-xl bg-black/[0.04] text-start dark:divide-white/10 dark:bg-white/5">
                 <div className="flex items-center justify-between gap-2 px-3 py-1.5"><dt className="text-xs font-bold uppercase opacity-60">{tr("User ID", "المعرّف")}</dt><dd className="font-mono text-base font-bold" dir="ltr" data-testid="login-user">{s.username}</dd></div>
-                <div className="flex items-center justify-between gap-2 px-3 py-1.5"><dt className="text-xs font-bold uppercase opacity-60">PIN</dt><dd className="flex items-center gap-2"><span className="font-mono text-xl font-extrabold tracking-widest" dir="ltr" data-testid="login-pin">{shown.has(s.id) ? s.pin || "—" : s.pin ? "••••••" : "—"}</span>{s.pin && <button type="button" className="rounded-full border border-black/15 px-2 py-0.5 text-sm dark:border-white/20" onClick={() => setShown((x) => { const n = new Set(x); if (n.has(s.id)) n.delete(s.id); else n.add(s.id); return n; })} aria-label={shown.has(s.id) ? tr("Hide PIN", "إخفاء الرمز") : tr("Show PIN", "إظهار الرمز")} title={shown.has(s.id) ? tr("Hide PIN", "إخفاء الرمز") : tr("Show PIN", "إظهار الرمز")} data-testid="login-pin-eye">{shown.has(s.id) ? "🙈" : "👁"}</button>}</dd></div>
+                <div className="flex items-center justify-between gap-2 px-3 py-1.5"><dt className="text-xs font-bold uppercase opacity-60">{tr("Password", "كلمة المرور")}</dt><dd className="flex items-center gap-2"><span className="font-mono text-xl font-extrabold tracking-widest" dir="ltr" data-testid="login-pin">{shown.has(s.id) ? s.pin || "—" : "••••••"}</span><button type="button" className="rounded-full border border-black/15 px-2 py-0.5 text-sm dark:border-white/20" onClick={() => setShown((x) => { const n = new Set(x); if (n.has(s.id)) n.delete(s.id); else n.add(s.id); return n; })} aria-label={shown.has(s.id) ? tr("Hide password", "إخفاء كلمة المرور") : tr("Show password", "إظهار كلمة المرور")} title={shown.has(s.id) ? tr("Hide password", "إخفاء كلمة المرور") : tr("Show password", "إظهار كلمة المرور")} data-testid="login-pin-eye">{shown.has(s.id) ? "🙈" : "👁"}</button></dd></div>
+                {shown.has(s.id) && !s.pin && <p className="px-3 py-1.5 text-xs text-amber-800 dark:text-amber-200" data-testid="login-pin-hidden-note">{canRegen ? tr("This saved password can't be shown. Reset it to see a new one.", "لا يمكن عرض كلمة المرور المحفوظة. أعد تعيينها لرؤية كلمة جديدة.") : tr("This saved password can't be shown. Ask the admin to reset it.", "لا يمكن عرض كلمة المرور المحفوظة. اطلب من المدير إعادة تعيينها.")}</p>}
+
               </dl>
               <div className="mx-auto mt-3 w-fit rounded-2xl bg-white p-2 shadow-inner" data-testid="login-qr" dangerouslySetInnerHTML={{ __html: qrSvg(urlOf(s.token), 200) }} />
               <p className="mt-1 text-xs opacity-60">{tr("Scan to sign in", "امسح للدخول")}</p>
-              {canRegen && <button type="button" className="mt-2 rounded-full border border-black/15 px-3 py-1 text-xs font-bold dark:border-white/20" onClick={() => regen(s)} disabled={busy === s.id} data-testid="login-regen">↻ {tr("New QR", "رمز جديد")}</button>}
+              {canRegen && <div className="mt-2 flex flex-wrap justify-center gap-2"><button type="button" className="rounded-full border border-black/15 px-3 py-1 text-xs font-bold dark:border-white/20" onClick={() => resetPw(s)} disabled={busy === s.id} data-testid="login-pin-reset">🔑 {tr("Reset password", "إعادة تعيين كلمة المرور")}</button><button type="button" className="rounded-full border border-black/15 px-3 py-1 text-xs font-bold dark:border-white/20" onClick={() => regen(s)} disabled={busy === s.id} data-testid="login-regen">↻ {tr("New QR", "رمز جديد")}</button></div>}
             </article>
                 ))}
               </div>

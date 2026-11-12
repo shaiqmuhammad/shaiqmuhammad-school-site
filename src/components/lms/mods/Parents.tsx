@@ -27,8 +27,8 @@ export function AdminParents() {
   useEffect(() => { load(); }, [load]);
   const shownList = useMemo(() => (items || []).filter((p) => !q || `${p.name} ${p.username} ${p.kids.map((s) => s.name).join(" ")}`.toLowerCase().includes(q.toLowerCase())), [items, q]);
 
-  const reveal = async (p: Par) => { const r = await lmsApi.pinsView([p.id]).catch(() => null); const pin = r?.pins[p.id]; if (pin) setShown({ name: p.name, username: p.username, pin }); else note(tr("PIN not viewable — reset it to get a new one.", "الرقم السري غير متاح — أعد تعيينه."), true); };
-  const reset = async (p: Par) => { if (!confirm(tr("Reset this parent's PIN?", "إعادة تعيين الرقم السري لولي الأمر؟"))) return; try { const r = await lmsApi.resetPin(p.id); setShown({ name: p.name, username: p.username, pin: r.pin }); } catch (e) { note(modErr(e, tr), true); } };
+  const reveal = async (p: Par) => { const r = await lmsApi.pinsView([p.id]).catch(() => null); const pin = r?.pins[p.id]; if (pin) setShown({ name: p.name, username: p.username, pin }); else note(tr("Password not viewable — reset it to get a new one.", "كلمة المرور غير متاحة — أعد تعيينها."), true); };
+  const reset = async (p: Par) => { if (!confirm(tr("Reset this parent's password?", "إعادة تعيين كلمة المرور لولي الأمر؟"))) return; try { const r = await lmsApi.resetPin(p.id); setShown({ name: p.name, username: p.username, pin: r.pin }); } catch (e) { note(modErr(e, tr), true); } };
   const del = async (p: Par) => { if (!confirm(tr("Delete this parent account? Their messages stay in the admin record.", "حذف حساب ولي الأمر؟ تبقى رسائله في سجل الإدارة."))) return; try { await modCall("par-delete", { id: p.id }, true); note(tr("Deleted.", "تم الحذف.")); load(); } catch (e) { note(modErr(e, tr), true); } };
   const save = async () => {
     if (!edit) return;
@@ -38,7 +38,7 @@ export function AdminParents() {
       if (r.pin) setShown({ name: edit.name || "", username: edit.username || "", pin: r.pin });
     } catch (e) { note(modErr(e, tr), true); }
   };
-  const csv = (rows: Made[]) => downloadBlob(new Blob(["\ufeff" + ["Parent,Username,PIN,Children", ...rows.map((r) => [r.name, r.username, r.pin, r.students.join("; ")].map((x) => `"${x.replace(/"/g, '""')}"`).join(","))].join("\n")], { type: "text/csv" }), "parent-logins.csv");
+  const csv = (rows: Made[]) => downloadBlob(new Blob(["\ufeff" + ["Parent,Username,Password,Children", ...rows.map((r) => [r.name, r.username, r.pin, r.students.join("; ")].map((x) => `"${x.replace(/"/g, '""')}"`).join(","))].join("\n")], { type: "text/csv" }), "parent-logins.csv");
   const preview = async () => { try { const r = await modCall<{ plan: Plan[] }>("par-import", {}, true); setPlan(r.plan); if (!r.plan.length) note(tr("No student has a parent name or email yet.", "لا يوجد طالب لديه اسم أو بريد ولي أمر بعد.")); } catch (e) { note(modErr(e, tr), true); } };
   const run = async () => { try { const r = await modCall<{ created: number; linked: number; pins: Made[] }>("par-import", { confirm: true }, true); setPlan(null); setMade(r.pins); note(tr(`Created ${r.created}, linked ${r.linked}.`, `أُنشئ ${r.created}، رُبط ${r.linked}.`)); load(); } catch (e) { note(modErr(e, tr), true); } };
   const toggle = (s: { id: string; name: string; cls: string; section: string }) => { const cur = edit?.students || []; setEdit({ ...edit, students: cur.some((x) => x.id === s.id) ? cur.filter((x) => x.id !== s.id) : [...cur, s] }); };
@@ -60,7 +60,7 @@ export function AdminParents() {
               <p className="mt-1 text-sm" dir="auto">{p.kids.length ? p.kids.map((s) => `${s.name} (${s.cls}${s.section ? " " + s.section.replace(s.cls, "").trim() : ""})`).join("، ") : <i className="opacity-60">{tr("No children linked", "لا أبناء مرتبطون")}</i>}</p>
               <div className="mt-3 flex flex-wrap gap-2">
                 <button type="button" className={btn + " !py-1"} onClick={() => setEdit({ ...p, students: p.kids })} data-testid="par-edit">✎ {tr("Edit", "تعديل")}</button>
-                <button type="button" className={btn + " !py-1"} onClick={() => reveal(p)} data-testid="par-pin">🔑 {tr("PIN", "الرقم")}</button>
+                <button type="button" className={btn + " !py-1"} onClick={() => reveal(p)} data-testid="par-pin">🔑 {tr("Password", "كلمة المرور")}</button>
                 <button type="button" className={btn + " !py-1"} onClick={() => reset(p)} data-testid="par-reset">↻ {tr("Reset", "إعادة")}</button>
                 <button type="button" className={btn + " !py-1 text-rose-600"} onClick={() => del(p)} data-testid="par-del">🗑</button>
               </div>
@@ -74,7 +74,7 @@ export function AdminParents() {
             <label className="text-sm font-semibold">{tr("Full name", "الاسم الكامل")}<input className={field} value={edit.name || ""} onChange={(e) => setEdit({ ...edit, name: e.target.value })} dir="auto" data-testid="par-name" /></label>
             <label className="text-sm font-semibold">{tr("Username", "اسم المستخدم")}<input className={field} value={edit.username || ""} onChange={(e) => setEdit({ ...edit, username: e.target.value.toLowerCase().replace(/[^a-z0-9._-]/g, "") })} dir="ltr" autoCapitalize="none" data-testid="par-username" /></label>
             <label className="text-sm font-semibold">{tr("Email (optional, admin only)", "البريد (اختياري، للإدارة فقط)")}<input className={field} type="email" value={edit.email || ""} onChange={(e) => setEdit({ ...edit, email: e.target.value })} dir="ltr" data-testid="par-email" /></label>
-            <label className="text-sm font-semibold">{edit.id ? tr("New PIN (leave empty to keep)", "رقم جديد (اتركه فارغًا للإبقاء)") : tr("PIN (empty = auto)", "الرقم السري (فارغ = تلقائي)")}<input className={field} value={edit.pin || ""} onChange={(e) => setEdit({ ...edit, pin: e.target.value.slice(0, 64) })} dir="ltr" data-testid="par-pin-input" /></label>
+            <label className="text-sm font-semibold">{edit.id ? tr("New password (leave empty to keep)", "كلمة مرور جديدة (اتركها فارغة للإبقاء)") : tr("Password (empty = auto)", "كلمة المرور (فارغة = تلقائية)")}<input className={field} value={edit.pin || ""} onChange={(e) => setEdit({ ...edit, pin: e.target.value.slice(0, 64) })} dir="ltr" data-testid="par-pin-input" /></label>
           </div>
           {edit.id && <label className="mt-3 flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={!!edit.disabled} onChange={(e) => setEdit({ ...edit, disabled: e.target.checked })} /> {tr("Disabled (cannot sign in)", "معطّل (لا يمكنه الدخول)")}</label>}
           <p className="mt-4 text-sm font-bold">{tr("Children", "الأبناء")} ({(edit.students || []).length})</p>
@@ -90,7 +90,7 @@ export function AdminParents() {
         <Modal title={tr("Parent sign-in", "دخول ولي الأمر")} onClose={() => setShown(null)}>
           <p dir="auto" className="font-bold">{shown.name}</p>
           <p className="mt-2 text-sm">{tr("Username", "اسم المستخدم")}: <b dir="ltr" data-testid="par-shown-user">{shown.username}</b></p>
-          <p className="text-sm">PIN: <b className="text-2xl tracking-widest" dir="ltr" data-testid="par-shown-pin">{shown.pin}</b></p>
+          <p className="text-sm">{tr("Password", "كلمة المرور")}: <b className="text-2xl tracking-widest" dir="ltr" data-testid="par-shown-pin">{shown.pin}</b></p>
           <p className="mt-2 text-xs opacity-70">{tr("Give this to the parent yourself — nothing is emailed automatically.", "سلّمها لولي الأمر بنفسك — لا يُرسل أي بريد تلقائيًا.")}</p>
         </Modal>
       )}
@@ -105,7 +105,7 @@ export function AdminParents() {
       )}
       {made && (
         <Modal title={tr("New parent logins", "حسابات أولياء الأمور الجديدة")} onClose={() => setMade(null)} wide>
-          <p className="mb-2 text-sm text-amber-700 dark:text-amber-300">{tr("Save these PINs now (also viewable later in the list).", "احفظ الأرقام الآن (ويمكن عرضها لاحقًا من القائمة).")}</p>
+          <p className="mb-2 text-sm text-amber-700 dark:text-amber-300">{tr("Save these passwords now (also viewable later in the list).", "احفظ كلمات المرور الآن (ويمكن عرضها لاحقًا من القائمة).")}</p>
           <div className="max-h-72 overflow-auto"><table className="w-full text-sm" data-testid="par-made"><tbody>{made.map((m, i) => <tr key={i} className="border-b border-black/10 dark:border-white/10"><td className="py-1.5" dir="auto">{m.name}</td><td dir="ltr">{m.username}</td><td dir="ltr" className="font-bold">{m.pin}</td><td className="opacity-70" dir="auto">{m.students.join("، ")}</td></tr>)}</tbody></table></div>
           <div className="mt-4 flex justify-end gap-2"><button type="button" className={btn} onClick={() => csv(made)}>⬇ CSV</button><button type="button" className={btnCta} onClick={() => setMade(null)}>{tr("Done", "تم")}</button></div>
         </Modal>

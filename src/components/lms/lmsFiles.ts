@@ -7,7 +7,7 @@ import { clsNum, secLetter, resolveClass, resolveSection } from "@/lib/classFmt"
 import { makeZip } from "@/lib/zip";
 
 /** Student columns (admin only): header, key, width. Gender, DOB, contact, emails, nationality, language, SEN/EAL/G&T are private to admin. */
-const STUDENT_COLS: [string, string, number][] = [["username", "username", 18], ["first name", "first", 16], ["last name", "last", 16], ["class", "cls", 14], ["section", "section", 12], ["pin", "pin", 10], ["gender", "gender", 10], ["dob (yyyy-mm-dd)", "dob", 16], ["contact no", "phone", 16], ["student email", "semail", 26], ["parent name", "pname", 22], ["parent email", "email", 26], ["nationality", "nat", 16], ["preferred language", "lang", 18], ["sen", "sen", 7], ["eal", "eal", 7], ["gifted & talented", "gt", 10], ["subject", "subject", 18], ["phase", "phase", 12]];
+const STUDENT_COLS: [string, string, number][] = [["username", "username", 18], ["first name", "first", 16], ["last name", "last", 16], ["class", "cls", 14], ["section", "section", 12], ["password", "pin", 10], ["gender", "gender", 10], ["dob (yyyy-mm-dd)", "dob", 16], ["contact no", "phone", 16], ["student email", "semail", 26], ["parent name", "pname", 22], ["parent email", "email", 26], ["nationality", "nat", 16], ["preferred language", "lang", 18], ["sen", "sen", 7], ["eal", "eal", 7], ["gifted & talented", "gt", 10], ["subject", "subject", 18], ["phase", "phase", 12]];
 const yes = (v: string) => /^(y|yes|true|1|✓)$/i.test(v.trim());
 
 /** Admin-only: every student field to Excel (no PINs). */
@@ -68,7 +68,7 @@ export async function downloadUsersTemplate(role: Role = "student", catalog?: Ca
       { header: "name", key: "name", width: 26 },
       { header: "subjects", key: "subjects", width: 26 },
       { header: "phase", key: "phase", width: 22 },
-      { header: "pin", key: "pin", width: 10 },
+      { header: "password", key: "pin", width: 10 },
       { header: "permissions", key: "perms", width: 30 },
     ];
     ws.addRow({ username: "ms.huda", name: "Ms Huda", subjects: subjects.slice(0, 2).join(", ") || "Quran", phase: "Primary", pin: "", perms: "assign, review" });
@@ -78,9 +78,9 @@ export async function downloadUsersTemplate(role: Role = "student", catalog?: Ca
   [
     "username: 3–40 characters, letters/numbers/dot/dash, unique (stored in lower case).",
     role === "student" ? "class and section: pick from the dropdowns (they come from Admin → Classes & Subjects)." : "subjects: comma separated, from the Lists sheet. phase: EYFS, Primary and/or Secondary (comma separated). Students are assigned to teachers through Groups in Admin → Members → Groups, not in this sheet.",
-    "pin: 4–8 digits. Leave empty to generate a random 6-digit PIN.",
+    "password: 4–64 characters (letters, numbers or symbols). Leave empty to generate a random 6-digit password. (An older \"pin\" column still works.)",
     role === "teacher" ? "permissions (comma separated): assign, review, manageUsers, viewAll; optional student switches: stu:view, stu:add, stu:edit, stu:block, stu:delete (none = all four when manageUsers)." : "",
-    "Existing usernames are updated (upsert). A PIN is only changed when you fill it in; empty cells leave stored values unchanged.",
+    "Existing usernames are updated (upsert). A password is only changed when you fill it in; empty cells leave stored values unchanged.",
     role === "student" ? "gender: Boy/Girl · dob: yyyy-mm-dd · SEN / EAL / gifted & talented: Yes or blank. These private fields are visible to admin only." : "",
   ].filter(Boolean).forEach((t) => help.addRow([t]));
   help.getColumn(1).width = 120;
@@ -108,8 +108,8 @@ export async function parseUsersXlsx(file: File, role: Role = "student", catalog
     if (!r.username && !r.name) return;
     rows.push(
       role === "teacher"
-        ? { username: r.username, name: r.name, role, cls: "", subjects: (r.subjects || "").split(",").map((x) => x.trim()).filter(Boolean), scope: [], phase: r.phase || "", pin: r.pin || undefined, perms: (r.permissions || r.perms || "assign, review").split(/[,\s]+/).filter(Boolean) }
-        : { username: r.username, name: (`${r["first name"] || ""} ${r["last name"] || ""}`.trim() || r.name), firstName: r["first name"] || (r.name || "").split(/\s+/)[0], lastName: r["last name"] ?? (r.name || "").split(/\s+/).slice(1).join(" "), role, cls: resolveClass(r.class || r.cls || "", catalog), section: resolveSection(r.section || "", resolveClass(r.class || r.cls || "", catalog), catalog), pin: r.pin || undefined, perms: [], parentName: r["parent name"] || "", email: r["parent email"] || r.email || "", gender: /^(b|boy)$/i.test(r.gender || r["boy/girl"] || "") ? "b" : /^(g|girl)$/i.test(r.gender || r["boy/girl"] || "") ? "g" : "", dob: (r["dob (yyyy-mm-dd)"] || r.dob || "").slice(0, 10), phone: r["contact no"] || "", semail: r["student email"] || "", nationality: r.nationality || "", prefLang: r["preferred language"] || "", sen: yes(r.sen || ""), eal: yes(r.eal || ""), gt: yes(r["gifted & talented"] || ""), subject: r.subject || "", phase: r.phase || "" },
+        ? { username: r.username, name: r.name, role, cls: "", subjects: (r.subjects || "").split(",").map((x) => x.trim()).filter(Boolean), scope: [], phase: r.phase || "", pin: r.password || r.pin || undefined, perms: (r.permissions || r.perms || "assign, review").split(/[,\s]+/).filter(Boolean) }
+        : { username: r.username, name: (`${r["first name"] || ""} ${r["last name"] || ""}`.trim() || r.name), firstName: r["first name"] || (r.name || "").split(/\s+/)[0], lastName: r["last name"] ?? (r.name || "").split(/\s+/).slice(1).join(" "), role, cls: resolveClass(r.class || r.cls || "", catalog), section: resolveSection(r.section || "", resolveClass(r.class || r.cls || "", catalog), catalog), pin: r.password || r.pin || undefined, perms: [], parentName: r["parent name"] || "", email: r["parent email"] || r.email || "", gender: /^(b|boy)$/i.test(r.gender || r["boy/girl"] || "") ? "b" : /^(g|girl)$/i.test(r.gender || r["boy/girl"] || "") ? "g" : "", dob: (r["dob (yyyy-mm-dd)"] || r.dob || "").slice(0, 10), phone: r["contact no"] || "", semail: r["student email"] || "", nationality: r.nationality || "", prefLang: r["preferred language"] || "", sen: yes(r.sen || ""), eal: yes(r.eal || ""), gt: yes(r["gifted & talented"] || ""), subject: r.subject || "", phase: r.phase || "" },
     );
   });
   // Blank cells must not wipe stored private fields on upsert.
@@ -127,7 +127,7 @@ export async function downloadSignInSheet(users: LmsUser[], pins: Record<string,
   ws.columns = [
     { header: "Name", key: "name", width: 28 },
     { header: "Username", key: "username", width: 20 },
-    { header: "PIN", key: "pin", width: 18 },
+    { header: "Password", key: "pin", width: 18 },
     ...(role === "student"
       ? [{ header: "Class", key: "cls", width: 14 }, { header: "Section", key: "section", width: 12 }]
       : [{ header: "Subjects", key: "subjects", width: 26 }, { header: "Phase", key: "phase", width: 18 }, { header: "Groups", key: "groups", width: 30 }]),
@@ -135,7 +135,7 @@ export async function downloadSignInSheet(users: LmsUser[], pins: Record<string,
     { header: "Sign in at", key: "url", width: 40 },
   ];
   ws.getRow(1).font = { bold: true };
-  for (const u of users) ws.addRow({ name: u.name, username: u.username, pin: pins[u.id] ?? "(reset PIN to view)", cls: clsNum(u.cls), section: secLetter(u.section), subjects: u.subjects.join(", "), phase: (u.phase || "").split(",").filter(Boolean).join(", "), groups: (u.groups || []).map((g) => g.name).join(", "), status: u.disabled ? "Blocked" : "Active", url });
+  for (const u of users) ws.addRow({ name: u.name, username: u.username, pin: pins[u.id] ?? "(reset password to view)", cls: clsNum(u.cls), section: secLetter(u.section), subjects: u.subjects.join(", "), phase: (u.phase || "").split(",").filter(Boolean).join(", "), groups: (u.groups || []).map((g) => g.name).join(", "), status: u.disabled ? "Blocked" : "Active", url });
   downloadBlob(new Blob([await wb.xlsx.writeBuffer()], { type: XLSX_TYPE }), `${role === "teacher" ? "teachers" : "students"}-sign-in-${new Date().toISOString().slice(0, 10)}.xlsx`);
 }
 
@@ -147,7 +147,7 @@ export async function downloadCredentials(pins: { username: string; name: string
   ws.columns = [
     { header: "Name", key: "name", width: 28 },
     { header: "Username", key: "username", width: 20 },
-    { header: "PIN", key: "pin", width: 10 },
+    { header: "Password", key: "pin", width: 10 },
     { header: "Sign in at", key: "url", width: 40 },
   ];
   ws.getRow(1).font = { bold: true };
@@ -203,8 +203,8 @@ export async function homeworkQrPdf(hw: Homework, subtitle: string) {
   g.drawImage(qr, (W - 760) / 2, 640, 760, 760);
   g.fillStyle = "#16324f";
   g.font = "bold 40px system-ui, sans-serif";
-  g.fillText("Scan, sign in with your username + PIN", W / 2, 1490);
-  g.fillText("امسح الرمز وسجّل الدخول باسم المستخدم والرقم السري", W / 2, 1550);
+  g.fillText("Scan, sign in with your username + password", W / 2, 1490);
+  g.fillText("امسح الرمز وسجّل الدخول باسم المستخدم وكلمة المرور", W / 2, 1550);
   g.font = "28px system-ui, sans-serif";
   g.fillStyle = "#3b5770";
   g.fillText(url, W / 2, 1640);

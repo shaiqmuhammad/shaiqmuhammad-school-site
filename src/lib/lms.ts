@@ -306,6 +306,7 @@ export const lmsApi = {
   /** Admin only: decrypted PINs (null = stored before PIN viewing existed → reset to view). */
   pinsView: (ids?: string[], asAdmin = true) => call<{ pins: Record<string, string | null> }>("pins-view", { ids }, { asAdmin }),
   loginsList: (asAdmin = false) => call<{ items: LoginCard[] }>("logins-list", undefined, { asAdmin }),
+  loginPinReset: (id: string, asAdmin = false) => call<{ pin: string; viewable: boolean }>("login-pin-reset", { id }, { asAdmin }),
   loginTokenReset: (id: string, asAdmin = false) => call<{ token: string }>("login-token-reset", { id }, { asAdmin }),
   changePin: async (next: string) => { const r = await call<{ ok: true; token?: string; exp?: number }>("pin-change", { next }); const s = lmsSession(); if (r.token && r.exp && s) { localStorage.setItem(SESSION_KEY, JSON.stringify({ ...s, token: r.token, exp: r.exp })); if (s.user.role === "student" && rememberOn()) void rememberSave(r.token); } return { ok: true as const }; },
   async qrLogin(t: string) {
@@ -414,7 +415,7 @@ export function lmsErrorText(e: unknown, tr: (en: string, ar: string) => string)
     bad_media: ["That picture or recording is too large.", "الصورة أو التسجيل كبير جدًا."],
     empty: ["Write something first.", "اكتب شيئًا أولًا."],
     not_your_class: ["That student is not in your classes.", "هذا الطالب ليس في صفوفك."],
-    bad_login: ["Wrong username or PIN.", "اسم المستخدم أو الرقم السري غير صحيح."],
+    bad_login: ["Wrong username or password.", "اسم المستخدم أو كلمة المرور غير صحيحة."],
     locked: ["Finish the earlier verses first — this unlocks when your teacher passes them.", "أكمل الآيات السابقة أولًا — تُفتح عندما يجتازها معلمك."],
     leaderboard_off: ["The leaderboard is turned off.", "لوحة المتصدرين متوقفة."],
     blocked: ["Your account is blocked. Please contact your teacher.", "حسابك موقوف. يرجى التواصل مع معلمك."],
@@ -432,7 +433,7 @@ export function lmsErrorText(e: unknown, tr: (en: string, ar: string) => string)
     in_use: ["Still in use — move the students/teachers/homework first.", "ما زال مستخدمًا — انقل الطلاب/المعلمين/الواجبات أولًا."],
     duplicate: ["That name already exists.", "هذا الاسم موجود."],
     admin_only: ["Only the admin can do that.", "فقط المدير يمكنه ذلك."],
-    pin_key_missing: ["PIN viewing isn't set up on the server.", "عرض الرقم السري غير مُعدّ على الخادم."],
+    pin_key_missing: ["Password viewing isn't set up on the server.", "عرض كلمة المرور غير مُعدّ على الخادم."],
     audio_too_long: ["That recording is too long (max 3 minutes).", "التسجيل طويل جدًا (3 دقائق كحد أقصى)."],
     audio_user_full: ["Recording space for this account is full.", "مساحة التسجيل لهذا الحساب ممتلئة."],
     audio_full: ["Recording storage is full — ask the admin.", "مساحة التسجيلات ممتلئة — أخبر المدير."],

@@ -61,7 +61,7 @@ const DESC: Partial<Record<Tab, [string, string]>> = {
   wall: ["Class Wall for every group: read, post to one or several groups, moderate.", "جدار الصف لكل مجموعة: اقرأ وانشر لمجموعة أو أكثر وراقب."],
   reports: ["Department report: attainment, progress, Quran, homework and curriculum coverage.", "تقرير القسم: التحصيل والتقدّم والقرآن والواجبات وتغطية المنهج."],
   certificate: ["Design of the certificate students receive.", "تصميم الشهادة التي يحصل عليها الطلاب."],
-  students: ["Student accounts, PINs, classes and status.", "حسابات الطلاب والأرقام السرية والصفوف والحالة."],
+  students: ["Student accounts, passwords, classes and status.", "حسابات الطلاب وكلمات المرور والصفوف والحالة."],
   teachers: ["Teacher accounts, subjects, classes and permissions.", "حسابات المعلمين والمواد والصفوف والصلاحيات."],
   setup: ["Subjects, classes and sections used across the LMS.", "المواد والصفوف والشعب المستخدمة في المنصة."],
   classes: ["Pick a class or section to see students, homework and the Quran map.", "اختر صفًا أو شعبة لعرض الطلاب والواجبات وخريطة القرآن."],
@@ -75,7 +75,7 @@ const DESC: Partial<Record<Tab, [string, string]>> = {
 };
 const MOD_DESC: Partial<Record<Tab, [string, string]>> = {
   attendance: ["Take the register per class, date and period; reports, attendance % and overview.", "سجّل الحضور لكل صف وتاريخ وحصة؛ تقارير ونسب ونظرة عامة."],
-  logins: ["Student usernames, PINs and login QR codes.", "أسماء المستخدمين والأرقام السرية ورموز QR لدخول الطلاب."],
+  logins: ["Student usernames, passwords and login QR codes.", "أسماء المستخدمين وكلمات المرور ورموز QR لدخول الطلاب."],
   groups: ["Groups of classes, sections and students, assigned to teachers.", "مجموعات من صفوف وشعب وطلاب تُسند للمعلمين."],
   downloads: ["Allow or block audio and Excel/PDF downloads for students (all or per class).", "السماح بتنزيل الصوت وإكسل/PDF للطلاب أو منعه (للجميع أو لكل صف)."],
   parents: ["Parent logins linked to students. Admin only; parents see their own children read-only.", "حسابات أولياء الأمور المرتبطة بالطلاب. للإدارة فقط؛ يرون أبناءهم للعرض فقط."],

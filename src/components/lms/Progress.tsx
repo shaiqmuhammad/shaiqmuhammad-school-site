@@ -319,7 +319,7 @@ export function StudentProgress({ id, asAdmin = false }: { id: string; asAdmin?:
             <button type="button" className={smallBtn + " text-rose-600"} onClick={() => parent({ revoke: true })}>{tr("Turn off", "إيقاف")}</button>
           </div>
         ) : <button type="button" className={smallBtn} onClick={() => parent({})} data-testid="sp-parent-create">🔗 {tr("Create parent link", "إنشاء رابط لولي الأمر")}</button>}
-        <p className="text-xs opacity-60">{tr("Parents see homework status, grades, teacher comments and the Quran tracker. No recordings, no PIN.", "يرى ولي الأمر حالة الواجبات والتقييمات وتعليقات المعلم ومتابعة الحفظ. بدون تسجيلات أو رقم سري.")}</p>
+        <p className="text-xs opacity-60">{tr("Parents see homework status, grades, teacher comments and the Quran tracker. No recordings, no password.", "يرى ولي الأمر حالة الواجبات والتقييمات وتعليقات المعلم ومتابعة الحفظ. بدون تسجيلات أو كلمة مرور.")}</p>
       </section>
     </div>
   );

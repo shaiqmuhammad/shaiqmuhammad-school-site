@@ -122,7 +122,7 @@ export default function AdminBackup() {
       </span>
       <span><span className="font-semibold">{label}</span><br /><span className="text-xs text-muted">{on
         ? tr("Everything needed to bring the school system back: students, teachers, classes, curriculum, assessments, homework, messages, results, files and settings.", "كل ما يلزم لإعادة نظام المدرسة: الطلاب والمعلمون والصفوف والمنهج والتقييمات والواجبات والرسائل والنتائج والملفات والإعدادات.")
-        : tr("Settings and structure only: site pages and settings, subjects, classes and school setup. No students, staff, PINs, homework, messages, results, forum posts, attendance, rewards or uploaded files.", "الإعدادات والهيكل فقط: صفحات الموقع وإعداداته والمواد والصفوف وإعداد المدرسة. بدون طلاب أو موظفين أو رموز دخول أو واجبات أو رسائل أو نتائج أو منتدى أو حضور أو مكافآت أو ملفات.")}</span></span>
+        : tr("Settings and structure only: site pages and settings, subjects, classes and school setup. No students, staff, passwords, homework, messages, results, forum posts, attendance, rewards or uploaded files.", "الإعدادات والهيكل فقط: صفحات الموقع وإعداداته والمواد والصفوف وإعداد المدرسة. بدون طلاب أو موظفين أو رموز دخول أو واجبات أو رسائل أو نتائج أو منتدى أو حضور أو مكافآت أو ملفات.")}</span></span>
     </label>
   );
 

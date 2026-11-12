@@ -26,6 +26,7 @@ import { loadCat, catPhases, rulePhase, ruleDept } from "./catx";
  *   POST /api/lms/catalog-save     (admin) {kind: subject|class|section, id?, name, parent?}  (renames propagate)
  *   POST /api/lms/catalog-delete   (admin) {id}  (refused while in use)
  *   POST /api/lms/pins-view        (admin only) {ids?} -> {pins: {id: pin|null}}
+ *   POST /api/lms/login-pin-reset  (admin / teacher with student Edit, own classes) {id} -> {pin, viewable}
  *   POST /api/lms/audio-upload?hw= (student: recitation/answer for that homework, replaces the previous one)
  *        /api/lms/audio-upload?sub= (teacher/admin: spoken feedback on a submission) — raw audio body, ≤1.6 MB
  *   GET  /api/lms/audio?id=        the recording (student owner or staff)
@@ -174,10 +175,21 @@ function newPin(): string {
 const validPin = (p: string) => [...p].length >= 4 && [...p].length <= 64;
 
 async function pinKey(env: LmsEnv) {
-  if (!env.LMS_PIN_KEY) return null;
+  if (env.LMS_PIN_KEY) {
+    try {
+      const raw = Uint8Array.from(atob(env.LMS_PIN_KEY), (c) => c.charCodeAt(0));
+      if (raw.length === 32) return await crypto.subtle.importKey("raw", raw, "AES-GCM", false, ["encrypt", "decrypt"]);
+    } catch {
+      /* fall through to the derived key */
+    }
+  }
+  // t579: no (valid) LMS_PIN_KEY on this worker — derive a separate AES key from the existing server signing secret
+  // (HKDF, its own label) so passwords set or reset from now on can be shown behind the eye button again.
+  // Copies sealed with an older, unavailable key simply stay unreadable (openPin → null → "reset to view").
+  if (!env.SESSION_SIGNING_KEY) return null;
   try {
-    const raw = Uint8Array.from(atob(env.LMS_PIN_KEY), (c) => c.charCodeAt(0));
-    return raw.length === 32 ? await crypto.subtle.importKey("raw", raw, "AES-GCM", false, ["encrypt", "decrypt"]) : null;
+    const base = await crypto.subtle.importKey("raw", enc.encode(env.SESSION_SIGNING_KEY), "HKDF", false, ["deriveKey"]);
+    return await crypto.subtle.deriveKey({ name: "HKDF", hash: "SHA-256", salt: enc.encode("lms-pin-view"), info: enc.encode("lms-pin-view-v1") }, base, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
   } catch {
     return null;
   }
@@ -2142,7 +2154,22 @@ export class LmsStore extends DurableObject<LmsEnv> {
           if (!tok) { tok = b64url(crypto.getRandomValues(new Uint8Array(32))); this.sql.exec(`UPDATE users SET qr_token=? WHERE id=?`, tok, String(r.id)); }
           items.push({ id: String(r.id), name: String(r.name), nameAr: String(r.name_ar || ""), username: String(r.username), cls: String(r.cls || ""), section: String(r.section || ""), avatar: avatarOf(r), disabled: Boolean(r.disabled), pin: await openPin(this.env, r.pin_enc), token: tok });
         }
+        // Counts only (no names): passwords that exist but can't be shown (sealed with an older key, or never sealed).
+        console.log(JSON.stringify({ evt: "logins-list", total: items.length, hidden: items.filter((x) => !x.pin).length }));
         return { status: 200, body: { items } };
+      }
+
+      case "login-pin-reset": {
+        // t579: Student Logins "Reset password": a new generated password, shown behind the eye button.
+        // Admin, or a teacher with student Edit for a student in their own classes (same rule as a new QR code).
+        if (a.viewAs || (a.role !== "admin" && !(a.role === "teacher" && stuCan(a, "edit")))) return { status: 403, body: { error: "forbidden" } };
+        const r = this.userRow("id=?", str(input.id, 40));
+        if (!r || r.role !== "student") return { status: 404, body: { error: "not_found" } };
+        if (a.role !== "admin" && !this.inScope(a, String(r.cls || ""), String(r.section || ""), String(r.id))) return { status: 403, body: { error: "not_your_class" } };
+        const pin = newPin();
+        await this.setPin(String(r.id), pin);
+        const back = await openPin(this.env, this.sql.exec(`SELECT pin_enc FROM users WHERE id=?`, String(r.id)).toArray()[0]?.pin_enc);
+        return { status: 200, body: { pin, viewable: back === pin } };
       }
 
       case "login-token-reset": {
@@ -2413,13 +2440,13 @@ export class LmsStore extends DurableObject<LmsEnv> {
       }
 
       case "email-pin": {
-        // Admin emails a user their username + PIN (from info@, Reply-To contact@).
+        // Admin emails a user their username + password (from info@, Reply-To contact@).
         if (a.role !== "admin") return { status: 403, body: { error: "admin_only" } };
         const u = this.userRow("id=?", str(input.id, 40));
         if (!u?.email) return { status: 400, body: { error: "no_email" } };
         const pin = u.pin_enc ? await openPin(this.env as LmsEnv, String(u.pin_enc)).catch(() => "") : "";
         if (!pin) return { status: 409, body: { error: "reset_pin_first" } };
-        const ok = await sendAuto(this.env as LmsEnv, String(u.email), `Your sign-in details — ${FROM_NAME}`, { heading: `Sign-in details for ${String(u.name)}`, paragraphs: ["Assalamu alaikum,", `Username: ${String(u.username)}`, `PIN: ${pin}`, "Keep this PIN private."], button: { label: "Sign in", url: `${SITE_URL}/lms/login` }, note: `Automatic message — please don't reply. Questions: ${CONTACT}` }, "account").catch(() => false);
+        const ok = await sendAuto(this.env as LmsEnv, String(u.email), `Your sign-in details — ${FROM_NAME}`, { heading: `Sign-in details for ${String(u.name)}`, paragraphs: ["Assalamu alaikum,", `Username: ${String(u.username)}`, `Password: ${pin}`, "Keep this password private."], button: { label: "Sign in", url: `${SITE_URL}/lms/login` }, note: `Automatic message — please don't reply. Questions: ${CONTACT}` }, "account").catch(() => false);
         return ok ? { status: 200, body: { ok: true } } : { status: 503, body: { error: "mail_not_configured" } };
       }
 

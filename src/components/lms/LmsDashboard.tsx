@@ -2,7 +2,6 @@
 import { RewardCardsTile } from "@/components/lms/Rewards";
 import { PackDash } from "@/components/lms/packs/PackDash";
 import { HwMeta, hwAud } from "@/components/lms/HwMeta";
-import { HwRemindBell } from "@/components/lms/HwRemind";
 import { applyPref, MenuEditor, useMyPages, useUiPrefs } from "@/components/lms/MenuPrefs";
 import { TodayLessons } from "@/components/lms/Timetable";
 
@@ -33,7 +32,7 @@ export function NeedLogin({ adminElsewhere }: { adminElsewhere: boolean }) {
     <AssessmentShell title={tr("Student / Teacher area", "منطقة الطلاب والمعلمين")} exitHref="/">
       <div className="mx-auto max-w-lg flex-1 space-y-3 p-8 text-center" data-testid="lms-need-login">
         <p className={card}>
-          {tr("Please sign in with your student or teacher username and PIN.", "سجّل الدخول باسم المستخدم والرقم السري للطالب أو المعلم.")}{" "}
+          {tr("Please sign in with your student or teacher username and password.", "سجّل الدخول باسم المستخدم وكلمة المرور للطالب أو المعلم.")}{" "}
           <a className="font-bold underline" href={`/lms/login?next=${encodeURIComponent(typeof window !== "undefined" ? window.location.pathname + window.location.search : "/lms")}`} data-testid="lms-need-login-link">{tr("Student / Teacher login", "دخول الطلاب والمعلمين")}</a>
         </p>
         {adminElsewhere && (
@@ -229,57 +228,21 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
             {creating && (
               (dash as { quran?: { add: boolean } }).quran && !(dash as { quran?: { add: boolean } }).quran!.add ? <a href="/lms/material?new=homework" className="inline-block rounded-full bg-sun px-4 py-2 font-extrabold text-[#1b2f44]" data-testid="hw-kind-pack">📑 {tr("New homework as slides (Lesson Pack)", "واجب جديد بالشرائح")}</a> : <HomeworkEditor classes={dash.classes || []} students={dash.students || []} catalog={dash.catalog} scope={dash.scope} asAdmin={asAdmin} kinds={(dash as { quran?: { add: boolean } }).quran && !(dash as { quran?: { add: boolean } }).quran!.add ? ["general"] : ["quran", "general"]} onCancel={() => setCreating(false)} onSaved={(id) => router.push(`/lms/homework?id=${id}`)} />
             )}
-            {hwOnly && staff ? (
-              <TeacherHomeworkHub
-                dash={dash}
-                chapters={chapters}
-                asAdmin={!!asAdmin}
-                canAssign={!!canAssign}
-                tab={hubTab}
-                onTab={(id) => {
-                  setHubTab(id);
-                  const href = id === "homeworks" ? "/lms/homework" : `/lms/homework?tab=${id}`;
-                  window.history.replaceState(null, "", href);
-                }}
-                onReload={load}
-              />
-            ) : (
-            <section id="homework" className="scroll-mt-28">
-              <h2 className="mb-3 text-xl font-bold">{tr("Homework", "الواجبات")} ({dash.homework.length})</h2>
-              {dash.homework.length === 0 && <p className={card + " opacity-80"}>{tr("No homework yet.", "لا توجد واجبات بعد.")}</p>}
-              {(() => { const rows = dash.homework; return (
-              <ul className="space-y-2">
-                {rows.map((h) => {
-                  const c = h.counts || {};
-                  const q = h.data as QuranData;
-                  return (
-                    <li key={h.id} className="flex flex-wrap items-center gap-2">
-                      <a href={`/lms/homework?id=${h.id}`} className={card + " flex min-w-0 flex-1 flex-wrap items-center gap-3 hover:shadow-lg"} data-testid="lms-hw-row">
-                        <span className="text-2xl" aria-hidden>{h.kind === "quran" ? "📖" : "📝"}</span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block font-bold" dir="auto">{h.title}</span>
-                          <HwMeta {...hwAud(h)} className="my-0.5" />
-                          <span className="block text-sm opacity-75">
-                            {h.kind === "quran" ? `${surahName(q.surah)} ${q.from}–${q.to} · ` : ""}
-                            {h.students.length ? tr(`${h.students.length} students`, `${h.students.length} طلاب`) : [h.cls, h.section].filter(Boolean).join(" · ") || tr("All students", "كل الطلاب")}
-                            {h.due ? ` · ${tr("due", "التسليم")} ${new Date(h.due).toLocaleDateString(lang === "ar" ? "ar" : "en-GB")}` : ""}
-                          </span>
-                        </span>
-                        <span className="flex flex-wrap gap-1 text-xs font-bold">
-                          <span className={`rounded-full px-2 py-1 ${STATUS_STYLE.submitted}`} data-testid="lms-count-submitted">{Math.max(0, (c.submitted || 0) - (c.waiting || 0))} {tr("to review", "للمراجعة")}</span>
-                          {(c.waiting || 0) > 0 && <span className="rounded-full bg-sky-100 px-2 py-1 text-sky-900" data-testid="lms-count-waiting">💬 {c.waiting} {tr("waiting for student", "بانتظار الطالب")}</span>}
-                          <span className={`rounded-full px-2 py-1 ${STATUS_STYLE.approved}`}>{c.approved || 0} ✓</span>
-                          <span className={`rounded-full px-2 py-1 ${STATUS_STYLE.none}`}>{h.assigned ?? 0} {tr("assigned", "مُسند")}</span>
-                        </span>
-                      </a>
-                      <HwRemindBell hw={h.id} title={h.title} asAdmin={asAdmin} />
-                    </li>
-                  );
-                })}
-              </ul>
-              ); })()}
-            </section>
-            )}
+            {/* t580: the dashboard shows homework in the same Homeworks / Assigned / Corrected portion cards (by Year and section) as the Homework page. */}
+            <TeacherHomeworkHub
+              dash={dash}
+              chapters={chapters}
+              asAdmin={!!asAdmin}
+              canAssign={!!canAssign}
+              tab={hubTab}
+              onTab={(id) => {
+                setHubTab(id);
+                if (!hwOnly) return;
+                const href = id === "homeworks" ? "/lms/homework" : `/lms/homework?tab=${id}`;
+                window.history.replaceState(null, "", href);
+              }}
+              onReload={load}
+            />
           </>
         )}
       </div>

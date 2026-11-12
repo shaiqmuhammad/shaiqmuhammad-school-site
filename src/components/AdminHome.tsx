@@ -66,7 +66,7 @@ export function AdminHome({ counts, refreshedAt, refreshing, hasToken, onTab }: 
   const glass = "rounded-3xl border border-black/10 bg-white/75 shadow-sm backdrop-blur transition hover:-translate-y-0.5 hover:shadow-md dark:border-white/10 dark:bg-white/5";
   const actions: { tab: AdminHomeTab; icon: string; title: string; sub: string }[] = [
     { tab: "quizzes", icon: "📝", title: tr("Assessments", "التقييمات"), sub: tr("Edit, enable or host live", "تعديل أو تفعيل أو بث مباشر") },
-    { tab: "students", icon: "🎒", title: tr("Students", "الطلاب"), sub: tr("Add, PINs, sign-in sheets", "إضافة، أرقام سرية، أوراق دخول") },
+    { tab: "students", icon: "🎒", title: tr("Students", "الطلاب"), sub: tr("Add, passwords, sign-in sheets", "إضافة، كلمات المرور، أوراق دخول") },
     { tab: "lmshw", icon: "📚", title: tr("Homework", "الواجبات"), sub: tr("All homework & submissions", "كل الواجبات والتسليمات") },
     { tab: "mail", icon: "✉️", title: tr("Mail", "البريد"), sub: "contact@shaiqmuhammad.com" },
     { tab: "activities", icon: "🎲", title: tr("Activities", "الأنشطة"), sub: tr("Wall, wheel, polls, votes", "الجدار، العجلة، الاستطلاعات") },

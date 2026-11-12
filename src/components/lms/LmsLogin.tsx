@@ -51,16 +51,16 @@ export function LmsLogin() {
           </div>
           <p className="text-4xl" aria-hidden>{who === "parent" ? "👨‍👩‍👧" : "🎒"}</p>
           <h1 className="mt-2 text-3xl font-bold">{who === "parent" ? tr("Parent login", "دخول أولياء الأمور") : tr("Student / Teacher login", "دخول الطلاب والمعلمين")}</h1>
-          <p className="mt-1 opacity-80">{who === "parent" ? tr("Sign in with the username and PIN the school gave you.", "سجّل الدخول باسم المستخدم والرقم السري اللذين أعطتك إياهما المدرسة.") : tr("Sign in with the username and PIN from your teacher.", "سجّل الدخول باسم المستخدم والرقم السري من معلمك.")}</p>
+          <p className="mt-1 opacity-80">{who === "parent" ? tr("Sign in with the username and password the school gave you.", "سجّل الدخول باسم المستخدم وكلمة المرور اللذين أعطتك إياهما المدرسة.") : tr("Sign in with the username and password from your teacher.", "سجّل الدخول باسم المستخدم وكلمة المرور من معلمك.")}</p>
           <p className="mt-3 rounded-xl bg-sky-50 px-4 py-2 text-sm text-sky-900 dark:bg-sky-900/30 dark:text-sky-100" data-testid="lms-login-help">
-            ℹ️ {who === "parent" ? tr("Parent accounts are created by the school office. Contact the school for your username and PIN.", "حسابات أولياء الأمور تُنشئها إدارة المدرسة. تواصل مع المدرسة للحصول على اسم المستخدم والرقم السري.") : tr("Accounts are created by your teacher. Ask your teacher for your username and PIN.", "الحسابات يُنشئها معلمك. اطلب من معلمك اسم المستخدم والرقم السري.")}
+            ℹ️ {who === "parent" ? tr("Parent accounts are created by the school office. Contact the school for your username and password.", "حسابات أولياء الأمور تُنشئها إدارة المدرسة. تواصل مع المدرسة للحصول على اسم المستخدم وكلمة المرور.") : tr("Accounts are created by your teacher. Ask your teacher for your username and password.", "الحسابات يُنشئها معلمك. اطلب من معلمك اسم المستخدم وكلمة المرور.")}
           </p>
           <label className="mt-6 block font-semibold">
             {tr("Username", "اسم المستخدم")}
             <input className={fieldCls + " text-xl"} value={username} onChange={(e) => setUsername(e.target.value)} autoCapitalize="none" autoCorrect="off" autoComplete="username" dir="ltr" data-testid="lms-username" />
           </label>
           <label className="mt-4 block font-semibold">
-            {tr("Password / PIN", "كلمة المرور / الرقم السري")}
+            {tr("Password", "كلمة المرور")}
             <input className={fieldCls + " text-xl tracking-[0.15em]"} value={pin} onChange={(e) => setPin(e.target.value.slice(0, 64))} type="password" autoCapitalize="none" autoCorrect="off" spellCheck={false} maxLength={64} autoComplete="current-password" dir="ltr" data-testid="lms-pin" />
           </label>
           {who === "school" && (

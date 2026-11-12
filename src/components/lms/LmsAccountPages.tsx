@@ -107,7 +107,7 @@ export function QrLoginPage() {
     <AssessmentShell title={tr("Signing in", "تسجيل الدخول")} exitHref="/lms">
       <div className="mx-auto w-full max-w-md flex-1 px-4 py-16 text-center" data-testid="qr-login">
         {!msg ? <p className="text-lg font-bold">{tr("Signing you in…", "جارٍ تسجيل دخولك…")}</p> : (
-          <div className="space-y-3"><p className="rounded-2xl bg-rose-100 px-4 py-3 text-rose-800" role="alert">{msg === "blocked" ? tr("This account is blocked. Ask your teacher.", "هذا الحساب موقوف. اسأل معلمك.") : tr("This QR code is not valid any more. Ask your teacher for a new one, or sign in with your username and PIN.", "رمز QR لم يعد صالحًا. اطلب رمزًا جديدًا من معلمك أو سجّل الدخول باسم المستخدم والرقم السري.")}</p><a className="inline-block rounded-full bg-sun px-5 py-2 font-bold text-[#0b1b2b]" href="/lms/login/">{tr("Sign in", "دخول")}</a></div>
+          <div className="space-y-3"><p className="rounded-2xl bg-rose-100 px-4 py-3 text-rose-800" role="alert">{msg === "blocked" ? tr("This account is blocked. Ask your teacher.", "هذا الحساب موقوف. اسأل معلمك.") : tr("This QR code is not valid any more. Ask your teacher for a new one, or sign in with your username and password.", "رمز QR لم يعد صالحًا. اطلب رمزًا جديدًا من معلمك أو سجّل الدخول باسم المستخدم وكلمة المرور.")}</p><a className="inline-block rounded-full bg-sun px-5 py-2 font-bold text-[#0b1b2b]" href="/lms/login/">{tr("Sign in", "دخول")}</a></div>
         )}
       </div>
     </AssessmentShell>
@@ -124,10 +124,10 @@ export function AccountPage() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault(); setMsg("");
     if ([...n1].length < 6 || [...n1].length > 64) { setBad(true); setMsg(tr("New password must be 6 to 64 characters (letters, numbers or symbols).", "يجب أن تتكون كلمة المرور الجديدة من 6 إلى 64 حرفًا (أحرف أو أرقام أو رموز).")); return; }
-    if (n1 !== n2) { setBad(true); setMsg(tr("The new PINs don't match.", "الرقمان الجديدان غير متطابقين.")); return; }
+    if (n1 !== n2) { setBad(true); setMsg(tr("The new passwords don't match.", "كلمتا المرور الجديدتان غير متطابقتين.")); return; }
     setBusy(true);
-    try { await lmsApi.changePin(n1); setBad(false); setMsg(tr("PIN changed. Use it next time you sign in.", "تم تغيير الرقم. استخدمه في المرة القادمة.")); setN1(""); setN2(""); }
-    catch (er) { setBad(true); const c = (er as Error).message; setMsg(c === "wrong_current_pin" ? tr("Current PIN is wrong.", "الرقم الحالي غير صحيح.") : c === "pin_same" ? tr("Choose a different PIN.", "اختر رقمًا مختلفًا.") : c === "too_many_attempts" ? tr("Too many attempts. Try again later.", "محاولات كثيرة. حاول لاحقًا.") : lmsErrorText(er, tr)); }
+    try { await lmsApi.changePin(n1); setBad(false); setMsg(tr("Password changed. Use it next time you sign in.", "تم تغيير كلمة المرور. استخدمها في المرة القادمة.")); setN1(""); setN2(""); }
+    catch (er) { setBad(true); const c = (er as Error).message; setMsg(c === "wrong_current_pin" ? tr("Current password is wrong.", "كلمة المرور الحالية غير صحيحة.") : c === "pin_same" ? tr("Choose a different password.", "اختر كلمة مرور مختلفة.") : c === "too_many_attempts" ? tr("Too many attempts. Try again later.", "محاولات كثيرة. حاول لاحقًا.") : lmsErrorText(er, tr)); }
     setBusy(false);
   };
   return (
@@ -135,12 +135,12 @@ export function AccountPage() {
       <div className="mx-auto w-full max-w-xl flex-1 px-4 py-8">
         {!ready ? null : !can ? <p className="rounded-2xl bg-amber-100 px-4 py-3 text-amber-900">{tr("Please sign in.", "سجّل الدخول.")} <a className="font-bold underline" href="/lms/login/">{tr("Sign in", "دخول")}</a></p> : (
           <>{(actor?.role === "student" || actor?.role === "teacher") && <CharacterPicker />}{actor?.role !== "parent" && <PushSettings />}{actor?.role === "student" && !actor.viewAs && <DevicePanel />}<form onSubmit={submit} className="space-y-3 rounded-3xl bg-white/80 p-5 shadow-sm dark:bg-white/5" data-testid="pin-form">
-            <h2 className="text-xl font-extrabold">🔑 {tr("Change my password / PIN", "تغيير كلمة المرور")}</h2>
+            <h2 className="text-xl font-extrabold">🔑 {tr("Change my password", "تغيير كلمة المرور")}</h2>
             <p className="text-sm opacity-70">{actor?.name}</p>
-            <input className={inp} type="password" autoComplete="new-password" autoCapitalize="none" maxLength={64} placeholder={tr("New password / PIN (6–64 characters)", "كلمة المرور الجديدة (6–64 حرفًا)")} value={n1} onChange={(e) => setN1(e.target.value)} data-testid="pin-new" />
-            <input className={inp} type="password" autoComplete="new-password" autoCapitalize="none" maxLength={64} placeholder={tr("Repeat new password / PIN", "أعد كلمة المرور الجديدة")} value={n2} onChange={(e) => setN2(e.target.value)} data-testid="pin-new2" />
+            <input className={inp} type="password" autoComplete="new-password" autoCapitalize="none" maxLength={64} placeholder={tr("New password (6–64 characters)", "كلمة المرور الجديدة (6–64 حرفًا)")} value={n1} onChange={(e) => setN1(e.target.value)} data-testid="pin-new" />
+            <input className={inp} type="password" autoComplete="new-password" autoCapitalize="none" maxLength={64} placeholder={tr("Repeat new password", "أعد كلمة المرور الجديدة")} value={n2} onChange={(e) => setN2(e.target.value)} data-testid="pin-new2" />
             {msg && <p className={`rounded-xl px-3 py-2 text-sm ${bad ? "bg-rose-100 text-rose-800" : "bg-emerald-100 text-emerald-800"}`} role="status" data-testid="pin-msg">{msg}</p>}
-            <button type="submit" className="w-full rounded-full bg-sun px-5 py-2.5 font-bold text-[#0b1b2b] disabled:opacity-50" disabled={busy || !n1 || !n2} data-testid="pin-save">{tr("Save new PIN", "حفظ الرقم الجديد")}</button>
+            <button type="submit" className="w-full rounded-full bg-sun px-5 py-2.5 font-bold text-[#0b1b2b] disabled:opacity-50" disabled={busy || !n1 || !n2} data-testid="pin-save">{tr("Save new password", "حفظ كلمة المرور الجديدة")}</button>
           </form></>
         )}
       </div>
@@ -156,12 +156,12 @@ function DevicePanel() {
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => setOn(rememberOn()), []);
   const enable = async () => { const s = lmsSession(); if (!s) return; if (!confirm(tr("Only on YOUR OWN iPad. Remember this device?", "فقط على آيبادك الخاص. تذكّر هذا الجهاز؟"))) return; const ok = await rememberSave(s.token); setOn(ok); setMsg(ok ? tr("This iPad will stay signed in.", "سيبقى هذا الآيباد مسجّلًا.") : tr("Could not turn it on. Try again.", "تعذّر التفعيل. حاول مجددًا.")); };
-  const forget = async () => { await rememberForget(); setOn(false); setMsg(tr("This iPad is forgotten. You'll need your PIN after you log out.", "تم نسيان هذا الآيباد.")); };
+  const forget = async () => { await rememberForget(); setOn(false); setMsg(tr("This iPad is forgotten. You'll need your password after you log out.", "تم نسيان هذا الآيباد. ستحتاج إلى كلمة المرور بعد تسجيل الخروج.")); };
   return (
     <section className="mb-4 space-y-2 rounded-3xl bg-white/80 p-5 shadow-sm dark:bg-white/5" data-testid="device-panel">
       <h2 className="text-xl font-extrabold">📱 {tr("This iPad", "هذا الآيباد")}</h2>
-      <p className="text-sm">{on ? "✅ " + tr("Remembered — you stay signed in on this iPad.", "مُتذكَّر — تبقى مسجّلًا على هذا الآيباد.") : tr("Not remembered — you sign in with your PIN.", "غير مُتذكَّر — تسجّل الدخول برقمك السري.")}</p>
-      <p className="text-xs opacity-75">{tr("Safe: kept in a protected cookie only this website can use. Changing your PIN signs every remembered iPad out.", "آمن: محفوظ في ملف حماية لا يستخدمه إلا هذا الموقع. تغيير الرقم السري يُخرج كل الأجهزة.")}</p>
+      <p className="text-sm">{on ? "✅ " + tr("Remembered — you stay signed in on this iPad.", "مُتذكَّر — تبقى مسجّلًا على هذا الآيباد.") : tr("Not remembered — you sign in with your password.", "غير مُتذكَّر — تسجّل الدخول بكلمة المرور.")}</p>
+      <p className="text-xs opacity-75">{tr("Safe: kept in a protected cookie only this website can use. Changing your password signs every remembered iPad out.", "آمن: محفوظ في ملف حماية لا يستخدمه إلا هذا الموقع. تغيير كلمة المرور يُخرج كل الأجهزة.")}</p>
       {on ? <button type="button" className="rounded-full bg-rose-600 px-4 py-2 text-sm font-bold text-white" onClick={forget} data-testid="device-forget">🧹 {tr("Forget this iPad", "انسَ هذا الآيباد")}</button> : <button type="button" className="rounded-full bg-[#1b3a57] px-4 py-2 text-sm font-bold text-[#f5c542]" onClick={enable} data-testid="device-remember">📱 {tr("Remember this iPad", "تذكّر هذا الآيباد")}</button>}
       {msg && <p className="text-sm font-semibold" role="status">{msg}</p>}
     </section>
