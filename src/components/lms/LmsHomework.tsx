@@ -11,7 +11,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
 import { LmsDashboard, NeedLogin } from "@/components/lms/LmsDashboard";
-import { HomeworkHubTabs, hasCorrectedWork, hwBucket, type DashHw, type HwHubTab } from "@/components/lms/HwHub";
+import { HomeworkHubTabs, hwBucket, type DashHw, type HwHubTab } from "@/components/lms/HwHub";
 import { AudioClip, AudioRecorder } from "@/components/lms/Audio";
 import { AssessmentShell, primaryBtn } from "@/components/assessment/AssessmentShell";
 import { HomeworkEditor } from "@/components/lms/HomeworkEditor";
@@ -455,8 +455,9 @@ export function LmsHomework() {
     assigned: (d.subs?.length || 0) + (d.notStarted?.length || 0),
     counts: (d.subs || []).reduce((c, s) => { c[s.status] = (c[s.status] || 0) + 1; return c; }, {} as Record<string, number>),
   } as DashHw : null;
-  const fromCorr = typeof window !== "undefined" && window.location.hash === "#corrected";
-  const openTab: HwHubTab = openHw ? (fromCorr && hasCorrectedWork(openHw) ? "corrected" : hwBucket(openHw)) : "assigned";
+  const mark = typeof window !== "undefined" ? window.location.hash.replace("#", "") : "";
+  const marked: HwHubTab | null = mark === "review" || mark === "lessons" || mark === "corrected" || mark === "assigned" ? mark : null;
+  const openTab: HwHubTab = marked || (openHw ? hwBucket(openHw) : "assigned");
 
   return (
     <AssessmentShell title={hw?.title || tr("Homework", "واجب")} exitHref={actor?.role === "parent" ? "/lms/family" : "/lms/homework"} wide={staff} toolbar={actor ? <LmsStaffToolbar /> : undefined}>
@@ -532,7 +533,7 @@ export function LmsHomework() {
                     <>
                       <div className="flex flex-wrap items-center gap-2"><h2 className="text-xl font-bold">{tr("Submissions", "التسليمات")} ({all.length})</h2>{all.length > 0 && <button type="button" className={smallBtn} onClick={() => setDeck(true)} data-testid="hw-review-full">⛶ {tr("Full screen correction", "تصحيح بملء الشاشة")}</button>}</div>
                       <div className="flex flex-wrap gap-2" role="tablist">
-                        <button type="button" role="tab" aria-selected={subTab === "cur"} onClick={() => setSubTab("cur")} className={`rounded-full px-4 py-1.5 text-sm font-extrabold ${subTab === "cur" ? "bg-header text-white" : "bg-black/5 dark:bg-white/10"}`} data-testid="subs-tab-current">📥 {tr("To review", "للمراجعة")} ({all.filter(toRev).length})</button>
+                        <a href="/lms/homework?tab=review" role="tab" aria-selected={subTab === "cur"} onClick={(e) => { if (subTab === "corr") { e.preventDefault(); setSubTab("cur"); } }} className={`rounded-full px-4 py-1.5 text-sm font-extrabold ${subTab === "cur" ? "bg-header text-white" : "bg-black/5 dark:bg-white/10"}`} data-testid="subs-tab-current">📥 {tr("To review", "للمراجعة")} ({all.filter(toRev).length})</a>
                         <button type="button" role="tab" aria-selected={subTab === "corr"} onClick={() => setSubTab("corr")} className={`rounded-full px-4 py-1.5 text-sm font-extrabold ${subTab === "corr" ? "bg-header text-white" : "bg-black/5 dark:bg-white/10"}`} data-testid="subs-tab-corrected">✅ {tr("Corrected", "المصحَّح")} ({nCorr})</button>
                       </div>
                       {gradeMsg && <p className="rounded-2xl bg-emerald-100 px-4 py-2 font-bold text-emerald-900" role="status" data-testid="grade-saved-msg">{gradeMsg}</p>}
@@ -540,7 +541,7 @@ export function LmsHomework() {
                       {list.length === 0 && <p className="text-sm opacity-70" data-testid="subs-empty">{subTab === "corr" ? tr("Nothing corrected yet.", "لا يوجد واجب مصحّح بعد.") : tr("Nothing waiting for review.", "لا شيء بانتظار المراجعة.")}</p>}
                       <ul className="space-y-3">
                         {list.map((s) => (
-                          <Review pack={(d.homework.data as { pack?: string }).pack} quran={quran} qdata={quran ? (d.homework.data as QuranData) : undefined} key={s.id + s.updated} s={s} asAdmin={asAdmin} reload={load} regrade={subTab === "corr"} onGraded={() => { setGradeMsg(tr("✅ Grade saved — moved to Corrected", "✅ تم حفظ التقييم — نُقل إلى المصحَّح")); setTimeout(() => setGradeMsg(""), 6000); }} />
+                          <Review pack={(d.homework.data as { pack?: string }).pack} quran={quran} qdata={quran ? (d.homework.data as QuranData) : undefined} key={s.id + s.updated} s={s} asAdmin={asAdmin} reload={load} regrade={subTab === "corr"} onGraded={() => { setGradeMsg(tr("✅ Grade saved — moved to Corrected Homeworks", "✅ تم حفظ التقييم — نُقل إلى الواجبات المصحَّحة")); setTimeout(() => setGradeMsg(""), 6000); }} />
                         ))}
                       </ul>
                     </>

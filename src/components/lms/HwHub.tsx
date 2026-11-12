@@ -1,34 +1,63 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { HomeworkEditor } from "@/components/lms/HomeworkEditor";
-import { HwMeta, hwAud } from "@/components/lms/HwMeta";
+import { HwMeta, hwAud, packAud } from "@/components/lms/HwMeta";
 import { HwRemindBell } from "@/components/lms/HwRemind";
 import { TrkLink } from "@/components/tracker/TrkLink";
 import { btn, cardCls } from "@/components/lms/mods/ModUi";
 import { useLmsActor, useTr } from "@/components/lms/useLms";
 import { clsCmp, sortCls } from "@/lib/classSort";
 import { lmsApi, lmsErrorText, type Catalog, type Chapter, type DashStudent, type Homework, type QuranData } from "@/lib/lms";
-import { qhwPerm } from "@/lib/lmsMods";
+import { modErr, qhwPerm } from "@/lib/lmsMods";
+import { lp, type Acc, type Pack } from "@/lib/packs";
 
-export type HwHubTab = "homeworks" | "assigned" | "corrected";
+export type HwHubTab = "lessons" | "homeworks" | "assigned" | "review" | "corrected";
 export type DashHw = Homework & { counts?: Record<string, number>; assigned?: number };
 
 const TAB_ITEMS: { id: HwHubTab; ic: string; en: string; ar: string }[] = [
-  { id: "homeworks", ic: "📝", en: "Homeworks", ar: "الواجبات" },
-  { id: "assigned", ic: "📋", en: "Assigned homework", ar: "الواجبات المسندة" },
+  { id: "lessons", ic: "🎤", en: "Lessons", ar: "الدروس" },
+  { id: "homeworks", ic: "📝", en: "Homework", ar: "الواجبات" },
+  { id: "assigned", ic: "📋", en: "Assigned Homework", ar: "الواجبات المسندة" },
+  { id: "review", ic: "📥", en: "Review", ar: "المراجعة" },
   { id: "corrected", ic: "✅", en: "Corrected Homeworks", ar: "الواجبات المصحَّحة" },
 ];
 
-/** Read the hub tab from ?tab= or a leftover hash (#quran / #general / #assigned / #corrected). */
+const OPEN_PILL = "inline-flex items-center justify-center rounded-full bg-[#1b3a57] px-3 py-1 text-sm font-extrabold text-[#f5c542] shadow transition hover:brightness-110";
+/** Same lift as the class cards on My classes, and the same eight colour pairs. */
+const PORTION_LIFT = "transition hover:-translate-y-1 hover:shadow-2xl";
+const PORTION_WASH = [
+  "from-sky-100 via-white to-blue-50 dark:from-sky-950/70 dark:via-[#13202e] dark:to-blue-950/50",
+  "from-amber-100 via-white to-orange-50 dark:from-amber-950/60 dark:via-[#13202e] dark:to-orange-950/40",
+  "from-emerald-100 via-white to-teal-50 dark:from-emerald-950/60 dark:via-[#13202e] dark:to-teal-950/40",
+  "from-pink-100 via-white to-rose-50 dark:from-pink-950/60 dark:via-[#13202e] dark:to-rose-950/40",
+  "from-violet-100 via-white to-violet-50 dark:from-violet-950/60 dark:via-[#13202e] dark:to-violet-950/40",
+  "from-teal-100 via-white to-cyan-50 dark:from-teal-950/60 dark:via-[#13202e] dark:to-cyan-950/40",
+  "from-orange-100 via-white to-red-50 dark:from-orange-950/50 dark:via-[#13202e] dark:to-red-950/40",
+  "from-lime-100 via-white to-green-50 dark:from-lime-950/50 dark:via-[#13202e] dark:to-green-950/40",
+];
+const PORTION_BAR = [
+  "from-sky-400 to-blue-600",
+  "from-amber-400 to-orange-500",
+  "from-emerald-400 to-teal-600",
+  "from-pink-400 to-rose-600",
+  "from-violet-400 to-violet-600",
+  "from-teal-400 to-cyan-600",
+  "from-orange-400 to-red-600",
+  "from-lime-400 to-green-600",
+];
+
+/** Read the hub tab from ?tab= or a leftover hash (#quran / #general / #assigned / #corrected / #review). */
 export function tabFromLocation(): HwHubTab {
   if (typeof window === "undefined") return "homeworks";
   const q = new URLSearchParams(window.location.search).get("tab") || "";
   const h = window.location.hash.replace("#", "");
-  const v = q || h;
-  if (v === "assigned") return "assigned";
-  if (v === "corrected") return "corrected";
+  const v = (q || h).toLowerCase();
+  if (v === "lessons" || v === "lesson") return "lessons";
+  if (v === "assigned" || v === "assigned-homework") return "assigned";
+  if (v === "review" || v === "to-review" || v === "toreview" || v === "to_review") return "review";
+  if (v === "corrected" || v === "corrected-homeworks") return "corrected";
   return "homeworks";
 }
 
@@ -56,15 +85,22 @@ function isLive(h: DashHw) {
   return (h.assigned ?? 0) > 0 && !(assignAt > Date.now());
 }
 
-function toReview(h: DashHw) {
+/** Submissions finished by students and still waiting for the teacher.
+ *  Quran stays until Save grade. A comment on general homework or an activity waits on the student, so it leaves Review. */
+export function reviewCount(h: DashHw) {
   const c = countsOf(h);
+  if (h.kind === "quran") return c.submitted;
   return Math.max(0, c.submitted - c.waiting);
 }
 
-/** Every assignee has been approved and nothing is left to review — leaves the Assigned tab. */
+function needsReview(h: DashHw) {
+  return reviewCount(h) > 0;
+}
+
+/** Every assignee has been approved and nothing is left to review. Assigned still lists the work; this only stops the reminder bell. */
 function isFullyCorrected(h: DashHw) {
   const assigned = h.assigned ?? 0;
-  return assigned > 0 && countsOf(h).approved >= assigned && toReview(h) === 0;
+  return assigned > 0 && countsOf(h).approved >= assigned && reviewCount(h) === 0;
 }
 
 /**
@@ -84,12 +120,12 @@ export function hasCorrectedWork(h: DashHw, quranCorrectedHw?: Set<string>) {
 }
 
 /**
- * Homeworks = created but not yet assigned (unassigned or scheduled for later).
- * Assigned homework = live with students, unless every assignee is already approved.
- * (The Corrected tab uses hasCorrectedWork and can overlap with Assigned.)
+ * Homework = created but not yet assigned (unassigned or scheduled for later).
+ * Assigned Homework = everything live with students (general homework, activities, and Quran homework),
+ * including work that already has a correction.
+ * Review and Corrected Homeworks are separate lists and can overlap with Assigned.
  */
-export function hwBucket(h: DashHw): HwHubTab {
-  if (isFullyCorrected(h)) return "corrected";
+export function hwBucket(h: DashHw): "homeworks" | "assigned" {
   if (isLive(h)) return "assigned";
   return "homeworks";
 }
@@ -114,17 +150,21 @@ export function HwHubTabs({ tab, onTab, className = "" }: { tab: HwHubTab; onTab
   return (
     <div className={`flex flex-wrap gap-2 ${className}`} role="tablist" data-testid="hw-hub-tabs">
       {TAB_ITEMS.map(({ id, ic, en, ar }) => (
-        <button
+        <a
           key={id}
-          type="button"
+          href={tabHref(id)}
           role="tab"
           aria-selected={tab === id}
-          onClick={() => onTab(id)}
+          onClick={(e) => {
+            if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+            e.preventDefault();
+            onTab(id);
+          }}
           className={`rounded-full px-4 py-2 text-sm font-extrabold shadow-sm transition ${tab === id ? "bg-header text-white" : "bg-white text-[#1b2f44] hover:bg-sun/50 dark:bg-white/10 dark:text-white"}`}
           data-testid={`hw-tab-${id}`}
         >
           {ic} {tr(en, ar)}
-        </button>
+        </a>
       ))}
     </div>
   );
@@ -152,7 +192,7 @@ export function HwPortionGrid({
   empty,
   onChange,
   extra,
-  openToCorrected = false,
+  openHash = "",
   correctedCounts,
 }: {
   items: DashHw[];
@@ -162,7 +202,8 @@ export function HwPortionGrid({
   empty: string;
   onChange: () => void;
   extra: { classes: { cls: string; students: number }[]; students: DashStudent[]; catalog?: Catalog; scope?: string[] };
-  openToCorrected?: boolean;
+  /** #corrected or #review so the opened homework keeps that hub tab selected. */
+  openHash?: string;
   correctedCounts?: Record<string, number>;
 }) {
   const { tr, lang } = useTr();
@@ -216,13 +257,16 @@ export function HwPortionGrid({
   const canEdit = (h: DashHw) => !sharedOnly(h, actor?.id, actor?.role) && (h.kind !== "quran" ? canAssign || actor?.role === "admin" : q.edit);
   const canDel = (h: DashHw) => !sharedOnly(h, actor?.id, actor?.role) && (h.kind !== "quran" ? canAssign || actor?.role === "admin" : q.del);
 
-  const card = (h: DashHw) => {
+  const card = (h: DashHw, i = 0) => {
     const qd = h.kind === "quran" ? (h.data as QuranData) : null;
     const c = countsOf(h);
     const remind = isLive(h) && !isFullyCorrected(h);
+    const n = i % PORTION_WASH.length;
+    const icon = h.kind === "quran" ? "📖" : isActivity(h) ? "🎲" : "📝";
     return (
-      <article key={h.id} className={cardCls} data-testid="hw-portion">
-        <p className="text-lg font-extrabold" dir="auto">{h.kind === "quran" ? "📖" : "📝"} {h.title}</p>
+      <article key={h.id} className={`group relative overflow-hidden rounded-2xl border border-black/10 bg-gradient-to-br p-4 pt-5 shadow-md ring-1 ring-black/5 dark:border-white/10 ${PORTION_WASH[n]} ${PORTION_LIFT}`} data-testid="hw-portion">
+        <span className={`pointer-events-none absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r ${PORTION_BAR[n]}`} aria-hidden />
+        <p className="text-xl font-extrabold leading-tight text-heading sm:text-2xl" dir="auto"><span className="me-1 inline-block origin-center transition group-hover:scale-110" aria-hidden>{icon}</span>{h.title}</p>
         {isActivity(h) && <span className="mt-1 inline-flex rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-extrabold text-violet-900 dark:bg-violet-900/40 dark:text-violet-100" data-testid="hw-activity-badge">{tr("Activity", "نشاط")}</span>}
         {h.kind === "quran" && <TrkLink id={h.id} kind="hw" asAdmin={asAdmin} />}
         <HwMeta {...hwAud(h)} className="mt-1" />
@@ -238,7 +282,7 @@ export function HwPortionGrid({
         </p>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {/* t587: Open / review takes the navy-and-gold pill style Remind used to have; Remind is now a bell-only button like Edit and Delete. */}
-          <a className="inline-flex items-center justify-center rounded-full bg-[#1b3a57] px-3 py-1 text-sm font-extrabold text-[#f5c542] shadow transition hover:brightness-110" href={`/lms/homework?id=${h.id}${openToCorrected ? "#corrected" : ""}`} data-testid="hw-portion-open">{tr("Open / review", "فتح / مراجعة")}</a>
+          <a className={OPEN_PILL} href={`/lms/homework?id=${h.id}${openHash}`} data-testid="hw-portion-open">{tr("Open / review", "فتح / مراجعة")}</a>
           {remind && <HwRemindBell hw={h.id} title={h.title} asAdmin={asAdmin} iconOnly btnClass={btn + " !py-1"} />}
           {canEdit(h) && (
             <button type="button" className={btn + " !py-1"} onClick={() => setEditor(h)} title={tr("Edit", "تعديل")} aria-label={tr("Edit", "تعديل")} data-testid="hw-portion-edit">✎</button>
@@ -289,7 +333,7 @@ export function HwPortionGrid({
         <p className={cardCls + " text-center opacity-70"} data-testid="hw-hub-empty">{empty}</p>
       ) : (
         <div className="space-y-6" data-testid="hw-portion-groups">
-          {groups.map((g, i) => {
+          {(() => { let n = 0; return groups.map((g, i) => {
             const prev = groups[i - 1];
             const showYear = !prev || prev.year !== g.year;
             return (
@@ -297,7 +341,126 @@ export function HwPortionGrid({
                 {showYear && <h3 className="text-lg font-extrabold text-[#1b3a57] dark:text-white" data-testid="hw-year-heading">🏫 {tr("Year", "الصف")}: {yearLabel(g.year)}</h3>}
                 <h4 className="text-sm font-extrabold opacity-80" data-testid="hw-sec-heading">👥 {tr("Section", "الشعبة")}: {sectionLabel(g.section)}</h4>
                 <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3" data-testid="hw-portion-grid">
-                  {g.rows.map(card)}
+                  {g.rows.map((h) => card(h, n++))}
+                </div>
+              </section>
+            );
+          }); })()}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function lessonPlace(p: Pack) {
+  const fromAud = packAud(p.aud || []);
+  const years = (p.years?.length ? p.years : fromAud.years.length ? fromAud.years : p.topic?.yr ? [p.topic.yr] : []).filter(Boolean);
+  const sections = (p.sections?.length ? p.sections : fromAud.sections).filter(Boolean);
+  return { years, sections, subject: p.subject || "" };
+}
+
+/** Lesson presentations only (Lesson Builder packs of type "lesson"), in the same Year / section cards. */
+function LessonBoard({ asAdmin }: { asAdmin: boolean }) {
+  const { tr, lang } = useTr();
+  const { actor } = useLmsActor();
+  const [items, setItems] = useState<Pack[] | null>(null);
+  const [acc, setAcc] = useState<Acc | null>(null);
+  const [msg, setMsg] = useState("");
+  const [bad, setBad] = useState(false);
+  const [yr, setYr] = useState("");
+  const [sec, setSec] = useState("");
+
+  const load = useCallback(() => {
+    let live = true;
+    lp.list(asAdmin).then((r) => {
+      if (!live) return;
+      const mine = r.items.filter((p) => p.type === "lesson" && (asAdmin || actor?.role === "admin" || p.owner === actor?.id));
+      setItems(mine);
+      setAcc(r.acc || null);
+    }).catch((e) => { if (!live) return; setItems([]); setMsg(modErr(e, tr)); setBad(true); });
+    return () => { live = false; };
+  }, [asAdmin, actor?.id, actor?.role, tr]);
+  useEffect(() => load(), [load]);
+
+  const years = useMemo(() => sortCls([...new Set((items || []).flatMap((p) => lessonPlace(p).years))]), [items]);
+  const shown = useMemo(() => (items || []).filter((p) => {
+    const a = lessonPlace(p);
+    if (yr && !a.years.includes(yr)) return false;
+    if (sec && !a.sections.includes(sec)) return false;
+    return true;
+  }), [items, yr, sec]);
+  const sections = useMemo(() => sortCls([...new Set(shown.flatMap((p) => lessonPlace(p).sections))]), [shown]);
+  const groups = useMemo(() => {
+    const map = new Map<string, Pack[]>();
+    for (const p of shown) {
+      const a = lessonPlace(p);
+      const key = `${a.years.length ? sortCls(a.years).join(" · ") : "__none"}|${sortCls(a.sections).join(" · ")}`;
+      const list = map.get(key) || [];
+      list.push(p);
+      map.set(key, list);
+    }
+    return [...map.entries()].sort((a, b) => clsCmp(a[0], b[0])).map(([key, rows]) => {
+      const [year, section = ""] = key.split("|");
+      return { key, year, section, rows };
+    });
+  }, [shown]);
+  const yearLabel = (y: string) => y === "__none" ? tr("No class yet", "بدون صف بعد") : y;
+  const sectionLabel = (s: string) => s || tr("All sections", "كل الشعب");
+  const canEdit = (p: Pack) => !!acc?.edit && (asAdmin || actor?.role === "admin" || p.owner === actor?.id);
+  const canDel = (p: Pack) => !!acc?.delete && (asAdmin || actor?.role === "admin" || p.owner === actor?.id);
+  const del = async (p: Pack) => {
+    if (!confirm(tr("Delete this lesson presentation?", "حذف عرض هذا الدرس؟"))) return;
+    try { await lp.del(p.id, asAdmin); setMsg(tr("Deleted.", "تم الحذف.")); setBad(false); load(); }
+    catch (e) { setMsg(modErr(e, tr)); setBad(true); }
+  };
+
+  if (items === null && !msg) return <p className={cardCls + " text-center opacity-70"}>{tr("Loading…", "جارٍ التحميل…")}</p>;
+  return (
+    <div className="space-y-3" data-testid="lesson-hub">
+      {!!items?.length && (
+        <div className="flex flex-wrap items-center gap-1.5" data-testid="lesson-year-filter">
+          <button type="button" aria-pressed={!yr} onClick={() => { setYr(""); setSec(""); }} className={`rounded-full px-3 py-1.5 text-xs font-extrabold ${!yr ? "bg-header text-white" : "bg-white text-[#1b2f44] ring-1 ring-black/10 dark:bg-white/10 dark:text-white"}`}>{tr("All years", "كل الصفوف")}</button>
+          {years.map((y) => (
+            <button key={y} type="button" aria-pressed={yr === y} onClick={() => { setYr(yr === y ? "" : y); setSec(""); }} className={`rounded-full px-3 py-1.5 text-xs font-extrabold ${yr === y ? "bg-header text-white" : "bg-white text-[#1b2f44] ring-1 ring-black/10 dark:bg-white/10 dark:text-white"}`}>{y}</button>
+          ))}
+        </div>
+      )}
+      {!!items?.length && sections.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <button type="button" aria-pressed={!sec} onClick={() => setSec("")} className={`rounded-full px-3 py-1.5 text-xs font-extrabold ${!sec ? "bg-[#f5c542] text-[#1b3a57]" : "bg-white text-[#1b2f44] ring-1 ring-black/10 dark:bg-white/10 dark:text-white"}`}>{tr("All sections", "كل الشعب")}</button>
+          {sections.map((s) => (
+            <button key={s} type="button" aria-pressed={sec === s} onClick={() => setSec(sec === s ? "" : s)} className={`rounded-full px-3 py-1.5 text-xs font-extrabold ${sec === s ? "bg-[#f5c542] text-[#1b3a57]" : "bg-white text-[#1b2f44] ring-1 ring-black/10 dark:bg-white/10 dark:text-white"}`}>{s}</button>
+          ))}
+        </div>
+      )}
+      {msg && !(bad && !items?.length) && <p role="status" className={`rounded-xl px-3 py-2 text-sm font-semibold ${bad ? "bg-rose-100 text-rose-900" : "bg-emerald-100 text-emerald-900"}`}>{msg}</p>}
+      {!items?.length || !shown.length ? (
+        <p className={cardCls + " text-center opacity-70"} data-testid="lesson-hub-empty">{bad && msg ? msg : tr("No lesson presentations for your classes yet. Build them in Lesson Builder — homework, activities and Quran homework stay on their own tabs.", "لا توجد عروض دروس لصفوفك بعد. أنشئها في منشئ الدروس — الواجبات والأنشطة وواجب القرآن تبقى في صفحاتها.")}</p>
+      ) : (
+        <div className="space-y-6" data-testid="lesson-portion-groups">
+          {groups.map((g, i) => {
+            const prev = groups[i - 1];
+            const showYear = !prev || prev.year !== g.year;
+            return (
+              <section key={g.key} className="space-y-3" data-testid="lesson-year-group">
+                {showYear && <h3 className="text-lg font-extrabold text-[#1b3a57] dark:text-white">🏫 {tr("Year", "الصف")}: {yearLabel(g.year)}</h3>}
+                <h4 className="text-sm font-extrabold opacity-80">👥 {tr("Section", "الشعبة")}: {sectionLabel(g.section)}</h4>
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  {g.rows.map((p) => {
+                    const a = lessonPlace(p);
+                    return (
+                      <article key={p.id} className={cardCls} data-testid="lesson-portion">
+                        <p className="text-lg font-extrabold" dir="auto">🎤 {p.title}</p>
+                        <HwMeta {...a} className="mt-1" />
+                        <p className="mt-1 text-xs opacity-70">{p.count ?? p.slides?.length ?? 0} {tr("slides", "شرائح")} · {p.status === "published" ? tr("Ready to present", "جاهز للعرض") : tr("Draft", "مسودة")}{p.topic?.title ? ` · ${p.topic.title}` : ""}{p.updated ? ` · ${new Date(p.updated).toLocaleDateString(lang === "ar" ? "ar" : "en-GB")}` : ""}</p>
+                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                          <a className={OPEN_PILL} href={`/lms/material?open=${encodeURIComponent(p.id)}`} data-testid="lesson-portion-open">{tr("Present", "عرض")}</a>
+                          {canEdit(p) && <a className={btn + " !py-1"} href={`/lms/material?edit=${encodeURIComponent(p.id)}`} title={tr("Edit", "تعديل")} aria-label={tr("Edit", "تعديل")} data-testid="lesson-portion-edit">✎</a>}
+                          {canDel(p) && <button type="button" className={btn + " !py-1"} onClick={() => del(p)} title={tr("Delete", "حذف")} aria-label={tr("Delete", "حذف")} data-testid="lesson-portion-del">🗑</button>}
+                        </div>
+                      </article>
+                    );
+                  })}
                 </div>
               </section>
             );
@@ -340,18 +503,27 @@ export function TeacherHomeworkHub({
     }).catch(() => { if (live) setQuranCorr({ ids: new Set(), n: {} }); });
     return () => { live = false; };
   }, [asAdmin, dash.homework]);
-  const rows = dash.homework.filter((h) => tab === "corrected" ? hasCorrectedWork(h, quranCorr.ids) : hwBucket(h) === tab);
+  const rows = dash.homework.filter((h) => {
+    if (tab === "lessons") return false;
+    if (tab === "corrected") return hasCorrectedWork(h, quranCorr.ids);
+    if (tab === "review") return needsReview(h);
+    return hwBucket(h) === tab;
+  });
   const empty =
-    tab === "homeworks" ? tr("No homework or activities waiting to be assigned. Once you assign them to students, they move to Assigned homework.", "لا توجد واجبات أو أنشطة بانتظار الإسناد. بعد إسنادها للطلاب تنتقل إلى الواجبات المسندة.")
-    : tab === "assigned" ? tr("No assigned homework or activities.", "لا توجد واجبات أو أنشطة مسندة.")
-    : tr("No corrected homework or activities yet.", "لا توجد واجبات أو أنشطة مصحّحة بعد.");
+    tab === "homeworks" ? tr("No homework or activities waiting to be assigned. Once you assign them to students, they move to Assigned Homework.", "لا توجد واجبات أو أنشطة بانتظار الإسناد. بعد إسنادها للطلاب تنتقل إلى الواجبات المسندة.")
+    : tab === "assigned" ? tr("No assigned homework, activities, or Quran homework.", "لا توجد واجبات أو أنشطة أو واجبات قرآن مسندة.")
+    : tab === "review" ? tr("Nothing submitted and waiting for correction.", "لا يوجد عمل مُسلَّم بانتظار التصحيح.")
+    : tr("No corrected homework yet. Work you have corrected appears here.", "لا توجد واجبات مصحَّحة بعد. يظهر هنا ما صحّحته.");
+  const openHash = tab === "corrected" ? "#corrected" : tab === "review" ? "#review" : "";
   return (
     <section id="homework" className="scroll-mt-28 space-y-4" data-testid="hw-hub">
       <div className="flex flex-wrap items-center gap-2">
         <HomeworkHubTabs tab={tab} onTab={onTab} />
         {toolbar}
       </div>
-      <HwPortionGrid items={rows} chapters={chapters} asAdmin={asAdmin} canAssign={canAssign} empty={empty} onChange={onReload} extra={extra} openToCorrected={tab === "corrected"} correctedCounts={tab === "corrected" ? { ...Object.fromEntries(rows.map((h) => [h.id, h.kind === "quran" ? 0 : countsOf(h).approved])), ...quranCorr.n } : quranCorr.n} />
+      {tab === "lessons" ? <LessonBoard asAdmin={asAdmin} /> : (
+        <HwPortionGrid items={rows} chapters={chapters} asAdmin={asAdmin} canAssign={canAssign} empty={empty} onChange={onReload} extra={extra} openHash={openHash} correctedCounts={tab === "corrected" ? { ...Object.fromEntries(rows.map((h) => [h.id, h.kind === "quran" ? 0 : countsOf(h).approved])), ...quranCorr.n } : quranCorr.n} />
+      )}
     </section>
   );
 }

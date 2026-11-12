@@ -18,7 +18,7 @@ import { AssessmentShell, primaryBtn } from "@/components/assessment/AssessmentS
 import { HomeworkEditor } from "@/components/lms/HomeworkEditor";
 import { Certificates, Leaderboard, LeaderboardSetting, ProgressCard, RevisionList } from "@/components/lms/Progress";
 import { Avatar } from "@/components/lms/Avatar";
-import { TeacherHomeworkHub, tabFromLocation, type HwHubTab } from "@/components/lms/HwHub";
+import { TeacherHomeworkHub, reviewCount, tabFromLocation, type HwHubTab } from "@/components/lms/HwHub";
 import { exportAllHomeworkZip } from "@/components/lms/lmsFiles";
 import { STATUS_STYLE, card, smallBtn, statusLabel, useLmsActor, useTr, GRADE_STYLE, gradeLabel } from "@/components/lms/useLms";
 import { lmsApi, lmsErrorText, lmsSignOut, mpShown, quranChapters, type Chapter, type QuranData } from "@/lib/lms";
@@ -58,14 +58,15 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
   const [stuTab, setStuTab] = useState<"open" | "done">("open");
   // eslint-disable-next-line react-hooks/set-state-in-effect -- deep link from ?tab= / leftover hash
   useEffect(() => {
-    const t0 = tabFromLocation();
-    setHubTab(t0);
-    const readStu = () => setStuTab(new URLSearchParams(window.location.search).get("tab") === "submitted" ? "done" : "open");
-    readStu();
+    const read = () => {
+      setHubTab(tabFromLocation());
+      setStuTab(new URLSearchParams(window.location.search).get("tab") === "submitted" ? "done" : "open");
+    };
+    read();
     const h = window.location.hash.replace("#", "");
     if (h === "add") setCreating(true);
-    window.addEventListener("popstate", readStu);
-    return () => window.removeEventListener("popstate", readStu);
+    window.addEventListener("popstate", read);
+    return () => window.removeEventListener("popstate", read);
   }, []);
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [busy, setBusy] = useState(false);
@@ -110,7 +111,7 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
   const myPages = useMyPages();
   const canAssign = actor?.role === "admin" || actor?.perms.includes("assign");
 
-  const QUICK: string[][] = (staff ? [["/lms/timetable", "⏰", "Timetable", "الجدول", "from-lime-100 to-lime-200"], ["/lms/classes", "🏫", "My classes", "صفوفي", "from-sky-100 to-sky-200"], ["/lms/homework", "📝", "Homeworks", "الواجبات", "from-amber-100 to-amber-200"], ["/lms/library", "📚", "Learning Libraries", "مكتبات التعلم", "from-emerald-100 to-emerald-200"], ["/lms/attendance", "🗓️", "Attendance", "الحضور", "from-teal-100 to-teal-200"], ["/lms/activities", "🎲", "Activities", "الأنشطة", "from-violet-100 to-violet-200"], ["/lms/assessments", "🧩", "Assessments", "التقييمات", "from-rose-100 to-rose-200"], ["/lms/messages", "💬", "Messages", "الرسائل", "from-cyan-100 to-cyan-200"]] : [["/lms/timetable", "⏰", "Timetable", "الجدول", "from-lime-100 to-lime-200"], ["/lms/homework", "📝", "Homework", "الواجبات", "from-amber-100 to-amber-200"], ["/lms/assessments", "🧩", "Assessments", "التقييمات", "from-rose-100 to-rose-200"], ["/lms/library", "📚", "Libraries", "المكتبات", "from-emerald-100 to-emerald-200"], ["/lms/curriculum", "🗂️", "Curriculum", "المنهج", "from-violet-100 to-fuchsia-200"], ["/lms#tracker", "📖", "Quran Tracker", "متابعة الحفظ", "from-sky-100 to-sky-200"], ["/lms/rewards", "🃏", "Reward Cards", "بطاقات المكافآت", "from-amber-100 to-yellow-300"], ["/lms/messages", "💬", "Messages", "الرسائل", "from-cyan-100 to-cyan-200"], ["/lms/account", "🦸", "My character", "شخصيتي", "from-violet-100 to-violet-200"]]);
+  const QUICK: string[][] = (staff ? [["/lms/timetable", "⏰", "Timetable", "الجدول", "from-lime-100 to-lime-200"], ["/lms/classes", "🏫", "My classes", "صفوفي", "from-sky-100 to-sky-200"], ["/lms/homework", "📝", "Homework", "الواجبات", "from-amber-100 to-amber-200"], ["/lms/library", "📚", "Learning Libraries", "مكتبات التعلم", "from-emerald-100 to-emerald-200"], ["/lms/attendance", "🗓️", "Attendance", "الحضور", "from-teal-100 to-teal-200"], ["/lms/activities", "🎲", "Activities", "الأنشطة", "from-violet-100 to-violet-200"], ["/lms/assessments", "🧩", "Assessments", "التقييمات", "from-rose-100 to-rose-200"], ["/lms/messages", "💬", "Messages", "الرسائل", "from-cyan-100 to-cyan-200"]] : [["/lms/timetable", "⏰", "Timetable", "الجدول", "from-lime-100 to-lime-200"], ["/lms/homework", "📝", "Homework", "الواجبات", "from-amber-100 to-amber-200"], ["/lms/assessments", "🧩", "Assessments", "التقييمات", "from-rose-100 to-rose-200"], ["/lms/library", "📚", "Libraries", "المكتبات", "from-emerald-100 to-emerald-200"], ["/lms/curriculum", "🗂️", "Curriculum", "المنهج", "from-violet-100 to-fuchsia-200"], ["/lms#tracker", "📖", "Quran Tracker", "متابعة الحفظ", "from-sky-100 to-sky-200"], ["/lms/rewards", "🃏", "Reward Cards", "بطاقات المكافآت", "from-amber-100 to-yellow-300"], ["/lms/messages", "💬", "Messages", "الرسائل", "from-cyan-100 to-cyan-200"], ["/lms/account", "🦸", "My character", "شخصيتي", "from-violet-100 to-violet-200"]]);
   // t448: distinct icons — Progress Check 📊, Lesson Builder 📑, Reward Cards 🃏
   // t449: Homework 📝 · Learning Libraries 📚 · Curriculum 🗂️
   if (staff && (actor?.role === "admin" || mpShown(actor, "lp"))) QUICK.push(["/lms/material", "📑", "Lesson Builder", "منشئ الدروس", "from-rose-100 to-pink-200"]);
@@ -149,7 +150,7 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
         {!staff && actor && !hwOnly && <LiveActivityBanner />}
         {dash && !hwOnly && <AnnFeed />}
         {dash && !hwOnly && <DashCarousel items={((staff ? [
-          { icon: "📝", title: tr("To review", "للمراجعة"), value: dash.homework.reduce((n, h) => n + (Number((h.counts as Record<string, number> | undefined)?.submitted) || 0), 0), sub: tr("submissions waiting", "تسليمات بانتظارك"), href: "/lms/homework", tone: "coral" },
+          { icon: "📥", title: tr("To review", "للمراجعة"), value: dash.homework.reduce((n, h) => n + reviewCount(h), 0), sub: tr("submissions waiting", "تسليمات بانتظارك"), href: "/lms/homework?tab=review", tone: "coral" },
           { icon: "📝", title: tr("Homework", "الواجبات"), value: dash.homework.length, sub: tr("active", "نشطة"), href: "/lms/homework", tone: "sun" },
           { icon: "🏫", title: tr("My classes", "صفوفي"), value: (dash.classes || []).length, sub: tr("classes & groups", "صفوف ومجموعات"), href: "/lms/classes", tone: "teal" },
           { icon: "🎒", title: tr("Students", "الطلاب"), value: (dash.students || []).length, sub: tr("in my groups", "في مجموعاتي"), href: "/lms/classes", tone: "navy" },
@@ -263,7 +264,7 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
             {creating && (
               (dash as { quran?: { add: boolean } }).quran && !(dash as { quran?: { add: boolean } }).quran!.add ? <a href="/lms/material?new=homework" className="inline-block rounded-full bg-sun px-4 py-2 font-extrabold text-[#1b2f44]" data-testid="hw-kind-pack">📑 {tr("New homework as slides (Lesson Pack)", "واجب جديد بالشرائح")}</a> : <HomeworkEditor classes={dash.classes || []} students={dash.students || []} catalog={dash.catalog} scope={dash.scope} asAdmin={asAdmin} kinds={(dash as { quran?: { add: boolean } }).quran && !(dash as { quran?: { add: boolean } }).quran!.add ? ["general"] : ["quran", "general"]} onCancel={() => setCreating(false)} onSaved={(id) => router.push(`/lms/homework?id=${id}`)} />
             )}
-            {/* t580: the dashboard shows homework in the same Homeworks / Assigned / Corrected portion cards (by Year and section) as the Homework page. */}
+            {/* Homework area: Lessons, Homework, Assigned Homework, Review, Corrected Homeworks — Year / section cards. */}
             <TeacherHomeworkHub
               dash={dash}
               chapters={chapters}

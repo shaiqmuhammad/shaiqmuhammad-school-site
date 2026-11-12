@@ -1,7 +1,7 @@
 "use client";
 
 import { defaultSubject, teacherSubjects } from "@/components/lms/SubjectPick";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AssessmentShell } from "@/components/assessment/AssessmentShell";
 import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
 import { smallBtn, useLmsActor, useTr } from "@/components/lms/useLms";
@@ -40,9 +40,17 @@ export function PacksPage() {
   const [open, setOpen] = useState("");
   const [msg, setMsg] = useState("");
   const [filter, setFilter] = useState<"" | PackType>("");
+  const openedEdit = useRef("");
   const load = useCallback(() => lp.list(asAdmin).then((r) => { setItems(r.items); setAcc(r.acc || null); }).catch((e) => { setItems([]); setMsg(modErr(e, tr)); }), [asAdmin, tr]);
   useEffect(() => { if (ready && actor) load(); }, [ready, actor, load]);
   useEffect(() => { const q = new URLSearchParams(location.search); if (q.get("open")) setOpen(q.get("open")!); }, []);
+  useEffect(() => {
+    if (!ready || !actor) return;
+    const editId = new URLSearchParams(location.search).get("edit") || "";
+    if (!editId || openedEdit.current === editId) return;
+    openedEdit.current = editId;
+    lp.get(editId, asAdmin).then((r) => { if (r.pack) setEdit(r.pack); }).catch(() => undefined);
+  }, [ready, actor, asAdmin]);
   useEffect(() => { const q = new URLSearchParams(location.search); const t = q.get("new") as PackType | null; if (t && acc?.add && !edit) newPack(t, "blank"); // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [acc]);
   const newPack = (type: PackType, tpl: string) => setEdit({ id: "", owner: "", ownerName: "", title: "", type, subject: asAdmin ? "" : defaultSubject(teacherSubjects(actor as never)), aud: [], students: [], topic: {}, mode: "self", assignAt: 0, due: 0, status: "draft", hw: "", live: -1, tpl: false, created: 0, updated: 0, slides: TEMPLATES.find((x) => x[0] === tpl)![3](/^islamic a$/i.test(actor?.subj?.[0] || "") || lang === "ar") });

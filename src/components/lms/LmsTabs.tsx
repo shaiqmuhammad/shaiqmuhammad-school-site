@@ -39,7 +39,11 @@ const STUDENT: Tab[] = [
 const TEACHER: Tab[] = [
   { id: "dash", href: "/lms", en: "Dashboard", ar: "اللوحة", icon: I.dash, lvl: 0 },
   { id: "cls", href: "/lms/classes", en: "My classes", ar: "صفوفي", icon: I.cls, lvl: 0 },
-  { id: "hw", href: "/lms/homework", en: "Homeworks", ar: "الواجبات", icon: I.hw, lvl: 1 },
+  { id: "lessons", href: "/lms/homework?tab=lessons", en: "Lessons", ar: "الدروس", icon: I.hw, lvl: 1 },
+  { id: "hw", href: "/lms/homework", en: "Homework", ar: "الواجبات", icon: I.hw, lvl: 1 },
+  { id: "assigned", href: "/lms/homework?tab=assigned", en: "Assigned Homework", ar: "الواجبات المسندة", icon: I.hw, lvl: 1 },
+  { id: "review", href: "/lms/homework?tab=review", en: "Review", ar: "المراجعة", icon: I.hw, lvl: 1 },
+  { id: "corr", href: "/lms/homework?tab=corrected", en: "Corrected Homeworks", ar: "الواجبات المصحَّحة", icon: I.hw, lvl: 1 },
   { id: "assess", href: "/lms/assessments", en: "Assessments", ar: "التقييمات", icon: I.assess, lvl: 2 },
   { id: "msg", href: "/lms/messages", en: "Messages", ar: "الرسائل", icon: I.msg, lvl: 2 },
   { id: "act", href: "/lms/activities", en: "Activities", ar: "الأنشطة", icon: I.act, lvl: 3 },
@@ -48,7 +52,8 @@ const TEACHER: Tab[] = [
 ];
 // Child-friendly look: one emoji per area, each on its own theme-coloured disc.
 // t449/t450: every LMS module a unique icon — redeploy — Homework 📝 · Libraries 📚 · Curriculum 🗂️ · Assessments 🧩 · Quran Tracker 📖 · Quran Homework 🎙️ · Attendance 🗓️ · Activities 🎲 · Results 🧾 · Timetable ⏰ · Tracker 📋 · Progress Check 📊 · Lesson Builder 📑 · Reward Cards 🃏
-const EMOJI: Record<string, string> = { tt: "⏰", std: "📘", lib: "📚", rep: "📈", dash: "🏠", hw: "📝", assess: "🧩", msg: "💬", wall: "🧱", quran: "📖", qhw: "🎙️", cls: "🏫", act: "🎲", res: "🧾", att: "🗓️", beh: "🌟", cur: "🗂️", logins: "🔑", acct: "🦸", stu: "👥", map: "🗺️", pts: "🏆", fcur: "🗂️", fassess: "🧩", corr: "💯", lp: "📑", qa: "📊", rc: "🃏", trk: "📋" };
+const EMOJI: Record<string, string> = { tt: "⏰", std: "📘", lib: "📚", rep: "📈", dash: "🏠", lessons: "🎤", hw: "📝", assigned: "📋", review: "📥", assess: "🧩", msg: "💬", wall: "🧱", quran: "📖", qhw: "🎙️", cls: "🏫", act: "🎲", res: "🧾", att: "🗓️", beh: "🌟", cur: "🗂️", logins: "🔑", acct: "🦸", stu: "👥", map: "🗺️", pts: "🏆", fcur: "🗂️", fassess: "🧩", corr: "💯", lp: "📑", qa: "📊", rc: "🃏", trk: "📋" };
+const HW_NAV = ["lessons", "hw", "assigned", "review", "corr"];
 const DISC = ["bg-white/15 text-white ring-1 ring-white/25"];
 
 /**
@@ -71,14 +76,26 @@ export function LmsTabs() {
   }, []);
   const toggle = (v: boolean) => { setCol(v); try { localStorage.setItem(mob ? "sm-rail-m" : "sm-rail-d", v ? "1" : "0"); } catch { /* ignore */ } };
   const [path, setPath] = useState("");
+  const [search, setSearch] = useState("");
   const { prefs, save: savePrefs } = useUiPrefs();
   const [editMenu, setEditMenu] = useState(false);
   const [hash, setHash] = useState("");
   useEffect(() => {
-    const upd = () => { setPath(window.location.pathname.replace(/\/$/, "") || "/"); setHash(window.location.hash); };
+    const upd = () => { setPath(window.location.pathname.replace(/\/$/, "") || "/"); setHash(window.location.hash); setSearch(window.location.search); };
     upd();
     window.addEventListener("hashchange", upd); window.addEventListener("popstate", upd);
-    return () => { window.removeEventListener("hashchange", upd); window.removeEventListener("popstate", upd); };
+    // Tab changes use replaceState / the Next router, which do not fire popstate.
+    const push = history.pushState.bind(history);
+    const replace = history.replaceState.bind(history);
+    // Next calls these during render. Defer so the rail update is not scheduled inside an insertion effect.
+    let queued = false;
+    const later = () => { if (queued) return; queued = true; setTimeout(() => { queued = false; upd(); }, 0); };
+    history.pushState = (...args: Parameters<History["pushState"]>) => { const r = push(...args); later(); return r; };
+    history.replaceState = (...args: Parameters<History["replaceState"]>) => { const r = replace(...args); later(); return r; };
+    return () => {
+      history.pushState = push; history.replaceState = replace;
+      window.removeEventListener("hashchange", upd); window.removeEventListener("popstate", upd);
+    };
   }, []);
   if (!ready || !actor || actor.viewAs) return null;
   const uiPrefs = prefs;
@@ -104,7 +121,7 @@ export function LmsTabs() {
   ];
   const loginsTab: Tab[] = staff && stuUi(actor.perms || [], "view") ? [{ id: "logins", href: "/lms/logins", en: "Student Logins", ar: "دخول الطلاب", icon: "", lvl: 3 }] : [];
   const acctTab: Tab[] = [{ id: "acct", href: "/lms/account", en: "My account", ar: "حسابي", icon: "", lvl: 3 }];
-  const qTab: Tab[] = false && staff && qp.show ? [{ id: "qhw", href: "/lms/homework", en: "Quran Homework", ar: "واجب القرآن", icon: I.quran, lvl: 2 }, ...(qp.view ? [{ id: "corr", href: "/lms/homework?tab=corrected", en: "Corrected", ar: "المصحَّح", icon: "", lvl: 2 } as Tab] : [])] : [];
+  const qTab: Tab[] = false && staff && qp.show ? [{ id: "qhw", href: "/lms/homework", en: "Quran Homework", ar: "واجب القرآن", icon: I.quran, lvl: 2 }] : [];
   const PARENT: Tab[] = [
     { id: "dash", href: "/lms/family", en: "Dashboard", ar: "اللوحة", icon: I.dash, lvl: 0 },
     { id: "hw", href: "/lms/family", hash: "#homework", en: "Homework", ar: "الواجبات", icon: I.hw, lvl: 0 },
@@ -117,27 +134,47 @@ export function LmsTabs() {
     { id: "wall", href: "/lms/family", hash: "#wall", en: "Class Wall", ar: "جدار الصف", icon: I.wall, lvl: 0 },
     { id: "msg", href: "/lms/messages", en: "Messages", ar: "الرسائل", icon: I.msg, lvl: 0 },
   ];
-  const HID: Record<string, string> = { hw: "homework", assess: "assessments", msg: "messaging", wall: "wall", act: "activities", res: "results" };
+  const HID: Record<string, string> = { hw: "homework", lessons: "homework", assigned: "homework", review: "homework", corr: "homework", assess: "assessments", msg: "messaging", wall: "wall", act: "activities", res: "results" };
   // t350: Activities only when the admin ticked at least one activity (act:*) or assessment to host (host:*).
   const hasAct = (actor.perms || []).some((p) => p.startsWith("act:") || p.startsWith("host:"));
   const shownT = (t: Tab) => !(HID[t.id] && actor.perms?.includes(`hide:${HID[t.id]}`)) && !(t.id === "act" && staff && !hasAct);
   // t309: My account is reached from the header avatar, not the side menu (parents keep it).
-  const tabs0 = isParent ? [...PARENT, ...acctTab] : staff ? [...TEACHER.slice(0, 3), ...qTab, ...TEACHER.slice(3), ...extra, ...loginsTab].filter(shownT) : [...STUDENT, ...extra];
+  const hwEnd = TEACHER.findIndex((t) => t.id === "assess");
+  const tabs0 = isParent ? [...PARENT, ...acctTab] : staff ? [...TEACHER.slice(0, hwEnd), ...qTab, ...TEACHER.slice(hwEnd), ...extra, ...loginsTab].filter(shownT) : [...STUDENT, ...extra];
   // t304: each student/teacher can reorder or hide rail items (Dashboard and My account always stay).
   // t310: pages the user can open that are not in the default menu — listed in the editor, hidden until switched on.
   const more: Tab[] = isParent ? [] : [
     ...(staff ? [{ id: "lib", href: "/lms/library", en: "Learning Libraries", ar: "مكتبات التعلم", icon: "", lvl: 3 } as Tab] : []),
     ...(staff && qp.show ? [{ id: "qhw", href: "/lms/homework", en: "Quran Homework", ar: "واجب القرآن", icon: "", lvl: 3 } as Tab] : []),
-    ...(staff && qp.view ? [{ id: "corr", href: "/lms/homework?tab=corrected", en: "Corrected", ar: "المصحَّح", icon: "", lvl: 3 } as Tab] : []),
   ].filter((t) => !tabs0.some((x) => x.id === t.id));
   const allTabs = [...tabs0, ...more];
   const defHidden = more.map((t) => t.id);
-  const tabs = isParent ? tabs0 : applyPref(allTabs, uiPrefs.rail, ["dash"], defHidden);
+  const ordered = isParent ? tabs0 : applyPref(allTabs, uiPrefs.rail, ["dash"], defHidden);
+  // Homework-area pages stay in this order even if an older saved menu put new items at the end.
+  const tabs = isParent ? ordered : (() => {
+    const visible = new Set(ordered.map((t) => t.id));
+    const group = HW_NAV.map((id) => allTabs.find((t) => t.id === id)).filter((t): t is Tab => !!t && visible.has(t.id));
+    const rest = ordered.filter((t) => !HW_NAV.includes(t.id));
+    const at = rest.findIndex((t) => t.id === "cls");
+    rest.splice(at >= 0 ? at + 1 : 1, 0, ...group);
+    return rest;
+  })();
   if (!isParent) { const pg = [...allTabs.filter((t) => t.id !== "dash"), ...acctTab].map((t) => ({ id: t.href + (t.hash || ""), href: t.href + (t.hash || ""), label: lang === "ar" ? t.ar : t.en, icon: EMOJI[t.id] || "⭐" })); queueMicrotask(() => setMyPages(pg)); }
   const isActive = (t: Tab) => {
-    if (t.hash) return path === t.href && hash === t.hash;
-    if (t.id === "dash") return path === t.href && !tabs.some((x) => x.href === t.href && x.hash && x.hash === hash);
-    return path === t.href;
+    const tPath = (t.href.split("?")[0] || "/").replace(/\/$/, "") || "/";
+    if (t.hash) return path === tPath && hash === t.hash;
+    if (t.id === "dash") return path === tPath && !tabs.some((x) => (x.href.split("?")[0] || "/").replace(/\/$/, "") === tPath && x.hash && x.hash === hash);
+    if (staff && HW_NAV.includes(t.id)) {
+      if (path !== "/lms/homework") return false;
+      const params = new URLSearchParams(search);
+      const fromHash = hash.replace("#", "");
+      const got = params.get("id")
+        ? (fromHash === "lessons" || fromHash === "assigned" || fromHash === "review" || fromHash === "corrected" ? fromHash : "homeworks")
+        : (params.get("tab") || "homeworks");
+      const norm = got === "homework" || got === "homeworks" ? "hw" : got === "corrected" || got === "corrected-homeworks" ? "corr" : got === "lesson" || got === "lessons" ? "lessons" : got === "assigned" || got === "assigned-homework" ? "assigned" : got === "review" || got === "to-review" || got === "toreview" ? "review" : got;
+      return t.id === norm;
+    }
+    return path === tPath;
   };
   const label = (t: Tab) => (lang === "ar" ? t.ar : t.en);
   const slim = col && !mob; // desktop, collapsed: icons only
