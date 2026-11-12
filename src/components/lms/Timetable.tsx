@@ -3,7 +3,7 @@
 import { clsCmp } from "@/lib/classSort";
 import { SubjectPick, teacherSubjects } from "@/components/lms/SubjectPick";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { lmsSession } from "@/lib/lms";
+import { lmsSession, viewAs } from "@/lib/lms";
 import { AssessmentShell } from "@/components/assessment/AssessmentShell";
 import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
 import { useLmsActor, useTr } from "@/components/lms/useLms";
@@ -166,6 +166,27 @@ export function TtDash({ rows, times, now, testId = "tt-dash" }: { rows: TtRow[]
   );
 }
 
+/** A signed-in student, or a staff member looking at a student account. Staff tools stay on teacher and admin accounts. */
+function studentFacing() {
+  if (typeof window === "undefined") return false;
+  const va = viewAs();
+  if (va) return va.role === "student";
+  return lmsSession()?.user?.role === "student";
+}
+
+/** Direct links to the year calendar or peer observation (?year=, ?obs=, and the calendar/calender spellings). */
+function studentTtBlocked() {
+  if (typeof window === "undefined") return false;
+  const q = new URLSearchParams(window.location.search);
+  for (const [k, v] of q.entries()) {
+    const key = k.toLowerCase();
+    if (key === "year" || key === "obs" || key === "observe" || key === "observation") return true;
+    if (key.includes("calen") || key.includes("calender") || v.toLowerCase() === "year" || v.toLowerCase() === "calendar" || v.toLowerCase() === "calender") return true;
+  }
+  const hash = window.location.hash.replace("#", "").toLowerCase();
+  return hash === "year" || hash.includes("calen") || hash.includes("calender") || hash === "obs" || hash.includes("observ");
+}
+
 /** t304: "Today's lessons" strip for the top of the dashboard (hidden when there is no timetable or it is switched off). */
 export function TodayLessons() {
   const { tr } = useTr();
@@ -174,6 +195,7 @@ export function TodayLessons() {
   const [cmp, setCmp] = useState(false);
   const me = lmsSession()?.user;
   const pupil = me?.role === "student" || me?.role === "parent";
+  const stu = studentFacing();
   if (!d || !d.acc.view) return null;
   if (!d.timetable.length && !d.acc.add) return null;
   const rows = [...d.timetable, ...obsRows(d.obs, me?.id || "", tr)];
@@ -190,17 +212,17 @@ export function TodayLessons() {
         <span className="rounded-full bg-[#1b3a57]/10 px-2 py-0.5 text-xs font-bold" data-testid="tt-stat-students">{studentsInSubj} {tr("students", "طالب")}</span>
         <span className="rounded-full bg-[#1b3a57]/10 px-2 py-0.5 text-xs font-bold" data-testid="tt-stat-duties">{duties} {tr("duties", "مناوبة")}</span>
         <span className="flex-1" />
-        {!pupil && d.acc.add && <a href="/lms/timetable?new=1" className="rounded-full bg-sun px-3 py-1 text-xs font-bold text-[#0b1b2b]" data-testid="tt-dash-add">+ {tr("Add event", "إضافة حدث")}</a>}
-        {!pupil && d.acc.compare && !!d.peers?.length && <button type="button" className="rounded-full bg-[#1b3a57] px-3 py-1 text-xs font-bold text-[#f5c542]" onClick={() => setCmp(!cmp)} data-testid="tt-dash-compare">⚖️ {tr("Compare", "مقارنة")}</button>}
-        {!!d.peers?.length && (d.acc.peers || d.acc.observe) && (
+        {!pupil && !stu && d.acc.add && <a href="/lms/timetable?new=1" className="rounded-full bg-sun px-3 py-1 text-xs font-bold text-[#0b1b2b]" data-testid="tt-dash-add">+ {tr("Add event", "إضافة حدث")}</a>}
+        {!pupil && !stu && d.acc.compare && !!d.peers?.length && <button type="button" className="rounded-full bg-[#1b3a57] px-3 py-1 text-xs font-bold text-[#f5c542]" onClick={() => setCmp(!cmp)} data-testid="tt-dash-compare">⚖️ {tr("Compare", "مقارنة")}</button>}
+        {!pupil && !stu && !!d.peers?.length && (d.acc.peers || d.acc.observe) && (
           <select className={fld + " !w-auto !py-1 text-xs"} defaultValue="" onChange={(e) => { if (e.target.value) location.href = `/lms/timetable?src=${e.target.value}`; }} aria-label={tr("Other teachers", "معلمون آخرون")} data-testid="tt-dash-peers">
             <option value="">{tr("Other teachers", "معلمون آخرون")}</option>
             {d.peers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
         )}
-        {d.acc.observe && <a href="/lms/timetable?obs=1" className="rounded-full bg-[#f5c542] px-3 py-1 text-xs font-bold text-[#1b3a57]" data-testid="tt-dash-obs">👀 {tr("Peer observation", "ملاحظة زميل")}</a>}
-        <a href="/lms/timetable?year=1" className="rounded-full bg-[#1b3a57] px-3 py-1 text-xs font-bold text-[#f5c542]" data-testid="tt-dash-year">📅 {tr("Year calendar", "التقويم السنوي")}</a>
-        {!pupil && d.acc.cover && <a href="/lms/timetable?cover=1" className="rounded-full bg-rose-100 px-3 py-1 text-xs font-bold text-rose-900" data-testid="tt-dash-cover">🛟 {tr("Assign Cover", "تعيين احتياط")}</a>}
+        {!stu && d.acc.observe && <a href="/lms/timetable?obs=1" className="rounded-full bg-[#f5c542] px-3 py-1 text-xs font-bold text-[#1b3a57]" data-testid="tt-dash-obs">👀 {tr("Peer observation", "ملاحظة زميل")}</a>}
+        {!stu && <a href="/lms/timetable?year=1" className="rounded-full bg-[#1b3a57] px-3 py-1 text-xs font-bold text-[#f5c542]" data-testid="tt-dash-year">📅 {tr("Year calendar", "التقويم السنوي")}</a>}
+        {!pupil && !stu && d.acc.cover && <a href="/lms/timetable?cover=1" className="rounded-full bg-rose-100 px-3 py-1 text-xs font-bold text-rose-900" data-testid="tt-dash-cover">🛟 {tr("Assign Cover", "تعيين احتياط")}</a>}
         <a href="/lms/timetable" className="rounded-full border border-black/10 px-3 py-1 text-xs font-bold" data-testid="tt-dash-dl">⬇️ {tr("Download", "تنزيل")}</a>
       </div>
       <div className="mb-2"><LeadPicker d={d} asAdmin={false} onSaved={load} /></div>
@@ -244,16 +266,17 @@ export function TimetableManager({ asAdmin, full = false }: { asAdmin: boolean; 
   const who = lmsSession()?.user;
   const me = who?.id || "";
   const pupil = who?.role === "student" || who?.role === "parent";
-  useEffect(() => { if (!src) return; modCall<{ rows: TtRow[]; obs: TtObs[] }>("att-tt-view", { teacher: src }, asAdmin).then(setPeer).catch((e) => { setPeer({ rows: [], obs: [] }); setMsg(modErr(e, tr)); }); }, [src, asAdmin, tr]);
+  const stu = !asAdmin && studentFacing();
+  useEffect(() => { if (!src || stu || pupil) return; modCall<{ rows: TtRow[]; obs: TtObs[] }>("att-tt-view", { teacher: src }, asAdmin).then(setPeer).catch((e) => { setPeer({ rows: [], obs: [] }); setMsg(modErr(e, tr)); }); }, [src, asAdmin, tr, stu, pupil]);
   const [ed, setEd] = useState<Draft | null>(null);
   useEffect(() => {
     if (typeof window === "undefined" || !d) return;
     const q = new URLSearchParams(window.location.search);
-    const s = q.get("src"); if (s && !src) setSrc(s);
-    if (!pupil && q.get("cover") === "1" && (asAdmin || d.acc.cover)) setCoverOpen(true);
-    if (q.get("year") === "1") setView("year");
-    if (q.get("obs") === "1" && !asAdmin && d.acc.observe) { const p = (d.peers || []).find((x) => x.same || d.acc.observe); if (p && !s) setSrc(p.id); setView("day"); setMsg(p ? tr("Choose a colleague above, then press “Request to observe” on a lesson.", "اختر زميلًا أعلاه ثم اضغط «طلب ملاحظة» على حصة.") : tr("No colleagues in your department are available to observe yet.", "لا يوجد زملاء في قسمك متاحون للملاحظة بعد.")); }
-    if (!pupil && q.get("new") === "1" && d.acc.add && !ed) setEd({ ...EMPTY, teacher: asAdmin ? "" : d.teachers[0]?.id || "" });
+    const s = q.get("src"); if (s && !src && !stu && !pupil) setSrc(s);
+    if (!pupil && !stu && q.get("cover") === "1" && (asAdmin || d.acc.cover)) setCoverOpen(true);
+    if (q.get("year") === "1" && !stu) setView("year");
+    if (q.get("obs") === "1" && !stu && !asAdmin && d.acc.observe) { const p = (d.peers || []).find((x) => x.same || d.acc.observe); if (p && !s) setSrc(p.id); setView("day"); setMsg(p ? tr("Choose a colleague above, then press “Request to observe” on a lesson.", "اختر زميلًا أعلاه ثم اضغط «طلب ملاحظة» على حصة.") : tr("No colleagues in your department are available to observe yet.", "لا يوجد زملاء في قسمك متاحون للملاحظة بعد.")); }
+    if (!pupil && !stu && q.get("new") === "1" && d.acc.add && !ed) setEd({ ...EMPTY, teacher: asAdmin ? "" : d.teachers[0]?.id || "" });
   }, [d]); // eslint-disable-line react-hooks/exhaustive-deps
   const onTtSubject = useCallback((subject: string) => setEd((e) => (e && e.subject !== subject ? { ...e, subject } : e)), []);
   const base = useMemo(() => (src ? peer?.rows || [] : [...(d?.timetable || []), ...(asAdmin ? [] : obsRows(d?.obs, me, tr))]), [d, src, peer, asAdmin, me, tr]);
@@ -321,11 +344,11 @@ export function TimetableManager({ asAdmin, full = false }: { asAdmin: boolean; 
         {sel("cls", tr("All classes", "كل الصفوف"), uniq([...classOpts.map((c) => c.name), ...(scope ? [] : d.timetable.map((r) => r.cls))]).sort(clsCmp).map((x) => [x, x]), "tt-f-cls")}
         {(asAdmin || full) && f.cls && sel("sec", tr("All sections", "كل الشعب"), (classes.find((c) => c.name === f.cls)?.sections || []).map((x) => [x, x]), "tt-f-sec")}
         {canAdd && <button type="button" className="rounded-full bg-sun px-4 py-1.5 text-sm font-bold text-[#0b1b2b]" onClick={() => setEd({ ...EMPTY, teacher: asAdmin ? "" : d.teachers[0]?.id || "" })} data-testid="tt-new">+ {tr("Add Event", "إضافة حدث")}</button>}
-        <button type="button" className="rounded-full bg-[#1b3a57] px-4 py-1.5 text-sm font-bold text-[#f5c542]" onClick={() => setView("year")} data-testid="tt-year-open">📅 {tr("Year calendar", "التقويم السنوي")}</button>
-        {!pupil && (asAdmin || d.acc.cover) && <button type="button" className="rounded-full bg-rose-100 px-4 py-1.5 text-sm font-bold text-rose-900" onClick={() => setCoverOpen(true)} data-testid="tt-cover-open">🛟 {tr("Assign Cover", "تعيين احتياط")}</button>}
+        {!stu && <button type="button" className="rounded-full bg-[#1b3a57] px-4 py-1.5 text-sm font-bold text-[#f5c542]" onClick={() => setView("year")} data-testid="tt-year-open">📅 {tr("Year calendar", "التقويم السنوي")}</button>}
+        {!pupil && !stu && (asAdmin || d.acc.cover) && <button type="button" className="rounded-full bg-rose-100 px-4 py-1.5 text-sm font-bold text-rose-900" onClick={() => setCoverOpen(true)} data-testid="tt-cover-open">🛟 {tr("Assign Cover", "تعيين احتياط")}</button>}
       </div>
       <div className="flex flex-wrap items-center gap-2" data-testid="tt-views">
-        <div className="inline-flex overflow-hidden rounded-full bg-[#1b3a57] p-1" role="tablist">{(["today", "day", "timeline", "week", "year"] as const).map((v) => <button key={v} type="button" role="tab" aria-selected={view === v} onClick={() => setView(v)} className={`rounded-full px-3 py-1.5 text-sm font-bold ${view === v ? "bg-[#f5c542] text-[#1b3a57]" : "text-white/85"}`} data-testid={`tt-view-${v}`}>{v === "today" ? tr("Today", "اليوم") : v === "day" ? tr("Day", "يوم") : v === "timeline" ? tr("Timeline", "خط زمني") : v === "week" ? tr("Week", "أسبوع") : tr("Year", "سنة")}</button>)}</div>
+        <div className="inline-flex overflow-hidden rounded-full bg-[#1b3a57] p-1" role="tablist">{(["today", "day", "timeline", "week", "year"] as const).filter((v) => v !== "year" || !stu).map((v) => <button key={v} type="button" role="tab" aria-selected={view === v} onClick={() => setView(v)} className={`rounded-full px-3 py-1.5 text-sm font-bold ${view === v ? "bg-[#f5c542] text-[#1b3a57]" : "text-white/85"}`} data-testid={`tt-view-${v}`}>{v === "today" ? tr("Today", "اليوم") : v === "day" ? tr("Day", "يوم") : v === "timeline" ? tr("Timeline", "خط زمني") : v === "week" ? tr("Week", "أسبوع") : tr("Year", "سنة")}</button>)}</div>
         {(view === "day" || view === "timeline") && <div className="flex flex-wrap gap-1">{days.map((x) => <button key={x} type="button" aria-pressed={dSel === x} onClick={() => setDay(x)} className={`${pill} ${dSel === x ? "!bg-[#1b3a57] !text-[#f5c542]" : ""}`} data-testid={`tt-day-${x}`}>{tr(DOW[x][0], DOW[x][1])}</button>)}</div>}
         <div className="flex items-center gap-1" data-testid="tt-date-nav">
           <button type="button" className={pill} onClick={() => { const d0 = new Date(weekOf + "T12:00:00Z"); d0.setUTCDate(d0.getUTCDate() - 7); setWeekOf(d0.toISOString().slice(0, 10)); }} aria-label={tr("Previous week", "الأسبوع السابق")}>‹</button>
@@ -333,14 +356,14 @@ export function TimetableManager({ asAdmin, full = false }: { asAdmin: boolean; 
           <button type="button" className={pill} onClick={() => { const d0 = new Date(weekOf + "T12:00:00Z"); d0.setUTCDate(d0.getUTCDate() + 7); setWeekOf(d0.toISOString().slice(0, 10)); }} aria-label={tr("Next week", "الأسبوع التالي")}>›</button>
         </div>
         <span className="flex-1" />
-        {!asAdmin && !!d.peers?.length && (d.acc.peers || d.acc.observe) && <select className={fld + " !w-auto"} value={src} onChange={(e) => setSrc(e.target.value)} aria-label={tr("Whose timetable", "جدول من")} data-testid="tt-src"><option value="">{tr("My timetable", "جدولي")}</option>{d.peers.filter((p) => p.same || d.acc.observe).map((p) => <option key={p.id} value={p.id}>{p.name}{p.same ? "" : " ·"}</option>)}</select>}
-        {!asAdmin && d.acc.observe && <button type="button" className="rounded-full bg-[#f5c542] px-4 py-1.5 text-sm font-bold text-[#1b3a57]" onClick={() => { const p = (d.peers || []).find((x) => x.same || d.acc.observe); if (!p) { setMsg(tr("No colleagues in your department are available to observe yet.", "لا يوجد زملاء في قسمك متاحون للملاحظة بعد.")); return; } if (!src) setSrc(p.id); setView("day"); setMsg(tr("Choose a colleague above, then press “Request to observe” on a lesson.", "اختر زميلًا أعلاه ثم اضغط «طلب ملاحظة» على حصة.")); }} data-testid="tt-obs-request">👀 {tr("Request peer observation", "طلب ملاحظة زميل")}</button>}
-        {!pupil && (asAdmin || (d.acc.compare && !!d.peers?.length)) && <button type="button" className="rounded-full bg-[#1b3a57] px-4 py-1.5 text-sm font-bold text-[#f5c542]" onClick={() => setCmp(!cmp)} data-testid="tt-compare-btn">⚖️ {tr("Compare teachers", "مقارنة المعلمين")}</button>}
+        {!stu && !pupil && !asAdmin && !!d.peers?.length && (d.acc.peers || d.acc.observe) && <select className={fld + " !w-auto"} value={src} onChange={(e) => setSrc(e.target.value)} aria-label={tr("Whose timetable", "جدول من")} data-testid="tt-src"><option value="">{tr("My timetable", "جدولي")}</option>{d.peers.filter((p) => p.same || d.acc.observe).map((p) => <option key={p.id} value={p.id}>{p.name}{p.same ? "" : " ·"}</option>)}</select>}
+        {!stu && !asAdmin && d.acc.observe && <button type="button" className="rounded-full bg-[#f5c542] px-4 py-1.5 text-sm font-bold text-[#1b3a57]" onClick={() => { const p = (d.peers || []).find((x) => x.same || d.acc.observe); if (!p) { setMsg(tr("No colleagues in your department are available to observe yet.", "لا يوجد زملاء في قسمك متاحون للملاحظة بعد.")); return; } if (!src) setSrc(p.id); setView("day"); setMsg(tr("Choose a colleague above, then press “Request to observe” on a lesson.", "اختر زميلًا أعلاه ثم اضغط «طلب ملاحظة» على حصة.")); }} data-testid="tt-obs-request">👀 {tr("Request peer observation", "طلب ملاحظة زميل")}</button>}
+        {!pupil && !stu && (asAdmin || (d.acc.compare && !!d.peers?.length)) && <button type="button" className="rounded-full bg-[#1b3a57] px-4 py-1.5 text-sm font-bold text-[#f5c542]" onClick={() => setCmp(!cmp)} data-testid="tt-compare-btn">⚖️ {tr("Compare teachers", "مقارنة المعلمين")}</button>}
       </div>
       {ro && <p className="rounded-xl bg-sky-100 px-3 py-2 text-sm font-bold text-sky-900" data-testid="tt-ro">👁️ {tr(`Viewing ${d.peers?.find((p) => p.id === src)?.name || ""}'s timetable (read-only).`, `عرض جدول ${d.peers?.find((p) => p.id === src)?.name || ""} (للقراءة فقط).`)}</p>}
       {coverOpen && <CoverPanel d={d} asAdmin={asAdmin} day0={weekOf} onClose={() => setCoverOpen(false)} onSaved={load} />}
       {cmp && <ComparePanel d={d} asAdmin={asAdmin} />}
-      {!asAdmin && <ObsPanel d={d} onChange={load} />}
+      {!stu && !asAdmin && <ObsPanel d={d} onChange={load} />}
       {msg && <p className="rounded-xl bg-emerald-100 px-3 py-2 text-sm font-bold text-emerald-900" role="status" data-testid="tt-msg">{msg}</p>}
       {asAdmin && <PeriodTimes onSaved={load} />}
       {ed && (
@@ -380,7 +403,7 @@ export function TimetableManager({ asAdmin, full = false }: { asAdmin: boolean; 
         {!rows.length && <tr><td colSpan={days.length + 1} className="py-6 text-center opacity-60">{tr("No lessons yet.", "لا توجد حصص بعد.")}</td></tr>}</tbody></table></div>
       <div className="space-y-3 md:hidden" data-testid="tt-list">{days.map((x) => { const l = rows.filter((r) => r.dow === x); return l.length ? <section key={x}><h3 className={`mb-1 font-extrabold ${x === d.now.dow ? "text-emerald-600" : ""}`}>{tr(DOW[x][0], DOW[x][1])}</h3><div className="grid gap-1.5">{l.sort((a, b) => (seOf(a, d.times).s || a.period).localeCompare(seOf(b, d.times).s || b.period)).map((r) => <div key={r.id} className="flex items-start gap-2"><span className="w-16 shrink-0 pt-1 text-xs font-bold opacity-70">{r.period ? <span className="block">{pidLabel(r.period, tr)}</span> : null}{seOf(r, d.times).s || ""}</span><div className="flex-1">{cell(r)}</div></div>)}</div></section> : null; })}{!rows.length && <p className="py-6 text-center opacity-60">{tr("No lessons yet.", "لا توجد حصص بعد.")}</p>}</div></>}
       {view === "timeline" && <DayTimeline rows={rows} times={d.times} now={d.now} dow={dSel} canEdit={canEdit} canDel={canDel} studentsOf={studentsOf} onEdit={(r) => { const t = seOf(r, d.times); setEd({ title: r.title || "", tAuto: !r.title, id: r.id, dows: [r.dow], period: r.period || "", cls: r.cls, sections: r.sections, teacher: r.teacher, subject: r.subject, phase: r.phase, dept: r.dept, same: true, s: t.s || "08:00", e: t.e || "08:45", per: {}, color: r.color || "" }); }} onDel={del} />}
-      {view === "year" && <YearCalendar rows={rows} times={d.times} weekOf={weekOf} canAdd={canAdd} onAdd={(iso) => { const dow = new Date(iso + "T12:00:00Z").getUTCDay(); setWeekOf(iso); setDay(dow); setEd({ ...EMPTY, teacher: asAdmin ? "" : d.teachers[0]?.id || "", dows: [dow] }); }} onPickDate={(iso) => { const dow = new Date(iso + "T12:00:00Z").getUTCDay(); setWeekOf(iso); setDay(dow); setView("timeline"); }} />}
+      {view === "year" && !stu && <YearCalendar rows={rows} times={d.times} weekOf={weekOf} canAdd={canAdd} onAdd={(iso) => { const dow = new Date(iso + "T12:00:00Z").getUTCDay(); setWeekOf(iso); setDay(dow); setEd({ ...EMPTY, teacher: asAdmin ? "" : d.teachers[0]?.id || "", dows: [dow] }); }} onPickDate={(iso) => { const dow = new Date(iso + "T12:00:00Z").getUTCDay(); setWeekOf(iso); setDay(dow); setView("timeline"); }} />}
       {!!d.shared?.length && <SharedList list={d.shared} times={d.times} asAdmin={asAdmin} onChange={load} />}
     </div>
   );
@@ -398,11 +421,15 @@ function ParentShared() {
 export function TimetablePage() {
   const { tr } = useTr();
   const { actor, ready } = useLmsActor();
+  const deny = ready && actor?.role === "student" && studentTtBlocked();
+  useEffect(() => {
+    if (deny) window.location.replace("/lms");
+  }, [deny]);
   return (
     <AssessmentShell title={tr("Timetable", "الجدول الدراسي")} exitHref="/lms" wide toolbar={<LmsStaffToolbar />}>
       <div className="mx-auto w-full max-w-7xl flex-1 px-3 py-6 sm:px-6" data-testid="lms-timetable">
         <h1 className="mb-4 text-2xl font-extrabold">🗓️ {tr("Timetable", "الجدول الدراسي")}</h1>
-        {!ready ? null : !actor ? <p>{tr("Please sign in.", "سجّل الدخول.")}</p> : actor.role === "parent" ? <ParentShared /> : <TimetableManager asAdmin={false} />}
+        {deny ? <p className="rounded-2xl bg-amber-100 px-4 py-3 font-bold text-amber-950" data-testid="tt-student-forbidden">{tr("This page isn't available on a student account.", "هذه الصفحة غير متاحة في حساب الطالب.")}</p> : !ready ? null : !actor ? <p>{tr("Please sign in.", "سجّل الدخول.")}</p> : actor.role === "parent" ? <ParentShared /> : <TimetableManager asAdmin={false} />}
       </div>
     </AssessmentShell>
   );

@@ -127,7 +127,12 @@ export async function packHandle(c: PackCtx, a: Actor, action: string, input: Js
     case "lp-list": {
       if (!staff) {
         // Students: Learning Material (libraries) and any pack homework they were given.
-        const items = sql.exec(`SELECT * FROM lpack WHERE status='published' ORDER BY assign_at DESC, updated DESC`).toArray().filter((r) => forStudent(a, r)).map((r) => row(r, false));
+        const items = sql.exec(`SELECT * FROM lpack WHERE status='published' ORDER BY assign_at DESC, updated DESC`).toArray().filter((r) => forStudent(a, r)).map((r) => {
+          const base = row(r, false);
+          const hwId = String(r.hw || "");
+          const sb = hwId ? c.subOf(hwId, a.id) : null;
+          return { ...base, subStatus: sb?.status || "" };
+        });
         const itemsA = withAud(sql, items);
         return { status: 200, body: { items: itemsA } };
       }

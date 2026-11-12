@@ -243,17 +243,17 @@ function StudentWork({ hw, sub, reload, chapters = [] }: { hw: Data["homework"];
       {hw.kind === "quran" ? (
         <>
           {sub?.audio ? (
-            <AudioClip id={sub.audio} label={"🎙️ " + tr("My recitation", "تلاوتي")} testId="my-rec" onDelete={locked ? undefined : async () => { if (confirm(tr("Delete this recording?", "حذف هذا التسجيل؟"))) { await lmsApi.audioDelete(sub.audio!).catch(() => undefined); window.dispatchEvent(new Event("lms-memo-show")); reload(); } }} />
+            <AudioClip id={sub.audio} label={"🎙️ " + tr("My recitation", "تلاوتي")} testId="my-rec" deleteLabel={locked ? undefined : tr("Discard recording", "تجاهل التسجيل")} onDelete={locked ? undefined : async () => { if (confirm(tr("Discard this recording? You can record a new one before you submit.", "تجاهل هذا التسجيل؟ يمكنك تسجيل جديد قبل التسليم."))) { await lmsApi.audioDelete(sub.audio!).catch(() => undefined); window.dispatchEvent(new Event("lms-memo-show")); reload(); } }} />
           ) : null}
 {sub?.status === "submitted" && <p className="rounded-2xl bg-emerald-50 px-3 py-2 font-semibold text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200" data-testid="rec-sent">✅ {tr("Submitted — waiting for your teacher.", "تم التسليم — بانتظار معلمك.")}</p>}
-          {!locked && sub?.status !== "approved" && <AudioRecorder label={sub?.audio ? tr("Record again (replaces the old one)", "سجّل مجددًا (يستبدل القديم)") : tr("Record your recitation (up to 3 minutes)", "سجّل تلاوتك (حتى 3 دقائق)")} testId="rec-student" big autoSave onSave={async (b) => { await lmsApi.audioUpload({ hw: hw.id }, b); setDraftOk(true); }} />}
+          {!locked && sub?.status !== "approved" && <AudioRecorder replace={!!sub?.audio} label={sub?.audio ? tr("Record again (replaces this take)", "سجّل مجددًا (يستبدل هذه المحاولة)") : tr("Record your recitation (up to 3 minutes)", "سجّل تلاوتك (حتى 3 دقائق)")} testId="rec-student" big autoSave onSave={async (b) => { await lmsApi.audioUpload({ hw: hw.id }, b); setDraftOk(true); reload(); }} />}
         </>
       ) : (
         <>
           {(hw.data as GeneralData).question && <p className="text-lg font-semibold" dir="auto">{(hw.data as GeneralData).question}</p>}
-          {sub?.audio && <AudioClip id={sub.audio} label={"🎙️ " + tr("My audio answer", "إجابتي الصوتية")} testId="my-rec" onDelete={locked ? undefined : async () => { if (confirm(tr("Delete this recording?", "حذف هذا التسجيل؟"))) { await lmsApi.audioDelete(sub.audio!).catch(() => undefined); reload(); } }} />}
+          {sub?.audio && <AudioClip id={sub.audio} label={"🎙️ " + tr("My audio answer", "إجابتي الصوتية")} testId="my-rec" deleteLabel={locked ? undefined : tr("Discard recording", "تجاهل التسجيل")} onDelete={locked ? undefined : async () => { if (confirm(tr("Discard this recording? You can record a new one before you submit.", "تجاهل هذا التسجيل؟ يمكنك تسجيل جديد قبل التسليم."))) { await lmsApi.audioDelete(sub.audio!).catch(() => undefined); reload(); } }} />}
 {sub?.status === "submitted" && <p className="rounded-2xl bg-emerald-50 px-3 py-2 font-semibold text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200" data-testid="rec-sent">✅ {tr("Submitted — waiting for your teacher.", "تم التسليم — بانتظار معلمك.")}</p>}
-          {!locked && sub?.status !== "approved" && <AudioRecorder label={tr("Audio answer (optional, up to 3 minutes)", "إجابة صوتية (اختياري، حتى 3 دقائق)")} testId="rec-student" big autoSave onSave={async (b) => { await lmsApi.audioUpload({ hw: hw.id }, b); setDraftOk(true); }} />}
+          {!locked && sub?.status !== "approved" && <AudioRecorder replace={!!sub?.audio} label={sub?.audio ? tr("Record again (replaces this take)", "سجّل مجددًا (يستبدل هذه المحاولة)") : tr("Audio answer (optional, up to 3 minutes)", "إجابة صوتية (اختياري، حتى 3 دقائق)")} testId="rec-student" big autoSave onSave={async (b) => { await lmsApi.audioUpload({ hw: hw.id }, b); setDraftOk(true); reload(); }} />}
         </>
       )}
       <textarea className={inputCls + " min-h-28"} value={text} onChange={(e) => setText(e.target.value)} disabled={locked} maxLength={4000} dir="auto" placeholder={hw.kind === "quran" ? tr("A note for your teacher (optional)", "ملاحظة لمعلمك (اختياري)") : tr("Your answer", "إجابتك")} data-testid="hw-text" />

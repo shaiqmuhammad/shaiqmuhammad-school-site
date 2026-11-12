@@ -33,7 +33,7 @@ async function encodeMp3(chunks: Float32Array[], rate: number): Promise<Blob> {
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 
 /** Record (max 3 min, ~24 kbps mono), listen back, then save. `onSave` uploads the blob. */
-export function AudioRecorder({ label, onSave, testId = "rec", saveLabel, big = false, autoSave = false, light = false, savedText, compact = false }: { label: string; onSave: (b: Blob) => Promise<void>; testId?: string; saveLabel?: string; big?: boolean; autoSave?: boolean; light?: boolean; savedText?: string; compact?: boolean }) {
+export function AudioRecorder({ label, onSave, testId = "rec", saveLabel, big = false, autoSave = false, light = false, savedText, compact = false, replace = false }: { label: string; onSave: (b: Blob) => Promise<void>; testId?: string; saveLabel?: string; big?: boolean; autoSave?: boolean; light?: boolean; savedText?: string; compact?: boolean; /** A take is already saved — show an obvious Record again control. */ replace?: boolean }) {
   const lvl = useRef(0); const [level, setLevel] = useState<number[]>([]);
   const { tr } = useTr();
   const [state, setState] = useState<"idle" | "rec" | "done" | "saving">("idle");
@@ -126,7 +126,12 @@ export function AudioRecorder({ label, onSave, testId = "rec", saveLabel, big = 
         ) : state === "saving" ? (
           <p className="text-lg font-extrabold" aria-live="polite">⏳ {tr("Saving your recording…", "جارٍ حفظ تسجيلك…")}</p>
         ) : state === "done" && !err ? (
-          <p className="rounded-full bg-emerald-100 px-4 py-2 font-extrabold text-emerald-900" role="status" data-testid={`${testId}-saved`}>✅ {savedText || tr("Saved as your draft! Tap the mic to record again.", "حُفظ كمسودة! اضغط الميكروفون لتسجيل جديد.")}</p>
+          <>
+            <p className="rounded-full bg-emerald-100 px-4 py-2 font-extrabold text-emerald-900" role="status" data-testid={`${testId}-saved`}>✅ {savedText || tr("Saved as your draft. Press Record again if you want another take.", "حُفظ كمسودة. اضغط «سجّل مجددًا» إذا أردت محاولة أخرى.")}</p>
+            <button type="button" onClick={start} className="rounded-full bg-[#1b3a57] px-6 py-3 text-lg font-extrabold text-[#f5c542] shadow" data-testid={`${testId}-again`}>↺ {tr("Record again", "سجّل مجددًا")}</button>
+          </>
+        ) : replace ? (
+          <button type="button" onClick={start} className="rounded-full bg-[#1b3a57] px-6 py-3 text-lg font-extrabold text-[#f5c542] shadow" data-testid={`${testId}-again`}>↺ {tr("Record again", "سجّل مجددًا")}</button>
         ) : (
           <p className="text-sm font-bold opacity-75">{tr("Tap the big button to start", "اضغط الزر الكبير للبدء")}</p>
         )}
@@ -175,7 +180,7 @@ export function AudioRecorder({ label, onSave, testId = "rec", saveLabel, big = 
 }
 
 /** Plays a stored recording (fetched with the session token) + download. */
-export function AudioClip({ id, asAdmin = false, label, onDelete, testId = "clip" }: { id: string; asAdmin?: boolean; label?: string; onDelete?: () => void; testId?: string }) {
+export function AudioClip({ id, asAdmin = false, label, onDelete, testId = "clip", deleteLabel }: { id: string; asAdmin?: boolean; label?: string; onDelete?: () => void; testId?: string; deleteLabel?: string }) {
   const { tr } = useTr();
   const [src, setSrc] = useState<{ url: string; type: string } | null>(null);
   const [err, setErr] = useState("");
@@ -193,7 +198,7 @@ export function AudioClip({ id, asAdmin = false, label, onDelete, testId = "clip
           {dl.audio && <button type="button" className={smallBtn} onClick={() => lmsApi.audioUrl(id, asAdmin, true).then((r) => { const a = document.createElement("a"); a.href = r.url; a.download = `recording-${id}.${ext}`; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(r.url), 4000); }).catch((e) => { setErr(lmsErrorText(e, tr)); refreshDl(); })} data-testid={`${testId}-download`}>⬇ {tr("Download", "تنزيل")}</button>}
         </>
       )}
-      {onDelete && <button type="button" className={smallBtn + " text-rose-600"} onClick={onDelete} aria-label={tr("Delete recording", "حذف التسجيل")} title={tr("Delete recording", "حذف التسجيل")} data-testid={`${testId}-delete`}>🗑</button>}
+      {onDelete && <button type="button" className={smallBtn + " text-rose-700"} onClick={onDelete} aria-label={deleteLabel || tr("Delete recording", "حذف التسجيل")} title={deleteLabel || tr("Delete recording", "حذف التسجيل")} data-testid={`${testId}-delete`}>{deleteLabel ? `🗑 ${deleteLabel}` : "🗑"}</button>}
       {err && <span className="text-sm text-rose-700">{err}</span>}
     </div>
   );

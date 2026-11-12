@@ -9,7 +9,8 @@ export function PackDash() {
   const { tr } = useTr();
   const [items, setItems] = useState<Pack[] | null>(null);
   useEffect(() => { lp.list(false).then((r) => setItems(r.items || [])).catch(() => setItems([])); }, []);
-  const list = (items || []).filter((x) => x.type === "activity" || x.type === "homework").sort((a, b) => (a.type === "activity" ? -1 : 0) - (b.type === "activity" ? -1 : 0) || (b.assignAt || b.updated) - (a.assignAt || a.updated)).slice(0, 6);
+  const waiting = (x: Pack) => x.subStatus !== "submitted" && x.subStatus !== "approved";
+  const list = (items || []).filter((x) => (x.type === "activity" || x.type === "homework") && waiting(x)).sort((a, b) => (a.type === "activity" ? -1 : 0) - (b.type === "activity" ? -1 : 0) || (b.assignAt || b.updated) - (a.assignAt || a.updated)).slice(0, 6);
   if (!list.length) return null;
   return (
     <section className="rounded-3xl border border-violet-200/80 bg-gradient-to-br from-violet-100/90 via-white/80 to-sky-100/80 p-4 text-[#1b2f44] shadow-lg backdrop-blur-md" data-testid="lp-dash">

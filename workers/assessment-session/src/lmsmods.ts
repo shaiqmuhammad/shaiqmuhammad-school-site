@@ -658,6 +658,7 @@ function ttCoverRows(sql: SqlStorage, uid: string | null, from?: string, to?: st
 function ttHandle(c: ModCtx, a: Actor, action: string, input: Json): { status: number; body: Json } {
   const sql = c.sql;
   const acc0: { show: boolean; view: boolean; add: boolean; edit: boolean; delete: boolean; share?: boolean; peers?: boolean; compare?: boolean; observe?: boolean; cover?: boolean } = c.mp ? c.mp(a, "tt") : { show: true, view: true, add: a.role === "admin", edit: a.role === "admin", delete: a.role === "admin", share: a.role === "admin" };
+  // Students and parents keep a read-only timetable: no add, edit, delete, share, peer view, compare, observation, or cover.
   const acc = a.role === "student" || a.role === "parent" ? { ...acc0, add: false, edit: false, delete: false, share: false, peers: false, compare: false, observe: false, cover: false } : acc0;
   if (action === "att-times") {
     if (!acc.view) return { status: 403, body: { error: "module_hidden" } };
