@@ -1,5 +1,5 @@
 "use client";
-/** t441: Reward Cards (بطاقات المكافآت) — student wallet + Reward Shop, teacher award / approve, admin plan editor. */
+/** t441: Reward Cards (بطاقات المكافآت) — student wallet + Reward Shop, teacher award / approve, plan editor for admin and teachers allowed to plan. */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AssessmentShell } from "@/components/assessment/AssessmentShell";
 import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
@@ -16,7 +16,7 @@ type Req = { id: string; item?: string; student: string; sname: string; cls: str
 type Me = { on: boolean; band: Band; balance: number; lifetime: number; spent: number; history: Hist[]; shop: Item[]; requests: Req[]; rules: Record<string, number>; cap: number; labels: Record<string, [string, string]>; excellence?: string[]; stickers?: string[]; subjects?: string[]; name?: string; nameAr?: string; badge?: string; design?: ExcDesign };
 type Plan = { on: boolean; deduct: boolean; legacy: boolean; resetAt: number; since: number; cap: Record<Band, number>; rules: Record<string, Record<Band, number>>; manualMax: number };
 type Stu = { id: string; name: string; cls: string; section: string; band: Band; balance: number; lifetime: number };
-type Staff = { acc: { view: boolean; add: boolean; edit: boolean }; plan: Plan; students: Stu[]; requests: Req[]; shop: Item[]; classes: string[]; labels: Record<string, [string, string]>; admin: boolean; design?: ExcDesign | null };
+type Staff = { acc: { view: boolean; add: boolean; edit: boolean; plan?: boolean }; plan: Plan; students: Stu[]; requests: Req[]; shop: Item[]; classes: string[]; labels: Record<string, [string, string]>; admin: boolean; design?: ExcDesign | null };
 
 export const BANDS: [Band, string, string][] = [["a", "FS2 – Y2", "FS2 – Y2"], ["b", "Y3 – Y6", "Y3 – Y6"], ["c", "Y7 – Y13", "Y7 – Y13"]];
 const LEVELS: [number, string, string, string][] = [[0, "Bronze", "برونزي", "🥉"], [50, "Silver", "فضي", "🥈"], [150, "Gold", "ذهبي", "🥇"], [300, "Platinum", "بلاتيني", "💎"], [600, "Noor Legend", "أسطورة النور", "🌟"]];
@@ -197,7 +197,8 @@ function StaffView() {
   const decide = (id: string, status: string, subject?: string) => lmsApi.rc("decide", { id, status, ...(subject ? { subject } : {}) }).then(() => load()).catch((e) => setMsg(lmsErrorText(e, tr)));
   const savePlan = () => plan && lmsApi.rc<{ plan: Plan }>("plan-save", { plan }).then((r) => { setPlan(r.plan); setMsg(tr("Plan saved.", "تم حفظ الخطة.")); load(); }).catch((e) => setMsg(lmsErrorText(e, tr)));
   const saveItem = () => edit && lmsApi.rc("shop-save", edit as Record<string, unknown>).then(() => { setEdit(null); load(); }).catch((e) => setMsg(lmsErrorText(e, tr)));
-  const tabs: [string, string, string, boolean][] = [["stu", "Students", "الطلاب", true], ["req", `Requests${pending ? ` (${pending})` : ""}`, `الطلبات${pending ? ` (${pending})` : ""}`, true], ["plan", "Plan", "الخطة", d.admin], ["shop", "Shop items", "عناصر المتجر", d.admin], ["cert", "Certificate", "الشهادة", !!d.design]];
+  const canPlan = d.admin || !!d.acc.plan;
+  const tabs: [string, string, string, boolean][] = [["stu", "Students", "الطلاب", true], ["req", `Requests${pending ? ` (${pending})` : ""}`, `الطلبات${pending ? ` (${pending})` : ""}`, true], ["plan", "Plan", "الخطة", canPlan], ["shop", "Shop items", "عناصر المتجر", canPlan], ["cert", "Certificate", "الشهادة", !!d.design]];
   const ST: Record<string, string> = { pending: "bg-amber-100 text-amber-900", approved: "bg-emerald-100 text-emerald-900", fulfilled: "bg-sky-100 text-sky-900", rejected: "bg-rose-100 text-rose-900", cancelled: "bg-slate-100 text-slate-700" };
   return (
     <div className="space-y-4">
@@ -244,7 +245,7 @@ function StaffView() {
         {!d.requests.length && <p className="opacity-70">{tr("No requests yet.", "لا توجد طلبات.")}</p>}
         {!d.acc.edit && <p className="text-xs opacity-60">{tr("Approving requests needs the Rewards “Edit” permission.", "الموافقة تحتاج صلاحية التعديل للمكافآت.")}</p>}
       </section>}
-      {tab === "plan" && plan && <section className="space-y-3 rounded-3xl bg-white p-4 shadow-sm dark:bg-white/5">
+      {tab === "plan" && plan && canPlan && <section className="space-y-3 rounded-3xl bg-white p-4 shadow-sm dark:bg-white/5">
         <div className="flex flex-wrap gap-4 text-sm">
           {([["on", "Reward Cards on", "تفعيل البطاقات"], ["deduct", "Allow deductions (−) for behaviour", "السماح بالخصم للسلوك"], ["legacy", "Count Classes / Spin / Behaviour points in the wallet", "احتساب نقاط الصفوف والعجلة والسلوك"]] as const).map(([k, en, ar]) => <label key={k} className="flex items-center gap-2 font-bold"><input type="checkbox" checked={plan[k]} onChange={(e) => setPlan({ ...plan, [k]: e.target.checked })} />{tr(en, ar)}</label>)}
           <label className="flex items-center gap-2 font-bold">{tr("Max manual award", "أقصى منح يدوي")}<input type="number" min={1} max={50} className={`${inp} w-20`} value={plan.manualMax} onChange={(e) => setPlan({ ...plan, manualMax: Number(e.target.value) })} /></label>
@@ -254,15 +255,15 @@ function StaffView() {
             <tr style={{ background: "rgba(245,197,66,.18)" }}><td className="p-2 font-bold">{tr("Daily cap on automatic cards (0 = none)", "الحد اليومي للبطاقات التلقائية (0 = بلا حد)")}</td>{BANDS.map(([b]) => <td key={b} className="p-1 text-center"><input type="number" min={0} max={500} className={`${inp} w-16 text-center`} value={plan.cap[b]} onChange={(e) => setPlan({ ...plan, cap: { ...plan.cap, [b]: Number(e.target.value) } })} /></td>)}</tr></tbody></table></div>
         <p className="text-xs opacity-70">{tr("Teacher Skills (My Classes / Spin) keep their own +/− values and land in the same wallet. Ability-friendly: every band earns for effort (hand-in, joining in, practice), not only top marks.", "مهارات المعلم (صفوفي / العجلة) تحتفظ بقيمها وتضاف للمحفظة نفسها. الكسب مبني على الجهد لكل المستويات.")}</p>
         <div className="flex flex-wrap gap-2"><button type="button" className={gold} style={{ background: GOLD }} onClick={savePlan} data-testid="rc-plan-save">{tr("Save plan", "حفظ الخطة")}</button>
-          <button type="button" className={`${btn} bg-rose-100 text-rose-900`} onClick={() => confirm(tr("Start a new term? Every balance goes back to 0 (history is kept).", "بدء فصل جديد؟ ستعود الأرصدة إلى 0 (يبقى السجل).")) && lmsApi.rc("reset").then(() => { setMsg(tr("New term started — balances reset.", "بدأ فصل جديد.")); load(); }).catch(() => undefined)}>{tr("Term reset", "إعادة ضبط الفصل")}</button>
+          {d.admin && <button type="button" className={`${btn} bg-rose-100 text-rose-900`} onClick={() => confirm(tr("Start a new term? Every balance goes back to 0 (history is kept).", "بدء فصل جديد؟ ستعود الأرصدة إلى 0 (يبقى السجل).")) && lmsApi.rc("reset").then(() => { setMsg(tr("New term started — balances reset.", "بدأ فصل جديد.")); load(); }).catch(() => undefined)}>{tr("Term reset", "إعادة ضبط الفصل")}</button>}
           {d.plan.resetAt > 0 && <span className="self-center text-xs opacity-60">{tr("Last reset", "آخر إعادة ضبط")}: {new Date(d.plan.resetAt).toLocaleDateString()}</span>}</div>
       </section>}
       {tab === "cert" && d.design && <ExcellenceDesign design={d.design} />}
-      {tab === "shop" && <section className="space-y-2">
+      {tab === "shop" && canPlan && <section className="space-y-2">
         <button type="button" className={gold} style={{ background: GOLD }} onClick={() => setEdit({ name: "", nameAr: "", icon: "🎁", cost: 20, stock: -1, bands: "abc", on: true, pos: 50 })}>+ {tr("Add item", "إضافة عنصر")}</button>
         {d.shop.map((it) => <div key={it.id} className={`flex flex-wrap items-center gap-2 rounded-2xl bg-white p-3 text-sm shadow-sm dark:bg-white/5 ${it.on ? "" : "opacity-50"}`}><span className="text-2xl">{it.icon}</span><b className="flex-1" dir="auto">{lang === "ar" && it.nameAr ? it.nameAr : it.name}</b>{it.kind === "excellence" && <span className="rounded-full bg-[#1b3a57] px-2 py-0.5 text-xs font-bold text-[#f5c542]">{tr("Certificate", "شهادة")}</span>}{it.kind === "sticker" && <span className="rounded-full bg-[#f5c542] px-2 py-0.5 text-xs font-bold text-[#1b3a57]">{tr("Sticker", "ملصق")}</span>}<span>🃏 {it.cost}</span><span className="opacity-60">{it.stock < 0 ? "∞" : it.stock} · {BANDS.filter(([b]) => it.bands.includes(b)).map((x) => x[1]).join(", ")}</span><button type="button" className="underline" onClick={() => setEdit(it)}>{tr("Edit", "تعديل")}</button><button type="button" className="text-rose-600 underline" onClick={() => confirm(tr("Delete item?", "حذف العنصر؟")) && lmsApi.rc("shop-delete", { id: it.id }).then(() => load())}>{tr("Delete", "حذف")}</button></div>)}
       </section>}
-      {edit && <div className="fixed inset-0 z-[2000] grid place-items-center bg-black/50 p-4" role="dialog" aria-modal="true"><div className="w-full max-w-md space-y-2 rounded-3xl bg-white p-5 dark:bg-[#13202e]">
+      {edit && canPlan && <div className="fixed inset-0 z-[2000] grid place-items-center bg-black/50 p-4" role="dialog" aria-modal="true"><div className="w-full max-w-md space-y-2 rounded-3xl bg-white p-5 dark:bg-[#13202e]">
         <h3 className="text-lg font-black">{edit.id ? tr("Edit item", "تعديل عنصر") : tr("New item", "عنصر جديد")}</h3>
         <div className="flex gap-2"><input className={`${inp} w-16 text-center`} value={edit.icon || ""} onChange={(e) => setEdit({ ...edit, icon: e.target.value })} aria-label="icon" /><input className={`${inp} flex-1`} placeholder="Name (English)" value={edit.name || ""} onChange={(e) => setEdit({ ...edit, name: e.target.value })} /></div>
         <input className={`${inp} w-full`} dir="rtl" placeholder="الاسم بالعربية" value={edit.nameAr || ""} onChange={(e) => setEdit({ ...edit, nameAr: e.target.value })} />

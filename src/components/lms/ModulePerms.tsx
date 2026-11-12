@@ -4,24 +4,24 @@ import { useTr } from "@/components/lms/useLms";
 import { lmsApi, MP_KEYS, MP_MODS, type MpCfg, type MpKey, type MpMod, type MpPart } from "@/lib/lms";
 
 /** t292: labels for the module permission switches. */
-export const MP_MOD_LABEL: Record<MpMod, [string, string]> = { trk: ["📋 Assessment Tracker", "📋 متتبع التقييم"], rep: ["📈 Department Report", "📈 تقرير القسم"], aps: ["🎯 Attainment & Progress Report", "🎯 تقرير التحصيل والتقدم"], tt: ["⏰ Timetable", "⏰ الجدول الدراسي"], lp: ["📑 Lesson Builder & Lesson Packs (incl. Homework, Quran Homework)", "📑 منشئ الدروس وحزم الدروس (مع الواجبات وواجب القرآن)"], qa: ["📊 Progress Check QA (off by default)", "📊 ضمان جودة فحص التقدم (مغلق افتراضيًا)"], rw: ["🃏 Reward Cards (View = balances & requests, Add = award, Edit = approve redemptions)", "🃏 بطاقات المكافآت (عرض = الأرصدة والطلبات، إضافة = منح، تعديل = الموافقة على الاستبدال)"] };
-export const MP_KEY_LABEL: Record<MpKey, [string, string]> = { show: ["Show", "إظهار"], view: ["View", "عرض"], add: ["Add", "إضافة"], edit: ["Edit", "تعديل"], delete: ["Delete", "حذف"], xlsx: ["Download Excel", "تنزيل Excel"], pdf: ["Download PDF", "تنزيل PDF"], isams: ["Download iSAMS", "تنزيل iSAMS"], share: ["Share", "مشاركة"], dl: ["Download (PDF, Word, Excel)", "تنزيل (PDF و Word و Excel)"], peers: ["View colleagues' timetables", "عرض جداول الزملاء"], compare: ["Compare", "مقارنة"], observe: ["Peer observation request", "طلب ملاحظة زميل"], cover: ["Assign a cover", "تعيين احتياط"], qmap: ["Download Quran map (PDF)", "تنزيل خريطة القرآن (PDF)"], exc: ["Design Excellence Certificate", "تصميم شهادة التميز"] };
-/** Keys that do something in each module (others are hidden): the report is read-only for teachers; iSAMS exists only in the tracker. */
-export const MP_KEYS_OF: Record<MpMod, MpKey[]> = { qa: ["view", "add", "edit", "dl"], trk: MP_KEYS.filter((k) => !["share", "dl", "qmap", "exc"].includes(k)), rep: ["show", "view", "xlsx", "pdf"], aps: ["show", "view"], tt: ["show", "view", "add", "edit", "delete", "xlsx", "pdf", "share", "peers", "compare", "observe", "cover"], lp: ["show", "view", "add", "edit", "delete", "qmap"], rw: ["show", "view", "add", "edit", "exc"] };
+export const MP_MOD_LABEL: Record<MpMod, [string, string]> = { trk: ["📋 Assessment Tracker", "📋 متتبع التقييم"], rep: ["📈 Department Report", "📈 تقرير القسم"], aps: ["🎯 Attainment & Progress Report", "🎯 تقرير التحصيل والتقدم"], tt: ["⏰ Timetable", "⏰ الجدول الدراسي"], lp: ["📑 Lesson Builder & Lesson Packs (incl. Homework, Quran Homework)", "📑 منشئ الدروس وحزم الدروس (مع الواجبات وواجب القرآن)"], qa: ["📊 Progress Check QA (off by default)", "📊 ضمان جودة فحص التقدم (مغلق افتراضيًا)"], rw: ["🃏 Reward Cards (View = balances & requests, Add = award, Edit = approve redemptions, Plan = earn rules and shop)", "🃏 بطاقات المكافآت (عرض = الأرصدة والطلبات، إضافة = منح، تعديل = الموافقة على الاستبدال، تخطيط = قواعد الكسب والمتجر)"] };
+export const MP_KEY_LABEL: Record<MpKey, [string, string]> = { show: ["Show", "إظهار"], view: ["View", "عرض"], add: ["Add", "إضافة"], edit: ["Edit", "تعديل"], delete: ["Delete", "حذف"], xlsx: ["Download Excel", "تنزيل Excel"], pdf: ["Download PDF", "تنزيل PDF"], isams: ["Download iSAMS", "تنزيل iSAMS"], share: ["Share", "مشاركة"], dl: ["Download (PDF, Word, Excel)", "تنزيل (PDF و Word و Excel)"], peers: ["View colleagues' timetables", "عرض جداول الزملاء"], compare: ["Compare", "مقارنة"], observe: ["Peer observation request", "طلب ملاحظة زميل"], cover: ["Assign a cover", "تعيين احتياط"], qmap: ["Download Quran map (PDF)", "تنزيل خريطة القرآن (PDF)"], plan: ["Plan (earn rules and shop)", "التخطيط (قواعد الكسب والمتجر)"], exc: ["Design Excellence Certificate", "تصميم شهادة التميز"] };
+/** Keys that do something in each module (others are hidden): the report is read-only for teachers; iSAMS exists only in the tracker. Reward Cards Plan is off until an admin allows it. */
+export const MP_KEYS_OF: Record<MpMod, MpKey[]> = { qa: ["view", "add", "edit", "dl"], trk: MP_KEYS.filter((k) => !["share", "dl", "qmap", "plan", "exc"].includes(k)), rep: ["show", "view", "xlsx", "pdf"], aps: ["show", "view"], tt: ["show", "view", "add", "edit", "delete", "xlsx", "pdf", "share", "peers", "compare", "observe", "cover"], lp: ["show", "view", "add", "edit", "delete", "qmap"], rw: ["show", "view", "add", "edit", "plan", "exc"] };
 const sel = "rounded-lg border border-black/15 bg-white px-1 py-0.5 text-xs dark:border-white/20 dark:bg-slate-900";
 
 /** Tri-state grid: "" = inherit, on, off. */
-function Grid({ get, set, inherit, testPrefix, hideQa = false }: { hideQa?: boolean; get: (m: MpMod, k: MpKey) => "" | "on" | "off"; set: (m: MpMod, k: MpKey, v: "" | "on" | "off") => void; inherit: string; testPrefix: string }) {
+function Grid({ get, set, inherit, testPrefix, hideQa = false, blank }: { hideQa?: boolean; get: (m: MpMod, k: MpKey) => "" | "on" | "off"; set: (m: MpMod, k: MpKey, v: "" | "on" | "off") => void; inherit: string; testPrefix: string; blank?: (m: MpMod, k: MpKey) => string | undefined }) {
   const { tr } = useTr();
   return (
     <div className="grid gap-2 md:grid-cols-3">
       {MP_MODS.filter((m) => !(hideQa && m === "qa")).map((m) => (
         <div key={m} className="space-y-1 rounded-xl bg-black/[0.03] px-3 py-2 dark:bg-white/5" data-testid={`${testPrefix}-${m}`}>
           <p className="text-sm font-semibold">{tr(...MP_MOD_LABEL[m])}</p>
-          {MP_KEYS.filter((k) => m === "qa" ? MP_KEYS_OF.qa.includes(k) : (k !== "isams" || m === "trk") && (k !== "share" || m === "tt") && (!["peers", "compare", "observe", "cover"].includes(k) || m === "tt") && k !== "dl" && (k !== "qmap" || m === "lp") && (k !== "exc" || m === "rw") && (m !== "rw" || MP_KEYS_OF.rw.includes(k))).map((k) => { const live = MP_KEYS_OF[m].includes(k); return (
+          {MP_KEYS.filter((k) => m === "qa" ? MP_KEYS_OF.qa.includes(k) : (k !== "isams" || m === "trk") && (k !== "share" || m === "tt") && (!["peers", "compare", "observe", "cover"].includes(k) || m === "tt") && k !== "dl" && (k !== "qmap" || m === "lp") && (k !== "plan" || m === "rw") && (k !== "exc" || m === "rw") && (m !== "rw" || MP_KEYS_OF.rw.includes(k))).map((k) => { const live = MP_KEYS_OF[m].includes(k); return (
             <label key={k} className={`flex items-center justify-between gap-2 text-xs ${live ? "" : "opacity-50"}`} title={live ? "" : tr("Teachers have nothing to change or download here; admin only.", "لا يوجد ما يعدّله المعلم هنا.")}>{tr(...MP_KEY_LABEL[k])}
               <select className={sel} disabled={!live} value={live ? get(m, k) : ""} onChange={(e) => set(m, k, e.target.value as "" | "on" | "off")} data-testid={`${testPrefix}-${m}-${k}`}>
-                <option value="">{inherit}</option>
+                <option value="">{blank?.(m, k) || inherit}</option>
                 <option value="on">{k === "show" || k === "view" ? tr("Show", "إظهار") : tr("Allow", "سماح")}</option>
                 <option value="off">{k === "show" || k === "view" ? tr("Hide", "إخفاء") : tr("Not allow", "منع")}</option>
               </select></label>); })}
@@ -39,7 +39,7 @@ export function ModulePermsTeacher({ perms, setPerms }: { perms: string[]; setPe
       <Grid hideQa testPrefix="perm-mp" inherit={tr("Default", "الافتراضي")}
         get={(m, k) => (perms.includes(`mp:${m}:${k}:on`) ? "on" : perms.includes(`mp:${m}:${k}:off`) ? "off" : "")}
         set={(m, k, v) => setPerms([...perms.filter((p) => p !== `mp:${m}:${k}:on` && p !== `mp:${m}:${k}:off`), ...(v ? [`mp:${m}:${k}:${v}`] : [])])} />
-      <p className="text-[11px] opacity-70">{tr("Default = the global, role and subject settings in Assessment → Attainment & Progress Systems → Module permissions. The server enforces these; admin always has full access.", "الافتراضي من الإعدادات العامة. يُطبَّق على الخادم؛ للمدير وصول كامل.")}</p>
+      <p className="text-[11px] opacity-70">{tr("Default = the global, role and subject settings in Assessment → Attainment & Progress Systems → Module permissions. The server enforces these; admin always has full access. Reward Cards Plan (earn rules and shop) stays off for a teacher until it is allowed.", "الافتراضي من الإعدادات العامة. يُطبَّق على الخادم؛ للمدير وصول كامل. تخطيط بطاقات المكافآت (قواعد الكسب والمتجر) يبقى مغلقًا للمعلم حتى يُسمح به.")}</p>
     </div>
   );
 }
@@ -65,6 +65,7 @@ export function ModulePermsGlobal() {
         {subjects.map((s) => <option key={s} value={`subj:${s}`}>{tr("Subject", "المادة")}: {s}</option>)}
       </select></label>
       <Grid testPrefix="mp" inherit={layer === "global" ? tr("On (default)", "مفعّل (افتراضي)") : tr("Inherit", "موروث")}
+        blank={(m, k) => (layer === "global" && m === "rw" && k === "plan" ? tr("Off (default)", "مغلق (افتراضي)") : undefined)}
         get={(m, k) => { const v = part()[m]?.[k]; return v === true ? "on" : v === false ? "off" : ""; }}
         set={(m, k, v) => { const p = { ...part() }; const r = { ...(p[m] || {}) }; if (v) r[k] = v === "on"; else delete r[k]; p[m] = r; put(p); }} />
       <div className="flex items-center gap-2"><button type="button" className="rounded-full bg-header px-4 py-1.5 text-sm font-bold text-sun" onClick={save} data-testid="mp-save">{tr("Save module permissions", "حفظ صلاحيات الوحدات")}</button>{msg && <span className="text-xs font-semibold" role="status">{msg}</span>}</div>

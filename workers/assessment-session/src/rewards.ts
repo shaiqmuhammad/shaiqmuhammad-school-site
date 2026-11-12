@@ -2,13 +2,14 @@
  * t441: Reward Cards (بطاقات المكافآت) — one spendable wallet per student.
  * Earn: legacy ClassDojo `pts` (Classes / Spin / Behaviour) + auto-earn ledger `rc` (homework, Quran, activities, assessments, streaks, manual).
  * Collect: balance + history. Redeem: Reward Shop (`rcshop`) -> request (`rcred`) -> teacher/admin approve.
- * Admin plan in settings 'rc_plan'. Teacher access = ModulePerms "rw" (view / add / edit).
+ * Admin plan in settings 'rc_plan'. Teacher access = ModulePerms "rw" (view / add / edit / plan / exc).
+ * Plan (earn rules and shop) is off for teachers until an admin allows "plan". Saving the plan does not touch the rc wallet ledger.
  */
 import { mpOf } from "./modperm";
 type Row = Record<string, unknown>;
 type Sql = { exec: (q: string, ...b: unknown[]) => { toArray: () => Row[] } };
 type Act = { id: string; role: string; name: string; cls?: string; perms: string[]; viewAs?: boolean; subj?: string[] };
-type Acc = { show: boolean; view: boolean; add: boolean; edit: boolean };
+type Acc = { show: boolean; view: boolean; add: boolean; edit: boolean; plan: boolean };
 export type RcCtx = {
   sql: Sql;
   acc: (a: Act) => Acc;
@@ -242,7 +243,8 @@ export async function rcHandle(c: RcCtx, a: Act, action: string, input: Record<s
   const ok = (body: unknown) => ({ status: 200, body });
   const no = (e = "forbidden", st = 403) => ({ status: st, body: { error: e } });
   const staff = a.role === "admin" || a.role === "teacher";
-  const acc: Acc = a.role === "admin" ? { show: true, view: true, add: true, edit: true } : staff ? c.acc(a) : { show: false, view: false, add: false, edit: false };
+  const teacherAcc = staff && a.role !== "admin" ? c.acc(a) : null;
+  const acc: Acc = a.role === "admin" ? { show: true, view: true, add: true, edit: true, plan: true } : teacherAcc ? { show: !!teacherAcc.show, view: !!teacherAcc.view, add: !!teacherAcc.add, edit: !!teacherAcc.edit, plan: !!teacherAcc.plan } : { show: false, view: false, add: false, edit: false, plan: false };
   const p = planOf(sql);
   const write = !a.viewAs;
   switch (action) {
@@ -353,7 +355,7 @@ export async function rcHandle(c: RcCtx, a: Act, action: string, input: Record<s
       return ok({ ok: true });
     }
     case "rc-plan-save": {
-      if (a.role !== "admin" || !write) return no("admin_only");
+      if (!staff || !acc.plan || !write) return no();
       const v = (input.plan || {}) as Partial<Plan>;
       const next = { ...p, on: v.on !== false, deduct: v.deduct !== false, legacy: v.legacy !== false, cap: v.cap || p.cap, rules: v.rules || p.rules, manualMax: v.manualMax ?? p.manualMax };
       sql.exec(`INSERT OR REPLACE INTO settings (k, v) VALUES ('rc_plan', ?)`, JSON.stringify(next));
@@ -365,7 +367,7 @@ export async function rcHandle(c: RcCtx, a: Act, action: string, input: Record<s
       return ok({ plan: planOf(sql) });
     }
     case "rc-shop-save": {
-      if (a.role !== "admin" || !write) return no("admin_only");
+      if (!staff || !acc.plan || !write) return no();
       const name = s(input.name, 60); if (!name) return no("name_required", 400);
       const bands = [...new Set(s(input.bands, 3).split("").filter((x) => "abc".includes(x)))].join("") || "abc";
       const rawKind = s(input.kind, 20);
@@ -377,7 +379,7 @@ export async function rcHandle(c: RcCtx, a: Act, action: string, input: Record<s
       return ok({ ok: true });
     }
     case "rc-shop-delete": {
-      if (a.role !== "admin" || !write) return no("admin_only");
+      if (!staff || !acc.plan || !write) return no();
       sql.exec(`DELETE FROM rcshop WHERE id=?`, s(input.id, 40));
       return ok({ ok: true });
     }
