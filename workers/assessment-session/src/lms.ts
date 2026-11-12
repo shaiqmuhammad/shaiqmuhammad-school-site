@@ -2269,7 +2269,9 @@ export class LmsStore extends DurableObject<LmsEnv> {
       case "dashboard": {
         if (a.role === "student") {
           if (!a.viewAs) { this.touch(a.id); this.remind(a); }
-          const hw = this.assignedTo(a).filter((h) => !(h.data as { activity?: boolean } | undefined)?.activity).map((h) => { const sb = this.sub(h.id, a.id); return { ...h, sub: sb, locked: this.lockedFor(h, a.id), lockedBy: this.lockInfo(h, a.id), late: !!(h.due && ((sb?.submittedAt || 0) > h.due || (!(sb?.submittedAt) && h.due < Date.now()))) }; });
+          // Quran, general, and activity packs are all homework rows. The student lists split them:
+          // none / draft / returned stay outstanding; submitted / approved are handed in.
+          const hw = this.assignedTo(a).map((h) => { const sb = this.sub(h.id, a.id); return { ...h, sub: sb, locked: this.lockedFor(h, a.id), lockedBy: this.lockInfo(h, a.id), late: !!(h.due && ((sb?.submittedAt || 0) > h.due || (!(sb?.submittedAt) && h.due < Date.now()))) }; });
           return { status: 200, body: { homework: hw, tracker: this.trackerOf(a.id), progress: this.progressOf(a.id), leaderboard: this.setting("leaderboard", "off") !== "off" } };
         }
         const qd = qhwOf(a);

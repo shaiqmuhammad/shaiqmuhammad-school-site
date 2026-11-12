@@ -55,12 +55,17 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
   const [err, setErr] = useState("");
   const [creating, setCreating] = useState(false);
   const [hubTab, setHubTab] = useState<HwHubTab>("homeworks");
+  const [stuTab, setStuTab] = useState<"open" | "done">("open");
   // eslint-disable-next-line react-hooks/set-state-in-effect -- deep link from ?tab= / leftover hash
   useEffect(() => {
     const t0 = tabFromLocation();
     setHubTab(t0);
+    const readStu = () => setStuTab(new URLSearchParams(window.location.search).get("tab") === "submitted" ? "done" : "open");
+    readStu();
     const h = window.location.hash.replace("#", "");
     if (h === "add") setCreating(true);
+    window.addEventListener("popstate", readStu);
+    return () => window.removeEventListener("popstate", readStu);
   }, []);
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [busy, setBusy] = useState(false);
@@ -154,7 +159,7 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
           { icon: "📝", title: tr("Today's homework", "واجب اليوم"), value: dash.homework.filter((h) => !h.locked && (!h.sub || h.sub.status === "draft" || h.sub.status === "returned")).length, sub: dash.homework.find((h) => !h.sub || h.sub.status === "draft")?.title || tr("All done! 🎉", "أنجزت كل شيء! 🎉"), href: "/lms/homework", tone: "sun" },
           { icon: "🏆", title: tr("My points", "نقاطي"), value: dash.progress ? `${dash.progress.stars} ⭐` : "—", sub: dash.progress ? tr(`${dash.progress.streak}-day streak 🔥`, `${dash.progress.streak} أيام متتالية 🔥`) : "", href: "/lms/homework", tone: "coral" },
           { icon: "📖", title: tr("Quran progress", "تقدم القرآن"), value: (dash.tracker || []).length, sub: tr("surahs tracked", "سور في المتابعة"), href: "/lms#tracker", tone: "navy" },
-          { icon: "✅", title: tr("Passed", "مُجتاز"), value: dash.homework.filter((h) => h.sub?.status === "approved").length, sub: tr("homework approved", "واجبات معتمدة"), href: "/lms/homework", tone: "teal" },
+          { icon: "✅", title: tr("Passed", "مُجتاز"), value: dash.homework.filter((h) => h.sub?.status === "approved").length, sub: tr("homework approved", "واجبات معتمدة"), href: "/lms/homework?tab=submitted", tone: "teal" },
           { icon: "💬", title: tr("Messages", "الرسائل"), value: unread, sub: tr("unread", "غير مقروءة"), href: "/lms/messages", tone: "sky", badge: unread },
           { icon: "🧱", title: tr("Class Wall", "جدار الصف"), sub: tr("see what's new", "شاهد الجديد"), href: "/lms/wall", tone: "mint" },
         ]) as Widget[]).filter((w) => !(staff && ((w.href === "/lms/wall" && actor?.perms?.includes("hide:wall")) || (w.href === "/lms/messages" && actor?.perms?.includes("hide:messaging")) || (w.href === "/lms#homework" && actor?.perms?.includes("hide:homework"))))) } />}
@@ -168,33 +173,61 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
             {dash.progress && !hwOnly && <ProgressCard p={dash.progress} />}
             {!hwOnly && <RevisionList tracker={dash.tracker || []} onChange={(t) => setDash({ ...dash, tracker: t })} />}
             <section id="homework" className="scroll-mt-28">
-              <h2 className="mb-3 text-xl font-bold">{tr("Homework", "الواجبات")}</h2>
-              {dash.homework.length === 0 && <p className={card + " opacity-80"}>{tr("No homework yet — enjoy your day!", "لا توجد واجبات بعد — استمتع بيومك!")}</p>}
-              <ul className="grid gap-3 sm:grid-cols-2">
-                {dash.homework.map((h) => {
-                  const st = h.sub?.status || "none";
-                  const q = h.data as QuranData;
-                  return (
-                    <li key={h.id}>
-                      <a href={`/lms/homework?id=${h.id}`} className={card + " block transition hover:-translate-y-0.5 hover:shadow-lg"} data-testid="lms-hw-card">
-                        <div className="flex items-start gap-3">
-                          <span className="text-3xl" aria-hidden>{h.kind === "quran" ? "📖" : "📝"}</span>
-                          <div className="min-w-0 flex-1">
-                            <p className="text-lg font-bold" dir="auto">{h.title}</p>
-                            <HwMeta {...hwAud(h)} className="my-1" />
-                            {h.kind === "quran" && <p className="text-sm opacity-80">{surahName(q.surah)} · {q.from}–{q.to}</p>}
-                            {h.created > 0 && <p className="text-sm opacity-70" data-testid="lms-hw-assigned">{tr("Assigned", "أُسند")} {new Date((((h.data as unknown) as { assignAt?: number }).assignAt || 0) > 0 ? ((h.data as unknown) as { assignAt: number }).assignAt : h.created).toLocaleDateString(lang === "ar" ? "ar" : "en-GB")}</p>}
-                            {h.sub?.submittedAt ? <p className="text-sm opacity-70" data-testid="lms-hw-submitted">{tr("Submitted", "سُلّم")} {new Date(h.sub.submittedAt).toLocaleString(lang === "ar" ? "ar" : "en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</p> : null}
-                            {h.due && <p className="text-sm opacity-70">{tr("Due", "التسليم")} {new Date(h.due).toLocaleDateString(lang === "ar" ? "ar" : "en-GB")} {h.late && <span className="ms-1 rounded-full bg-rose-100 px-2 py-0.5 text-xs font-bold text-rose-800" data-testid="lms-hw-late">⏰ {h.sub?.submittedAt ? tr("Handed in late", "سُلّم متأخرًا") : tr("Overdue", "متأخر")}</span>}</p>}
-                          </div>
-                          {h.locked ? <span className="shrink-0 rounded-full bg-black/10 px-2.5 py-1 text-xs font-bold dark:bg-white/15" data-testid="lms-hw-locked">🔒 {tr("Locked", "مقفل")}</span> : h.sub?.grade ? <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${GRADE_STYLE[h.sub.grade]}`} data-testid="lms-hw-grade">{h.sub.grade === "red" ? tr("Practise again", "تدرّب مجددًا") : gradeLabel(h.sub.grade, tr)}</span> : <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${STATUS_STYLE[st]}`} data-testid="lms-hw-status">{statusLabel(st, tr)}</span>}
-                        </div>
-                        {h.sub?.liked && <p className="mt-2 text-sm">❤️ {tr("Your teacher liked this", "أعجب معلمك بهذا")}</p>}
-                      </a>
-                    </li>
-                  );
-                })}
-              </ul>
+              {(() => {
+                const handed = (h: (typeof dash.homework)[number]) => h.sub?.status === "submitted" || h.sub?.status === "approved";
+                const openHw = dash.homework.filter((h) => !handed(h));
+                const doneHw = dash.homework.filter(handed);
+                const showingDone = hwOnly && stuTab === "done";
+                const list = showingDone ? doneHw : openHw;
+                const pick = (t: "open" | "done") => {
+                  setStuTab(t);
+                  if (!hwOnly) return;
+                  window.history.pushState(null, "", t === "done" ? "/lms/homework?tab=submitted" : "/lms/homework");
+                };
+                return (
+                  <>
+                    {hwOnly ? (
+                      <div className="mb-3 flex flex-wrap gap-2" role="tablist" data-testid="stu-hw-tabs">
+                        <button type="button" role="tab" aria-selected={!showingDone} onClick={() => pick("open")} className={`rounded-full px-4 py-2 text-sm font-extrabold shadow-sm ${!showingDone ? "bg-header text-white" : "bg-white text-[#1b2f44] dark:bg-white/10 dark:text-white"}`} data-testid="stu-hw-tab-open">📝 {tr("Homeworks", "الواجبات")} ({openHw.length})</button>
+                        <button type="button" role="tab" aria-selected={showingDone} onClick={() => pick("done")} className={`rounded-full px-4 py-2 text-sm font-extrabold shadow-sm ${showingDone ? "bg-header text-white" : "bg-white text-[#1b2f44] dark:bg-white/10 dark:text-white"}`} data-testid="stu-hw-tab-submitted">✅ {tr("Submitted homework", "الواجبات المُسلَّمة")} ({doneHw.length})</button>
+                      </div>
+                    ) : (
+                      <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+                        <h2 className="text-xl font-bold">{tr("Homework", "الواجبات")}</h2>
+                        <a href="/lms/homework?tab=submitted" className="rounded-full bg-white px-3 py-1 text-sm font-extrabold text-[#1b2f44] shadow-sm ring-1 ring-black/10 dark:bg-white/10 dark:text-white" data-testid="stu-hw-submitted-link">✅ {tr("Submitted homework", "الواجبات المُسلَّمة")} ({doneHw.length})</a>
+                      </div>
+                    )}
+                    {list.length === 0 && <p className={card + " opacity-80"} data-testid="stu-hw-empty">{showingDone ? tr("Nothing submitted yet.", "لم يُسلَّم شيء بعد.") : dash.homework.length === 0 ? tr("No homework yet — enjoy your day!", "لا توجد واجبات بعد — استمتع بيومك!") : tr("Nothing waiting. Submitted work is under Submitted homework.", "لا شيء بانتظارك. العمل المُسلَّم في الواجبات المُسلَّمة.")}</p>}
+                    <ul className="grid gap-3 sm:grid-cols-2">
+                      {list.map((h) => {
+                        const st = h.sub?.status || "none";
+                        const q = h.data as QuranData;
+                        const activity = !!(h.data as { activity?: boolean }).activity;
+                        return (
+                          <li key={h.id}>
+                            <a href={`/lms/homework?id=${h.id}`} className={card + " block transition hover:-translate-y-0.5 hover:shadow-lg"} data-testid="lms-hw-card" data-hw-bucket={showingDone ? "submitted" : "open"}>
+                              <div className="flex items-start gap-3">
+                                <span className="text-3xl" aria-hidden>{h.kind === "quran" ? "📖" : activity ? "🎲" : "📝"}</span>
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-lg font-bold" dir="auto">{h.title}</p>
+                                  <HwMeta {...hwAud(h)} className="my-1" />
+                                  {activity && <p className="text-sm font-semibold opacity-80">{tr("Activity", "نشاط")}</p>}
+                                  {h.kind === "quran" && <p className="text-sm opacity-80">{surahName(q.surah)} · {q.from}–{q.to}</p>}
+                                  {h.created > 0 && <p className="text-sm opacity-70" data-testid="lms-hw-assigned">{tr("Assigned", "أُسند")} {new Date((((h.data as unknown) as { assignAt?: number }).assignAt || 0) > 0 ? ((h.data as unknown) as { assignAt: number }).assignAt : h.created).toLocaleDateString(lang === "ar" ? "ar" : "en-GB")}</p>}
+                                  {h.sub?.submittedAt ? <p className="text-sm opacity-70" data-testid="lms-hw-submitted">{tr("Submitted", "سُلّم")} {new Date(h.sub.submittedAt).toLocaleString(lang === "ar" ? "ar" : "en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</p> : null}
+                                  {h.due && <p className="text-sm opacity-70">{tr("Due", "التسليم")} {new Date(h.due).toLocaleDateString(lang === "ar" ? "ar" : "en-GB")} {h.late && <span className="ms-1 rounded-full bg-rose-100 px-2 py-0.5 text-xs font-bold text-rose-800" data-testid="lms-hw-late">⏰ {h.sub?.submittedAt ? tr("Handed in late", "سُلّم متأخرًا") : tr("Overdue", "متأخر")}</span>}</p>}
+                                </div>
+                                {h.locked ? <span className="shrink-0 rounded-full bg-black/10 px-2.5 py-1 text-xs font-bold dark:bg-white/15" data-testid="lms-hw-locked">🔒 {tr("Locked", "مقفل")}</span> : h.sub?.grade ? <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${GRADE_STYLE[h.sub.grade]}`} data-testid="lms-hw-grade">{h.sub.grade === "red" ? tr("Practise again", "تدرّب مجددًا") : gradeLabel(h.sub.grade, tr)}</span> : <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${STATUS_STYLE[st]}`} data-testid="lms-hw-status">{statusLabel(st, tr)}</span>}
+                              </div>
+                              {h.sub?.liked && <p className="mt-2 text-sm">❤️ {tr("Your teacher liked this", "أعجب معلمك بهذا")}</p>}
+                            </a>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </>
+                );
+              })()}
             </section>
             {!hwOnly && <><section id="tracker" className={card + " scroll-mt-28"}>
               <h2 className="text-xl font-bold">📈 {tr("My Quran tracker", "متابعة حفظي")}</h2>
