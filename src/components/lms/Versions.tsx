@@ -17,7 +17,7 @@ export function VersionTimeline({ list, audio, open = false }: { list: Version[]
           <li key={`${x.hw}-${x.v}`} className="space-y-1 rounded-xl bg-white p-2" data-testid="version" data-v={x.v}>
             <div className="flex flex-wrap items-center gap-2 text-sm">
               <b className="rounded-full bg-header px-2 py-0.5 text-xs text-white">v{x.v}</b>
-              <span className="opacity-70">{x.from && x.to ? `${x.from}–${x.to} · ` : ""}{x.at ? new Date(x.at).toLocaleDateString(lang === "ar" ? "ar" : "en-GB", { day: "numeric", month: "short", year: "numeric" }) : ""}</span>
+              <span className="opacity-70" data-testid="version-when">{x.from && x.to ? `${x.from}–${x.to} · ` : ""}{x.at ? new Date(x.at).toLocaleString(lang === "ar" ? "ar" : "en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : ""}</span>
               {x.pending ? <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-900">{tr("Waiting for review", "بانتظار المراجعة")}</span> : x.grade ? <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${GRADE_STYLE[x.grade]}`}>{gradeLabel(x.grade, tr)}</span> : null}
               <ScoreBadges s={x.scores} compact />
               {x.by && <span className="text-xs opacity-60">{x.by}</span>}

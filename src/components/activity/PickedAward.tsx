@@ -11,7 +11,7 @@ let catCache: Cat[] | null = null;
 /** t420/t432/t434: thumbs-up / thumbs-down point buttons for the student picked by the Randomiser or Spin.
  *  Shown for teachers/admin when the name maps to a roster id (My Classes / group load), or when a
  *  live class-roster lookup finds an exact name match. Plays sfxPoints on award. */
-export function PickedAward({ name }: { name: string }) {
+export function PickedAward({ name, onAwarded }: { name: string; onAwarded?: () => void }) {
   const { lang } = useI18n();
   const tr = (en: string, ar: string) => (lang === "ar" ? ar : en);
   const [sid, setSid] = useState<string | null>(null);
@@ -50,6 +50,7 @@ export function PickedAward({ name }: { name: string }) {
       await lmsApi.ptsAward(cat.id, [sid]);
       sfxPoints(cat.pts);
       setDone(cat.pts); setTick((t) => t + 1);
+      onAwarded?.();
     } catch {
       setErr(tr("Couldn't give the point.", "تعذر منح النقطة."));
     }

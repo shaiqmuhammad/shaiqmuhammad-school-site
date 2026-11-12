@@ -160,7 +160,7 @@ export function ActivityJoin({ code }: { code: string }) {
               {state.ended && <span className="rounded-full bg-rose-600 px-3 py-1 font-bold text-white">{tr("Ended", "انتهى")}</span>}
               {!state.ended && state.settings.locked && <span className="rounded-full bg-amber-500 px-3 py-1 font-bold text-white">{tr("Paused by teacher", "أوقفه المعلم مؤقتًا")}</span>}
             </div>
-            {state.prompt && <h1 className="mb-5 whitespace-pre-wrap text-2xl font-bold leading-snug sm:text-3xl" dir="auto" data-testid="activity-prompt">{state.prompt}</h1>}
+            {state.prompt && <h1 className="mb-5 whitespace-pre-wrap text-2xl font-bold leading-snug text-heading sm:text-3xl dark:text-white" dir="auto" data-testid="activity-prompt">{state.prompt}</h1>}
             {state.type === "wall" ? (
               <>
                 {!closed && (

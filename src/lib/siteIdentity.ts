@@ -7,7 +7,8 @@ import { IS_SCHOOL } from "@/lib/deployment";
 import { ASSESSMENT_API_BASE } from "@/lib/groupSession";
 import { siteConfig } from "@/content/site";
 
-export type SiteTheme = { preset: string; header: string; sun: string; mode: "light" | "dark" };
+export type SiteTheme = { preset: string; header: string; sun: string; mode: "light" | "dark"; /** Optional heading colour. Dark mode stays white unless this colour is still easy to read. */ heading?: string; /** Optional subheading / muted colour. */ sub?: string };
+export type ColourCombo = { id: string; label: string; header: string; sun: string; heading: string; sub: string };
 export type SiteIdentity = {
   nameEn: string;
   nameAr: string;
@@ -20,6 +21,8 @@ export type SiteIdentity = {
   mail?: MailIdentity;
   /** Saved branding presets (applied with one click, e.g. together with a main-address switch). */
   presets?: BrandPreset[];
+  /** Saved colour combinations (header, accent, heading, subheading) — names stay as they are. */
+  combos?: ColourCombo[];
   updatedAt?: number;
 };
 export type BrandPreset = { id: string; label: string; nameEn: string; nameAr: string; taglineEn: string; taglineAr: string; theme: SiteTheme };
@@ -39,6 +42,16 @@ export const THEME_PRESETS: { id: string; en: string; ar: string; header: string
   { id: "maroon", en: "Maroon", ar: "عنابي", header: "#6b1f2a", sun: "#f1c27d" },
   { id: "charcoal", en: "Charcoal", ar: "فحمي", header: "#2f3640", sun: "#f5a623" },
   { id: "ocean", en: "Ocean blue", ar: "أزرق محيطي", header: "#0b4f8a", sun: "#ffd166" },
+  { id: "oasis", en: "Oasis", ar: "واحة", header: "#0f6e6e", sun: "#f4d35e" },
+  { id: "sunrise", en: "Sunrise", ar: "شروق", header: "#9a3412", sun: "#fdba74" },
+  { id: "indigo", en: "Indigo", ar: "نيلي", header: "#312e81", sun: "#fde68a" },
+  { id: "olive", en: "Olive & gold", ar: "زيتوني وذهبي", header: "#3f6212", sun: "#facc15" },
+  { id: "plum", en: "Plum", ar: "خوخي", header: "#6b2142", sun: "#f9a8d4" },
+  { id: "slate", en: "Slate", ar: "رمادي", header: "#1e293b", sun: "#fbbf24" },
+  { id: "lagoon", en: "Lagoon", ar: "بحيرة", header: "#0e7490", sun: "#fde047" },
+  { id: "emerald", en: "Emerald", ar: "زمردي", header: "#065f46", sun: "#fef08a" },
+  { id: "cobalt", en: "Cobalt", ar: "كوبالت", header: "#1e3a8a", sun: "#fcd34d" },
+  { id: "sand", en: "Desert sand", ar: "رمال", header: "#7c2d12", sun: "#fcd34d" },
 ];
 
 
@@ -111,6 +124,8 @@ export function normalizeIdentity(raw: unknown): SiteIdentity {
       header: HEX.test(s(th.header, 7)) ? s(th.header, 7).toLowerCase() : "",
       sun: HEX.test(s(th.sun, 7)) ? s(th.sun, 7).toLowerCase() : "",
       mode: th.mode === "dark" ? "dark" : "light",
+      heading: HEX.test(s(th.heading, 7)) ? s(th.heading, 7).toLowerCase() : "",
+      sub: HEX.test(s(th.sub, 7)) ? s(th.sub, 7).toLowerCase() : "",
     },
     canonical: /^[a-z0-9.-]+\.[a-z]{2,}$/.test(s(r.canonical, 253)) ? s(r.canonical, 253) : "",
     mail: (() => {
@@ -138,8 +153,13 @@ export function normalizeIdentity(raw: unknown): SiteIdentity {
       const q = (p && typeof p === "object" ? p : {}) as Record<string, unknown>;
       const t = (q.theme && typeof q.theme === "object" ? q.theme : {}) as Record<string, unknown>;
       return { id: s(q.id, 30), label: s(q.label, 40), nameEn: s(q.nameEn, 60), nameAr: s(q.nameAr, 60), taglineEn: s(q.taglineEn, 140), taglineAr: s(q.taglineAr, 140),
-        theme: { preset: s(t.preset, 30), header: HEX.test(s(t.header, 7)) ? s(t.header, 7).toLowerCase() : "", sun: HEX.test(s(t.sun, 7)) ? s(t.sun, 7).toLowerCase() : "", mode: t.mode === "dark" ? "dark" : "light" } as SiteTheme };
+        theme: { preset: s(t.preset, 30), header: HEX.test(s(t.header, 7)) ? s(t.header, 7).toLowerCase() : "", sun: HEX.test(s(t.sun, 7)) ? s(t.sun, 7).toLowerCase() : "", mode: t.mode === "dark" ? "dark" : "light", heading: HEX.test(s(t.heading, 7)) ? s(t.heading, 7).toLowerCase() : "", sub: HEX.test(s(t.sub, 7)) ? s(t.sub, 7).toLowerCase() : "" } as SiteTheme };
     }) : [],
+    combos: Array.isArray(r.combos) ? (r.combos as unknown[]).slice(0, 16).map((p, i) => {
+      const q = (p && typeof p === "object" ? p : {}) as Record<string, unknown>;
+      const hex = (v: unknown) => (HEX.test(s(v, 7)) ? s(v, 7).toLowerCase() : "");
+      return { id: s(q.id, 30) || `c${i + 1}`, label: s(q.label, 40) || `Combo ${i + 1}`, header: hex(q.header) || DEFAULT_HEADER, sun: hex(q.sun) || DEFAULT_SUN, heading: hex(q.heading), sub: hex(q.sub) };
+    }).filter((c) => c.label) : [],
     updatedAt: Number(r.updatedAt) || 0,
   };
 }
@@ -181,23 +201,33 @@ export function contrastWarnings(header: string, sun: string): ContrastWarning[]
 }
 
 /** CSS variable overrides for the chosen colours (empty string = defaults from globals.css). */
+const onBg = (color: string, bg: string, fallback: string) => (HEX.test(color) && contrast(color, bg) >= 4.5 ? color : fallback);
 export function themeCss(theme: SiteTheme): string {
   const header = HEX.test(theme.header) ? theme.header : "";
   const sun = HEX.test(theme.sun) ? theme.sun : "";
-  if (!header && !sun) return "";
+  const heading = HEX.test(theme.heading || "") ? theme.heading! : "";
+  const sub = HEX.test(theme.sub || "") ? theme.sub! : "";
+  if (!header && !sun && !heading && !sub) return "";
   const h = header || DEFAULT_HEADER;
   const y = sun || DEFAULT_SUN;
+  const darkBg = mix(h, "#000000", 0.62);
+  const lightHeading = onBg(heading || h, "#ffffff", onBg(h, "#ffffff", "#1b2f44"));
+  const lightSub = onBg(sub, "#ffffff", "#586a7d");
+  // Dark mode titles stay white unless the chosen heading is still easy to read on the dark page.
+  const darkHeading = onBg(heading, darkBg, "#ffffff");
+  const darkSub = onBg(sub, darkBg, "#c5d4e4");
   const light = [
-    `--navy:${h}`, `--navy-deep:${mix(h, "#000000", 0.12)}`, `--heading:${h}`, `--primary:${h}`, `--header:${h}`, `--footer:${mix(h, "#000000", 0.12)}`,
+    `--navy:${h}`, `--navy-deep:${mix(h, "#000000", 0.12)}`, `--heading:${lightHeading}`, `--muted:${lightSub}`, `--primary:${h}`, `--header:${h}`, `--footer:${mix(h, "#000000", 0.12)}`,
     `--yellow:${y}`, `--yellow-border:${mix(y, "#000000", 0.08)}`, `--yellow-hover:${mix(y, "#ffffff", 0.25)}`, `--accent:${mix(y, "#000000", 0.05)}`,
-    `--ring:${mix(y, "#000000", 0.05)}`, `--cta:${y}`, `--cta-border:${mix(y, "#000000", 0.08)}`, `--cta-foreground:${h}`,
+    `--ring:${mix(y, "#000000", 0.05)}`, `--cta:${y}`, `--cta-border:${mix(y, "#000000", 0.08)}`, `--cta-foreground:${onBg(h, y, "#1b2f44")}`,
     `--card-border:${h}1f`, `--accent-soft:${mix(y, "#ffffff", 0.88)}`, `--cream:${mix(y, "#ffffff", 0.88)}`,
   ].join(";");
   const dark = [
-    `--navy:${h}`, `--navy-deep:${mix(h, "#000000", 0.12)}`, `--header:${mix(h, "#000000", 0.4)}`, `--footer:${mix(h, "#000000", 0.55)}`,
-    `--background:${mix(h, "#000000", 0.62)}`, `--card-solid:${mix(h, "#000000", 0.35)}`,
-    `--primary:${y}`, `--primary-foreground:${mix(h, "#000000", 0.12)}`, `--accent:${y}`, `--ring:${y}`, `--gold:${y}`,
-    `--yellow:${y}`, `--yellow-border:${mix(y, "#000000", 0.08)}`, `--yellow-hover:${mix(y, "#ffffff", 0.25)}`, `--cta:${y}`,
+    `--navy:${h}`, `--navy-deep:${mix(h, "#000000", 0.12)}`, `--heading:${darkHeading}`, `--foreground:#e8eef5`, `--muted:${darkSub}`,
+    `--header:${mix(h, "#000000", 0.4)}`, `--footer:${mix(h, "#000000", 0.55)}`,
+    `--background:${darkBg}`, `--card-solid:${mix(h, "#000000", 0.35)}`, `--card-border:rgba(255,255,255,.18)`,
+    `--primary:${y}`, `--primary-foreground:${onBg("#10263b", y, "#10263b")}`, `--accent:${y}`, `--ring:${y}`, `--gold:${y}`,
+    `--yellow:${y}`, `--yellow-border:${mix(y, "#000000", 0.08)}`, `--yellow-hover:${mix(y, "#ffffff", 0.25)}`, `--cta:${y}`, `--cta-foreground:${onBg("#10263b", y, "#10263b")}`,
   ].join(";");
   return `:root{${light}}.dark{${dark}}`;
 }

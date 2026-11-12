@@ -19,7 +19,7 @@ export type DashStudent = { id: string; name: string; cls: string; section: stri
 export const scopeLabel = (s: string) => s.replace("|", " · ");
 /** t292: module permissions (Assessment Tracker, Department Report, Attainment & Progress report). */
 export const MP_MODS = ["trk", "rep", "aps", "tt", "lp", "qa", "rw"] as const;
-export const MP_KEYS = ["show", "view", "add", "edit", "delete", "xlsx", "pdf", "isams", "share", "dl", "peers", "compare", "observe", "cover"] as const;
+export const MP_KEYS = ["show", "view", "add", "edit", "delete", "xlsx", "pdf", "isams", "share", "dl", "peers", "compare", "observe", "cover", "qmap", "exc"] as const;
 export type MpMod = (typeof MP_MODS)[number];
 export type MpKey = (typeof MP_KEYS)[number];
 export type MpAcc = Record<MpKey, boolean>;
@@ -439,6 +439,7 @@ export function lmsErrorText(e: unknown, tr: (en: string, ar: string) => string)
     audio_full: ["Recording storage is full — ask the admin.", "مساحة التسجيلات ممتلئة — أخبر المدير."],
     audio_type: ["This browser's recording format isn't supported.", "صيغة التسجيل في هذا المتصفح غير مدعومة."],
     already_approved: ["Your teacher has already approved this.", "وافق المعلم على هذا مسبقًا."],
+    already_submitted: ["You have already submitted this. You can send it again only if your teacher sends it back.", "لقد سلّمت هذا مسبقًا. يمكنك الإرسال مجددًا فقط إذا أعاده معلمك."],
   };
   return m[c] ? tr(m[c][0], m[c][1]) : tr("Something went wrong.", "حدث خطأ ما.");
 }

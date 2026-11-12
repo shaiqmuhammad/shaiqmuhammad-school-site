@@ -507,12 +507,20 @@ function normPresets(raw: unknown): Body[] {
       id: clean(r.id, 30).replace(/[^a-z0-9-]/gi, "") || `p${i + 1}`,
       label: clean(r.label, 40) || `Preset ${i + 1}`,
       nameEn: clean(r.nameEn, 60), nameAr: clean(r.nameAr, 60), taglineEn: clean(r.taglineEn, 140), taglineAr: clean(r.taglineAr, 140),
-      theme: { preset: clean(th.preset, 30), header: HEX.test(sv(th.header)) ? sv(th.header).toLowerCase() : "", sun: HEX.test(sv(th.sun)) ? sv(th.sun).toLowerCase() : "", mode: th.mode === "dark" ? "dark" : "light" },
+      theme: { preset: clean(th.preset, 30), header: HEX.test(sv(th.header)) ? sv(th.header).toLowerCase() : "", sun: HEX.test(sv(th.sun)) ? sv(th.sun).toLowerCase() : "", mode: th.mode === "dark" ? "dark" : "light", heading: HEX.test(sv(th.heading)) ? sv(th.heading).toLowerCase() : "", sub: HEX.test(sv(th.sub)) ? sv(th.sub).toLowerCase() : "" },
     };
   });
 }
 const HEX = /^#[0-9a-f]{6}$/i;
 const clean = (v: unknown, max: number) => sv(v, max).replace(/[<>\u0000-\u001f]/g, "").trim();
+function normCombos(raw: unknown): Body[] {
+  if (!Array.isArray(raw)) return [];
+  const hex = (v: unknown) => (HEX.test(sv(v)) ? sv(v).toLowerCase() : "");
+  return raw.slice(0, 16).map((p, i) => {
+    const r = (p && typeof p === "object" ? p : {}) as Body;
+    return { id: clean(r.id, 30).replace(/[^a-z0-9-]/gi, "") || `c${i + 1}`, label: clean(r.label, 40) || `Combo ${i + 1}`, header: hex(r.header) || "#1b3a57", sun: hex(r.sun) || "#f3c969", heading: hex(r.heading), sub: hex(r.sub) };
+  });
+}
 function normBrand(raw: Body, prevCanonical = "", prev: Body = {}): Body {
   const th = (raw.theme && typeof raw.theme === "object" ? raw.theme : {}) as Body;
   return {
@@ -525,10 +533,13 @@ function normBrand(raw: Body, prevCanonical = "", prev: Body = {}): Body {
       header: HEX.test(sv(th.header)) ? sv(th.header).toLowerCase() : "",
       sun: HEX.test(sv(th.sun)) ? sv(th.sun).toLowerCase() : "",
       mode: th.mode === "dark" ? "dark" : "light",
+      heading: HEX.test(sv(th.heading)) ? sv(th.heading).toLowerCase() : "",
+      sub: HEX.test(sv(th.sub)) ? sv(th.sub).toLowerCase() : "",
     },
     canonical: prevCanonical,
     mail: normMail(raw.mail !== undefined ? raw.mail : prev.mail),
     presets: normPresets(raw.presets !== undefined ? raw.presets : prev.presets),
+    combos: normCombos(raw.combos !== undefined ? raw.combos : prev.combos),
     updatedAt: Date.now(),
   };
 }

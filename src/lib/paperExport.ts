@@ -176,7 +176,7 @@ function questionLines(q: QuizQuestion, n: number, kind: PaperKind, lang: Lang):
       case "true_false":
         q.options.forEach((_, i) => {
           const text = optText(q, i, lang);
-          L.push({ segs: [{ text: `☐  ${letter(i, lang)}.  ${text}` }], indent: true, rtl: rtlLine(lang, text) });
+          L.push({ segs: [{ text: `\u200E☐  ${letter(i, lang)}.  ${text}` }], indent: true, rtl: rtlLine(lang, text) });
         });
         break;
       case "image_choice":
@@ -189,8 +189,8 @@ function questionLines(q: QuizQuestion, n: number, kind: PaperKind, lang: Lang):
         const pairs = pairsOf(q, lang);
         const order = stableOrder(pairs.length, q.id);
         L.push({ segs: [{ text: copy.match, italic: true }], indent: true, rtl: lang === "ar" });
-        pairs.forEach((p, i) => L.push({ segs: [{ text: `${i + 1}.  ${p.left}   ____` }], indent: true, rtl: rtlLine(lang, p.left) }));
-        order.forEach((ri, k) => L.push({ segs: [{ text: `${letter(k, lang)}.  ${pairs[ri].right}` }], indent: true, rtl: rtlLine(lang, pairs[ri].right) }));
+        pairs.forEach((p, i) => L.push({ segs: [{ text: `\u200E${i + 1}.  ${p.left}   ____` }], indent: true, rtl: rtlLine(lang, p.left) }));
+        order.forEach((ri, k) => L.push({ segs: [{ text: `\u200E${letter(k, lang)}.  ${pairs[ri].right}` }], indent: true, rtl: rtlLine(lang, pairs[ri].right) }));
         break;
       }
       case "fill_blank":
@@ -262,8 +262,9 @@ function lineHtml(l: Line): string {
   if (l.image) return `<div${l.indent ? ' class="opt"' : ""}><img crossorigin="anonymous" src="${escapeHtml(l.image)}" alt=""></div>`;
   const inner = l.segs
     .map((s) => {
-      let txt = escapeHtml(s.text);
-      if (s.bold) txt = `<b>${txt}</b>`;
+      const numOnly = /^\d+\.\s*$/.test(s.text);
+      let txt = numOnly ? `<span class="qno" dir="ltr">${escapeHtml(s.text)}</span>` : escapeHtml(s.text);
+      if (s.bold && !numOnly) txt = `<b>${txt}</b>`;
       if (s.italic) txt = `<i class="muted">${txt}</i>`;
       const color = s.color ? `color:#${s.color};` : "";
       const size = s.size ? `font-size:${Math.round(s.size / 1.3)}px;` : "";

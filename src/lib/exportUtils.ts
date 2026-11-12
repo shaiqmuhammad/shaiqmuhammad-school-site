@@ -68,9 +68,10 @@ export async function htmlBlocksToPdf(blocksHtml: string[], filename: string, op
   const host = document.createElement("div");
   host.setAttribute("aria-hidden", "true");
   host.style.cssText = `position:fixed;left:-20000px;top:0;width:${pageW}px;background:#fff;color:#111;`;
-  const style = `<style>.pg{box-sizing:border-box;width:${pageW}px;height:${pageH}px;padding:${pad}px;background:#fff;color:#111;font:15px/1.5 Arial,"Noto Naskh Arabic","Noto Sans Arabic",Tahoma,sans-serif;overflow:hidden}
-.pg *{box-sizing:border-box}.blk{padding:6px 0 10px;break-inside:avoid}.ar{direction:rtl;text-align:right;font-family:"Noto Naskh Arabic","Geeza Pro",Tahoma,Arial,sans-serif}
-.pg h1{font-size:24px;margin:0 0 4px}.pg h2{font-size:17px;margin:0 0 6px}.muted{color:#555}.opt{margin:2px 0 2px 18px}.pg img{max-width:100%;max-height:260px}
+  const style = `<style>.pg{box-sizing:border-box;width:${pageW}px;min-height:${pageH}px;height:auto;padding:${pad}px;background:#fff;color:#111;font:15px/1.55 Arial,"Noto Naskh Arabic","Noto Sans Arabic",Tahoma,sans-serif;overflow:visible}
+.pg *{box-sizing:border-box}.blk{padding:8px 0 12px;break-inside:avoid}.ar{direction:rtl;text-align:right;font-family:"Noto Naskh Arabic","Geeza Pro",Tahoma,Arial,sans-serif}
+.qno{display:inline-block;min-width:2em;font-weight:800;direction:ltr;unicode-bidi:isolate}
+.pg h1{font-size:24px;margin:0 0 4px}.pg h2{font-size:17px;margin:0 0 6px}.muted{color:#555}.opt{margin:2px 0 2px 18px}.pg img{max-width:100%;max-height:220px;object-fit:contain}
 .pg table{border-collapse:collapse;width:100%}.pg td,.pg th{border:1px solid #ccc;padding:4px 6px;text-align:start;font-size:13px}${opts.css || ""}</style>`;
   host.innerHTML = style;
   document.body.appendChild(host);
@@ -104,17 +105,43 @@ export async function htmlBlocksToPdf(blocksHtml: string[], filename: string, op
     const pdf = new jsPDF({ orientation: landscape ? "landscape" : "portrait", unit: "pt", format: "a4" });
     const pw = pdf.internal.pageSize.getWidth();
     const ph = pdf.internal.pageSize.getHeight();
-    for (let i = 0; i < pages.length; i++) {
+    const scale = 2;
+    let sheet = 0;
+    const paint = async (html: string, pageNo: number, pageCount: number) => {
       const pg = document.createElement("div");
       pg.className = "pg";
-      pg.innerHTML = pages[i].map((h) => `<div class="blk">${h}</div>`).join("") + `<div class="muted" style="position:absolute;bottom:18px;right:${pad}px;font-size:11px">${i + 1} / ${pages.length}</div>`;
       pg.style.position = "relative";
+      pg.style.height = "auto";
+      pg.style.overflow = "visible";
+      pg.innerHTML = html + `<div class="muted" style="margin-top:12px;text-align:end;font-size:11px">${pageNo} / ${pageCount}</div>`;
       host.appendChild(pg);
       await Promise.all(Array.from(pg.querySelectorAll("img")).map((im) => (im.complete ? null : im.decode().catch(() => null))));
-      const canvas = await html2canvas(pg, { scale: 2, backgroundColor: "#ffffff", useCORS: true, logging: false });
-      if (i > 0) pdf.addPage();
-      pdf.addImage(canvas.toDataURL("image/jpeg", 0.92), "JPEG", 0, 0, pw, ph);
+      const canvas = await html2canvas(pg, { scale, backgroundColor: "#ffffff", useCORS: true, logging: false });
       pg.remove();
+      const slices = Math.max(1, Math.ceil((canvas.height - 1) / (pageH * scale)));
+      for (let s = 0; s < slices; s++) {
+        if (sheet > 0) pdf.addPage();
+        sheet++;
+        const sy = Math.round(s * pageH * scale);
+        const sh = Math.min(canvas.height - sy, Math.round(pageH * scale));
+        const slice = document.createElement("canvas");
+        slice.width = canvas.width;
+        slice.height = Math.max(1, sh);
+        const ctx = slice.getContext("2d");
+        if (!ctx) continue;
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, slice.width, slice.height);
+        ctx.drawImage(canvas, 0, sy, canvas.width, sh, 0, 0, canvas.width, sh);
+        const drawH = Math.min(ph, (sh / scale) * (pw / pageW));
+        pdf.addImage(slice.toDataURL("image/jpeg", 0.92), "JPEG", 0, 0, pw, drawH);
+      }
+    };
+    let shown = 0;
+    const total = pages.reduce((n, blocks) => n + Math.max(1, blocks.length ? 1 : 0), 0) || 1;
+    for (let i = 0; i < pages.length; i++) {
+      if (!pages[i].length) continue;
+      shown++;
+      await paint(pages[i].map((h) => `<div class="blk">${h}</div>`).join(""), shown, Math.max(shown, total));
     }
     downloadBlob(pdf.output("blob"), filename);
   } finally {

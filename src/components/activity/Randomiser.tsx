@@ -211,7 +211,7 @@ export function Randomiser() {
           <div className="relative max-w-[92vw] rounded-[28px] bg-white px-8 py-10 text-center shadow-2xl ring-4 ring-sun dark:bg-[#10263b]" onClick={(e) => e.stopPropagation()}>
             <p className="text-lg font-bold uppercase tracking-widest text-teal-700 dark:text-teal-300">🎯 {tr("It's your turn…", "حان دورك…")}</p>
             <p className="mt-3 break-words text-6xl font-black text-navy dark:text-sun sm:text-7xl" dir="auto">{reveal}</p>
-            <PickedAward name={reveal} />
+            <PickedAward name={reveal} onAwarded={() => setReveal(null)} />
           </div>
         </div>
       )}

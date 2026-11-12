@@ -173,6 +173,7 @@ export function TodayLessons() {
   const { roster } = useRosterData();
   const [cmp, setCmp] = useState(false);
   const me = lmsSession()?.user;
+  const pupil = me?.role === "student" || me?.role === "parent";
   if (!d || !d.acc.view) return null;
   if (!d.timetable.length && !d.acc.add) return null;
   const rows = [...d.timetable, ...obsRows(d.obs, me?.id || "", tr)];
@@ -189,8 +190,8 @@ export function TodayLessons() {
         <span className="rounded-full bg-[#1b3a57]/10 px-2 py-0.5 text-xs font-bold" data-testid="tt-stat-students">{studentsInSubj} {tr("students", "طالب")}</span>
         <span className="rounded-full bg-[#1b3a57]/10 px-2 py-0.5 text-xs font-bold" data-testid="tt-stat-duties">{duties} {tr("duties", "مناوبة")}</span>
         <span className="flex-1" />
-        {d.acc.add && <a href="/lms/timetable?new=1" className="rounded-full bg-sun px-3 py-1 text-xs font-bold text-[#0b1b2b]" data-testid="tt-dash-add">+ {tr("Add event", "إضافة حدث")}</a>}
-        {d.acc.compare && !!d.peers?.length && <button type="button" className="rounded-full bg-[#1b3a57] px-3 py-1 text-xs font-bold text-[#f5c542]" onClick={() => setCmp(!cmp)} data-testid="tt-dash-compare">⚖️ {tr("Compare", "مقارنة")}</button>}
+        {!pupil && d.acc.add && <a href="/lms/timetable?new=1" className="rounded-full bg-sun px-3 py-1 text-xs font-bold text-[#0b1b2b]" data-testid="tt-dash-add">+ {tr("Add event", "إضافة حدث")}</a>}
+        {!pupil && d.acc.compare && !!d.peers?.length && <button type="button" className="rounded-full bg-[#1b3a57] px-3 py-1 text-xs font-bold text-[#f5c542]" onClick={() => setCmp(!cmp)} data-testid="tt-dash-compare">⚖️ {tr("Compare", "مقارنة")}</button>}
         {!!d.peers?.length && (d.acc.peers || d.acc.observe) && (
           <select className={fld + " !w-auto !py-1 text-xs"} defaultValue="" onChange={(e) => { if (e.target.value) location.href = `/lms/timetable?src=${e.target.value}`; }} aria-label={tr("Other teachers", "معلمون آخرون")} data-testid="tt-dash-peers">
             <option value="">{tr("Other teachers", "معلمون آخرون")}</option>
@@ -199,7 +200,7 @@ export function TodayLessons() {
         )}
         {d.acc.observe && <a href="/lms/timetable?obs=1" className="rounded-full bg-[#f5c542] px-3 py-1 text-xs font-bold text-[#1b3a57]" data-testid="tt-dash-obs">👀 {tr("Peer observation", "ملاحظة زميل")}</a>}
         <a href="/lms/timetable?year=1" className="rounded-full bg-[#1b3a57] px-3 py-1 text-xs font-bold text-[#f5c542]" data-testid="tt-dash-year">📅 {tr("Year calendar", "التقويم السنوي")}</a>
-        {d.acc.cover && <a href="/lms/timetable?cover=1" className="rounded-full bg-rose-100 px-3 py-1 text-xs font-bold text-rose-900" data-testid="tt-dash-cover">🛟 {tr("Assign Cover", "تعيين احتياط")}</a>}
+        {!pupil && d.acc.cover && <a href="/lms/timetable?cover=1" className="rounded-full bg-rose-100 px-3 py-1 text-xs font-bold text-rose-900" data-testid="tt-dash-cover">🛟 {tr("Assign Cover", "تعيين احتياط")}</a>}
         <a href="/lms/timetable" className="rounded-full border border-black/10 px-3 py-1 text-xs font-bold" data-testid="tt-dash-dl">⬇️ {tr("Download", "تنزيل")}</a>
       </div>
       <div className="mb-2"><LeadPicker d={d} asAdmin={false} onSaved={load} /></div>
@@ -240,17 +241,19 @@ export function TimetableManager({ asAdmin, full = false }: { asAdmin: boolean; 
   const [src, setSrc] = useState("");
   const [peer, setPeer] = useState<{ rows: TtRow[]; obs: TtObs[] } | null>(null);
   const [cmp, setCmp] = useState(false);
-  const me = lmsSession()?.user?.id || "";
+  const who = lmsSession()?.user;
+  const me = who?.id || "";
+  const pupil = who?.role === "student" || who?.role === "parent";
   useEffect(() => { if (!src) return; modCall<{ rows: TtRow[]; obs: TtObs[] }>("att-tt-view", { teacher: src }, asAdmin).then(setPeer).catch((e) => { setPeer({ rows: [], obs: [] }); setMsg(modErr(e, tr)); }); }, [src, asAdmin, tr]);
   const [ed, setEd] = useState<Draft | null>(null);
   useEffect(() => {
     if (typeof window === "undefined" || !d) return;
     const q = new URLSearchParams(window.location.search);
     const s = q.get("src"); if (s && !src) setSrc(s);
-    if (q.get("cover") === "1" && (asAdmin || d.acc.cover)) setCoverOpen(true);
+    if (!pupil && q.get("cover") === "1" && (asAdmin || d.acc.cover)) setCoverOpen(true);
     if (q.get("year") === "1") setView("year");
     if (q.get("obs") === "1" && !asAdmin && d.acc.observe) { const p = (d.peers || []).find((x) => x.same || d.acc.observe); if (p && !s) setSrc(p.id); setView("day"); setMsg(p ? tr("Choose a colleague above, then press “Request to observe” on a lesson.", "اختر زميلًا أعلاه ثم اضغط «طلب ملاحظة» على حصة.") : tr("No colleagues in your department are available to observe yet.", "لا يوجد زملاء في قسمك متاحون للملاحظة بعد.")); }
-    if (q.get("new") === "1" && d.acc.add && !ed) setEd({ ...EMPTY, teacher: asAdmin ? "" : d.teachers[0]?.id || "" });
+    if (!pupil && q.get("new") === "1" && d.acc.add && !ed) setEd({ ...EMPTY, teacher: asAdmin ? "" : d.teachers[0]?.id || "" });
   }, [d]); // eslint-disable-line react-hooks/exhaustive-deps
   const onTtSubject = useCallback((subject: string) => setEd((e) => (e && e.subject !== subject ? { ...e, subject } : e)), []);
   const base = useMemo(() => (src ? peer?.rows || [] : [...(d?.timetable || []), ...(asAdmin ? [] : obsRows(d?.obs, me, tr))]), [d, src, peer, asAdmin, me, tr]);
@@ -267,7 +270,7 @@ export function TimetableManager({ asAdmin, full = false }: { asAdmin: boolean; 
   const classOpts = scope ? classes.filter((c) => !scope.classes.length || scope.classes.includes(c.name)) : classes;
   const phaseOpts = scope?.phase ? [scope.phase] : uniq([...d.phases, ...d.timetable.map((r) => r.phase)]);
   const deptOpts = scope ? uniq(scope.depts) : uniq([...d.depts]);
-  const ro = !!src; const canAdd = d.acc.add && !ro, canEdit = d.acc.edit && !ro, canDel = d.acc.delete && !ro;
+  const ro = !!src; const canAdd = !pupil && d.acc.add && !ro, canEdit = !pupil && d.acc.edit && !ro, canDel = !pupil && d.acc.delete && !ro;
   const dSel = day ?? d.now.dow;
   const autoT = (cls: string, secs: string[]) => classLabel(cls, secs, classes.find((c) => c.name === cls)?.sections || []);
   const save = async () => {
@@ -319,7 +322,7 @@ export function TimetableManager({ asAdmin, full = false }: { asAdmin: boolean; 
         {(asAdmin || full) && f.cls && sel("sec", tr("All sections", "كل الشعب"), (classes.find((c) => c.name === f.cls)?.sections || []).map((x) => [x, x]), "tt-f-sec")}
         {canAdd && <button type="button" className="rounded-full bg-sun px-4 py-1.5 text-sm font-bold text-[#0b1b2b]" onClick={() => setEd({ ...EMPTY, teacher: asAdmin ? "" : d.teachers[0]?.id || "" })} data-testid="tt-new">+ {tr("Add Event", "إضافة حدث")}</button>}
         <button type="button" className="rounded-full bg-[#1b3a57] px-4 py-1.5 text-sm font-bold text-[#f5c542]" onClick={() => setView("year")} data-testid="tt-year-open">📅 {tr("Year calendar", "التقويم السنوي")}</button>
-        {(asAdmin || d.acc.cover) && <button type="button" className="rounded-full bg-rose-100 px-4 py-1.5 text-sm font-bold text-rose-900" onClick={() => setCoverOpen(true)} data-testid="tt-cover-open">🛟 {tr("Assign Cover", "تعيين احتياط")}</button>}
+        {!pupil && (asAdmin || d.acc.cover) && <button type="button" className="rounded-full bg-rose-100 px-4 py-1.5 text-sm font-bold text-rose-900" onClick={() => setCoverOpen(true)} data-testid="tt-cover-open">🛟 {tr("Assign Cover", "تعيين احتياط")}</button>}
       </div>
       <div className="flex flex-wrap items-center gap-2" data-testid="tt-views">
         <div className="inline-flex overflow-hidden rounded-full bg-[#1b3a57] p-1" role="tablist">{(["today", "day", "timeline", "week", "year"] as const).map((v) => <button key={v} type="button" role="tab" aria-selected={view === v} onClick={() => setView(v)} className={`rounded-full px-3 py-1.5 text-sm font-bold ${view === v ? "bg-[#f5c542] text-[#1b3a57]" : "text-white/85"}`} data-testid={`tt-view-${v}`}>{v === "today" ? tr("Today", "اليوم") : v === "day" ? tr("Day", "يوم") : v === "timeline" ? tr("Timeline", "خط زمني") : v === "week" ? tr("Week", "أسبوع") : tr("Year", "سنة")}</button>)}</div>
@@ -332,7 +335,7 @@ export function TimetableManager({ asAdmin, full = false }: { asAdmin: boolean; 
         <span className="flex-1" />
         {!asAdmin && !!d.peers?.length && (d.acc.peers || d.acc.observe) && <select className={fld + " !w-auto"} value={src} onChange={(e) => setSrc(e.target.value)} aria-label={tr("Whose timetable", "جدول من")} data-testid="tt-src"><option value="">{tr("My timetable", "جدولي")}</option>{d.peers.filter((p) => p.same || d.acc.observe).map((p) => <option key={p.id} value={p.id}>{p.name}{p.same ? "" : " ·"}</option>)}</select>}
         {!asAdmin && d.acc.observe && <button type="button" className="rounded-full bg-[#f5c542] px-4 py-1.5 text-sm font-bold text-[#1b3a57]" onClick={() => { const p = (d.peers || []).find((x) => x.same || d.acc.observe); if (!p) { setMsg(tr("No colleagues in your department are available to observe yet.", "لا يوجد زملاء في قسمك متاحون للملاحظة بعد.")); return; } if (!src) setSrc(p.id); setView("day"); setMsg(tr("Choose a colleague above, then press “Request to observe” on a lesson.", "اختر زميلًا أعلاه ثم اضغط «طلب ملاحظة» على حصة.")); }} data-testid="tt-obs-request">👀 {tr("Request peer observation", "طلب ملاحظة زميل")}</button>}
-        {(asAdmin || (d.acc.compare && !!d.peers?.length)) && <button type="button" className="rounded-full bg-[#1b3a57] px-4 py-1.5 text-sm font-bold text-[#f5c542]" onClick={() => setCmp(!cmp)} data-testid="tt-compare-btn">⚖️ {tr("Compare teachers", "مقارنة المعلمين")}</button>}
+        {!pupil && (asAdmin || (d.acc.compare && !!d.peers?.length)) && <button type="button" className="rounded-full bg-[#1b3a57] px-4 py-1.5 text-sm font-bold text-[#f5c542]" onClick={() => setCmp(!cmp)} data-testid="tt-compare-btn">⚖️ {tr("Compare teachers", "مقارنة المعلمين")}</button>}
       </div>
       {ro && <p className="rounded-xl bg-sky-100 px-3 py-2 text-sm font-bold text-sky-900" data-testid="tt-ro">👁️ {tr(`Viewing ${d.peers?.find((p) => p.id === src)?.name || ""}'s timetable (read-only).`, `عرض جدول ${d.peers?.find((p) => p.id === src)?.name || ""} (للقراءة فقط).`)}</p>}
       {coverOpen && <CoverPanel d={d} asAdmin={asAdmin} day0={weekOf} onClose={() => setCoverOpen(false)} onSaved={load} />}

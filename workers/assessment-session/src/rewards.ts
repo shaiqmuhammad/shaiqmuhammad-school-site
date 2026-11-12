@@ -4,6 +4,7 @@
  * Collect: balance + history. Redeem: Reward Shop (`rcshop`) -> request (`rcred`) -> teacher/admin approve.
  * Admin plan in settings 'rc_plan'. Teacher access = ModulePerms "rw" (view / add / edit).
  */
+import { mpOf } from "./modperm";
 type Row = Record<string, unknown>;
 type Sql = { exec: (q: string, ...b: unknown[]) => { toArray: () => Row[] } };
 type Act = { id: string; role: string; name: string; cls?: string; perms: string[]; viewAs?: boolean; subj?: string[] };
@@ -43,6 +44,9 @@ export function rcInit(sql: Sql) {
   sql.exec(`CREATE TABLE IF NOT EXISTS rc (id TEXT PRIMARY KEY, student TEXT, kind TEXT, ref TEXT, amt INTEGER, label TEXT, by TEXT, at INTEGER, UNIQUE (student, kind, ref))`);
   sql.exec(`CREATE INDEX IF NOT EXISTS rc_student ON rc(student, at)`);
   sql.exec(`CREATE TABLE IF NOT EXISTS rcshop (id TEXT PRIMARY KEY, name TEXT, name_ar TEXT, icon TEXT, cost INTEGER, stock INTEGER DEFAULT -1, bands TEXT DEFAULT 'abc', on_ INTEGER DEFAULT 1, pos INTEGER DEFAULT 0)`);
+  const shopCols = new Set(sql.exec(`PRAGMA table_info(rcshop)`).toArray().map((r) => String(r.name)));
+  if (!shopCols.has("kind")) sql.exec(`ALTER TABLE rcshop ADD COLUMN kind TEXT DEFAULT ''`);
+  sql.exec(`UPDATE rcshop SET kind='excellence' WHERE (kind IS NULL OR kind='') AND (name='Certificate of Excellence' OR name_ar='شهادة تميز')`);
   sql.exec(`CREATE TABLE IF NOT EXISTS rcred (id TEXT PRIMARY KEY, student TEXT, item TEXT, name TEXT, icon TEXT, cost INTEGER, status TEXT, by TEXT, note TEXT DEFAULT '', at INTEGER, decided INTEGER DEFAULT 0)`);
   if (!sql.exec(`SELECT 1 FROM settings WHERE k='rc_shop_seeded'`).toArray().length) {
     DEF_SHOP.forEach(([n, ar, ic, c], i) => sql.exec(`INSERT INTO rcshop (id, name, name_ar, icon, cost, stock, bands, on_, pos) VALUES (?, ?, ?, ?, ?, -1, 'abc', 1, ?)`, rid("rs"), n, ar, ic, c, i));
@@ -138,7 +142,28 @@ function history(sql: Sql, sid: string, p: Plan, limit = 80) {
   for (const r of sql.exec(`SELECT * FROM rcred WHERE student=? AND status IN ('pending','approved','fulfilled') ORDER BY at DESC LIMIT ?`, sid, limit).toArray()) rows.push({ at: Number(r.at), amt: -Number(r.cost), label: String(r.name), kind: "spend", by: String(r.status), icon: String(r.icon || "🎁") });
   return rows.sort((x, y) => y.at - x.at).slice(0, limit);
 }
-const shopOut = (r: Row) => ({ id: String(r.id), name: String(r.name), nameAr: String(r.name_ar || ""), icon: String(r.icon || "🎁"), cost: Number(r.cost), stock: Number(r.stock), bands: String(r.bands || "abc"), on: Number(r.on_) === 1, pos: Number(r.pos) });
+const shopOut = (r: Row) => ({ id: String(r.id), name: String(r.name), nameAr: String(r.name_ar || ""), icon: String(r.icon || "🎁"), cost: Number(r.cost), stock: Number(r.stock), bands: String(r.bands || "abc"), on: Number(r.on_) === 1, pos: Number(r.pos), kind: String(r.kind || "") });
+type ExcDesign = { titleEn: string; titleAr: string; lineEn: string; lineAr: string; closeEn: string; closeAr: string; signEn: string; signAr: string; ink: string; gold: string };
+const EXC_DEF: ExcDesign = {
+  titleEn: "Certificate of Excellence", titleAr: "شهادة تميز",
+  lineEn: "This certificate is awarded to", lineAr: "تُمنح هذه الشهادة إلى",
+  closeEn: "for excellent effort, care for others, and a love of learning.", closeAr: "تقديرًا للجهود الممتازة والاهتمام بالآخرين وحب التعلم.",
+  signEn: "With appreciation", signAr: "مع التقدير", ink: "#1b3a57", gold: "#c9a227",
+};
+const clip = (v: unknown, n: number, d: string) => { const t = s(v, n); return t || d; };
+const hexOf = (v: unknown, d: string) => (/^#[0-9a-f]{6}$/i.test(String(v || "")) ? String(v).toLowerCase() : d);
+function designOf(sql: Sql): ExcDesign {
+  let v: Partial<ExcDesign> = {};
+  try { v = JSON.parse(String(sql.exec(`SELECT v FROM settings WHERE k='exc_cert'`).toArray()[0]?.v || "{}")); } catch { /* defaults */ }
+  return {
+    titleEn: clip(v.titleEn, 80, EXC_DEF.titleEn), titleAr: clip(v.titleAr, 80, EXC_DEF.titleAr),
+    lineEn: clip(v.lineEn, 120, EXC_DEF.lineEn), lineAr: clip(v.lineAr, 120, EXC_DEF.lineAr),
+    closeEn: clip(v.closeEn, 180, EXC_DEF.closeEn), closeAr: clip(v.closeAr, 180, EXC_DEF.closeAr),
+    signEn: clip(v.signEn, 80, EXC_DEF.signEn), signAr: clip(v.signAr, 80, EXC_DEF.signAr),
+    ink: hexOf(v.ink, EXC_DEF.ink), gold: hexOf(v.gold, EXC_DEF.gold),
+  };
+}
+const canDesign = (sql: Sql, a: Act) => a.role === "admin" || (a.role === "teacher" && mpOf(sql, a, "rw").exc);
 const redOut = (r: Row) => ({ id: String(r.id), student: String(r.student), sname: String(r.sname || ""), cls: String(r.cls || ""), item: String(r.item), name: String(r.name), icon: String(r.icon || ""), cost: Number(r.cost), status: String(r.status), by: String(r.by || ""), note: String(r.note || ""), at: Number(r.at), decided: Number(r.decided || 0) });
 
 export async function rcHandle(c: RcCtx, a: Act, action: string, input: Record<string, unknown>): Promise<Res> {
@@ -157,7 +182,8 @@ export async function rcHandle(c: RcCtx, a: Act, action: string, input: Record<s
       const shop = sql.exec(`SELECT * FROM rcshop WHERE on_=1 ORDER BY pos, cost`).toArray().map(shopOut).filter((x) => x.bands.includes(band));
       const reqs = sql.exec(`SELECT * FROM rcred WHERE student=? ORDER BY at DESC LIMIT 50`, a.id).toArray().map(redOut);
       const rules = Object.fromEntries(RC_RULES.map((r) => [r, p.rules[r][band]]));
-      return ok({ on: p.on, band, ...balanceOf(sql, a.id, p), history: history(sql, a.id, p), shop, requests: reqs, rules, cap: p.cap[band], labels: RC_LABEL });
+      const excellence = sql.exec(`SELECT id FROM rcshop WHERE kind='excellence'`).toArray().map((r) => String(r.id));
+      return ok({ on: p.on, band, ...balanceOf(sql, a.id, p), history: history(sql, a.id, p), shop, requests: reqs, rules, cap: p.cap[band], labels: RC_LABEL, excellence, design: designOf(sql) });
     }
     case "rc-act": {
       if (a.role !== "student" || !write || !p.on) return ok({ ok: false });
@@ -197,7 +223,7 @@ export async function rcHandle(c: RcCtx, a: Act, action: string, input: Record<s
       const requests = sql.exec(`SELECT r.*, u.name AS sname, u.cls AS cls FROM rcred r LEFT JOIN users u ON u.id=r.student ORDER BY CASE r.status WHEN 'pending' THEN 0 WHEN 'approved' THEN 1 ELSE 2 END, r.at DESC LIMIT 300`).toArray().filter((r) => ids.has(String(r.student)) || a.role === "admin").map(redOut);
       const shop = sql.exec(`SELECT * FROM rcshop ORDER BY pos, cost`).toArray().map(shopOut);
       const classes = [...new Set(sql.exec(`SELECT DISTINCT cls FROM users WHERE role='student' AND COALESCE(disabled,0)=0 ORDER BY cls`).toArray().map((r) => String(r.cls || "")).filter(Boolean))];
-      return ok({ acc, plan: p, students, requests, shop, classes, labels: RC_LABEL, admin: a.role === "admin" });
+      return ok({ acc, plan: p, students, requests, shop, classes, labels: RC_LABEL, admin: a.role === "admin", design: canDesign(sql, a) ? designOf(sql) : null });
     }
     case "rc-student": {
       if (!staff || !acc.view) return no("module_hidden");
@@ -243,16 +269,35 @@ export async function rcHandle(c: RcCtx, a: Act, action: string, input: Record<s
       if (a.role !== "admin" || !write) return no("admin_only");
       const name = s(input.name, 60); if (!name) return no("name_required", 400);
       const bands = [...new Set(s(input.bands, 3).split("").filter((x) => "abc".includes(x)))].join("") || "abc";
-      const vals = [name, s(input.nameAr, 60), s(input.icon, 8) || "🎁", num(input.cost, 1, 10000, 10), num(input.stock, -1, 100000, -1), bands, input.on === false ? 0 : 1, num(input.pos, 0, 999, 50)];
+      const kind = s(input.kind, 20) === "excellence" ? "excellence" : "";
+      const vals = [name, s(input.nameAr, 60), s(input.icon, 8) || "🎁", num(input.cost, 1, 10000, 10), num(input.stock, -1, 100000, -1), bands, input.on === false ? 0 : 1, num(input.pos, 0, 999, 50), kind];
       const id = s(input.id, 40);
-      if (id && sql.exec(`SELECT 1 FROM rcshop WHERE id=?`, id).toArray().length) sql.exec(`UPDATE rcshop SET name=?, name_ar=?, icon=?, cost=?, stock=?, bands=?, on_=?, pos=? WHERE id=?`, ...vals, id);
-      else sql.exec(`INSERT INTO rcshop (name, name_ar, icon, cost, stock, bands, on_, pos, id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, ...vals, rid("rs"));
+      if (id && sql.exec(`SELECT 1 FROM rcshop WHERE id=?`, id).toArray().length) sql.exec(`UPDATE rcshop SET name=?, name_ar=?, icon=?, cost=?, stock=?, bands=?, on_=?, pos=?, kind=? WHERE id=?`, ...vals, id);
+      else sql.exec(`INSERT INTO rcshop (name, name_ar, icon, cost, stock, bands, on_, pos, kind, id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, ...vals, rid("rs"));
       return ok({ ok: true });
     }
     case "rc-shop-delete": {
       if (a.role !== "admin" || !write) return no("admin_only");
       sql.exec(`DELETE FROM rcshop WHERE id=?`, s(input.id, 40));
       return ok({ ok: true });
+    }
+    case "rc-cert-get": {
+      if (a.role !== "student" && !staff) return no();
+      return ok({ design: designOf(sql) });
+    }
+    case "rc-cert-save": {
+      if (!write || !canDesign(sql, a)) return no();
+      const raw = (input.design || {}) as Partial<ExcDesign>;
+      const next = designOf(sql);
+      const saved: ExcDesign = {
+        titleEn: clip(raw.titleEn, 80, next.titleEn), titleAr: clip(raw.titleAr, 80, next.titleAr),
+        lineEn: clip(raw.lineEn, 120, next.lineEn), lineAr: clip(raw.lineAr, 120, next.lineAr),
+        closeEn: clip(raw.closeEn, 180, next.closeEn), closeAr: clip(raw.closeAr, 180, next.closeAr),
+        signEn: clip(raw.signEn, 80, next.signEn), signAr: clip(raw.signAr, 80, next.signAr),
+        ink: hexOf(raw.ink, next.ink), gold: hexOf(raw.gold, next.gold),
+      };
+      sql.exec(`INSERT OR REPLACE INTO settings (k, v) VALUES ('exc_cert', ?)`, JSON.stringify(saved));
+      return ok({ design: saved });
     }
   }
   return no("unknown_action", 404);

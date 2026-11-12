@@ -24,6 +24,8 @@ import { GRADE_STYLE, STATUS_STYLE, card, gradeLabel, inputCls, smallBtn, status
 import { quranExtras, ayahAudio, lmsApi, lmsErrorText, quranChapters, quranVerses, type Chapter, type GeneralData, type QuranData, type Submission, type Attempt, type Mistake, type QrLink, type Catalog, type DashStudent } from "@/lib/lms";
 
 const quranFont = Amiri_Quran({ weight: "400", subsets: ["arabic"], display: "swap" });
+const stamp = (n: number | null | undefined, lang: string, time = false) => n ? new Date(n).toLocaleString(lang === "ar" ? "ar" : "en-GB", time ? { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" } : { day: "numeric", month: "short", year: "numeric" }) : "";
+const assignedAt = (hw: { created?: number; data?: unknown }) => { const a = (hw.data as { assignAt?: number } | undefined)?.assignAt; return a && a > 0 ? a : hw.created || 0; };
 
 type Data = Awaited<ReturnType<typeof lmsApi.homework>>;
 
@@ -195,7 +197,7 @@ function Comments({ sub }: { sub: Submission }) {
 }
 
 function StudentWork({ hw, sub, reload, chapters = [] }: { hw: Data["homework"]; sub: Submission | null; reload: () => void; chapters?: Chapter[] }) {
-  const { tr } = useTr();
+  const { tr, lang } = useTr();
   const lockName = (n: number, l: "en" | "ar") => { const c = chapters.find((x) => x.id === n); return c ? (l === "ar" ? c.name_arabic : c.name_simple) : String(n); };
   const [text, setText] = useState(sub?.text || "");
   const [practised] = useState(sub?.practised || false);
@@ -206,6 +208,7 @@ function StudentWork({ hw, sub, reload, chapters = [] }: { hw: Data["homework"];
   const [justSent] = useState(() => { try { const v = sessionStorage.getItem("sm_hw_sent") === hw.id; if (v) sessionStorage.removeItem("sm_hw_sent"); return v; } catch { return false; } });
   // t302: after a teacher comment on a submitted piece the student can respond (edit and submit again).
   const awaitingReply = sub?.status === "submitted" && (sub.comments || []).some((m) => (m.at || 0) > (sub.submittedAt || 0));
+  const sentBack = sub?.status === "returned" || awaitingReply;
   const locked = sub?.status === "approved" || (sub?.status === "submitted" && !awaitingReply) || !!hw.locked;
   const again = hw.kind === "quran" && sub?.grade === "red" && sub.status === "returned";
   const save = async (submit: boolean) => {
@@ -229,6 +232,7 @@ function StudentWork({ hw, sub, reload, chapters = [] }: { hw: Data["homework"];
         <h2 className="text-xl font-bold">{tr("My work", "عملي")}</h2>
         <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${STATUS_STYLE[sub?.status || "none"]}`} data-testid="hw-status">{statusLabel(sub?.status || "none", tr)}</span>
         {sub?.grade && <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${GRADE_STYLE[sub.grade]}`} data-testid="hw-grade">{gradeLabel(sub.grade, tr)}</span>}
+        {assignedAt(hw) > 0 && <span className="text-xs opacity-70" data-testid="hw-assigned-at">{tr("Assigned", "أُسند")} {stamp(assignedAt(hw), lang)}</span>}
         {sub?.scores && <ScoreBadges s={sub.scores} />}
       </div>
       {hw.locked && <p className="rounded-2xl bg-black/5 px-3 py-2 font-semibold dark:bg-white/10" data-testid="hw-locked">🔒 {hw.lockedBy ? tr(`Finish Surah ${lockName(hw.lockedBy.surah, "en")} verses ${hw.lockedBy.from}–${hw.lockedBy.to} first — your teacher must pass them (green or yellow).`, `أكمل سورة ${lockName(hw.lockedBy.surah, "ar")} الآيات ${hw.lockedBy.from}–${hw.lockedBy.to} أولًا — يجب أن يجتازها معلمك (أخضر أو أصفر).`) : tr("Finish the earlier verses first — your teacher must pass them (green or yellow).", "أكمل الآيات السابقة أولًا — يجب أن يجتازها معلمك (أخضر أو أصفر).")}</p>}
@@ -255,10 +259,12 @@ function StudentWork({ hw, sub, reload, chapters = [] }: { hw: Data["homework"];
       <textarea className={inputCls + " min-h-28"} value={text} onChange={(e) => setText(e.target.value)} disabled={locked} maxLength={4000} dir="auto" placeholder={hw.kind === "quran" ? tr("A note for your teacher (optional)", "ملاحظة لمعلمك (اختياري)") : tr("Your answer", "إجابتك")} data-testid="hw-text" />
       {!locked && (
         <div className="flex flex-wrap gap-2">
-          <button type="button" className={primaryBtn} disabled={busy || (hw.kind === "general" ? !(hw.data as { pack?: string }).pack && !text.trim() && !(sub?.audio || draftOk) : !(sub?.audio || draftOk))} onClick={() => { if (confirm(tr("Submit your homework now? You can only submit once.", "تسليم واجبك الآن؟ يمكنك التسليم مرة واحدة فقط."))) save(true); }} data-testid="hw-submit">📤 {tr("Submit Your Homework", "سلّم واجبك")}</button>
+          <button type="button" className={primaryBtn} disabled={busy || (hw.kind === "general" ? !(hw.data as { pack?: string }).pack && !text.trim() && !(sub?.audio || draftOk) : !(sub?.audio || draftOk))} onClick={() => { if (confirm(sentBack ? tr("Send this correction? You can send it once, unless your teacher sends it back again.", "إرسال هذا التصحيح؟ يمكنك إرساله مرة واحدة، إلا إذا أعاده معلمك مجددًا.") : tr("Submit your homework now? You can only submit once, unless your teacher sends it back.", "تسليم واجبك الآن؟ يمكنك التسليم مرة واحدة فقط، إلا إذا أعاده معلمك."))) save(true); }} data-testid="hw-submit">📤 {sentBack ? tr("Submit correction", "تسليم التصحيح") : tr("Submit Your Homework", "سلّم واجبك")}</button>
           <button type="button" className={smallBtn} disabled={busy} onClick={() => save(false)} data-testid="hw-draft">{tr("Save for later", "حفظ لاحقًا")}</button>
         </div>
       )}
+      {sub?.submittedAt ? <p className="text-sm opacity-80" data-testid="hw-submitted-at">{tr("Submitted", "سُلّم")} {stamp(sub.submittedAt, lang, true)}</p> : null}
+      {(sub?.status === "approved" || sub?.status === "returned") && <p className="text-sm opacity-80" data-testid="hw-corrected-at">{tr("Corrected", "صُحّح")} {stamp((sub.attempts && sub.attempts[sub.attempts.length - 1]?.at) || sub.updated, lang)}</p>}
       {(msg || (justSent && sub?.status === "submitted")) && <p className="font-semibold" role="status" data-testid="hw-msg">{msg || tr("✅ Your homework has been submitted! Your teacher will check it soon.", "✅ تم تسليم واجبك! سيراجعه معلمك قريبًا.")}</p>}
       {sub && <Comments sub={sub} />}
       {sub?.versions && sub.versions.length > 0 ? <VersionTimeline list={sub.versions} audio={(id) => <AudioClip id={id} testId="version-clip" />} /> : sub?.attempts && sub.attempts.length > 0 && <Attempts list={sub.attempts} />}
@@ -277,7 +283,7 @@ function Attempts({ list, asAdmin = false }: { list: Attempt[]; asAdmin?: boolea
             <b>#{x.n}</b>
             <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${GRADE_STYLE[x.grade]}`}>{gradeLabel(x.grade, tr)}</span>
             <ScoreBadges s={x.scores} compact />
-            <span className="opacity-60">{x.by} · {new Date(x.at).toLocaleDateString()}</span>
+            <span className="opacity-60">{x.by} · {new Date(x.at).toLocaleString(undefined, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
             {x.audio && <AudioClip id={x.audio} asAdmin={asAdmin} testId="attempt-clip" />}
           </li>
         ))}
@@ -298,7 +304,7 @@ const PRESETS: [string, string][] = [
 function Review({ s, asAdmin, reload, quran, qdata, regrade = false, onGraded, pack }: { s: NonNullable<Data["subs"]>[number]; asAdmin: boolean; reload: () => void; quran: boolean; qdata?: QuranData; regrade?: boolean; onGraded?: () => void; pack?: string }) {
   const [editGrade, setEditGrade] = useState(false);
   const [slidesOpen, setSlidesOpen] = useState(false);
-  const { tr } = useTr();
+  const { tr, lang } = useTr();
   const [marking, setMarking] = useState(false);
   const [mistakes, setMistakes] = useState<Mistake[]>(s.mistakes || []);
   const toggleWord = async (ayah: number, word: number, text: string) => {
@@ -340,6 +346,8 @@ function Review({ s, asAdmin, reload, quran, qdata, regrade = false, onGraded, p
       <div className="flex flex-wrap items-center gap-2">
         <b dir="auto">{s.name}</b>
         <span className="text-sm opacity-60">{s.cls}</span>
+        {s.submittedAt ? <span className="text-xs opacity-70" data-testid="hw-sub-submitted">{tr("Submitted", "سُلّم")} {stamp(s.submittedAt, lang, true)}</span> : null}
+        {(s.status === "approved" || s.status === "returned" || s.grade) && <span className="text-xs opacity-70" data-testid="hw-sub-corrected">{tr("Corrected", "صُحّح")} {stamp((s.attempts && s.attempts[s.attempts.length - 1]?.at) || s.updated, lang)}</span>}
         {pack && <button type="button" className={smallBtn} onClick={() => setSlidesOpen(!slidesOpen)} data-testid="hw-sub-slides">🖼️ {slidesOpen ? tr("Hide slides", "إخفاء الشرائح") : tr("View their slides", "عرض شرائحه")}</button>}
         <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${STATUS_STYLE[s.status]}`} data-testid="hw-sub-status">{statusLabel(s.status, tr)}</span>
         {s.practised && <span className="text-sm">✅ {tr("practised", "تدرّب")}</span>}
@@ -394,6 +402,7 @@ function Review({ s, asAdmin, reload, quran, qdata, regrade = false, onGraded, p
 /** One homework: student does it; teacher sees every submission and reviews. */
 export function LmsHomework() {
   const [subTab, setSubTab] = useState<"cur" | "corr">("cur");
+  const [deck, setDeck] = useState(false);
   const [gradeMsg, setGradeMsg] = useState("");
   // eslint-disable-next-line react-hooks/set-state-in-effect -- deep link from the Corrected homework page
   useEffect(() => { if (window.location.hash === "#corrected") setSubTab("corr"); }, []);
@@ -465,6 +474,7 @@ export function LmsHomework() {
                 {subtitle}
                 {hw.due ? ` · ${tr("due", "التسليم")} ${new Date(hw.due).toLocaleDateString(lang === "ar" ? "ar" : "en-GB")}` : ""}
               </p>
+              {assignedAt(hw) > 0 && <p className="text-sm opacity-70" data-testid="hw-assigned">{tr("Assigned", "أُسند")} {stamp(assignedAt(hw), lang)}</p>}
               <CurChip type="hw" id={hw.id} asAdmin={asAdmin} />
               {hw.kind === "quran" && q?.notes && <p className="rounded-2xl bg-amber-50 px-3 py-2 dark:bg-amber-900/30" dir="auto">📌 {q.notes}</p>}
             </header>
@@ -520,7 +530,7 @@ export function LmsHomework() {
                   const nCorr = all.filter(isCorr).length;
                   return (
                     <>
-                      <h2 className="text-xl font-bold">{tr("Submissions", "التسليمات")} ({all.length})</h2>
+                      <div className="flex flex-wrap items-center gap-2"><h2 className="text-xl font-bold">{tr("Submissions", "التسليمات")} ({all.length})</h2>{all.length > 0 && <button type="button" className={smallBtn} onClick={() => setDeck(true)} data-testid="hw-review-full">⛶ {tr("Full screen correction", "تصحيح بملء الشاشة")}</button>}</div>
                       <div className="flex flex-wrap gap-2" role="tablist">
                         <button type="button" role="tab" aria-selected={subTab === "cur"} onClick={() => setSubTab("cur")} className={`rounded-full px-4 py-1.5 text-sm font-extrabold ${subTab === "cur" ? "bg-header text-white" : "bg-black/5 dark:bg-white/10"}`} data-testid="subs-tab-current">📥 {tr("To review", "للمراجعة")} ({all.filter(toRev).length})</button>
                         <button type="button" role="tab" aria-selected={subTab === "corr"} onClick={() => setSubTab("corr")} className={`rounded-full px-4 py-1.5 text-sm font-extrabold ${subTab === "corr" ? "bg-header text-white" : "bg-black/5 dark:bg-white/10"}`} data-testid="subs-tab-corrected">✅ {tr("Corrected", "المصحَّح")} ({nCorr})</button>
@@ -540,6 +550,22 @@ export function LmsHomework() {
                   <p className="text-sm opacity-75" data-testid="hw-not-started">{tr("Not started:", "لم يبدؤوا:")} {d!.notStarted!.map((n) => n.name).join(", ")}</p>
                 )}
               </section>
+            )}
+            {deck && staff && hw && (
+              <div className="fixed inset-0 z-[2600] overflow-y-auto bg-[#0b1b2b] text-white snap-y snap-mandatory" data-testid="hw-review-deck">
+                <div className="sticky top-0 z-10 flex items-center justify-between gap-3 bg-[#10263b]/95 px-4 py-3">
+                  <b>{tr("Scroll up and down through every submission", "مرّر للأعلى والأسفل بين كل التسليمات")}</b>
+                  <button type="button" className="rounded-full bg-white/15 px-3 py-1 text-sm font-bold text-white" onClick={() => setDeck(false)} data-testid="hw-review-full-exit">✕ {tr("Close", "إغلاق")}</button>
+                </div>
+                {(d?.subs || []).map((s) => (
+                  <section key={s.id} className="flex min-h-[100dvh] snap-start flex-col gap-3 border-b border-white/10 p-4" data-testid="hw-review-slide">
+                    <h2 className="text-2xl font-extrabold text-white" dir="auto">{s.name} <span className="text-base font-semibold text-white/70">{s.cls}</span></h2>
+                    {s.submittedAt ? <p className="text-sm text-white/80">{tr("Submitted", "سُلّم")} {stamp(s.submittedAt, lang, true)}</p> : null}
+                    {hw.kind === "quran" ? <div className="rounded-3xl bg-white p-3 text-[#1b2f44]"><QuranReader data={hw.data as QuranData} mistakes={s.mistakes || []} /></div> : ((hw.data as unknown) as { pack?: string }).pack ? <div className="min-h-[70vh] overflow-hidden rounded-3xl bg-white"><PackPlayer id={((hw.data as unknown) as { pack: string }).pack} asAdmin={asAdmin} review={{ student: s.student }} /></div> : <div className="rounded-3xl bg-white p-3 text-[#1b2f44]"><Slides data={hw.data as GeneralData} /></div>}
+                    <ul>{<Review pack={(hw.data as { pack?: string }).pack} quran={hw.kind === "quran"} qdata={hw.kind === "quran" ? (hw.data as QuranData) : undefined} s={s} asAdmin={asAdmin} reload={load} />}</ul>
+                  </section>
+                ))}
+              </div>
             )}
           </>
         )}

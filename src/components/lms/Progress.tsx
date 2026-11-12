@@ -1,13 +1,15 @@
 "use client";
 // t289: Arabic Surah certificate for Islamic A students.
 
-import { DlGate } from "@/components/lms/DlGate";
 import { dlGrant } from "@/lib/dl";
+import { escapeHtml, htmlBlocksToPdf } from "@/lib/exportUtils";
+import { registerSlideFocus } from "@/components/FullscreenToggle";
+import { requestElFullscreen } from "@/components/FocusMode";
 import { CriteriaChart, TrackerEntries } from "@/components/lms/QuranScores";
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { lmsApi, lmsErrorText, lmsSession, quranChapters, type Chapter, type MapRow, type Progress, type TrackerRow } from "@/lib/lms";
-import { GRADE_STYLE, STATUS_STYLE, card, gradeLabel, inputCls, smallBtn, statusLabel, useTr } from "@/components/lms/useLms";
+import { GRADE_STYLE, STATUS_STYLE, card, gradeLabel, inputCls, smallBtn, statusLabel, useLmsActor, useTr } from "@/components/lms/useLms";
 
 type Tr = (en: string, ar: string) => string;
 const BADGES: Record<string, [string, string, string]> = {
@@ -187,22 +189,53 @@ async function downloadCertificateAr(name: string, c: Chapter) {
   (window as unknown as { __lastCert?: string }).__lastCert = pdf.output("datauristring");
 }
 
+const certThumbs = new Map<string, string>();
+function certThumb(title: string, who: string): string {
+  if (typeof document === "undefined") return "";
+  const key = `${title}|${who}`;
+  const hit = certThumbs.get(key);
+  if (hit) return hit;
+  const cv = document.createElement("canvas");
+  cv.width = 280; cv.height = 196;
+  const g = cv.getContext("2d");
+  if (!g) return "";
+  g.fillStyle = "#fffaf0"; g.fillRect(0, 0, 280, 196);
+  g.strokeStyle = "#1b3a57"; g.lineWidth = 8; g.strokeRect(8, 8, 264, 180);
+  g.strokeStyle = "#f5c542"; g.lineWidth = 3; g.strokeRect(16, 16, 248, 164);
+  g.textAlign = "center"; g.fillStyle = "#1b3a57";
+  g.font = "bold 16px Georgia, serif"; g.fillText(title.slice(0, 32), 140, 58);
+  g.fillStyle = "#b8892b"; g.font = "bold 18px Georgia, serif"; g.fillText(who.slice(0, 26), 140, 100);
+  g.fillStyle = "#f5c542"; g.beginPath(); g.arc(140, 148, 16, 0, Math.PI * 2); g.fill();
+  g.fillStyle = "#1b3a57"; g.font = "bold 16px serif"; g.fillText("★", 140, 154);
+  const url = cv.toDataURL("image/jpeg", 0.86);
+  certThumbs.set(key, url);
+  return url;
+}
+
 export function Certificates({ tracker, student, nameAr, arabic: arIn }: { tracker: TrackerRow[]; student: string; nameAr?: string; arabic?: boolean }) {
-  const { tr } = useTr();
+  const { tr, lang } = useTr();
   // Signed-in student: their own subject decides (Islamic A → Arabic certificate).
   const [mine, setMine] = useState<{ arabic: boolean; nameAr: string } | null>(null);
   useEffect(() => { if (arIn === undefined && lmsSession()?.user.role === "student") lmsApi.me().then((r) => setMine({ arabic: !!r.user.arabic, nameAr: r.user.nameAr || "" })).catch(() => undefined); }, [arIn]);
   const arOpt = { arabic: arIn ?? mine?.arabic, nameAr: nameAr ?? mine?.nameAr };
   const ch = useChapters();
   const done = completedSurahs(tracker, ch);
+  const [live, setLive] = useState(false);
+  useEffect(() => setLive(true), []);
   if (!done.length) return null;
+  const who = (arOpt.arabic && arOpt.nameAr) || student;
   return (
-    <DlGate kind="export"><section className={card + " space-y-2"} data-testid="lms-certificates">
+    <section className={card + " space-y-2"} data-testid="lms-certificates">
       <h2 className="text-xl font-bold">🎓 {tr("Certificates", "الشهادات")}</h2>
-      <div className="flex flex-wrap gap-2">
-        {done.map((c) => <button key={c.id} type="button" className={smallBtn} onClick={() => downloadCertificate(student, c, tr, arOpt)} data-testid="lms-cert">⬇ {c.name_simple}</button>)}
+      <div className="flex flex-wrap gap-3">
+        {done.map((c) => (
+          <button key={c.id} type="button" className="w-40 overflow-hidden rounded-2xl border border-black/10 bg-[#fffaf0] text-start shadow-sm" onClick={() => downloadCertificate(who, c, tr, arOpt)} data-testid="lms-cert">
+            {live && <img src={certThumb(tr("Certificate of Memorisation", "شهادة حفظ"), lang === "ar" ? c.name_arabic : c.name_simple)} alt="" className="h-28 w-full object-cover" />}
+            <span className="block px-2 py-1.5 text-xs font-extrabold text-[#1b3a57]">{lang === "ar" ? c.name_arabic : c.name_simple}</span>
+          </button>
+        ))}
       </div>
-    </section></DlGate>
+    </section>
   );
 }
 
@@ -220,8 +253,17 @@ export function TrackerBadges({ tracker }: { tracker: TrackerRow[] }) {
 
 /** Class Quran map: students × surahs coloured by best grade. */
 export function QuranMap({ asAdmin = false, classes = [], sections = [] }: { asAdmin?: boolean; classes?: string[]; sections?: { cls: string; name: string }[] }) {
-  const { tr } = useTr();
+  const { tr, lang } = useTr();
+  const { actor } = useLmsActor();
   const ch = useChapters();
+  const box = useRef<HTMLElement>(null);
+  const [live, setLive] = useState(false);
+  useEffect(() => setLive(true), []);
+  const canPdf = asAdmin || actor?.role === "admin" || !!actor?.mods?.lp?.qmap;
+  useEffect(() => registerSlideFocus({
+    enter: async () => { box.current?.classList.add("qmap-fill"); await requestElFullscreen(box.current); },
+    exit: () => { box.current?.classList.remove("qmap-fill"); if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined); },
+  }), []);
   const [cls, setCls] = useState(classes[0] || "");
   const [section, setSection] = useState("");
   const [crit, setCrit] = useState<"" | "m" | "t" | "r" | "h">("");
@@ -230,10 +272,15 @@ export function QuranMap({ asAdmin = false, classes = [], sections = [] }: { asA
   useEffect(() => { lmsApi.quranMap(cls, section, asAdmin).then(setD).catch((e) => setErr(lmsErrorText(e, tr))); }, [cls, section, asAdmin, tr]);
   const cellCls = (g: string) => (g === "green" ? "bg-emerald-500" : g === "yellow" ? "bg-amber-400" : g === "red" ? "bg-rose-600" : "bg-black/5 dark:bg-white/10");
   return (
-    <section className={card + " space-y-3"} data-testid="lms-quran-map">
+    <section ref={box} className={card + " space-y-3"} data-testid="lms-quran-map">
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="text-xl font-bold">🗺️ {tr("Class Quran map", "خريطة القرآن للصف")}</h2>
         <span className="flex-1" />
+        {canPdf && d && d.rows.length > 0 && <button type="button" className={smallBtn} data-testid="map-pdf" onClick={() => {
+          const head = `<tr><th>${escapeHtml(tr("Student", "الطالب"))}</th>${d.surahs.map((s) => `<th>${escapeHtml(surahLabel(ch, s))}</th>`).join("")}</tr>`;
+          const body = d.rows.map((r) => `<tr><td>${escapeHtml(r.name)}</td>${d.surahs.map((s) => { const g = r.cells[s]?.grade || ""; return `<td>${g === "green" ? "●" : g === "yellow" ? "◐" : g === "red" ? "○" : ""}</td>`; }).join("")}</tr>`).join("");
+          void htmlBlocksToPdf([`<h1>${escapeHtml(tr("Class Quran map", "خريطة القرآن للصف"))}</h1><table>${head}${body}</table>`], `quran-map.pdf`, { landscape: true });
+        }}>⬇ {tr("Download PDF", "تنزيل PDF")}</button>}
         <select className={inputCls + " mt-0 w-auto!"} value={cls} onChange={(e) => { setCls(e.target.value); setSection(""); }} aria-label={tr("Class", "الصف")} data-testid="map-class">
           <option value="">{tr("All classes", "كل الصفوف")}</option>
           {classes.map((c) => <option key={c}>{c}</option>)}
@@ -263,7 +310,7 @@ export function QuranMap({ asAdmin = false, classes = [], sections = [] }: { asA
                   <td className="sticky start-0 border-t border-black/5 bg-white px-3 py-1.5 font-semibold whitespace-nowrap dark:border-white/10 dark:bg-[#0f1a26]">
                     {asAdmin ? <span dir="auto">{r.name}</span> : <Link href={`/lms/student?id=${encodeURIComponent(r.id)}`} className="underline-offset-2 hover:underline" dir="auto">{r.name}</Link>} <span className="opacity-50">{r.section}</span>
                   </td>
-                  {d.surahs.map((s) => { const c0 = r.cells[s]; const lv = crit && c0 ? (c0 as { m?: number; t?: number; r?: number; h?: number })[crit] : undefined; const c = c0 && crit ? { ...c0, grade: lv === 3 ? "green" : lv === 2 ? "yellow" : lv === 1 ? "red" : "" } : c0; return <td key={s} className="border-t border-black/5 p-1 text-center dark:border-white/10"><span className={`mx-auto block h-6 w-10 rounded ${cellCls(c?.grade || "")}`} title={c ? `${surahLabel(ch, s)}: ${gradeLabel(c.grade, tr)} · ${c.verses} ${tr("verses", "آيات")}` : ""} data-grade={c?.grade || ""} /></td>; })}
+                  {d.surahs.map((s) => { const c0 = r.cells[s]; const lv = crit && c0 ? (c0 as { m?: number; t?: number; r?: number; h?: number })[crit] : undefined; const c = c0 && crit ? { ...c0, grade: lv === 3 ? "green" : lv === 2 ? "yellow" : lv === 1 ? "red" : "" } : c0; const chapter = ch.find((x) => x.id === s); const passed = !!(c && chapter && c.verses >= chapter.verses_count && c.grade && c.grade !== "red"); return <td key={s} className="border-t border-black/5 p-1 text-center dark:border-white/10">{passed && chapter && live ? <button type="button" className="mx-auto block" title={`${surahLabel(ch, s)} · ${tr("Certificate", "شهادة")}`} data-testid="map-cert" onClick={() => downloadCertificate(r.name, chapter, tr, { arabic: lang === "ar", nameAr: r.name })}><img src={certThumb(lang === "ar" ? chapter.name_arabic : chapter.name_simple, r.name)} alt="" className="h-8 w-12 rounded object-cover ring-1 ring-[#f5c542]" /></button> : <span className={`mx-auto block h-6 w-10 rounded ${cellCls(c?.grade || "")}`} title={c ? `${surahLabel(ch, s)}: ${gradeLabel(c.grade, tr)} · ${c.verses} ${tr("verses", "آيات")}` : ""} data-grade={c?.grade || ""} />}</td>; })}
                 </tr>
               ))}
             </tbody>

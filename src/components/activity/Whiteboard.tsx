@@ -605,6 +605,12 @@ function Board({ code, who, state, reload, canDraw, isHost }: { code: string; wh
       </div>
       <div ref={svgBox} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onLostPointerCapture={up} onContextMenu={canDraw ? (e) => e.preventDefault() : undefined} onWheel={(e) => { if (curRef.current || dragRef.current || panDrag.current) return; const box = svgBox.current; if (box && box.scrollHeight > box.clientHeight + 4) { const atTop = box.scrollTop <= 0 && e.deltaY < 0; const atBot = box.scrollTop + box.clientHeight >= box.scrollHeight - 2 && e.deltaY > 0; if (!atTop && !atBot) { e.preventDefault(); box.scrollTop += e.deltaY; return; } } if (pageCount < 2) return; if (Math.abs(e.deltaY) < 24) return; goPage(page + (e.deltaY > 0 ? 1 : -1)); }} className={`relative overflow-auto rounded-[24px] shadow-xl ring-4 ring-[#1b3a57]/80 ${fillScreen ? "min-h-0 flex-1 max-h-none" : "max-h-[min(70vh,calc(100dvh-14rem))]"} ${canDraw ? `wb-draw-surface ${tool === "hand" ? (grabbing ? "cursor-grabbing" : "cursor-grab") : "cursor-crosshair"}` : ""}`} style={canDraw ? { touchAction: "none", overscrollBehavior: "none", userSelect: "none", WebkitUserSelect: "none" } : undefined} data-testid="wb-board">
         <div ref={stageRef} className="relative w-full" data-testid="wb-stage">
+          {(state.prompt || state.title) && (
+            <div className="pointer-events-none absolute start-3 top-3 z-10 max-w-[min(36rem,78%)] rounded-2xl bg-[#10263b]/90 px-4 py-2 text-white shadow-lg" data-testid="wb-prompt">
+              {state.title && <p className="text-sm font-bold text-white/80" dir="auto">{state.title}</p>}
+              {state.prompt && <p className="text-xl font-extrabold leading-snug text-white sm:text-2xl" dir="auto">{state.prompt}</p>}
+            </div>
+          )}
           <BoardArt strokes={onPage} bg={bg} names={o.labels !== false && !state.settings.hideNames} centre={state.prompt || state.title} tr={tr} inkOnCanvas extra={<path fill="none" strokeLinecap="round" strokeLinejoin="round" pointerEvents="none" />} />
           <canvas ref={inkRef} className="pointer-events-none absolute inset-0 h-full w-full bg-transparent" data-testid="wb-ink" />
           <canvas ref={liveRef} className="pointer-events-none absolute inset-0 h-full w-full bg-transparent" data-testid="wb-live" />
