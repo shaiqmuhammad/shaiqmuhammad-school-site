@@ -28,14 +28,14 @@ const OPEN_PILL = "inline-flex items-center justify-center rounded-full bg-[#1b3
 /** Same lift as the class cards on My classes, and the same eight colour pairs. */
 const PORTION_LIFT = "transition hover:-translate-y-1 hover:shadow-2xl";
 const PORTION_WASH = [
-  "from-sky-100 via-white to-blue-50 dark:from-sky-950/70 dark:via-[#13202e] dark:to-blue-950/50",
-  "from-amber-100 via-white to-orange-50 dark:from-amber-950/60 dark:via-[#13202e] dark:to-orange-950/40",
-  "from-emerald-100 via-white to-teal-50 dark:from-emerald-950/60 dark:via-[#13202e] dark:to-teal-950/40",
-  "from-pink-100 via-white to-rose-50 dark:from-pink-950/60 dark:via-[#13202e] dark:to-rose-950/40",
-  "from-violet-100 via-white to-violet-50 dark:from-violet-950/60 dark:via-[#13202e] dark:to-violet-950/40",
-  "from-teal-100 via-white to-cyan-50 dark:from-teal-950/60 dark:via-[#13202e] dark:to-cyan-950/40",
-  "from-orange-100 via-white to-red-50 dark:from-orange-950/50 dark:via-[#13202e] dark:to-red-950/40",
-  "from-lime-100 via-white to-green-50 dark:from-lime-950/50 dark:via-[#13202e] dark:to-green-950/40",
+  "from-sky-100 via-white to-blue-50",
+  "from-amber-100 via-white to-orange-50",
+  "from-emerald-100 via-white to-teal-50",
+  "from-pink-100 via-white to-rose-50",
+  "from-violet-100 via-white to-violet-50",
+  "from-teal-100 via-white to-cyan-50",
+  "from-orange-100 via-white to-red-50",
+  "from-lime-100 via-white to-green-50",
 ];
 const PORTION_BAR = [
   "from-sky-400 to-blue-600",
@@ -264,7 +264,7 @@ export function HwPortionGrid({
     const n = i % PORTION_WASH.length;
     const icon = h.kind === "quran" ? "📖" : isActivity(h) ? "🎲" : "📝";
     return (
-      <article key={h.id} className={`group relative overflow-hidden rounded-2xl border border-black/10 bg-gradient-to-br p-4 pt-5 shadow-md ring-1 ring-black/5 dark:border-white/10 ${PORTION_WASH[n]} ${PORTION_LIFT}`} data-testid="hw-portion">
+      <article key={h.id} className={`light-island group relative overflow-hidden rounded-2xl border border-black/10 bg-gradient-to-br p-4 pt-5 shadow-md ring-1 ring-black/5 ${PORTION_WASH[n]} ${PORTION_LIFT}`} data-testid="hw-portion">
         <span className={`pointer-events-none absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r ${PORTION_BAR[n]}`} aria-hidden />
         <p className="text-xl font-extrabold leading-tight text-heading sm:text-2xl" dir="auto"><span className="me-1 inline-block origin-center transition group-hover:scale-110" aria-hidden>{icon}</span>{h.title}</p>
         {isActivity(h) && <span className="mt-1 inline-flex rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-extrabold text-violet-900 dark:bg-violet-900/40 dark:text-violet-100" data-testid="hw-activity-badge">{tr("Activity", "نشاط")}</span>}
@@ -438,7 +438,7 @@ function LessonBoard({ asAdmin }: { asAdmin: boolean }) {
         <p className={cardCls + " text-center opacity-70"} data-testid="lesson-hub-empty">{bad && msg ? msg : tr("No lesson presentations for your classes yet. Build them in Lesson Builder — homework, activities and Quran homework stay on their own tabs.", "لا توجد عروض دروس لصفوفك بعد. أنشئها في منشئ الدروس — الواجبات والأنشطة وواجب القرآن تبقى في صفحاتها.")}</p>
       ) : (
         <div className="space-y-6" data-testid="lesson-portion-groups">
-          {groups.map((g, i) => {
+          {(() => { let lessonN = 0; return groups.map((g, i) => {
             const prev = groups[i - 1];
             const showYear = !prev || prev.year !== g.year;
             return (
@@ -448,9 +448,11 @@ function LessonBoard({ asAdmin }: { asAdmin: boolean }) {
                 <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                   {g.rows.map((p) => {
                     const a = lessonPlace(p);
+                    const n = lessonN++ % PORTION_WASH.length;
                     return (
-                      <article key={p.id} className={cardCls} data-testid="lesson-portion">
-                        <p className="text-lg font-extrabold" dir="auto">🎤 {p.title}</p>
+                      <article key={p.id} className={`light-island group relative overflow-hidden rounded-2xl border border-black/10 bg-gradient-to-br p-4 pt-5 shadow-md ring-1 ring-black/5 ${PORTION_WASH[n]} ${PORTION_LIFT}`} data-testid="lesson-portion">
+                        <span className={`pointer-events-none absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r ${PORTION_BAR[n]}`} aria-hidden />
+                        <p className="text-xl font-extrabold leading-tight text-heading sm:text-2xl" dir="auto"><span className="me-1 inline-block origin-center transition group-hover:scale-110" aria-hidden>🎤</span>{p.title}</p>
                         <HwMeta {...a} className="mt-1" />
                         <p className="mt-1 text-xs opacity-70">{p.count ?? p.slides?.length ?? 0} {tr("slides", "شرائح")} · {p.status === "published" ? tr("Ready to present", "جاهز للعرض") : tr("Draft", "مسودة")}{p.topic?.title ? ` · ${p.topic.title}` : ""}{p.updated ? ` · ${new Date(p.updated).toLocaleDateString(lang === "ar" ? "ar" : "en-GB")}` : ""}</p>
                         <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -464,7 +466,7 @@ function LessonBoard({ asAdmin }: { asAdmin: boolean }) {
                 </div>
               </section>
             );
-          })}
+          }); })()}
         </div>
       )}
     </div>
