@@ -5,14 +5,15 @@ import { AssessmentShell } from "@/components/assessment/AssessmentShell";
 import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
 import { useLmsActor, useTr } from "@/components/lms/useLms";
 import { lmsApi, lmsErrorText, lmsSession } from "@/lib/lms";
-import { downloadExcellenceCert, ExcellenceDesign, EXC_DEFAULT, type ExcDesign } from "@/components/lms/ExcellenceCert";
+import { ExcellenceDesign, ExcellencePreview, EXC_DEFAULT, type CertWho, type ExcDesign } from "@/components/lms/ExcellenceCert";
+import { StickerDesk } from "@/components/lms/Stickers";
 
 const NAVY = "#1b3a57", GOLD = "#f5c542";
 type Band = "a" | "b" | "c";
 type Hist = { at: number; amt: number; label: string; kind: string; by: string; icon: string };
 type Item = { id: string; name: string; nameAr: string; icon: string; cost: number; stock: number; bands: string; on: boolean; pos: number; kind?: string };
-type Req = { id: string; item?: string; student: string; sname: string; cls: string; name: string; icon: string; cost: number; status: string; by: string; note: string; at: number };
-type Me = { on: boolean; band: Band; balance: number; lifetime: number; spent: number; history: Hist[]; shop: Item[]; requests: Req[]; rules: Record<string, number>; cap: number; labels: Record<string, [string, string]>; excellence?: string[]; design?: ExcDesign };
+type Req = { id: string; item?: string; student: string; sname: string; cls: string; section?: string; name: string; icon: string; cost: number; status: string; by: string; note: string; at: number; subject?: string; year?: string; sticker?: string; kind?: string; choices?: string[] };
+type Me = { on: boolean; band: Band; balance: number; lifetime: number; spent: number; history: Hist[]; shop: Item[]; requests: Req[]; rules: Record<string, number>; cap: number; labels: Record<string, [string, string]>; excellence?: string[]; stickers?: string[]; subjects?: string[]; name?: string; nameAr?: string; badge?: string; design?: ExcDesign };
 type Plan = { on: boolean; deduct: boolean; legacy: boolean; resetAt: number; since: number; cap: Record<Band, number>; rules: Record<string, Record<Band, number>>; manualMax: number };
 type Stu = { id: string; name: string; cls: string; section: string; band: Band; balance: number; lifetime: number };
 type Staff = { acc: { view: boolean; add: boolean; edit: boolean; plan?: boolean }; plan: Plan; students: Stu[]; requests: Req[]; shop: Item[]; classes: string[]; labels: Record<string, [string, string]>; admin: boolean; design?: ExcDesign | null };
@@ -24,6 +25,49 @@ const btn = "rounded-full px-4 py-2 text-sm font-extrabold transition hover:scal
 const gold = `${btn} text-[#1b3a57]`;
 const inp = "rounded-xl border border-black/10 bg-white px-3 py-2 text-sm dark:border-white/15 dark:bg-white/5";
 const date = (t: number) => new Date(t).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+const granted = (s: string) => s === "approved" || s === "fulfilled";
+const isExc = (r: Req, ids?: string[]) => r.kind === "excellence" || (ids || []).includes(r.item || "") || r.name === "Certificate of Excellence";
+const isStk = (r: Req, ids?: string[]) => r.kind === "sticker" || (ids || []).includes(r.item || "") || r.name === "Sticker";
+
+function AwardPanels({ me, onChange }: { me: Me; onChange: () => void }) {
+  const { tr } = useTr();
+  const [open, setOpen] = useState<Req | null>(null);
+  const certs = me.requests.filter((r) => isExc(r, me.excellence) && granted(r.status));
+  const sticks = me.requests.filter((r) => isStk(r, me.stickers));
+  const locked = !!lmsSession()?.user.viewAs;
+  const who = (r: Req): CertWho => ({ name: me.name || lmsSession()?.user.name || "", nameAr: me.nameAr, cls: r.cls, section: r.section, subject: r.subject || "", year: r.year || "", at: r.at });
+  const refresh = () => { onChange(); window.dispatchEvent(new Event("sm-avatar")); };
+  if (!certs.length && !sticks.some((s) => granted(s.status) || s.status === "pending")) return null;
+  return (
+    <section className="space-y-3" data-testid="my-awards">
+      {certs.length > 0 && <h3 className="text-lg font-extrabold">📜 {tr("My certificates", "شهاداتي")}</h3>}
+      {certs.map((r) => (
+        <div key={r.id} className="flex flex-wrap items-center gap-2 rounded-2xl bg-white p-3 text-sm shadow-sm dark:bg-white/5">
+          <span className="text-2xl" aria-hidden>{r.icon || "📜"}</span>
+          <span className="min-w-0 flex-1"><b dir="auto">{tr("Certificate of Excellence", "شهادة تميز")}</b><span className="block text-xs opacity-70" dir="auto">{[r.subject, [r.cls, r.section].filter(Boolean).join(" "), r.year].filter(Boolean).join(" · ")}</span></span>
+          {!locked && !r.subject && (me.subjects || []).length > 0 && (
+            <select className={inp} aria-label={tr("Subject on the certificate", "المادة على الشهادة")} defaultValue="" onChange={(e) => { if (e.target.value) lmsApi.rc("subject", { id: r.id, subject: e.target.value }).then(onChange).catch(() => undefined); }}>
+              <option value="">{tr("Add subject", "أضف المادة")}</option>
+              {(me.subjects || []).map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          )}
+          <button type="button" className="rounded-full bg-[#1b3a57] px-3 py-1.5 text-xs font-bold text-[#f5c542]" data-testid="exc-open" onClick={() => setOpen(r)}>{tr("Open certificate", "افتح الشهادة")}</button>
+        </div>
+      ))}
+      <StickerDesk items={sticks.map((s) => ({ id: s.id, at: s.at, sticker: s.sticker || "", status: s.status }))} badge={me.badge || ""} locked={locked} onChoose={async (id, code) => { await lmsApi.rc("sticker", { id, code }); refresh(); }} onWear={async (code) => { await lmsApi.rc("badge", { code }); refresh(); }} />
+      {open && <ExcellencePreview who={who(open)} design={me.design || EXC_DEFAULT} onClose={() => setOpen(null)} />}
+    </section>
+  );
+}
+
+/** Certificates and stickers on the student's own account page. */
+export function StudentAwards() {
+  const [me, setMe] = useState<Me | null>(null);
+  const load = useCallback(() => { lmsApi.rc<Me>("me", { sync: false }).then(setMe).catch(() => setMe(null)); }, []);
+  useEffect(() => { load(); }, [load]);
+  if (!me) return null;
+  return <AwardPanels me={me} onChange={load} />;
+}
 
 function CardStack({ n, size = 64 }: { n: number; size?: number }) {
   return (
@@ -61,12 +105,19 @@ function StudentView() {
   const { tr, lang } = useTr();
   const [me, setMe] = useState<Me | null>(null);
   const [msg, setMsg] = useState("");
+  const [pick, setPick] = useState<Item | null>(null);
+  const [pickSub, setPickSub] = useState("");
   const load = useCallback(() => lmsApi.rc<Me>("me").then(setMe).catch((e) => setMsg(lmsErrorText(e, tr))), [tr]);
   useEffect(() => { load(); }, [load]);
   if (!me) return <p className="p-8 text-center opacity-70">{msg || tr("Loading…", "جارٍ التحميل…")}</p>;
   const L = (k: string) => (me.labels[k] ? tr(...me.labels[k]) : k);
   const { cur, next } = levelOf(me.lifetime);
-  const redeem = (it: Item) => { if (!confirm(tr(`Spend ${it.cost} cards on “${it.name}”?`, `استخدام ${it.cost} بطاقة لـ «${it.nameAr || it.name}»؟`))) return; lmsApi.rc("redeem", { item: it.id }).then(() => { setMsg(tr("Request sent! Your teacher will approve it. 🎉", "تم إرسال الطلب! سيوافق عليه معلمك. 🎉")); load(); }).catch((e) => setMsg(lmsErrorText(e, tr))); };
+  const redeem = (it: Item, subject?: string) => { if (!confirm(tr(`Spend ${it.cost} cards on “${it.name}”?`, `استخدام ${it.cost} بطاقة لـ «${it.nameAr || it.name}»؟`))) return; lmsApi.rc("redeem", { item: it.id, ...(subject ? { subject } : {}) }).then(() => { setPick(null); setMsg(tr("Request sent! Your teacher will approve it. 🎉", "تم إرسال الطلب! سيوافق عليه معلمك. 🎉")); load(); }).catch((e) => setMsg(lmsErrorText(e, tr))); };
+  const ask = (it: Item) => {
+    const cert = it.kind === "excellence" || it.name === "Certificate of Excellence";
+    if (cert && (me.subjects || []).length > 1) { setPick(it); setPickSub(""); return; }
+    redeem(it, cert && me.subjects?.length === 1 ? me.subjects[0] : undefined);
+  };
   const ST: Record<string, [string, string, string]> = { pending: ["Waiting", "بانتظار الموافقة", "bg-amber-100 text-amber-900"], approved: ["Approved", "تمت الموافقة", "bg-emerald-100 text-emerald-900"], fulfilled: ["Received", "تم الاستلام", "bg-sky-100 text-sky-900"], rejected: ["Not approved — cards returned", "مرفوض — أعيدت البطاقات", "bg-rose-100 text-rose-900"], cancelled: ["Cancelled", "ملغي", "bg-slate-100 text-slate-700"] };
   return (
     <div className="space-y-5">
@@ -98,21 +149,29 @@ function StudentView() {
               <b className="text-sm" dir="auto">{lang === "ar" && it.nameAr ? it.nameAr : it.name}</b>
               <span className="text-sm font-black" style={{ color: NAVY }}>🃏 {it.cost}</span>
               {it.stock >= 0 && <span className="text-xs opacity-60">{tr(`${it.stock} left`, `متبقٍ ${it.stock}`)}</span>}
-              <button type="button" disabled={!can} onClick={() => redeem(it)} className={gold} style={{ background: GOLD }}>{it.stock === 0 ? tr("Sold out", "نفد") : can ? tr("Get it", "اطلب") : tr(`Need ${it.cost - me.balance} more`, `تحتاج ${it.cost - me.balance}`)}</button>
+              <button type="button" disabled={!can} onClick={() => ask(it)} className={gold} style={{ background: GOLD }}>{it.stock === 0 ? tr("Sold out", "نفد") : can ? tr("Get it", "اطلب") : tr(`Need ${it.cost - me.balance} more`, `تحتاج ${it.cost - me.balance}`)}</button>
             </div>); })}
           {!me.shop.length && <p className="opacity-70">{tr("The shop is empty for now.", "المتجر فارغ حاليًا.")}</p>}
         </div>
       </section>
       {me.requests.length > 0 && <section className="glass rounded-3xl p-4">
         <h3 className="mb-2 text-lg font-extrabold">📦 {tr("My requests", "طلباتي")}</h3>
-        <ul className="space-y-1.5">{me.requests.map((r) => { const cert = (me.excellence || []).includes(r.item || "") && r.status !== "cancelled" && r.status !== "rejected"; const who = lmsSession()?.user; return <li key={r.id} className="flex flex-wrap items-center gap-2 text-sm"><span>{r.icon}</span><b dir="auto">{r.name}</b><span className="opacity-70">🃏 {r.cost} · {date(r.at)}</span><span className={`rounded-full px-2 py-0.5 text-xs font-bold ${ST[r.status]?.[2] || ""}`}>{ST[r.status] ? tr(ST[r.status][0], ST[r.status][1]) : r.status}</span>{r.status === "pending" && <button type="button" className="text-xs underline" onClick={() => lmsApi.rc("cancel", { id: r.id }).then(load).catch(() => undefined)}>{tr("Cancel", "إلغاء")}</button>}{cert && who && <button type="button" className="rounded-full bg-[#1b3a57] px-3 py-1 text-xs font-bold text-[#f5c542]" data-testid="exc-download" onClick={() => downloadExcellenceCert({ name: who.name, cls: who.cls || "", at: r.at }, me.design || EXC_DEFAULT, lang)}>{tr("Download certificate", "تنزيل الشهادة")}</button>}</li>; })}</ul>
+        <ul className="space-y-1.5">{me.requests.map((r) => <li key={r.id} className="flex flex-wrap items-center gap-2 text-sm"><span>{r.icon}</span><b dir="auto">{r.name}</b><span className="opacity-70">🃏 {r.cost} · {date(r.at)}</span><span className={`rounded-full px-2 py-0.5 text-xs font-bold ${ST[r.status]?.[2] || ""}`}>{ST[r.status] ? tr(ST[r.status][0], ST[r.status][1]) : r.status}</span>{r.status === "pending" && <button type="button" className="text-xs underline" onClick={() => lmsApi.rc("cancel", { id: r.id }).then(load).catch(() => undefined)}>{tr("Cancel", "إلغاء")}</button>}{r.status === "pending" && isExc(r, me.excellence) && <span className="text-xs opacity-70">{tr("Your certificate opens after your teacher approves it.", "تُفتح شهادتك بعد موافقة معلمك.")}</span>}{r.status === "pending" && isStk(r, me.stickers) && <span className="text-xs opacity-70">{tr("You can choose your sticker after your teacher approves it.", "يمكنك اختيار الملصق بعد موافقة معلمك.")}</span>}</li>)}</ul>
       </section>}
+      <AwardPanels me={me} onChange={load} />
       <section className="glass rounded-3xl p-4">
         <h3 className="mb-2 text-lg font-extrabold">🕘 {tr("Card history", "سجل البطاقات")}</h3>
         <ul className="divide-y divide-black/5 dark:divide-white/10">{me.history.map((h, i) => <li key={i} className="flex items-center gap-2 py-1.5 text-sm"><span aria-hidden>{h.icon}</span><span className="min-w-0 flex-1 truncate" dir="auto">{h.kind === "skill" || h.kind === "manual" ? h.label : h.kind === "spend" ? `${L("spend")}: ${h.label}` : `${L(h.kind)}${h.label ? " — " + h.label : ""}`}</span><span className="text-xs opacity-60">{date(h.at)}</span><b className={h.amt >= 0 ? "text-emerald-600" : "text-rose-600"}>{h.amt > 0 ? "+" : ""}{h.amt}</b></li>)}
           {!me.history.length && <li className="py-2 opacity-70">{tr("No cards yet — join in, hand in homework and practise your Quran to earn your first cards!", "لا توجد بطاقات بعد — شارك وسلّم واجباتك وتدرّب على القرآن لتكسب أولى بطاقاتك!")}</li>}
         </ul>
       </section>
+      {pick && <div className="fixed inset-0 z-[2000] grid place-items-center bg-black/50 p-4" role="dialog" aria-modal="true" data-testid="exc-subject-pick">
+        <div className="w-full max-w-md space-y-3 rounded-3xl bg-white p-5 dark:bg-[#13202e]">
+          <h3 className="text-lg font-black">{tr("Which subject is this certificate for?", "لأي مادة هذه الشهادة؟")}</h3>
+          <div className="flex flex-wrap gap-2">{(me.subjects || []).map((s) => <button key={s} type="button" className={`rounded-full px-3 py-1.5 text-sm font-bold ${pickSub === s ? "bg-[#1b3a57] text-[#f5c542]" : "bg-black/5"}`} onClick={() => setPickSub(s)}>{s}</button>)}</div>
+          <div className="flex gap-2"><button type="button" className={gold} style={{ background: GOLD }} disabled={!pickSub} onClick={() => redeem(pick, pickSub)}>{tr("Request certificate", "اطلب الشهادة")}</button><button type="button" className={`${btn} bg-black/5`} onClick={() => setPick(null)}>{tr("Cancel", "إلغاء")}</button></div>
+        </div>
+      </div>}
     </div>
   );
 }
@@ -128,13 +187,14 @@ function StaffView() {
   const [plan, setPlan] = useState<Plan | null>(null);
   const [edit, setEdit] = useState<Partial<Item> | null>(null);
   const [open, setOpen] = useState<{ s: Stu; h: Hist[] } | null>(null);
+  const [subDraft, setSubDraft] = useState<Record<string, string>>({});
   const load = useCallback((sync = false) => lmsApi.rc<Staff>("staff", { cls, sync }).then((r) => { setD(r); setPlan(r.plan); }).catch((e) => setMsg(lmsErrorText(e, tr))), [cls, tr]);
   useEffect(() => { load(true); }, [load]);
   const L = (k: string) => (d?.labels[k] ? tr(...d.labels[k]) : k);
   const pending = useMemo(() => (d?.requests || []).filter((r) => r.status === "pending").length, [d]);
   if (!d) return <p className="p-8 text-center opacity-70">{msg || tr("Loading…", "جارٍ التحميل…")}</p>;
   const award = () => lmsApi.rc("award", { students: sel, amt, label: why }).then(() => { setMsg(tr(`Awarded ${amt} cards to ${sel.length} student(s).`, `تم منح ${amt} بطاقة لـ ${sel.length} طالب.`)); setSel([]); setWhy(""); load(); }).catch((e) => setMsg(lmsErrorText(e, tr)));
-  const decide = (id: string, status: string) => lmsApi.rc("decide", { id, status }).then(() => load()).catch((e) => setMsg(lmsErrorText(e, tr)));
+  const decide = (id: string, status: string, subject?: string) => lmsApi.rc("decide", { id, status, ...(subject ? { subject } : {}) }).then(() => load()).catch((e) => setMsg(lmsErrorText(e, tr)));
   const savePlan = () => plan && lmsApi.rc<{ plan: Plan }>("plan-save", { plan }).then((r) => { setPlan(r.plan); setMsg(tr("Plan saved.", "تم حفظ الخطة.")); load(); }).catch((e) => setMsg(lmsErrorText(e, tr)));
   const saveItem = () => edit && lmsApi.rc("shop-save", edit as Record<string, unknown>).then(() => { setEdit(null); load(); }).catch((e) => setMsg(lmsErrorText(e, tr)));
   const canPlan = d.admin || !!d.acc.plan;
@@ -172,12 +232,16 @@ function StaffView() {
         <div className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-3xl bg-white p-5 dark:bg-[#13202e]"><h3 className="mb-2 text-lg font-black">{open.s.name} · 🃏 {open.s.balance}</h3>
           <ul className="divide-y divide-black/5 text-sm">{open.h.map((h, i) => <li key={i} className="flex gap-2 py-1"><span>{h.icon}</span><span className="flex-1" dir="auto">{h.kind === "skill" || h.kind === "manual" || h.kind === "spend" ? h.label : L(h.kind) + (h.label ? ` — ${h.label}` : "")}{h.by && h.by !== "auto" ? <span className="opacity-50"> · {h.by}</span> : null}</span><span className="opacity-60">{date(h.at)}</span><b className={h.amt >= 0 ? "text-emerald-600" : "text-rose-600"}>{h.amt > 0 ? "+" : ""}{h.amt}</b></li>)}</ul>
           <button type="button" className={`${gold} mt-3`} style={{ background: GOLD }} onClick={() => setOpen(null)}>{tr("Close", "إغلاق")}</button></div></div>}
-      {tab === "req" && <section className="space-y-2">{d.requests.map((r) => (
-        <div key={r.id} className="flex flex-wrap items-center gap-2 rounded-2xl bg-white p-3 text-sm shadow-sm dark:bg-white/5"><span className="text-2xl">{r.icon}</span><span className="min-w-0 flex-1"><b dir="auto">{r.sname}</b> <span className="opacity-60">{r.cls}</span><br /><span dir="auto">{r.name}</span> · 🃏 {r.cost} · {date(r.at)}</span>
+      {tab === "req" && <section className="space-y-2">{d.requests.map((r) => {
+        const cert = isExc(r);
+        const subject = subDraft[r.id] ?? r.subject ?? "";
+        return (
+        <div key={r.id} className="flex flex-wrap items-center gap-2 rounded-2xl bg-white p-3 text-sm shadow-sm dark:bg-white/5"><span className="text-2xl">{r.icon}</span><span className="min-w-0 flex-1"><b dir="auto">{r.sname}</b> <span className="opacity-60">{r.cls}</span><br /><span dir="auto">{r.name}</span> · 🃏 {r.cost} · {date(r.at)}{cert && r.subject ? <span className="block text-xs opacity-70" dir="auto">{r.subject}{r.year ? ` · ${r.year}` : ""}</span> : null}</span>
+          {cert && r.status !== "rejected" && r.status !== "cancelled" && <label className="flex items-center gap-1 text-xs font-bold">{tr("Subject", "المادة")}<input className={`${inp} w-40`} list={`rc-sub-${r.id}`} value={subject} onChange={(e) => setSubDraft({ ...subDraft, [r.id]: e.target.value })} aria-label={tr("Awarding subject", "مادة المنح")} /><datalist id={`rc-sub-${r.id}`}>{(r.choices || []).map((c) => <option key={c} value={c} />)}</datalist>{r.status !== "pending" && d.acc.edit && <button type="button" className="underline" onClick={() => subject && lmsApi.rc("subject", { id: r.id, subject }).then(() => load()).catch((e) => setMsg(lmsErrorText(e, tr)))}>{tr("Save", "حفظ")}</button>}</label>}
           <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${ST[r.status] || ""}`}>{r.status}{r.by ? ` · ${r.by}` : ""}</span>
-          {d.acc.edit && r.status === "pending" && <><button type="button" className={gold} style={{ background: GOLD }} onClick={() => decide(r.id, "approved")}>{tr("Approve", "موافقة")}</button><button type="button" className={`${btn} bg-rose-100 text-rose-900`} onClick={() => decide(r.id, "rejected")}>{tr("Decline (refund)", "رفض (استرجاع)")}</button></>}
+          {d.acc.edit && r.status === "pending" && <><button type="button" className={gold} style={{ background: GOLD }} onClick={() => decide(r.id, "approved", cert ? subject : undefined)}>{tr("Approve", "موافقة")}</button><button type="button" className={`${btn} bg-rose-100 text-rose-900`} onClick={() => decide(r.id, "rejected")}>{tr("Decline (refund)", "رفض (استرجاع)")}</button></>}
           {d.acc.edit && r.status === "approved" && <button type="button" className={`${btn} bg-sky-100 text-sky-900`} onClick={() => decide(r.id, "fulfilled")}>{tr("Mark given", "تم التسليم")}</button>}
-        </div>))}
+        </div>); })}
         {!d.requests.length && <p className="opacity-70">{tr("No requests yet.", "لا توجد طلبات.")}</p>}
         {!d.acc.edit && <p className="text-xs opacity-60">{tr("Approving requests needs the Rewards “Edit” permission.", "الموافقة تحتاج صلاحية التعديل للمكافآت.")}</p>}
       </section>}
@@ -197,14 +261,15 @@ function StaffView() {
       {tab === "cert" && d.design && <ExcellenceDesign design={d.design} />}
       {tab === "shop" && canPlan && <section className="space-y-2">
         <button type="button" className={gold} style={{ background: GOLD }} onClick={() => setEdit({ name: "", nameAr: "", icon: "🎁", cost: 20, stock: -1, bands: "abc", on: true, pos: 50 })}>+ {tr("Add item", "إضافة عنصر")}</button>
-        {d.shop.map((it) => <div key={it.id} className={`flex flex-wrap items-center gap-2 rounded-2xl bg-white p-3 text-sm shadow-sm dark:bg-white/5 ${it.on ? "" : "opacity-50"}`}><span className="text-2xl">{it.icon}</span><b className="flex-1" dir="auto">{lang === "ar" && it.nameAr ? it.nameAr : it.name}</b><span>🃏 {it.cost}</span><span className="opacity-60">{it.stock < 0 ? "∞" : it.stock} · {BANDS.filter(([b]) => it.bands.includes(b)).map((x) => x[1]).join(", ")}</span><button type="button" className="underline" onClick={() => setEdit(it)}>{tr("Edit", "تعديل")}</button><button type="button" className="text-rose-600 underline" onClick={() => confirm(tr("Delete item?", "حذف العنصر؟")) && lmsApi.rc("shop-delete", { id: it.id }).then(() => load())}>{tr("Delete", "حذف")}</button></div>)}
+        {d.shop.map((it) => <div key={it.id} className={`flex flex-wrap items-center gap-2 rounded-2xl bg-white p-3 text-sm shadow-sm dark:bg-white/5 ${it.on ? "" : "opacity-50"}`}><span className="text-2xl">{it.icon}</span><b className="flex-1" dir="auto">{lang === "ar" && it.nameAr ? it.nameAr : it.name}</b>{it.kind === "excellence" && <span className="rounded-full bg-[#1b3a57] px-2 py-0.5 text-xs font-bold text-[#f5c542]">{tr("Certificate", "شهادة")}</span>}{it.kind === "sticker" && <span className="rounded-full bg-[#f5c542] px-2 py-0.5 text-xs font-bold text-[#1b3a57]">{tr("Sticker", "ملصق")}</span>}<span>🃏 {it.cost}</span><span className="opacity-60">{it.stock < 0 ? "∞" : it.stock} · {BANDS.filter(([b]) => it.bands.includes(b)).map((x) => x[1]).join(", ")}</span><button type="button" className="underline" onClick={() => setEdit(it)}>{tr("Edit", "تعديل")}</button><button type="button" className="text-rose-600 underline" onClick={() => confirm(tr("Delete item?", "حذف العنصر؟")) && lmsApi.rc("shop-delete", { id: it.id }).then(() => load())}>{tr("Delete", "حذف")}</button></div>)}
       </section>}
       {edit && canPlan && <div className="fixed inset-0 z-[2000] grid place-items-center bg-black/50 p-4" role="dialog" aria-modal="true"><div className="w-full max-w-md space-y-2 rounded-3xl bg-white p-5 dark:bg-[#13202e]">
         <h3 className="text-lg font-black">{edit.id ? tr("Edit item", "تعديل عنصر") : tr("New item", "عنصر جديد")}</h3>
         <div className="flex gap-2"><input className={`${inp} w-16 text-center`} value={edit.icon || ""} onChange={(e) => setEdit({ ...edit, icon: e.target.value })} aria-label="icon" /><input className={`${inp} flex-1`} placeholder="Name (English)" value={edit.name || ""} onChange={(e) => setEdit({ ...edit, name: e.target.value })} /></div>
         <input className={`${inp} w-full`} dir="rtl" placeholder="الاسم بالعربية" value={edit.nameAr || ""} onChange={(e) => setEdit({ ...edit, nameAr: e.target.value })} />
         <div className="flex flex-wrap gap-3 text-sm"><label>{tr("Cost", "السعر")} <input type="number" min={1} className={`${inp} w-20`} value={edit.cost} onChange={(e) => setEdit({ ...edit, cost: Number(e.target.value) })} /></label><label>{tr("Stock (−1 = unlimited)", "المخزون (−1 = غير محدود)")} <input type="number" min={-1} className={`${inp} w-20`} value={edit.stock} onChange={(e) => setEdit({ ...edit, stock: Number(e.target.value) })} /></label><label>{tr("Order", "الترتيب")} <input type="number" className={`${inp} w-16`} value={edit.pos} onChange={(e) => setEdit({ ...edit, pos: Number(e.target.value) })} /></label></div>
-        <div className="flex flex-wrap gap-3 text-sm">{BANDS.map(([b, en]) => <label key={b} className="flex items-center gap-1"><input type="checkbox" checked={(edit.bands || "").includes(b)} onChange={(e) => setEdit({ ...edit, bands: e.target.checked ? (edit.bands || "") + b : (edit.bands || "").replace(b, "") })} />{en}</label>)}<label className="flex items-center gap-1"><input type="checkbox" checked={edit.on !== false} onChange={(e) => setEdit({ ...edit, on: e.target.checked })} />{tr("Visible", "ظاهر")}</label><label className="flex items-center gap-1"><input type="checkbox" checked={edit.kind === "excellence"} onChange={(e) => setEdit({ ...edit, kind: e.target.checked ? "excellence" : "" })} data-testid="rc-item-excellence" />{tr("Excellence Certificate", "شهادة التميز")}</label></div>
+        <div className="flex flex-wrap gap-3 text-sm">{BANDS.map(([b, en]) => <label key={b} className="flex items-center gap-1"><input type="checkbox" checked={(edit.bands || "").includes(b)} onChange={(e) => setEdit({ ...edit, bands: e.target.checked ? (edit.bands || "") + b : (edit.bands || "").replace(b, "") })} />{en}</label>)}<label className="flex items-center gap-1"><input type="checkbox" checked={edit.on !== false} onChange={(e) => setEdit({ ...edit, on: e.target.checked })} />{tr("Visible", "ظاهر")}</label></div>
+        <label className="block text-sm font-bold">{tr("Reward type", "نوع المكافأة")}<select className={`${inp} mt-1 w-full`} value={edit.kind || ""} onChange={(e) => setEdit({ ...edit, kind: e.target.value })} data-testid="rc-item-excellence"><option value="">{tr("Shop reward", "مكافأة المتجر")}</option><option value="excellence">{tr("Excellence Certificate", "شهادة التميز")}</option><option value="sticker">{tr("Sticker", "ملصق")}</option></select></label>
         <div className="flex gap-2"><button type="button" className={gold} style={{ background: GOLD }} onClick={saveItem}>{tr("Save", "حفظ")}</button><button type="button" className={`${btn} bg-black/5`} onClick={() => setEdit(null)}>{tr("Cancel", "إلغاء")}</button></div>
       </div></div>}
     </div>

@@ -9,13 +9,19 @@ import { useLmsActor, useTr } from "@/components/lms/useLms";
 import { lmsApi, lmsErrorText, lmsSession, stuUi } from "@/lib/lms";
 import { ANIMALS, AVATAR_MOODS, FLOWERS, HEROES, Avatar, type AvatarAnim } from "@/components/lms/Avatar";
 import { PushSettings } from "@/components/lms/PushSettings";
+import { StudentAwards } from "@/components/lms/Rewards";
 import { modCall } from "@/lib/lmsMods";
 
 /** t303: students (and teachers) choose their own cartoon character. */
 function CharacterPicker() {
   const { tr } = useTr();
-  const [cur, setCur] = useState(""); const [kind, setKind] = useState("n"); const [msg, setMsg] = useState(""); const [photos, setPhotos] = useState(false); const [mood, setMood] = useState<AvatarAnim>("happy");
-  useEffect(() => { modCall<{ avatar: string; kind: string; photos?: boolean }>("my-avatar-kind", {}, false).then((r) => { setCur(r.avatar); setKind(r.kind); setPhotos(!!r.photos); }).catch(() => undefined); }, []);
+  const [cur, setCur] = useState(""); const [kind, setKind] = useState("n"); const [msg, setMsg] = useState(""); const [photos, setPhotos] = useState(false); const [mood, setMood] = useState<AvatarAnim>("happy"); const [badge, setBadge] = useState("");
+  useEffect(() => {
+    const load = () => { modCall<{ avatar: string; kind: string; photos?: boolean; badge?: string }>("my-avatar-kind", {}, false).then((r) => { setCur(r.avatar); setKind(r.kind); setPhotos(!!r.photos); setBadge(r.badge || ""); }).catch(() => undefined); };
+    load();
+    window.addEventListener("sm-avatar", load);
+    return () => window.removeEventListener("sm-avatar", load);
+  }, []);
   if (!cur) return null;
   const pick = async (n: number, family?: "a" | "f" | "s") => {
     try { const r = await modCall<{ avatar: string }>("my-avatar", { n, ...(family ? { kind: family } : {}) }, false); setCur(r.avatar); setMsg(tr("✅ Character saved!", "✅ تم حفظ الشخصية!")); window.dispatchEvent(new Event("sm-avatar")); } catch { setMsg(tr("Could not save. Try again.", "تعذّر الحفظ. حاول مجددًا.")); }
@@ -38,7 +44,7 @@ function CharacterPicker() {
   const removePhoto = async () => { try { const r = await modCall<{ avatar: string }>("my-photo", { remove: true }, false); setCur(r.avatar); setMsg(tr("Photo removed — your character is back.", "أزيلت الصورة — عادت شخصيتك.")); window.dispatchEvent(new Event("sm-avatar")); } catch { /* ignore */ } };
   return (
     <section className="mb-5 rounded-3xl bg-white/80 p-5 shadow-sm dark:bg-white/5" data-testid="char-picker">
-      <div className="mb-3 flex items-center gap-3"><Avatar code={cur} size={72} anim={mood} /><div><h2 className="text-lg font-extrabold">{tr("My character", "شخصيتي")}</h2><p className="text-sm opacity-70">{tr("Tap a character to use it everywhere. Faces change with effort and points in class — you can preview every expression here.", "اضغط على شخصية لاستخدامها في كل مكان. تتغير التعابير مع الجهد والنقاط في الصف — يمكنك معاينة كل تعبير هنا.")}</p></div></div>
+      <div className="mb-3 flex items-center gap-3"><Avatar code={cur} badge={badge} size={72} anim={mood} /><div><h2 className="text-lg font-extrabold">{tr("My character", "شخصيتي")}</h2><p className="text-sm opacity-70">{tr("Tap a character to use it everywhere. A sticker you choose in Reward Cards stays on this character. Faces change with effort and points in class — you can preview every expression here.", "اضغط على شخصية لاستخدامها في كل مكان. الملصق الذي تختاره في بطاقات المكافآت يبقى على هذه الشخصية. تتغير التعابير مع الجهد والنقاط في الصف — يمكنك معاينة كل تعبير هنا.")}</p></div></div>
       <div className="mb-4 flex flex-wrap gap-1.5" data-testid="char-moods">
         {AVATAR_MOODS.map((m) => (
           <button key={m.id} type="button" aria-pressed={mood === m.id} onClick={() => setMood(m.id)} className={`rounded-full px-3 py-1 text-xs font-extrabold ${mood === m.id ? "bg-[#1b3a57] text-[#f5c542]" : "bg-black/[0.06] dark:bg-white/10"}`} data-testid="char-mood">{tr(m.en, m.ar)}</button>
@@ -134,7 +140,7 @@ export function AccountPage() {
     <AssessmentShell title={tr("My account", "حسابي")} exitHref="/lms" toolbar={<LmsStaffToolbar />}>
       <div className="mx-auto w-full max-w-xl flex-1 px-4 py-8">
         {!ready ? null : !can ? <p className="rounded-2xl bg-amber-100 px-4 py-3 text-amber-900">{tr("Please sign in.", "سجّل الدخول.")} <a className="font-bold underline" href="/lms/login/">{tr("Sign in", "دخول")}</a></p> : (
-          <>{(actor?.role === "student" || actor?.role === "teacher") && <CharacterPicker />}{actor?.role !== "parent" && <PushSettings />}{actor?.role === "student" && !actor.viewAs && <DevicePanel />}<form onSubmit={submit} className="space-y-3 rounded-3xl bg-white/80 p-5 shadow-sm dark:bg-white/5" data-testid="pin-form">
+          <>{(actor?.role === "student" || actor?.role === "teacher") && <CharacterPicker />}{actor?.role === "student" && <StudentAwards />}{actor?.role !== "parent" && <PushSettings />}{actor?.role === "student" && !actor.viewAs && <DevicePanel />}<form onSubmit={submit} className="space-y-3 rounded-3xl bg-white/80 p-5 shadow-sm dark:bg-white/5" data-testid="pin-form">
             <h2 className="text-xl font-extrabold">🔑 {tr("Change my password", "تغيير كلمة المرور")}</h2>
             <p className="text-sm opacity-70">{actor?.name}</p>
             <input className={inp} type="password" autoComplete="new-password" autoCapitalize="none" maxLength={64} placeholder={tr("New password (6–64 characters)", "كلمة المرور الجديدة (6–64 حرفًا)")} value={n1} onChange={(e) => setN1(e.target.value)} data-testid="pin-new" />

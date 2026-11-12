@@ -15,7 +15,7 @@ import { VersionTimeline } from "@/components/lms/Versions";
 import { AudioClip } from "@/components/lms/Audio";
 import { MyRecord } from "@/components/lms/LmsAssessments";
 
-type Kid = { id: string; name: string; cls: string; section: string; avatar: string };
+type Kid = { id: string; name: string; cls: string; section: string; avatar: string; badge?: string };
 type HwRow = Homework & { sub?: { status: string; grade?: string; liked?: boolean } | null; locked?: boolean; late?: boolean };
 type Dash = { homework: HwRow[]; tracker?: TrackerRow[]; progress?: { stars: number; streak: number; greens: number; yellows: number; handed: number; badges: string[]; activeDays: number } };
 type Sec = "overview" | "homework" | "assess" | "cur" | "att" | "beh" | "quran" | "wall";
@@ -72,7 +72,7 @@ function Family({ name }: { name: string }) {
           <div className="flex flex-wrap gap-2" role="tablist" aria-label={tr("Children", "الأبناء")} data-testid="family-kids">
             {kids.map((c) => (
               <button key={c.id} type="button" role="tab" aria-selected={c.id === kid} onClick={() => setKid(c.id)} data-testid="family-kid" className={`flex items-center gap-2 rounded-full py-1.5 pe-4 ps-1.5 font-bold transition ${c.id === kid ? "bg-header text-sun shadow" : "glass"}`}>
-                <Avatar code={c.avatar} size={34} /> <span dir="auto">{c.name}</span>
+                <Avatar code={c.avatar} badge={c.badge} size={34} /> <span dir="auto">{c.name}</span>
                 <span className="text-xs font-semibold opacity-70">{c.cls}{c.section ? ` · ${c.section}` : ""}</span>
               </button>
             ))}

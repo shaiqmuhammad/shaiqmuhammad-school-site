@@ -103,7 +103,7 @@ export function StudentLogins({ asAdmin, perms = [] }: { asAdmin: boolean; perms
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 {sec.students.map((s) => (
             <article key={sec.id + s.id} className={`rounded-3xl border-2 border-header/80 bg-white p-4 text-center text-[#1b2f44] shadow-sm dark:bg-[#12273b] dark:text-white ${s.disabled ? "opacity-60" : ""}`} data-testid="login-card">
-              <div className="flex items-center justify-center gap-2">{s.avatar && <Avatar code={s.avatar} size={36} />}<h3 className="text-lg font-extrabold" dir="auto">{s.name}</h3></div>
+              <div className="flex items-center justify-center gap-2">{s.avatar && <Avatar code={s.avatar} badge={s.badge} size={36} />}<h3 className="text-lg font-extrabold" dir="auto">{s.name}</h3></div>
               <p className="text-sm opacity-70">{clsNum(s.cls)}{s.section ? secLetter(s.section) : ""}{s.disabled ? ` · ${tr("Blocked", "موقوف")}` : ""}</p>
               <dl className="mt-2 divide-y divide-black/10 rounded-xl bg-black/[0.04] text-start dark:divide-white/10 dark:bg-white/5">
                 <div className="flex items-center justify-between gap-2 px-3 py-1.5"><dt className="text-xs font-bold uppercase opacity-60">{tr("User ID", "المعرّف")}</dt><dd className="font-mono text-base font-bold" dir="ltr" data-testid="login-user">{s.username}</dd></div>

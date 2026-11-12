@@ -84,7 +84,7 @@ export function AdminClasses() {
           <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6" data-testid="ac-group-grid">
             {members.map((u, i) => (
               <li key={u.id} className="flex flex-col items-center gap-2 rounded-[1.75rem] border-2 border-white/80 p-4 text-center text-[#1b2f44] shadow-[0_6px_20px_rgba(27,58,87,0.12)]" style={{ background: `linear-gradient(155deg, ${["#bae6fd", "#fde68a", "#bbf7d0", "#fbcfe8", "#ddd6fe", "#99f6e4", "#fed7aa", "#c7d2fe"][i % 8]}e6, rgba(255,255,255,0.72))` }} data-testid="ac-member">
-                <Avatar code={u.avatar || "n0"} size={88} anim="idle" className="ring-4 ring-white shadow-lg" />
+                <Avatar code={u.avatar || "n0"} badge={u.badge} size={88} anim="idle" className="ring-4 ring-white shadow-lg" />
                 <span className="line-clamp-2 text-base font-extrabold leading-tight text-[#1b3a57] sm:text-lg" dir="auto">{u.name}</span>
                 <span className="text-xs font-bold opacity-70">{[u.cls, u.section].filter(Boolean).join(" · ")}</span>
                 <a className={smallBtn} href={`/lms?${new URLSearchParams({ viewAs: u.id, n: u.name, r: "student", c: u.cls })}`} target="_blank" rel="noopener" data-testid="ac-viewas">👁 {tr("View as", "عرض كـ")}</a>

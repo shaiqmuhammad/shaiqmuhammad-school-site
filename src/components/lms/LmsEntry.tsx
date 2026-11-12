@@ -92,17 +92,18 @@ export function LmsStaffToolbar() {
   const router = useRouter();
   const { lang } = useI18n();
   const [who, setWho] = useState<{ role: string; name: string } | null>(null);
+  const [av, setAv] = useState("");
+  const [badge, setBadge] = useState("");
+  const [nm, setNm] = useState<{ en: string; ar: string }>({ en: "", ar: "" });
   useEffect(() => {
     const s = lmsSession();
     // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage is only readable after hydration
     if (s) setWho({ role: s.user.role, name: s.user.name });
     // t305: the header shows only the user's character / photo (a link to My account); refreshed when they change it.
-    const load = () => { if (s && s.user.role !== "parent") modCall<{ avatar: string; name?: string; nameAr?: string; arabic?: boolean }>("my-avatar-kind", {}, false).then((r) => { setAv(r.avatar); setNm({ en: r.name || "", ar: r.arabic && r.nameAr ? r.nameAr : "" }); }).catch(() => undefined); };
+    const load = () => { if (s && s.user.role !== "parent") modCall<{ avatar: string; badge?: string; name?: string; nameAr?: string; arabic?: boolean }>("my-avatar-kind", {}, false).then((r) => { setAv(r.avatar); setBadge(r.badge || ""); setNm({ en: r.name || "", ar: r.arabic && r.nameAr ? r.nameAr : "" }); }).catch(() => undefined); };
     load(); window.addEventListener("sm-avatar", load);
     return () => window.removeEventListener("sm-avatar", load);
   }, []);
-  const [av, setAv] = useState("");
-  const [nm, setNm] = useState<{ en: string; ar: string }>({ en: "", ar: "" });
   const ar = lang === "ar";
   if (typeof window !== "undefined" && viewAs()) return null; // view-as: the banner is the only control (no LMS logout)
   const fullName = (ar && nm.ar) || nm.en || who?.name || "";
@@ -116,8 +117,8 @@ export function LmsStaffToolbar() {
         <span className="hidden min-w-0 max-w-[9.5rem] truncate text-sm font-bold text-white sm:inline sm:max-w-[14rem] lg:max-w-[22rem]" dir="auto" title={greet} data-testid="lms-greet">{greet}</span>
       )}
       {who && (
-        <Link href="/lms/account" title={`${ar ? "حسابي" : "My account"} · ${who.name}`} aria-label={`${ar ? "حسابي" : "My account"} — ${roleLabel}: ${who.name}`} className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full bg-white/15 ring-2 ring-white/40 transition hover:scale-105 hover:ring-sun" data-testid="lms-who">
-          {av ? <Avatar code={av} size={36} anim="idle" /> : <span aria-hidden>{who.role === "teacher" ? "🧑‍🏫" : who.role === "parent" ? "👨‍👩‍👧" : "🎒"}</span>}
+        <Link href="/lms/account" title={`${ar ? "حسابي" : "My account"} · ${who.name}`} aria-label={`${ar ? "حسابي" : "My account"} — ${roleLabel}: ${who.name}`} className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white/15 ring-2 ring-white/40 transition hover:scale-105 hover:ring-sun" data-testid="lms-who">
+          {av ? <Avatar code={av} badge={badge} size={36} anim="idle" /> : <span aria-hidden>{who.role === "teacher" ? "🧑‍🏫" : who.role === "parent" ? "👨‍👩‍👧" : "🎒"}</span>}
         </Link>
       )}
       <AdminToolbar
