@@ -40,7 +40,7 @@ import { makeVapid, sendPush, type Vapid } from "./push";
 import { textReplaceAll } from "./textfix";
 import { scoreFromPct, systems, trackerHandle, trkInit } from "./tracker";
 import { qaHandle } from "./qa";
-import { balanceOf, rcHandle, rcInit, rcSync, type RcCtx } from "./rewards";
+import { badgeOf, balanceOf, rcHandle, rcInit, rcSync, type RcCtx } from "./rewards";
 import { MP_PERM, mpAll, mpCfg, mpOf, mpSave } from "./modperm";
 import { buildFeedback, fromGrade, overallOf, parseScores, type Scores } from "./quranScore";
 import { DurableObject } from "cloudflare:workers";
@@ -416,7 +416,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     return this.sql.exec(`SELECT * FROM users WHERE ${where}`, arg).toArray()[0];
   }
   private publicUser(r: Record<string, unknown>) {
-    return { id: String(r.id), username: String(r.username), name: String(r.name), nameAr: String(r.name_ar || ""), role: String(r.role) as Role, cls: String(r.cls || ""), section: String(r.section || ""), subjects: JSON.parse(String(r.subjects || "[]")) as string[], scope: JSON.parse(String(r.scope || "[]")) as string[], perms: JSON.parse(String(r.perms || "[]")) as string[], disabled: Boolean(r.disabled), hasPin: Boolean(r.pin_enc), firstName: String(r.first_name || ""), lastName: String(r.last_name || ""), avatar: avatarOf(r), parentEmail: Boolean(r.email), parentName: String(r.parent_name || ""), lastSeen: Number(r.last_seen || 0), created: Number(r.created), lastLogin: r.last_login ? Number(r.last_login) : null };
+    return { id: String(r.id), username: String(r.username), name: String(r.name), nameAr: String(r.name_ar || ""), role: String(r.role) as Role, cls: String(r.cls || ""), section: String(r.section || ""), subjects: JSON.parse(String(r.subjects || "[]")) as string[], scope: JSON.parse(String(r.scope || "[]")) as string[], perms: JSON.parse(String(r.perms || "[]")) as string[], disabled: Boolean(r.disabled), hasPin: Boolean(r.pin_enc), firstName: String(r.first_name || ""), lastName: String(r.last_name || ""), avatar: avatarOf(r), badge: badgeOf(r.badge), parentEmail: Boolean(r.email), parentName: String(r.parent_name || ""), lastSeen: Number(r.last_seen || 0), created: Number(r.created), lastLogin: r.last_login ? Number(r.last_login) : null };
   }
   /** Admin-only view: every stored field (teachers never receive these). */
   private adminUser(r: Record<string, unknown>) {
@@ -1377,7 +1377,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         const fam = input.kind === "a" || input.kind === "f" || input.kind === "s" ? String(input.kind) : g;
         const code = `${fam}${n}`;
         this.sql.exec(`UPDATE users SET avatar=? WHERE id=?`, code, a.id);
-        return { status: 200, body: { avatar: code, kind: g } };
+        return { status: 200, body: { avatar: code, kind: g, badge: badgeOf(u0.badge) } };
       }
       case "ui-prefs": {
         // t304: per-user menu layout (rail order/hidden, dashboard tiles order/hidden).
@@ -1435,7 +1435,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         if (a.viewAs || a.role === "parent") return { status: 403, body: { error: "forbidden" } };
         const u0 = this.userRow("id=?", a.id);
         if (!u0) return { status: 404, body: { error: "not_found" } };
-        return { status: 200, body: { avatar: avatarOf(u0), kind: u0.gender === "b" || u0.gender === "g" ? String(u0.gender) : "n", name: String(u0.name || ""), nameAr: String(u0.name_ar || ""), arabic: subjList(u0.subject).includes("Islamic A"), photos: u0.role !== "student" } };
+        return { status: 200, body: { avatar: avatarOf(u0), badge: badgeOf(u0.badge), kind: u0.gender === "b" || u0.gender === "g" ? String(u0.gender) : "n", name: String(u0.name || ""), nameAr: String(u0.name_ar || ""), arabic: subjList(u0.subject).includes("Islamic A"), photos: u0.role !== "student" } };
       }
       case "user-avatar": {
         // Teacher/admin: reroll the cartoon avatar (gender stays server-side; set by the admin only).
@@ -1459,9 +1459,9 @@ export class LmsStore extends DurableObject<LmsEnv> {
         for (const r of this.sql.exec(`SELECT student, status, COUNT(*) AS n FROM att GROUP BY student, status`).toArray()) {
           const o = attN.get(String(r.student)) || { p: 0, n: 0 }; const n = Number(r.n); o.n += n; if (String(r.status) === "P") o.p += n; attN.set(String(r.student), o);
         }
-        const students = this.sql.exec(`SELECT id, name, first_name, last_name, cls, section, gender, avatar, email, last_seen FROM users WHERE role='student' AND disabled=0 ORDER BY cls, section, name`).toArray()
+        const students = this.sql.exec(`SELECT id, name, first_name, last_name, cls, section, gender, avatar, badge, email, last_seen FROM users WHERE role='student' AND disabled=0 ORDER BY cls, section, name`).toArray()
           .filter((r) => this.inScope(a, String(r.cls || ""), String(r.section || ""), String(r.id)))
-          .map((r) => { const a0 = attN.get(String(r.id)); return { id: String(r.id), name: String(r.name), cls: String(r.cls || ""), section: String(r.section || ""), avatar: avatarOf(r), parentEmail: Boolean(r.email), seen: Number(r.last_seen || 0), points: tot.get(String(r.id)) || 0, cards: cards.get(String(r.id)) || 0, attPct: a0 && a0.n ? Math.round((100 * a0.p) / a0.n) : null }; });
+          .map((r) => { const a0 = attN.get(String(r.id)); return { id: String(r.id), name: String(r.name), cls: String(r.cls || ""), section: String(r.section || ""), avatar: avatarOf(r), badge: badgeOf(r.badge), parentEmail: Boolean(r.email), seen: Number(r.last_seen || 0), points: tot.get(String(r.id)) || 0, cards: cards.get(String(r.id)) || 0, attPct: a0 && a0.n ? Math.round((100 * a0.p) / a0.n) : null }; });
         return { status: 200, body: { students, assigned: a.role === "teacher" ? [...new Set((a.scope || []).filter((x) => x && x !== "\u0000"))] : [], canManage: stuCan(a, "view"), stuPerms: { view: stuCan(a, "view"), add: stuCan(a, "add"), edit: stuCan(a, "edit"), block: stuCan(a, "block"), delete: stuCan(a, "delete") }, now: Date.now() } };
       }
       case "act-publish": {
@@ -2152,7 +2152,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         for (const r of rows) {
           let tok = String(r.qr_token || "");
           if (!tok) { tok = b64url(crypto.getRandomValues(new Uint8Array(32))); this.sql.exec(`UPDATE users SET qr_token=? WHERE id=?`, tok, String(r.id)); }
-          items.push({ id: String(r.id), name: String(r.name), nameAr: String(r.name_ar || ""), username: String(r.username), cls: String(r.cls || ""), section: String(r.section || ""), avatar: avatarOf(r), disabled: Boolean(r.disabled), pin: await openPin(this.env, r.pin_enc), token: tok });
+          items.push({ id: String(r.id), name: String(r.name), nameAr: String(r.name_ar || ""), username: String(r.username), cls: String(r.cls || ""), section: String(r.section || ""), avatar: avatarOf(r), badge: badgeOf(r.badge), disabled: Boolean(r.disabled), pin: await openPin(this.env, r.pin_enc), token: tok });
         }
         // Counts only (no names): passwords that exist but can't be shown (sealed with an older key, or never sealed).
         console.log(JSON.stringify({ evt: "logins-list", total: items.length, hidden: items.filter((x) => !x.pin).length }));
@@ -3035,8 +3035,8 @@ export class LmsStore extends DurableObject<LmsEnv> {
   }
   // ================= Parent accounts =================
   private kidsOf(pid: string) {
-    return this.sql.exec(`SELECT u.id, u.name, u.cls, u.section, u.avatar, u.gender FROM plink p JOIN users u ON u.id=p.student WHERE p.parent=? AND u.role='student' AND u.disabled=0 ORDER BY u.name`, pid).toArray()
-      .map((r) => ({ id: String(r.id), name: String(r.name), cls: String(r.cls || ""), section: String(r.section || ""), avatar: avatarOf(r) }));
+    return this.sql.exec(`SELECT u.id, u.name, u.cls, u.section, u.avatar, u.badge, u.gender FROM plink p JOIN users u ON u.id=p.student WHERE p.parent=? AND u.role='student' AND u.disabled=0 ORDER BY u.name`, pid).toArray()
+      .map((r) => ({ id: String(r.id), name: String(r.name), cls: String(r.cls || ""), section: String(r.section || ""), avatar: avatarOf(r), badge: badgeOf(r.badge) }));
   }
   /** Everything a parent may do. Child data is fetched through the child's own student actor, read-only, after the link is verified. */
   private async parentHandle(a: Actor, action: string, input: Json): Promise<Reply> {
@@ -3228,7 +3228,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     const t = this.sql.exec(`SELECT * FROM rtok WHERE token=?`, token).toArray()[0];
     const u = t && this.userRow("id=? AND role='student'", String(t.student));
     if (!t || !u) return { status: 404, body: { error: "not_found" } };
-    const base = { kind: String(t.kind), name: String(u.name), cls: String(u.cls || ""), section: String(u.section || ""), avatar: avatarOf(u), id: String(u.id) };
+    const base = { kind: String(t.kind), name: String(u.name), cls: String(u.cls || ""), section: String(u.section || ""), avatar: avatarOf(u), badge: badgeOf(u.badge), id: String(u.id) };
     if (t.kind === "quran") return { status: 200, body: { ...base, tracker: this.trackerOf(String(u.id)), progress: this.progressOf(String(u.id)) } };
     const pts = this.sql.exec(`SELECT label, pts, icon, by, at FROM pts WHERE student=? AND at>? ORDER BY at DESC LIMIT 2000`, String(u.id), Date.now() - 366 * 86400000).toArray().map((r) => ({ label: String(r.label), pts: Number(r.pts), icon: String(r.icon || ""), by: String(r.by), at: Number(r.at) }));
     return { status: 200, body: { ...base, points: pts } };

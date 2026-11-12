@@ -8,7 +8,7 @@ import { rememberForget, rememberOn, rememberSave, rememberedToken } from "@/lib
 
 /** LMS phase 1 client (see workers/assessment-session/src/lms.ts). */
 export type Role = "student" | "teacher" | "parent";
-export type LmsUser = { id: string; username: string; name: string; nameAr?: string; role: Role; cls: string; section: string; subjects: string[]; scope: string[]; perms: string[]; groups?: { id: string; name: string; subject: string }[]; subject?: string; phase?: string; disabled: boolean; hasPin: boolean; firstName?: string; lastName?: string; parentEmail?: boolean; parentName?: string; gender?: string; avatar?: string; email?: string; dob?: string; phone?: string; semail?: string; nationality?: string; prefLang?: string; sen?: boolean; eal?: boolean; gt?: boolean; /** Tracker Target (as entered), scaled score, and the effective Target (Target, else from scaled score) */ target?: string; scaled?: string; targetEff?: string; /** iSAMS (admin only) */ isamsId?: string; isamsSurname?: string; created: number; lastLogin: number | null; lastSeen?: number };
+export type LmsUser = { id: string; username: string; name: string; nameAr?: string; role: Role; cls: string; section: string; subjects: string[]; scope: string[]; perms: string[]; groups?: { id: string; name: string; subject: string }[]; subject?: string; phase?: string; disabled: boolean; hasPin: boolean; firstName?: string; lastName?: string; parentEmail?: boolean; parentName?: string; gender?: string; avatar?: string; badge?: string; email?: string; dob?: string; phone?: string; semail?: string; nationality?: string; prefLang?: string; sen?: boolean; eal?: boolean; gt?: boolean; /** Tracker Target (as entered), scaled score, and the effective Target (Target, else from scaled score) */ target?: string; scaled?: string; targetEff?: string; /** iSAMS (admin only) */ isamsId?: string; isamsSurname?: string; created: number; lastLogin: number | null; lastSeen?: number };
 /** t349: Phase > Department > Subject; classes → phase; sections → class (all optional links). */
 export type Catalog = { phases?: { id: string; name: string }[]; depts?: { id: string; name: string; phaseId: string }[]; subjects: { id: string; name: string; deptId?: string }[]; classes: { id: string; name: string; phaseId?: string }[]; sections: { id: string; name: string; classId: string; cls: string }[] };
 export const catPhaseNames = (c?: Catalog | null) => (c?.phases?.length ? c.phases.map((p) => p.name) : ["EYFS", "Primary", "Secondary"]);
@@ -32,12 +32,12 @@ export type QuranData = { surah: number; from: number; to: number; reciter: stri
 export type GeneralData = { slides: Slide[]; question: string };
 export type Homework = { id: string; kind: "quran" | "general"; title: string; cls: string; section?: string; /** t422: subject + resolved Year(s) / Section(s) for display */ subject?: string; aud?: { years: string[]; sections: string[] }; students: string[]; data: QuranData | GeneralData; due: number | null; createdBy: string; created: number; locked?: boolean; lockedBy?: { surah: number; from: number; to: number; title: string } | null; late?: boolean };
 export type Comment = { by: string; text: string; at: number; audio?: string };
-export type RosterStudent = { id: string; name: string; cls: string; section: string; avatar: string; parentEmail: boolean; points: number; seen: number; cards?: number; attPct?: number | null };
+export type RosterStudent = { id: string; name: string; cls: string; section: string; avatar: string; badge?: string; parentEmail: boolean; points: number; seen: number; cards?: number; attPct?: number | null };
 export type PointCat = { id: string; label: string; pts: number; icon: string };
 export type PointRow = { id: string; student: string; name: string; label: string; pts: number; icon: string; by: string; at: number };
 export type WallClass = { key: string; label: string; group?: boolean; count?: number; members?: { id: string; name: string }[] };
 export type StudentGroup = { id: string; name: string; subject?: string; students: string[]; owner: string; assigned?: boolean; adminGroup?: boolean; classes?: string[]; teachers?: string[]; rawStudents?: string[] };
-export type ReportView = { kind: "points" | "quran"; id: string; name: string; cls: string; section: string; avatar: string; points?: { label: string; pts: number; icon: string; by: string; at: number }[]; tracker?: TrackerRow[]; progress?: unknown };
+export type ReportView = { kind: "points" | "quran"; id: string; name: string; cls: string; section: string; avatar: string; badge?: string; points?: { label: string; pts: number; icon: string; by: string; at: number }[]; tracker?: TrackerRow[]; progress?: unknown };
 export type Assignment = { id: string; quiz: string; title: string; mode: "individual" | "group"; cls: string; section: string; students: string[]; due: number | null; by: string; created: number };
 export type Announcement = { id: string; title: string; body: string; aud: "all" | "students" | "teachers" | "class"; cls: string; section: string; by: string; created: number };
 export type WallComment = { id: string; name: string; role: string; text: string; at: number };
@@ -148,7 +148,7 @@ function writeSessionCookie(s: Session | null) {
     if (v.length <= 3900) document.cookie = `sm_lms_s=${v}; Max-Age=${3650 * 86400}; Path=/; SameSite=Lax; Secure`;
   } catch { /* ignore */ }
 }
-export type LoginCard = { id: string; name: string; nameAr?: string; username: string; cls: string; section: string; avatar: string; disabled: boolean; pin: string | null; token: string };
+export type LoginCard = { id: string; name: string; nameAr?: string; username: string; cls: string; section: string; avatar: string; badge?: string; disabled: boolean; pin: string | null; token: string };
 let renewing = false;
 /** Sliding renewal: keep a signed-in LMS session alive (30 days from the last visit) without any prompt. */
 export async function lmsRenew(force = false) {

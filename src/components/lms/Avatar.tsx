@@ -1,3 +1,4 @@
+import { StickerPin } from "@/components/lms/stickerArt";
 /** Friendly cartoon avatars drawn as SVG (no photos, no real faces).
  * Codes: "b3" boy, "g7" girl (modest, mostly hijab), "n2" neutral mascot,
  * "a0".."a23" animals, "f0".."f23" flower friends, "s0".."s23" original superheroes.
@@ -107,9 +108,16 @@ function moodMouth(mood: AvatarAnim = "idle") {
   return <path d="M45 68q5 4 10 0" stroke="#3f1d0b" strokeWidth="2.2" fill="none" strokeLinecap="round" />;
 }
 
-/** t422 / t521: idle = bob + blink; celebrate/excited = bounce + sparkles; other moods change the face and motion. Respects reduced motion. */
-export function Avatar({ code, size = 56, className = "", anim }: { code: string; size?: number; className?: string; anim?: AvatarAnim }) {
-  if (code.startsWith("data:image/")) return <img src={code} alt="" width={size} height={size} className={`shrink-0 rounded-full object-cover ${className}`} style={{ width: size, height: size }} data-testid="avatar-photo" />;
+/** t422 / t521: idle = bob + blink; celebrate/excited = bounce + sparkles; other moods change the face and motion. Respects reduced motion. A reward sticker, when the student has chosen one, sits on the corner. */
+export function Avatar({ code, size = 56, className = "", anim, badge }: { code: string; size?: number; className?: string; anim?: AvatarAnim; badge?: string }) {
+  const pin = badge ? <StickerPin code={badge} /> : null;
+  if (code.startsWith("data:image/")) return (
+    <span className={`relative inline-grid shrink-0 ${className}`} style={{ width: size, height: size }}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={code} alt="" width={size} height={size} className="shrink-0 rounded-full object-cover" style={{ width: size, height: size }} data-testid="avatar-photo" />
+      {pin && <svg viewBox="0 0 100 100" className="pointer-events-none absolute inset-0" width={size} height={size} aria-hidden>{pin}</svg>}
+    </span>
+  );
   const g = code[0], n = Number(code.slice(1)) || 0;
   const skin = SKIN[n % SKIN.length], bg = BG[n % BG.length], hair = HAIR[(n >> 1) % HAIR.length], scarf = SCARF[n % SCARF.length];
   const mood = anim || "idle";
@@ -177,6 +185,7 @@ export function Avatar({ code, size = 56, className = "", anim }: { code: string
       </g>
       {sparkly && <g className="av-spark" fill="#f5c542"><path d="M12 12l2 5 5 2-5 2-2 5-2-5-5-2 5-2z" /><path d="M86 10l1.5 4 4 1.5-4 1.5-1.5 4-1.5-4-4-1.5 4-1.5z" /><path d="M88 74l1.5 4 4 1.5-4 1.5-1.5 4-1.5-4-4-1.5 4-1.5z" /></g>}
       {anim === "sleepy" && <g className="av-zzz" fill="#1b3a57" fontSize="11" fontWeight="800" opacity=".8"><text x="70" y="28">z</text><text x="78" y="18" fontSize="14">z</text></g>}
+      {pin}
     </svg>
   );
 }
