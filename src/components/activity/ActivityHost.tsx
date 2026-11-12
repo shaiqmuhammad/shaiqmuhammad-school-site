@@ -363,7 +363,7 @@ export function ActivityHost() {
           <p className="p-10 text-center text-lg opacity-70">{tr("Loading…", "جارٍ التحميل…")}</p>
         ) : (
           <>
-            {state.prompt && <h1 className="mb-4 whitespace-pre-wrap text-3xl font-extrabold leading-snug sm:text-4xl" dir="auto" data-testid="host-prompt">{state.prompt}</h1>}
+            {state.prompt && <h1 className="mb-4 whitespace-pre-wrap text-3xl font-extrabold leading-snug text-heading sm:text-4xl dark:text-white" dir="auto" data-testid="host-prompt">{state.prompt}</h1>}
             {state.ended && <p className="mb-4 rounded-2xl bg-rose-600 px-4 py-2 font-bold text-white">{tr("This activity has ended — students can still see the results.", "انتهى النشاط — ما زال الطلاب يرون النتائج.")}</p>}
             {state.type === "wall" ? (
               <>

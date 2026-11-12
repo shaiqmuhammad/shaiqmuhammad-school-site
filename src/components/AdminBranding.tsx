@@ -140,6 +140,7 @@ export default function AdminBranding({ siteSettings, setSiteSettings, setStatus
 
   // ---- presets ----
   const [presetLabel, setPresetLabel] = useState("");
+  const [comboLabel, setComboLabel] = useState("");
   const savedPresets = saved.presets || [];
   async function savePresets(list: NonNullable<SiteIdentity["presets"]>, note: string) {
     await save({ ...saved, presets: list }, note);
@@ -153,6 +154,15 @@ export default function AdminBranding({ siteSettings, setSiteSettings, setStatus
     setPresetLabel("");
   }
   const applyPreset = (id: string) => { const p = allPresets(saved).find((x) => x.id === id); if (p) setD({ ...d, nameEn: p.nameEn, nameAr: p.nameAr, taglineEn: p.taglineEn, taglineAr: p.taglineAr, theme: p.theme }); };
+  const combos = saved.combos || [];
+  function addCombo() {
+    const label = comboLabel.trim().slice(0, 40);
+    if (!label) return;
+    const id = label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 30) || `c${Date.now() % 100000}`;
+    const row = { id, label, header, sun, heading: d.theme.heading || "", sub: d.theme.sub || "" };
+    void save({ ...d, combos: [...combos.filter((x) => x.id !== id), row].slice(0, 16) }, tr(`Colour combination "${label}" saved.`, `تم حفظ مجموعة الألوان "${label}".`));
+    setComboLabel("");
+  }
 
   // ---- email sender ----
   const mail: MailIdentity = d.mail || { fromName: "", contact: "", info: "", footer: "", logoPath: "", siteLogoPath: "", siteLogoPngPath: "", senders: {}, allowedFrom: [] };
@@ -320,7 +330,7 @@ export default function AdminBranding({ siteSettings, setSiteSettings, setStatus
           {THEME_PRESETS.map((p) => {
             const on = (d.theme.header || DEFAULT_HEADER) === p.header && (d.theme.sun || DEFAULT_SUN) === p.sun;
             return (
-              <button key={p.id} type="button" onClick={() => setTheme({ preset: p.id, header: p.id === "classic" ? "" : p.header, sun: p.id === "classic" ? "" : p.sun })} aria-pressed={on} className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-bold ${on ? "border-sun-border ring-2 ring-sun/50" : "border-card-border"}`} data-testid={`brand-preset-${p.id}`}>
+              <button key={p.id} type="button" onClick={() => setTheme({ preset: p.id, header: p.id === "classic" ? "" : p.header, sun: p.id === "classic" ? "" : p.sun, heading: "", sub: "" })} aria-pressed={on} className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-bold ${on ? "border-sun-border ring-2 ring-sun/50" : "border-card-border"}`} data-testid={`brand-preset-${p.id}`}>
                 <span className="inline-flex"><span className="h-4 w-4 rounded-s-full" style={{ background: p.header }} /><span className="h-4 w-4 rounded-e-full" style={{ background: p.sun }} /></span>
                 {ar ? p.ar : p.en}
               </button>
@@ -330,6 +340,8 @@ export default function AdminBranding({ siteSettings, setSiteSettings, setStatus
         <div className="flex flex-wrap gap-6">
           <label className="flex items-center gap-2 font-medium">{tr("Main / header colour", "اللون الرئيسي / الرأس")}<input type="color" value={header} onChange={(e) => setTheme({ preset: "custom", header: e.target.value })} className="h-9 w-14 cursor-pointer rounded-lg border border-card-border" data-testid="brand-header-color" /></label>
           <label className="flex items-center gap-2 font-medium">{tr("Accent colour", "لون التمييز")}<input type="color" value={sun} onChange={(e) => setTheme({ preset: "custom", sun: e.target.value })} className="h-9 w-14 cursor-pointer rounded-lg border border-card-border" data-testid="brand-sun-color" /></label>
+          <label className="flex items-center gap-2 font-medium">{tr("Heading colour", "لون العنوان")}<input type="color" value={d.theme.heading || header} onChange={(e) => setTheme({ preset: "custom", heading: e.target.value })} className="h-9 w-14 cursor-pointer rounded-lg border border-card-border" data-testid="brand-heading-color" />{d.theme.heading && <button type="button" className="text-xs underline" onClick={() => setTheme({ heading: "" })}>{tr("Default", "الافتراضي")}</button>}</label>
+          <label className="flex items-center gap-2 font-medium">{tr("Subheading colour", "لون العنوان الفرعي")}<input type="color" value={d.theme.sub || "#586a7d"} onChange={(e) => setTheme({ preset: "custom", sub: e.target.value })} className="h-9 w-14 cursor-pointer rounded-lg border border-card-border" data-testid="brand-sub-color" />{d.theme.sub && <button type="button" className="text-xs underline" onClick={() => setTheme({ sub: "" })}>{tr("Default", "الافتراضي")}</button>}</label>
           <fieldset className="flex items-center gap-3">
             <legend className="sr-only">{tr("Default look", "المظهر الافتراضي")}</legend>
             <span className="font-medium">{tr("Default look for visitors:", "المظهر الافتراضي للزوار:")}</span>
@@ -348,7 +360,8 @@ export default function AdminBranding({ siteSettings, setSiteSettings, setStatus
             <span className="ms-auto rounded-full px-3 py-1 text-xs font-bold" style={{ background: sun, color: "#0b1b2b" }}>{tr("Sign in", "دخول")}</span>
           </div>
           <div className="space-y-2 bg-white p-4 text-[#1b2f44]">
-            <p className="text-lg font-extrabold" style={{ color: header }}>{tr("A page heading", "عنوان صفحة")}</p>
+            <p className="text-lg font-extrabold" style={{ color: d.theme.heading || header }}>{tr("A page heading", "عنوان صفحة")}</p>
+            <p className="text-sm font-semibold" style={{ color: d.theme.sub || "#586a7d" }}>{tr("A subheading", "عنوان فرعي")}</p>
             <p className="text-sm">{tr("Normal text on a page looks like this.", "هكذا يبدو النص العادي في الصفحة.")}</p>
             <div className="flex gap-2"><span className="rounded-full px-3 py-1.5 text-xs font-bold text-white" style={{ background: header }}>{tr("Main button", "زر رئيسي")}</span><span className="rounded-full px-3 py-1.5 text-xs font-bold" style={{ background: sun, color: header }}>{tr("Accent button", "زر مميز")}</span></div>
           </div>
@@ -358,6 +371,22 @@ export default function AdminBranding({ siteSettings, setSiteSettings, setStatus
             {warnings.map((w) => <li key={w.en}>⚠️ {ar ? w.ar : w.en} <span className="text-xs opacity-70">({w.ratio.toFixed(1)}:1)</span></li>)}
           </ul>
         ) : <p className="text-xs text-emerald-700 dark:text-emerald-300" data-testid="brand-contrast-ok">✓ {tr("Text is easy to read with these colours.", "النص واضح بهذه الألوان.")}</p>}
+        <p className="text-xs text-muted">{tr("In dark mode, titles stay white unless the heading colour you pick is still easy to read on the dark background. Header icons stay light too.", "في الوضع الداكن تبقى العناوين بيضاء إلا إذا كان لون العنوان الذي اخترته واضحًا على الخلفية الداكنة. وتبقى أيقونات الرأس فاتحة أيضًا.")}</p>
+        <p className="font-medium">{tr("Your colour combinations", "مجموعات ألوانك")}</p>
+        <ul className="flex flex-wrap gap-2" data-testid="brand-combos">
+          {combos.map((c) => (
+            <li key={c.id} className="flex items-center gap-1 rounded-full border border-card-border px-2 py-1">
+              <span className="inline-flex"><span className="h-3.5 w-3.5 rounded-s-full" style={{ background: c.header }} /><span className="h-3.5 w-3.5 rounded-e-full" style={{ background: c.sun }} /></span>
+              <button type="button" className="px-1 text-sm font-semibold hover:underline" onClick={() => setTheme({ preset: "custom", header: c.header, sun: c.sun, heading: c.heading || "", sub: c.sub || "" })} data-testid={`combo-use-${c.id}`}>{c.label}</button>
+              <button type="button" aria-label={tr("Delete combination", "حذف المجموعة")} className="px-1 text-xs text-muted hover:text-red-600" disabled={busy} onClick={() => void save({ ...d, combos: (d.combos || combos).filter((x) => x.id !== c.id) }, tr("Combination deleted.", "تم حذف المجموعة."))}>✕</button>
+            </li>
+          ))}
+          {!combos.length && <li className="text-sm text-muted">{tr("None saved yet.", "لم يُحفظ شيء بعد.")}</li>}
+        </ul>
+        <div className="flex max-w-xl flex-wrap gap-2">
+          <input value={comboLabel} maxLength={40} onChange={(e) => setComboLabel(e.target.value)} placeholder={tr("Combination name, e.g. Spring", "اسم المجموعة، مثل الربيع")} className="min-w-0 flex-1 rounded-xl border border-card-border bg-card-solid px-3 py-2 text-sm" data-testid="combo-label" />
+          <button type="button" className={btn2} disabled={busy || !comboLabel.trim()} onClick={addCombo} data-testid="combo-save">{tr("Save this colour combination", "احفظ مجموعة الألوان هذه")}</button>
+        </div>
       </Card>
 
       {msg && <p className={`rounded-lg px-3 py-2 text-sm ${msg.ok ? "bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200" : "bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300"}`} role="status" data-testid="brand-msg">{msg.text}</p>}
