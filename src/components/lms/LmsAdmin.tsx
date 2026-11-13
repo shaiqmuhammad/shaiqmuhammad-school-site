@@ -93,7 +93,7 @@ function PersonForm({ role, catalog, initial, onSave, submitLabel, testPrefix, s
       ) : (
         <span className="hidden sm:col-span-2 sm:block" />
       )}
-      {!initial && <input className={inputCls} placeholder={tr("Password (auto)", "كلمة المرور (تلقائية)")} value={f.pin} onChange={(e) => setF({ ...f, pin: e.target.value.slice(0, 64) })} dir="ltr" data-testid={`${testPrefix}-pin`} aria-label={tr("Password", "كلمة المرور")} />}
+      {!initial && <input className={inputCls} placeholder={role === "student" ? tr("Password (school default if empty)", "كلمة المرور (افتراضي المدرسة إن تُرك فارغًا)") : tr("Password (auto)", "كلمة المرور (تلقائية)")} value={f.pin} onChange={(e) => setF({ ...f, pin: e.target.value.slice(0, 64) })} dir="ltr" data-testid={`${testPrefix}-pin`} aria-label={tr("Password", "كلمة المرور")} />}
       {role === "teacher" && (
         <div className="space-y-2 sm:col-span-6">
           {admin ? <TeacherAssign f={f} setF={setF} catalog={catalog} testPrefix={testPrefix} /> : !initial && <><p className="text-sm font-semibold">{tr("Subjects", "المواد")}</p>

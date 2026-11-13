@@ -1,5 +1,6 @@
 import { initDeployment } from "./deployment";
 import { loadCat, catPhases, rulePhase, ruleDept } from "./catx";
+import { defaultStudentPin, initialAccountPin } from "./studentPin";
 /**
  * LMS phase 1: student/teacher accounts (username + PIN), homework (Quran + general), review, tracker.
  *
@@ -63,6 +64,12 @@ export interface LmsEnv extends AdminEnv, StorageEnv, MailEnv {
   MIGRATE_KEY?: string;
   /** base64 of 32 random bytes; enables admin PIN viewing. */
   LMS_PIN_KEY?: string;
+  /**
+   * Shared default password for student accounts (wrangler secret; never committed).
+   * New students with an empty Password get this. When it is set, existing students are switched to it once.
+   * Teachers, parents and the admin password are not changed.
+   */
+  LMS_STUDENT_DEFAULT_PIN?: string;
   /** "1" on a retired copy of this worker (old account): no timetable reminder alarms there. */
   LMS_RETIRED?: string;
   /** Cloudflare Workers AI (free) — draft questions from the curriculum. */
@@ -384,6 +391,8 @@ export class LmsStore extends DurableObject<LmsEnv> {
     this.migrateGroupsToAssignment();
     this.migrateViewAllTeachers();
     this.migrateCatalogTree();
+    // One-time student password reset. Queues ids only; hashing runs later on the alarm so this stays short.
+    this.ctx.blockConcurrencyWhile(() => this.kickStudentPinDefault());
   }
 
   private catalog() {
@@ -777,6 +786,13 @@ export class LmsStore extends DurableObject<LmsEnv> {
   }
   async planTT() {
     if (this.env.LMS_RETIRED === "1") { await this.ctx.storage.deleteAlarm(); return; }
+    // While the one-time student password reset still has accounts queued, keep the single alarm on that work.
+    if (this.studentPinDefaultPending()) {
+      const soon = Date.now() + 1000;
+      const cur = await this.ctx.storage.getAlarm();
+      if (cur == null || cur > soon) await this.ctx.storage.setAlarm(soon);
+      return;
+    }
     const n = this.ttNext();
     if (!n) { await this.ctx.storage.deleteAlarm(); return; }
     await this.ctx.storage.setAlarm(n + 2000);
@@ -784,7 +800,84 @@ export class LmsStore extends DurableObject<LmsEnv> {
   private ttPlanned = false;
   async alarm() {
     if (this.env.LMS_RETIRED === "1") { await this.ctx.storage.deleteAlarm(); return; }
-    try { this.ttTick(); } finally { await this.planTT(); }
+    const morePins = await this.studentPinDefaultBatch();
+    try { this.ttTick(); } finally {
+      if (!morePins) await this.planTT();
+      else {
+        const soon = Date.now() + 1000;
+        const cur = await this.ctx.storage.getAlarm();
+        if (cur == null || cur > soon) await this.ctx.storage.setAlarm(soon);
+      }
+    }
+  }
+  /** Secret is set, and the one-time student reset has been queued but not finished. */
+  private studentPinDefaultPending(): boolean {
+    if (this.env.LMS_RETIRED === "1") return false;
+    if (!defaultStudentPin(this.env.LMS_STUDENT_DEFAULT_PIN)) return false;
+    return this.setting("stu-pin-default") === "pending";
+  }
+  /**
+   * Queue every current student once, then (on the alarm) set only their password via setPin.
+   * Salt, hash and the viewable copy change. Reward Cards and every other column stay as they are.
+   * Teachers and parents are never queued. A missing secret does nothing, so a deploy alone changes no passwords.
+   */
+  private async kickStudentPinDefault() {
+    try {
+      if (this.env.LMS_RETIRED === "1") return;
+      if (!defaultStudentPin(this.env.LMS_STUDENT_DEFAULT_PIN)) return;
+      const st = this.setting("stu-pin-default");
+      if (st === "1") return;
+      if (st !== "pending") {
+        this.sql.exec(`CREATE TABLE IF NOT EXISTS pin_mig (id TEXT PRIMARY KEY, tries INTEGER DEFAULT 0)`);
+        this.sql.exec(`INSERT OR IGNORE INTO pin_mig (id) SELECT id FROM users WHERE role='student'`);
+        this.sql.exec(`INSERT INTO settings (k, v) VALUES ('stu-pin-default', 'pending') ON CONFLICT(k) DO UPDATE SET v='pending'`);
+      }
+      const soon = Date.now() + 1000;
+      const cur = await this.ctx.storage.getAlarm();
+      if (cur == null || cur > soon) await this.ctx.storage.setAlarm(soon);
+    } catch {
+      console.log(JSON.stringify({ evt: "stu-pin-default", err: "kick" }));
+    }
+  }
+  /** Hash a batch of queued students. Returns true when the alarm should stay on this work. */
+  private async studentPinDefaultBatch(): Promise<boolean> {
+    try {
+      if (!this.studentPinDefaultPending()) return false;
+      const pin = defaultStudentPin(this.env.LMS_STUDENT_DEFAULT_PIN);
+      if (!pin) return false;
+      this.sql.exec(`CREATE TABLE IF NOT EXISTS pin_mig (id TEXT PRIMARY KEY, tries INTEGER DEFAULT 0)`);
+      const rows = this.sql.exec(`SELECT id FROM pin_mig LIMIT 40`).toArray();
+      for (const row of rows) {
+        const id = String(row.id);
+        const u = this.userRow("id=?", id);
+        if (u && String(u.role) === "student") {
+          try {
+            await this.setPin(id, pin);
+          } catch {
+            const tries = Number(this.sql.exec(`SELECT tries FROM pin_mig WHERE id=?`, id).toArray()[0]?.tries || 0) + 1;
+            if (tries < 3) {
+              this.sql.exec(`UPDATE pin_mig SET tries=? WHERE id=?`, tries, id);
+              console.log(JSON.stringify({ evt: "stu-pin-default", err: "retry" }));
+              continue;
+            }
+            console.log(JSON.stringify({ evt: "stu-pin-default", err: "skipped" }));
+          }
+        }
+        this.sql.exec(`DELETE FROM pin_mig WHERE id=?`, id);
+      }
+      const left = Number(this.sql.exec(`SELECT COUNT(*) AS n FROM pin_mig`).one().n);
+      if (left > 0) {
+        console.log(JSON.stringify({ evt: "stu-pin-default", left }));
+        return true;
+      }
+      this.sql.exec(`INSERT INTO settings (k, v) VALUES ('stu-pin-default', '1') ON CONFLICT(k) DO UPDATE SET v='1'`);
+      console.log(JSON.stringify({ evt: "stu-pin-default", done: true }));
+      return false;
+    } catch {
+      // Leave the queue pending. The timetable alarm still runs; planTT keeps this work scheduled.
+      console.log(JSON.stringify({ evt: "stu-pin-default", err: "batch" }));
+      return false;
+    }
   }
   ttTick(nowMs = Date.now(), zzOnly = false) {
     const times = ttTimes(this.sql), rows = ttRows(this.sql);
@@ -1237,7 +1330,8 @@ export class LmsStore extends DurableObject<LmsEnv> {
             if (a.role !== "admin" && role === "student") { const pp = name.split(/\s+/); this.sql.exec(`UPDATE users SET first_name=?, last_name=? WHERE id=?`, pp[0] || "", pp.slice(1).join(" "), String(existing.id)); }
           } else {
             if (Number(this.sql.exec(`SELECT COUNT(*) AS n FROM users`).one().n) >= MAX_USERS) { errors.push({ row: i + 1, username, error: "full" }); continue; }
-            if (!pin) pin = newPin();
+            // Students: empty Password uses the shared default when the worker secret is set. Teachers still get a random one.
+            if (!pin) pin = initialAccountPin(role, "", defaultStudentPin(this.env.LMS_STUDENT_DEFAULT_PIN)) || newPin();
             const id = rid("u");
             this.sql.exec(`INSERT INTO users (id, username, name, role, cls, section, subjects, scope, perms, disabled, created, email) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, id, username, name, role, cls, section, JSON.stringify(subjects), JSON.stringify(scope), JSON.stringify(perms), stuCan(a, "block") && raw.disabled ? 1 : 0, Date.now(), email);
             await this.setPin(id, pin);

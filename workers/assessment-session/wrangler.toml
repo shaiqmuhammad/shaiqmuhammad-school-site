@@ -67,6 +67,10 @@ new_sqlite_classes = ["LmsStore"]
 #   npx wrangler secret put GITHUB_PAT              (fine-grained token: Contents read/write on this repo)
 #   npx wrangler secret put ADMIN_PASSWORD_SHA256   (sha256 hex of the admin password)
 #   npx wrangler secret put SESSION_SIGNING_KEY     (random; changing it signs every device out)
+#   npx wrangler secret put LMS_STUDENT_DEFAULT_PIN (shared student password; not committed)
+#     New students with an empty Password receive it. Existing students are switched to it once
+#     (password fields only). Teachers, parents and the admin password are left unchanged.
+#     Until this secret is set, new students still get a random password and nobody is reset.
 
 # Optional: require a teacher secret to create sessions.
 #   npx wrangler secret put HOST_SECRET
