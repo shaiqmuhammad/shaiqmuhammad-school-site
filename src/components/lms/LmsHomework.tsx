@@ -570,15 +570,15 @@ export function LmsHomework() {
               </section>
             )}
             {deck && staff && hw && typeof document !== "undefined" && createPortal(
-              <div className="fixed inset-0 z-[2147483000] overflow-y-auto overscroll-contain bg-[#0b1b2b] text-white" data-testid="hw-review-deck">
-                <div className="sticky top-0 z-10 flex items-center justify-between gap-3 bg-[#10263b]/95 px-4 py-3">
+              <div className="fixed inset-0 z-[2147483000] overflow-y-auto overscroll-contain bg-slate-50 text-[#1b2f44] dark:bg-[#0b1b2b] dark:text-white" data-testid="hw-review-deck">
+                <div className="sticky top-0 z-10 flex items-center justify-between gap-3 bg-white/95 px-4 py-3 shadow-sm dark:bg-[#10263b]/95">
                   <b>{tr("Focus — scroll up and down through the homework", "تركيز — مرّر للأعلى والأسفل في الواجب")}</b>
-                  <button type="button" className="rounded-full bg-white/15 px-3 py-1 text-sm font-bold text-white" onClick={() => setDeck(false)} data-testid="hw-review-full-exit">✕ {tr("Exit Focus", "إنهاء التركيز")}</button>
+                  <button type="button" className="rounded-full bg-[#1b3a57] px-3 py-1 text-sm font-bold text-white dark:bg-white/15" onClick={() => setDeck(false)} data-testid="hw-review-full-exit">✕ {tr("Exit Focus", "إنهاء التركيز")}</button>
                 </div>
                 {(d?.subs || []).map((s) => (
-                  <section key={s.id} className="flex flex-col gap-3 border-b border-white/10 p-4" data-testid="hw-review-slide">
-                    <h2 className="text-2xl font-extrabold text-white" dir="auto">{s.name} <span className="text-base font-semibold text-white/70">{s.cls}</span></h2>
-                    {s.submittedAt ? <p className="text-sm text-white/80">{tr("Submitted", "سُلّم")} {stamp(s.submittedAt, lang, true)}</p> : null}
+                  <section key={s.id} className="flex flex-col gap-3 border-b border-black/10 p-4 dark:border-white/10" data-testid="hw-review-slide">
+                    <h2 className="text-2xl font-extrabold text-[#1b2f44] dark:text-white" dir="auto">{s.name} <span className="text-base font-semibold text-[#1b2f44]/70 dark:text-white/70">{s.cls}</span></h2>
+                    {s.submittedAt ? <p className="text-sm text-[#1b2f44]/80 dark:text-white/80">{tr("Submitted", "سُلّم")} {stamp(s.submittedAt, lang, true)}</p> : null}
                     {hw.kind === "quran" ? <div className="rounded-3xl bg-white p-3 text-[#1b2f44]"><QuranReader data={hw.data as QuranData} mistakes={s.mistakes || []} /></div> : ((hw.data as unknown) as { pack?: string }).pack ? <div className="min-h-[70vh] overflow-hidden rounded-3xl bg-white"><PackPlayer id={((hw.data as unknown) as { pack: string }).pack} asAdmin={asAdmin} review={{ student: s.student }} /></div> : <div className="rounded-3xl bg-white p-3 text-[#1b2f44]"><Slides data={hw.data as GeneralData} /></div>}
                     <ul>{<Review pack={(hw.data as { pack?: string }).pack} quran={hw.kind === "quran"} qdata={hw.kind === "quran" ? (hw.data as QuranData) : undefined} s={s} asAdmin={asAdmin} reload={load} />}</ul>
                   </section>
