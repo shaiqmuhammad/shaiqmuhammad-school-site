@@ -146,7 +146,7 @@ export async function exportPackPptx(pack: PptxPack, asAdmin: boolean, onStep?: 
     }
     const kind = slideKind(sl, pack.type);
     const notes = [
-      kind ? `${PART_LABEL[kind][1]}${kind === "activity" ? " (students see: Task)" : ""} · ${PART_LABEL[kind][2]}` : "",
+      kind ? `${PART_LABEL[kind][1]} · ${PART_LABEL[kind][2]}` : "",
       sl.timer ? `Timer: ${fmtT(sl.timer)}` : "",
       sl.instr ? `Instructions: ${sl.instr}` : "",
     ].filter(Boolean).join("\n");

@@ -69,7 +69,7 @@ function el(e: Json, student = false): Json | null {
 /** t429: Lesson Builder slide meta — part (lesson/activity/homework), timer (seconds), student instructions (+ recorded audio). */
 function slideMeta(s: Json): Json {
   const o: Json = {};
-  if (["lesson", "activity", "homework"].includes(String(s?.part))) o.part = String(s.part);
+  if (["lesson", "activity", "homework", "quran"].includes(String(s?.part))) o.part = String(s.part);
   const t = Math.trunc(Number(s?.timer) || 0); if (t > 0) o.timer = Math.min(7200, t);
   const ins = str(s?.instr, 2000); if (ins) o.instr = ins;
   if (MEDIA.test(String(s?.instrAudio || ""))) o.instrAudio = String(s.instrAudio);
@@ -81,6 +81,8 @@ function slides(v: unknown, student = false): Json[] {
 }
 export function packInit(sql: Sql) {
   sql.exec(`CREATE TABLE IF NOT EXISTS lpack (id TEXT PRIMARY KEY, owner TEXT, owner_name TEXT, title TEXT, type TEXT, subject TEXT DEFAULT '', aud TEXT DEFAULT '[]', students TEXT DEFAULT '[]', topic TEXT DEFAULT '{}', slides TEXT DEFAULT '[]', mode TEXT DEFAULT 'self', assign_at INTEGER DEFAULT 0, due INTEGER DEFAULT 0, status TEXT DEFAULT 'draft', hw TEXT DEFAULT '', live INTEGER DEFAULT -1, tpl INTEGER DEFAULT 0, notified INTEGER DEFAULT 0, due_notified INTEGER DEFAULT 0, created INTEGER, updated INTEGER)`);
+  // t646: one Quran homework row per "Quran Homework" slide of a pack.
+  sql.exec(`CREATE TABLE IF NOT EXISTS lpqhw (pack TEXT, slide TEXT, hw TEXT, PRIMARY KEY (pack, slide))`);
   sql.exec(`CREATE TABLE IF NOT EXISTS lpwork (pack TEXT, student TEXT, slides TEXT DEFAULT '[]', seen TEXT DEFAULT '[]', updated INTEGER, PRIMARY KEY (pack, student))`);
 }
 const row = (r: Record<string, unknown>, full = true) => {
@@ -191,7 +193,7 @@ export async function packHandle(c: PackCtx, a: Actor, action: string, input: Js
       const r = get();
       if (!r || !mine(a, r)) return { status: 404, body: { error: "not_found" } };
       if (!acc.edit && !acc.add) return forbid("lp_edit_not_allowed");
-      if (input.off === true) { if (r.hw) await c.hwDelete(a, String(r.hw)); sql.exec(`UPDATE lpack SET status='draft', hw='', notified=0, due_notified=0 WHERE id=?`, id); return { status: 200, body: { ok: true, pack: row(get()!) } }; }
+      if (input.off === true) { if (r.hw) await c.hwDelete(a, String(r.hw)); await dropQuranRows(c, a, id); sql.exec(`UPDATE lpack SET status='draft', hw='', notified=0, due_notified=0 WHERE id=?`, id); return { status: 200, body: { ok: true, pack: row(get()!) } }; }
       if (String(r.type) === "lesson") return { status: 400, body: { error: "lesson_not_assignable" } };
       if (!(JSON.parse(String(r.students || "[]")) as unknown[]).length) return { status: 400, body: { error: "no_students" } };
       sql.exec(`UPDATE lpack SET status='published' WHERE id=?`, id);
@@ -214,6 +216,7 @@ export async function packHandle(c: PackCtx, a: Actor, action: string, input: Js
       if (!r || !mine(a, r)) return { status: 404, body: { error: "not_found" } };
       if (!acc.delete) return forbid("lp_delete_not_allowed");
       if (r.hw) await c.hwDelete(a, String(r.hw));
+      await dropQuranRows(c, a, id);
       sql.exec(`DELETE FROM lpack WHERE id=?`, id); sql.exec(`DELETE FROM lpwork WHERE pack=?`, id);
       return { status: 200, body: { ok: true } };
     }
@@ -263,7 +266,7 @@ async function publish(c: PackCtx, a: Actor, id: string): Promise<Reply> {
   const r = c.sql.exec(`SELECT * FROM lpack WHERE id=?`, id).toArray()[0];
   if (!r) return { status: 404, body: { error: "not_found" } };
   const type = String(r.type);
-  if (type === "material" || type === "lesson") { if (r.hw) { await c.hwDelete(a, String(r.hw)); c.sql.exec(`UPDATE lpack SET hw='' WHERE id=?`, id); } return { status: 200, body: { ok: true } }; }
+  if (type === "material" || type === "lesson") { if (r.hw) { await c.hwDelete(a, String(r.hw)); c.sql.exec(`UPDATE lpack SET hw='' WHERE id=?`, id); } await dropQuranRows(c, a, id); return { status: 200, body: { ok: true } }; }
   const sl = JSON.parse(String(r.slides || "[]")) as { els: Json[]; part?: string }[];
   const q = sl.flatMap((s) => s.els).find((e) => e.t === "quran");
   if (type === "quran" && !q) return { status: 400, body: { error: "lp_needs_quran_slide" } };
@@ -271,12 +274,41 @@ async function publish(c: PackCtx, a: Actor, id: string): Promise<Reply> {
   const assignAt = Number(r.assign_at || 0);
   const topicJson = JSON.parse(String(r.topic || "{}")) as Json;
   const attemptLimit = topicJson.tries === undefined || topicJson.tries === null || topicJson.tries === "" ? 1 : Math.min(30, Math.max(0, Math.trunc(Number(topicJson.tries)) || 0));
-  const parts = [...new Set(sl.map((s) => s.part).filter((p) => p === "lesson" || p === "activity" || p === "homework"))];
+  // t650: only Task (activity) and Homework slides are assigned; lesson slides stay with the teacher.
+  const parts = [...new Set(sl.map((s) => s.part).filter((p) => p === "activity" || p === "homework"))];
   const shared = { pack: id, assignAt, attemptLimit, ...(parts.length ? { parts } : {}) };
   const data = type === "quran" ? { surah: q!.surah, from: q!.from, to: q!.to, reciter: q!.reciter, memorise: q!.memorise === true, memoAudio: q!.memoAudio !== false, translit: q!.translit === true, translation: q!.translation === true, notes: String(q!.notes || ""), ...shared } : { slides: [], question: "", ...shared, ...(type === "activity" ? { activity: true } : {}) };
-  const rr = await c.hwSave(a, { id: String(r.hw || "") || undefined, kind: type === "quran" ? "quran" : "general", title: String(r.title), cls: "", section: "", students, due: Number(r.due || 0) || null, data, quiet: true });
-  if (rr.status !== 200) return rr;
-  const hw = String((rr.body as { id?: string }).id || r.hw || "");
-  c.sql.exec(`UPDATE lpack SET hw=? WHERE id=?`, hw, id);
+  // t646: a pack made only of Quran Homework slides needs no general homework row.
+  const onlyQuran = type !== "quran" && sl.length > 0 && sl.every((s) => s.part === "quran");
+  if (onlyQuran) { if (r.hw) { await c.hwDelete(a, String(r.hw)); c.sql.exec(`UPDATE lpack SET hw='' WHERE id=?`, id); } }
+  else {
+    const rr = await c.hwSave(a, { id: String(r.hw || "") || undefined, kind: type === "quran" ? "quran" : "general", title: String(r.title), cls: "", section: "", students, due: Number(r.due || 0) || null, data, quiet: true });
+    if (rr.status !== 200) return rr;
+    const hw = String((rr.body as { id?: string }).id || r.hw || "");
+    c.sql.exec(`UPDATE lpack SET hw=? WHERE id=?`, hw, id);
+  }
+  // t646: each "Quran Homework" slide becomes its own Quran homework row, like the normal Quran homework flow.
+  const old = new Map(c.sql.exec(`SELECT slide, hw FROM lpqhw WHERE pack=?`, id).toArray().map((x) => [String(x.slide), String(x.hw)]));
+  const keep = new Set<string>();
+  for (const s of sl as { id?: string; els: Json[]; part?: string }[]) {
+    if (s.part !== "quran") continue;
+    const qe = s.els.find((e) => e.t === "quran");
+    if (!qe || (type === "quran" && qe === q)) continue;
+    const sid = String(s.id || "");
+    if (!sid || keep.has(sid)) continue;
+    keep.add(sid);
+    const qdata = { surah: qe.surah, from: qe.from, to: qe.to, reciter: qe.reciter, memorise: qe.memorise === true, memoAudio: qe.memoAudio !== false, translit: qe.translit === true, translation: qe.translation === true, notes: String(qe.notes || ""), assignAt, attemptLimit, fromPack: id };
+    const title = `${String(r.title)} · 📖 ${Number(qe.surah)}:${Number(qe.from)}–${Number(qe.to)}`.slice(0, 200);
+    const qr = await c.hwSave(a, { id: old.get(sid) || undefined, kind: "quran", title, cls: "", section: "", students, due: Number(r.due || 0) || null, data: qdata, quiet: true });
+    if (qr.status !== 200) return qr;
+    const qid = String((qr.body as { id?: string }).id || old.get(sid) || "");
+    c.sql.exec(`INSERT OR REPLACE INTO lpqhw (pack, slide, hw) VALUES (?, ?, ?)`, id, sid, qid);
+  }
+  for (const [sid, hw] of old) if (!keep.has(sid)) { if (hw) await c.hwDelete(a, hw); c.sql.exec(`DELETE FROM lpqhw WHERE pack=? AND slide=?`, id, sid); }
   return { status: 200, body: { ok: true } };
+}
+/** t646: remove the Quran homework rows made from a pack's Quran Homework slides. */
+async function dropQuranRows(c: PackCtx, a: Actor, id: string) {
+  for (const x of c.sql.exec(`SELECT hw FROM lpqhw WHERE pack=?`, id).toArray()) if (x.hw) await c.hwDelete(a, String(x.hw));
+  c.sql.exec(`DELETE FROM lpqhw WHERE pack=?`, id);
 }
