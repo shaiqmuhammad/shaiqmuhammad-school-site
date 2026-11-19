@@ -32,7 +32,7 @@ export type QuranData = { surah: number; from: number; to: number; reciter: stri
 export type GeneralData = { slides: Slide[]; question: string };
 export type Homework = { id: string; kind: "quran" | "general"; title: string; cls: string; section?: string; /** t422: subject + resolved Year(s) / Section(s) for display */ subject?: string; aud?: { years: string[]; sections: string[] }; students: string[]; data: QuranData | GeneralData; due: number | null; createdBy: string; created: number; locked?: boolean; lockedBy?: { surah: number; from: number; to: number; title: string } | null; late?: boolean };
 export type Comment = { by: string; text: string; at: number; audio?: string };
-export type RosterStudent = { id: string; name: string; cls: string; section: string; avatar: string; badge?: string; parentEmail: boolean; points: number; seen: number; cards?: number; attPct?: number | null };
+export type RosterStudent = { id: string; name: string; cls: string; section: string; gender?: "" | "b" | "g" | string; avatar: string; badge?: string; parentEmail: boolean; points: number; seen: number; cards?: number; attPct?: number | null };
 export type PointCat = { id: string; label: string; pts: number; icon: string };
 export type PointRow = { id: string; student: string; name: string; label: string; pts: number; icon: string; by: string; at: number };
 export type WallClass = { key: string; label: string; group?: boolean; count?: number; members?: { id: string; name: string }[] };
@@ -422,6 +422,11 @@ export function lmsErrorText(e: unknown, tr: (en: string, ar: string) => string)
     too_many_attempts: ["Too many tries — wait 15 minutes and try again.", "محاولات كثيرة — انتظر 15 دقيقة ثم حاول."],
     unauthorized: ["Please sign in again.", "يرجى تسجيل الدخول مجددًا."],
     forbidden: ["You don't have permission for that.", "ليست لديك صلاحية لذلك."],
+    share_view_only: ["You can see this homework, but you don't have permission to save a grade.", "يمكنك رؤية هذا الواجب، لكن ليست لديك صلاحية حفظ التقييم."],
+    quran_not_allowed: ["Quran homework isn't switched on for your account.", "واجب القرآن غير مفعّل لحسابك."],
+    general_hw_not_allowed: ["You don't have permission to correct this homework.", "ليست لديك صلاحية تصحيح هذا الواجب."],
+    module_hidden: ["This part is hidden for your account.", "هذا الجزء مخفي لحسابك."],
+    not_found: ["That homework could not be found.", "تعذر العثور على هذا الواجب."],
     network: ["No connection — try again.", "لا يوجد اتصال — حاول مرة أخرى."],
     verses: ["Check the surah and verse range.", "تحقق من السورة ونطاق الآيات."],
     title: ["Add a title.", "أضف عنوانًا."],

@@ -9,6 +9,7 @@ import { Amiri_Quran } from "next/font/google";
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
 import { LmsDashboard, NeedLogin } from "@/components/lms/LmsDashboard";
 import { HomeworkHubTabs, hwBucket, type DashHw, type HwHubTab } from "@/components/lms/HwHub";
@@ -513,6 +514,7 @@ export function LmsHomework() {
             )}
             {editing && <HomeworkEditor initial={hw} classes={extra.classes} students={extra.students} catalog={extra.catalog} scope={extra.scope} asAdmin={asAdmin} onCancel={() => setEditing(false)} onSaved={() => { setEditing(false); load(); }} />}
             {hw.kind === "quran" && staff && (hw.data as QuranData).memorise && <p className="rounded-2xl bg-violet-100 px-4 py-2 text-sm font-bold text-violet-900" data-testid="hw-memo-teacher">🧠 {tr("Memorise & record — students don't see these verses.", "احفظ وسجّل — لا يرى الطلاب هذه الآيات.")}</p>}
+            {hw.kind === "quran" && staff && <div className="flex justify-end"><button type="button" className={smallBtn} onClick={() => setDeck(true)} data-testid="quran-corr-focus">🎯 {tr("Focus", "تركيز")}</button></div>}
             {hw.kind === "quran" ? (!staff && (hw.data as QuranData).memorise && memoHide ? <MemoriseCard data={hw.data as QuranData} chapters={chapters} /> : <QuranReader data={hw.data as QuranData} mistakes={(d.sub?.mistakes || [])} />) : <Slides data={hw.data as GeneralData} />}
             {(hw.data as { pack?: string }).pack && <PackPlayer key={String(d?.sub?.status)} id={(hw.data as { pack?: string }).pack!} asAdmin={asAdmin} preview={staff} locked={!staff && (d?.sub?.status === "approved" || (d?.sub?.status === "submitted" && !(d.sub.comments || []).some((c) => c.at > (d.sub!.submittedAt || 0))))} />}
             {!staff && <StudentWork key={d?.sub?.updated || 0} hw={hw} sub={d?.sub || null} reload={load} chapters={chapters} />}
@@ -531,7 +533,7 @@ export function LmsHomework() {
                   const nCorr = all.filter(isCorr).length;
                   return (
                     <>
-                      <div className="flex flex-wrap items-center gap-2"><h2 className="text-xl font-bold">{tr("Submissions", "التسليمات")} ({all.length})</h2>{all.length > 0 && <button type="button" className={smallBtn} onClick={() => setDeck(true)} data-testid="hw-review-full">⛶ {tr("Full screen correction", "تصحيح بملء الشاشة")}</button>}</div>
+                      <div className="flex flex-wrap items-center gap-2"><h2 className="text-xl font-bold">{tr("Submissions", "التسليمات")} ({all.length})</h2>{all.length > 0 && <button type="button" className={smallBtn} onClick={() => setDeck(true)} data-testid="hw-review-full">🎯 {tr("Focus", "تركيز")}</button>}</div>
                       <div className="flex flex-wrap gap-2" role="tablist">
                         <a href="/lms/homework?tab=review" role="tab" aria-selected={subTab === "cur"} onClick={(e) => { if (subTab === "corr") { e.preventDefault(); setSubTab("cur"); } }} className={`rounded-full px-4 py-1.5 text-sm font-extrabold ${subTab === "cur" ? "bg-header text-white" : "bg-black/5 dark:bg-white/10"}`} data-testid="subs-tab-current">📥 {tr("To review", "للمراجعة")} ({all.filter(toRev).length})</a>
                         <button type="button" role="tab" aria-selected={subTab === "corr"} onClick={() => setSubTab("corr")} className={`rounded-full px-4 py-1.5 text-sm font-extrabold ${subTab === "corr" ? "bg-header text-white" : "bg-black/5 dark:bg-white/10"}`} data-testid="subs-tab-corrected">✅ {tr("Corrected", "المصحَّح")} ({nCorr})</button>
@@ -552,21 +554,22 @@ export function LmsHomework() {
                 )}
               </section>
             )}
-            {deck && staff && hw && (
-              <div className="fixed inset-0 z-[2600] overflow-y-auto bg-[#0b1b2b] text-white snap-y snap-mandatory" data-testid="hw-review-deck">
+            {deck && staff && hw && typeof document !== "undefined" && createPortal(
+              <div className="fixed inset-0 z-[2147483000] overflow-y-auto overscroll-contain bg-[#0b1b2b] text-white" data-testid="hw-review-deck">
                 <div className="sticky top-0 z-10 flex items-center justify-between gap-3 bg-[#10263b]/95 px-4 py-3">
-                  <b>{tr("Scroll up and down through every submission", "مرّر للأعلى والأسفل بين كل التسليمات")}</b>
-                  <button type="button" className="rounded-full bg-white/15 px-3 py-1 text-sm font-bold text-white" onClick={() => setDeck(false)} data-testid="hw-review-full-exit">✕ {tr("Close", "إغلاق")}</button>
+                  <b>{tr("Focus — scroll up and down through the homework", "تركيز — مرّر للأعلى والأسفل في الواجب")}</b>
+                  <button type="button" className="rounded-full bg-white/15 px-3 py-1 text-sm font-bold text-white" onClick={() => setDeck(false)} data-testid="hw-review-full-exit">✕ {tr("Exit Focus", "إنهاء التركيز")}</button>
                 </div>
                 {(d?.subs || []).map((s) => (
-                  <section key={s.id} className="flex min-h-[100dvh] snap-start flex-col gap-3 border-b border-white/10 p-4" data-testid="hw-review-slide">
+                  <section key={s.id} className="flex flex-col gap-3 border-b border-white/10 p-4" data-testid="hw-review-slide">
                     <h2 className="text-2xl font-extrabold text-white" dir="auto">{s.name} <span className="text-base font-semibold text-white/70">{s.cls}</span></h2>
                     {s.submittedAt ? <p className="text-sm text-white/80">{tr("Submitted", "سُلّم")} {stamp(s.submittedAt, lang, true)}</p> : null}
                     {hw.kind === "quran" ? <div className="rounded-3xl bg-white p-3 text-[#1b2f44]"><QuranReader data={hw.data as QuranData} mistakes={s.mistakes || []} /></div> : ((hw.data as unknown) as { pack?: string }).pack ? <div className="min-h-[70vh] overflow-hidden rounded-3xl bg-white"><PackPlayer id={((hw.data as unknown) as { pack: string }).pack} asAdmin={asAdmin} review={{ student: s.student }} /></div> : <div className="rounded-3xl bg-white p-3 text-[#1b2f44]"><Slides data={hw.data as GeneralData} /></div>}
                     <ul>{<Review pack={(hw.data as { pack?: string }).pack} quran={hw.kind === "quran"} qdata={hw.kind === "quran" ? (hw.data as QuranData) : undefined} s={s} asAdmin={asAdmin} reload={load} />}</ul>
                   </section>
                 ))}
-              </div>
+              </div>,
+              document.body,
             )}
           </>
         )}

@@ -456,8 +456,8 @@ function LessonBoard({ asAdmin }: { asAdmin: boolean }) {
                         <HwMeta {...a} className="mt-1" />
                         <p className="mt-1 text-xs opacity-70">{p.count ?? p.slides?.length ?? 0} {tr("slides", "شرائح")} · {p.status === "published" ? tr("Ready to present", "جاهز للعرض") : tr("Draft", "مسودة")}{p.topic?.title ? ` · ${p.topic.title}` : ""}{p.updated ? ` · ${new Date(p.updated).toLocaleDateString(lang === "ar" ? "ar" : "en-GB")}` : ""}</p>
                         <div className="mt-3 flex flex-wrap items-center gap-2">
-                          <a className={OPEN_PILL} href={`/lms/material?open=${encodeURIComponent(p.id)}`} data-testid="lesson-portion-open">{tr("Present", "عرض")}</a>
-                          {canEdit(p) && <a className={btn + " !py-1"} href={`/lms/material?edit=${encodeURIComponent(p.id)}`} title={tr("Edit", "تعديل")} aria-label={tr("Edit", "تعديل")} data-testid="lesson-portion-edit">✎</a>}
+                          <a className={OPEN_PILL} href={`/lms/material?open=${encodeURIComponent(p.id)}&from=lessons`} data-testid="lesson-portion-open">{tr("Present", "عرض")}</a>
+                          {canEdit(p) && <a className={btn + " !py-1"} href={`/lms/material?edit=${encodeURIComponent(p.id)}&from=lessons`} title={tr("Edit", "تعديل")} aria-label={tr("Edit", "تعديل")} data-testid="lesson-portion-edit">✎</a>}
                           {canDel(p) && <button type="button" className={btn + " !py-1"} onClick={() => del(p)} title={tr("Delete", "حذف")} aria-label={tr("Delete", "حذف")} data-testid="lesson-portion-del">🗑</button>}
                         </div>
                       </article>

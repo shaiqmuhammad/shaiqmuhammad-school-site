@@ -7,6 +7,7 @@ import { registerSlideFocus } from "@/components/FullscreenToggle";
 import { requestElFullscreen } from "@/components/FocusMode";
 import { CriteriaChart, TrackerEntries } from "@/components/lms/QuranScores";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { lmsApi, lmsErrorText, lmsSession, quranChapters, type Chapter, type MapRow, type Progress, type TrackerRow } from "@/lib/lms";
 import { GRADE_STYLE, STATUS_STYLE, card, gradeLabel, inputCls, smallBtn, statusLabel, useLmsActor, useTr } from "@/components/lms/useLms";
@@ -251,19 +252,55 @@ export function TrackerBadges({ tracker }: { tracker: TrackerRow[] }) {
   );
 }
 
-/** Class Quran map: students × surahs coloured by best grade. */
+function QTrackIcon({ className = "h-6 w-6" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+      <path d="M4.5 5h6.2A2.3 2.3 0 0 1 13 7.3V19.5a2.1 2.1 0 0 0-2.3-2H4.5z" />
+      <path d="M19.5 5H13.3V19.5a2.1 2.1 0 0 1 2.2-2H19.5z" />
+      <path d="M7 16.2 8.8 14l1.5 1.2L13 11.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/** Class Quran tracker: students × surahs coloured by best grade. Certificates stay off until Show Certificate. */
 export function QuranMap({ asAdmin = false, classes = [], sections = [] }: { asAdmin?: boolean; classes?: string[]; sections?: { cls: string; name: string }[] }) {
   const { tr, lang } = useTr();
+  const router = useRouter();
+  const routerRef = useRef(router);
+  routerRef.current = router;
   const { actor } = useLmsActor();
   const ch = useChapters();
   const box = useRef<HTMLElement>(null);
   const [live, setLive] = useState(false);
+  const [showCert, setShowCert] = useState(false);
   useEffect(() => setLive(true), []);
   const canPdf = asAdmin || actor?.role === "admin" || !!actor?.mods?.lp?.qmap;
-  useEffect(() => registerSlideFocus({
-    enter: async () => { box.current?.classList.add("qmap-fill"); await requestElFullscreen(box.current); },
-    exit: () => { box.current?.classList.remove("qmap-fill"); if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined); },
-  }), []);
+  // Full screen on this page can pop history back to the dashboard. Remember the tracker URL and return there.
+  useEffect(() => {
+    let saved = "";
+    const here = () => location.pathname + location.search + location.hash;
+    const restore = () => {
+      if (!saved || here() === saved) return;
+      const back = saved;
+      saved = "";
+      routerRef.current.push(back);
+    };
+    const onPop = () => restore();
+    return registerSlideFocus({
+      enter: async () => {
+        saved = here();
+        try { history.pushState({ qtrack: 1 }, "", saved); } catch { /* ignore */ }
+        window.addEventListener("popstate", onPop);
+        box.current?.classList.add("qmap-fill");
+        await requestElFullscreen(box.current);
+      },
+      exit: () => {
+        box.current?.classList.remove("qmap-fill");
+        if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
+        window.setTimeout(() => { restore(); window.removeEventListener("popstate", onPop); }, 60);
+      },
+    });
+  }, []);
   const [cls, setCls] = useState(classes[0] || "");
   const [section, setSection] = useState("");
   const [crit, setCrit] = useState<"" | "m" | "t" | "r" | "h">("");
@@ -274,12 +311,16 @@ export function QuranMap({ asAdmin = false, classes = [], sections = [] }: { asA
   return (
     <section ref={box} className={card + " space-y-3"} data-testid="lms-quran-map">
       <div className="flex flex-wrap items-center gap-2">
-        <h2 className="text-xl font-bold">🗺️ {tr("Class Quran map", "خريطة القرآن للصف")}</h2>
+        <h2 className="flex items-center gap-2 text-xl font-bold"><QTrackIcon /> {tr("Class Quran Tracker", "متتبع القرآن للصف")}</h2>
+        <label className="inline-flex items-center gap-2 rounded-full bg-white/80 px-3 py-1 text-sm font-extrabold text-[#1b3a57] ring-1 ring-black/10 dark:bg-white/10 dark:text-white" data-testid="map-show-cert">
+          <input type="checkbox" role="switch" className="h-4 w-4 accent-emerald-600" checked={showCert} onChange={(e) => setShowCert(e.target.checked)} />
+          {tr("Show Certificate", "إظهار الشهادة")}
+        </label>
         <span className="flex-1" />
         {canPdf && d && d.rows.length > 0 && <button type="button" className={smallBtn} data-testid="map-pdf" onClick={() => {
           const head = `<tr><th>${escapeHtml(tr("Student", "الطالب"))}</th>${d.surahs.map((s) => `<th>${escapeHtml(surahLabel(ch, s))}</th>`).join("")}</tr>`;
           const body = d.rows.map((r) => `<tr><td>${escapeHtml(r.name)}</td>${d.surahs.map((s) => { const g = r.cells[s]?.grade || ""; return `<td>${g === "green" ? "●" : g === "yellow" ? "◐" : g === "red" ? "○" : ""}</td>`; }).join("")}</tr>`).join("");
-          void htmlBlocksToPdf([`<h1>${escapeHtml(tr("Class Quran map", "خريطة القرآن للصف"))}</h1><table>${head}${body}</table>`], `quran-map.pdf`, { landscape: true });
+          void htmlBlocksToPdf([`<h1>${escapeHtml(tr("Class Quran Tracker", "متتبع القرآن للصف"))}</h1><table>${head}${body}</table>`], `quran-map.pdf`, { landscape: true });
         }}>⬇ {tr("Download PDF", "تنزيل PDF")}</button>}
         <select className={inputCls + " mt-0 w-auto!"} value={cls} onChange={(e) => { setCls(e.target.value); setSection(""); }} aria-label={tr("Class", "الصف")} data-testid="map-class">
           <option value="">{tr("All classes", "كل الصفوف")}</option>
@@ -310,7 +351,7 @@ export function QuranMap({ asAdmin = false, classes = [], sections = [] }: { asA
                   <td className="sticky start-0 border-t border-black/5 bg-white px-3 py-1.5 font-semibold whitespace-nowrap dark:border-white/10 dark:bg-[#0f1a26]">
                     {asAdmin ? <span dir="auto">{r.name}</span> : <Link href={`/lms/student?id=${encodeURIComponent(r.id)}`} className="underline-offset-2 hover:underline" dir="auto">{r.name}</Link>} <span className="opacity-50">{r.section}</span>
                   </td>
-                  {d.surahs.map((s) => { const c0 = r.cells[s]; const lv = crit && c0 ? (c0 as { m?: number; t?: number; r?: number; h?: number })[crit] : undefined; const c = c0 && crit ? { ...c0, grade: lv === 3 ? "green" : lv === 2 ? "yellow" : lv === 1 ? "red" : "" } : c0; const chapter = ch.find((x) => x.id === s); const passed = !!(c && chapter && c.verses >= chapter.verses_count && c.grade && c.grade !== "red"); return <td key={s} className="border-t border-black/5 p-1 text-center dark:border-white/10">{passed && chapter && live ? <button type="button" className="mx-auto block" title={`${surahLabel(ch, s)} · ${tr("Certificate", "شهادة")}`} data-testid="map-cert" onClick={() => downloadCertificate(r.name, chapter, tr, { arabic: lang === "ar", nameAr: r.name })}><img src={certThumb(lang === "ar" ? chapter.name_arabic : chapter.name_simple, r.name)} alt="" className="h-8 w-12 rounded object-cover ring-1 ring-[#f5c542]" /></button> : <span className={`mx-auto block h-6 w-10 rounded ${cellCls(c?.grade || "")}`} title={c ? `${surahLabel(ch, s)}: ${gradeLabel(c.grade, tr)} · ${c.verses} ${tr("verses", "آيات")}` : ""} data-grade={c?.grade || ""} />}</td>; })}
+                  {d.surahs.map((s) => { const c0 = r.cells[s]; const lv = crit && c0 ? (c0 as { m?: number; t?: number; r?: number; h?: number })[crit] : undefined; const c = c0 && crit ? { ...c0, grade: lv === 3 ? "green" : lv === 2 ? "yellow" : lv === 1 ? "red" : "" } : c0; const chapter = ch.find((x) => x.id === s); const passed = !!(c && chapter && c.verses >= chapter.verses_count && c.grade && c.grade !== "red"); return <td key={s} className="border-t border-black/5 p-1 text-center dark:border-white/10">{showCert && passed && chapter && live ? <button type="button" className="mx-auto block" title={`${surahLabel(ch, s)} · ${tr("Certificate", "شهادة")}`} data-testid="map-cert" onClick={() => downloadCertificate(r.name, chapter, tr, { arabic: lang === "ar", nameAr: r.name })}><img src={certThumb(lang === "ar" ? chapter.name_arabic : chapter.name_simple, r.name)} alt="" className="h-8 w-12 rounded object-cover ring-1 ring-[#f5c542]" /></button> : <span className={`mx-auto block h-6 w-10 rounded ${cellCls(c?.grade || "")}`} title={c ? `${surahLabel(ch, s)}: ${gradeLabel(c.grade, tr)} · ${c.verses} ${tr("verses", "آيات")}` : ""} data-grade={c?.grade || ""} />}</td>; })}
                 </tr>
               ))}
             </tbody>

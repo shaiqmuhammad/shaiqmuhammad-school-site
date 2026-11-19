@@ -70,7 +70,7 @@ export function AdminHome({ counts, refreshedAt, refreshing, hasToken, onTab }: 
     { tab: "lmshw", icon: "📚", title: tr("Homework", "الواجبات"), sub: tr("All homework & submissions", "كل الواجبات والتسليمات") },
     { tab: "mail", icon: "✉️", title: tr("Mail", "البريد"), sub: "contact@shaiqmuhammad.com" },
     { tab: "activities", icon: "🎲", title: tr("Activities", "الأنشطة"), sub: tr("Wall, wheel, polls, votes", "الجدار، العجلة، الاستطلاعات") },
-    { tab: "classes", icon: "🏫", title: tr("Classes", "الصفوف"), sub: tr("Class view & Quran map", "عرض الصف وخريطة القرآن") },
+    { tab: "classes", icon: "🏫", title: tr("Classes", "الصفوف"), sub: tr("Class view & Quran Tracker", "عرض الصف ومتتبع القرآن") },
     { tab: "rewards", icon: "🃏", title: tr("Reward Cards", "بطاقات المكافآت"), sub: tr("Awards, plan and Reward Shop", "المنح والخطة ومتجر المكافآت") },
   ];
   // t283 shared admin filter: the counts follow the chosen Subject / Teacher / Year / Section.

@@ -33,7 +33,7 @@ export function LmsMapPage() {
   const scope = cat?.scope || [];
   const classes = (cat?.catalog?.classes || []).map((c) => c.name).filter((c) => !scope.length || scope.some((x) => x.split("|")[0] === c));
   return (
-    <StaffFrame title={tr("Class Quran map", "خريطة القرآن للصف")}>
+    <StaffFrame title={tr("Class Quran Tracker", "متتبع القرآن للصف")}>
       {cat && <QuranMap classes={classes} sections={(cat.catalog?.sections || []).map((s) => ({ cls: s.cls, name: s.name }))} />}
     </StaffFrame>
   );

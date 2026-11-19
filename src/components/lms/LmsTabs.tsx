@@ -52,7 +52,17 @@ const TEACHER: Tab[] = [
 ];
 // Child-friendly look: one emoji per area, each on its own theme-coloured disc.
 // t449/t450: every LMS module a unique icon — redeploy — Homework 📝 · Libraries 📚 · Curriculum 🗂️ · Assessments 🧩 · Quran Tracker 📖 · Quran Homework 🎙️ · Attendance 🗓️ · Activities 🎲 · Results 🧾 · Timetable ⏰ · Tracker 📋 · Progress Check 📊 · Lesson Builder 📑 · Reward Cards 🃏
-const EMOJI: Record<string, string> = { tt: "⏰", std: "📘", lib: "📚", rep: "📈", dash: "🏠", lessons: "🎤", hw: "📝", assigned: "📋", review: "📥", assess: "🧩", msg: "💬", wall: "🧱", quran: "📖", qhw: "🎙️", cls: "🏫", act: "🎲", res: "🧾", att: "🗓️", beh: "🌟", cur: "🗂️", logins: "🔑", acct: "🦸", stu: "👥", map: "🗺️", pts: "🏆", fcur: "🗂️", fassess: "🧩", corr: "💯", lp: "📑", qa: "📊", rc: "🃏", trk: "📋" };
+const EMOJI: Record<string, string> = { tt: "⏰", std: "📘", lib: "📚", rep: "📈", dash: "🏠", lessons: "🎤", hw: "📝", assigned: "📋", review: "📥", assess: "🧩", msg: "💬", wall: "🧱", quran: "📖", qhw: "🎙️", cls: "🏫", act: "🎲", res: "🧾", att: "🗓️", beh: "🌟", cur: "🗂️", logins: "🔑", acct: "🦸", stu: "👥", map: "📗", pts: "🏆", fcur: "🗂️", fassess: "🧩", corr: "💯", lp: "📑", qa: "📊", rc: "🃏", trk: "📋" };
+/** Open book with a rising progress stroke — readable at the rail's small size. */
+function QuranTrackerIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+      <path d="M4.5 5h6.2A2.3 2.3 0 0 1 13 7.3V19.5a2.1 2.1 0 0 0-2.3-2H4.5z" />
+      <path d="M19.5 5H13.3V19.5a2.1 2.1 0 0 1 2.2-2H19.5z" />
+      <path d="M7 16.2 8.8 14l1.5 1.2L13 11.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
 const HW_NAV = ["lessons", "hw", "assigned", "review", "corr"];
 const DISC = ["bg-white/15 text-white ring-1 ring-white/25"];
 
@@ -109,7 +119,7 @@ export function LmsTabs() {
     ...(pm("beh") ? [{ id: "beh", href: "/lms/behaviour", en: "Behaviour", ar: "السلوك", icon: I.beh, lvl: 3 } as Tab] : []),
     ...(!staff && !isParent ? [{ id: "cur", href: "/lms/curriculum", en: "Curriculum", ar: "المنهج", icon: I.cur, lvl: 3 } as Tab] : []),
     ...(staff && pm("cur") ? [{ id: "cur", href: "/lms/curriculum", en: "Curriculum", ar: "المنهج", icon: I.cur, lvl: 3 } as Tab] : []),
-    ...(staff && qp.show ? [{ id: "map", href: "/lms/map", en: "Quran map", ar: "خريطة القرآن", icon: "", lvl: 3 } as Tab] : []),
+    ...(staff && qp.show ? [{ id: "map", href: "/lms/map", en: "Quran Tracker", ar: "متتبع القرآن", icon: "", lvl: 3 } as Tab] : []),
     ...(staff && mpShown(actor, "tt") ? [{ id: "tt", href: "/lms/timetable", en: "Timetable", ar: "الجدول", icon: "", lvl: 3 } as Tab] : []),
     ...((staff && mpShown(actor, "lp")) || actor.role === "admin" ? [{ id: "lp", href: "/lms/material", en: "Lesson Builder", ar: "منشئ الدروس", icon: I.lb, lvl: 3 } as Tab] : []),
     ...(staff ? [{ id: "std", href: "/lms/standards", en: "Standards book", ar: "كتاب المعايير", icon: "", lvl: 3 } as Tab] : []),
@@ -192,7 +202,7 @@ export function LmsTabs() {
           const on = isActive(t);
           return (
             <a key={t.id} href={t.href + (t.hash || "")} title={label(t)} onClick={() => { if (t.hash) setTimeout(() => { setPath(window.location.pathname.replace(/\/$/, "") || "/"); setHash(window.location.hash); }, 0); }} aria-current={on ? "page" : undefined} aria-label={label(t)} data-testid={`lms-tab-${t.id}`} className={`relative flex shrink-0 flex-col items-center gap-0.5 rounded-2xl px-0.5 py-1.5 text-center font-extrabold leading-tight transition md:gap-1 md:py-2 ${slim ? "w-[56px]" : "w-[58px] text-[9px] md:w-[92px] md:px-1 md:text-[11.5px]"} ${on ? "bg-sun text-[#0b1b2b] shadow-lg" : "text-white/90 hover:bg-white/10"}`}>
-              <span className={`grid h-10 w-10 place-items-center rounded-full text-[22px] leading-none ${slim ? "" : "md:h-11 md:w-11 md:text-[26px]"} ${on ? "bg-white" : DISC[i % DISC.length]}`} aria-hidden>{EMOJI[t.id] || "⭐"}</span>
+              <span className={`grid h-10 w-10 place-items-center rounded-full text-[22px] leading-none ${slim ? "" : "md:h-11 md:w-11 md:text-[26px]"} ${on ? "bg-white text-[#1b3a57]" : DISC[i % DISC.length]}`} aria-hidden>{t.id === "map" ? <QuranTrackerIcon /> : (EMOJI[t.id] || "⭐")}</span>
               {!slim && <span className="line-clamp-2 w-full break-words max-md:line-clamp-1 max-md:truncate">{label(t)}</span>}
               {t.id === "msg" && unread > 0 && <span className="absolute end-0.5 top-0.5 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-extrabold text-white" data-testid="msg-badge">{unread > 99 ? "99+" : unread}</span>}
             </a>

@@ -1,6 +1,7 @@
 "use client";
 
 import { defaultSubject, teacherSubjects } from "@/components/lms/SubjectPick";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AssessmentShell } from "@/components/assessment/AssessmentShell";
 import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
@@ -28,8 +29,10 @@ const TINT: Record<PackType, string> = {
   material: "border-sky-200/80 bg-gradient-to-br from-sky-100/90 via-white/70 to-cyan-100/80",
 };
 const BADGE: Record<PackType, string> = { lesson: "bg-[#1b3a57] text-[#f5c542]", activity: "bg-violet-600 text-white", homework: "bg-amber-500 text-[#1b2f44]", quran: "bg-emerald-600 text-white", material: "bg-sky-600 text-white" };
+const LESSONS_TAB = "/lms/homework?tab=lessons";
 export function PacksPage() {
   const { tr, lang } = useTr();
+  const router = useRouter();
   const { actor, ready } = useLmsActor();
   const asAdmin = actor?.role === "admin";
   const staff = actor?.role === "teacher" || asAdmin;
@@ -38,12 +41,14 @@ export function PacksPage() {
   const [ntype, setNtype] = useState<PackType>("lesson");
   const [edit, setEdit] = useState<Pack | null>(null);
   const [open, setOpen] = useState("");
+  const [fromLessons, setFromLessons] = useState(false);
+  const [burst, setBurst] = useState(false);
   const [msg, setMsg] = useState("");
   const [filter, setFilter] = useState<"" | PackType>("");
   const openedEdit = useRef("");
   const load = useCallback(() => lp.list(asAdmin).then((r) => { setItems(r.items); setAcc(r.acc || null); }).catch((e) => { setItems([]); setMsg(modErr(e, tr)); }), [asAdmin, tr]);
   useEffect(() => { if (ready && actor) load(); }, [ready, actor, load]);
-  useEffect(() => { const q = new URLSearchParams(location.search); if (q.get("open")) setOpen(q.get("open")!); }, []);
+  useEffect(() => { const q = new URLSearchParams(location.search); if (q.get("open")) { setFromLessons(q.get("from") === "lessons"); setBurst(false); setOpen(q.get("open")!); } else if (q.get("from") === "lessons") setFromLessons(true); }, []);
   useEffect(() => {
     if (!ready || !actor) return;
     const editId = new URLSearchParams(location.search).get("edit") || "";
@@ -54,14 +59,20 @@ export function PacksPage() {
   useEffect(() => { const q = new URLSearchParams(location.search); const t = q.get("new") as PackType | null; if (t && acc?.add && !edit) newPack(t, "blank"); // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [acc]);
   const newPack = (type: PackType, tpl: string) => setEdit({ id: "", owner: "", ownerName: "", title: "", type, subject: asAdmin ? "" : defaultSubject(teacherSubjects(actor as never)), aud: [], students: [], topic: {}, mode: "self", assignAt: 0, due: 0, status: "draft", hw: "", live: -1, tpl: false, created: 0, updated: 0, slides: TEMPLATES.find((x) => x[0] === tpl)![3](/^islamic a$/i.test(actor?.subj?.[0] || "") || lang === "ar") });
+  const leaveOpened = () => {
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => undefined);
+    setOpen("");
+    setEdit(null);
+    if (fromLessons || new URLSearchParams(location.search).get("from") === "lessons") router.push(LESSONS_TAB);
+  };
   const title = tr("Lesson Builder", "منشئ الدروس");
   if (ready && !actor) return <AssessmentShell title={title} exitHref="/lms"><p className="p-8 text-center">{tr("Please sign in.", "يرجى تسجيل الدخول.")}</p></AssessmentShell>;
   const list = (items || []).filter((x) => !filter || x.type === filter);
   return (
     <AssessmentShell title={title} exitHref="/lms" wide toolbar={staff ? <LmsStaffToolbar /> : undefined}>
       <div className="mx-auto w-full max-w-6xl flex-1 space-y-4 px-3 py-5 sm:px-6" data-testid="lp-page">
-        {edit && acc ? <PackEditor key={edit.id || "new"} initial={edit} acc={acc} asAdmin={asAdmin} subjects={asAdmin ? ["Islamic A", "Islamic B", ...(actor?.subj || [])].filter((x, i, a) => a.indexOf(x) === i)   : teacherSubjects(actor as never)} onClose={() => { setEdit(null); load(); }} />
-        : open ? <div className="space-y-2"><button type="button" className={smallBtn} onClick={() => { if (document.fullscreenElement) document.exitFullscreen().catch(() => undefined); setOpen(""); }} data-testid="lp-close">← {tr("Back", "رجوع")}</button><PackPlayer autoFull id={open} asAdmin={asAdmin} preview={staff} /></div>
+        {edit && acc ? <PackEditor key={edit.id || "new"} initial={edit} acc={acc} asAdmin={asAdmin} subjects={asAdmin ? ["Islamic A", "Islamic B", ...(actor?.subj || [])].filter((x, i, a) => a.indexOf(x) === i)   : teacherSubjects(actor as never)} closeLabel={fromLessons ? tr("Lessons", "الدروس") : undefined} onClose={() => { const back = fromLessons || new URLSearchParams(location.search).get("from") === "lessons"; setEdit(null); load(); if (back) router.push(LESSONS_TAB); }} />
+        : open ? <div className="space-y-2"><PackPlayer autoFull={burst && !fromLessons} id={open} asAdmin={asAdmin} preview={staff} onClose={leaveOpened} closeLabel={fromLessons ? tr("Lessons", "الدروس") : tr("Back", "رجوع")} /></div>
         : <>
           <div className="relative overflow-hidden rounded-3xl border border-white/30 bg-gradient-to-br from-[#1b3a57]/90 via-[#24507a]/85 to-[#1b3a57]/90 p-5 text-white shadow-[0_12px_40px_-12px_rgba(11,27,43,0.6)] backdrop-blur-xl"><div aria-hidden className="pointer-events-none absolute -end-10 -top-10 h-40 w-40 rounded-full bg-[#f5c542]/30 blur-3xl" />
             <h1 className="flex items-center gap-2 text-2xl font-extrabold !text-white"><span className="grid h-10 w-10 place-items-center rounded-2xl bg-[#f5c542] text-xl shadow-inner" aria-hidden>{LB_ICON}</span>{title}</h1>
@@ -85,7 +96,7 @@ export function PacksPage() {
                   {staff && <p className="text-xs opacity-70">{x.status === "published" ? (x.assignAt > Date.now() ? "⏰ " + tr("Scheduled", "مجدول") : "✅ " + tr("Published", "منشور")) : "📝 " + tr("Draft", "مسودة")}{(x.assignAt > 0 || x.created) ? ` · ${tr("Assigned", "أُسند")} ${new Date(x.assignAt > 0 ? x.assignAt : x.created).toLocaleDateString(lang === "ar" ? "ar-AE" : "en-GB", { timeZone: "Asia/Dubai" })}` : ""}{x.due ? ` · ${tr("due", "التسليم")} ${new Date(x.due).toLocaleDateString(lang === "ar" ? "ar-AE" : "en-GB", { timeZone: "Asia/Dubai" })}` : ""}{x.tpl ? ` · ${tr("template", "قالب")}` : ""}{x.mode === "live" ? " · 📡" : ""}</p>}</div></div>
                 <div className="flex flex-wrap gap-1.5">
                   {staff && (x.owner === actor?.id || asAdmin) && <button type="button" className={smallBtn} onClick={() => lp.get(x.id, asAdmin).then((r) => setEdit(r.pack))} data-testid="lp-edit">✏️ {acc?.edit ? tr("Edit", "تعديل") : tr("View", "عرض")}</button>}
-                  {(!staff || x.type === "material" || x.type === "lesson") && <button type="button" className={smallBtn} onClick={() => { document.documentElement.requestFullscreen?.().catch(() => undefined); setOpen(x.id); }} data-testid="lp-open">▶ {staff ? tr("Present", "عرض") : tr("Open", "فتح")}</button>}
+                  {(!staff || x.type === "material" || x.type === "lesson") && <button type="button" className={smallBtn} onClick={() => { document.documentElement.requestFullscreen?.().catch(() => undefined); setFromLessons(false); setBurst(true); setOpen(x.id); }} data-testid="lp-open">▶ {staff ? tr("Present", "عرض") : tr("Open", "فتح")}</button>}
                   {staff && x.type !== "material" && x.type !== "lesson" && <button type="button" className={smallBtn} onClick={() => setOpen(x.id)} title={tr("Try it as a student — nothing is assigned or saved", "جرّبه كطالب — بدون إسناد أو حفظ")} data-testid="lp-preview-open">👁 {tr("Preview", "معاينة")}</button>}
                   {staff && x.hw && x.status === "published" && (x.type === "homework" || x.type === "quran" || x.type === "activity") && <HwRemindBell hw={x.hw} title={x.title} asAdmin={asAdmin} />}
                   {!staff && x.hw && <a className={smallBtn} href={`/lms/homework?id=${encodeURIComponent(x.hw)}`} data-testid="lp-open-hw">📝 {x.subStatus === "submitted" || x.subStatus === "approved" ? tr("View submitted work", "عرض العمل المُسلَّم") : x.subStatus === "returned" ? tr("Sent back — open and submit again", "أُعيد — افتحه وسلّم مجددًا") : x.type === "activity" ? tr("Open activity & hand in", "افتح النشاط وسلّم") : tr("Open homework", "افتح الواجب")}</a>}

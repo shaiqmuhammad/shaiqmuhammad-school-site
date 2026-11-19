@@ -530,7 +530,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
   /** "View all homework" for a teacher with subject groups only covers homework from admin or teachers of the same subject. */
   /** t328: homework the owner shared with this teacher (read; correcting needs the per-share switch + the admin "shareCorrect" permission). */
   // t349: per-homework "Share with teachers" was removed; Permissions (See all homework + teacher list) is the only cross-teacher access.
-  private sharedTo(_h: { data?: unknown }, _uid: string): boolean { return false; }
+  private sharedTo(h: { data?: unknown }, uid: string): boolean { return this.sharedToOld(h, uid); }
   private sharedToOld(h: { data?: unknown }, uid: string): boolean { const sh = ((h.data || {}) as Json).share as { teachers?: string[] } | undefined; return !!sh?.teachers?.includes(uid); }
   private shareCanCorrect(h: { data: unknown }, a: Actor): boolean { const sh = ((h.data || {}) as Json).share as { teachers?: string[]; correct?: boolean } | undefined; return a.role === "teacher" && !!sh?.teachers?.includes(a.id) && sh.correct === true && a.perms.includes("shareCorrect"); }
   private va(a: Actor, by: string): boolean {
@@ -1461,7 +1461,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         }
         const students = this.sql.exec(`SELECT id, name, first_name, last_name, cls, section, gender, avatar, badge, email, last_seen FROM users WHERE role='student' AND disabled=0 ORDER BY cls, section, name`).toArray()
           .filter((r) => this.inScope(a, String(r.cls || ""), String(r.section || ""), String(r.id)))
-          .map((r) => { const a0 = attN.get(String(r.id)); return { id: String(r.id), name: String(r.name), cls: String(r.cls || ""), section: String(r.section || ""), avatar: avatarOf(r), badge: badgeOf(r.badge), parentEmail: Boolean(r.email), seen: Number(r.last_seen || 0), points: tot.get(String(r.id)) || 0, cards: cards.get(String(r.id)) || 0, attPct: a0 && a0.n ? Math.round((100 * a0.p) / a0.n) : null }; });
+          .map((r) => { const a0 = attN.get(String(r.id)); return { id: String(r.id), name: String(r.name), cls: String(r.cls || ""), section: String(r.section || ""), gender: r.gender === "b" || r.gender === "g" ? String(r.gender) : "", avatar: avatarOf(r), badge: badgeOf(r.badge), parentEmail: Boolean(r.email), seen: Number(r.last_seen || 0), points: tot.get(String(r.id)) || 0, cards: cards.get(String(r.id)) || 0, attPct: a0 && a0.n ? Math.round((100 * a0.p) / a0.n) : null }; });
         return { status: 200, body: { students, assigned: a.role === "teacher" ? [...new Set((a.scope || []).filter((x) => x && x !== "\u0000"))] : [], canManage: stuCan(a, "view"), stuPerms: { view: stuCan(a, "view"), add: stuCan(a, "add"), edit: stuCan(a, "edit"), block: stuCan(a, "block"), delete: stuCan(a, "delete") }, now: Date.now() } };
       }
       case "act-publish": {
@@ -2388,14 +2388,25 @@ export class LmsStore extends DurableObject<LmsEnv> {
       }
 
       case "sub-review": {
-        if (!can(a, "review")) return { status: 403, body: { error: "forbidden" } };
         const r = this.sql.exec(`SELECT * FROM subs WHERE id=?`, str(input.id, 40)).toArray()[0];
         if (!r) return { status: 404, body: { error: "not_found" } };
-        { const hs = this.allHomework(String(r.hw))[0]; if (hs && a.role === "teacher" && hs.createdBy !== a.id && !this.va(a, hs.createdBy) && !this.sharedTo(hs, a.id)) return { status: 403, body: { error: "forbidden" } }; }
-        { const hs = this.allHomework(String(r.hw))[0]; if (hs && a.role === "teacher" && hs.createdBy !== a.id && !this.va(a, hs.createdBy) && this.sharedTo(hs, a.id) && !this.shareCanCorrect(hs, a)) return { status: 403, body: { error: "share_view_only" } }; }
+        {
+          const hs = this.allHomework(String(r.hw))[0];
+          if (!hs) return { status: 404, body: { error: "not_found" } };
+          if (a.role !== "admin" && a.role !== "teacher") return { status: 403, body: { error: "forbidden" } };
+          if (a.role === "teacher") {
+            const own = hs.createdBy === a.id;
+            const colleague = !own && this.va(a, hs.createdBy);
+            const shared = !own && this.sharedTo(hs, a.id);
+            if (!own && !colleague && !shared) return { status: 403, body: { error: "forbidden" } };
+            // Own work needs Review. A colleague picked under See all homework can grade with Review or "Correct homework shared with them". A legacy share grades only when that share allows correction.
+            const allowed = (own && can(a, "review")) || (colleague && (can(a, "review") || a.perms.includes("shareCorrect"))) || (shared && this.shareCanCorrect(hs, a));
+            if (!allowed) return { status: 403, body: { error: shared || colleague ? "share_view_only" : "forbidden" } };
+          }
+        }
         { const hg = this.allHomework(String(r.hw))[0]; if (hg && hg.kind !== "quran" && !genOk(a)) return { status: 403, body: { error: "general_hw_not_allowed" } }; }
         { const hq0 = this.allHomework(String(r.hw))[0]; if (hq0?.kind === "quran" && a.role === "teacher") { const qv = qhwOf(a); if (!(qv.show && qv.view)) return { status: 403, body: { error: "quran_not_allowed" } }; } }
-        const comments = JSON.parse(String(r.comments || "[]")) as { by: string; text: string; at: number }[];
+        const comments = (() => { try { const p = JSON.parse(String(r.comments || "[]")); return Array.isArray(p) ? p as { by: string; text: string; at: number }[] : []; } catch { return [] as { by: string; text: string; at: number }[]; } })();
         const c = str(input.comment, 1000);
         if (c) comments.push({ by: a.name, byId: a.id, text: c, at: Date.now() } as { by: string; text: string; at: number });
         const liked = typeof input.like === "boolean" ? (input.like ? 1 : 0) : Number(r.liked);
@@ -2403,11 +2414,11 @@ export class LmsStore extends DurableObject<LmsEnv> {
         // Quran: three criteria (or a legacy colour) -> overall grade + generated feedback.
         let scores: Scores | null = hq?.kind === "quran" ? parseScores(input.scores) || (["green", "yellow", "red"].includes(String(input.grade)) ? fromGrade(String(input.grade)) : null) : null;
         const grade = scores ? overallOf(scores) : "";
-        if (scores) scores = { ...scores, fb: buildFeedback(scores, JSON.parse(String(r.mistakes || "[]")) as { text: string; note?: string }[], c) };
+        if (scores) { let mk: { text: string; note?: string }[] = []; try { const p = JSON.parse(String(r.mistakes || "[]")); if (Array.isArray(p)) mk = p; } catch { mk = []; } scores = { ...scores, fb: buildFeedback(scores, mk, c) }; }
         // Green/Yellow = passed (approved); Red = back to the student to practise the same verses again.
         let status = input.status === "approved" || input.status === "returned" ? String(input.status) : String(r.status);
         if (grade) status = grade === "red" ? "returned" : "approved";
-        const attempts = JSON.parse(String(r.attempts || "[]")) as { n: number; audio: string; grade: string; by: string; at: number; scores?: Scores }[];
+        const attempts = (() => { try { const p = JSON.parse(String(r.attempts || "[]")); return Array.isArray(p) ? p as { n: number; audio: string; grade: string; by: string; at: number; scores?: Scores }[] : []; } catch { return [] as { n: number; audio: string; grade: string; by: string; at: number; scores?: Scores }[]; } })();
         if (grade) attempts.push({ n: attempts.length + 1, audio: String(r.audio || ""), grade, by: a.name, byId: a.id, at: Date.now(), scores: scores || undefined } as (typeof attempts)[number]);
         if (scores) this.sql.exec(`UPDATE subs SET scores=? WHERE id=?`, JSON.stringify(scores), String(r.id));
         this.sql.exec(`UPDATE subs SET comments=?, liked=?, status=?, grade=?, attempts=?, updated=? WHERE id=?`, JSON.stringify(comments.slice(-50)), liked, status, grade || String(r.grade || ""), JSON.stringify(attempts.slice(-300)), Date.now(), String(r.id));
