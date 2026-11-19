@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ActivityOptionsEditor, READY_TYPES, afterCreate, prepareOptions } from "@/components/activity/ActivityViews";
+import { AttemptField } from "@/components/lms/AttemptField";
 import { AudiencePicker } from "@/components/lms/Audience";
 import { openClassTimer } from "@/components/lms/ClassTimer";
 import { useLmsActor } from "@/components/lms/useLms";
@@ -42,6 +43,7 @@ export function AdminActivities({ allowed }: { allowed?: string[] } = {}) {
   const [allowImages, setAllowImages] = useState(true);
   const [allowLinks, setAllowLinks] = useState(true);
   const [likes, setLikes] = useState(true);
+  const [attemptLimit, setAttemptLimit] = useState(0);
   const [options, setOptions] = useState<Record<string, unknown>>({});
   const [hosted, setHosted] = useState<HostedActivity[]>([]);
   const [audience, setAudience] = useState<string[]>([]);
@@ -99,7 +101,7 @@ export function AdminActivities({ allowed }: { allowed?: string[] } = {}) {
         setBusy(false);
         return;
       }
-      const settings: Partial<ActivitySettings> = { moderation, hideNames, allowImages, allowLinks, likes, options: prepared.options };
+      const settings: Partial<ActivitySettings> = { moderation, hideNames, allowImages, allowLinks, likes, attemptLimit, options: prepared.options };
       const r = await activityApi.create({ type, title: title.trim(), prompt: prompt.trim(), settings });
       await afterCreate(type, r.code, r.hostKey, prepared.options, prepared.images);
       if (allowed && audience.length) await lmsApi.actPublish(r.code, type, r.title, audience, lockAud).catch(() => undefined);
@@ -184,6 +186,7 @@ export function AdminActivities({ allowed }: { allowed?: string[] } = {}) {
               </>
             )}
             <label className="inline-flex items-center gap-2"><input type="checkbox" checked={hideNames} onChange={(e) => setHideNames(e.target.checked)} />{tr("Hide student names on screen", "إخفاء أسماء الطلاب على الشاشة")}</label>
+            <div className="basis-full"><AttemptField value={attemptLimit} onChange={setAttemptLimit} testId="activity-tries" /></div>
           </fieldset>
 
           {error && <p className="rounded-xl bg-rose-100 px-4 py-2 text-sm text-rose-800 dark:bg-rose-900/40 dark:text-rose-100">{error}</p>}

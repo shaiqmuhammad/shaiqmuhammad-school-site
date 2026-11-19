@@ -4,6 +4,7 @@ import { clsCmp } from "@/lib/classSort";
 import { useEffect, useState } from "react";
 import { primaryBtn } from "@/components/assessment/AssessmentShell";
 import { WhoPicker } from "@/components/lms/WhoPicker";
+import { AttemptField } from "@/components/lms/AttemptField";
 import { card, inputCls, smallBtn, useTr } from "@/components/lms/useLms";
 import { grpLabel, lmsApi, lmsErrorText, quranChapters, RECITERS, type Chapter, type GeneralData, type Homework, type QuranData, type Slide, type Catalog, type DashStudent, type StudentGroup } from "@/lib/lms";
 
@@ -43,6 +44,7 @@ export function HomeworkEditor({ initial, classes, students, catalog, scope = []
   const [extra, setExtra] = useState(q0.extra || "");
   const [memorise, setMemorise] = useState(!!q0.memorise);
   const [memoAudio, setMemoAudio] = useState(q0.memoAudio !== false);
+  const [attemptLimit, setAttemptLimit] = useState(typeof (q0.attemptLimit ?? g0.attemptLimit) === "number" ? Number(q0.attemptLimit ?? g0.attemptLimit) : 1);
   const [slides, setSlides] = useState<Slide[]>(g0.slides?.length ? g0.slides : [{ title: "", text: "", image: "" }]);
   const [question, setQuestion] = useState(g0.question || "");
   const [chapters, setChapters] = useState<Chapter[]>([]);
@@ -98,7 +100,7 @@ export function HomeworkEditor({ initial, classes, students, catalog, scope = []
         setBusy(true);
         setErr("");
         try {
-          const data = kind === "quran" ? { surah, from, to: Math.max(from, to), reciter, notes, translit, translation, extra: extra.trim(), memorise, memoAudio } : { slides: slides.filter((s) => s.title || s.text || s.image), question };
+          const data = kind === "quran" ? { surah, from, to: Math.max(from, to), reciter, notes, translit, translation, extra: extra.trim(), memorise, memoAudio, attemptLimit } : { slides: slides.filter((s) => s.title || s.text || s.image), question, attemptLimit };
           const r = await lmsApi.saveHomework({ id: initial?.id, kind, title: kind === "quran" ? autoTitle : title.trim(), cls: who === "students" || (!asAdmin && pick.length) ? "" : cls, section: who === "students" || (!asAdmin && pick.length) ? "" : section || (cls && !wholeClassOk(cls) ? sectionsOf(cls)[0] || "" : ""), students: pick, due: due ? new Date(due + "T23:59:00").getTime() : null, data: data as QuranData | GeneralData }, asAdmin);
           onSaved(r.id);
         } catch (x) {
@@ -230,6 +232,7 @@ export function HomeworkEditor({ initial, classes, students, catalog, scope = []
           {tr("Due date (optional)", "تاريخ التسليم (اختياري)")}
           <input type="date" className={inputCls} value={due} onChange={(e) => setDue(e.target.value)} />
         </label>
+        <AttemptField value={attemptLimit} onChange={setAttemptLimit} />
       </div>
       {err && <p className="rounded-xl bg-rose-100 px-4 py-2 text-rose-800 dark:bg-rose-900/40 dark:text-rose-100" role="alert">{err}</p>}
       <div className="flex flex-wrap gap-2">

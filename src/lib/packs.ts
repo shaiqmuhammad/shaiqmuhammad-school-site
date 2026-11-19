@@ -23,7 +23,7 @@ export const PART_LABEL: Record<Part, [string, string, string, string]> = { less
 export const TIMERS = [0, 30, 60, 120, 180, 300, 600, 900, 1200, 1800, 2700, 3600];
 export const fmtT = (s: number) => (s >= 60 ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}` : `0:${String(s).padStart(2, "0")}`);
 export type PackType = "lesson" | "activity" | "homework" | "quran" | "material";
-export type Topic = { cur?: string; title?: string; yr?: string; term?: string; std?: string[]; /** t429 SOW panel */ lo?: string; sc?: string[]; kw?: string; stdText?: string; /** pack timer, seconds */ timer?: number };
+export type Topic = { cur?: string; title?: string; yr?: string; term?: string; std?: string[]; /** t429 SOW panel */ lo?: string; sc?: string[]; kw?: string; stdText?: string; /** pack timer, seconds */ timer?: number; /** 0 unlimited, 1 one attempt, n a chosen cap */ tries?: number };
 export type Pack = { id: string; owner: string; ownerName: string; title: string; type: PackType; subject: string; aud: string[]; students: string[]; topic: Topic; mode: "self" | "live"; assignAt: number; due: number; status: "draft" | "published"; hw: string; live: number; tpl: boolean; created: number; updated: number; slides?: Slide[]; count?: number; /** t422 */ years?: string[]; sections?: string[]; /** student list: submission status for the linked homework, if any */ subStatus?: string };
 export type Acc = { show: boolean; view: boolean; add: boolean; edit: boolean; delete: boolean };
 export type Progress = { student: string; seen: number; total: number; updated: number; status: string };

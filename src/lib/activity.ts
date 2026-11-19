@@ -20,6 +20,8 @@ export type ActivitySettings = {
   allowLinks: boolean;
   timerEnd: number | null;
   locked: boolean;
+  /** 0 or missing = no cap. A positive number is how many posts or answers one student may send. */
+  attemptLimit?: number;
   options: Record<string, unknown>;
 };
 

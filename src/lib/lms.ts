@@ -28,8 +28,8 @@ export type MpCfg = { global: MpPart; roles: Record<string, MpPart>; subjects: R
 export const mpShown = (a: Actor | null | undefined, m: MpMod) => !a?.mods || !!a.mods[m]?.view;
 export type Actor = { id: string; role: Role | "admin"; name: string; nameAr?: string; cls: string; perms: string[]; scope?: string[]; viewAs?: boolean; subj?: string[]; subjects?: string[]; subject?: string; arabic?: boolean; mods?: Record<MpMod, MpAcc> };
 export type Slide = { title: string; text: string; image: string };
-export type QuranData = { surah: number; from: number; to: number; reciter: string; notes: string; translit?: boolean; translation?: boolean; extra?: string; memorise?: boolean; memoAudio?: boolean };
-export type GeneralData = { slides: Slide[]; question: string };
+export type QuranData = { surah: number; from: number; to: number; reciter: string; notes: string; translit?: boolean; translation?: boolean; extra?: string; memorise?: boolean; memoAudio?: boolean; /** 0 = unlimited, 1 = one (a return allows one more), n = that many submits */ attemptLimit?: number };
+export type GeneralData = { slides: Slide[]; question: string; attemptLimit?: number };
 export type Homework = { id: string; kind: "quran" | "general"; title: string; cls: string; section?: string; /** t422: subject + resolved Year(s) / Section(s) for display */ subject?: string; aud?: { years: string[]; sections: string[] }; students: string[]; data: QuranData | GeneralData; due: number | null; createdBy: string; created: number; locked?: boolean; lockedBy?: { surah: number; from: number; to: number; title: string } | null; late?: boolean };
 export type Comment = { by: string; text: string; at: number; audio?: string };
 export type RosterStudent = { id: string; name: string; cls: string; section: string; gender?: "" | "b" | "g" | string; avatar: string; badge?: string; parentEmail: boolean; points: number; seen: number; cards?: number; attPct?: number | null };
@@ -78,7 +78,26 @@ export type Scores = { m: Level; t: Level; r: Level; h?: Level; notes?: { m?: st
 /** t328: one submission on a Surah (all its homework), numbered v1, v2… */
 export type Version = { v: number; hw: string; title: string; from: number; to: number; audio: string; at: number; grade: Grade | ""; scores: Scores | null; by: string; pending: boolean; feedback: string[] };
 export type HwShare = { teachers: string[]; correct: boolean };
-export type Submission = { versions?: Version[]; id: string; status: "draft" | "submitted" | "approved" | "returned"; text: string; practised: boolean; liked: boolean; comments: Comment[]; audio?: string; grade?: Grade | ""; scores?: Scores | null; attempts?: Attempt[]; mistakes?: Mistake[]; submittedAt?: number; updated: number };
+export type Submission = { versions?: Version[]; id: string; status: "draft" | "submitted" | "approved" | "returned"; text: string; practised: boolean; liked: boolean; comments: Comment[]; audio?: string; grade?: Grade | ""; scores?: Scores | null; attempts?: Attempt[]; mistakes?: Mistake[]; submittedAt?: number; /** How many times this student has submitted. Missing on older replies means 0. */ nsubmit?: number; updated: number };
+/** 0 = multiple until approved. Missing or 1 = one attempt. */
+export function attemptCap(data: { attemptLimit?: number } | null | undefined): number {
+  const raw = data?.attemptLimit;
+  if (raw === 0) return 0;
+  const n = Math.floor(Number(raw ?? 1));
+  if (!Number.isFinite(n) || n <= 0) return 1;
+  return Math.min(30, n);
+}
+/** Whether the student may still edit and submit. Matches the worker rule in workers/assessment-session/src/tries.ts. */
+export function attemptOpen(data: { attemptLimit?: number } | null | undefined, sub: { status?: string; nsubmit?: number; comments?: { at?: number }[]; submittedAt?: number } | null | undefined): boolean {
+  if (sub?.status === "approved") return false;
+  const cap = attemptCap(data);
+  if (cap === 0) return true;
+  const used = Number(sub?.nsubmit || 0);
+  const replied = !!(sub && (sub.comments || []).some((c) => Number(c.at || 0) > Number(sub.submittedAt || 0)));
+  if (cap === 1 && sub?.status === "submitted" && !replied) return false;
+  if (used < cap) return true;
+  return cap === 1 && (sub?.status === "returned" || replied);
+}
 export type Grade = "green" | "yellow" | "red";
 export type Attempt = { n: number; audio: string; grade: Grade; by: string; at: number; scores?: Scores };
 export type TrackerRow = { surah: number; from: number; to: number; approved: number; grade?: Grade; hw?: string; revCount?: number; revDue?: number; scores?: Scores | null };
@@ -445,6 +464,7 @@ export function lmsErrorText(e: unknown, tr: (en: string, ar: string) => string)
     audio_type: ["This browser's recording format isn't supported.", "صيغة التسجيل في هذا المتصفح غير مدعومة."],
     already_approved: ["Your teacher has already approved this.", "وافق المعلم على هذا مسبقًا."],
     already_submitted: ["You have already submitted this. You can send it again only if your teacher sends it back.", "لقد سلّمت هذا مسبقًا. يمكنك الإرسال مجددًا فقط إذا أعاده معلمك."],
+    attempts_used: ["You have used every attempt for this work.", "لقد استخدمت كل المحاولات لهذا العمل."],
   };
   return m[c] ? tr(m[c][0], m[c][1]) : tr("Something went wrong.", "حدث خطأ ما.");
 }

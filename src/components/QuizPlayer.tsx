@@ -12,7 +12,7 @@ import { downloadCertificatePdf } from "@/lib/certificatePdf";
 import { lmsApi, lmsSession } from "@/lib/lms";
 import { loadNameMode, pickName, type NameMode } from "@/lib/studentName";
 import { newId } from "@/lib/content";
-import { recordAttempt } from "@/lib/resultsRecord";
+import { quizTries, recordAttempt } from "@/lib/resultsRecord";
 import {
   appendLocalResult,
   computeRank,
@@ -93,6 +93,7 @@ export function QuizPlayer({ quiz, initialTemplate, initialResults }: Props) {
   const [template, setTemplate] = useState<CertificateTemplate>(initialTemplate);
   const [published, setPublished] = useState<QuizResult[]>(initialResults);
   const [timedOut, setTimedOut] = useState(false);
+  const [remoteTries, setRemoteTries] = useState(0);
   const [finalAnswers, setFinalAnswers] = useState<Record<string, unknown>>({});
   const [showMissing, setShowMissing] = useState(false);
   const answersRef = useRef(answers);
@@ -106,6 +107,14 @@ export function QuizPlayer({ quiz, initialTemplate, initialResults }: Props) {
   useEffect(() => {
     answersRef.current = answers;
   }, [answers]);
+
+  useEffect(() => {
+    const cap = quiz.attemptLimit || 0;
+    if (!cap) return;
+    let stop = false;
+    quizTries(quiz.id).then((n) => { if (!stop && n > 0) setRemoteTries(n); }).catch(() => undefined);
+    return () => { stop = true; };
+  }, [quiz.id, quiz.attemptLimit]);
 
   useEffect(() => {
     loadCertificateTemplate().then(setTemplate).catch(() => undefined);
@@ -147,6 +156,7 @@ export function QuizPlayer({ quiz, initialTemplate, initialResults }: Props) {
       setResult(r);
       setRank(computeRank(published, quiz.id, r));
       setTimedOut(auto);
+      try { const k = `sm-quiz-tries:${quiz.id}`; localStorage.setItem(k, String(Number(localStorage.getItem(k) || 0) + 1)); } catch { /* ignore */ }
       setPhase("done");
       window.scrollTo({ top: 0 });
     },
@@ -167,8 +177,17 @@ export function QuizPlayer({ quiz, initialTemplate, initialResults }: Props) {
     return () => clearInterval(t);
   }, [phase, endAt, submit]);
 
-  function begin() {
+  async function begin() {
     if (!name.trim()) return;
+    const cap = quiz.attemptLimit || 0;
+    let used = 0;
+    try { used = Number(localStorage.getItem(`sm-quiz-tries:${quiz.id}`) || 0); } catch { used = 0; }
+    if (cap > 0) {
+      const remote = await quizTries(quiz.id).catch(() => 0);
+      used = Math.max(used, remote);
+      if (remote > 0) setRemoteTries(remote);
+      if (used >= cap) return;
+    }
     submittedRef.current = false;
     const init = initialAnswers(quiz.questions);
     setAnswers(init.answers);
@@ -190,6 +209,11 @@ export function QuizPlayer({ quiz, initialTemplate, initialResults }: Props) {
   const secondsLeft = phase === "running" && endAt !== null ? Math.max(0, (endAt - now) / 1000) : null;
 
   if (phase === "intro") {
+    const cap = quiz.attemptLimit || 0;
+    let usedTries = 0;
+    try { usedTries = Number(localStorage.getItem(`sm-quiz-tries:${quiz.id}`) || 0); } catch { usedTries = 0; }
+    usedTries = Math.max(usedTries, remoteTries);
+    const triesLeft = cap > 0 ? Math.max(0, cap - usedTries) : null;
     return (
       <AssessmentShell title={a("assessment")}>
         <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col justify-center px-4 py-10">
@@ -223,7 +247,10 @@ export function QuizPlayer({ quiz, initialTemplate, initialResults }: Props) {
                 {a("yourName")}
                 <input className={fieldCls} value={name} onChange={(e) => setName(e.target.value)} placeholder={a("namePlaceholder")} required maxLength={80} />
               </label>
-              <button type="submit" className={`${primaryBtn} mt-6 w-full sm:w-auto`} disabled={!name.trim() || total === 0}>
+              {triesLeft === 0 && <p className="mt-4 text-sm font-bold text-rose-700" data-testid="quiz-tries-used">{lang === "ar" ? "لقد استخدمت كل المحاولات." : "You have used every attempt."}</p>}
+              {triesLeft !== null && triesLeft > 0 && <p className="mt-4 text-sm font-semibold" data-testid="quiz-tries-left">{lang === "ar" ? `المحاولات المتبقية: ${triesLeft}` : `Attempts left: ${triesLeft}`}</p>}
+              {cap === 0 && <p className="mt-4 text-sm font-semibold" data-testid="quiz-tries-many">{lang === "ar" ? "عدة محاولات." : "Multiple attempts."}</p>}
+              <button type="submit" className={`${primaryBtn} mt-6 w-full sm:w-auto`} disabled={!name.trim() || total === 0 || triesLeft === 0}>
                 {a("startAssessment")} →
               </button>
             </form>

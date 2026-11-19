@@ -62,6 +62,8 @@ export type Settings = {
   timerEnd: number | null;
   /** Posting closed (students can still view). */
   locked: boolean;
+  /** 0 or missing = no cap on a student's posts. */
+  attemptLimit?: number;
   /** Type-specific options (poll/vote options, survey questions, TPS stages …). */
   options: Json;
 };
@@ -111,6 +113,7 @@ function cleanSettings(raw: unknown, base: Settings): Settings {
   if (r.moderation === "live" || r.moderation === "approve") s.moderation = r.moderation;
   for (const k of ["hideNames", "likes", "allowImages", "allowLinks", "locked"] as const) if (typeof r[k] === "boolean") s[k] = r[k] as boolean;
   if (r.timerEnd === null || typeof r.timerEnd === "number") s.timerEnd = r.timerEnd === null ? null : Math.min(Number(r.timerEnd), Date.now() + 6 * 3600_000);
+  if (typeof r.attemptLimit === "number") s.attemptLimit = Math.min(30, Math.max(0, Math.trunc(r.attemptLimit)));
   if (r.options && typeof r.options === "object") {
     const o = JSON.stringify(r.options);
     if (o.length <= 30_000) s.options = r.options as Json;
@@ -280,6 +283,11 @@ export class ClassActivity extends DurableObject<ActivityEnv> {
         const me = who();
         if (!me) return { status: 403, body: { error: "removed" } };
         if (!isHost && !open()) return { status: 409, body: { error: "closed" } };
+        const cap = Math.min(30, Math.max(0, Math.trunc(Number(m.settings.attemptLimit) || 0)));
+        if (!isHost && cap > 0 && !["stroke", "note", "undo", "move", "pic"].includes(str(input.kind, 20))) {
+          const n = Number(this.sql.exec(`SELECT COUNT(*) AS n FROM items WHERE pid=? AND kind NOT IN ('stroke','note','pic')`, me.id).toArray()[0]?.n || 0);
+          if (n >= cap) return { status: 409, body: { error: "attempts_used" } };
+        }
         // t423: whiteboard strokes / notes / undo (students only when the teacher allows drawing).
         if (m.type === "whiteboard" && ["stroke", "note", "undo", "move"].includes(str(input.kind, 20))) {
           const k = str(input.kind, 20);

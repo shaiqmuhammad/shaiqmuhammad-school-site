@@ -68,6 +68,20 @@ export function attemptDetails(quiz: Quiz, answers: Record<string, unknown>): Re
   });
 }
 
+/** How many individual attempts this signed-in student already has for a quiz. 0 when signed out. */
+export async function quizTries(quizId: string): Promise<number> {
+  const st = studentLoginToken();
+  if (!st || !quizId) return 0;
+  try {
+    const res = await fetch(`${API}/tries?quiz=${encodeURIComponent(quizId)}`, { headers: { Authorization: `Bearer ${st}` }, cache: "no-store" });
+    if (!res.ok) return 0;
+    const b = (await res.json()) as { n?: number };
+    return Number(b.n) || 0;
+  } catch {
+    return 0;
+  }
+}
+
 /** Save an individual attempt to the server record (best effort; the student still sees the result offline). */
 export async function recordAttempt(payload: {
   quiz: Quiz;
@@ -99,6 +113,7 @@ export async function recordAttempt(payload: {
         unanswered: details.filter((d) => !d.answered).length,
         timeSec: payload.timeSec,
         details,
+        attemptLimit: payload.quiz.attemptLimit || 0,
       }),
     });
     return res.ok;

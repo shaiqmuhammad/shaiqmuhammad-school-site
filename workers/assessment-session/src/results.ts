@@ -114,17 +114,18 @@ export class ResultsStore extends DurableObject {
     if (!cols.has("student_id")) sql.exec("ALTER TABLE records ADD COLUMN student_id TEXT DEFAULT ''");
     if (!cols.has("link_state")) sql.exec("ALTER TABLE records ADD COLUMN link_state TEXT DEFAULT ''");
     if (!cols.has("podium")) sql.exec("ALTER TABLE records ADD COLUMN podium TEXT DEFAULT ''");
+    if (!cols.has("attempt_cap")) sql.exec("ALTER TABLE records ADD COLUMN attempt_cap INTEGER DEFAULT 0");
     this.ready = true;
   }
 
   async sys(op: string, input: Record<string, unknown>) { this.init(); return sysOp(this.ctx.storage, op, input); }
   async bk(op: string, input: Record<string, unknown>) { this.init(); return bkOp(this.ctx.storage, op, input); }
 
-  private insert(r: ResultRecord) {
+  private insert(r: ResultRecord, attemptCap = 0) {
     this.ctx.storage.sql.exec(
-      `INSERT OR REPLACE INTO records (id, kind, quiz_id, quiz_slug, quiz_title, year, name, session_code, score, max_score, percentage, correct, wrong, unanswered, time_sec, finished_at, rank, group_size, details, student_id, link_state, podium) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      `INSERT OR REPLACE INTO records (id, kind, quiz_id, quiz_slug, quiz_title, year, name, session_code, score, max_score, percentage, correct, wrong, unanswered, time_sec, finished_at, rank, group_size, details, student_id, link_state, podium, attempt_cap) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       r.id, r.kind, r.quizId, r.quizSlug, r.quizTitle, r.year, r.name, r.sessionCode, r.score, r.maxScore, r.percentage,
-      r.correct, r.wrong, r.unanswered, r.timeSec, r.finishedAt, r.rank, r.groupSize, JSON.stringify(r.details ?? []), r.studentId || "", r.linkState || "", r.podium?.length ? JSON.stringify(r.podium) : "",
+      r.correct, r.wrong, r.unanswered, r.timeSec, r.finishedAt, r.rank, r.groupSize, JSON.stringify(r.details ?? []), r.studentId || "", r.linkState || "", r.podium?.length ? JSON.stringify(r.podium) : "", attemptCap,
     );
   }
 
@@ -144,10 +145,26 @@ export class ResultsStore extends DurableObject {
     return true;
   }
 
-  async add(r: ResultRecord): Promise<"ok" | "full"> {
+  /** Logged-in individual attempts. Remembers the tightest positive cap so a later post cannot raise it. */
+  async tries(studentId: string, quizId: string): Promise<number> {
     this.init();
+    if (!studentId || !quizId) return 0;
+    return Number(this.ctx.storage.sql.exec(`SELECT COUNT(*) AS n FROM records WHERE student_id=? AND kind='individual' AND (quiz_id=? OR quiz_slug=?) AND COALESCE(link_state,'') != 'ignored'`, studentId, quizId, quizId).one().n || 0);
+  }
+
+  async add(r: ResultRecord, postedCap = 0): Promise<"ok" | "full" | "attempts_used"> {
+    this.init();
+    let cap = 0;
+    if (r.kind === "individual" && r.studentId) {
+      const row = this.ctx.storage.sql.exec(`SELECT COUNT(*) AS n, MIN(CASE WHEN attempt_cap > 0 THEN attempt_cap END) AS cap FROM records WHERE student_id=? AND kind='individual' AND (quiz_id=? OR quiz_slug=?) AND COALESCE(link_state,'') != 'ignored'`, r.studentId, r.quizId, r.quizId).one();
+      const n = Number(row.n || 0);
+      const stored = Number(row.cap || 0);
+      const posted = Math.min(30, Math.max(0, Math.floor(postedCap)));
+      cap = posted > 0 && stored > 0 ? Math.min(posted, stored) : posted || stored;
+      if (cap > 0 && n >= cap) return "attempts_used";
+    }
     if (this.count() >= MAX_RECORDS) return "full";
-    this.insert(r);
+    this.insert(r, cap);
     return "ok";
   }
 
@@ -270,6 +287,12 @@ export async function handleResults(request: Request, env: ResultsEnv, action: s
   const store = resultsStore(env);
   const url = new URL(request.url);
 
+  if (action === "tries") {
+    const studentId = (studentOf ? await studentOf(request.headers.get("Authorization")).catch(() => null) : null) || "";
+    const quizId = str(url.searchParams.get("quiz") || "", 80);
+    return reply(origin, { n: await store.tries(studentId, quizId) });
+  }
+
   if (action === "attempt") {
     if (request.method !== "POST") return reply(origin, { error: "method" }, 405);
     if (!origin) return reply(null, { error: "origin_required" }, 403);
@@ -313,7 +336,9 @@ export async function handleResults(request: Request, env: ResultsEnv, action: s
       studentId,
       details: cleanDetails(b.details),
     };
-    const r = await store.add(rec);
+    const attemptLimit = Math.min(30, Math.max(0, Math.floor(Number(b.attemptLimit) || 0)));
+    const r = await store.add(rec, attemptLimit);
+    if (r === "attempts_used") return reply(origin, { error: "attempts_used" }, 409);
     return r === "ok" ? reply(origin, { ok: true, id: rec.id, linked: Boolean(studentId) }) : reply(origin, { error: "full" }, 507);
   }
 

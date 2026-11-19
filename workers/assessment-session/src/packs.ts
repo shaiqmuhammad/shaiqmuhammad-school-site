@@ -7,6 +7,7 @@
  * Students keep their own layer per slide in lpwork (draw, type, record, picture) and hand in with sub-save.
  * Permissions: module "lp" in modperm (show/view/add/edit/delete) — global → role → subject → per teacher; admin always full.
  */
+import { attemptGate } from "./tries";
 type Json = Record<string, unknown>;
 type Sql = { exec: (q: string, ...b: unknown[]) => { toArray: () => Record<string, unknown>[]; one: () => Record<string, unknown> } };
 type Actor = { id: string; role: string; name: string; cls: string; perms: string[]; scope?: string[]; viewAs?: boolean; subj?: string[] };
@@ -19,8 +20,8 @@ export type PackCtx = {
   hwDelete: (a: Actor, id: string) => Promise<Reply>;
   notify: (uids: string[], kind: string, data: Json) => void;
   sectionOf: (uid: string) => string;
-  subOf: (hw: string, student: string) => { status: string; comments: { at: number }[]; submittedAt?: number } | null;
-  hwRow: (id: string) => { id: string; due: number | null } | undefined;
+  subOf: (hw: string, student: string) => { status: string; comments: { at: number }[]; submittedAt?: number; nsubmit?: number } | null;
+  hwRow: (id: string) => { id: string; due: number | null; data?: Record<string, unknown> } | undefined;
   inScopeIds: (a: Actor, ids: string[]) => boolean;
 };
 const str = (v: unknown, max: number) => String(v ?? "").replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, " ").slice(0, max);
@@ -167,7 +168,7 @@ export async function packHandle(c: PackCtx, a: Actor, action: string, input: Js
       if (blob.length > 900_000) return { status: 413, body: { error: "too_large" } };
       const topic = (input.topic && typeof input.topic === "object" ? input.topic : {}) as Json;
       const tp = { cur: str(topic.cur, 40), title: str(topic.title, 200), yr: str(topic.yr, 60), term: str(topic.term, 20), std: (Array.isArray(topic.std) ? topic.std : []).slice(0, 30).map((x) => str(x, 40)),
-        /* t429 SOW panel + pack timer */ lo: str(topic.lo, 3000), sc: (Array.isArray(topic.sc) ? topic.sc : []).slice(0, 20).map((x) => str(x, 400)).filter(Boolean), kw: str(topic.kw, 1000), stdText: str(topic.stdText, 1500), timer: Math.min(7200, Math.max(0, Math.trunc(Number(topic.timer) || 0))) };
+        /* t429 SOW panel + pack timer */ lo: str(topic.lo, 3000), sc: (Array.isArray(topic.sc) ? topic.sc : []).slice(0, 20).map((x) => str(x, 400)).filter(Boolean), kw: str(topic.kw, 1000), stdText: str(topic.stdText, 1500), timer: Math.min(7200, Math.max(0, Math.trunc(Number(topic.timer) || 0))), ...("tries" in topic ? { tries: Math.min(30, Math.max(0, Math.trunc(Number(topic.tries)) || 0)) } : {}) };
       const aud = (Array.isArray(input.aud) ? input.aud : []).slice(0, 40).map((x) => str(x, 80));
       const students = [...new Set((Array.isArray(input.students) ? input.students : []).map((x) => str(x, 40)).filter(Boolean))].slice(0, 800);
       if (a.role === "teacher" && students.length && !c.inScopeIds(a, students)) return forbid("out_of_scope");
@@ -227,7 +228,9 @@ export async function packHandle(c: PackCtx, a: Actor, action: string, input: Js
       if (r.hw) {
         const sb = c.subOf(String(r.hw), a.id);
         if (sb?.status === "approved") return { status: 409, body: { error: "already_approved" } };
-        if (sb?.status === "submitted" && !sb.comments.some((x) => Number(x.at || 0) > Number(sb.submittedAt || 0))) return { status: 409, body: { error: "already_submitted" } };
+        const hw = c.hwRow(String(r.hw));
+        const gate = attemptGate(hw?.data, sb);
+        if (sb && sb.status !== "draft" && !gate.open) return { status: 409, body: { error: gate.code } };
       }
       const sl = slides(input.slides, true);
       const blob = JSON.stringify(sl);
@@ -262,7 +265,9 @@ async function publish(c: PackCtx, a: Actor, id: string): Promise<Reply> {
   if (type === "quran" && !q) return { status: 400, body: { error: "lp_needs_quran_slide" } };
   const students = JSON.parse(String(r.students || "[]")) as string[];
   const assignAt = Number(r.assign_at || 0);
-  const data = type === "quran" ? { surah: q!.surah, from: q!.from, to: q!.to, reciter: q!.reciter, memorise: q!.memorise === true, memoAudio: q!.memoAudio !== false, translit: q!.translit === true, translation: q!.translation === true, notes: String(q!.notes || ""), pack: id, assignAt } : { slides: [], question: "", pack: id, assignAt, ...(type === "activity" ? { activity: true } : {}) };
+  const topicJson = JSON.parse(String(r.topic || "{}")) as Json;
+  const attemptLimit = topicJson.tries === undefined || topicJson.tries === null || topicJson.tries === "" ? 1 : Math.min(30, Math.max(0, Math.trunc(Number(topicJson.tries)) || 0));
+  const data = type === "quran" ? { surah: q!.surah, from: q!.from, to: q!.to, reciter: q!.reciter, memorise: q!.memorise === true, memoAudio: q!.memoAudio !== false, translit: q!.translit === true, translation: q!.translation === true, notes: String(q!.notes || ""), pack: id, assignAt, attemptLimit } : { slides: [], question: "", pack: id, assignAt, attemptLimit, ...(type === "activity" ? { activity: true } : {}) };
   const rr = await c.hwSave(a, { id: String(r.hw || "") || undefined, kind: type === "quran" ? "quran" : "general", title: String(r.title), cls: "", section: "", students, due: Number(r.due || 0) || null, data, quiet: true });
   if (rr.status !== 200) return rr;
   const hw = String((rr.body as { id?: string }).id || r.hw || "");
