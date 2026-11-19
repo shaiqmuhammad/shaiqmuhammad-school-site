@@ -11,6 +11,7 @@ import { useLmsActor, useTr } from "@/components/lms/useLms";
 import { clsCmp, sortCls } from "@/lib/classSort";
 import { lmsApi, lmsErrorText, type Catalog, type Chapter, type DashStudent, type Homework, type QuranData } from "@/lib/lms";
 import { modErr, qhwPerm } from "@/lib/lmsMods";
+import { PptDownload } from "@/components/lms/packs/PptDownload";
 import { hwParts, lp, packParts, PART_LABEL, partText, type Acc, type Pack } from "@/lib/packs";
 
 export type HwHubTab = "lessons" | "homeworks" | "assigned" | "review" | "corrected";
@@ -464,6 +465,7 @@ function LessonBoard({ asAdmin }: { asAdmin: boolean }) {
                         <div className="mt-3 flex flex-wrap items-center gap-2">
                           <a className={OPEN_PILL} href={`/lms/material?open=${encodeURIComponent(p.id)}&from=lessons${p.type !== "lesson" ? "&part=lesson" : ""}`} data-testid="lesson-portion-open">{p.type !== "lesson" ? tr("Lesson slides", "شرائح الدرس") : tr("Present", "عرض")}</a>
                           {canEdit(p) && <a className={btn + " !py-1"} href={`/lms/material?edit=${encodeURIComponent(p.id)}&from=lessons`} title={tr("Edit", "تعديل")} aria-label={tr("Edit", "تعديل")} data-testid="lesson-portion-edit">✎</a>}
+                          <PptDownload id={p.id} asAdmin={asAdmin} className={btn + " !py-1"} />
                           {canDel(p) && p.type === "lesson" && <button type="button" className={btn + " !py-1"} onClick={() => del(p)} title={tr("Delete", "حذف")} aria-label={tr("Delete", "حذف")} data-testid="lesson-portion-del">🗑</button>}
                         </div>
                       </article>

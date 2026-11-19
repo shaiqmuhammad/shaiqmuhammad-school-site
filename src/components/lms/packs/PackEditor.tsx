@@ -10,6 +10,7 @@ import { AddTools, ElProps, withId, type Pen } from "./Tools";
 import { importPptx } from "./pptx";
 import { importPdf } from "./pdf";
 import { PackPlayer } from "./PackPlayer";
+import { PptDownload } from "./PptDownload";
 import { LB_AR, LB_EN, LB_ICON, PART_LABEL, TIMERS, fmtT, mediaUrl, type Part } from "@/lib/packs";
 import { unitToSow } from "@/components/lms/mods/SowTools";
 import { AudioRecorder } from "@/components/lms/Audio";
@@ -224,6 +225,7 @@ export function PackEditor({ initial, acc, asAdmin, subjects, onClose, closeLabe
         <span className={`rounded-full px-3 py-1 text-xs font-extrabold ${p.status === "published" ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-700"}`} data-testid="lp-status">{p.status === "published" ? (p.assignAt > Date.now() ? tr("Scheduled", "مجدول") : tr("Published", "منشور")) : tr("Draft", "مسودة")}</span>
         <span className="flex-1" />
         <button type="button" className={smallBtn} onClick={async () => { if (canSave && (dirty || !p.id)) { const sv = await save(true); if (!sv) return; } setPreview(true); }} disabled={!p.id && !canSave} title={tr("See it exactly as students will — nothing is assigned", "شاهده كما يراه الطلاب — بدون إسناد")} data-testid="lp-preview">👁 {tr("Preview", "معاينة")}</button>
+        <PptDownload pack={{ title: p.title, type: p.type, subject: p.subject, ownerName: p.ownerName, slides }} asAdmin={asAdmin} className={smallBtn} />
         <button type="button" className={smallBtn + (hideRail ? " !bg-header !text-sun" : "")} onClick={() => setHideRail((v) => !v)} title={tr("Hide or show the slides sidebar", "إخفاء شريط الشرائح أو إظهاره")} data-testid="lp-hide-rail">{hideRail ? "📑" : "🗂️"} {hideRail ? tr("Show slides", "إظهار الشرائح") : tr("Hide slides", "إخفاء الشرائح")}</button>
         <button type="button" className={smallBtn + (work ? " !bg-header !text-sun" : "")} onClick={() => void toggleWork()} title={work ? tr("Exit Focus (Esc)", "إنهاء التركيز (Esc)") : tr("Focus — open this slide full screen, with the text, picture and camera tools", "تركيز — افتح هذه الشريحة بملء الشاشة مع أدوات النص والصورة والكاميرا")} data-testid="lp-work">{work ? "✕" : "🎯"} {work ? tr("Exit Focus", "إنهاء التركيز") : tr("Focus", "تركيز")}</button>
         {canSave && <button type="button" className={smallBtn} disabled={saving} onClick={() => save()} data-testid="lp-save">💾 {saving ? "…" : tr("Save", "حفظ")}</button>}
