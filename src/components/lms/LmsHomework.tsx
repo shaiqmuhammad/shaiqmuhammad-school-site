@@ -22,7 +22,8 @@ import { FeedbackText, ScoreBadges, ScoreGrader } from "@/components/lms/QuranSc
 import { VersionTimeline } from "@/components/lms/Versions";
 import { qhwPerm } from "@/lib/lmsMods";
 import { GRADE_STYLE, STATUS_STYLE, card, gradeLabel, inputCls, smallBtn, statusLabel, useLmsActor, useTr } from "@/components/lms/useLms";
-import { quranExtras, ayahAudio, lmsApi, lmsErrorText, quranChapters, quranVerses, type Chapter, type GeneralData, type QuranData, type Submission, type Attempt, type Mistake, type QrLink, type Catalog, type DashStudent } from "@/lib/lms";
+import { attemptCap, attemptOpen, quranExtras, ayahAudio, lmsApi, lmsErrorText, quranChapters, quranVerses, type Chapter, type GeneralData, type QuranData, type Submission, type Attempt, type Mistake, type QrLink, type Catalog, type DashStudent } from "@/lib/lms";
+import { usePinchZoom } from "@/components/lms/usePinchZoom";
 
 const quranFont = Amiri_Quran({ weight: "400", subsets: ["arabic"], display: "swap" });
 const stamp = (n: number | null | undefined, lang: string, time = false) => n ? new Date(n).toLocaleString(lang === "ar" ? "ar" : "en-GB", time ? { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" } : { day: "numeric", month: "short", year: "numeric" }) : "";
@@ -163,19 +164,23 @@ export function QuranReader({ data, mistakes = [], onMarkWord }: { data: QuranDa
 function Slides({ data }: { data: GeneralData }) {
   const { tr } = useTr();
   const [i, setI] = useState(0);
+  const pinch = usePinchZoom(true);
   const s = data.slides[i];
-  if (!data.slides.length) return null;
+  if (!data.slides.length || !s) return null;
   return (
     <section className={card} data-testid="hw-slides">
       <div className="flex items-center justify-between text-sm font-bold opacity-70">
         <span>{tr(`Slide ${i + 1} of ${data.slides.length}`, `الشريحة ${i + 1} من ${data.slides.length}`)}</span>
+        {pinch.zoom !== 1 && <button type="button" className={smallBtn} onClick={() => pinch.setZoom(1)} data-testid="hw-zoom-reset">{tr("Reset zoom", "إعادة التكبير")} {Math.round(pinch.zoom * 100)}%</button>}
       </div>
+      <div ref={pinch.ref} data-testid="hw-slide-zoom" onPointerDown={pinch.down} onPointerMove={pinch.move} onPointerUp={pinch.up} onPointerCancel={pinch.up} style={{ transform: pinch.zoom === 1 ? undefined : `scale(${pinch.zoom})`, transformOrigin: "center top" }}>
       {s.title && <h2 className="mt-2 text-2xl font-bold" dir="auto">{s.title}</h2>}
       {s.image && (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={s.image} alt="" className="mt-3 max-h-[50vh] w-full rounded-2xl object-contain" />
       )}
       {s.text && <p className="mt-3 whitespace-pre-wrap text-lg leading-relaxed" dir="auto">{s.text}</p>}
+      </div>
       <div className="mt-4 flex justify-between">
         <button type="button" className={smallBtn} disabled={i === 0} onClick={() => setI(i - 1)} data-testid="slide-prev">← {tr("Back", "السابق")}</button>
         <button type="button" className={smallBtn} disabled={i >= data.slides.length - 1} onClick={() => setI(i + 1)} data-testid="slide-next">{tr("Next", "التالي")} →</button>
@@ -210,7 +215,10 @@ function StudentWork({ hw, sub, reload, chapters = [] }: { hw: Data["homework"];
   // t302: after a teacher comment on a submitted piece the student can respond (edit and submit again).
   const awaitingReply = sub?.status === "submitted" && (sub.comments || []).some((m) => (m.at || 0) > (sub.submittedAt || 0));
   const sentBack = sub?.status === "returned" || awaitingReply;
-  const locked = sub?.status === "approved" || (sub?.status === "submitted" && !awaitingReply) || !!hw.locked;
+  const cap = attemptCap(hw.data);
+  const open = attemptOpen(hw.data, sub);
+  const used = sub?.nsubmit || 0;
+  const locked = !open || !!hw.locked;
   const again = hw.kind === "quran" && sub?.grade === "red" && sub.status === "returned";
   const save = async (submit: boolean) => {
     setBusy(true);
@@ -246,21 +254,25 @@ function StudentWork({ hw, sub, reload, chapters = [] }: { hw: Data["homework"];
           {sub?.audio ? (
             <AudioClip id={sub.audio} label={"🎙️ " + tr("My recitation", "تلاوتي")} testId="my-rec" deleteLabel={locked ? undefined : tr("Discard recording", "تجاهل التسجيل")} onDelete={locked ? undefined : async () => { if (confirm(tr("Discard this recording? You can record a new one before you submit.", "تجاهل هذا التسجيل؟ يمكنك تسجيل جديد قبل التسليم."))) { await lmsApi.audioDelete(sub.audio!).catch(() => undefined); window.dispatchEvent(new Event("lms-memo-show")); reload(); } }} />
           ) : null}
-{sub?.status === "submitted" && <p className="rounded-2xl bg-emerald-50 px-3 py-2 font-semibold text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200" data-testid="rec-sent">✅ {tr("Submitted — waiting for your teacher.", "تم التسليم — بانتظار معلمك.")}</p>}
+{sub?.status === "submitted" && !open && <p className="rounded-2xl bg-emerald-50 px-3 py-2 font-semibold text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200" data-testid="rec-sent">✅ {tr("Submitted — waiting for your teacher.", "تم التسليم — بانتظار معلمك.")}</p>}
           {!locked && sub?.status !== "approved" && <AudioRecorder replace={!!sub?.audio} label={sub?.audio ? tr("Record again (replaces this take)", "سجّل مجددًا (يستبدل هذه المحاولة)") : tr("Record your recitation (up to 3 minutes)", "سجّل تلاوتك (حتى 3 دقائق)")} testId="rec-student" big autoSave onSave={async (b) => { await lmsApi.audioUpload({ hw: hw.id }, b); setDraftOk(true); reload(); }} />}
         </>
       ) : (
         <>
           {(hw.data as GeneralData).question && <p className="text-lg font-semibold" dir="auto">{(hw.data as GeneralData).question}</p>}
           {sub?.audio && <AudioClip id={sub.audio} label={"🎙️ " + tr("My audio answer", "إجابتي الصوتية")} testId="my-rec" deleteLabel={locked ? undefined : tr("Discard recording", "تجاهل التسجيل")} onDelete={locked ? undefined : async () => { if (confirm(tr("Discard this recording? You can record a new one before you submit.", "تجاهل هذا التسجيل؟ يمكنك تسجيل جديد قبل التسليم."))) { await lmsApi.audioDelete(sub.audio!).catch(() => undefined); reload(); } }} />}
-{sub?.status === "submitted" && <p className="rounded-2xl bg-emerald-50 px-3 py-2 font-semibold text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200" data-testid="rec-sent">✅ {tr("Submitted — waiting for your teacher.", "تم التسليم — بانتظار معلمك.")}</p>}
+{sub?.status === "submitted" && !open && <p className="rounded-2xl bg-emerald-50 px-3 py-2 font-semibold text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200" data-testid="rec-sent">✅ {tr("Submitted — waiting for your teacher.", "تم التسليم — بانتظار معلمك.")}</p>}
           {!locked && sub?.status !== "approved" && <AudioRecorder replace={!!sub?.audio} label={sub?.audio ? tr("Record again (replaces this take)", "سجّل مجددًا (يستبدل هذه المحاولة)") : tr("Audio answer (optional, up to 3 minutes)", "إجابة صوتية (اختياري، حتى 3 دقائق)")} testId="rec-student" big autoSave onSave={async (b) => { await lmsApi.audioUpload({ hw: hw.id }, b); setDraftOk(true); reload(); }} />}
         </>
       )}
       <textarea className={inputCls + " min-h-28"} value={text} onChange={(e) => setText(e.target.value)} disabled={locked} maxLength={4000} dir="auto" placeholder={hw.kind === "quran" ? tr("A note for your teacher (optional)", "ملاحظة لمعلمك (اختياري)") : tr("Your answer", "إجابتك")} data-testid="hw-text" />
+      {!open && <p className="text-sm font-bold text-rose-700" data-testid="hw-tries-used">{tr("You have used every attempt for this work.", "لقد استخدمت كل المحاولات لهذا العمل.")}</p>}
+      {open && cap === 0 && <p className="text-sm font-semibold" data-testid="hw-tries">{tr("Multiple attempts — you can submit again until this is approved.", "عدة محاولات — يمكنك التسليم مجددًا حتى يُعتمد هذا.")}</p>}
+      {open && cap === 1 && <p className="text-sm font-semibold" data-testid="hw-tries">{tr("One attempt. If your teacher sends it back, you can try once more.", "محاولة واحدة. إذا أعاده معلمك يمكنك المحاولة مرة أخرى.")}</p>}
+      {open && cap > 1 && <p className="text-sm font-semibold" data-testid="hw-tries">{tr(`Attempts left: ${Math.max(0, cap - used)} of ${cap}.`, `المحاولات المتبقية: ${Math.max(0, cap - used)} من ${cap}.`)}</p>}
       {!locked && (
         <div className="flex flex-wrap gap-2">
-          <button type="button" className={primaryBtn} disabled={busy || (hw.kind === "general" ? !(hw.data as { pack?: string }).pack && !text.trim() && !(sub?.audio || draftOk) : !(sub?.audio || draftOk))} onClick={() => { if (confirm(sentBack ? tr("Send this correction? You can send it once, unless your teacher sends it back again.", "إرسال هذا التصحيح؟ يمكنك إرساله مرة واحدة، إلا إذا أعاده معلمك مجددًا.") : tr("Submit your homework now? You can only submit once, unless your teacher sends it back.", "تسليم واجبك الآن؟ يمكنك التسليم مرة واحدة فقط، إلا إذا أعاده معلمك."))) save(true); }} data-testid="hw-submit">📤 {sentBack ? tr("Submit correction", "تسليم التصحيح") : tr("Submit Your Homework", "سلّم واجبك")}</button>
+          <button type="button" className={primaryBtn} disabled={busy || (hw.kind === "general" ? !(hw.data as { pack?: string }).pack && !text.trim() && !(sub?.audio || draftOk) : !(sub?.audio || draftOk))} onClick={() => { const ask = cap === 0 ? tr("Submit again? You can keep sending until your teacher approves it.", "تسليم مجدد؟ يمكنك الاستمرار حتى يعتمد معلمك العمل.") : cap > 1 ? tr(`Submit now? You can hand this in ${cap} times (${Math.max(0, cap - used)} left).`, `تسليم الآن؟ يمكنك التسليم ${cap} مرات (المتبقي ${Math.max(0, cap - used)}).`) : sentBack ? tr("Send this correction? You can send it once, unless your teacher sends it back again.", "إرسال هذا التصحيح؟ يمكنك إرساله مرة واحدة، إلا إذا أعاده معلمك مجددًا.") : tr("Submit your homework now? You can only submit once, unless your teacher sends it back.", "تسليم واجبك الآن؟ يمكنك التسليم مرة واحدة فقط، إلا إذا أعاده معلمك."); if (confirm(ask)) save(true); }} data-testid="hw-submit">📤 {sentBack ? tr("Submit correction", "تسليم التصحيح") : tr("Submit Your Homework", "سلّم واجبك")}</button>
           <button type="button" className={smallBtn} disabled={busy} onClick={() => save(false)} data-testid="hw-draft">{tr("Save for later", "حفظ لاحقًا")}</button>
         </div>
       )}
@@ -516,7 +528,7 @@ export function LmsHomework() {
             {hw.kind === "quran" && staff && (hw.data as QuranData).memorise && <p className="rounded-2xl bg-violet-100 px-4 py-2 text-sm font-bold text-violet-900" data-testid="hw-memo-teacher">🧠 {tr("Memorise & record — students don't see these verses.", "احفظ وسجّل — لا يرى الطلاب هذه الآيات.")}</p>}
             {hw.kind === "quran" && staff && <div className="flex justify-end"><button type="button" className={smallBtn} onClick={() => setDeck(true)} data-testid="quran-corr-focus">🎯 {tr("Focus", "تركيز")}</button></div>}
             {hw.kind === "quran" ? (!staff && (hw.data as QuranData).memorise && memoHide ? <MemoriseCard data={hw.data as QuranData} chapters={chapters} /> : <QuranReader data={hw.data as QuranData} mistakes={(d.sub?.mistakes || [])} />) : <Slides data={hw.data as GeneralData} />}
-            {(hw.data as { pack?: string }).pack && <PackPlayer key={String(d?.sub?.status)} id={(hw.data as { pack?: string }).pack!} asAdmin={asAdmin} preview={staff} locked={!staff && (d?.sub?.status === "approved" || (d?.sub?.status === "submitted" && !(d.sub.comments || []).some((c) => c.at > (d.sub!.submittedAt || 0))))} />}
+            {(hw.data as { pack?: string }).pack && <PackPlayer key={String(d?.sub?.status)} id={(hw.data as { pack?: string }).pack!} asAdmin={asAdmin} preview={staff} locked={!staff && !attemptOpen(hw.data, d?.sub)} />}
             {!staff && <StudentWork key={d?.sub?.updated || 0} hw={hw} sub={d?.sub || null} reload={load} chapters={chapters} />}
             {staff && (
               <section className="space-y-3">

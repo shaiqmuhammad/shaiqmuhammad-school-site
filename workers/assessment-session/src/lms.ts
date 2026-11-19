@@ -52,6 +52,7 @@ import { initMods, modHandle, pubQuizzes, tquizTopics, today as modToday } from 
 import { bankFromTquizzes, draftFromCurriculum, parseImportText, unitFromRow } from "./tquizDraft";
 import { reportHandle } from "./reports";
 import { packHandle, packInit, packSweep, type PackCtx } from "./packs";
+import { attemptGate, commentList } from "./tries";
 import { CONTACT, FROM_NAME, SITE_URL, renderEmail, renderText } from "./mail/template";
 import { blobStore, sqliteChunkStore, type BlobStore, type StorageEnv } from "./storage";
 import { bkOp } from "./bkstore";
@@ -320,6 +321,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     }
     // Three-criteria Quran scores (Makharij / Tajweed / Recitation). Older colour grades are backfilled as equal levels.
     if (!cols("subs").has("scores")) this.sql.exec(`ALTER TABLE subs ADD COLUMN scores TEXT DEFAULT ''`);
+    if (!cols("subs").has("nsubmit")) this.sql.exec(`ALTER TABLE subs ADD COLUMN nsubmit INTEGER DEFAULT 0`);
     if (!cols("tracker").has("scores")) this.sql.exec(`ALTER TABLE tracker ADD COLUMN scores TEXT DEFAULT ''`);
     for (const tb of ["subs", "tracker"] as const) {
       for (const r of this.sql.exec(`SELECT id, grade FROM ${tb} WHERE (scores IS NULL OR scores='') AND grade IN ('green','yellow','red')`).toArray()) {
@@ -868,8 +870,9 @@ export class LmsStore extends DurableObject<LmsEnv> {
       if (this.lockedFor(h, a.id)) return { status: 409, body: { error: "locked" } };
       let cur = this.sql.exec(`SELECT * FROM subs WHERE hw=? AND student=?`, h.id, a.id).toArray()[0];
       if (cur?.status === "approved") return { status: 409, body: { error: "already_approved" } };
-      // t302: a submitted piece the teacher commented on (after the submit) can be answered by submitting again.
-      if (cur?.status === "submitted" && !(JSON.parse(String(cur.comments || "[]")) as { at?: number }[]).some((x) => Number(x.at || 0) > Number(cur.submitted_at || 0))) return { status: 409, body: { error: "already_submitted" } };
+      // A new recording is part of the next submit, so it follows the same attempt cap as sub-save.
+      const gate = attemptGate(h.data as { attemptLimit?: unknown }, cur ? { status: String(cur.status), nsubmit: Number(cur.nsubmit || 0), comments: commentList(cur.comments), submittedAt: Number(cur.submitted_at || 0) } : null);
+      if (cur && !gate.open) return { status: 409, body: { error: gate.code } };
       if (!cur) {
         this.sql.exec(`INSERT INTO subs (id, hw, student, status, text, practised, updated) VALUES (?, ?, ?, 'draft', '', 0, ?)`, rid("s"), h.id, a.id, Date.now());
         cur = this.sql.exec(`SELECT * FROM subs WHERE hw=? AND student=?`, h.id, a.id).toArray()[0];
@@ -2374,14 +2377,16 @@ export class LmsStore extends DurableObject<LmsEnv> {
         if (this.lockedFor(h, a.id)) return { status: 409, body: { error: "locked" } };
         const cur = this.sql.exec(`SELECT * FROM subs WHERE hw=? AND student=?`, h.id, a.id).toArray()[0];
         if (cur?.status === "approved") return { status: 409, body: { error: "already_approved" } };
-      if (cur?.status === "submitted" && !(JSON.parse(String(cur.comments || "[]")) as { at?: number }[]).some((x) => Number(x.at || 0) > Number(cur.submitted_at || 0))) return { status: 409, body: { error: "already_submitted" } };
+        const gate = attemptGate(h.data as { attemptLimit?: unknown }, cur ? { status: String(cur.status), nsubmit: Number(cur.nsubmit || 0), comments: commentList(cur.comments), submittedAt: Number(cur.submitted_at || 0) } : null);
+        const used = Number(cur?.nsubmit || 0);
+        if (input.submit === true && !gate.open) return { status: 409, body: { error: gate.code } };
         const status = input.submit === true ? "submitted" : cur?.status === "returned" ? "returned" : "draft";
         const text = str(input.text, 4000);
         const practised = input.practised === true ? 1 : 0;
         if (cur) this.sql.exec(`UPDATE subs SET status=?, text=?, practised=?, updated=? WHERE id=?`, status, text, practised, Date.now(), String(cur.id));
         else this.sql.exec(`INSERT INTO subs (id, hw, student, status, text, practised, updated) VALUES (?, ?, ?, ?, ?, ?, ?)`, rid("s"), h.id, a.id, status, text, practised, Date.now());
         this.touch(a.id);
-        if (status === "submitted") this.sql.exec(`UPDATE subs SET submitted_at=? WHERE hw=? AND student=?`, Date.now(), h.id, a.id);
+        if (status === "submitted") this.sql.exec(`UPDATE subs SET submitted_at=?, nsubmit=? WHERE hw=? AND student=?`, Date.now(), used + 1, h.id, a.id);
         if (status === "submitted") this.ctx.waitUntil(rcSync(this.rcCtx(), a.id).catch(() => undefined));
         if (status === "submitted") this.notify([h.createdBy, "admin"], "sub_new", { hw: h.id, title: h.title, student: a.name });
         return { status: 200, body: { ok: true, sub: this.sub(h.id, a.id) } };
@@ -2783,7 +2788,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     return this.allHomework().filter((h) => !(Number((h.data as Json).assignAt || 0) > now)).filter((h) => (h.students.includes(a.id) || (h.cls ? h.cls === a.cls && (!h.section || h.section === sec) : !h.students.length)));
   }
   private subOut(r: Record<string, unknown>) {
-    return { id: String(r.id), status: String(r.status), text: String(r.text || ""), practised: Boolean(r.practised), liked: Boolean(r.liked), comments: JSON.parse(String(r.comments || "[]")) as { by: string; text: string; at: number; audio?: string }[], audio: String(r.audio || ""), grade: String(r.grade || ""), scores: parseScores(r.scores) || fromGrade(String(r.grade || "")), mistakes: JSON.parse(String(r.mistakes || "[]")) as { ayah: number; word: number; text: string; note: string }[], submittedAt: Number(r.submitted_at || 0), attempts: (JSON.parse(String(r.attempts || "[]")) as { n: number; audio: string; grade: string; by: string; at: number; scores?: Scores }[]).map((x) => ({ ...x, scores: x.scores || fromGrade(x.grade) || undefined })), updated: Number(r.updated) };
+    return { id: String(r.id), status: String(r.status), text: String(r.text || ""), practised: Boolean(r.practised), liked: Boolean(r.liked), comments: JSON.parse(String(r.comments || "[]")) as { by: string; text: string; at: number; audio?: string }[], audio: String(r.audio || ""), grade: String(r.grade || ""), scores: parseScores(r.scores) || fromGrade(String(r.grade || "")), mistakes: JSON.parse(String(r.mistakes || "[]")) as { ayah: number; word: number; text: string; note: string }[], submittedAt: Number(r.submitted_at || 0), nsubmit: Number(r.nsubmit || 0), attempts: (JSON.parse(String(r.attempts || "[]")) as { n: number; audio: string; grade: string; by: string; at: number; scores?: Scores }[]).map((x) => ({ ...x, scores: x.scores || fromGrade(x.grade) || undefined })), updated: Number(r.updated) };
   }
   /** t328: Quran submissions carry the student's full version timeline on that Surah (teacher view). */
   private withVersions<T extends { id: string }>(o: T, r: Record<string, unknown>): T {

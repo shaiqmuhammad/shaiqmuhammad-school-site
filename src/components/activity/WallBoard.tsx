@@ -29,6 +29,7 @@ export function errorText(e: unknown, tr: (en: string, ar: string) => string): s
     full: ["This activity is full.", "هذا النشاط ممتلئ."],
     empty: ["Write something first.", "اكتب شيئًا أولًا."],
     removed: ["You have been removed by the teacher.", "لقد أزالك المعلم."],
+    attempts_used: ["You have used every attempt for this activity.", "لقد استخدمت كل المحاولات لهذا النشاط."],
     network: ["No connection — try again.", "لا يوجد اتصال — حاول مرة أخرى."],
     no_images: ["Pictures are turned off.", "الصور متوقفة."],
   };

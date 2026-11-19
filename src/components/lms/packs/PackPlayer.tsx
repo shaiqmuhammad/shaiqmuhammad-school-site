@@ -9,6 +9,7 @@ import { qrSvg } from "@/lib/qrLocal";
 import { InstrAudio } from "./SlideView";
 import { PART_LABEL, fmtT } from "@/lib/packs";
 import { AddTools, ElProps, withId, type Pen } from "./Tools";
+import { usePinchZoom } from "@/components/lms/usePinchZoom";
 import { requestElFullscreen } from "@/components/FocusMode";
 import { registerSlideFocus, setPageFocus } from "@/components/FullscreenToggle";
 
@@ -30,6 +31,7 @@ export function PackPlayer({ id, asAdmin = false, review, preview = false, locke
   const [printing, setPrinting] = useState(false);
   const swipe = useRef<{ x: number; y: number } | null>(null);
   const [full, setFull] = useState(!!autoFull); // t396: opened from the list → full screen (document fullscreen from the click, else full-window)
+  const pinch = usePinchZoom(!pen);
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   const box = useRef<HTMLElement | null>(null);
@@ -131,14 +133,22 @@ export function PackPlayer({ id, asAdmin = false, review, preview = false, locke
         {left !== null && !review && <span className={`rounded-full px-3 py-0.5 font-mono text-base font-extrabold tabular-nums shadow ${left === 0 ? "bg-rose-600 text-white" : left <= 30 ? "animate-pulse bg-amber-400 text-[#1b2f44]" : "bg-[#1b3a57] text-[#f5c542]"}`} title={slideLeft !== null ? tr("Time for this slide", "وقت هذه الشريحة") : tr("Time for the activity", "وقت النشاط")} data-testid="lp-timer-left">⏱ {left === 0 ? tr("Time's up!", "انتهى الوقت!") : fmtT(left)}</span>}
         {staffView && <button type="button" className={smallBtn} onClick={doPrint} disabled={printing} title={tr("Colourful printable with QR code", "نسخة ملوّنة للطباعة مع رمز QR")} data-testid="lp-print">🖨 {printing ? "…" : tr("Print / PDF", "طباعة / PDF")}</button>}
         <button type="button" className={smallBtn} onClick={() => void toggleFull()} title={full ? tr("Exit Focus (Esc)", "إنهاء التركيز (Esc)") : tr("Focus — open this slide full screen, with the text, picture and camera tools", "تركيز — افتح هذه الشريحة بملء الشاشة مع أدوات النص والصورة والكاميرا")} data-testid="lp-full" data-focus-keep>{full ? "✕" : "🎯"} {full ? tr("Exit Focus", "إنهاء التركيز") : tr("Focus", "تركيز")}</button>
+        {pinch.zoom !== 1 && <span className="rounded-full bg-white/20 px-2 py-0.5 text-xs tabular-nums" data-testid="lp-zoom-level">{Math.round(pinch.zoom * 100)}%</span>}
+        {pinch.zoom !== 1 && <button type="button" className={smallBtn} onClick={() => pinch.setZoom(1)} data-testid="lp-zoom-reset">{tr("Reset zoom", "إعادة التكبير")}</button>}
       </div>
       {(s.instr || s.instrAudio) && <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-sky-200 bg-sky-50/95 px-3 py-2 text-sm font-semibold text-[#1b2f44] shadow-sm" data-testid="lp-player-instr"><span className="text-lg" aria-hidden>💬</span>{s.instr && <p className="min-w-0 flex-1 whitespace-pre-wrap" dir="auto">{s.instr}</p>}{s.instrAudio && <InstrAudio id={s.instrAudio} asAdmin={asAdmin} />}</div>}
       {editable && <div className="sticky top-12 z-20 shrink-0" data-focus-keep data-testid="lp-player-tools"><AddTools compact={full} add={(e) => { const el = withId({ ...e, ...(e.t === "text" ? { y: Math.min(80, 40 + layer.filter((x) => x.t === "text").length * 8) } : {}), by: "s" } as Omit<El, "id">); setLayer((l) => [...l, el]); setSel(el.id); }} pen={pen} setPen={setPen} asAdmin={asAdmin} teacher={false} onErr={setMsg}
         onUndoStroke={() => { const d = draw(); if (d) setLayer((l) => l.map((e) => (e === d ? { ...d, paths: d.paths.slice(0, -1) } : e))); }} onClearDraw={() => { const d = draw(); if (d) setLayer((l) => l.filter((e) => e !== d)); }} /></div>}
-      <div className={`relative ${full ? "flex min-h-0 flex-1 items-center justify-center" : ""}`}
-        onPointerDown={(ev) => { if (!pen && ev.pointerType !== "mouse") swipe.current = { x: ev.clientX, y: ev.clientY }; }}
-        onPointerUp={(ev) => { const st = swipe.current; swipe.current = null; if (!st || live || pen) return; const dx = ev.clientX - st.x, dy = ev.clientY - st.y; if (Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy) * 1.5) go(dx < 0 === (document.dir !== "rtl") ? 1 : -1); }}>
-        <div className="lb-fit relative w-full" style={full ? { maxWidth: "calc((100dvh - 7.5rem) * 16 / 9)" } : undefined}>
+      <div ref={pinch.ref} className={`relative ${full ? "flex min-h-0 flex-1 items-center justify-center" : ""}`}
+        onPointerDown={(ev) => {
+          if (!pen && ev.pointerType !== "mouse") swipe.current = { x: ev.clientX, y: ev.clientY };
+          if (pen) return;
+          if (pinch.down(ev)) swipe.current = null;
+        }}
+        onPointerMove={(ev) => { if (!pen) pinch.move(ev); }}
+        onPointerUp={(ev) => { const wasPinch = pinch.up(ev); const st = swipe.current; swipe.current = null; if (!st || live || pen || wasPinch) return; const dx = ev.clientX - st.x, dy = ev.clientY - st.y; if (Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy) * 1.5) go(dx < 0 === (document.dir !== "rtl") ? 1 : -1); }}
+        onPointerCancel={(ev) => { pinch.up(ev); }}>
+        <div className="lb-fit relative w-full" data-testid="lp-zoom" style={{ ...(full ? { maxWidth: "calc((100dvh - 7.5rem) * 16 / 9)" } : {}), transform: pinch.zoom === 1 ? undefined : `scale(${pinch.zoom})`, transformOrigin: "center center" }}>
           <SlideView slide={s} layer={layer} asAdmin={asAdmin} edit={editable ? "s" : null} selected={sel} onSelect={setSel} pen={editable ? pen : null}
             onMove={(eid, q) => setLayer((l) => l.map((e) => (e.id === eid ? ({ ...e, ...q } as El) : e)))} onDelete={editable ? (eid) => { setLayer((l) => l.filter((e) => e.id !== eid)); setSel(""); } : undefined}
             onStroke={(d) => setLayer((l) => { const dr = l.find((e) => e.t === "draw") as Extract<El, { t: "draw" }> | undefined; const path = { c: pen!.c, w: pen!.w, d }; return dr ? l.map((e) => (e === dr ? { ...dr, paths: [...dr.paths, path] } : e)) : [...l, { id: uid(), t: "draw", x: 0, y: 0, w: 100, h: 100, by: "s", paths: [path] } as El]; })} testId="lp-player-slide" />

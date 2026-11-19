@@ -1,6 +1,7 @@
 "use client";
 
 import { FocusCorner } from "@/components/FocusMode";
+import { AttemptField } from "@/components/lms/AttemptField";
 import { saveOptions } from "@/components/activity/common";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useLmsExit } from "@/lib/useLmsExit";
@@ -242,6 +243,7 @@ export function ActivityHost() {
         {/* Controls */}
         {state && (
           <section data-focus-hide className="mb-4 flex flex-wrap items-center gap-2" aria-label={tr("Controls", "التحكم")}>
+            <div className="rounded-2xl bg-white/80 px-2 py-1 text-[#1b2f44]" data-testid="host-tries"><AttemptField value={state.settings.attemptLimit || 0} onChange={(n) => set({ attemptLimit: n })} testId="host-tries-field" /></div>
             <button type="button" className={chip(state.settings.hideNames)} onClick={() => set({ hideNames: !state.settings.hideNames })} aria-pressed={state.settings.hideNames} data-testid="host-hide-names">
               {state.settings.hideNames ? "🙈" : "👀"} {state.settings.hideNames ? tr("Names hidden", "الأسماء مخفية") : tr("Names shown", "الأسماء ظاهرة")}
             </button>

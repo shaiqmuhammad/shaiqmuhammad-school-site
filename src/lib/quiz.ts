@@ -84,6 +84,8 @@ export type Quiz = {
   cardImage: string;
   /** Overall timer in minutes; 0 = no limit */
   timeLimitMinutes: number;
+  /** 0 or missing = multiple individual attempts. A positive number is the cap. */
+  attemptLimit?: number;
   /** Show the review screen (student answer, correct answer, explanation) after submitting */
   showAnswers: boolean;
   /** Offer the PDF certificate after an individual attempt (missing in older data = on). */
@@ -313,6 +315,7 @@ export function normalizeQuiz(raw: Partial<Quiz>): Quiz {
     description: String(raw.description || ""),
     cardImage: String(raw.cardImage || "").trim(),
     timeLimitMinutes: typeof raw.timeLimitMinutes === "number" && raw.timeLimitMinutes >= 0 ? raw.timeLimitMinutes : 10,
+    attemptLimit: typeof raw.attemptLimit === "number" && raw.attemptLimit >= 0 ? Math.min(30, Math.floor(raw.attemptLimit)) : 0,
     showAnswers: raw.showAnswers !== false,
     certificateIndividual: raw.certificateIndividual !== false,
     certificateGroup: raw.certificateGroup !== false,
