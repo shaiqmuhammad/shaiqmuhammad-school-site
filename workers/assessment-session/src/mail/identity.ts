@@ -78,12 +78,15 @@ export function uniqueEmails(...lists: (string | undefined)[][]): string[] {
   return out;
 }
 
-/** Built-in From addresses shown as quick-picks (iCloud aliases Shaiq has named). */
+/**
+ * Built-in From addresses shown as quick-picks (iCloud aliases Shaiq has named).
+ * The private iCloud address is not written in code: the connected account (ICLOUD_SMTP_USER) is always
+ * allowed when sending (see mailbox.ts), and further iCloud aliases come from MAIL_ALLOWED_FROM or Site & branding.
+ */
 export const MAIL_QUICK_PICKS: { id: string; email: string; en: string; ar: string }[] = [
   { id: "alm-support", email: "support@almudarris.com", en: "Support · almudarris.com", ar: "الدعم · almudarris.com" },
   { id: "alm-admin", email: "admin@almudarris.com", en: "Admin · almudarris.com", ar: "الإدارة · almudarris.com" },
   { id: "alm-billing", email: "billings@almudarris.com", en: "Billing · almudarris.com", ar: "الفوترة · almudarris.com" },
-  { id: "icloud", email: "shaiqmuhammad@icloud.com", en: "iCloud", ar: "iCloud" },
   { id: "info", email: "info@shaiqmuhammad.com", en: "Info · shaiqmuhammad.com", ar: "المعلومات · shaiqmuhammad.com" },
   { id: "support", email: "support@shaiqmuhammad.com", en: "Support · shaiqmuhammad.com", ar: "الدعم · shaiqmuhammad.com" },
   { id: "contact", email: "contact@shaiqmuhammad.com", en: "Contact · shaiqmuhammad.com", ar: "التواصل · shaiqmuhammad.com" },

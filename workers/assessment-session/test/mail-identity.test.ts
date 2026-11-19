@@ -27,13 +27,13 @@ test("footer falls back to the original wording", () => {
 test("built-in From addresses and saved extras are allowed, with fallback", () => {
   const allowed = publicAllowedFrom({ mailContact: "contact@shaiqmuhammad.com", mailInfo: "info@shaiqmuhammad.com" });
   for (const a of BUILTIN_ALLOWED_FROM) assert.ok(allowed.includes(a), a);
-  const ok = resolveFrom("support@almudarris.com", allowed, "shaiqmuhammad@icloud.com");
+  const ok = resolveFrom("support@almudarris.com", allowed, "owner@icloud.com");
   assert.equal(ok.from, "support@almudarris.com");
   assert.equal(ok.fellBack, false);
-  const also = resolveFrom("info@shaiqmuhammad.com", allowed, "shaiqmuhammad@icloud.com");
+  const also = resolveFrom("info@shaiqmuhammad.com", allowed, "owner@icloud.com");
   assert.equal(also.from, "info@shaiqmuhammad.com");
-  const bad = resolveFrom("random@elsewhere.com", allowed, "shaiqmuhammad@icloud.com");
-  assert.equal(bad.from, "shaiqmuhammad@icloud.com");
+  const bad = resolveFrom("random@elsewhere.com", allowed, "owner@icloud.com");
+  assert.equal(bad.from, "owner@icloud.com");
   assert.equal(bad.fellBack, true);
   const noAuth = resolveFrom("random@elsewhere.com", allowed, "");
   assert.equal(noAuth.from, allowed[0]);
