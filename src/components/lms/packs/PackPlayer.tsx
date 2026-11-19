@@ -1,13 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { smallBtn, useTr } from "@/components/lms/useLms";
 import { LB_AR as LB_AR_P, LB_EN as LB_EN_P, lp, uid, type El, type Pack, type Slide } from "@/lib/packs";
 import { SlideView } from "./SlideView";
 import { qrSvg } from "@/lib/qrLocal";
 import { InstrAudio } from "./SlideView";
-import { PART_LABEL, fmtT } from "@/lib/packs";
+import { PART_LABEL, fmtT, partText, slideKind, type Part } from "@/lib/packs";
 import { AddTools, ElProps, withId, type Pen } from "./Tools";
 import { usePinchZoom } from "@/components/lms/usePinchZoom";
 import { requestElFullscreen } from "@/components/FocusMode";
@@ -15,7 +15,7 @@ import { registerSlideFocus, setPageFocus } from "@/components/FullscreenToggle"
 
 /** t315: student view of a pack — teacher slides + the student's own layer (type, draw, picture, record), auto-saved.
  *  Live packs follow the teacher's slide. `review` = teacher looking at one student's copy (read-only). */
-export function PackPlayer({ id, asAdmin = false, review, preview = false, locked = false, onWork, autoFull = false, onClose, closeLabel }: { autoFull?: boolean; id: string; asAdmin?: boolean; review?: { student: string }; preview?: boolean; locked?: boolean; onWork?: () => void; onClose?: () => void; closeLabel?: string }) {
+export function PackPlayer({ id, asAdmin = false, review, preview = false, locked = false, onWork, autoFull = false, onClose, closeLabel, only }: { autoFull?: boolean; id: string; asAdmin?: boolean; review?: { student: string }; preview?: boolean; locked?: boolean; onWork?: () => void; onClose?: () => void; closeLabel?: string; /** Open only the slides of this type (lesson / activity / homework). */ only?: Part }) {
   const { tr } = useTr();
   const [pack, setPack] = useState<Pack | null>(null);
   const [work, setWork] = useState<Slide[]>([]);
@@ -70,8 +70,17 @@ export function PackPlayer({ id, asAdmin = false, review, preview = false, locke
   }, [live, id]);
   useEffect(() => { setSeen((s) => (s.includes(cur) ? s : [...s, cur])); if (student) setDirty(true); }, [cur, student]);
   const slides = pack?.slides || [];
-  const layer = (work[cur]?.els || []) as El[];
-  const setLayer = (fn: (els: El[]) => El[]) => { setWork((w) => { const n = [...w]; while (n.length < slides.length) n.push({ id: uid("s"), bg: "", els: [] }); n[cur] = { ...(n[cur] || { id: uid("s"), bg: "" }), els: fn((n[cur]?.els || []) as El[]) }; return n; }); setDirty(true); };
+  const order = useMemo(() => {
+    const list = pack?.slides || [];
+    if (!only || live) return list.map((_, i) => i);
+    const hit = list.map((s, i) => (slideKind(s, pack?.type) === only ? i : -1)).filter((i) => i >= 0);
+    return hit.length ? hit : list.map((_, i) => i);
+  }, [only, live, pack]);
+  useEffect(() => { if (only && !live && order.length && !order.includes(cur)) setCur(order[0]); }, [only, live, order, cur]);
+  const at = order.includes(cur) ? cur : (order[0] ?? 0);
+  const pos = Math.max(0, order.indexOf(at));
+  const layer = (work[at]?.els || []) as El[];
+  const setLayer = (fn: (els: El[]) => El[]) => { setWork((w) => { const n = [...w]; while (n.length < slides.length) n.push({ id: uid("s"), bg: "", els: [] }); n[at] = { ...(n[at] || { id: uid("s"), bg: "" }), els: fn((n[at]?.els || []) as El[]) }; return n; }); setDirty(true); };
   const t = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (!dirty || !student || locked) return;
@@ -93,19 +102,21 @@ export function PackPlayer({ id, asAdmin = false, review, preview = false, locke
       });
       setSel("");
     };
-    const k = (e: KeyboardEvent) => { const t = e.target as HTMLElement | null; if (t?.closest?.("input,textarea,select,[contenteditable=true],[contenteditable='']") || sel) return; if (e.key === "ArrowRight" || e.key === "PageDown" || (e.key === " " && !pen)) { e.preventDefault(); jump((c) => Math.min(nSlides - 1, c + 1)); } else if (e.key === "ArrowLeft" || e.key === "PageUp") { e.preventDefault(); jump((c) => Math.max(0, c - 1)); } else if (e.key === "Home") jump(() => 0); else if (e.key === "End") jump(() => Math.max(0, nSlides - 1)); };
+    const step = (dir: number) => jump((c) => { const o = order; const i = Math.max(0, o.indexOf(c)); return o[Math.max(0, Math.min(o.length - 1, i + dir))] ?? c; });
+    const k = (e: KeyboardEvent) => { const t = e.target as HTMLElement | null; if (t?.closest?.("input,textarea,select,[contenteditable=true],[contenteditable='']") || sel) return; if (e.key === "ArrowRight" || e.key === "PageDown" || (e.key === " " && !pen)) { e.preventDefault(); step(1); } else if (e.key === "ArrowLeft" || e.key === "PageUp") { e.preventDefault(); step(-1); } else if (e.key === "Home") jump(() => order[0] ?? 0); else if (e.key === "End") jump(() => order[order.length - 1] ?? 0); };
     window.addEventListener("keydown", k); return () => window.removeEventListener("keydown", k);
-  }, [live, sel, pen, nSlides, pack, id, asAdmin]);
+  }, [live, sel, pen, nSlides, pack, id, asAdmin, order, only]);
   useEffect(() => { const t = setInterval(() => setTick((x) => x + 1), 1000); return () => clearInterval(t); }, []);
   useEffect(() => { setSlideAt(tick); }, [cur]); // eslint-disable-line react-hooks/exhaustive-deps
   const doPrint = () => { setPrinting(true); document.body.classList.add("lp-printing"); setTimeout(() => { window.print(); setTimeout(() => { document.body.classList.remove("lp-printing"); setPrinting(false); }, 400); }, 1500); };
   if (!pack) return <p className="text-sm opacity-70" data-testid="lp-player">{msg || "…"}</p>;
   if (!slides.length) return null;
-  const s = slides[Math.min(cur, slides.length - 1)];
+  const s = slides[Math.min(at, slides.length - 1)];
   const editable = (student || preview) && !locked && !review; // t429: preview = try it without saving or assigning
   const go = (d: number) => {
     setCur((c) => {
-      const n = Math.max(0, Math.min(slides.length - 1, c + d));
+      const i = Math.max(0, order.indexOf(c));
+      const n = order[Math.max(0, Math.min(order.length - 1, i + d))] ?? c;
       if (n !== c && pack?.mode === "live" && pack.status === "published" && pack.live >= 0 && !student) {
         lp.live(id, n, false, asAdmin).catch(() => undefined);
       }
@@ -124,11 +135,11 @@ export function PackPlayer({ id, asAdmin = false, review, preview = false, locke
     <section ref={box} className={`space-y-2 ${full ? "fixed inset-0 z-[2147483000] flex flex-col overflow-y-auto bg-gradient-to-br from-[#0f2438] via-[#1b3a57] to-[#0f2438] p-2 sm:p-3" : "rounded-3xl border border-white/60 bg-gradient-to-br from-sky-100/85 via-white/80 to-violet-100/80 p-3 text-[#1b2f44] shadow-lg backdrop-blur-md sm:p-4"}`} data-testid="lp-player">
       <div className={`sticky top-0 z-20 flex flex-wrap items-center gap-2 text-sm font-bold ${full ? "rounded-2xl bg-[#0f2438]/90 px-1 py-1 text-white backdrop-blur" : ""}`} data-focus-keep>
         {onClose && <button type="button" className={smallBtn} onClick={onClose} data-testid="lp-close" data-focus-keep>← {closeLabel || tr("Close", "إغلاق")}</button>}
-        <span className="rounded-full bg-white/15 px-2.5 py-0.5 tabular-nums" data-testid="lp-player-count">{cur + 1} / {slides.length}</span>
+        <span className="rounded-full bg-white/15 px-2.5 py-0.5 tabular-nums" data-testid="lp-player-count">{pos + 1} / {order.length}</span>
         {full && <span className="truncate font-extrabold text-[#f5c542]" dir="auto">{pack.title}</span>}
         {live && <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs text-violet-900" data-testid="lp-following">📡 {tr("Following your teacher", "تتابع معلمك")}</span>}
         {pack.topic?.title && !full && <span className="rounded-full bg-sky-100 px-2 py-0.5 text-xs text-sky-900" dir="auto">🎯 {pack.topic.title}</span>}
-        {s.part && <span className={`rounded-full px-2 py-0.5 text-xs font-extrabold ${PART_LABEL[s.part][3]}`} data-testid="lp-player-part">{PART_LABEL[s.part][0]} {tr(PART_LABEL[s.part][1], PART_LABEL[s.part][2])}</span>}
+        {(() => { const kind = slideKind(s, pack.type); if (!kind) return null; const [en, ar] = partText(kind, !review); return <span className={`rounded-full px-2 py-0.5 text-xs font-extrabold ${PART_LABEL[kind][3]}`} data-testid="lp-player-part">{PART_LABEL[kind][0]} {tr(en, ar)}</span>; })()}
         <span className="flex-1" />
         {left !== null && !review && <span className={`rounded-full px-3 py-0.5 font-mono text-base font-extrabold tabular-nums shadow ${left === 0 ? "bg-rose-600 text-white" : left <= 30 ? "animate-pulse bg-amber-400 text-[#1b2f44]" : "bg-[#1b3a57] text-[#f5c542]"}`} title={slideLeft !== null ? tr("Time for this slide", "وقت هذه الشريحة") : tr("Time for the activity", "وقت النشاط")} data-testid="lp-timer-left">⏱ {left === 0 ? tr("Time's up!", "انتهى الوقت!") : fmtT(left)}</span>}
         {staffView && <button type="button" className={smallBtn} onClick={doPrint} disabled={printing} title={tr("Colourful printable with QR code", "نسخة ملوّنة للطباعة مع رمز QR")} data-testid="lp-print">🖨 {printing ? "…" : tr("Print / PDF", "طباعة / PDF")}</button>}
@@ -152,13 +163,13 @@ export function PackPlayer({ id, asAdmin = false, review, preview = false, locke
           <SlideView slide={s} layer={layer} asAdmin={asAdmin} edit={editable ? "s" : null} selected={sel} onSelect={setSel} pen={editable ? pen : null}
             onMove={(eid, q) => setLayer((l) => l.map((e) => (e.id === eid ? ({ ...e, ...q } as El) : e)))} onDelete={editable ? (eid) => { setLayer((l) => l.filter((e) => e.id !== eid)); setSel(""); } : undefined}
             onStroke={(d) => setLayer((l) => { const dr = l.find((e) => e.t === "draw") as Extract<El, { t: "draw" }> | undefined; const path = { c: pen!.c, w: pen!.w, d }; return dr ? l.map((e) => (e === dr ? { ...dr, paths: [...dr.paths, path] } : e)) : [...l, { id: uid(), t: "draw", x: 0, y: 0, w: 100, h: 100, by: "s", paths: [path] } as El]; })} testId="lp-player-slide" />
-          {!live && cur > 0 && <button type="button" onClick={() => go(-1)} className="absolute start-2 top-1/2 z-10 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-[#1b3a57]/85 text-xl font-black text-white shadow-lg ring-1 ring-white/40 backdrop-blur transition hover:scale-105 hover:bg-[#1b3a57]" aria-label={tr("Previous slide", "الشريحة السابقة")} data-testid="lp-prev"><span className="rtl:rotate-180">‹</span></button>}
-          {!live && cur < slides.length - 1 && <button type="button" onClick={() => go(1)} className="absolute end-2 top-1/2 z-10 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-[#1b3a57]/85 text-xl font-black text-white shadow-lg ring-1 ring-white/40 backdrop-blur transition hover:scale-105 hover:bg-[#1b3a57]" aria-label={tr("Next slide", "الشريحة التالية")} data-testid="lp-next"><span className="rtl:rotate-180">›</span></button>}
+          {!live && pos > 0 && <button type="button" onClick={() => go(-1)} className="absolute start-2 top-1/2 z-10 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-[#1b3a57]/85 text-xl font-black text-white shadow-lg ring-1 ring-white/40 backdrop-blur transition hover:scale-105 hover:bg-[#1b3a57]" aria-label={tr("Previous slide", "الشريحة السابقة")} data-testid="lp-prev"><span className="rtl:rotate-180">‹</span></button>}
+          {!live && pos < order.length - 1 && <button type="button" onClick={() => go(1)} className="absolute end-2 top-1/2 z-10 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-[#1b3a57]/85 text-xl font-black text-white shadow-lg ring-1 ring-white/40 backdrop-blur transition hover:scale-105 hover:bg-[#1b3a57]" aria-label={tr("Next slide", "الشريحة التالية")} data-testid="lp-next"><span className="rtl:rotate-180">›</span></button>}
           {live && waiting && <div className="absolute inset-0 z-20 grid place-items-center rounded-xl bg-gradient-to-br from-[#1b3a57]/90 to-[#24507a]/90 text-center text-white backdrop-blur" data-testid="lp-waiting"><div><div className="mx-auto mb-3 h-14 w-14 animate-spin rounded-full border-4 border-[#f5c542]/30 border-t-[#f5c542]" /><p className="text-xl font-extrabold text-[#f5c542]">{tr("Get ready!", "استعد!")}</p><p className="text-sm opacity-90">{tr("Your teacher will start the slides in a moment.", "سيبدأ معلمك الشرائح بعد قليل.")}</p></div></div>}
         </div>
       </div>
       {selEl && editable && !full && <ElProps e={selEl} set={(q) => setLayer((l) => l.map((e) => (e.id === sel ? ({ ...e, ...q } as El) : e)))} del={() => { setLayer((l) => l.filter((e) => e.id !== sel)); setSel(""); }} front={() => setLayer((l) => [...l.filter((e) => e.id !== sel), selEl])} back={() => setLayer((l) => [selEl, ...l.filter((e) => e.id !== sel)])} />}
-      {!live && slides.length > 1 && <div className="flex justify-center gap-1.5 py-1">{slides.map((_, i) => <button key={i} type="button" aria-label={String(i + 1)} onClick={() => { setCur(i); setSel(""); }} className={`h-2.5 rounded-full transition-all ${i === cur ? "w-6 bg-[#f5c542]" : seen.includes(i) ? "w-2.5 bg-sky-300" : "w-2.5 bg-slate-300"}`} />)}</div>}
+      {!live && order.length > 1 && <div className="flex justify-center gap-1.5 py-1">{order.map((i, n) => <button key={i} type="button" aria-label={String(n + 1)} onClick={() => { setCur(i); setSel(""); }} className={`h-2.5 rounded-full transition-all ${i === at ? "w-6 bg-[#f5c542]" : seen.includes(i) ? "w-2.5 bg-sky-300" : "w-2.5 bg-slate-300"}`} />)}</div>}
       {msg && <p className={`text-xs font-semibold ${full ? "text-white" : "opacity-70"}`} role="status" data-testid="lp-player-msg">{msg}</p>}
       {printing && <div className="lp-print" data-testid="lp-print-box">
         {slides.map((sl, i) => <div key={sl.id} className="lp-print-slide rounded-2xl border-4 p-2" style={{ borderColor: ["#1b3a57", "#7c3aed", "#d97706", "#059669", "#e11d48", "#0284c7"][i % 6] }}>

@@ -20,11 +20,41 @@ export type Part = "lesson" | "activity" | "homework";
 /** t429: part (lesson / activity / homework), timer seconds, instructions for students (+ recorded audio id). */
 export type Slide = { id: string; bg: string; els: El[]; part?: Part; timer?: number; instr?: string; instrAudio?: string; rot?: number };
 export const PART_LABEL: Record<Part, [string, string, string, string]> = { lesson: ["🎤", "Lesson", "درس", "bg-[#1b3a57] text-[#f5c542]"], activity: ["✏️", "Activity", "نشاط", "bg-violet-600 text-white"], homework: ["📝", "Homework", "واجب", "bg-amber-500 text-[#1b2f44]"] };
+export const PARTS: Part[] = ["lesson", "activity", "homework"];
+/** Teachers keep "Activity". Students see the same slide as "Task". The stored value stays "activity". */
+export function partText(part: Part, student: boolean): [string, string] {
+  if (student && part === "activity") return ["Task", "مهمة"];
+  return [PART_LABEL[part][1], PART_LABEL[part][2]];
+}
+/** A slide with no type follows the pack, so older packs still open on one page. */
+export function slideKind(s: { part?: string }, packType?: string): Part | "" {
+  if (s.part === "lesson" || s.part === "activity" || s.part === "homework") return s.part;
+  if (packType === "lesson" || packType === "activity" || packType === "homework") return packType;
+  return "";
+}
+/** Which pages an assigned pack belongs on. Explicit slide types win; otherwise the pack type. */
+export function packParts(p: { type?: string; parts?: string[]; slides?: { part?: string }[] }): Part[] {
+  const marked = (p.slides || []).map((s) => s.part).filter((x): x is Part => x === "lesson" || x === "activity" || x === "homework");
+  const given = (p.parts || []).filter((x): x is Part => x === "lesson" || x === "activity" || x === "homework");
+  const raw = given.length ? given : marked;
+  const uniq = PARTS.filter((k) => raw.includes(k));
+  if (uniq.length) return uniq;
+  return p.type === "lesson" || p.type === "activity" || p.type === "homework" ? [p.type] : [];
+}
+/** Pages a homework row belongs on. `parts` is copied from the slides when the pack is assigned. */
+export function hwParts(data: { activity?: boolean; parts?: unknown } | null | undefined, kind?: string): Part[] {
+  const list = Array.isArray(data?.parts) ? data.parts.filter((x): x is Part => x === "lesson" || x === "activity" || x === "homework") : [];
+  const uniq = PARTS.filter((k) => list.includes(k));
+  if (uniq.length) return uniq;
+  if (data?.activity) return ["activity"];
+  if (kind === "quran" || kind === "general") return ["homework"];
+  return [];
+}
 export const TIMERS = [0, 30, 60, 120, 180, 300, 600, 900, 1200, 1800, 2700, 3600];
 export const fmtT = (s: number) => (s >= 60 ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}` : `0:${String(s).padStart(2, "0")}`);
 export type PackType = "lesson" | "activity" | "homework" | "quran" | "material";
 export type Topic = { cur?: string; title?: string; yr?: string; term?: string; std?: string[]; /** t429 SOW panel */ lo?: string; sc?: string[]; kw?: string; stdText?: string; /** pack timer, seconds */ timer?: number; /** 0 unlimited, 1 one attempt, n a chosen cap */ tries?: number };
-export type Pack = { id: string; owner: string; ownerName: string; title: string; type: PackType; subject: string; aud: string[]; students: string[]; topic: Topic; mode: "self" | "live"; assignAt: number; due: number; status: "draft" | "published"; hw: string; live: number; tpl: boolean; created: number; updated: number; slides?: Slide[]; count?: number; /** t422 */ years?: string[]; sections?: string[]; /** student list: submission status for the linked homework, if any */ subStatus?: string };
+export type Pack = { id: string; owner: string; ownerName: string; title: string; type: PackType; subject: string; aud: string[]; students: string[]; topic: Topic; mode: "self" | "live"; assignAt: number; due: number; status: "draft" | "published"; hw: string; live: number; tpl: boolean; created: number; updated: number; slides?: Slide[]; count?: number; /** slide types present, so lists can open the matching page without the full deck */ parts?: Part[]; /** t422 */ years?: string[]; sections?: string[]; /** student list: submission status for the linked homework, if any */ subStatus?: string };
 export type Acc = { show: boolean; view: boolean; add: boolean; edit: boolean; delete: boolean };
 export type Progress = { student: string; seen: number; total: number; updated: number; status: string };
 export const FONTS = ["Nunito", "Arial", "Georgia", "Times New Roman", "Courier New", "Comic Sans MS", "Amiri", "Tajawal", "Verdana"];
