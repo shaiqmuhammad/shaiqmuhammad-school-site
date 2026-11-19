@@ -154,7 +154,7 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
         {!staff && actor && !hwOnly && <LiveActivityBanner />}
         {dash && !hwOnly && <AnnFeed />}
         {dash && !hwOnly && <DashCarousel items={((staff ? [
-          { icon: "📥", title: tr("To review", "للمراجعة"), value: dash.homework.reduce((n, h) => n + reviewCount(h), 0), sub: tr("submissions waiting", "تسليمات بانتظارك"), href: "/lms/homework?tab=review", tone: "coral" },
+          { icon: "📥", title: tr("To Review", "للمراجعة"), value: dash.homework.reduce((n, h) => n + reviewCount(h), 0), sub: tr("submissions waiting", "تسليمات بانتظارك"), href: "/lms/homework?tab=review", tone: "coral" },
           { icon: "📝", title: tr("Homework", "الواجبات"), value: dash.homework.length, sub: tr("active", "نشطة"), href: "/lms/homework", tone: "sun" },
           { icon: "🏫", title: tr("My classes", "صفوفي"), value: (dash.classes || []).length, sub: tr("classes & groups", "صفوف ومجموعات"), href: "/lms/classes", tone: "teal" },
           { icon: "🎒", title: tr("Students", "الطلاب"), value: (dash.students || []).length, sub: tr("in my groups", "في مجموعاتي"), href: "/lms/classes", tone: "navy" },
