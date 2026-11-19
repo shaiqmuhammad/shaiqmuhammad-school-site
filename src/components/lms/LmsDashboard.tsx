@@ -18,7 +18,7 @@ import { AssessmentShell, primaryBtn } from "@/components/assessment/AssessmentS
 import { HomeworkEditor } from "@/components/lms/HomeworkEditor";
 import { Certificates, Leaderboard, LeaderboardSetting, ProgressCard, RevisionList } from "@/components/lms/Progress";
 import { Avatar } from "@/components/lms/Avatar";
-import { KidBubble, KidIcon, kidSubCls, kidSubRow, kidTabCls, TeacherHomeworkHub, reviewCount, tabFromLocation, type HwHubTab } from "@/components/lms/HwHub";
+import { KidBubble, KidIcon, PORTION_BAR, PORTION_LIFT, PORTION_WASH, kidSubCls, kidSubRow, kidTabCls, TeacherHomeworkHub, reviewCount, tabFromLocation, type HwHubTab } from "@/components/lms/HwHub";
 import { exportAllHomeworkZip } from "@/components/lms/lmsFiles";
 import { STATUS_STYLE, card, smallBtn, statusLabel, useLmsActor, useTr, GRADE_STYLE, gradeLabel } from "@/components/lms/useLms";
 import { lmsApi, lmsErrorText, lmsSignOut, mpShown, quranChapters, type Chapter, type QuranData } from "@/lib/lms";
@@ -242,17 +242,19 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
                     </div>}
                     {list.length === 0 && <p className={card + " opacity-80"} data-testid="stu-hw-empty">{showingDone ? tr("Nothing submitted yet.", "لم يُسلَّم شيء بعد.") : showingTasks ? tr("No tasks yet.", "لا توجد مهام بعد.") : dash.homework.length === 0 ? tr("No homework yet — enjoy your day!", "لا توجد واجبات بعد — استمتع بيومك!") : tr("Nothing waiting. Handed-in work is under Completed Homework.", "لا شيء بانتظارك. العمل المُسلَّم في الواجبات المكتملة.")}</p>}
                     <ul className="grid gap-3 sm:grid-cols-2">
-                      {list.map((h) => {
+                      {list.map((h, i) => {
                         const st = h.sub?.status || "none";
+                        const n = i % PORTION_WASH.length;
                         const q = h.data as QuranData;
                         const bits = pages(h);
                         const task = showingTasks || (bits.includes("activity") && !bits.includes("homework"));
                         const part = showingTasks ? "activity" : bits.includes("homework") ? "homework" : bits[0];
                         return (
                           <li key={h.id}>
-                            <a href={`/lms/homework?id=${h.id}${bits.length > 1 && part ? `&part=${part}` : ""}`} className={card + " block transition hover:-translate-y-0.5 hover:shadow-lg"} data-testid="lms-hw-card" data-hw-bucket={showingDone ? "submitted" : showingTasks ? "tasks" : "open"}>
+                            <a href={`/lms/homework?id=${h.id}${bits.length > 1 && part ? `&part=${part}` : ""}`} className={`light-island group relative block overflow-hidden rounded-3xl border border-black/10 bg-gradient-to-br p-4 pt-5 text-[#1b2f44] shadow-md ring-1 ring-black/5 active:scale-[0.98] motion-reduce:transform-none ${PORTION_WASH[n]} ${PORTION_LIFT}`} data-testid="lms-hw-card" data-hw-bucket={showingDone ? "submitted" : showingTasks ? "tasks" : "open"}>
+                              <span className={`pointer-events-none absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r ${PORTION_BAR[n]}`} aria-hidden />
                               <div className="flex items-start gap-3">
-                                <span className="text-3xl" aria-hidden>{h.kind === "quran" ? "📖" : task ? "✏️" : "📝"}</span>
+                                <span className={`grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-gradient-to-br text-3xl shadow-md transition group-hover:rotate-6 motion-reduce:transform-none ${PORTION_BAR[n]}`} aria-hidden>{h.kind === "quran" ? "📖" : task ? "✏️" : "📝"}</span>
                                 <div className="min-w-0 flex-1">
                                   <p className="text-lg font-bold" dir="auto">{h.title}</p>
                                   <HwMeta {...hwAud(h)} className="my-1" />
