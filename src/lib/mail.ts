@@ -8,7 +8,7 @@ export type MailMessage = { uid: number; subject: string; from: string; fromAddr
 export type ContactMsg = { id: string; name: string; email: string; subject: string; message: string; created: number; read: boolean; emailed: boolean };
 export type OutAttachment = { filename: string; contentType: string; base64: string };
 
-class MailError extends Error { constructor(public code: string, public status: number) { super(code); } }
+class MailError extends Error { constructor(public code: string, public status: number, public detail = "") { super(detail ? `${code}: ${detail.slice(0, 200)}` : code); } }
 
 async function call<T>(path: string, init: { method?: string; body?: unknown; query?: Record<string, string | number> } = {}): Promise<T> {
   const tok = getServerSession()?.token;
@@ -16,7 +16,7 @@ async function call<T>(path: string, init: { method?: string; body?: unknown; qu
   const q = init.query ? `?${new URLSearchParams(Object.entries(init.query).map(([k, v]) => [k, String(v)]))}` : "";
   const res = await fetch(`${ASSESSMENT_API_BASE}${path}${q}`, { method: init.method || (init.body ? "POST" : "GET"), headers: { Authorization: `Bearer ${tok}`, ...(init.body ? { "Content-Type": "application/json" } : {}) }, body: init.body ? JSON.stringify(init.body) : undefined });
   const data = (await res.json().catch(() => ({}))) as T & { error?: string; detail?: string };
-  if (!res.ok) throw new MailError(data.error || `http_${res.status}`, res.status);
+  if (!res.ok) throw new MailError(data.error || `http_${res.status}`, res.status, typeof data.detail === "string" ? data.detail : "");
   return data;
 }
 
