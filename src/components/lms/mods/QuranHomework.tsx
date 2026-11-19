@@ -46,7 +46,7 @@ export function QuranHomework() {
   return (
     <div className="space-y-1">
       <Head icon="📖" title={tr("Quran Homework", "واجب القرآن")} sub={tr("Quran recitation homework for your classes: assign, review and track.", "واجبات تلاوة القرآن لصفوفك: إسناد ومراجعة ومتابعة.")}>
-        <a className={btn} href="/lms/map" data-testid="qhw-map">🗺️ {tr("Class Quran map", "خريطة القرآن للصف")}</a>
+        <a className={btn} href="/lms/map" data-testid="qhw-map">📗 {tr("Class Quran Tracker", "متتبع القرآن للصف")}</a>
         {q.add && <button type="button" className={btnCta} onClick={() => setEditor({})} data-testid="qhw-new">+ {tr("New Quran homework", "واجب قرآن جديد")}</button>}
       </Head>
       {!q.add && !q.edit && !q.del && <p className="mb-3 rounded-xl bg-sky-100 px-3 py-2 text-sm font-semibold text-sky-900" data-testid="qhw-viewonly">{tr("View only — you can see Quran homework but not change it.", "للعرض فقط — يمكنك رؤية واجب القرآن دون تعديله.")}</p>}

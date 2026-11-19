@@ -64,7 +64,7 @@ const DESC: Partial<Record<Tab, [string, string]>> = {
   students: ["Student accounts, passwords, classes and status.", "حسابات الطلاب وكلمات المرور والصفوف والحالة."],
   teachers: ["Teacher accounts, subjects, classes and permissions.", "حسابات المعلمين والمواد والصفوف والصلاحيات."],
   setup: ["Subjects, classes and sections used across the LMS.", "المواد والصفوف والشعب المستخدمة في المنصة."],
-  classes: ["Pick a class or section to see students, homework and the Quran map.", "اختر صفًا أو شعبة لعرض الطلاب والواجبات وخريطة القرآن."],
+  classes: ["Pick a class or section to see students, homework and the Quran Tracker.", "اختر صفًا أو شعبة لعرض الطلاب والواجبات ومتتبع القرآن."],
   rewards: ["Award, review and manage Reward Cards, the plan and the Reward Shop.", "امنح بطاقات المكافآت وراجعها وأدر الخطة ومتجر المكافآت."],
   forum: ["Approve and manage forum posts.", "اعتمد مشاركات المنتدى وأدرها."],
   mail: ["contact@shaiqmuhammad.com inbox and contact-form messages.", "بريد contact@shaiqmuhammad.com ورسائل نموذج التواصل."],

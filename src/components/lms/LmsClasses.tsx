@@ -24,6 +24,22 @@ const inp = "w-full rounded-xl border border-black/10 bg-white px-3 py-2 text-sm
 const DAY = 86400000;
 const PASTEL = ["#bae6fd", "#fde68a", "#bbf7d0", "#fbcfe8", "#ddd6fe", "#99f6e4", "#fed7aa", "#c7d2fe"];
 
+function ClassTotals({ students, att, tr }: { students: RosterStudent[]; att: Record<string, { status: string; note: string }>; tr: (en: string, ar: string) => string }) {
+  const girls = students.filter((s) => s.gender === "g").length;
+  const boys = students.filter((s) => s.gender === "b").length;
+  const n = (st: string) => students.filter((s) => att[s.id]?.status === st).length;
+  const chip = "rounded-full bg-white px-3 py-1 text-xs font-extrabold text-[#1b3a57] ring-1 ring-black/10";
+  return (
+    <div className="flex flex-wrap gap-2" data-testid="cls-totals">
+      <span className={chip} data-testid="cls-total-girls">👧 {tr("Girls", "بنات")}: {girls}</span>
+      <span className={chip} data-testid="cls-total-boys">👦 {tr("Boys", "بنين")}: {boys}</span>
+      <span className={chip + " !bg-emerald-50"} data-testid="cls-total-present">✅ {tr("Present", "حاضر")}: {n("P")}</span>
+      <span className={chip + " !bg-amber-50"} data-testid="cls-total-late">⏰ {tr("Late", "متأخر")}: {n("L")}</span>
+      <span className={chip + " !bg-rose-50"} data-testid="cls-total-absent">❌ {tr("Absent", "غائب")}: {n("A")}</span>
+    </div>
+  );
+}
+
 function Gate({ title, children }: { title: string; children: React.ReactNode }) {
   const { tr } = useTr();
   const [on, setOn] = useState<boolean | null>(null);
@@ -117,11 +133,12 @@ export function LmsClassesPage() {
 
   useEffect(() => { if (!attMode) return; modCall<{ now: { period: string } }>("att-times", {}, false).then((t) => { if (t.now.period) setAttPeriod(t.now.period); }).catch(() => undefined); }, [attMode]);
   useEffect(() => {
-    if (!attMode || !shown.length) return;
+    if (!view || !shown.length) return;
+    const period = attMode ? attPeriod : "Day";
     const pairs = [...new Set(shown.map((s) => `${s.cls}|${s.section || ""}`))];
-    Promise.all(pairs.map((p) => { const [cls, section] = p.split("|"); return modCall<{ students: { id: string; status: string; note: string }[] }>("att-roster", { cls, section, day: attDay, period: attPeriod }, false); }))
+    Promise.all(pairs.map((p) => { const [cls, section] = p.split("|"); return modCall<{ students: { id: string; status: string; note: string }[] }>("att-roster", { cls, section, day: attDay, period }, false); }))
       .then((rs) => setAtt(Object.fromEntries(rs.flatMap((r) => r.students).map((x) => [x.id, { status: x.status, note: x.note }])))).catch((e) => setErr(modErr(e, tr)));
-  }, [attMode, shown, attPeriod, attDay, tr]);
+  }, [attMode, shown, attPeriod, attDay, tr, view]);
   const mark = async (s: RosterStudent, status: "P" | "L" | "A") => {
     try {
       await modCall("att-save", { day: attDay, period: attPeriod, marks: [{ student: s.id, status, note: status === "P" ? "" : reason.trim() }] }, false);
@@ -200,10 +217,13 @@ export function LmsClassesPage() {
             )}
           </div>
         ) : (
+          <>
           <div className="flex flex-wrap items-center gap-2" data-testid="cls-open">
             <button type="button" className={pill} onClick={() => { setView(""); setAttMode(false); }} data-testid="cls-back">← {tr("All my classes", "كل صفوفي")}</button>
             <span className="rounded-full bg-[#1b3a57] px-4 py-1.5 text-sm font-extrabold text-[#f5c542]" data-testid="cls-open-name">{viewName} · {shown.length}</span>
           </div>
+          <ClassTotals students={shown} att={att} tr={tr} />
+          </>
         )}
         {err && <p className="rounded-2xl bg-rose-100 px-4 py-2 text-sm text-rose-800">{err}</p>}
         {attMode && <div className="flex flex-wrap items-center gap-2 rounded-3xl bg-emerald-50 px-4 py-2 text-sm text-emerald-950 dark:bg-emerald-900/30 dark:text-emerald-50" data-testid="att-bar"><span className="me-auto font-bold">📋 {attDay} · {attPeriod === "Day" ? tr("Whole day", "اليوم كله") : tr(`Period ${attPeriod.slice(1)}`, `الحصة ${attPeriod.slice(1)}`)} — {tr("tap = Present · hold or ⋯ = Late / Absent", "نقرة = حاضر · ضغط مطوّل أو ⋯ = متأخر / غائب")}</span><button type="button" className="rounded-full bg-emerald-600 px-4 py-1.5 font-bold text-white" onClick={markAll} data-testid="att-all">✅ {tr("Mark all present", "تسجيل حضور الجميع")}</button><a className="rounded-full border border-emerald-700/30 px-3 py-1.5 font-bold" href="/lms/attendance#history" data-testid="att-history-link">🗂 {tr("History", "السجل")}</a></div>}

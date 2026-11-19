@@ -439,6 +439,11 @@ body.lb-work .lb-hide-work { display: none !important; }
 body.lb-work [data-testid=lms-tabs], body.lb-work [data-testid=lms-tabs-top] { display: none !important; }
 body.lb-work .lp-editor-full { position: fixed; inset: 0; z-index: 2147483000; min-height: 100dvh; overflow: auto; border-radius: 0; margin: 0; }
 html.page-focus [data-focus-keep], body.lb-work [data-focus-keep] { display: revert !important; }
+/* Focus must keep the slide tools on screen (text, picture, camera, draw) instead of hiding them with the chrome. */
+html.page-focus [data-testid="lp-player-tools"],
+html.page-focus [data-testid="lp-toolbar"],
+html.page-focus [data-testid="lp-full"],
+body.lb-work [data-testid="lp-toolbar"] { display: flex !important; visibility: visible !important; }
 .lb-fit { width: 100%; max-width: calc((100dvh - 11rem) * 16 / 9); margin-inline: auto; }
 body.lb-work .lb-fit { max-width: calc((100dvh - 8rem) * 16 / 9); }
 /* t429: printable slides with QR */

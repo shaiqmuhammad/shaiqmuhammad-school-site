@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { smallBtn, useTr } from "@/components/lms/useLms";
 import { LB_AR as LB_AR_P, LB_EN as LB_EN_P, lp, uid, type El, type Pack, type Slide } from "@/lib/packs";
 import { SlideView } from "./SlideView";
@@ -13,7 +14,7 @@ import { registerSlideFocus, setPageFocus } from "@/components/FullscreenToggle"
 
 /** t315: student view of a pack — teacher slides + the student's own layer (type, draw, picture, record), auto-saved.
  *  Live packs follow the teacher's slide. `review` = teacher looking at one student's copy (read-only). */
-export function PackPlayer({ id, asAdmin = false, review, preview = false, locked = false, onWork, autoFull = false }: { autoFull?: boolean; id: string; asAdmin?: boolean; review?: { student: string }; preview?: boolean; locked?: boolean; onWork?: () => void }) {
+export function PackPlayer({ id, asAdmin = false, review, preview = false, locked = false, onWork, autoFull = false, onClose, closeLabel }: { autoFull?: boolean; id: string; asAdmin?: boolean; review?: { student: string }; preview?: boolean; locked?: boolean; onWork?: () => void; onClose?: () => void; closeLabel?: string }) {
   const { tr } = useTr();
   const [pack, setPack] = useState<Pack | null>(null);
   const [work, setWork] = useState<Slide[]>([]);
@@ -29,6 +30,8 @@ export function PackPlayer({ id, asAdmin = false, review, preview = false, locke
   const [printing, setPrinting] = useState(false);
   const swipe = useRef<{ x: number; y: number } | null>(null);
   const [full, setFull] = useState(!!autoFull); // t396: opened from the list → full screen (document fullscreen from the click, else full-window)
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const box = useRef<HTMLElement | null>(null);
   const fsOk = useRef(false);
   // t578: Focus opens this slide in browser full screen (CSS fallback on iPad / some smartboards), keeping the tool tabs.
@@ -115,9 +118,10 @@ export function PackPlayer({ id, asAdmin = false, review, preview = false, locke
   const slideLeft = s.timer ? Math.max(0, s.timer - (tick - slideAt)) : null;
   const left = slideLeft ?? packLeft;
   const qr = typeof window !== "undefined" ? qrSvg(`${location.origin}/lms/material?open=${encodeURIComponent(id)}`, 96) : "";
-  return (
-    <section ref={box} className={`space-y-2 ${full ? "fixed inset-0 z-[2147483000] flex flex-col overflow-hidden bg-gradient-to-br from-[#0f2438] via-[#1b3a57] to-[#0f2438] p-2 sm:p-3" : "rounded-3xl border border-white/60 bg-gradient-to-br from-sky-100/85 via-white/80 to-violet-100/80 p-3 text-[#1b2f44] shadow-lg backdrop-blur-md sm:p-4"}`} data-testid="lp-player">
-      <div className={`flex flex-wrap items-center gap-2 text-sm font-bold ${full ? "text-white" : ""}`}>
+  const tree = (
+    <section ref={box} className={`space-y-2 ${full ? "fixed inset-0 z-[2147483000] flex flex-col overflow-y-auto bg-gradient-to-br from-[#0f2438] via-[#1b3a57] to-[#0f2438] p-2 sm:p-3" : "rounded-3xl border border-white/60 bg-gradient-to-br from-sky-100/85 via-white/80 to-violet-100/80 p-3 text-[#1b2f44] shadow-lg backdrop-blur-md sm:p-4"}`} data-testid="lp-player">
+      <div className={`sticky top-0 z-20 flex flex-wrap items-center gap-2 text-sm font-bold ${full ? "rounded-2xl bg-[#0f2438]/90 px-1 py-1 text-white backdrop-blur" : ""}`} data-focus-keep>
+        {onClose && <button type="button" className={smallBtn} onClick={onClose} data-testid="lp-close" data-focus-keep>← {closeLabel || tr("Close", "إغلاق")}</button>}
         <span className="rounded-full bg-white/15 px-2.5 py-0.5 tabular-nums" data-testid="lp-player-count">{cur + 1} / {slides.length}</span>
         {full && <span className="truncate font-extrabold text-[#f5c542]" dir="auto">{pack.title}</span>}
         {live && <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs text-violet-900" data-testid="lp-following">📡 {tr("Following your teacher", "تتابع معلمك")}</span>}
@@ -129,7 +133,7 @@ export function PackPlayer({ id, asAdmin = false, review, preview = false, locke
         <button type="button" className={smallBtn} onClick={() => void toggleFull()} title={full ? tr("Exit Focus (Esc)", "إنهاء التركيز (Esc)") : tr("Focus — open this slide full screen, with the text, picture and camera tools", "تركيز — افتح هذه الشريحة بملء الشاشة مع أدوات النص والصورة والكاميرا")} data-testid="lp-full" data-focus-keep>{full ? "✕" : "🎯"} {full ? tr("Exit Focus", "إنهاء التركيز") : tr("Focus", "تركيز")}</button>
       </div>
       {(s.instr || s.instrAudio) && <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-sky-200 bg-sky-50/95 px-3 py-2 text-sm font-semibold text-[#1b2f44] shadow-sm" data-testid="lp-player-instr"><span className="text-lg" aria-hidden>💬</span>{s.instr && <p className="min-w-0 flex-1 whitespace-pre-wrap" dir="auto">{s.instr}</p>}{s.instrAudio && <InstrAudio id={s.instrAudio} asAdmin={asAdmin} />}</div>}
-      {editable && <div data-focus-keep data-testid="lp-player-tools"><AddTools compact={full} add={(e) => { const el = withId({ ...e, ...(e.t === "text" ? { y: Math.min(80, 40 + layer.filter((x) => x.t === "text").length * 8) } : {}), by: "s" } as Omit<El, "id">); setLayer((l) => [...l, el]); setSel(el.id); }} pen={pen} setPen={setPen} asAdmin={asAdmin} teacher={false} onErr={setMsg}
+      {editable && <div className="sticky top-12 z-20 shrink-0" data-focus-keep data-testid="lp-player-tools"><AddTools compact={full} add={(e) => { const el = withId({ ...e, ...(e.t === "text" ? { y: Math.min(80, 40 + layer.filter((x) => x.t === "text").length * 8) } : {}), by: "s" } as Omit<El, "id">); setLayer((l) => [...l, el]); setSel(el.id); }} pen={pen} setPen={setPen} asAdmin={asAdmin} teacher={false} onErr={setMsg}
         onUndoStroke={() => { const d = draw(); if (d) setLayer((l) => l.map((e) => (e === d ? { ...d, paths: d.paths.slice(0, -1) } : e))); }} onClearDraw={() => { const d = draw(); if (d) setLayer((l) => l.filter((e) => e !== d)); }} /></div>}
       <div className={`relative ${full ? "flex min-h-0 flex-1 items-center justify-center" : ""}`}
         onPointerDown={(ev) => { if (!pen && ev.pointerType !== "mouse") swipe.current = { x: ev.clientX, y: ev.clientY }; }}
@@ -154,4 +158,7 @@ export function PackPlayer({ id, asAdmin = false, review, preview = false, locke
       </div>}
     </section>
   );
+  // Portal the full-screen slide so the header stacking context cannot cover Focus and the tool tabs.
+  if (full && mounted) return createPortal(tree, document.body);
+  return tree;
 }

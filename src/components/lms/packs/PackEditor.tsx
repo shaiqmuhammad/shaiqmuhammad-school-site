@@ -38,7 +38,7 @@ const dtl = (ms: number) => (ms ? new Date(ms + 4 * 3600e3).toISOString().slice(
 const fromDtl = (s: string) => (s ? Date.parse(`${s}:00+04:00`) : 0);
 
 /** t315: Lesson Pack editor (admin + teachers). Slides, type, topic from the curriculum (with its standards), audience, dates, mode, live control and progress. */
-export function PackEditor({ initial, acc, asAdmin, subjects, onClose }: { initial: Pack; acc: Acc; asAdmin: boolean; subjects: string[]; onClose: () => void }) {
+export function PackEditor({ initial, acc, asAdmin, subjects, onClose, closeLabel }: { initial: Pack; acc: Acc; asAdmin: boolean; subjects: string[]; onClose: () => void; closeLabel?: string }) {
   const { tr, lang } = useTr();
   const [p, setP] = useState<Pack>(initial);
   const [recIns, setRecIns] = useState(false);
@@ -219,7 +219,7 @@ export function PackEditor({ initial, acc, asAdmin, subjects, onClose }: { initi
   return (
     <div ref={root} className={`lp-editor-full space-y-4 rounded-3xl border-2 bg-gradient-to-br p-3 text-[#1b2f44] shadow-xl backdrop-blur-md sm:p-4 ${ACCENT[p.type].wrap}`} data-testid="lp-editor">
       <div className="flex flex-wrap items-center gap-2">
-        <button type="button" className={smallBtn} onClick={async () => { if (dirty && canSave) await save(true); onClose(); }} data-testid="lp-back">← {LB_ICON} {tr(LB_EN, LB_AR)}</button>
+        <button type="button" className={smallBtn} onClick={async () => { if (dirty && canSave) await save(true); onClose(); }} data-testid="lp-back">← {closeLabel || `${LB_ICON} ${tr(LB_EN, LB_AR)}`}</button>
         <span className={`rounded-full px-3 py-1 text-xs font-extrabold ${p.status === "published" ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-700"}`} data-testid="lp-status">{p.status === "published" ? (p.assignAt > Date.now() ? tr("Scheduled", "مجدول") : tr("Published", "منشور")) : tr("Draft", "مسودة")}</span>
         <span className="flex-1" />
         <button type="button" className={smallBtn} onClick={async () => { if (canSave && (dirty || !p.id)) { const sv = await save(true); if (!sv) return; } setPreview(true); }} disabled={!p.id && !canSave} title={tr("See it exactly as students will — nothing is assigned", "شاهده كما يراه الطلاب — بدون إسناد")} data-testid="lp-preview">👁 {tr("Preview", "معاينة")}</button>
