@@ -12,6 +12,7 @@ import { LB_ICON, blankSlide, lp, packParts, PART_LABEL, partText, TYPE_LABEL, t
 import { PackEditor } from "./PackEditor";
 import { HwRemindBell } from "@/components/lms/HwRemind";
 import { PackPlayer } from "./PackPlayer";
+import { PptDownload } from "./PptDownload";
 
 const TEMPLATES: [string, string, string, (ar: boolean) => Pack["slides"]][] = [
   ["blank", "Blank", "فارغة", () => [blankSlide()]],
@@ -105,6 +106,7 @@ export function PacksPage() {
                   {staff && x.type !== "material" && x.type !== "lesson" && <button type="button" className={smallBtn} onClick={() => setOpen(x.id)} title={tr("Try it as a student — nothing is assigned or saved", "جرّبه كطالب — بدون إسناد أو حفظ")} data-testid="lp-preview-open">👁 {tr("Preview", "معاينة")}</button>}
                   {staff && x.hw && x.status === "published" && (x.type === "homework" || x.type === "quran" || x.type === "activity") && <HwRemindBell hw={x.hw} title={x.title} asAdmin={asAdmin} />}
                   {!staff && x.hw && <a className={smallBtn} href={`/lms/homework?id=${encodeURIComponent(x.hw)}${packParts(x).length === 1 ? `&part=${packParts(x)[0]}` : ""}`} data-testid="lp-open-hw">📝 {x.subStatus === "submitted" || x.subStatus === "approved" ? tr("View submitted work", "عرض العمل المُسلَّم") : x.subStatus === "returned" ? tr("Sent back — open and submit again", "أُعيد — افتحه وسلّم مجددًا") : x.type === "activity" ? tr("Open task & hand in", "افتح المهمة وسلّم") : tr("Open homework", "افتح الواجب")}</a>}
+                  {staff && (acc?.view || acc?.edit) && <PptDownload id={x.id} asAdmin={asAdmin} className={smallBtn} />}
                   {staff && acc?.add && <button type="button" className={smallBtn} onClick={() => lp.dup(x.id, asAdmin).then(load).catch((e) => setMsg(modErr(e, tr)))} data-testid="lp-dup">⧉ {tr("Duplicate", "تكرار")}</button>}
                   {staff && acc?.delete && (x.owner === actor?.id || asAdmin) && <button type="button" className={smallBtn + " !text-rose-700"} onClick={() => { if (confirm(tr("Delete this pack? Its homework and the students' work are deleted too.", "حذف هذه الحزمة؟ يُحذف واجبها وأعمال الطلاب أيضًا."))) lp.del(x.id, asAdmin).then(load).catch((e) => setMsg(modErr(e, tr))); }} data-testid="lp-delete">🗑</button>}
                 </div>
