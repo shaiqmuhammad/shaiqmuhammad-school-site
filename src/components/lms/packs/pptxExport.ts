@@ -50,22 +50,6 @@ async function picture(id: string, asAdmin: boolean, crop?: El["crop"], aspect =
   } catch { return null; }
 }
 
-/** Pen strokes are drawn over the whole slide (0–100 in both directions); export them as one transparent picture. */
-function strokesPng(paths: { c: string; w: number; d: number[] }[]): string {
-  const cw = 1600, ch = 900;
-  const cv = document.createElement("canvas"); cv.width = cw; cv.height = ch;
-  const g = cv.getContext("2d")!;
-  g.lineCap = "round"; g.lineJoin = "round";
-  for (const p of paths) {
-    if (!p.d || p.d.length < 2) continue;
-    g.strokeStyle = p.c || "#000"; g.lineWidth = Math.max(1, (p.w || 1) * 0.005 * cw);
-    g.beginPath();
-    for (let j = 0; j + 1 < p.d.length; j += 2) { const x = p.d[j] / 100 * cw, y = p.d[j + 1] / 100 * ch; if (j === 0) g.moveTo(x, y); else g.lineTo(x, y); }
-    if (p.d.length === 2) g.lineTo(p.d[0] / 100 * cw + 0.1, p.d[1] / 100 * ch);
-    g.stroke();
-  }
-  return cv.toDataURL("image/png");
-}
 
 type Run = { text: string; options?: { bold?: boolean; italic?: boolean; underline?: { style: "sng" }; breakLine?: boolean } };
 /** Rich text (b / i / u / br only, as the editor keeps it) → PowerPoint text runs. */
@@ -119,7 +103,8 @@ export async function exportPackPptx(pack: PptxPack, asAdmin: boolean, onStep?: 
         const fill = parseColor(e.bg);
         s.addText(runsOf(e), {
           x, y, w, h, rotate, valign: "top", align, fontFace: e.font || "Arial", fontSize: Math.max(6, Math.round(e.size * PT * 10) / 10), color: col.color,
-          fill: fill ? { color: fill.color, transparency: fill.transparency } : undefined, margin: 0.04 * 72, lineSpacingMultiple: 1.1, rtlMode: ar || undefined, lang: ar ? "ar-AE" : undefined, fit: "none",
+          fill: fill ? { color: fill.color, transparency: fill.transparency } : undefined, margin: 0.04 * 72, lineSpacingMultiple: 1.1, rtlMode: ar || undefined, lang: ar ? "ar-SA" : undefined, fit: "none",
+          objectName: `${ar ? "rtl" : "txt"}-${e.id}`,
         });
       } else if (e.t === "img") {
         const pic = await picture(e.src, asAdmin, e.crop, w / h);
@@ -129,7 +114,21 @@ export async function exportPackPptx(pack: PptxPack, asAdmin: boolean, onStep?: 
         const pw = cropped ? w : pic.w * k, ph = cropped ? h : pic.h * k;
         s.addImage({ data: pic.data, x: x + (w - pw) / 2, y: y + (h - ph) / 2, w: pw, h: ph, rotate });
       } else if (e.t === "draw") {
-        if (e.paths?.length) s.addImage({ data: strokesPng(e.paths), x: 0, y: 0, w: W, h: H });
+        // Each pen stroke becomes its own editable freeform line (custom geometry), not a flattened picture.
+        (e.paths || []).forEach((p, k) => {
+          const d = p.d || []; if (d.length < 2) return;
+          const xs: number[] = [], ys: number[] = [];
+          for (let j = 0; j + 1 < d.length; j += 2) { xs.push((Number(d[j]) || 0) / 100 * W); ys.push((Number(d[j + 1]) || 0) / 100 * H); }
+          if (xs.length === 1) { xs.push(xs[0] + 0.01); ys.push(ys[0]); }
+          const minX = Math.min(...xs), minY = Math.min(...ys);
+          const bw = Math.max(0.01, Math.max(...xs) - minX), bh = Math.max(0.01, Math.max(...ys) - minY);
+          const col = parseColor(p.c) || { color: "000000", transparency: 0 };
+          s.addShape("custGeom" as unknown as Parameters<typeof s.addShape>[0], {
+            x: minX, y: minY, w: bw, h: bh, objectName: `pen-${e.id}-${k}`,
+            points: xs.map((x, j) => (j === 0 ? { x: x - minX, y: ys[j] - minY, moveTo: true } : { x: x - minX, y: ys[j] - minY })),
+            line: { color: col.color, transparency: col.transparency || undefined, width: Math.max(0.5, Math.round((p.w || 1) * 0.005 * 960 * 10) / 10) },
+          });
+        });
       } else if (e.t === "yt") {
         box(s, x, y, w, h, `▶ ${e.title || "YouTube video"}`, "1E293B", "FFFFFF", e.vid ? `https://www.youtube.com/watch?v=${encodeURIComponent(e.vid)}` : undefined);
       } else if (e.t === "act") {
@@ -153,7 +152,57 @@ export async function exportPackPptx(pack: PptxPack, asAdmin: boolean, onStep?: 
     if (notes) s.addNotes(notes);
   }
   const name = (pack.title || "lesson").replace(/[\\/:*?"<>|\u0000-\u001f]+/g, " ").trim().slice(0, 80) || "lesson";
-  await pptx.writeFile({ fileName: `${name}.pptx`, compression: true });
+  const raw = (await pptx.write({ outputType: "arraybuffer", compression: true })) as ArrayBuffer;
+  const blob = await polish(raw);
+  const a = document.createElement("a"); const href = URL.createObjectURL(blob);
+  a.href = href; a.download = `${name}.pptx`; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(href), 30_000);
+}
+
+/** Final touches PowerPoint needs for editing:
+ *  - Arabic text boxes: paragraphs right-to-left (rtl="1") and runs tagged ar-SA (lang + complex-script font), so typing and cursor movement work.
+ *  - Pen strokes: no fill, round caps and joins. */
+async function polish(buf: ArrayBuffer): Promise<Blob> {
+  const JSZip = (await import("jszip")).default;
+  const zip = await JSZip.loadAsync(buf);
+  const A = "http://schemas.openxmlformats.org/drawingml/2006/main";
+  for (const path of Object.keys(zip.files).filter((k) => /^ppt\/slides\/slide\d+\.xml$/.test(k))) {
+    const xml = await zip.file(path)!.async("text");
+    const doc = new DOMParser().parseFromString(xml, "application/xml");
+    let touched = false;
+    for (const sp of [...doc.getElementsByTagName("p:sp")]) {
+      const name = sp.getElementsByTagName("p:cNvPr")[0]?.getAttribute("name") || "";
+      if (name.startsWith("rtl-")) {
+        for (const para of [...sp.getElementsByTagName("a:p")]) {
+          let ppr = [...para.children].find((c) => c.tagName === "a:pPr");
+          if (!ppr) { ppr = doc.createElementNS(A, "a:pPr"); para.insertBefore(ppr, para.firstChild); }
+          ppr.setAttribute("rtl", "1");
+          for (const rpr of [...para.getElementsByTagName("a:rPr"), ...para.getElementsByTagName("a:endParaRPr")]) {
+            rpr.setAttribute("lang", "ar-SA"); rpr.setAttribute("altLang", "en-US");
+            const latin = [...rpr.children].find((c) => c.tagName === "a:latin");
+            if (latin && ![...rpr.children].some((c) => c.tagName === "a:cs")) {
+              const cs = doc.createElementNS(A, "a:cs"); cs.setAttribute("typeface", latin.getAttribute("typeface") || "Arial");
+              const after = [...rpr.children].find((c) => c.tagName === "a:ea" || c.tagName === "a:sym" || c.tagName === "a:hlinkClick");
+              rpr.insertBefore(cs, after || null);
+            }
+          }
+        }
+        touched = true;
+      } else if (name.startsWith("pen-")) {
+        const sppr = sp.getElementsByTagName("p:spPr")[0];
+        const ln = sp.getElementsByTagName("a:ln")[0];
+        if (sppr && ln) {
+          for (const f of [...sppr.children].filter((c) => c.tagName === "a:solidFill" || c.tagName === "a:noFill")) sppr.removeChild(f);
+          sppr.insertBefore(doc.createElementNS(A, "a:noFill"), ln);
+          ln.setAttribute("cap", "rnd");
+          if (![...ln.children].some((c) => c.tagName === "a:round")) { const r = doc.createElementNS(A, "a:round"); const tail = [...ln.children].find((c) => c.tagName === "a:headEnd" || c.tagName === "a:tailEnd"); ln.insertBefore(r, tail || null); }
+        }
+        touched = true;
+      }
+    }
+    if (touched) zip.file(path, new XMLSerializer().serializeToString(doc));
+  }
+  return zip.generateAsync({ type: "blob", compression: "DEFLATE", mimeType: "application/vnd.openxmlformats-officedocument.presentationml.presentation" });
 }
 
 type PSlide = ReturnType<InstanceType<typeof import("pptxgenjs").default>["addSlide"]>;
