@@ -267,7 +267,7 @@ export function QuranMap({ asAdmin = false, classes = [], sections = [] }: { asA
   const { tr, lang } = useTr();
   const router = useRouter();
   const routerRef = useRef(router);
-  routerRef.current = router;
+  useEffect(() => { routerRef.current = router; }, [router]);
   const { actor } = useLmsActor();
   const ch = useChapters();
   const box = useRef<HTMLElement>(null);
