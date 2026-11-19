@@ -41,8 +41,8 @@ export function hwSubFromLocation(): HwSub {
 
 const OPEN_PILL = "inline-flex items-center justify-center rounded-full bg-[#1b3a57] px-3 py-1 text-sm font-extrabold text-[#f5c542] shadow transition hover:brightness-110";
 /** Same lift as the class cards on My classes, and the same eight colour pairs. */
-const PORTION_LIFT = "transition hover:-translate-y-1 hover:shadow-2xl";
-const PORTION_WASH = [
+export const PORTION_LIFT = "transition hover:-translate-y-1 hover:shadow-2xl";
+export const PORTION_WASH = [
   "from-sky-100 via-white to-blue-50",
   "from-amber-100 via-white to-orange-50",
   "from-emerald-100 via-white to-teal-50",
@@ -52,7 +52,7 @@ const PORTION_WASH = [
   "from-orange-100 via-white to-red-50",
   "from-lime-100 via-white to-green-50",
 ];
-const PORTION_BAR = [
+export const PORTION_BAR = [
   "from-sky-400 to-blue-600",
   "from-amber-400 to-orange-500",
   "from-emerald-400 to-teal-600",
