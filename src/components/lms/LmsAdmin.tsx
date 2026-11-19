@@ -25,6 +25,7 @@ const PERM_LABEL: Record<string, [string, string]> = {
   manageUsers: ["Manage students", "إدارة الطلاب"],
   viewAll: ["See all homework", "رؤية كل الواجبات"],
   shareCorrect: ["Correct homework shared with them", "تصحيح الواجبات المشاركة معه"],
+  pptDownload: ["Download PPT (Lesson Builder)", "تنزيل PowerPoint (منشئ الدروس)"],
   viewAsStudent: ["Log in as student (read-only, logged — on by default for own students)", "الدخول كطالب (للعرض فقط، مسجَّل — مفعّل افتراضيًا لطلابه)"],
 };
 

@@ -18,7 +18,7 @@ import { AssessmentShell, primaryBtn } from "@/components/assessment/AssessmentS
 import { HomeworkEditor } from "@/components/lms/HomeworkEditor";
 import { Certificates, Leaderboard, LeaderboardSetting, ProgressCard, RevisionList } from "@/components/lms/Progress";
 import { Avatar } from "@/components/lms/Avatar";
-import { TeacherHomeworkHub, reviewCount, tabFromLocation, type HwHubTab } from "@/components/lms/HwHub";
+import { KidBubble, KidIcon, kidSubCls, kidSubRow, kidTabCls, TeacherHomeworkHub, reviewCount, tabFromLocation, type HwHubTab } from "@/components/lms/HwHub";
 import { exportAllHomeworkZip } from "@/components/lms/lmsFiles";
 import { STATUS_STYLE, card, smallBtn, statusLabel, useLmsActor, useTr, GRADE_STYLE, gradeLabel } from "@/components/lms/useLms";
 import { lmsApi, lmsErrorText, lmsSignOut, mpShown, quranChapters, type Chapter, type QuranData } from "@/lib/lms";
@@ -56,15 +56,21 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
   const [err, setErr] = useState("");
   const [creating, setCreating] = useState(false);
   const [hubTab, setHubTab] = useState<HwHubTab>("homeworks");
-  const [stuTab, setStuTab] = useState<"open" | "tasks" | "done">("open");
-  /** t652: Tasks sub-tabs — all assigned, still to hand in, handed in. */
-  const [taskSub, setTaskSub] = useState<"all" | "pending" | "done">("pending");
+  const [stuTab, setStuTab] = useState<"open" | "tasks" | "quran">("open");
+  /** t652/t664: sub-tabs per main tab — all assigned, still to hand in, handed in. */
+  const [stuSub, setStuSub] = useState<Partial<Record<"open" | "tasks" | "quran", "all" | "pending" | "done">>>({});
   // eslint-disable-next-line react-hooks/set-state-in-effect -- deep link from ?tab= / leftover hash
   useEffect(() => {
     const read = () => {
       setHubTab(tabFromLocation());
-      const tab = new URLSearchParams(window.location.search).get("tab");
-      setStuTab(tab === "submitted" ? "done" : tab === "tasks" ? "tasks" : "open");
+      const q = new URLSearchParams(window.location.search);
+      const tab = q.get("tab");
+      const sub = q.get("sub");
+      const st = tab === "tasks" ? "tasks" : tab === "quran" ? "quran" : "open";
+      setStuTab(st);
+      // t664: the old "Submitted homework" tab is now Homeworks → Completed; ?sub=all|pending|done picks a sub-tab.
+      setStuSub({ [st]: tab === "submitted" || sub === "done" || sub === "completed" ? "done" : sub === "all" || sub === "assigned" ? "all" : "pending" });
+      if (tab === "submitted" && window.location.pathname.replace(/\/$/, "") === "/lms/homework") window.history.replaceState(null, "", "/lms/homework?sub=done");
     };
     read();
     const h = window.location.hash.replace("#", "");
@@ -164,7 +170,7 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
           { icon: "📝", title: tr("Today's homework", "واجب اليوم"), value: dash.homework.filter((h) => !h.locked && (!h.sub || h.sub.status === "draft" || h.sub.status === "returned")).length, sub: dash.homework.find((h) => !h.sub || h.sub.status === "draft")?.title || tr("All done! 🎉", "أنجزت كل شيء! 🎉"), href: "/lms/homework", tone: "sun" },
           { icon: "🏆", title: tr("My points", "نقاطي"), value: dash.progress ? `${dash.progress.stars} ⭐` : "—", sub: dash.progress ? tr(`${dash.progress.streak}-day streak 🔥`, `${dash.progress.streak} أيام متتالية 🔥`) : "", href: "/lms/homework", tone: "coral" },
           { icon: "📖", title: tr("Quran progress", "تقدم القرآن"), value: (dash.tracker || []).length, sub: tr("surahs tracked", "سور في المتابعة"), href: "/lms#tracker", tone: "navy" },
-          { icon: "✅", title: tr("Passed", "مُجتاز"), value: dash.homework.filter((h) => h.sub?.status === "approved").length, sub: tr("homework approved", "واجبات معتمدة"), href: "/lms/homework?tab=submitted", tone: "teal" },
+          { icon: "✅", title: tr("Passed", "مُجتاز"), value: dash.homework.filter((h) => h.sub?.status === "approved").length, sub: tr("homework approved", "واجبات معتمدة"), href: "/lms/homework?sub=done", tone: "teal" },
           { icon: "💬", title: tr("Messages", "الرسائل"), value: unread, sub: tr("unread", "غير مقروءة"), href: "/lms/messages", tone: "sky", badge: unread },
           { icon: "🧱", title: tr("Class Wall", "جدار الصف"), sub: tr("see what's new", "شاهد الجديد"), href: "/lms/wall", tone: "mint" },
         ]) as Widget[]).filter((w) => !(staff && ((w.href === "/lms/wall" && actor?.perms?.includes("hide:wall")) || (w.href === "/lms/messages" && actor?.perms?.includes("hide:messaging")) || (w.href === "/lms#homework" && actor?.perms?.includes("hide:homework"))))) } />}
@@ -177,44 +183,64 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
             {!hwOnly && <RewardCardsTile />}
             {dash.progress && !hwOnly && <ProgressCard p={dash.progress} />}
             {!hwOnly && <RevisionList tracker={dash.tracker || []} onChange={(t) => setDash({ ...dash, tracker: t })} />}
-            <section id="homework" className="scroll-mt-28">
+            {/* t666: homework / tasks lists live on the Homework page only, not the dashboard. */}
+            {hwOnly && <section id="homework" className="scroll-mt-28">
               {(() => {
                 const handed = (h: (typeof dash.homework)[number]) => h.sub?.status === "submitted" || h.sub?.status === "approved";
                 const pages = (h: (typeof dash.homework)[number]) => hwParts(h.data as { activity?: boolean; parts?: unknown }, h.kind);
+                /** t664: three main tabs (Tasks, Homeworks, Quran Homeworks), each with Assigned / Pending / Completed. */
+                const allOf = {
+                  tasks: dash.homework.filter((h) => pages(h).includes("activity")),
+                  open: dash.homework.filter((h) => h.kind !== "quran" && pages(h).includes("homework")),
+                  quran: dash.homework.filter((h) => h.kind === "quran"),
+                };
+                const pendOf = { tasks: allOf.tasks.filter((h) => !handed(h)), open: allOf.open.filter((h) => !handed(h)), quran: allOf.quran.filter((h) => !handed(h)) };
+                const doneOf = { tasks: allOf.tasks.filter(handed), open: allOf.open.filter(handed), quran: allOf.quran.filter(handed) };
                 const openHw = dash.homework.filter((h) => !handed(h) && pages(h).includes("homework"));
-                const taskHw = dash.homework.filter((h) => !handed(h) && pages(h).includes("activity"));
-                const doneHw = dash.homework.filter(handed);
-                const showingDone = hwOnly && stuTab === "done";
+                const taskHw = pendOf.tasks;
                 const showingTasks = stuTab === "tasks";
-                const allTasks = dash.homework.filter((h) => pages(h).includes("activity"));
-                const doneTasks = allTasks.filter(handed);
-                const list = showingDone ? doneHw : showingTasks ? (taskSub === "all" ? allTasks : taskSub === "done" ? doneTasks : taskHw) : openHw;
-                const pick = (t: "open" | "tasks" | "done") => {
+                const sub = hwOnly ? stuSub[stuTab] || "pending" : "pending";
+                const showingDone = sub === "done";
+                const list = !hwOnly ? openHw : sub === "all" ? allOf[stuTab] : sub === "done" ? doneOf[stuTab] : pendOf[stuTab];
+                const pick = (t: "open" | "tasks" | "quran") => {
                   setStuTab(t);
                   if (!hwOnly) return;
-                  window.history.pushState(null, "", t === "done" ? "/lms/homework?tab=submitted" : t === "tasks" ? "/lms/homework?tab=tasks" : "/lms/homework");
+                  window.history.pushState(null, "", t === "open" ? "/lms/homework" : `/lms/homework?tab=${t}`);
                 };
+                const pickSub = (k: "all" | "pending" | "done") => {
+                  setStuSub((m) => ({ ...m, [stuTab]: k }));
+                  if (!hwOnly) return;
+                  const base = stuTab === "open" ? "/lms/homework" : `/lms/homework?tab=${stuTab}`;
+                  window.history.replaceState(null, "", k === "pending" ? base : `${base}${base.includes("?") ? "&" : "?"}sub=${k}`);
+                };
+                const MAIN = [["tasks", "✏️", "Tasks", "مهام"], ["open", "📝", "Homeworks", "الواجبات"], ["quran", "📖", "Quran Homeworks", "واجبات القرآن"]] as const;
+                const SUBL = {
+                  tasks: [["all", "📋", "Assigned Tasks", "المهام المسندة"], ["pending", "⏳", "Pending Tasks", "المهام المعلّقة"], ["done", "✅", "Completed Tasks", "المهام المكتملة"]],
+                  open: [["all", "📋", "Assigned Homework", "الواجبات المسندة"], ["pending", "⏳", "Pending Homework", "الواجبات المعلّقة"], ["done", "✅", "Completed Homework", "الواجبات المكتملة"]],
+                  quran: [["all", "📋", "Assigned Quran Homework", "واجبات القرآن المسندة"], ["pending", "⏳", "Pending Quran Homework", "واجبات القرآن المعلّقة"], ["done", "✅", "Completed Quran Homework", "واجبات القرآن المكتملة"]],
+                } as const;
+                const nOf = { all: allOf[stuTab].length, pending: pendOf[stuTab].length, done: doneOf[stuTab].length };
+                const kTheme = { tasks: "tasks", open: "homeworks", quran: "quran" } as const;
+                const subKey = showingTasks ? "task" : stuTab === "open" ? "hw" : "quran";
                 return (
                   <>
                     {hwOnly ? (
-                      <div className="mb-3 flex flex-wrap gap-2" role="tablist" data-testid="stu-hw-tabs">
-                        <button type="button" role="tab" aria-selected={!showingDone && !showingTasks} onClick={() => pick("open")} className={`rounded-full px-4 py-2 text-sm font-extrabold shadow-sm ${!showingDone && !showingTasks ? "bg-header text-white" : "bg-white text-[#1b2f44] dark:bg-white/10 dark:text-white"}`} data-testid="stu-hw-tab-open">📝 {tr("Homeworks", "الواجبات")} ({openHw.length})</button>
-                        <button type="button" role="tab" aria-selected={showingTasks} onClick={() => pick("tasks")} className={`rounded-full px-4 py-2 text-sm font-extrabold shadow-sm ${showingTasks ? "bg-header text-white" : "bg-white text-[#1b2f44] dark:bg-white/10 dark:text-white"}`} data-testid="stu-hw-tab-tasks">✏️ {tr("Tasks", "مهام")} ({taskHw.length})</button>
-                        <button type="button" role="tab" aria-selected={showingDone} onClick={() => pick("done")} className={`rounded-full px-4 py-2 text-sm font-extrabold shadow-sm ${showingDone ? "bg-header text-white" : "bg-white text-[#1b2f44] dark:bg-white/10 dark:text-white"}`} data-testid="stu-hw-tab-submitted">✅ {tr("Submitted homework", "الواجبات المُسلَّمة")} ({doneHw.length})</button>
+                      <div className="mb-3 flex flex-wrap gap-3" role="tablist" data-testid="stu-hw-tabs">
+                        {MAIN.map(([k, ic, en, ar]) => <button key={k} type="button" role="tab" aria-selected={stuTab === k} onClick={() => pick(k)} className={kidTabCls(kTheme[k], stuTab === k)} data-testid={`stu-hw-tab-${k}`}><KidIcon t={kTheme[k]} on={stuTab === k} ic={ic} /><span className="flex-1 text-start">{tr(en, ar)}</span><KidBubble t={kTheme[k]} on={stuTab === k} n={pendOf[k].length} /></button>)}
                       </div>
                     ) : (
                       <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
                         <h2 className="text-xl font-bold">{tr("Homework", "الواجبات")}</h2>
                         <span className="flex flex-wrap gap-2">
                           {taskHw.length > 0 && <a href="/lms/homework?tab=tasks" className="rounded-full bg-white px-3 py-1 text-sm font-extrabold text-[#1b2f44] shadow-sm ring-1 ring-black/10 dark:bg-white/10 dark:text-white" data-testid="stu-hw-tasks-link">✏️ {tr("Tasks", "مهام")} ({taskHw.length})</a>}
-                          <a href="/lms/homework?tab=submitted" className="rounded-full bg-white px-3 py-1 text-sm font-extrabold text-[#1b2f44] shadow-sm ring-1 ring-black/10 dark:bg-white/10 dark:text-white" data-testid="stu-hw-submitted-link">✅ {tr("Submitted homework", "الواجبات المُسلَّمة")} ({doneHw.length})</a>
+                          <a href="/lms/homework?sub=done" className="rounded-full bg-white px-3 py-1 text-sm font-extrabold text-[#1b2f44] shadow-sm ring-1 ring-black/10 dark:bg-white/10 dark:text-white" data-testid="stu-hw-submitted-link">✅ {tr("Completed Homework", "الواجبات المكتملة")} ({doneOf.open.length})</a>
                         </span>
                       </div>
                     )}
-                    {showingTasks && <div className="mb-3 flex flex-wrap gap-2" role="tablist" data-testid="stu-task-subtabs">
-                      {([["all", "📋", "Assigned Tasks", "المهام المسندة", allTasks.length], ["pending", "⏳", "Pending Tasks", "المهام المعلّقة", taskHw.length], ["done", "✅", "Completed Tasks", "المهام المكتملة", doneTasks.length]] as const).map(([k, ic, en, ar, n]) => <button key={k} type="button" role="tab" aria-selected={taskSub === k} onClick={() => setTaskSub(k)} className={`rounded-full px-3 py-1.5 text-xs font-extrabold shadow-sm transition ${taskSub === k ? "bg-header text-white" : "bg-white text-[#1b2f44] dark:bg-white/10 dark:text-white"}`} data-testid={`stu-task-sub-${k}`}>{ic} {tr(en, ar)} ({n})</button>)}
+                    {hwOnly && <div className={"mb-3 " + kidSubRow(kTheme[stuTab])} role="tablist" data-testid={`stu-${subKey}-subtabs`}>
+                      {SUBL[stuTab].map(([k, ic, en, ar]) => <button key={k} type="button" role="tab" aria-selected={sub === k} onClick={() => pickSub(k)} className={kidSubCls(kTheme[stuTab], sub === k)} data-testid={`stu-${subKey}-sub-${k}`}><span aria-hidden className="text-lg">{ic}</span>{tr(en, ar)} <KidBubble t={kTheme[stuTab]} on={sub === k} n={nOf[k]} small /></button>)}
                     </div>}
-                    {list.length === 0 && <p className={card + " opacity-80"} data-testid="stu-hw-empty">{showingDone ? tr("Nothing submitted yet.", "لم يُسلَّم شيء بعد.") : showingTasks ? tr("No tasks yet.", "لا توجد مهام بعد.") : dash.homework.length === 0 ? tr("No homework yet — enjoy your day!", "لا توجد واجبات بعد — استمتع بيومك!") : tr("Nothing waiting. Submitted work is under Submitted homework.", "لا شيء بانتظارك. العمل المُسلَّم في الواجبات المُسلَّمة.")}</p>}
+                    {list.length === 0 && <p className={card + " opacity-80"} data-testid="stu-hw-empty">{showingDone ? tr("Nothing submitted yet.", "لم يُسلَّم شيء بعد.") : showingTasks ? tr("No tasks yet.", "لا توجد مهام بعد.") : dash.homework.length === 0 ? tr("No homework yet — enjoy your day!", "لا توجد واجبات بعد — استمتع بيومك!") : tr("Nothing waiting. Handed-in work is under Completed Homework.", "لا شيء بانتظارك. العمل المُسلَّم في الواجبات المكتملة.")}</p>}
                     <ul className="grid gap-3 sm:grid-cols-2">
                       {list.map((h) => {
                         const st = h.sub?.status || "none";
@@ -247,7 +273,7 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
                   </>
                 );
               })()}
-            </section>
+            </section>}
             {!hwOnly && <><section id="tracker" className={card + " scroll-mt-28"}>
               <h2 className="text-xl font-bold">📈 {tr("My Quran tracker", "متابعة حفظي")}</h2>
               {(dash.tracker || []).length === 0 ? (
@@ -282,8 +308,8 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
             {creating && (
               (dash as { quran?: { add: boolean } }).quran && !(dash as { quran?: { add: boolean } }).quran!.add ? <a href="/lms/material?new=homework" className="inline-block rounded-full bg-sun px-4 py-2 font-extrabold text-[#1b2f44]" data-testid="hw-kind-pack">📑 {tr("New homework as slides (Lesson Pack)", "واجب جديد بالشرائح")}</a> : <HomeworkEditor classes={dash.classes || []} students={dash.students || []} catalog={dash.catalog} scope={dash.scope} asAdmin={asAdmin} kinds={(dash as { quran?: { add: boolean } }).quran && !(dash as { quran?: { add: boolean } }).quran!.add ? ["general"] : ["quran", "general"]} onCancel={() => setCreating(false)} onSaved={(id) => router.push(`/lms/homework?id=${id}`)} />
             )}
-            {/* Homework area: Lessons, Homework, Assigned Homework, Review, Corrected Homeworks — Year / section cards. */}
-            <TeacherHomeworkHub
+            {/* Homework page: Lessons, Tasks, Homeworks, Quran Homeworks (+ To Review) — Year / section cards. */}
+            {hwOnly && <TeacherHomeworkHub
               dash={dash}
               chapters={chapters}
               asAdmin={!!asAdmin}
@@ -296,7 +322,7 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
                 window.history.replaceState(null, "", href);
               }}
               onReload={load}
-            />
+            />}
           </>
         )}
       </div>

@@ -101,7 +101,7 @@ const TOKEN_DAYS = 3650; // effectively "until you log out" (sliding renewal on 
 const MAX_USERS = 3000;
 const MAX_HW = 2000;
 const FAIL_WINDOW = 15 * 60_000;
-const PERMS = ["assign", "review", "manageUsers", "viewAll", "staff", "shareCorrect", "viewAsStudent"] as const;
+const PERMS = ["assign", "review", "manageUsers", "viewAll", "staff", "shareCorrect", "viewAsStudent", "pptDownload"] as const;
 const STU_OPS = ["view", "add", "edit", "block", "delete"] as const;
 const STU_PERM = /^stu:(view|add|edit|block|delete|none)$/;
 /** Cartoon avatar code: stored reroll, else derived from id + gender (gender itself never leaves the server for non-admins). */

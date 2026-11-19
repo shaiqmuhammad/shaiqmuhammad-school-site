@@ -14,17 +14,30 @@ import { modErr, qhwPerm } from "@/lib/lmsMods";
 import { PptDownload } from "@/components/lms/packs/PptDownload";
 import { hwParts, lp, packParts, PART_LABEL, partText, type Acc, type Pack } from "@/lib/packs";
 
-export type HwHubTab = "lessons" | "homeworks" | "tasks" | "assigned" | "review" | "corrected";
+export type HwHubTab = "lessons" | "homeworks" | "tasks" | "quran" | "assigned" | "review" | "corrected";
 export type DashHw = Homework & { counts?: Record<string, number>; assigned?: number };
 
 const TAB_ITEMS: { id: HwHubTab; ic: string; en: string; ar: string }[] = [
   { id: "lessons", ic: "🎤", en: "Lessons", ar: "الدروس" },
-  { id: "homeworks", ic: "📝", en: "Homework", ar: "الواجبات" },
   { id: "tasks", ic: "✏️", en: "Tasks", ar: "مهام" },
-  { id: "assigned", ic: "📋", en: "Assigned Homework", ar: "الواجبات المسندة" },
-  { id: "review", ic: "📥", en: "Review", ar: "المراجعة" },
-  { id: "corrected", ic: "✅", en: "Corrected Homeworks", ar: "الواجبات المصحَّحة" },
+  { id: "homeworks", ic: "📝", en: "Homeworks", ar: "الواجبات" },
+  { id: "quran", ic: "📖", en: "Quran Homeworks", ar: "واجبات القرآن" },
+  // t664: To Review keeps working (rail link, dashboard tile, ?tab=review) and shows here only while open.
+  { id: "review", ic: "📥", en: "To Review", ar: "للمراجعة" },
 ];
+/** t663: Homework sub-tabs (mirror Tasks). "Not assigned yet" keeps drafts / scheduled work reachable. */
+export type HwSub = "assigned" | "completed" | "corrected" | "unassigned";
+const HW_SUBS: [HwSub, string][] = [["assigned", "📋"], ["completed", "📥"], ["corrected", "✅"], ["unassigned", "🗂️"]];
+/** ?sub= or a legacy ?tab= (assigned / corrected) → the Homework sub-tab. */
+export function hwSubFromLocation(): HwSub {
+  if (typeof window === "undefined") return "assigned";
+  const q = new URLSearchParams(window.location.search);
+  const v = (q.get("sub") || q.get("tab") || "").toLowerCase();
+  if (v === "corrected" || v === "corrected-homeworks") return "corrected";
+  if (v === "completed" || v === "submitted") return "completed";
+  if (v === "unassigned" || v === "drafts" || v === "not-assigned") return "unassigned";
+  return "assigned";
+}
 
 const OPEN_PILL = "inline-flex items-center justify-center rounded-full bg-[#1b3a57] px-3 py-1 text-sm font-extrabold text-[#f5c542] shadow transition hover:brightness-110";
 /** Same lift as the class cards on My classes, and the same eight colour pairs. */
@@ -58,9 +71,9 @@ export function tabFromLocation(): HwHubTab {
   const v = (q || h).toLowerCase();
   if (v === "lessons" || v === "lesson") return "lessons";
   if (v === "tasks" || v === "task") return "tasks";
-  if (v === "assigned" || v === "assigned-homework") return "assigned";
+  if (v === "quran" || v === "quran-homework" || v === "quran-homeworks") return "quran";
+  // t663: Assigned / Corrected are now Homework sub-tabs (hwSubFromLocation); old links land there.
   if (v === "review" || v === "to-review" || v === "toreview" || v === "to_review") return "review";
-  if (v === "corrected" || v === "corrected-homeworks") return "corrected";
   return "homeworks";
 }
 
@@ -153,11 +166,38 @@ function groupKey(h: DashHw) {
   return `${yearOf(h)}|${sectionOf(h)}`;
 }
 
+/** t670: child-friendly tab widgets for the Homework page — big rounded cards, a bright colour per tab, bubbly counts. */
+export type KidTheme = "lessons" | "tasks" | "homeworks" | "quran" | "review";
+const KID_GRAD: Record<KidTheme, string> = {
+  lessons: "from-violet-400 to-fuchsia-500",
+  tasks: "from-amber-400 to-orange-500",
+  homeworks: "from-sky-400 to-blue-600",
+  quran: "from-emerald-400 to-teal-600",
+  review: "from-rose-400 to-pink-600",
+};
+export function kidTabCls(t: KidTheme, on: boolean) {
+  return `group inline-flex min-w-[9.5rem] items-center gap-3 rounded-3xl px-4 py-3 text-base font-extrabold shadow-md transition duration-200 hover:-translate-y-1 hover:shadow-xl active:scale-95 motion-reduce:transform-none ${on ? `bg-gradient-to-br ${KID_GRAD[t]} text-white shadow-lg ring-4 ring-white/70 dark:ring-white/25` : "bg-white/85 text-[#1b2f44] ring-1 ring-black/10 backdrop-blur-md hover:bg-white dark:bg-white/10 dark:text-white dark:ring-white/15 dark:hover:bg-white/15"}`;
+}
+export function KidIcon({ t, on, ic }: { t: KidTheme; on: boolean; ic: string }) {
+  return <span aria-hidden className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl text-2xl shadow-inner transition group-hover:rotate-6 motion-reduce:transform-none ${on ? "bg-white/25" : `bg-gradient-to-br ${KID_GRAD[t]}`}`}>{ic}</span>;
+}
+export function KidBubble({ t, on, n, small = false }: { t: KidTheme; on: boolean; n: number; small?: boolean }) {
+  return <span className={`inline-grid place-items-center rounded-full font-black shadow ${small ? "h-6 min-w-6 px-1.5 text-xs" : "h-7 min-w-7 px-2 text-sm"} ${on ? "bg-white text-[#1b2f44]" : `bg-gradient-to-br ${KID_GRAD[t]} text-white`}`} data-testid="kid-count">{n}</span>;
+}
+export function kidSubCls(t: KidTheme, on: boolean) {
+  return `inline-flex items-center gap-2 rounded-2xl px-3.5 py-2 text-sm font-extrabold shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95 motion-reduce:transform-none ${on ? `bg-gradient-to-br ${KID_GRAD[t]} text-white shadow-md` : "bg-white/85 text-[#1b2f44] ring-1 ring-black/10 backdrop-blur-md hover:bg-white dark:bg-white/10 dark:text-white dark:ring-white/15"}`;
+}
+/** A sub-tab row in its parent tab's colour (soft tinted glass panel). */
+export function kidSubRow(t: KidTheme) {
+  const tint: Record<KidTheme, string> = { lessons: "bg-violet-100/60 dark:bg-violet-400/10", tasks: "bg-amber-100/70 dark:bg-amber-400/10", homeworks: "bg-sky-100/70 dark:bg-sky-400/10", quran: "bg-emerald-100/70 dark:bg-emerald-400/10", review: "bg-rose-100/70 dark:bg-rose-400/10" };
+  return `flex flex-wrap gap-2 rounded-3xl p-2 ring-1 ring-black/5 dark:ring-white/10 ${tint[t]}`;
+}
+
 export function HwHubTabs({ tab, onTab, className = "", counts }: { tab: HwHubTab; onTab: (t: HwHubTab) => void; className?: string; counts?: Partial<Record<HwHubTab, number>> }) {
   const { tr } = useTr();
   return (
-    <div className={`flex flex-wrap gap-2 ${className}`} role="tablist" data-testid="hw-hub-tabs">
-      {TAB_ITEMS.map(({ id, ic, en, ar }) => (
+    <div className={`flex flex-wrap gap-3 ${className}`} role="tablist" data-testid="hw-hub-tabs">
+      {TAB_ITEMS.filter(({ id }) => id !== "review" || tab === "review").map(({ id, ic, en, ar }) => (
         <a
           key={id}
           href={tabHref(id)}
@@ -168,10 +208,12 @@ export function HwHubTabs({ tab, onTab, className = "", counts }: { tab: HwHubTa
             e.preventDefault();
             onTab(id);
           }}
-          className={`rounded-full px-4 py-2 text-sm font-extrabold shadow-sm transition ${tab === id ? "bg-header text-white" : "bg-white text-[#1b2f44] hover:bg-sun/50 dark:bg-white/10 dark:text-white"}`}
+          className={kidTabCls(id as KidTheme, tab === id)}
           data-testid={`hw-tab-${id}`}
         >
-          {ic} {tr(en, ar)}{counts?.[id] !== undefined ? ` (${counts[id]})` : ""}
+          <KidIcon t={id as KidTheme} on={tab === id} ic={ic} />
+          <span className="flex-1">{tr(en, ar)}</span>
+          {counts?.[id] !== undefined && <KidBubble t={id as KidTheme} on={tab === id} n={counts[id]!} />}
         </a>
       ))}
     </div>
@@ -369,7 +411,7 @@ function lessonPlace(p: Pack) {
 }
 
 /** Lesson presentations only (Lesson Builder packs of type "lesson"), in the same Year / section cards. */
-function LessonBoard({ asAdmin }: { asAdmin: boolean }) {
+function LessonBoard({ asAdmin, onCount }: { asAdmin: boolean; onCount?: (n: number) => void }) {
   const { tr, lang } = useTr();
   const { actor } = useLmsActor();
   const [items, setItems] = useState<Pack[] | null>(null);
@@ -390,10 +432,11 @@ function LessonBoard({ asAdmin }: { asAdmin: boolean }) {
         return p.status === "published" && packParts(p).includes("lesson");
       });
       setItems(mine);
+      onCount?.(mine.length);
       setAcc(r.acc || null);
     }).catch((e) => { if (!live) return; setItems([]); setMsg(modErr(e, tr)); setBad(true); });
     return () => { live = false; };
-  }, [asAdmin, actor?.id, actor?.role, tr]);
+  }, [asAdmin, actor?.id, actor?.role, tr, onCount]);
   useEffect(() => load(), [load]);
 
   const years = useMemo(() => sortCls([...new Set((items || []).flatMap((p) => lessonPlace(p).years))]), [items]);
@@ -520,34 +563,74 @@ export function TeacherHomeworkHub({
     }).catch(() => { if (live) setQuranCorr({ ids: new Set(), n: {} }); });
     return () => { live = false; };
   }, [asAdmin, dash.homework]);
-  /** t652: Tasks sub-tabs — assigned, completed (handed in, waiting for correction), corrected. */
-  const [taskSub, setTaskSub] = useState<"assigned" | "completed" | "corrected">("assigned");
-  const tasks = dash.homework.filter(isTaskHw);
-  const taskRows = { assigned: tasks, completed: tasks.filter(needsReview), corrected: tasks.filter((h) => hasCorrectedWork(h, quranCorr.ids)) };
-  const rows = tab === "tasks" ? taskRows[taskSub] : dash.homework.filter((h) => {
-    if (tab === "lessons") return false;
-    if (tab === "corrected") return hasCorrectedWork(h, quranCorr.ids);
-    if (tab === "review") return needsReview(h);
-    return hwBucket(h) === tab;
+  /** t664: Tasks, Homeworks and Quran Homeworks each have sub-tabs — assigned, completed (handed in, waiting for correction),
+   *  corrected — plus "Not assigned yet" (only shown when something is waiting). Counts come from the dashboard data already loaded. */
+  const [subs, setSubs] = useState<Partial<Record<HwHubTab, HwSub>>>({});
+  const sub: HwSub = subs[tab] || "assigned";
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- deep link from ?sub= / an old ?tab=assigned|corrected link
+  useEffect(() => {
+    const read = () => setSubs({ [tabFromLocation()]: hwSubFromLocation() });
+    read();
+    const old = new URLSearchParams(window.location.search).get("tab");
+    if (window.location.pathname.replace(/\/$/, "") === "/lms/homework" && (old === "assigned" || old === "corrected" || old === "assigned-homework" || old === "corrected-homeworks")) {
+      window.history.replaceState(null, "", `/lms/homework?sub=${hwSubFromLocation()}${window.location.hash}`);
+    }
+    window.addEventListener("popstate", read);
+    return () => window.removeEventListener("popstate", read);
+  }, []);
+  const setSub = (k: HwSub) => {
+    setSubs((m) => ({ ...m, [tab]: k }));
+    if (window.location.pathname.replace(/\/$/, "") !== "/lms/homework") return;
+    const base = tab === "homeworks" ? "/lms/homework" : `/lms/homework?tab=${tab}`;
+    window.history.replaceState(null, "", k === "assigned" ? base : `${base}${base.includes("?") ? "&" : "?"}sub=${k}`);
+  };
+  const pagesOf = (h: DashHw) => hwParts(h.data as { activity?: boolean; parts?: unknown }, h.kind);
+  const groupOf = (h: DashHw): "tasks" | "homeworks" | "quran" => (h.kind === "quran" ? "quran" : pagesOf(h).includes("homework") || !pagesOf(h).length ? "homeworks" : "tasks");
+  const live = dash.homework.filter((h) => hwBucket(h) === "assigned");
+  const liveOf = { tasks: dash.homework.filter(isTaskHw), homeworks: live.filter((h) => h.kind !== "quran" && pagesOf(h).includes("homework")), quran: live.filter((h) => h.kind === "quran") };
+  const subRows = (g: "tasks" | "homeworks" | "quran"): Record<HwSub, DashHw[]> => ({
+    assigned: liveOf[g],
+    completed: liveOf[g].filter(needsReview),
+    corrected: liveOf[g].filter((h) => hasCorrectedWork(h, quranCorr.ids)),
+    unassigned: dash.homework.filter((h) => hwBucket(h) === "homeworks" && groupOf(h) === g),
   });
-  const empty =
-    tab === "homeworks" ? tr("No homework or tasks waiting to be assigned. Once you assign them to students, they move to Assigned Homework.", "لا توجد واجبات أو مهام بانتظار الإسناد. بعد إسنادها للطلاب تنتقل إلى الواجبات المسندة.")
-    : tab === "assigned" ? tr("No assigned homework, tasks, or Quran homework.", "لا توجد واجبات أو مهام أو واجبات قرآن مسندة.")
-    : tab === "tasks" ? (taskSub === "completed" ? tr("No completed tasks waiting for correction.", "لا توجد مهام مكتملة بانتظار التصحيح.") : taskSub === "corrected" ? tr("No corrected tasks yet.", "لا توجد مهام مصحَّحة بعد.") : tr("No assigned tasks yet. Task slides you assign from Lesson Builder appear here.", "لا توجد مهام مسندة بعد. تظهر هنا شرائح المهام التي تسندها من منشئ الدروس."))
-    : tab === "review" ? tr("Nothing submitted and waiting for correction.", "لا يوجد عمل مُسلَّم بانتظار التصحيح.")
-    : tr("No corrected homework yet. Work you have corrected appears here.", "لا توجد واجبات مصحَّحة بعد. يظهر هنا ما صحّحته.");
-  const openHash = tab === "corrected" || (tab === "tasks" && taskSub === "corrected") ? "#corrected" : tab === "review" || (tab === "tasks" && taskSub === "completed") ? "#review" : "";
+  const grp = tab === "tasks" || tab === "homeworks" || tab === "quran" ? tab : null;
+  const cur = grp ? subRows(grp) : null;
+  const rows = cur ? cur[sub] : tab === "review" ? dash.homework.filter(needsReview) : [];
+  const noun = grp === "tasks" ? tr("tasks", "مهام") : grp === "quran" ? tr("Quran homework", "واجبات قرآن") : tr("homework", "واجبات");
+  const empty = tab === "review" ? tr("Nothing submitted and waiting for correction.", "لا يوجد عمل مُسلَّم بانتظار التصحيح.")
+    : sub === "unassigned" ? tr(`No ${noun} waiting to be assigned.`, `لا توجد ${noun} بانتظار الإسناد.`)
+    : sub === "completed" ? tr(`No completed ${noun} waiting for correction.`, `لا توجد ${noun} مكتملة بانتظار التصحيح.`)
+    : sub === "corrected" ? tr(`No corrected ${noun} yet.`, `لا توجد ${noun} مصحَّحة بعد.`)
+    : grp === "tasks" ? tr("No assigned tasks yet. Task slides you assign from Lesson Builder appear here.", "لا توجد مهام مسندة بعد. تظهر هنا شرائح المهام التي تسندها من منشئ الدروس.")
+    : tr(`No assigned ${noun} yet.`, `لا توجد ${noun} مسندة بعد.`);
+  /** t662: a count on every hub tab (no extra reads). Lessons are counted once the Lessons tab has loaded its own list. */
+  const [lessonCount, setLessonCount] = useState<number | undefined>(undefined);
+  const hubCounts: Partial<Record<HwHubTab, number>> = {
+    tasks: liveOf.tasks.length,
+    homeworks: liveOf.homeworks.length,
+    quran: liveOf.quran.length,
+    review: dash.homework.filter(needsReview).length,
+    ...(lessonCount !== undefined ? { lessons: lessonCount } : {}),
+  };
+  const corrView = !!grp && sub === "corrected";
+  const openHash = corrView ? "#corrected" : tab === "review" || (!!grp && sub === "completed") ? "#review" : "";
+  const SUB_LABEL: Record<"tasks" | "homeworks" | "quran", Record<HwSub, [string, string]>> = {
+    tasks: { assigned: ["Assigned Tasks", "المهام المسندة"], completed: ["Completed Tasks", "المهام المكتملة"], corrected: ["Corrected Tasks", "المهام المصحَّحة"], unassigned: ["Not assigned yet", "لم تُسند بعد"] },
+    homeworks: { assigned: ["Assigned Homework", "الواجبات المسندة"], completed: ["Completed Homework", "الواجبات المكتملة"], corrected: ["Corrected Homework", "الواجبات المصحَّحة"], unassigned: ["Not assigned yet", "لم تُسند بعد"] },
+    quran: { assigned: ["Assigned Quran Homework", "واجبات القرآن المسندة"], completed: ["Completed Quran Homework", "واجبات القرآن المكتملة"], corrected: ["Corrected Quran Homework", "واجبات القرآن المصحَّحة"], unassigned: ["Not assigned yet", "لم تُسند بعد"] },
+  };
   return (
     <section id="homework" className="scroll-mt-28 space-y-4" data-testid="hw-hub">
       <div className="flex flex-wrap items-center gap-2">
-        <HomeworkHubTabs tab={tab} onTab={onTab} counts={{ tasks: tasks.length }} />
+        <HomeworkHubTabs tab={tab} onTab={onTab} counts={hubCounts} />
         {toolbar}
       </div>
-      {tab === "tasks" && <div className="flex flex-wrap gap-2" role="tablist" data-testid="hw-task-subtabs">
-        {([["assigned", "📋", "Assigned Tasks", "المهام المسندة"], ["completed", "📥", "Completed Tasks", "المهام المكتملة"], ["corrected", "✅", "Corrected Tasks", "المهام المصحَّحة"]] as const).map(([k, ic, en, ar]) => <button key={k} type="button" role="tab" aria-selected={taskSub === k} onClick={() => setTaskSub(k)} className={`rounded-full px-3 py-1.5 text-xs font-extrabold shadow-sm transition ${taskSub === k ? "bg-header text-white" : "bg-white text-[#1b2f44] hover:bg-sun/50 dark:bg-white/10 dark:text-white"}`} data-testid={`hw-task-sub-${k}`}>{ic} {tr(en, ar)} ({taskRows[k].length})</button>)}
+      {grp && cur && <div className={kidSubRow(grp)} role="tablist" data-testid={grp === "tasks" ? "hw-task-subtabs" : `hw-${grp}-subtabs`}>
+        {HW_SUBS.filter(([k]) => k !== "unassigned" || cur.unassigned.length > 0 || sub === "unassigned").map(([k, ic]) => <button key={k} type="button" role="tab" aria-selected={sub === k} onClick={() => setSub(k)} className={kidSubCls(grp, sub === k)} data-testid={grp === "tasks" ? `hw-task-sub-${k}` : `hw-${grp}-sub-${k}`}><span aria-hidden className="text-lg">{ic}</span>{tr(...SUB_LABEL[grp][k])} <KidBubble t={grp} on={sub === k} n={cur[k].length} small /></button>)}
       </div>}
-      {tab === "lessons" ? <LessonBoard asAdmin={asAdmin} /> : (
-        <HwPortionGrid items={rows} chapters={chapters} asAdmin={asAdmin} canAssign={canAssign} empty={empty} onChange={onReload} extra={extra} openHash={openHash} correctedCounts={tab === "corrected" || (tab === "tasks" && taskSub === "corrected") ? { ...Object.fromEntries(rows.map((h) => [h.id, h.kind === "quran" ? 0 : countsOf(h).approved])), ...quranCorr.n } : quranCorr.n} />
+      {tab === "lessons" ? <LessonBoard asAdmin={asAdmin} onCount={setLessonCount} /> : (
+        <HwPortionGrid items={rows} chapters={chapters} asAdmin={asAdmin} canAssign={canAssign} empty={empty} onChange={onReload} extra={extra} openHash={openHash} correctedCounts={corrView ? { ...Object.fromEntries(rows.map((h) => [h.id, h.kind === "quran" ? 0 : countsOf(h).approved])), ...quranCorr.n } : quranCorr.n} />
       )}
     </section>
   );
