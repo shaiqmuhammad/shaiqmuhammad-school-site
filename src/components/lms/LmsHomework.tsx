@@ -473,7 +473,8 @@ export function LmsHomework() {
   } as DashHw : null;
   const mark = typeof window !== "undefined" ? window.location.hash.replace("#", "") : "";
   const marked: HwHubTab | null = mark === "review" || mark === "lessons" || mark === "corrected" || mark === "assigned" ? mark : null;
-  const openTab: HwHubTab = marked || (openHw ? hwBucket(openHw) : "assigned");
+  // t663: Assigned / Corrected are Homework sub-tabs now, so they highlight the Homework main tab.
+  const openTab: HwHubTab = ((t: HwHubTab) => (t === "assigned" || t === "corrected" ? "homeworks" : t))(marked || (openHw ? hwBucket(openHw) : "assigned"));
 
   return (
     <AssessmentShell title={hw?.title || tr("Homework", "واجب")} exitHref={actor?.role === "parent" ? "/lms/family" : "/lms/homework"} wide={staff} toolbar={actor ? <LmsStaffToolbar /> : undefined}>
@@ -550,7 +551,7 @@ export function LmsHomework() {
                     <>
                       <div className="flex flex-wrap items-center gap-2"><h2 className="text-xl font-bold">{tr("Submissions", "التسليمات")} ({all.length})</h2>{all.length > 0 && <button type="button" className={smallBtn} onClick={() => setDeck(true)} data-testid="hw-review-full">🎯 {tr("Focus", "تركيز")}</button>}</div>
                       <div className="flex flex-wrap gap-2" role="tablist">
-                        <a href="/lms/homework?tab=review" role="tab" aria-selected={subTab === "cur"} onClick={(e) => { if (subTab === "corr") { e.preventDefault(); setSubTab("cur"); } }} className={`rounded-full px-4 py-1.5 text-sm font-extrabold ${subTab === "cur" ? "bg-header text-white" : "bg-black/5 dark:bg-white/10"}`} data-testid="subs-tab-current">📥 {tr("To review", "للمراجعة")} ({all.filter(toRev).length})</a>
+                        <a href="/lms/homework?tab=review" role="tab" aria-selected={subTab === "cur"} onClick={(e) => { if (subTab === "corr") { e.preventDefault(); setSubTab("cur"); } }} className={`rounded-full px-4 py-1.5 text-sm font-extrabold ${subTab === "cur" ? "bg-header text-white" : "bg-black/5 dark:bg-white/10"}`} data-testid="subs-tab-current">📥 {tr("To Review", "للمراجعة")} ({all.filter(toRev).length})</a>
                         <button type="button" role="tab" aria-selected={subTab === "corr"} onClick={() => setSubTab("corr")} className={`rounded-full px-4 py-1.5 text-sm font-extrabold ${subTab === "corr" ? "bg-header text-white" : "bg-black/5 dark:bg-white/10"}`} data-testid="subs-tab-corrected">✅ {tr("Corrected", "المصحَّح")} ({nCorr})</button>
                       </div>
                       {gradeMsg && <p className="rounded-2xl bg-emerald-100 px-4 py-2 font-bold text-emerald-900" role="status" data-testid="grade-saved-msg">{gradeMsg}</p>}

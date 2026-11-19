@@ -41,9 +41,7 @@ const TEACHER: Tab[] = [
   { id: "cls", href: "/lms/classes", en: "My classes", ar: "صفوفي", icon: I.cls, lvl: 0 },
   { id: "lessons", href: "/lms/homework?tab=lessons", en: "Lessons", ar: "الدروس", icon: I.hw, lvl: 1 },
   { id: "hw", href: "/lms/homework", en: "Homework", ar: "الواجبات", icon: I.hw, lvl: 1 },
-  { id: "assigned", href: "/lms/homework?tab=assigned", en: "Assigned Homework", ar: "الواجبات المسندة", icon: I.hw, lvl: 1 },
-  { id: "review", href: "/lms/homework?tab=review", en: "Review", ar: "المراجعة", icon: I.hw, lvl: 1 },
-  { id: "corr", href: "/lms/homework?tab=corrected", en: "Corrected Homeworks", ar: "الواجبات المصحَّحة", icon: I.hw, lvl: 1 },
+  { id: "review", href: "/lms/homework?tab=review", en: "To Review", ar: "للمراجعة", icon: I.hw, lvl: 1 },
   { id: "assess", href: "/lms/assessments", en: "Assessments", ar: "التقييمات", icon: I.assess, lvl: 2 },
   { id: "msg", href: "/lms/messages", en: "Messages", ar: "الرسائل", icon: I.msg, lvl: 2 },
   { id: "act", href: "/lms/activities", en: "Activities", ar: "الأنشطة", icon: I.act, lvl: 3 },
@@ -63,7 +61,7 @@ function QuranTrackerIcon() {
     </svg>
   );
 }
-const HW_NAV = ["lessons", "hw", "assigned", "review", "corr"];
+const HW_NAV = ["lessons", "hw", "tasks", "review"];
 const DISC = ["bg-white/15 text-white ring-1 ring-white/25"];
 
 /**
@@ -181,7 +179,8 @@ export function LmsTabs() {
       const got = params.get("id")
         ? (fromHash === "lessons" || fromHash === "assigned" || fromHash === "review" || fromHash === "corrected" ? fromHash : "homeworks")
         : (params.get("tab") || "homeworks");
-      const norm = got === "homework" || got === "homeworks" ? "hw" : got === "corrected" || got === "corrected-homeworks" ? "corr" : got === "lesson" || got === "lessons" ? "lessons" : got === "assigned" || got === "assigned-homework" ? "assigned" : got === "review" || got === "to-review" || got === "toreview" ? "review" : got;
+      // t663: Assigned / Corrected are Homework sub-tabs now.
+      const norm = got === "homework" || got === "homeworks" || got === "corrected" || got === "corrected-homeworks" || got === "assigned" || got === "assigned-homework" ? "hw" : got === "lesson" || got === "lessons" ? "lessons" : got === "task" || got === "tasks" || got === "quran" ? "hw" : got === "review" || got === "to-review" || got === "toreview" ? "review" : got;
       return t.id === norm;
     }
     return path === tPath;
