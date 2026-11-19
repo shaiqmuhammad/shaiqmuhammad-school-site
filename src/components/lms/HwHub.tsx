@@ -166,10 +166,37 @@ function groupKey(h: DashHw) {
   return `${yearOf(h)}|${sectionOf(h)}`;
 }
 
+/** t670: child-friendly tab widgets for the Homework page — big rounded cards, a bright colour per tab, bubbly counts. */
+export type KidTheme = "lessons" | "tasks" | "homeworks" | "quran" | "review";
+const KID_GRAD: Record<KidTheme, string> = {
+  lessons: "from-violet-400 to-fuchsia-500",
+  tasks: "from-amber-400 to-orange-500",
+  homeworks: "from-sky-400 to-blue-600",
+  quran: "from-emerald-400 to-teal-600",
+  review: "from-rose-400 to-pink-600",
+};
+export function kidTabCls(t: KidTheme, on: boolean) {
+  return `group inline-flex min-w-[9.5rem] items-center gap-3 rounded-3xl px-4 py-3 text-base font-extrabold shadow-md transition duration-200 hover:-translate-y-1 hover:shadow-xl active:scale-95 motion-reduce:transform-none ${on ? `bg-gradient-to-br ${KID_GRAD[t]} text-white shadow-lg ring-4 ring-white/70 dark:ring-white/25` : "bg-white/85 text-[#1b2f44] ring-1 ring-black/10 backdrop-blur-md hover:bg-white dark:bg-white/10 dark:text-white dark:ring-white/15 dark:hover:bg-white/15"}`;
+}
+export function KidIcon({ t, on, ic }: { t: KidTheme; on: boolean; ic: string }) {
+  return <span aria-hidden className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl text-2xl shadow-inner transition group-hover:rotate-6 motion-reduce:transform-none ${on ? "bg-white/25" : `bg-gradient-to-br ${KID_GRAD[t]}`}`}>{ic}</span>;
+}
+export function KidBubble({ t, on, n, small = false }: { t: KidTheme; on: boolean; n: number; small?: boolean }) {
+  return <span className={`inline-grid place-items-center rounded-full font-black shadow ${small ? "h-6 min-w-6 px-1.5 text-xs" : "h-7 min-w-7 px-2 text-sm"} ${on ? "bg-white text-[#1b2f44]" : `bg-gradient-to-br ${KID_GRAD[t]} text-white`}`} data-testid="kid-count">{n}</span>;
+}
+export function kidSubCls(t: KidTheme, on: boolean) {
+  return `inline-flex items-center gap-2 rounded-2xl px-3.5 py-2 text-sm font-extrabold shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95 motion-reduce:transform-none ${on ? `bg-gradient-to-br ${KID_GRAD[t]} text-white shadow-md` : "bg-white/85 text-[#1b2f44] ring-1 ring-black/10 backdrop-blur-md hover:bg-white dark:bg-white/10 dark:text-white dark:ring-white/15"}`;
+}
+/** A sub-tab row in its parent tab's colour (soft tinted glass panel). */
+export function kidSubRow(t: KidTheme) {
+  const tint: Record<KidTheme, string> = { lessons: "bg-violet-100/60 dark:bg-violet-400/10", tasks: "bg-amber-100/70 dark:bg-amber-400/10", homeworks: "bg-sky-100/70 dark:bg-sky-400/10", quran: "bg-emerald-100/70 dark:bg-emerald-400/10", review: "bg-rose-100/70 dark:bg-rose-400/10" };
+  return `flex flex-wrap gap-2 rounded-3xl p-2 ring-1 ring-black/5 dark:ring-white/10 ${tint[t]}`;
+}
+
 export function HwHubTabs({ tab, onTab, className = "", counts }: { tab: HwHubTab; onTab: (t: HwHubTab) => void; className?: string; counts?: Partial<Record<HwHubTab, number>> }) {
   const { tr } = useTr();
   return (
-    <div className={`flex flex-wrap gap-2 ${className}`} role="tablist" data-testid="hw-hub-tabs">
+    <div className={`flex flex-wrap gap-3 ${className}`} role="tablist" data-testid="hw-hub-tabs">
       {TAB_ITEMS.filter(({ id }) => id !== "review" || tab === "review").map(({ id, ic, en, ar }) => (
         <a
           key={id}
@@ -181,10 +208,12 @@ export function HwHubTabs({ tab, onTab, className = "", counts }: { tab: HwHubTa
             e.preventDefault();
             onTab(id);
           }}
-          className={`rounded-full px-4 py-2 text-sm font-extrabold shadow-sm transition ${tab === id ? "bg-header text-white" : "bg-white text-[#1b2f44] hover:bg-sun/50 dark:bg-white/10 dark:text-white"}`}
+          className={kidTabCls(id as KidTheme, tab === id)}
           data-testid={`hw-tab-${id}`}
         >
-          {ic} {tr(en, ar)}{counts?.[id] !== undefined ? ` (${counts[id]})` : ""}
+          <KidIcon t={id as KidTheme} on={tab === id} ic={ic} />
+          <span className="flex-1">{tr(en, ar)}</span>
+          {counts?.[id] !== undefined && <KidBubble t={id as KidTheme} on={tab === id} n={counts[id]!} />}
         </a>
       ))}
     </div>
@@ -597,8 +626,8 @@ export function TeacherHomeworkHub({
         <HomeworkHubTabs tab={tab} onTab={onTab} counts={hubCounts} />
         {toolbar}
       </div>
-      {grp && cur && <div className="flex flex-wrap gap-2" role="tablist" data-testid={grp === "tasks" ? "hw-task-subtabs" : `hw-${grp}-subtabs`}>
-        {HW_SUBS.filter(([k]) => k !== "unassigned" || cur.unassigned.length > 0 || sub === "unassigned").map(([k, ic]) => <button key={k} type="button" role="tab" aria-selected={sub === k} onClick={() => setSub(k)} className={`rounded-full px-3 py-1.5 text-xs font-extrabold shadow-sm transition ${sub === k ? "bg-header text-white" : "bg-white text-[#1b2f44] hover:bg-sun/50 dark:bg-white/10 dark:text-white"}`} data-testid={grp === "tasks" ? `hw-task-sub-${k}` : `hw-${grp}-sub-${k}`}>{ic} {tr(...SUB_LABEL[grp][k])} ({cur[k].length})</button>)}
+      {grp && cur && <div className={kidSubRow(grp)} role="tablist" data-testid={grp === "tasks" ? "hw-task-subtabs" : `hw-${grp}-subtabs`}>
+        {HW_SUBS.filter(([k]) => k !== "unassigned" || cur.unassigned.length > 0 || sub === "unassigned").map(([k, ic]) => <button key={k} type="button" role="tab" aria-selected={sub === k} onClick={() => setSub(k)} className={kidSubCls(grp, sub === k)} data-testid={grp === "tasks" ? `hw-task-sub-${k}` : `hw-${grp}-sub-${k}`}><span aria-hidden className="text-lg">{ic}</span>{tr(...SUB_LABEL[grp][k])} <KidBubble t={grp} on={sub === k} n={cur[k].length} small /></button>)}
       </div>}
       {tab === "lessons" ? <LessonBoard asAdmin={asAdmin} onCount={setLessonCount} /> : (
         <HwPortionGrid items={rows} chapters={chapters} asAdmin={asAdmin} canAssign={canAssign} empty={empty} onChange={onReload} extra={extra} openHash={openHash} correctedCounts={corrView ? { ...Object.fromEntries(rows.map((h) => [h.id, h.kind === "quran" ? 0 : countsOf(h).approved])), ...quranCorr.n } : quranCorr.n} />

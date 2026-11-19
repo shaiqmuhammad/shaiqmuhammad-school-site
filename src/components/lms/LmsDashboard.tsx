@@ -18,7 +18,7 @@ import { AssessmentShell, primaryBtn } from "@/components/assessment/AssessmentS
 import { HomeworkEditor } from "@/components/lms/HomeworkEditor";
 import { Certificates, Leaderboard, LeaderboardSetting, ProgressCard, RevisionList } from "@/components/lms/Progress";
 import { Avatar } from "@/components/lms/Avatar";
-import { TeacherHomeworkHub, reviewCount, tabFromLocation, type HwHubTab } from "@/components/lms/HwHub";
+import { KidBubble, KidIcon, kidSubCls, kidSubRow, kidTabCls, TeacherHomeworkHub, reviewCount, tabFromLocation, type HwHubTab } from "@/components/lms/HwHub";
 import { exportAllHomeworkZip } from "@/components/lms/lmsFiles";
 import { STATUS_STYLE, card, smallBtn, statusLabel, useLmsActor, useTr, GRADE_STYLE, gradeLabel } from "@/components/lms/useLms";
 import { lmsApi, lmsErrorText, lmsSignOut, mpShown, quranChapters, type Chapter, type QuranData } from "@/lib/lms";
@@ -220,12 +220,13 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
                   quran: [["all", "📋", "Assigned Quran Homework", "واجبات القرآن المسندة"], ["pending", "⏳", "Pending Quran Homework", "واجبات القرآن المعلّقة"], ["done", "✅", "Completed Quran Homework", "واجبات القرآن المكتملة"]],
                 } as const;
                 const nOf = { all: allOf[stuTab].length, pending: pendOf[stuTab].length, done: doneOf[stuTab].length };
+                const kTheme = { tasks: "tasks", open: "homeworks", quran: "quran" } as const;
                 const subKey = showingTasks ? "task" : stuTab === "open" ? "hw" : "quran";
                 return (
                   <>
                     {hwOnly ? (
-                      <div className="mb-3 flex flex-wrap gap-2" role="tablist" data-testid="stu-hw-tabs">
-                        {MAIN.map(([k, ic, en, ar]) => <button key={k} type="button" role="tab" aria-selected={stuTab === k} onClick={() => pick(k)} className={`rounded-full px-4 py-2 text-sm font-extrabold shadow-sm ${stuTab === k ? "bg-header text-white" : "bg-white text-[#1b2f44] dark:bg-white/10 dark:text-white"}`} data-testid={`stu-hw-tab-${k}`}>{ic} {tr(en, ar)} ({pendOf[k].length})</button>)}
+                      <div className="mb-3 flex flex-wrap gap-3" role="tablist" data-testid="stu-hw-tabs">
+                        {MAIN.map(([k, ic, en, ar]) => <button key={k} type="button" role="tab" aria-selected={stuTab === k} onClick={() => pick(k)} className={kidTabCls(kTheme[k], stuTab === k)} data-testid={`stu-hw-tab-${k}`}><KidIcon t={kTheme[k]} on={stuTab === k} ic={ic} /><span className="flex-1 text-start">{tr(en, ar)}</span><KidBubble t={kTheme[k]} on={stuTab === k} n={pendOf[k].length} /></button>)}
                       </div>
                     ) : (
                       <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
@@ -236,8 +237,8 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
                         </span>
                       </div>
                     )}
-                    {hwOnly && <div className="mb-3 flex flex-wrap gap-2" role="tablist" data-testid={`stu-${subKey}-subtabs`}>
-                      {SUBL[stuTab].map(([k, ic, en, ar]) => <button key={k} type="button" role="tab" aria-selected={sub === k} onClick={() => pickSub(k)} className={`rounded-full px-3 py-1.5 text-xs font-extrabold shadow-sm transition ${sub === k ? "bg-header text-white" : "bg-white text-[#1b2f44] dark:bg-white/10 dark:text-white"}`} data-testid={`stu-${subKey}-sub-${k}`}>{ic} {tr(en, ar)} ({nOf[k]})</button>)}
+                    {hwOnly && <div className={"mb-3 " + kidSubRow(kTheme[stuTab])} role="tablist" data-testid={`stu-${subKey}-subtabs`}>
+                      {SUBL[stuTab].map(([k, ic, en, ar]) => <button key={k} type="button" role="tab" aria-selected={sub === k} onClick={() => pickSub(k)} className={kidSubCls(kTheme[stuTab], sub === k)} data-testid={`stu-${subKey}-sub-${k}`}><span aria-hidden className="text-lg">{ic}</span>{tr(en, ar)} <KidBubble t={kTheme[stuTab]} on={sub === k} n={nOf[k]} small /></button>)}
                     </div>}
                     {list.length === 0 && <p className={card + " opacity-80"} data-testid="stu-hw-empty">{showingDone ? tr("Nothing submitted yet.", "لم يُسلَّم شيء بعد.") : showingTasks ? tr("No tasks yet.", "لا توجد مهام بعد.") : dash.homework.length === 0 ? tr("No homework yet — enjoy your day!", "لا توجد واجبات بعد — استمتع بيومك!") : tr("Nothing waiting. Handed-in work is under Completed Homework.", "لا شيء بانتظارك. العمل المُسلَّم في الواجبات المكتملة.")}</p>}
                     <ul className="grid gap-3 sm:grid-cols-2">
