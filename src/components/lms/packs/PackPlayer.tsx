@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { smallBtn, useTr } from "@/components/lms/useLms";
+import { smallBtn, useTr, useLmsActor } from "@/components/lms/useLms";
 import { LB_AR as LB_AR_P, LB_EN as LB_EN_P, lp, uid, type El, type Pack, type Slide } from "@/lib/packs";
 import { SlideView } from "./SlideView";
 import { qrSvg } from "@/lib/qrLocal";
@@ -59,6 +59,9 @@ export function PackPlayer({ id, asAdmin = false, review, preview = false, locke
   }, []);
   useEffect(() => { if (!full) return; const k = (e: KeyboardEvent) => { if (e.key === "Escape" && !document.fullscreenElement) { setFull(false); setPageFocus(false); } }; window.addEventListener("keydown", k); return () => window.removeEventListener("keydown", k); }, [full]);
   const student = !review && !preview && !asAdmin;
+  const { actor } = useLmsActor();
+  /** t650: a signed-in student (teachers presenting from their LMS account still see every slide). */
+  const pupil = student && actor?.role === "student";
   const load = useCallback(() => (review ? lp.work(id, review.student, asAdmin).then((r) => { setPack(r.pack || null); setWork(r.work || []); }) : lp.get(id, asAdmin).then((r) => { setPack(r.pack); setWork(r.work || []); })).catch((e) => setMsg(String((e as Error).message))), [id, asAdmin, review]);
   useEffect(() => { load(); }, [load]);
   // Live: follow the teacher's slide.
@@ -72,10 +75,20 @@ export function PackPlayer({ id, asAdmin = false, review, preview = false, locke
   const slides = pack?.slides || [];
   const order = useMemo(() => {
     const list = pack?.slides || [];
-    if (!only || live) return list.map((_, i) => i);
+    // t646: a Quran Homework slide is assigned as its own Quran homework, so students don't see it inside the pack.
+    // t650: lesson slides (no type, or the old "lesson" type) stay with the teacher when a pack also has Task / Homework slides.
+    const typed = list.some((x) => x.part === "activity" || x.part === "homework" || x.part === "quran");
+    const all = list.map((_, i) => i).filter((i) => {
+      if (!pupil) return true;
+      const k = slideKind(list[i], pack?.type);
+      if (k === "quran" && pack?.type !== "quran") return false;
+      if (typed && (!list[i].part || list[i].part === "lesson")) return false;
+      return true;
+    });
+    if (!only || live) return all.length ? all : list.map((_, i) => i);
     const hit = list.map((s, i) => (slideKind(s, pack?.type) === only ? i : -1)).filter((i) => i >= 0);
     return hit.length ? hit : list.map((_, i) => i);
-  }, [only, live, pack]);
+  }, [only, live, pack, pupil]);
   useEffect(() => { if (only && !live && order.length && !order.includes(cur)) setCur(order[0]); }, [only, live, order, cur]);
   const at = order.includes(cur) ? cur : (order[0] ?? 0);
   const pos = Math.max(0, order.indexOf(at));
@@ -141,7 +154,7 @@ export function PackPlayer({ id, asAdmin = false, review, preview = false, locke
         {pack.topic?.title && !full && <span className="rounded-full bg-sky-100 px-2 py-0.5 text-xs text-sky-900" dir="auto">🎯 {pack.topic.title}</span>}
         {(() => { const kind = slideKind(s, pack.type); if (!kind) return null; const [en, ar] = partText(kind, !review); return <span className={`rounded-full px-2 py-0.5 text-xs font-extrabold ${PART_LABEL[kind][3]}`} data-testid="lp-player-part">{PART_LABEL[kind][0]} {tr(en, ar)}</span>; })()}
         <span className="flex-1" />
-        {left !== null && !review && <span className={`rounded-full px-3 py-0.5 font-mono text-base font-extrabold tabular-nums shadow ${left === 0 ? "bg-rose-600 text-white" : left <= 30 ? "animate-pulse bg-amber-400 text-[#1b2f44]" : "bg-[#1b3a57] text-[#f5c542]"}`} title={slideLeft !== null ? tr("Time for this slide", "وقت هذه الشريحة") : tr("Time for the activity", "وقت النشاط")} data-testid="lp-timer-left">⏱ {left === 0 ? tr("Time's up!", "انتهى الوقت!") : fmtT(left)}</span>}
+        {left !== null && !review && <span className={`rounded-full px-3 py-0.5 font-mono text-base font-extrabold tabular-nums shadow ${left === 0 ? "bg-rose-600 text-white" : left <= 30 ? "animate-pulse bg-amber-400 text-[#1b2f44]" : "bg-[#1b3a57] text-[#f5c542]"}`} title={slideLeft !== null ? tr("Time for this slide", "وقت هذه الشريحة") : tr("Time for the task", "وقت المهمة")} data-testid="lp-timer-left">⏱ {left === 0 ? tr("Time's up!", "انتهى الوقت!") : fmtT(left)}</span>}
         {staffView && <button type="button" className={smallBtn} onClick={doPrint} disabled={printing} title={tr("Colourful printable with QR code", "نسخة ملوّنة للطباعة مع رمز QR")} data-testid="lp-print">🖨 {printing ? "…" : tr("Print / PDF", "طباعة / PDF")}</button>}
         <button type="button" className={smallBtn} onClick={() => void toggleFull()} title={full ? tr("Exit Focus (Esc)", "إنهاء التركيز (Esc)") : tr("Focus — open this slide full screen, with the text, picture and camera tools", "تركيز — افتح هذه الشريحة بملء الشاشة مع أدوات النص والصورة والكاميرا")} data-testid="lp-full" data-focus-keep>{full ? "✕" : "🎯"} {full ? tr("Exit Focus", "إنهاء التركيز") : tr("Focus", "تركيز")}</button>
         {pinch.zoom !== 1 && <span className="rounded-full bg-white/20 px-2 py-0.5 text-xs tabular-nums" data-testid="lp-zoom-level">{Math.round(pinch.zoom * 100)}%</span>}

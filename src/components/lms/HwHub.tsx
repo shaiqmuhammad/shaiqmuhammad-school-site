@@ -14,12 +14,13 @@ import { modErr, qhwPerm } from "@/lib/lmsMods";
 import { PptDownload } from "@/components/lms/packs/PptDownload";
 import { hwParts, lp, packParts, PART_LABEL, partText, type Acc, type Pack } from "@/lib/packs";
 
-export type HwHubTab = "lessons" | "homeworks" | "assigned" | "review" | "corrected";
+export type HwHubTab = "lessons" | "homeworks" | "tasks" | "assigned" | "review" | "corrected";
 export type DashHw = Homework & { counts?: Record<string, number>; assigned?: number };
 
 const TAB_ITEMS: { id: HwHubTab; ic: string; en: string; ar: string }[] = [
   { id: "lessons", ic: "🎤", en: "Lessons", ar: "الدروس" },
   { id: "homeworks", ic: "📝", en: "Homework", ar: "الواجبات" },
+  { id: "tasks", ic: "✏️", en: "Tasks", ar: "مهام" },
   { id: "assigned", ic: "📋", en: "Assigned Homework", ar: "الواجبات المسندة" },
   { id: "review", ic: "📥", en: "Review", ar: "المراجعة" },
   { id: "corrected", ic: "✅", en: "Corrected Homeworks", ar: "الواجبات المصحَّحة" },
@@ -56,6 +57,7 @@ export function tabFromLocation(): HwHubTab {
   const h = window.location.hash.replace("#", "");
   const v = (q || h).toLowerCase();
   if (v === "lessons" || v === "lesson") return "lessons";
+  if (v === "tasks" || v === "task") return "tasks";
   if (v === "assigned" || v === "assigned-homework") return "assigned";
   if (v === "review" || v === "to-review" || v === "toreview" || v === "to_review") return "review";
   if (v === "corrected" || v === "corrected-homeworks") return "corrected";
@@ -79,6 +81,11 @@ function countsOf(h: DashHw) {
 
 function isActivity(h: DashHw) {
   return !!(h.data as { activity?: boolean } | undefined)?.activity;
+}
+
+/** t651: assigned work with Task slides (or an older activity pack). */
+export function isTaskHw(h: DashHw) {
+  return isLive(h) && (isActivity(h) || hwParts(h.data as { activity?: boolean; parts?: unknown }, h.kind).includes("activity"));
 }
 
 function isLive(h: DashHw) {
@@ -146,7 +153,7 @@ function groupKey(h: DashHw) {
   return `${yearOf(h)}|${sectionOf(h)}`;
 }
 
-export function HwHubTabs({ tab, onTab, className = "" }: { tab: HwHubTab; onTab: (t: HwHubTab) => void; className?: string }) {
+export function HwHubTabs({ tab, onTab, className = "", counts }: { tab: HwHubTab; onTab: (t: HwHubTab) => void; className?: string; counts?: Partial<Record<HwHubTab, number>> }) {
   const { tr } = useTr();
   return (
     <div className={`flex flex-wrap gap-2 ${className}`} role="tablist" data-testid="hw-hub-tabs">
@@ -164,7 +171,7 @@ export function HwHubTabs({ tab, onTab, className = "" }: { tab: HwHubTab; onTab
           className={`rounded-full px-4 py-2 text-sm font-extrabold shadow-sm transition ${tab === id ? "bg-header text-white" : "bg-white text-[#1b2f44] hover:bg-sun/50 dark:bg-white/10 dark:text-white"}`}
           data-testid={`hw-tab-${id}`}
         >
-          {ic} {tr(en, ar)}
+          {ic} {tr(en, ar)}{counts?.[id] !== undefined ? ` (${counts[id]})` : ""}
         </a>
       ))}
     </div>
@@ -172,13 +179,13 @@ export function HwHubTabs({ tab, onTab, className = "" }: { tab: HwHubTab; onTab
 }
 
 /** Same tab bar on list pages and on an opened homework; from an opened homework, a tab goes back to that list. */
-export function HomeworkHubTabs({ tab, onTab }: { tab: HwHubTab; onTab?: (t: HwHubTab) => void }) {
+export function HomeworkHubTabs({ tab, onTab, counts }: { tab: HwHubTab; onTab?: (t: HwHubTab) => void; counts?: Partial<Record<HwHubTab, number>> }) {
   const router = useRouter();
   const go = (t: HwHubTab) => {
     if (onTab) onTab(t);
     else router.push(tabHref(t));
   };
-  return <HwHubTabs tab={tab} onTab={go} />;
+  return <HwHubTabs tab={tab} onTab={go} counts={counts} />;
 }
 
 function sharedOnly(h: DashHw, actorId?: string, role?: string) {
@@ -268,7 +275,7 @@ export function HwPortionGrid({
       <article key={h.id} className={`light-island group relative overflow-hidden rounded-2xl border border-black/10 bg-gradient-to-br p-4 pt-5 shadow-md ring-1 ring-black/5 ${PORTION_WASH[n]} ${PORTION_LIFT}`} data-testid="hw-portion">
         <span className={`pointer-events-none absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r ${PORTION_BAR[n]}`} aria-hidden />
         <p className="text-xl font-extrabold leading-tight text-heading sm:text-2xl" dir="auto"><span className="me-1 inline-block origin-center transition group-hover:scale-110" aria-hidden>{icon}</span>{h.title}</p>
-        {isActivity(h) && !(Array.isArray((h.data as { parts?: unknown }).parts) && ((h.data as { parts?: unknown[] }).parts || []).length) && <span className="mt-1 inline-flex rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-extrabold text-violet-900 dark:bg-violet-900/40 dark:text-violet-100" data-testid="hw-activity-badge">{tr("Activity", "نشاط")}</span>}
+        {isActivity(h) && !(Array.isArray((h.data as { parts?: unknown }).parts) && ((h.data as { parts?: unknown[] }).parts || []).length) && <span className="mt-1 inline-flex rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-extrabold text-violet-900 dark:bg-violet-900/40 dark:text-violet-100" data-testid="hw-activity-badge">{tr("Task", "مهمة")}</span>}
         {hwParts(h.data as { activity?: boolean; parts?: unknown }, h.kind).length > 0 && Array.isArray((h.data as { parts?: unknown }).parts) && <p className="mt-1 flex flex-wrap gap-1" data-testid="hw-parts">{hwParts(h.data as { activity?: boolean; parts?: unknown }, h.kind).map((k) => <span key={k} className={`rounded-full px-2 py-0.5 text-[11px] font-extrabold ${PART_LABEL[k][3]}`}>{PART_LABEL[k][0]} {tr(partText(k, false)[0], partText(k, false)[1])}</span>)}</p>}
         {h.kind === "quran" && <TrkLink id={h.id} kind="hw" asAdmin={asAdmin} />}
         <HwMeta {...hwAud(h)} className="mt-1" />
@@ -442,7 +449,7 @@ function LessonBoard({ asAdmin }: { asAdmin: boolean }) {
       )}
       {msg && !(bad && !items?.length) && <p role="status" className={`rounded-xl px-3 py-2 text-sm font-semibold ${bad ? "bg-rose-100 text-rose-900" : "bg-emerald-100 text-emerald-900"}`}>{msg}</p>}
       {!items?.length || !shown.length ? (
-        <p className={cardCls + " text-center opacity-70"} data-testid="lesson-hub-empty">{bad && msg ? msg : tr("No lesson presentations for your classes yet. Build them in Lesson Builder — homework, activities and Quran homework stay on their own tabs.", "لا توجد عروض دروس لصفوفك بعد. أنشئها في منشئ الدروس — الواجبات والأنشطة وواجب القرآن تبقى في صفحاتها.")}</p>
+        <p className={cardCls + " text-center opacity-70"} data-testid="lesson-hub-empty">{bad && msg ? msg : tr("No lesson presentations for your classes yet. Build them in Lesson Builder — homework, tasks and Quran homework stay on their own tabs.", "لا توجد عروض دروس لصفوفك بعد. أنشئها في منشئ الدروس — الواجبات والمهام وواجب القرآن تبقى في صفحاتها.")}</p>
       ) : (
         <div className="space-y-6" data-testid="lesson-portion-groups">
           {(() => { let lessonN = 0; return groups.map((g, i) => {
@@ -513,26 +520,34 @@ export function TeacherHomeworkHub({
     }).catch(() => { if (live) setQuranCorr({ ids: new Set(), n: {} }); });
     return () => { live = false; };
   }, [asAdmin, dash.homework]);
-  const rows = dash.homework.filter((h) => {
+  /** t652: Tasks sub-tabs — assigned, completed (handed in, waiting for correction), corrected. */
+  const [taskSub, setTaskSub] = useState<"assigned" | "completed" | "corrected">("assigned");
+  const tasks = dash.homework.filter(isTaskHw);
+  const taskRows = { assigned: tasks, completed: tasks.filter(needsReview), corrected: tasks.filter((h) => hasCorrectedWork(h, quranCorr.ids)) };
+  const rows = tab === "tasks" ? taskRows[taskSub] : dash.homework.filter((h) => {
     if (tab === "lessons") return false;
     if (tab === "corrected") return hasCorrectedWork(h, quranCorr.ids);
     if (tab === "review") return needsReview(h);
     return hwBucket(h) === tab;
   });
   const empty =
-    tab === "homeworks" ? tr("No homework or activities waiting to be assigned. Once you assign them to students, they move to Assigned Homework.", "لا توجد واجبات أو أنشطة بانتظار الإسناد. بعد إسنادها للطلاب تنتقل إلى الواجبات المسندة.")
-    : tab === "assigned" ? tr("No assigned homework, activities, or Quran homework.", "لا توجد واجبات أو أنشطة أو واجبات قرآن مسندة.")
+    tab === "homeworks" ? tr("No homework or tasks waiting to be assigned. Once you assign them to students, they move to Assigned Homework.", "لا توجد واجبات أو مهام بانتظار الإسناد. بعد إسنادها للطلاب تنتقل إلى الواجبات المسندة.")
+    : tab === "assigned" ? tr("No assigned homework, tasks, or Quran homework.", "لا توجد واجبات أو مهام أو واجبات قرآن مسندة.")
+    : tab === "tasks" ? (taskSub === "completed" ? tr("No completed tasks waiting for correction.", "لا توجد مهام مكتملة بانتظار التصحيح.") : taskSub === "corrected" ? tr("No corrected tasks yet.", "لا توجد مهام مصحَّحة بعد.") : tr("No assigned tasks yet. Task slides you assign from Lesson Builder appear here.", "لا توجد مهام مسندة بعد. تظهر هنا شرائح المهام التي تسندها من منشئ الدروس."))
     : tab === "review" ? tr("Nothing submitted and waiting for correction.", "لا يوجد عمل مُسلَّم بانتظار التصحيح.")
     : tr("No corrected homework yet. Work you have corrected appears here.", "لا توجد واجبات مصحَّحة بعد. يظهر هنا ما صحّحته.");
-  const openHash = tab === "corrected" ? "#corrected" : tab === "review" ? "#review" : "";
+  const openHash = tab === "corrected" || (tab === "tasks" && taskSub === "corrected") ? "#corrected" : tab === "review" || (tab === "tasks" && taskSub === "completed") ? "#review" : "";
   return (
     <section id="homework" className="scroll-mt-28 space-y-4" data-testid="hw-hub">
       <div className="flex flex-wrap items-center gap-2">
-        <HomeworkHubTabs tab={tab} onTab={onTab} />
+        <HomeworkHubTabs tab={tab} onTab={onTab} counts={{ tasks: tasks.length }} />
         {toolbar}
       </div>
+      {tab === "tasks" && <div className="flex flex-wrap gap-2" role="tablist" data-testid="hw-task-subtabs">
+        {([["assigned", "📋", "Assigned Tasks", "المهام المسندة"], ["completed", "📥", "Completed Tasks", "المهام المكتملة"], ["corrected", "✅", "Corrected Tasks", "المهام المصحَّحة"]] as const).map(([k, ic, en, ar]) => <button key={k} type="button" role="tab" aria-selected={taskSub === k} onClick={() => setTaskSub(k)} className={`rounded-full px-3 py-1.5 text-xs font-extrabold shadow-sm transition ${taskSub === k ? "bg-header text-white" : "bg-white text-[#1b2f44] hover:bg-sun/50 dark:bg-white/10 dark:text-white"}`} data-testid={`hw-task-sub-${k}`}>{ic} {tr(en, ar)} ({taskRows[k].length})</button>)}
+      </div>}
       {tab === "lessons" ? <LessonBoard asAdmin={asAdmin} /> : (
-        <HwPortionGrid items={rows} chapters={chapters} asAdmin={asAdmin} canAssign={canAssign} empty={empty} onChange={onReload} extra={extra} openHash={openHash} correctedCounts={tab === "corrected" ? { ...Object.fromEntries(rows.map((h) => [h.id, h.kind === "quran" ? 0 : countsOf(h).approved])), ...quranCorr.n } : quranCorr.n} />
+        <HwPortionGrid items={rows} chapters={chapters} asAdmin={asAdmin} canAssign={canAssign} empty={empty} onChange={onReload} extra={extra} openHash={openHash} correctedCounts={tab === "corrected" || (tab === "tasks" && taskSub === "corrected") ? { ...Object.fromEntries(rows.map((h) => [h.id, h.kind === "quran" ? 0 : countsOf(h).approved])), ...quranCorr.n } : quranCorr.n} />
       )}
     </section>
   );

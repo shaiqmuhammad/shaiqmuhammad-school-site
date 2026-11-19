@@ -16,19 +16,22 @@ export type ElAct = { t: "act"; code?: string; quiz?: string; label?: string };
 export type ElDoc = { t: "doc"; src: string; kind: "pptx" | "pdf"; name?: string; rot?: number; crop?: { l: number; t: number; r: number; b: number } };
 export type ElQuran = { t: "quran"; surah: number; from: number; to: number; reciter?: string; memorise?: boolean; memoAudio?: boolean; translit?: boolean; translation?: boolean; notes?: string };
 export type El = { id: string; x: number; y: number; w: number; h: number; by?: "t" | "s"; /** t429: teacher lock — can't be moved or deleted until unlocked */ lock?: boolean; rot?: number; crop?: { l: number; t: number; r: number; b: number } } & (ElText | ElImg | ElAudio | ElVideo | ElDraw | ElYt | ElAct | ElQuran | ElDoc);
-export type Part = "lesson" | "activity" | "homework";
+/** "quran" (t646): a Quran Homework slide — assigned as its own Quran homework when the pack is assigned. */
+export type Part = "lesson" | "activity" | "homework" | "quran";
 /** t429: part (lesson / activity / homework), timer seconds, instructions for students (+ recorded audio id). */
 export type Slide = { id: string; bg: string; els: El[]; part?: Part; timer?: number; instr?: string; instrAudio?: string; rot?: number };
-export const PART_LABEL: Record<Part, [string, string, string, string]> = { lesson: ["🎤", "Lesson", "درس", "bg-[#1b3a57] text-[#f5c542]"], activity: ["✏️", "Activity", "نشاط", "bg-violet-600 text-white"], homework: ["📝", "Homework", "واجب", "bg-amber-500 text-[#1b2f44]"] };
+export const PART_LABEL: Record<Part, [string, string, string, string]> = { lesson: ["🎤", "Lesson", "درس", "bg-[#1b3a57] text-[#f5c542]"], activity: ["✏️", "Task", "مهمة", "bg-violet-600 text-white"], homework: ["📝", "Homework", "واجب", "bg-amber-500 text-[#1b2f44]"], quran: ["📖", "Quran Homework", "واجب القرآن", "bg-emerald-700 text-white"] };
 export const PARTS: Part[] = ["lesson", "activity", "homework"];
-/** Teachers keep "Activity". Students see the same slide as "Task". The stored value stays "activity". */
+/** t646: the slide types a teacher can choose. A slide with no type stays a normal lesson slide. */
+export const SLIDE_PARTS: Part[] = ["activity", "homework", "quran"];
+/** t646: "Activity" is called "Task" everywhere (teachers and students). The stored value stays "activity". */
 export function partText(part: Part, student: boolean): [string, string] {
-  if (student && part === "activity") return ["Task", "مهمة"];
+  void student;
   return [PART_LABEL[part][1], PART_LABEL[part][2]];
 }
 /** A slide with no type follows the pack, so older packs still open on one page. */
 export function slideKind(s: { part?: string }, packType?: string): Part | "" {
-  if (s.part === "lesson" || s.part === "activity" || s.part === "homework") return s.part;
+  if (s.part === "lesson" || s.part === "activity" || s.part === "homework" || s.part === "quran") return s.part;
   if (packType === "lesson" || packType === "activity" || packType === "homework") return packType;
   return "";
 }
@@ -43,7 +46,8 @@ export function packParts(p: { type?: string; parts?: string[]; slides?: { part?
 }
 /** Pages a homework row belongs on. `parts` is copied from the slides when the pack is assigned. */
 export function hwParts(data: { activity?: boolean; parts?: unknown } | null | undefined, kind?: string): Part[] {
-  const list = Array.isArray(data?.parts) ? data.parts.filter((x): x is Part => x === "lesson" || x === "activity" || x === "homework") : [];
+  // t650: lesson slides are never assigned to students, so a row's "lesson" page is ignored (old rows keep their other pages).
+  const list = Array.isArray(data?.parts) ? data.parts.filter((x): x is Part => x === "activity" || x === "homework") : [];
   const uniq = PARTS.filter((k) => list.includes(k));
   if (uniq.length) return uniq;
   if (data?.activity) return ["activity"];
@@ -58,7 +62,7 @@ export type Pack = { id: string; owner: string; ownerName: string; title: string
 export type Acc = { show: boolean; view: boolean; add: boolean; edit: boolean; delete: boolean };
 export type Progress = { student: string; seen: number; total: number; updated: number; status: string };
 export const FONTS = ["Nunito", "Arial", "Georgia", "Times New Roman", "Courier New", "Comic Sans MS", "Amiri", "Tajawal", "Verdana"];
-export const TYPE_LABEL: Record<PackType, [string, string, string]> = { lesson: ["🎤", "Lesson", "درس"], activity: ["✏️", "Activity", "نشاط"], homework: ["📝", "Homework", "واجب"], quran: ["🎙️", "Quran Homework", "واجب القرآن"], material: ["📚", "Library material", "مادة المكتبة"] };
+export const TYPE_LABEL: Record<PackType, [string, string, string]> = { lesson: ["🎤", "Lesson", "درس"], activity: ["✏️", "Task", "مهمة"], homework: ["📝", "Homework", "واجب"], quran: ["🎙️", "Quran Homework", "واجب القرآن"], material: ["📚", "Library material", "مادة المكتبة"] };
 /** t429: product name + icon (user-facing; the route stays /lms/material). */
 export const LB_EN = "Lesson Builder", LB_AR = "منشئ الدروس", LB_ICON = "📑";
 /** t389: public link for an uploaded PowerPoint / PDF (rendered by the free Office / browser viewer). */

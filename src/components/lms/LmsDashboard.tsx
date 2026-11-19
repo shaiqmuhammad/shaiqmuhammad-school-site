@@ -57,6 +57,8 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
   const [creating, setCreating] = useState(false);
   const [hubTab, setHubTab] = useState<HwHubTab>("homeworks");
   const [stuTab, setStuTab] = useState<"open" | "tasks" | "done">("open");
+  /** t652: Tasks sub-tabs — all assigned, still to hand in, handed in. */
+  const [taskSub, setTaskSub] = useState<"all" | "pending" | "done">("pending");
   // eslint-disable-next-line react-hooks/set-state-in-effect -- deep link from ?tab= / leftover hash
   useEffect(() => {
     const read = () => {
@@ -152,7 +154,7 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
         {!staff && actor && !hwOnly && <LiveActivityBanner />}
         {dash && !hwOnly && <AnnFeed />}
         {dash && !hwOnly && <DashCarousel items={((staff ? [
-          { icon: "📥", title: tr("To review", "للمراجعة"), value: dash.homework.reduce((n, h) => n + reviewCount(h), 0), sub: tr("submissions waiting", "تسليمات بانتظارك"), href: "/lms/homework?tab=review", tone: "coral" },
+          { icon: "📥", title: tr("To Review", "للمراجعة"), value: dash.homework.reduce((n, h) => n + reviewCount(h), 0), sub: tr("submissions waiting", "تسليمات بانتظارك"), href: "/lms/homework?tab=review", tone: "coral" },
           { icon: "📝", title: tr("Homework", "الواجبات"), value: dash.homework.length, sub: tr("active", "نشطة"), href: "/lms/homework", tone: "sun" },
           { icon: "🏫", title: tr("My classes", "صفوفي"), value: (dash.classes || []).length, sub: tr("classes & groups", "صفوف ومجموعات"), href: "/lms/classes", tone: "teal" },
           { icon: "🎒", title: tr("Students", "الطلاب"), value: (dash.students || []).length, sub: tr("in my groups", "في مجموعاتي"), href: "/lms/classes", tone: "navy" },
@@ -184,7 +186,9 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
                 const doneHw = dash.homework.filter(handed);
                 const showingDone = hwOnly && stuTab === "done";
                 const showingTasks = stuTab === "tasks";
-                const list = showingDone ? doneHw : showingTasks ? taskHw : openHw;
+                const allTasks = dash.homework.filter((h) => pages(h).includes("activity"));
+                const doneTasks = allTasks.filter(handed);
+                const list = showingDone ? doneHw : showingTasks ? (taskSub === "all" ? allTasks : taskSub === "done" ? doneTasks : taskHw) : openHw;
                 const pick = (t: "open" | "tasks" | "done") => {
                   setStuTab(t);
                   if (!hwOnly) return;
@@ -195,18 +199,21 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
                     {hwOnly ? (
                       <div className="mb-3 flex flex-wrap gap-2" role="tablist" data-testid="stu-hw-tabs">
                         <button type="button" role="tab" aria-selected={!showingDone && !showingTasks} onClick={() => pick("open")} className={`rounded-full px-4 py-2 text-sm font-extrabold shadow-sm ${!showingDone && !showingTasks ? "bg-header text-white" : "bg-white text-[#1b2f44] dark:bg-white/10 dark:text-white"}`} data-testid="stu-hw-tab-open">📝 {tr("Homeworks", "الواجبات")} ({openHw.length})</button>
-                        <button type="button" role="tab" aria-selected={showingTasks} onClick={() => pick("tasks")} className={`rounded-full px-4 py-2 text-sm font-extrabold shadow-sm ${showingTasks ? "bg-header text-white" : "bg-white text-[#1b2f44] dark:bg-white/10 dark:text-white"}`} data-testid="stu-hw-tab-tasks">✏️ {tr("Tasks", "المهام")} ({taskHw.length})</button>
+                        <button type="button" role="tab" aria-selected={showingTasks} onClick={() => pick("tasks")} className={`rounded-full px-4 py-2 text-sm font-extrabold shadow-sm ${showingTasks ? "bg-header text-white" : "bg-white text-[#1b2f44] dark:bg-white/10 dark:text-white"}`} data-testid="stu-hw-tab-tasks">✏️ {tr("Tasks", "مهام")} ({taskHw.length})</button>
                         <button type="button" role="tab" aria-selected={showingDone} onClick={() => pick("done")} className={`rounded-full px-4 py-2 text-sm font-extrabold shadow-sm ${showingDone ? "bg-header text-white" : "bg-white text-[#1b2f44] dark:bg-white/10 dark:text-white"}`} data-testid="stu-hw-tab-submitted">✅ {tr("Submitted homework", "الواجبات المُسلَّمة")} ({doneHw.length})</button>
                       </div>
                     ) : (
                       <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
                         <h2 className="text-xl font-bold">{tr("Homework", "الواجبات")}</h2>
                         <span className="flex flex-wrap gap-2">
-                          {taskHw.length > 0 && <a href="/lms/homework?tab=tasks" className="rounded-full bg-white px-3 py-1 text-sm font-extrabold text-[#1b2f44] shadow-sm ring-1 ring-black/10 dark:bg-white/10 dark:text-white" data-testid="stu-hw-tasks-link">✏️ {tr("Tasks", "المهام")} ({taskHw.length})</a>}
+                          {taskHw.length > 0 && <a href="/lms/homework?tab=tasks" className="rounded-full bg-white px-3 py-1 text-sm font-extrabold text-[#1b2f44] shadow-sm ring-1 ring-black/10 dark:bg-white/10 dark:text-white" data-testid="stu-hw-tasks-link">✏️ {tr("Tasks", "مهام")} ({taskHw.length})</a>}
                           <a href="/lms/homework?tab=submitted" className="rounded-full bg-white px-3 py-1 text-sm font-extrabold text-[#1b2f44] shadow-sm ring-1 ring-black/10 dark:bg-white/10 dark:text-white" data-testid="stu-hw-submitted-link">✅ {tr("Submitted homework", "الواجبات المُسلَّمة")} ({doneHw.length})</a>
                         </span>
                       </div>
                     )}
+                    {showingTasks && <div className="mb-3 flex flex-wrap gap-2" role="tablist" data-testid="stu-task-subtabs">
+                      {([["all", "📋", "Assigned Tasks", "المهام المسندة", allTasks.length], ["pending", "⏳", "Pending Tasks", "المهام المعلّقة", taskHw.length], ["done", "✅", "Completed Tasks", "المهام المكتملة", doneTasks.length]] as const).map(([k, ic, en, ar, n]) => <button key={k} type="button" role="tab" aria-selected={taskSub === k} onClick={() => setTaskSub(k)} className={`rounded-full px-3 py-1.5 text-xs font-extrabold shadow-sm transition ${taskSub === k ? "bg-header text-white" : "bg-white text-[#1b2f44] dark:bg-white/10 dark:text-white"}`} data-testid={`stu-task-sub-${k}`}>{ic} {tr(en, ar)} ({n})</button>)}
+                    </div>}
                     {list.length === 0 && <p className={card + " opacity-80"} data-testid="stu-hw-empty">{showingDone ? tr("Nothing submitted yet.", "لم يُسلَّم شيء بعد.") : showingTasks ? tr("No tasks yet.", "لا توجد مهام بعد.") : dash.homework.length === 0 ? tr("No homework yet — enjoy your day!", "لا توجد واجبات بعد — استمتع بيومك!") : tr("Nothing waiting. Submitted work is under Submitted homework.", "لا شيء بانتظارك. العمل المُسلَّم في الواجبات المُسلَّمة.")}</p>}
                     <ul className="grid gap-3 sm:grid-cols-2">
                       {list.map((h) => {

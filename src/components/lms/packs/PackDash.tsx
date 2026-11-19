@@ -5,7 +5,7 @@ import { useTr } from "@/components/lms/useLms";
 import { lp, packParts, PART_LABEL, partText, type Pack, type Part } from "@/lib/packs";
 
 const GROUPS: { part: Part; en: string; ar: string }[] = [
-  { part: "lesson", en: "Lessons", ar: "الدروس" },
+  // t650: lessons stay with the teacher; students only get Tasks, Homework and Quran Homework.
   { part: "activity", en: "Tasks", ar: "المهام" },
   { part: "homework", en: "Homework", ar: "الواجبات" },
 ];
