@@ -11,7 +11,7 @@ import { useLmsActor, useTr } from "@/components/lms/useLms";
 import { clsCmp, sortCls } from "@/lib/classSort";
 import { lmsApi, lmsErrorText, type Catalog, type Chapter, type DashStudent, type Homework, type QuranData } from "@/lib/lms";
 import { modErr, qhwPerm } from "@/lib/lmsMods";
-import { lp, type Acc, type Pack } from "@/lib/packs";
+import { hwParts, lp, packParts, PART_LABEL, partText, type Acc, type Pack } from "@/lib/packs";
 
 export type HwHubTab = "lessons" | "homeworks" | "assigned" | "review" | "corrected";
 export type DashHw = Homework & { counts?: Record<string, number>; assigned?: number };
@@ -267,7 +267,8 @@ export function HwPortionGrid({
       <article key={h.id} className={`light-island group relative overflow-hidden rounded-2xl border border-black/10 bg-gradient-to-br p-4 pt-5 shadow-md ring-1 ring-black/5 ${PORTION_WASH[n]} ${PORTION_LIFT}`} data-testid="hw-portion">
         <span className={`pointer-events-none absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r ${PORTION_BAR[n]}`} aria-hidden />
         <p className="text-xl font-extrabold leading-tight text-heading sm:text-2xl" dir="auto"><span className="me-1 inline-block origin-center transition group-hover:scale-110" aria-hidden>{icon}</span>{h.title}</p>
-        {isActivity(h) && <span className="mt-1 inline-flex rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-extrabold text-violet-900 dark:bg-violet-900/40 dark:text-violet-100" data-testid="hw-activity-badge">{tr("Activity", "نشاط")}</span>}
+        {isActivity(h) && !(Array.isArray((h.data as { parts?: unknown }).parts) && ((h.data as { parts?: unknown[] }).parts || []).length) && <span className="mt-1 inline-flex rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-extrabold text-violet-900 dark:bg-violet-900/40 dark:text-violet-100" data-testid="hw-activity-badge">{tr("Activity", "نشاط")}</span>}
+        {hwParts(h.data as { activity?: boolean; parts?: unknown }, h.kind).length > 0 && Array.isArray((h.data as { parts?: unknown }).parts) && <p className="mt-1 flex flex-wrap gap-1" data-testid="hw-parts">{hwParts(h.data as { activity?: boolean; parts?: unknown }, h.kind).map((k) => <span key={k} className={`rounded-full px-2 py-0.5 text-[11px] font-extrabold ${PART_LABEL[k][3]}`}>{PART_LABEL[k][0]} {tr(partText(k, false)[0], partText(k, false)[1])}</span>)}</p>}
         {h.kind === "quran" && <TrkLink id={h.id} kind="hw" asAdmin={asAdmin} />}
         <HwMeta {...hwAud(h)} className="mt-1" />
         {qd && <p className="text-sm opacity-80">{sn(qd.surah)} · {qd.from}–{qd.to}</p>}
@@ -374,7 +375,12 @@ function LessonBoard({ asAdmin }: { asAdmin: boolean }) {
     let live = true;
     lp.list(asAdmin).then((r) => {
       if (!live) return;
-      const mine = r.items.filter((p) => p.type === "lesson" && (asAdmin || actor?.role === "admin" || p.owner === actor?.id));
+      const mine = r.items.filter((p) => {
+        const own = asAdmin || actor?.role === "admin" || p.owner === actor?.id;
+        if (!own || p.type === "material") return false;
+        if (p.type === "lesson") return true;
+        return p.status === "published" && packParts(p).includes("lesson");
+      });
       setItems(mine);
       setAcc(r.acc || null);
     }).catch((e) => { if (!live) return; setItems([]); setMsg(modErr(e, tr)); setBad(true); });
@@ -454,11 +460,11 @@ function LessonBoard({ asAdmin }: { asAdmin: boolean }) {
                         <span className={`pointer-events-none absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r ${PORTION_BAR[n]}`} aria-hidden />
                         <p className="text-xl font-extrabold leading-tight text-heading sm:text-2xl" dir="auto"><span className="me-1 inline-block origin-center transition group-hover:scale-110" aria-hidden>🎤</span>{p.title}</p>
                         <HwMeta {...a} className="mt-1" />
-                        <p className="mt-1 text-xs opacity-70">{p.count ?? p.slides?.length ?? 0} {tr("slides", "شرائح")} · {p.status === "published" ? tr("Ready to present", "جاهز للعرض") : tr("Draft", "مسودة")}{p.topic?.title ? ` · ${p.topic.title}` : ""}{p.updated ? ` · ${new Date(p.updated).toLocaleDateString(lang === "ar" ? "ar" : "en-GB")}` : ""}</p>
+                        <p className="mt-1 text-xs opacity-70">{p.count ?? p.slides?.length ?? 0} {tr("slides", "شرائح")} · {p.type !== "lesson" ? tr("Assigned · lesson slides", "مُسند · شرائح الدرس") : p.status === "published" ? tr("Ready to present", "جاهز للعرض") : tr("Draft", "مسودة")}{p.topic?.title ? ` · ${p.topic.title}` : ""}{p.updated ? ` · ${new Date(p.updated).toLocaleDateString(lang === "ar" ? "ar" : "en-GB")}` : ""}</p>
                         <div className="mt-3 flex flex-wrap items-center gap-2">
-                          <a className={OPEN_PILL} href={`/lms/material?open=${encodeURIComponent(p.id)}&from=lessons`} data-testid="lesson-portion-open">{tr("Present", "عرض")}</a>
+                          <a className={OPEN_PILL} href={`/lms/material?open=${encodeURIComponent(p.id)}&from=lessons${p.type !== "lesson" ? "&part=lesson" : ""}`} data-testid="lesson-portion-open">{p.type !== "lesson" ? tr("Lesson slides", "شرائح الدرس") : tr("Present", "عرض")}</a>
                           {canEdit(p) && <a className={btn + " !py-1"} href={`/lms/material?edit=${encodeURIComponent(p.id)}&from=lessons`} title={tr("Edit", "تعديل")} aria-label={tr("Edit", "تعديل")} data-testid="lesson-portion-edit">✎</a>}
-                          {canDel(p) && <button type="button" className={btn + " !py-1"} onClick={() => del(p)} title={tr("Delete", "حذف")} aria-label={tr("Delete", "حذف")} data-testid="lesson-portion-del">🗑</button>}
+                          {canDel(p) && p.type === "lesson" && <button type="button" className={btn + " !py-1"} onClick={() => del(p)} title={tr("Delete", "حذف")} aria-label={tr("Delete", "حذف")} data-testid="lesson-portion-del">🗑</button>}
                         </div>
                       </article>
                     );

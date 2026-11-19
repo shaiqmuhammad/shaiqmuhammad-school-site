@@ -22,6 +22,7 @@ import { TeacherHomeworkHub, reviewCount, tabFromLocation, type HwHubTab } from 
 import { exportAllHomeworkZip } from "@/components/lms/lmsFiles";
 import { STATUS_STYLE, card, smallBtn, statusLabel, useLmsActor, useTr, GRADE_STYLE, gradeLabel } from "@/components/lms/useLms";
 import { lmsApi, lmsErrorText, lmsSignOut, mpShown, quranChapters, type Chapter, type QuranData } from "@/lib/lms";
+import { hwParts, partText } from "@/lib/packs";
 
 type Dash = Awaited<ReturnType<typeof lmsApi.dashboard>>;
 
@@ -55,12 +56,13 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
   const [err, setErr] = useState("");
   const [creating, setCreating] = useState(false);
   const [hubTab, setHubTab] = useState<HwHubTab>("homeworks");
-  const [stuTab, setStuTab] = useState<"open" | "done">("open");
+  const [stuTab, setStuTab] = useState<"open" | "tasks" | "done">("open");
   // eslint-disable-next-line react-hooks/set-state-in-effect -- deep link from ?tab= / leftover hash
   useEffect(() => {
     const read = () => {
       setHubTab(tabFromLocation());
-      setStuTab(new URLSearchParams(window.location.search).get("tab") === "submitted" ? "done" : "open");
+      const tab = new URLSearchParams(window.location.search).get("tab");
+      setStuTab(tab === "submitted" ? "done" : tab === "tasks" ? "tasks" : "open");
     };
     read();
     const h = window.location.hash.replace("#", "");
@@ -176,43 +178,52 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
             <section id="homework" className="scroll-mt-28">
               {(() => {
                 const handed = (h: (typeof dash.homework)[number]) => h.sub?.status === "submitted" || h.sub?.status === "approved";
-                const openHw = dash.homework.filter((h) => !handed(h));
+                const pages = (h: (typeof dash.homework)[number]) => hwParts(h.data as { activity?: boolean; parts?: unknown }, h.kind);
+                const openHw = dash.homework.filter((h) => !handed(h) && pages(h).includes("homework"));
+                const taskHw = dash.homework.filter((h) => !handed(h) && pages(h).includes("activity"));
                 const doneHw = dash.homework.filter(handed);
                 const showingDone = hwOnly && stuTab === "done";
-                const list = showingDone ? doneHw : openHw;
-                const pick = (t: "open" | "done") => {
+                const showingTasks = stuTab === "tasks";
+                const list = showingDone ? doneHw : showingTasks ? taskHw : openHw;
+                const pick = (t: "open" | "tasks" | "done") => {
                   setStuTab(t);
                   if (!hwOnly) return;
-                  window.history.pushState(null, "", t === "done" ? "/lms/homework?tab=submitted" : "/lms/homework");
+                  window.history.pushState(null, "", t === "done" ? "/lms/homework?tab=submitted" : t === "tasks" ? "/lms/homework?tab=tasks" : "/lms/homework");
                 };
                 return (
                   <>
                     {hwOnly ? (
                       <div className="mb-3 flex flex-wrap gap-2" role="tablist" data-testid="stu-hw-tabs">
-                        <button type="button" role="tab" aria-selected={!showingDone} onClick={() => pick("open")} className={`rounded-full px-4 py-2 text-sm font-extrabold shadow-sm ${!showingDone ? "bg-header text-white" : "bg-white text-[#1b2f44] dark:bg-white/10 dark:text-white"}`} data-testid="stu-hw-tab-open">📝 {tr("Homeworks", "الواجبات")} ({openHw.length})</button>
+                        <button type="button" role="tab" aria-selected={!showingDone && !showingTasks} onClick={() => pick("open")} className={`rounded-full px-4 py-2 text-sm font-extrabold shadow-sm ${!showingDone && !showingTasks ? "bg-header text-white" : "bg-white text-[#1b2f44] dark:bg-white/10 dark:text-white"}`} data-testid="stu-hw-tab-open">📝 {tr("Homeworks", "الواجبات")} ({openHw.length})</button>
+                        <button type="button" role="tab" aria-selected={showingTasks} onClick={() => pick("tasks")} className={`rounded-full px-4 py-2 text-sm font-extrabold shadow-sm ${showingTasks ? "bg-header text-white" : "bg-white text-[#1b2f44] dark:bg-white/10 dark:text-white"}`} data-testid="stu-hw-tab-tasks">✏️ {tr("Tasks", "المهام")} ({taskHw.length})</button>
                         <button type="button" role="tab" aria-selected={showingDone} onClick={() => pick("done")} className={`rounded-full px-4 py-2 text-sm font-extrabold shadow-sm ${showingDone ? "bg-header text-white" : "bg-white text-[#1b2f44] dark:bg-white/10 dark:text-white"}`} data-testid="stu-hw-tab-submitted">✅ {tr("Submitted homework", "الواجبات المُسلَّمة")} ({doneHw.length})</button>
                       </div>
                     ) : (
                       <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
                         <h2 className="text-xl font-bold">{tr("Homework", "الواجبات")}</h2>
-                        <a href="/lms/homework?tab=submitted" className="rounded-full bg-white px-3 py-1 text-sm font-extrabold text-[#1b2f44] shadow-sm ring-1 ring-black/10 dark:bg-white/10 dark:text-white" data-testid="stu-hw-submitted-link">✅ {tr("Submitted homework", "الواجبات المُسلَّمة")} ({doneHw.length})</a>
+                        <span className="flex flex-wrap gap-2">
+                          {taskHw.length > 0 && <a href="/lms/homework?tab=tasks" className="rounded-full bg-white px-3 py-1 text-sm font-extrabold text-[#1b2f44] shadow-sm ring-1 ring-black/10 dark:bg-white/10 dark:text-white" data-testid="stu-hw-tasks-link">✏️ {tr("Tasks", "المهام")} ({taskHw.length})</a>}
+                          <a href="/lms/homework?tab=submitted" className="rounded-full bg-white px-3 py-1 text-sm font-extrabold text-[#1b2f44] shadow-sm ring-1 ring-black/10 dark:bg-white/10 dark:text-white" data-testid="stu-hw-submitted-link">✅ {tr("Submitted homework", "الواجبات المُسلَّمة")} ({doneHw.length})</a>
+                        </span>
                       </div>
                     )}
-                    {list.length === 0 && <p className={card + " opacity-80"} data-testid="stu-hw-empty">{showingDone ? tr("Nothing submitted yet.", "لم يُسلَّم شيء بعد.") : dash.homework.length === 0 ? tr("No homework yet — enjoy your day!", "لا توجد واجبات بعد — استمتع بيومك!") : tr("Nothing waiting. Submitted work is under Submitted homework.", "لا شيء بانتظارك. العمل المُسلَّم في الواجبات المُسلَّمة.")}</p>}
+                    {list.length === 0 && <p className={card + " opacity-80"} data-testid="stu-hw-empty">{showingDone ? tr("Nothing submitted yet.", "لم يُسلَّم شيء بعد.") : showingTasks ? tr("No tasks yet.", "لا توجد مهام بعد.") : dash.homework.length === 0 ? tr("No homework yet — enjoy your day!", "لا توجد واجبات بعد — استمتع بيومك!") : tr("Nothing waiting. Submitted work is under Submitted homework.", "لا شيء بانتظارك. العمل المُسلَّم في الواجبات المُسلَّمة.")}</p>}
                     <ul className="grid gap-3 sm:grid-cols-2">
                       {list.map((h) => {
                         const st = h.sub?.status || "none";
                         const q = h.data as QuranData;
-                        const activity = !!(h.data as { activity?: boolean }).activity;
+                        const bits = pages(h);
+                        const task = showingTasks || (bits.includes("activity") && !bits.includes("homework"));
+                        const part = showingTasks ? "activity" : bits.includes("homework") ? "homework" : bits[0];
                         return (
                           <li key={h.id}>
-                            <a href={`/lms/homework?id=${h.id}`} className={card + " block transition hover:-translate-y-0.5 hover:shadow-lg"} data-testid="lms-hw-card" data-hw-bucket={showingDone ? "submitted" : "open"}>
+                            <a href={`/lms/homework?id=${h.id}${bits.length > 1 && part ? `&part=${part}` : ""}`} className={card + " block transition hover:-translate-y-0.5 hover:shadow-lg"} data-testid="lms-hw-card" data-hw-bucket={showingDone ? "submitted" : showingTasks ? "tasks" : "open"}>
                               <div className="flex items-start gap-3">
-                                <span className="text-3xl" aria-hidden>{h.kind === "quran" ? "📖" : activity ? "🎲" : "📝"}</span>
+                                <span className="text-3xl" aria-hidden>{h.kind === "quran" ? "📖" : task ? "✏️" : "📝"}</span>
                                 <div className="min-w-0 flex-1">
                                   <p className="text-lg font-bold" dir="auto">{h.title}</p>
                                   <HwMeta {...hwAud(h)} className="my-1" />
-                                  {activity && <p className="text-sm font-semibold opacity-80">{tr("Activity", "نشاط")}</p>}
+                                  {task && <p className="text-sm font-semibold opacity-80" data-testid="lms-hw-task">{tr(partText("activity", true)[0], partText("activity", true)[1])}</p>}
                                   {h.kind === "quran" && <p className="text-sm opacity-80">{surahName(q.surah)} · {q.from}–{q.to}</p>}
                                   {h.created > 0 && <p className="text-sm opacity-70" data-testid="lms-hw-assigned">{tr("Assigned", "أُسند")} {new Date((((h.data as unknown) as { assignAt?: number }).assignAt || 0) > 0 ? ((h.data as unknown) as { assignAt: number }).assignAt : h.created).toLocaleDateString(lang === "ar" ? "ar" : "en-GB")}</p>}
                                   {h.sub?.submittedAt ? <p className="text-sm opacity-70" data-testid="lms-hw-submitted">{tr("Submitted", "سُلّم")} {new Date(h.sub.submittedAt).toLocaleString(lang === "ar" ? "ar" : "en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</p> : null}

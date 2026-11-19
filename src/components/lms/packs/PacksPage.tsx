@@ -8,7 +8,7 @@ import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
 import { smallBtn, useLmsActor, useTr } from "@/components/lms/useLms";
 import { modErr } from "@/lib/lmsMods";
 import { HwMeta } from "@/components/lms/HwMeta";
-import { LB_ICON, blankSlide, lp, TYPE_LABEL, type Acc, type Pack, type PackType } from "@/lib/packs";
+import { LB_ICON, blankSlide, lp, packParts, PART_LABEL, partText, TYPE_LABEL, type Acc, type Pack, type PackType, type Part } from "@/lib/packs";
 import { PackEditor } from "./PackEditor";
 import { HwRemindBell } from "@/components/lms/HwRemind";
 import { PackPlayer } from "./PackPlayer";
@@ -45,10 +45,11 @@ export function PacksPage() {
   const [burst, setBurst] = useState(false);
   const [msg, setMsg] = useState("");
   const [filter, setFilter] = useState<"" | PackType>("");
+  const [only, setOnly] = useState<Part | "">("");
   const openedEdit = useRef("");
   const load = useCallback(() => lp.list(asAdmin).then((r) => { setItems(r.items); setAcc(r.acc || null); }).catch((e) => { setItems([]); setMsg(modErr(e, tr)); }), [asAdmin, tr]);
   useEffect(() => { if (ready && actor) load(); }, [ready, actor, load]);
-  useEffect(() => { const q = new URLSearchParams(location.search); if (q.get("open")) { setFromLessons(q.get("from") === "lessons"); setBurst(false); setOpen(q.get("open")!); } else if (q.get("from") === "lessons") setFromLessons(true); }, []);
+  useEffect(() => { const q = new URLSearchParams(location.search); const part = q.get("part"); setOnly(part === "lesson" || part === "activity" || part === "homework" ? part : ""); if (q.get("open")) { setFromLessons(q.get("from") === "lessons"); setBurst(false); setOpen(q.get("open")!); } else if (q.get("from") === "lessons") setFromLessons(true); }, []);
   useEffect(() => {
     if (!ready || !actor) return;
     const editId = new URLSearchParams(location.search).get("edit") || "";
@@ -58,7 +59,11 @@ export function PacksPage() {
   }, [ready, actor, asAdmin]);
   useEffect(() => { const q = new URLSearchParams(location.search); const t = q.get("new") as PackType | null; if (t && acc?.add && !edit) newPack(t, "blank"); // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [acc]);
-  const newPack = (type: PackType, tpl: string) => setEdit({ id: "", owner: "", ownerName: "", title: "", type, subject: asAdmin ? "" : defaultSubject(teacherSubjects(actor as never)), aud: [], students: [], topic: {}, mode: "self", assignAt: 0, due: 0, status: "draft", hw: "", live: -1, tpl: false, created: 0, updated: 0, slides: TEMPLATES.find((x) => x[0] === tpl)![3](/^islamic a$/i.test(actor?.subj?.[0] || "") || lang === "ar") });
+  const newPack = (type: PackType, tpl: string) => {
+    const made = TEMPLATES.find((x) => x[0] === tpl)![3](/^islamic a$/i.test(actor?.subj?.[0] || "") || lang === "ar") || [];
+    const part = type === "lesson" || type === "activity" || type === "homework" ? type : undefined;
+    setEdit({ id: "", owner: "", ownerName: "", title: "", type, subject: asAdmin ? "" : defaultSubject(teacherSubjects(actor as never)), aud: [], students: [], topic: {}, mode: "self", assignAt: 0, due: 0, status: "draft", hw: "", live: -1, tpl: false, created: 0, updated: 0, slides: part ? made.map((s) => ({ ...s, part: s.part || part })) : made });
+  };
   const leaveOpened = () => {
     if (document.fullscreenElement) document.exitFullscreen().catch(() => undefined);
     setOpen("");
@@ -72,7 +77,7 @@ export function PacksPage() {
     <AssessmentShell title={title} exitHref="/lms" wide toolbar={staff ? <LmsStaffToolbar /> : undefined}>
       <div className="mx-auto w-full max-w-6xl flex-1 space-y-4 px-3 py-5 sm:px-6" data-testid="lp-page">
         {edit && acc ? <PackEditor key={edit.id || "new"} initial={edit} acc={acc} asAdmin={asAdmin} subjects={asAdmin ? ["Islamic A", "Islamic B", ...(actor?.subj || [])].filter((x, i, a) => a.indexOf(x) === i)   : teacherSubjects(actor as never)} closeLabel={fromLessons ? tr("Lessons", "الدروس") : undefined} onClose={() => { const back = fromLessons || new URLSearchParams(location.search).get("from") === "lessons"; setEdit(null); load(); if (back) router.push(LESSONS_TAB); }} />
-        : open ? <div className="space-y-2"><PackPlayer autoFull={burst && !fromLessons} id={open} asAdmin={asAdmin} preview={staff} onClose={leaveOpened} closeLabel={fromLessons ? tr("Lessons", "الدروس") : tr("Back", "رجوع")} /></div>
+        : open ? <div className="space-y-2"><PackPlayer autoFull={burst && !fromLessons} id={open} asAdmin={asAdmin} preview={staff} only={only || undefined} onClose={leaveOpened} closeLabel={fromLessons ? tr("Lessons", "الدروس") : tr("Back", "رجوع")} /></div>
         : <>
           <div className="relative overflow-hidden rounded-3xl border border-white/30 bg-gradient-to-br from-[#1b3a57]/90 via-[#24507a]/85 to-[#1b3a57]/90 p-5 text-white shadow-[0_12px_40px_-12px_rgba(11,27,43,0.6)] backdrop-blur-xl"><div aria-hidden className="pointer-events-none absolute -end-10 -top-10 h-40 w-40 rounded-full bg-[#f5c542]/30 blur-3xl" />
             <h1 className="flex items-center gap-2 text-2xl font-extrabold !text-white"><span className="grid h-10 w-10 place-items-center rounded-2xl bg-[#f5c542] text-xl shadow-inner" aria-hidden>{LB_ICON}</span>{title}</h1>
@@ -88,18 +93,18 @@ export function PacksPage() {
             {TEMPLATES.map(([k, en, ar]) => <button key={k} type="button" className={smallBtn} onClick={() => newPack(k === "hw" ? "homework" : "material", k)} data-testid={`lp-tpl-${k}`}>{tr(en, ar)}</button>)}
           </div>}
           {staff && !acc?.view && items && <p className="text-sm">{tr("This module is hidden for your account.", "هذه الوحدة مخفية لحسابك.")}</p>}
-          <div className="flex flex-wrap gap-1.5">{(["", "lesson", "activity", "homework", "quran", "material"] as const).map((k) => <button key={k} type="button" aria-pressed={filter === k} className={`rounded-full px-3 py-1 text-sm font-bold ring-1 ring-black/10 ${filter === k ? "bg-[#1b3a57] text-[#f5c542]" : "bg-white/80 text-[#1b2f44] backdrop-blur"}`} onClick={() => setFilter(k)}>{k ? `${TYPE_LABEL[k][0]} ${tr(TYPE_LABEL[k][1], TYPE_LABEL[k][2])}` : tr("All", "الكل")}</button>)}</div>
+          <div className="flex flex-wrap gap-1.5">{(["", "lesson", "activity", "homework", "quran", "material"] as const).map((k) => <button key={k} type="button" aria-pressed={filter === k} className={`rounded-full px-3 py-1 text-sm font-bold ring-1 ring-black/10 ${filter === k ? "bg-[#1b3a57] text-[#f5c542]" : "bg-white/80 text-[#1b2f44] backdrop-blur"}`} onClick={() => setFilter(k)}>{k ? `${TYPE_LABEL[k][0]} ${!staff && k === "activity" ? tr(partText("activity", true)[0], partText("activity", true)[1]) : tr(TYPE_LABEL[k][1], TYPE_LABEL[k][2])}` : tr("All", "الكل")}</button>)}</div>
           <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" data-testid="lp-list">
             {items === null ? <li>…</li> : list.length === 0 ? <li className="rounded-3xl border border-white/60 bg-white/75 p-4 text-sm text-[#1b2f44] backdrop-blur-md">{staff ? tr("No lessons yet — start with a template above.", "لا توجد دروس بعد — ابدأ بقالب.") : tr("Nothing here yet.", "لا شيء هنا بعد.")}</li> : list.map((x) => (
               <li key={x.id} className={`space-y-2 rounded-3xl border p-4 text-[#1b2f44] shadow-lg backdrop-blur-md transition hover:-translate-y-0.5 ${TINT[x.type]}`} data-testid="lp-item">
-                <div className="flex items-start gap-2"><span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-white/80 text-2xl shadow-inner">{TYPE_LABEL[x.type][0]}</span><div className="min-w-0 flex-1"><p className="font-extrabold" dir="auto">{x.title}</p><span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-extrabold ${BADGE[x.type]}`} data-testid="lp-badge">{tr(TYPE_LABEL[x.type][1], TYPE_LABEL[x.type][2])}</span><p className="text-xs opacity-70">{tr(TYPE_LABEL[x.type][1], TYPE_LABEL[x.type][2])} · {x.count} {tr("slides", "شرائح")}{x.subject ? ` · ${x.subject}` : ""}{x.topic?.title ? ` · ${x.topic.title}` : ""}</p><HwMeta years={x.years} sections={x.sections} subject={x.subject} className="mt-1" />
+                <div className="flex items-start gap-2"><span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-white/80 text-2xl shadow-inner">{TYPE_LABEL[x.type][0]}</span><div className="min-w-0 flex-1"><p className="font-extrabold" dir="auto">{x.title}</p><span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-extrabold ${BADGE[x.type]}`} data-testid="lp-badge">{!staff && x.type === "activity" ? tr(partText("activity", true)[0], partText("activity", true)[1]) : tr(TYPE_LABEL[x.type][1], TYPE_LABEL[x.type][2])}</span>{packParts(x).length > 0 && <span className="ms-1 inline-flex flex-wrap gap-1" data-testid="lp-parts">{packParts(x).map((k) => { const [en, ar] = partText(k, !staff); return <span key={k} className={`rounded-full px-1.5 py-0.5 text-[10px] font-extrabold ${PART_LABEL[k][3]}`}>{PART_LABEL[k][0]} {tr(en, ar)}</span>; })}</span>}<p className="text-xs opacity-70">{!staff && x.type === "activity" ? tr("Task", "مهمة") : tr(TYPE_LABEL[x.type][1], TYPE_LABEL[x.type][2])} · {x.count} {tr("slides", "شرائح")}{x.subject ? ` · ${x.subject}` : ""}{x.topic?.title ? ` · ${x.topic.title}` : ""}</p><HwMeta years={x.years} sections={x.sections} subject={x.subject} className="mt-1" />
                   {staff && <p className="text-xs opacity-70">{x.status === "published" ? (x.assignAt > Date.now() ? "⏰ " + tr("Scheduled", "مجدول") : "✅ " + tr("Published", "منشور")) : "📝 " + tr("Draft", "مسودة")}{(x.assignAt > 0 || x.created) ? ` · ${tr("Assigned", "أُسند")} ${new Date(x.assignAt > 0 ? x.assignAt : x.created).toLocaleDateString(lang === "ar" ? "ar-AE" : "en-GB", { timeZone: "Asia/Dubai" })}` : ""}{x.due ? ` · ${tr("due", "التسليم")} ${new Date(x.due).toLocaleDateString(lang === "ar" ? "ar-AE" : "en-GB", { timeZone: "Asia/Dubai" })}` : ""}{x.tpl ? ` · ${tr("template", "قالب")}` : ""}{x.mode === "live" ? " · 📡" : ""}</p>}</div></div>
                 <div className="flex flex-wrap gap-1.5">
                   {staff && (x.owner === actor?.id || asAdmin) && <button type="button" className={smallBtn} onClick={() => lp.get(x.id, asAdmin).then((r) => setEdit(r.pack))} data-testid="lp-edit">✏️ {acc?.edit ? tr("Edit", "تعديل") : tr("View", "عرض")}</button>}
                   {(!staff || x.type === "material" || x.type === "lesson") && <button type="button" className={smallBtn} onClick={() => { document.documentElement.requestFullscreen?.().catch(() => undefined); setFromLessons(false); setBurst(true); setOpen(x.id); }} data-testid="lp-open">▶ {staff ? tr("Present", "عرض") : tr("Open", "فتح")}</button>}
                   {staff && x.type !== "material" && x.type !== "lesson" && <button type="button" className={smallBtn} onClick={() => setOpen(x.id)} title={tr("Try it as a student — nothing is assigned or saved", "جرّبه كطالب — بدون إسناد أو حفظ")} data-testid="lp-preview-open">👁 {tr("Preview", "معاينة")}</button>}
                   {staff && x.hw && x.status === "published" && (x.type === "homework" || x.type === "quran" || x.type === "activity") && <HwRemindBell hw={x.hw} title={x.title} asAdmin={asAdmin} />}
-                  {!staff && x.hw && <a className={smallBtn} href={`/lms/homework?id=${encodeURIComponent(x.hw)}`} data-testid="lp-open-hw">📝 {x.subStatus === "submitted" || x.subStatus === "approved" ? tr("View submitted work", "عرض العمل المُسلَّم") : x.subStatus === "returned" ? tr("Sent back — open and submit again", "أُعيد — افتحه وسلّم مجددًا") : x.type === "activity" ? tr("Open activity & hand in", "افتح النشاط وسلّم") : tr("Open homework", "افتح الواجب")}</a>}
+                  {!staff && x.hw && <a className={smallBtn} href={`/lms/homework?id=${encodeURIComponent(x.hw)}${packParts(x).length === 1 ? `&part=${packParts(x)[0]}` : ""}`} data-testid="lp-open-hw">📝 {x.subStatus === "submitted" || x.subStatus === "approved" ? tr("View submitted work", "عرض العمل المُسلَّم") : x.subStatus === "returned" ? tr("Sent back — open and submit again", "أُعيد — افتحه وسلّم مجددًا") : x.type === "activity" ? tr("Open task & hand in", "افتح المهمة وسلّم") : tr("Open homework", "افتح الواجب")}</a>}
                   {staff && acc?.add && <button type="button" className={smallBtn} onClick={() => lp.dup(x.id, asAdmin).then(load).catch((e) => setMsg(modErr(e, tr)))} data-testid="lp-dup">⧉ {tr("Duplicate", "تكرار")}</button>}
                   {staff && acc?.delete && (x.owner === actor?.id || asAdmin) && <button type="button" className={smallBtn + " !text-rose-700"} onClick={() => { if (confirm(tr("Delete this pack? Its homework and the students' work are deleted too.", "حذف هذه الحزمة؟ يُحذف واجبها وأعمال الطلاب أيضًا."))) lp.del(x.id, asAdmin).then(load).catch((e) => setMsg(modErr(e, tr))); }} data-testid="lp-delete">🗑</button>}
                 </div>

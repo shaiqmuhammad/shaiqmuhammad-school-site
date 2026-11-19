@@ -421,7 +421,10 @@ export function LmsHomework() {
   useEffect(() => { if (window.location.hash === "#corrected") setSubTab("corr"); }, []);
   const { tr, lang } = useTr();
   const router = useRouter();
-  const id = useSearchParams().get("id") || "";
+  const search = useSearchParams();
+  const id = search.get("id") || "";
+  const onlyPart = search.get("part");
+  const only = onlyPart === "lesson" || onlyPart === "activity" || onlyPart === "homework" ? onlyPart : undefined;
   const { actor, asAdmin, ready, adminElsewhere } = useLmsActor();
   const [d, setD] = useState<Data | null>(null);
   const [err, setErr] = useState("");
@@ -528,7 +531,7 @@ export function LmsHomework() {
             {hw.kind === "quran" && staff && (hw.data as QuranData).memorise && <p className="rounded-2xl bg-violet-100 px-4 py-2 text-sm font-bold text-violet-900" data-testid="hw-memo-teacher">🧠 {tr("Memorise & record — students don't see these verses.", "احفظ وسجّل — لا يرى الطلاب هذه الآيات.")}</p>}
             {hw.kind === "quran" && staff && <div className="flex justify-end"><button type="button" className={smallBtn} onClick={() => setDeck(true)} data-testid="quran-corr-focus">🎯 {tr("Focus", "تركيز")}</button></div>}
             {hw.kind === "quran" ? (!staff && (hw.data as QuranData).memorise && memoHide ? <MemoriseCard data={hw.data as QuranData} chapters={chapters} /> : <QuranReader data={hw.data as QuranData} mistakes={(d.sub?.mistakes || [])} />) : <Slides data={hw.data as GeneralData} />}
-            {(hw.data as { pack?: string }).pack && <PackPlayer key={String(d?.sub?.status)} id={(hw.data as { pack?: string }).pack!} asAdmin={asAdmin} preview={staff} locked={!staff && !attemptOpen(hw.data, d?.sub)} />}
+            {(hw.data as { pack?: string }).pack && <PackPlayer key={String(d?.sub?.status) + (only || "")} id={(hw.data as { pack?: string }).pack!} asAdmin={asAdmin} preview={staff} only={only} locked={!staff && !attemptOpen(hw.data, d?.sub)} />}
             {!staff && <StudentWork key={d?.sub?.updated || 0} hw={hw} sub={d?.sub || null} reload={load} chapters={chapters} />}
             {staff && (
               <section className="space-y-3">

@@ -83,12 +83,16 @@ export function packInit(sql: Sql) {
   sql.exec(`CREATE TABLE IF NOT EXISTS lpack (id TEXT PRIMARY KEY, owner TEXT, owner_name TEXT, title TEXT, type TEXT, subject TEXT DEFAULT '', aud TEXT DEFAULT '[]', students TEXT DEFAULT '[]', topic TEXT DEFAULT '{}', slides TEXT DEFAULT '[]', mode TEXT DEFAULT 'self', assign_at INTEGER DEFAULT 0, due INTEGER DEFAULT 0, status TEXT DEFAULT 'draft', hw TEXT DEFAULT '', live INTEGER DEFAULT -1, tpl INTEGER DEFAULT 0, notified INTEGER DEFAULT 0, due_notified INTEGER DEFAULT 0, created INTEGER, updated INTEGER)`);
   sql.exec(`CREATE TABLE IF NOT EXISTS lpwork (pack TEXT, student TEXT, slides TEXT DEFAULT '[]', seen TEXT DEFAULT '[]', updated INTEGER, PRIMARY KEY (pack, student))`);
 }
-const row = (r: Record<string, unknown>, full = true) => ({
-  id: String(r.id), owner: String(r.owner), ownerName: String(r.owner_name || ""), title: String(r.title), type: String(r.type), subject: String(r.subject || ""),
-  aud: JSON.parse(String(r.aud || "[]")), students: JSON.parse(String(r.students || "[]")), topic: JSON.parse(String(r.topic || "{}")), mode: String(r.mode || "self"),
-  assignAt: Number(r.assign_at || 0), due: Number(r.due || 0), status: String(r.status), hw: String(r.hw || ""), live: Number(r.live ?? -1), tpl: !!Number(r.tpl || 0), created: Number(r.created), updated: Number(r.updated),
-  ...(full ? { slides: JSON.parse(String(r.slides || "[]")) } : { count: (JSON.parse(String(r.slides || "[]")) as unknown[]).length }),
-});
+const row = (r: Record<string, unknown>, full = true) => {
+  const slides = JSON.parse(String(r.slides || "[]")) as { part?: string }[];
+  const parts = [...new Set(slides.map((s) => s?.part).filter((p) => p === "lesson" || p === "activity" || p === "homework"))];
+  return {
+    id: String(r.id), owner: String(r.owner), ownerName: String(r.owner_name || ""), title: String(r.title), type: String(r.type), subject: String(r.subject || ""),
+    aud: JSON.parse(String(r.aud || "[]")), students: JSON.parse(String(r.students || "[]")), topic: JSON.parse(String(r.topic || "{}")), mode: String(r.mode || "self"),
+    assignAt: Number(r.assign_at || 0), due: Number(r.due || 0), status: String(r.status), hw: String(r.hw || ""), live: Number(r.live ?? -1), tpl: !!Number(r.tpl || 0), created: Number(r.created), updated: Number(r.updated),
+    parts, ...(full ? { slides } : { count: slides.length }),
+  };
+};
 /** t422: Year(s) / Section(s) a pack reaches, resolved from its students (for the list cards). */
 function withAud(sql: Sql, items: (ReturnType<typeof row>)[]) {
   const ids = [...new Set(items.flatMap((x) => x.students as string[]))];
@@ -260,14 +264,16 @@ async function publish(c: PackCtx, a: Actor, id: string): Promise<Reply> {
   if (!r) return { status: 404, body: { error: "not_found" } };
   const type = String(r.type);
   if (type === "material" || type === "lesson") { if (r.hw) { await c.hwDelete(a, String(r.hw)); c.sql.exec(`UPDATE lpack SET hw='' WHERE id=?`, id); } return { status: 200, body: { ok: true } }; }
-  const sl = JSON.parse(String(r.slides || "[]")) as { els: Json[] }[];
+  const sl = JSON.parse(String(r.slides || "[]")) as { els: Json[]; part?: string }[];
   const q = sl.flatMap((s) => s.els).find((e) => e.t === "quran");
   if (type === "quran" && !q) return { status: 400, body: { error: "lp_needs_quran_slide" } };
   const students = JSON.parse(String(r.students || "[]")) as string[];
   const assignAt = Number(r.assign_at || 0);
   const topicJson = JSON.parse(String(r.topic || "{}")) as Json;
   const attemptLimit = topicJson.tries === undefined || topicJson.tries === null || topicJson.tries === "" ? 1 : Math.min(30, Math.max(0, Math.trunc(Number(topicJson.tries)) || 0));
-  const data = type === "quran" ? { surah: q!.surah, from: q!.from, to: q!.to, reciter: q!.reciter, memorise: q!.memorise === true, memoAudio: q!.memoAudio !== false, translit: q!.translit === true, translation: q!.translation === true, notes: String(q!.notes || ""), pack: id, assignAt, attemptLimit } : { slides: [], question: "", pack: id, assignAt, attemptLimit, ...(type === "activity" ? { activity: true } : {}) };
+  const parts = [...new Set(sl.map((s) => s.part).filter((p) => p === "lesson" || p === "activity" || p === "homework"))];
+  const shared = { pack: id, assignAt, attemptLimit, ...(parts.length ? { parts } : {}) };
+  const data = type === "quran" ? { surah: q!.surah, from: q!.from, to: q!.to, reciter: q!.reciter, memorise: q!.memorise === true, memoAudio: q!.memoAudio !== false, translit: q!.translit === true, translation: q!.translation === true, notes: String(q!.notes || ""), ...shared } : { slides: [], question: "", ...shared, ...(type === "activity" ? { activity: true } : {}) };
   const rr = await c.hwSave(a, { id: String(r.hw || "") || undefined, kind: type === "quran" ? "quran" : "general", title: String(r.title), cls: "", section: "", students, due: Number(r.due || 0) || null, data, quiet: true });
   if (rr.status !== 200) return rr;
   const hw = String((rr.body as { id?: string }).id || r.hw || "");
