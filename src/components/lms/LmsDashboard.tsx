@@ -288,7 +288,8 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
         ) : (
           <>
             <div className="flex flex-wrap items-center gap-2">
-              {canAssign && !creating && <button type="button" className={primaryBtn} onClick={() => setCreating(true)} data-testid="lms-new-hw">+ {tr("New Homework", "واجب جديد")}</button>}
+              {/* t672: New Homework lives on the Homework page only. */}
+              {hwOnly && canAssign && !creating && <button type="button" className={primaryBtn} onClick={() => setCreating(true)} data-testid="lms-new-hw">+ {tr("New Homework", "واجب جديد")}</button>}
               <DlGate kind="export"><button
                 type="button"
                 className={smallBtn}
@@ -305,7 +306,7 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
               <span className="text-sm opacity-70">{(dash.classes || []).map((c) => `${c.cls || "—"}: ${c.students}`).join(" · ")}</span>
             </div>
             {!hwOnly && <div className={card + " py-3"}><LeaderboardSetting /></div>}
-            {creating && (
+            {hwOnly && creating && (
               (dash as { quran?: { add: boolean } }).quran && !(dash as { quran?: { add: boolean } }).quran!.add ? <a href="/lms/material?new=homework" className="inline-block rounded-full bg-sun px-4 py-2 font-extrabold text-[#1b2f44]" data-testid="hw-kind-pack">📑 {tr("New homework as slides (Lesson Pack)", "واجب جديد بالشرائح")}</a> : <HomeworkEditor classes={dash.classes || []} students={dash.students || []} catalog={dash.catalog} scope={dash.scope} asAdmin={asAdmin} kinds={(dash as { quran?: { add: boolean } }).quran && !(dash as { quran?: { add: boolean } }).quran!.add ? ["general"] : ["quran", "general"]} onCancel={() => setCreating(false)} onSaved={(id) => router.push(`/lms/homework?id=${id}`)} />
             )}
             {/* Homework page: Lessons, Tasks, Homeworks, Quran Homeworks (+ To Review) — Year / section cards. */}
