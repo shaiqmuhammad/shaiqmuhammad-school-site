@@ -40,7 +40,7 @@ import { makeVapid, sendPush, type Vapid } from "./push";
 import { textReplaceAll } from "./textfix";
 import { scoreFromPct, systems, trackerHandle, trkInit } from "./tracker";
 import { qaHandle } from "./qa";
-import { badgeOf, balanceOf, rcHandle, rcInit, rcSync, type RcCtx } from "./rewards";
+import { badgeOf, balanceOf, rcEarnAt, rcHandle, rcInit, rcSync, type RcCtx } from "./rewards";
 import { MP_PERM, mpAll, mpCfg, mpOf, mpSave } from "./modperm";
 import { buildFeedback, fromGrade, overallOf, parseScores, type Scores } from "./quranScore";
 import { DurableObject } from "cloudflare:workers";
@@ -298,6 +298,8 @@ export class LmsStore extends DurableObject<LmsEnv> {
     this.sql.exec(`CREATE TABLE IF NOT EXISTS qr (token TEXT PRIMARY KEY, hw TEXT, student TEXT, created INTEGER)`);
     // t328: Quran QR codes are permanent and per student + Surah (old per-homework tokens keep working and resolve to the same page).
     if (!cols("qr").has("surah")) this.sql.exec(`ALTER TABLE qr ADD COLUMN surah INTEGER DEFAULT 0`);
+    // t682 B: one QR per student + topic (general/task), like Quran's per-student + Surah token.
+    if (!cols("qr").has("topic")) this.sql.exec(`ALTER TABLE qr ADD COLUMN topic TEXT DEFAULT ''`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS viewlog (id TEXT PRIMARY KEY, uid TEXT, name TEXT, role TEXT, at INTEGER)`);
     if (!cols("viewlog").has("by")) this.sql.exec(`ALTER TABLE viewlog ADD COLUMN by TEXT DEFAULT 'Admin'`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS contacts (id TEXT PRIMARY KEY, name TEXT, email TEXT, subject TEXT, message TEXT, created INTEGER, read INTEGER DEFAULT 0, emailed INTEGER DEFAULT 0, ip TEXT)`);
@@ -2397,29 +2399,34 @@ export class LmsStore extends DurableObject<LmsEnv> {
       }
 
       case "corrected": {
-        // Graded Quran homework (Excellent/Good passed, or Needs practice sent back) for the teacher's own homework (admin/viewAll: all).
+        // Corrected Quran + general/task work for the teacher's own, shared, or picked homework (admin: all).
         if (a.role === "student" || a.role === "parent") return { status: 403, body: { error: "forbidden" } };
         const qd = qhwOf(a);
-        // t678: without Quran homework access a teacher still sees Quran work shared with them to correct.
-        const qOnlyShared = a.role === "teacher" && !(qd.show && qd.view);
-        const hws = new Map(this.allHomework().filter((h) => h.kind === "quran" && (!qOnlyShared || (h.createdBy !== a.id && this.sharedTo(h, a.id) && this.shareCanCorrect(h, a)))).map((h) => [h.id, h]));
-        if (qOnlyShared && !hws.size) return { status: 403, body: { error: "quran_not_allowed" } };
+        const qOpen = a.role === "admin" || (qd.show && qd.view);
+        const hws = new Map(this.allHomework().filter((h) => {
+          if (h.kind === "quran") return qOpen || (a.role === "teacher" && h.createdBy !== a.id && this.sharedTo(h, a.id) && this.shareCanCorrect(h, a));
+          return a.role === "admin" || h.createdBy === a.id || this.va(a, h.createdBy) || this.sharedTo(h, a.id);
+        }).map((h) => [h.id, h]));
         const mine = (h: { createdBy: string; data?: unknown }, r: Record<string, unknown>) => a.role === "admin" || this.va(a, h.createdBy) || h.createdBy === a.id || this.sharedTo(h, a.id) || (JSON.parse(String(r.attempts || "[]")) as { by: string; byId?: string }[]).some((x) => x.byId === a.id || x.by === a.name) || (JSON.parse(String(r.comments || "[]")) as { by: string; byId?: string }[]).some((x) => x.byId === a.id || x.by === a.name);
         const names = new Map(this.sql.exec(`SELECT id, name, cls, section FROM users`).toArray().map((r) => [String(r.id), { name: String(r.name), cls: String(r.cls || ""), section: String(r.section || "") }]));
-        // t347: also list work a teacher corrected with feedback (comments / verse marks / voice notes after the last submit) but did not grade yet — shown to the assigning teacher and the correcting teacher.
         const fbOf = (r: Record<string, unknown>) => { const cm = JSON.parse(String(r.comments || "[]")) as { by: string; at?: number }[]; const after = cm.filter((x) => Number(x.at || 0) > Number(r.submitted_at || 0)); const mk = (JSON.parse(String(r.mistakes || "[]")) as unknown[]).length; return { after, mk }; };
-        const items = this.sql.exec(`SELECT * FROM subs WHERE (grade != '' AND status IN ('approved','returned')) OR status='submitted' ORDER BY updated DESC LIMIT 2000`).toArray().filter((r) => {
-          if (!hws.has(String(r.hw))) return false;
+        const annotDone = (r: Record<string, unknown>) => { try { const p = JSON.parse(String(r.annot || "") || "null"); return !!(p && typeof p === "object" && (p as Json).done); } catch { return false; } };
+        const photoN = (r: Record<string, unknown>) => { try { const p = JSON.parse(String(r.photos || "[]")); return Array.isArray(p) ? p.length : 0; } catch { return 0; } };
+        const items = this.sql.exec(`SELECT * FROM subs WHERE status IN ('approved','returned','submitted') ORDER BY updated DESC LIMIT 2000`).toArray().filter((r) => {
+          const h = hws.get(String(r.hw)); if (!h) return false;
+          if (h.kind !== "quran") return (String(r.status) === "approved" || String(r.status) === "returned" || annotDone(r)) && mine(h, r);
           const graded = String(r.grade || "") !== "" && (JSON.parse(String(r.attempts || "[]")) as unknown[]).length > 0;
           const fb = String(r.status) === "submitted" && !graded ? fbOf(r) : null;
           if (fb && !fb.after.length && !fb.mk) return false;
-          return mine(hws.get(String(r.hw))!, r) || !!(fb && fb.after.some((x) => x.by === a.name));
+          if (String(r.status) !== "submitted" && String(r.status) !== "approved" && String(r.status) !== "returned") return false;
+          if (String(r.status) !== "submitted" && !graded && String(r.grade || "") === "") return false;
+          return mine(h, r) || !!(fb && fb.after.some((x) => x.by === a.name));
         }).slice(0, 1000).map((r) => {
           const h = hws.get(String(r.hw))!; const at = JSON.parse(String(r.attempts || "[]")) as { at: number; by: string }[]; const last = at[at.length - 1];
           const u = names.get(String(r.student));
           const re = String(r.status) === "submitted" && String(r.grade || "") !== "" && at.length > 0;
-          const fb = String(r.status) === "submitted" && !re ? fbOf(r) : null; const lc = fb?.after[fb.after.length - 1];
-          return { id: String(r.id), hw: h.id, title: h.title, data: h.data, student: String(r.student), name: u?.name ?? "?", cls: u?.cls ?? "", section: u?.section ?? "", grade: String(r.grade || ""), status: fb ? "feedback" : re ? "resubmitted" : String(r.status), scores: r.scores ? JSON.parse(String(r.scores)) : null, gradedAt: fb ? Number(lc?.at || r.updated) : last?.at || Number(r.updated), by: fb ? lc?.by || "" : last?.by || "", setBy: names.get(h.createdBy)?.name || "" };
+          const fb = h.kind === "quran" && String(r.status) === "submitted" && !re ? fbOf(r) : null; const lc = fb?.after[fb.after.length - 1];
+          return { id: String(r.id), hw: h.id, kind: h.kind, title: h.title, data: h.data, student: String(r.student), name: u?.name ?? "?", cls: u?.cls ?? "", section: u?.section ?? "", grade: String(r.grade || ""), status: fb ? "feedback" : re ? "resubmitted" : String(r.status), scores: r.scores ? JSON.parse(String(r.scores)) : null, gradedAt: fb ? Number(lc?.at || r.updated) : (annotDone(r) ? Number(r.updated) : last?.at || Number(r.updated)), by: fb ? lc?.by || "" : last?.by || String((() => { try { const p = JSON.parse(String(r.annot || "") || "null"); return p && p.by || ""; } catch { return ""; } })()), setBy: names.get(h.createdBy)?.name || "", photos: photoN(r) };
         });
         return { status: 200, body: { items } };
       }
@@ -2539,6 +2546,8 @@ export class LmsStore extends DurableObject<LmsEnv> {
           }
         }
         if (grade || status === "approved") this.ctx.waitUntil(rcSync(this.rcCtx(), String(r.student)).catch(() => undefined));
+        // t682 B: general/task "corrected" card is earned only here (and on Send correction), never by backfilling old approved rows in rcSync.
+        if (h && h.kind !== "quran" && status === "approved") rcEarnAt(this.rcCtx(), String(r.student), "hw_ok", h.id, Date.now(), h.title);
         return { status: 200, body: { ok: true } };
       }
 
@@ -2621,12 +2630,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         }
         const out = this.assignees(h).map((sid) => {
           const u = this.userRow("id=?", sid);
-          let row = h.kind === "quran" ? this.qrFor(sid, Number((h.data as Json).surah) || 0, h.id) : this.sql.exec(`SELECT token FROM qr WHERE hw=? AND student=?`, h.id, sid).toArray()[0];
-          if (!row) {
-            const tok = b64url(crypto.getRandomValues(new Uint8Array(18)));
-            this.sql.exec(`INSERT INTO qr (token, hw, student, created) VALUES (?, ?, ?, ?)`, tok, h.id, sid, Date.now());
-            row = { token: tok };
-          }
+          let row = h.kind === "quran" ? this.qrFor(sid, Number((h.data as Json).surah) || 0, h.id) : this.qrForTopic(sid, this.topicKey(h), h.id);
           const t = String(row.token);
           return { student: sid, name: String(u?.name || "?"), nameAr: String(u?.name_ar || ""), arabic: subjList(u?.subject).includes("Islamic A"), cls: String(u?.cls || ""), section: String(u?.section || ""), token: t.startsWith("revoked:") ? "" : t };
         });
@@ -2817,8 +2821,10 @@ export class LmsStore extends DurableObject<LmsEnv> {
         this.sql.exec(`UPDATE subs SET annot=?, updated=? WHERE id=?`, JSON.stringify(annot), Date.now(), String(r.id));
         const hw = this.allHomework(String(r.hw))[0];
         // General / task work: "Send correction" marks it corrected (approved). Quran stays on its own grade flow.
-        if (done && hw && hw.kind !== "quran" && String(r.status) !== "approved") {
-          this.sql.exec(`UPDATE subs SET status='approved', updated=? WHERE id=?`, Date.now(), String(r.id));
+        if (done && hw && hw.kind !== "quran") {
+          if (String(r.status) !== "approved") this.sql.exec(`UPDATE subs SET status='approved', updated=? WHERE id=?`, Date.now(), String(r.id));
+          // Earn "homework corrected" only at save time (idempotent). Do not backfill through rcSync.
+          rcEarnAt(this.rcCtx(), String(r.student), "hw_ok", String(r.hw), Date.now(), hw.title);
         }
         return { status: 200, body: { ok: true, annot } };
       }
@@ -3471,18 +3477,64 @@ export class LmsStore extends DurableObject<LmsEnv> {
     const sameS = qs ? this.allHomework().filter((x) => x.kind === "quran" && Number((x.data as Json).surah) === qs && this.assignees(x).includes(String(q.student))) : [];
     if (sameS.length) { const withSub = sameS.filter((x) => this.sub(x.id, String(q.student))); h = (withSub.length ? withSub : sameS).sort((a2, b2) => Number(b2.created || 0) - Number(a2.created || 0))[0]; }
     if (!h || !u || u.disabled) return { status: 404, body: { error: "not_found" } };
+    const topic = h.kind === "quran" ? "" : (String(q.topic || "") || this.topicKey(h));
+    if (topic && h.kind !== "quran") {
+      const sameT = this.allHomework().filter((x) => x.kind !== "quran" && this.topicKey(x) === topic && this.assignees(x).includes(String(q.student)));
+      if (sameT.length) { const withSub = sameT.filter((x) => this.sub(x.id, String(q.student))); h = (withSub.length ? withSub : sameT).sort((a2, b2) => Number(b2.created || 0) - Number(a2.created || 0))[0]; }
+    }
     const sb = this.sub(h.id, String(u.id));
     const recs = [...new Set([...(sb?.attempts || []).map((x) => x.audio), sb?.audio || ""].filter(Boolean))];
     const d = h.data as { surah?: number; from?: number; to?: number; reciter?: string; translit?: boolean; translation?: boolean };
     const tracker = h.kind === "quran" ? this.trackerOf(String(u.id)).filter((t) => t.surah === d.surah) : [];
+    const photos = (sb as { photos?: { id: string; w: number; h: number }[] } | null)?.photos || [];
+    const annot = (sb && (sb as { annot?: { done?: boolean } }).annot && (sb as { annot?: { done?: boolean } }).annot?.done) ? (sb as { annot?: unknown }).annot : null;
     return { status: 200, body: {
       student: String(u.name), studentAr: String(u.name_ar || ""), arabic: subjList(u.subject).includes("Islamic A"), cls: String(u.cls || ""), section: String(u.section || ""),
-      homework: { title: h.title, kind: h.kind, data: h.kind === "quran" ? { surah: d.surah, from: d.from, to: d.to, reciter: d.reciter, translit: d.translit, translation: d.translation } : {} },
+      homework: { title: h.title, kind: h.kind, data: h.kind === "quran" ? { surah: d.surah, from: d.from, to: d.to, reciter: d.reciter, translit: d.translit, translation: d.translation } : { topic: (h.data as Json).topic || "" } },
       status: sb?.status || "none", grade: sb?.grade || "", scores: sb?.scores || null,
       recordings: recs, recAt: Object.fromEntries(recs.map((id) => [id, Number(this.sql.exec(`SELECT created FROM blobs WHERE id=?`, id).toArray()[0]?.created || 0)])), attempts: (sb?.attempts || []).map((x) => ({ n: x.n, grade: x.grade, audio: x.audio, at: x.at, scores: x.scores })),
       feedback: (sb?.comments || []).map((c) => ({ by: c.by, text: c.text, audio: c.audio || "", at: c.at })),
       tracker, versions: qs ? this.surahVersions(String(u.id), qs) : [],
+      work: photos.length ? { photos, annot } : undefined,
+      history: topic && h.kind !== "quran" ? this.topicHistory(String(u.id), topic) : [],
     } };
+  }
+  /** Stable topic key: Quran uses quran:{surah}; general/task uses data.topic or the title, so the same topic keeps one QR. */
+  private topicKey(h: { id: string; kind: string; title: string; data: unknown }): string {
+    if (h.kind === "quran") return "quran:" + (Number((h.data as Json).surah) || 0);
+    const raw = String((h.data as Json).topic || h.title || h.id).trim().toLowerCase();
+    const slug = raw.replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-+|-+$/g, "").slice(0, 80) || h.id;
+    return "topic:" + slug;
+  }
+  /** t682 B: one permanent QR token for a student + topic (earliest existing token wins; created on demand). */
+  private qrForTopic(student: string, topic: string, hw: string): { token: string } {
+    if (topic) {
+      const existingHw = this.sql.exec(`SELECT token FROM qr WHERE student=? AND hw=? AND token NOT LIKE 'revoked:%' ORDER BY created`, student, hw).toArray()[0];
+      if (existingHw) {
+        this.sql.exec(`UPDATE qr SET topic=? WHERE token=?`, topic, String(existingHw.token));
+        return { token: String(existingHw.token) };
+      }
+      for (const r of this.sql.exec(`SELECT token, hw, topic FROM qr WHERE student=? AND token NOT LIKE 'revoked:%' ORDER BY created`, student).toArray()) {
+        let t2 = String(r.topic || "");
+        if (!t2) {
+          const h = this.allHomework(String(r.hw))[0];
+          if (h && h.kind !== "quran") { t2 = this.topicKey(h); this.sql.exec(`UPDATE qr SET topic=? WHERE token=?`, t2, String(r.token)); }
+        }
+        if (t2 === topic) return { token: String(r.token) };
+      }
+    }
+    const tok = b64url(crypto.getRandomValues(new Uint8Array(18)));
+    this.sql.exec(`INSERT INTO qr (token, hw, student, created, topic) VALUES (?, ?, ?, ?, ?)`, tok, hw, student, Date.now(), topic);
+    return { token: tok };
+  }
+  private topicHistory(student: string, topic: string) {
+    const hws = this.allHomework().filter((x) => x.kind !== "quran" && this.topicKey(x) === topic);
+    const out: { v?: number; hw: string; title: string; at: number; status: string; grade: string }[] = [];
+    for (const h of hws) {
+      const r = this.sql.exec(`SELECT * FROM subs WHERE hw=? AND student=?`, h.id, student).toArray()[0]; if (!r) continue;
+      out.push({ hw: h.id, title: h.title, at: Number(r.submitted_at || r.updated || h.created || 0), status: String(r.status || ""), grade: String(r.grade || "") });
+    }
+    return out.sort((a2, b2) => a2.at - b2.at).map((v, i) => ({ v: i + 1, ...v }));
   }
   /** t328: the one permanent QR token for a student + Surah (earliest existing token wins; created on demand). */
   private qrFor(student: string, surah: number, hw: string): { token: string } {
@@ -3515,8 +3567,10 @@ export class LmsStore extends DurableObject<LmsEnv> {
   async qrAudio(token: string, id: string): Promise<{ status: number; mime?: string; data?: ArrayBuffer }> {
     const q = this.sql.exec(`SELECT * FROM qr WHERE token=?`, token).toArray()[0];
     if (!q || !/^[A-Za-z0-9_-]{22,64}$/.test(token)) return { status: 404 };
-    const qs = Number(q.surah) || Number((this.allHomework(String(q.hw))[0]?.data as Json | undefined)?.surah) || 0;
-    const okHw = new Set([String(q.hw), ...(qs ? this.allHomework().filter((x) => x.kind === "quran" && Number((x.data as Json).surah) === qs).map((x) => x.id) : [])]);
+    const h0 = this.allHomework(String(q.hw))[0];
+    const qs = Number(q.surah) || Number((h0?.data as Json | undefined)?.surah) || 0;
+    const topic = String(q.topic || "") || (h0 && h0.kind !== "quran" ? this.topicKey(h0) : "");
+    const okHw = new Set([String(q.hw), ...(qs ? this.allHomework().filter((x) => x.kind === "quran" && Number((x.data as Json).surah) === qs).map((x) => x.id) : []), ...(topic ? this.allHomework().filter((x) => x.kind !== "quran" && this.topicKey(x) === topic).map((x) => x.id) : [])]);
     const b0 = this.sql.exec(`SELECT b.*, s.hw AS shw FROM blobs b JOIN subs s ON s.id=b.sub WHERE b.id=? AND s.student=?`, id, String(q.student)).toArray()[0];
     const b = b0 && okHw.has(String(b0.shw)) ? b0 : undefined;
     if (!b) return { status: 404 };
