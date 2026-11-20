@@ -78,7 +78,9 @@ export async function downloadUsersTemplate(role: Role = "student", catalog?: Ca
   [
     "username: 3–40 characters, letters/numbers/dot/dash, unique (stored in lower case).",
     role === "student" ? "class and section: pick from the dropdowns (they come from Admin → Classes & Subjects)." : "subjects: comma separated, from the Lists sheet. phase: EYFS, Primary and/or Secondary (comma separated). Students are assigned to teachers through Groups in Admin → Members → Groups, not in this sheet.",
-    "password: 4–64 characters (letters, numbers or symbols). Leave empty to generate a random 6-digit password. (An older \"pin\" column still works.)",
+    role === "student"
+      ? "password: 4–64 characters (letters, numbers or symbols). Leave empty to use the school's shared default student password (the student can change it later). Fill the cell to set a different password. (An older \"pin\" column still works.)"
+      : "password: 4–64 characters (letters, numbers or symbols). Leave empty to generate a random 6-digit password. (An older \"pin\" column still works.)",
     role === "teacher" ? "permissions (comma separated): assign, review, manageUsers, viewAll; optional student switches: stu:view, stu:add, stu:edit, stu:block, stu:delete (none = all four when manageUsers)." : "",
     "Existing usernames are updated (upsert). A password is only changed when you fill it in; empty cells leave stored values unchanged.",
     role === "student" ? "gender: Boy/Girl · dob: yyyy-mm-dd · SEN / EAL / gifted & talented: Yes or blank. These private fields are visible to admin only." : "",
