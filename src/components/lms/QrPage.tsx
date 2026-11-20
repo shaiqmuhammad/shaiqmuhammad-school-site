@@ -5,6 +5,7 @@ import { VersionTimeline } from "@/components/lms/Versions";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { GRADE_STYLE, card, gradeLabel, useTr } from "@/components/lms/useLms";
+import { HwMarkedWork } from "@/components/lms/HwMark";
 import { lmsApi, quranChapters, type Chapter, type QrView, type QuranData } from "@/lib/lms";
 
 /** Presentable, play-only audio card: big play button, waveform-style seek bar, time. No download (hidden element has nodownload; right-click blocked). */
@@ -82,10 +83,24 @@ export function QrPage() {
               {d.scores && <div className="mt-3 space-y-2"><ScoreBadges s={d.scores} /><FeedbackText s={d.scores} /></div>}
             </header>
             {d.versions && d.versions.length > 0 && <section className={card + " space-y-3"} data-testid="qr-versions"><VersionTimeline open list={d.versions} audio={(id, v) => audio(id, `v${v.v}`, "qr-version-rec", v.at)} /></section>}
-                        <section className={card + " space-y-3"}>
+            {d.work && d.work.photos.length > 0 && (
+              <section className={card + " space-y-3"} data-testid="qr-work">
+                <h2 className="text-xl font-bold">📝 {tr("My work and correction", "عملي والتصحيح")}</h2>
+                <HwMarkedWork sub={{ id: "qr", photos: d.work.photos, annot: d.work.annot }} token={t} pdfMeta={{ title: d.homework.title, student: (lang === "ar" && d.studentAr?.trim()) || d.student, cls: d.cls, section: d.section, date: when }} />
+              </section>
+            )}
+            {d.history && d.history.length > 1 && (
+              <section className={card + " space-y-2"} data-testid="qr-topic-history">
+                <h2 className="text-xl font-bold">📚 {tr("Progress on this topic", "التقدم في هذا الموضوع")}</h2>
+                <ol className="space-y-1 text-sm">{d.history.map((x) => <li key={x.hw} className="flex flex-wrap gap-2"><span className="font-bold">v{x.v}</span><span dir="auto">{x.title}</span><span className="opacity-70">{x.at ? new Date(x.at).toLocaleDateString(lang === "ar" ? "ar" : "en-GB") : ""}</span><span className="opacity-80">{x.status}</span></li>)}</ol>
+              </section>
+            )}
+                        {(d.homework.kind === "quran" || d.recordings.length > 0) && (
+            <section className={card + " space-y-3"}>
               <h2 className="text-xl font-bold">🎙️ {tr("My recitation", "تلاوتي")}</h2>
               {d.recordings.length ? d.recordings.map((id, i) => audio(id, d.recordings.length > 1 ? tr(`Recording ${i + 1}`, `التسجيل ${i + 1}`) : "", "qr-rec")) : <p className="opacity-70">{tr("No recording yet.", "لا يوجد تسجيل بعد.")}</p>}
             </section>
+            )}
             <section className={card + " space-y-3"}>
               <h2 className="text-xl font-bold">💬 {tr("Teacher's feedback", "ملاحظات المعلم")}</h2>
               {d.feedback.length ? d.feedback.map((c, i) => (

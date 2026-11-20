@@ -2,6 +2,7 @@
 /** t682: photo work + teacher annotation (pen, highlighter, typed text, correction-code stamps, Next Steps). */
 import { useEffect, useRef, useState } from "react";
 import { AudioClip, AudioRecorder } from "@/components/lms/Audio";
+import { hwCorrectionPdf } from "@/components/lms/hwCorrectionPdf";
 import { smallBtn, useTr } from "@/components/lms/useLms";
 import { lmsApi, lmsErrorText, type Submission } from "@/lib/lms";
 import { DEFAULT_CODES, NEXT_STEPS, emptyAnnot, emptyPage, pageOf, shrinkHwPhoto, type CorrCode, type HwAnnot, type HwPage, type HwPhoto, type HwStamp, type HwStroke, type HwText } from "@/lib/hwMark";
@@ -53,9 +54,12 @@ export function HwPhotoBox({ hwId, photos, locked, asAdmin = false, onChange }: 
   );
 }
 
-function HwImg({ id, asAdmin, className, alt = "" }: { id: string; asAdmin?: boolean; className?: string; alt?: string }) {
+function HwImg({ id, asAdmin, className, alt = "", token }: { id: string; asAdmin?: boolean; className?: string; alt?: string; token?: string }) {
   const [src, setSrc] = useState("");
-  useEffect(() => { let live = true, url = ""; lmsApi.audioUrl(id, !!asAdmin).then((r) => { if (live) { url = r.url; setSrc(r.url); } else URL.revokeObjectURL(r.url); }).catch(() => undefined); return () => { live = false; if (url) URL.revokeObjectURL(url); }; }, [id, asAdmin]);
+  useEffect(() => {
+    if (token) { setSrc(lmsApi.qrAudioUrl(token, id)); return; }
+    let live = true, url = ""; lmsApi.audioUrl(id, !!asAdmin).then((r) => { if (live) { url = r.url; setSrc(r.url); } else URL.revokeObjectURL(r.url); }).catch(() => undefined); return () => { live = false; if (url) URL.revokeObjectURL(url); };
+  }, [id, asAdmin, token]);
   if (!src) return <div className="grid h-full min-h-32 place-items-center text-sm opacity-60">…</div>;
   // eslint-disable-next-line @next/next/no-img-element
   return <img src={src} alt={alt} className={className} />;
@@ -63,7 +67,7 @@ function HwImg({ id, asAdmin, className, alt = "" }: { id: string; asAdmin?: boo
 
 /** Overlay + tools. `edit` = teacher can mark; otherwise the student (or QR view) only sees the marks. */
 export function HwAnnotate({
-  photos, annot, codes, edit, asAdmin = false, subId, audioId, onSaved, onCodes,
+  photos, annot, codes, edit, asAdmin = false, subId, audioId, onSaved, onCodes, token, pdfMeta,
 }: {
   photos: HwPhoto[];
   annot: HwAnnot | null;
@@ -74,6 +78,8 @@ export function HwAnnotate({
   audioId?: string;
   onSaved?: (a: HwAnnot) => void;
   onCodes?: (c: CorrCode[]) => void;
+  token?: string;
+  pdfMeta?: { title: string; student: string; cls?: string; section?: string; teacher?: string; date?: number; hwId?: string; studentId?: string };
 }) {
   const { tr, lang } = useTr();
   const [tab, setTab] = useState(photos[0]?.id || "");
@@ -167,7 +173,7 @@ export function HwAnnotate({
           onPointerCancel={up}
           data-testid="hw-mark-stage"
         >
-          <HwImg id={photo.id} asAdmin={asAdmin} className="pointer-events-none absolute inset-0 h-full w-full object-contain" />
+          <HwImg id={photo.id} asAdmin={asAdmin} token={token} className="pointer-events-none absolute inset-0 h-full w-full object-contain" />
           <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
             {page.strokes.map((s, i) => <polyline key={i} fill="none" points={toPts(s.d)} stroke={s.c} strokeWidth={(s.w / 400) * (100 / Math.max(photo.w / photo.h, 1))} strokeLinecap="round" strokeLinejoin="round" opacity={s.tool === "hi" ? 0.4 : 1} vectorEffect="non-scaling-stroke" />)}
             {live && <polyline fill="none" points={toPts(live)} stroke={color} strokeWidth={(tool === "hi" ? Math.max(14, width * 4) : width) / 4} strokeLinecap="round" strokeLinejoin="round" opacity={tool === "hi" ? 0.4 : 1} vectorEffect="non-scaling-stroke" />}
@@ -223,6 +229,20 @@ export function HwAnnotate({
           <ul className="mt-1 list-disc ps-5 font-semibold">{draft.next.map((n) => <li key={n} dir="auto">{n}</li>)}</ul>
         </div>
       )}
+      {(draft.done || !edit) && (
+        <button type="button" className={smallBtn} data-testid="hw-pdf" onClick={async () => {
+          try {
+            let tok = token || "";
+            if (!tok && pdfMeta?.hwId && pdfMeta.studentId) {
+              const r = await lmsApi.qrLinks(pdfMeta.hwId, {}, !!asAdmin).catch(() => null);
+              tok = r?.links.find((l) => l.student === pdfMeta.studentId)?.token || "";
+            }
+            await hwCorrectionPdf(photos, draft, async (id) => tok ? lmsApi.qrAudioUrl(tok, id) : (await lmsApi.audioUrl(id, !!asAdmin)).url, {
+              title: pdfMeta?.title || "", student: pdfMeta?.student || "", cls: pdfMeta?.cls, section: pdfMeta?.section, teacher: pdfMeta?.teacher || draft.by, date: pdfMeta?.date || draft.at || Date.now(), next: draft.next, token: tok || undefined, origin: typeof location !== "undefined" ? location.origin : "",
+            }, lang === "ar" ? "ar" : "en");
+          } catch { /* keep the page usable if a photo fails to load */ }
+        }}>🖨️ {tr("Download / print PDF", "تنزيل / طباعة PDF")}</button>
+      )}
     </div>
   );
 }
@@ -262,8 +282,8 @@ function toPts(d: number[]) {
 }
 
 /** Student-facing marked work (photos + overlay + Next Steps). */
-export function HwMarkedWork({ sub, asAdmin = false }: { sub: Pick<Submission, "photos" | "annot" | "id">; asAdmin?: boolean }) {
+export function HwMarkedWork({ sub, asAdmin = false, token, pdfMeta }: { sub: Pick<Submission, "photos" | "annot" | "id">; asAdmin?: boolean; token?: string; pdfMeta?: { title: string; student: string; cls?: string; section?: string; teacher?: string; date?: number; hwId?: string; studentId?: string } }) {
   const photos = sub.photos || [];
   if (!photos.length) return null;
-  return <HwAnnotate photos={photos} annot={sub.annot || emptyAnnot()} codes={DEFAULT_CODES} edit={false} asAdmin={asAdmin} subId={sub.id} />;
+  return <HwAnnotate photos={photos} annot={sub.annot || emptyAnnot()} codes={DEFAULT_CODES} edit={false} asAdmin={asAdmin} subId={sub.id} token={token} pdfMeta={pdfMeta} />;
 }
