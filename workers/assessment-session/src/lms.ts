@@ -535,6 +535,30 @@ export class LmsStore extends DurableObject<LmsEnv> {
   private sharedTo(h: { data?: unknown }, uid: string): boolean { return this.sharedToOld(h, uid); }
   private sharedToOld(h: { data?: unknown }, uid: string): boolean { const sh = ((h.data || {}) as Json).share as { teachers?: string[] } | undefined; return !!sh?.teachers?.includes(uid); }
   private shareCanCorrect(h: { data: unknown }, a: Actor): boolean { const sh = ((h.data || {}) as Json).share as { teachers?: string[]; correct?: boolean } | undefined; return a.role === "teacher" && !!sh?.teachers?.includes(a.id) && sh.correct === true && a.perms.includes("shareCorrect"); }
+  /** t678: may this actor correct (grade, comment, verse marks, voice feedback) work on homework `hwId`?
+   *  Own work needs Review. A colleague under See all homework needs Review or "Correct homework shared with them".
+   *  A homework share counts only when it allows correction. `granted` = access comes from a share / colleague grant (not own work). */
+  private mayCorrect(a: Actor, hwId: string): { ok: boolean; granted: boolean; status: number; error: string } {
+    const hs = this.allHomework(hwId)[0];
+    if (!hs) return { ok: false, granted: false, status: 404, error: "not_found" };
+    if (a.role === "admin") return { ok: true, granted: false, status: 200, error: "" };
+    if (a.role !== "teacher") return { ok: false, granted: false, status: 403, error: "forbidden" };
+    const own = hs.createdBy === a.id;
+    const colleague = !own && this.va(a, hs.createdBy);
+    const shared = !own && this.sharedTo(hs, a.id);
+    if (!own && !colleague && !shared) return { ok: false, granted: false, status: 403, error: "forbidden" };
+    const viaColleague = colleague && (can(a, "review") || a.perms.includes("shareCorrect"));
+    const viaShare = shared && this.shareCanCorrect(hs, a);
+    if (own && can(a, "review")) return { ok: true, granted: false, status: 200, error: "" };
+    if (viaColleague || viaShare) return { ok: true, granted: true, status: 200, error: "" };
+    return { ok: false, granted: false, status: 403, error: shared || colleague ? "share_view_only" : "forbidden" };
+  }
+  /** t678: correction actions on a granted (shared / colleague) homework — the share grant wins over this teacher's own module switches. */
+  private grantedCorrection(a: Actor, action: string, input: Json): boolean {
+    if (a.role !== "teacher" || (action !== "sub-review" && action !== "mistakes")) return false;
+    const r = this.sql.exec(`SELECT hw FROM subs WHERE id=?`, str(input?.id, 40)).toArray()[0];
+    return !!r && this.mayCorrect(a, String(r.hw)).granted;
+  }
   private va(a: Actor, by: string): boolean {
     if (!a.perms.includes("viewAll")) return false;
     if (!by) return true;
@@ -887,9 +911,9 @@ export class LmsStore extends DurableObject<LmsEnv> {
       this.touch(a.id);
       return { status: 200, body: { ok: true, id, sub: this.sub(h.id, a.id) } };
     }
-    if (!can(a, "review")) return { status: 403, body: { error: "forbidden" } };
     const r = this.sql.exec(`SELECT * FROM subs WHERE id=?`, str(q.sub, 40)).toArray()[0];
     if (!r) return { status: 404, body: { error: "not_found" } };
+    { const mc = this.mayCorrect(a, String(r.hw)); if (!mc.ok) return { status: mc.status, body: { error: mc.error } }; } // t678: same rule as Save grade (shares honoured)
     await this.files.put(id, data, type);
     // t337: a voice note for one verse mark (?mark=1) — stored for that submission, attached by "mistakes"; no comment, no push, the work stays in To review.
     if (q.mark) { this.sql.exec(`INSERT INTO blobs (id, owner, sub, kind, mime, size, created) VALUES (?, ?, ?, 'mk', ?, ?, ?)`, id, a.id, String(r.id), type, data.byteLength, Date.now()); return { status: 200, body: { ok: true, id } }; }
@@ -1073,7 +1097,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     // Per-module Show/Hide for teachers ("hide:<module>" in perms). Hidden modules answer 403 on the server, not just in the menu.
     if (a.role === "teacher") {
       const mod = action === "assess-results" ? "results" : /^msg-/.test(action) ? "messaging" : /^wall-/.test(action) ? "wall" : /^act-/.test(action) ? "activities" : /^(hw-save|hw-delete|hw-unlock|sub-review)$/.test(action) ? "homework" : /^(assess-|tquiz-)/.test(action) ? "assessments" : "";
-      if (mod && a.perms.includes(`hide:${mod}`)) return { status: 403, body: { error: "module_hidden" } };
+      if (mod && a.perms.includes(`hide:${mod}`) && !(mod === "homework" && this.grantedCorrection(a, action, input))) return { status: 403, body: { error: "module_hidden" } };
     }
     if (a.role === "parent" && !(input as Record<symbol, unknown>)[PASS]) return this.parentHandle(a, action, input);
     if (action === "att-parent-alert") return this.attParentAlert(a, input);
@@ -2283,7 +2307,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
           return { status: 200, body: { homework: hw, tracker: this.trackerOf(a.id), progress: this.progressOf(a.id), leaderboard: this.setting("leaderboard", "off") !== "off" } };
         }
         const qd = qhwOf(a);
-        const all = this.allHomework().filter((h) => a.role === "admin" || this.va(a, h.createdBy) || h.createdBy === a.id || this.sharedTo(h, a.id)).filter((h) => (h.kind !== "quran" || (qd.show && qd.view)) && (h.kind === "quran" || genOk(a)));
+        const all = this.allHomework().filter((h) => a.role === "admin" || this.va(a, h.createdBy) || h.createdBy === a.id || this.sharedTo(h, a.id)).filter((h) => ((h.kind !== "quran" || (qd.show && qd.view)) && (h.kind === "quran" || genOk(a))) || (a.role === "teacher" && h.createdBy !== a.id && this.sharedTo(h, a.id) && this.shareCanCorrect(h, a))); // t678: work shared to correct stays listed
         const counts = new Map<string, Record<string, number>>();
         for (const s of this.sql.exec(`SELECT hw, status, COUNT(*) AS n FROM subs GROUP BY hw, status`).toArray()) {
           const c = counts.get(String(s.hw)) || {};
@@ -2314,8 +2338,10 @@ export class LmsStore extends DurableObject<LmsEnv> {
         // Graded Quran homework (Excellent/Good passed, or Needs practice sent back) for the teacher's own homework (admin/viewAll: all).
         if (a.role === "student" || a.role === "parent") return { status: 403, body: { error: "forbidden" } };
         const qd = qhwOf(a);
-        if (a.role === "teacher" && !(qd.show && qd.view)) return { status: 403, body: { error: "quran_not_allowed" } };
-        const hws = new Map(this.allHomework().filter((h) => h.kind === "quran").map((h) => [h.id, h]));
+        // t678: without Quran homework access a teacher still sees Quran work shared with them to correct.
+        const qOnlyShared = a.role === "teacher" && !(qd.show && qd.view);
+        const hws = new Map(this.allHomework().filter((h) => h.kind === "quran" && (!qOnlyShared || (h.createdBy !== a.id && this.sharedTo(h, a.id) && this.shareCanCorrect(h, a)))).map((h) => [h.id, h]));
+        if (qOnlyShared && !hws.size) return { status: 403, body: { error: "quran_not_allowed" } };
         const mine = (h: { createdBy: string; data?: unknown }, r: Record<string, unknown>) => a.role === "admin" || this.va(a, h.createdBy) || h.createdBy === a.id || this.sharedTo(h, a.id) || (JSON.parse(String(r.attempts || "[]")) as { by: string; byId?: string }[]).some((x) => x.byId === a.id || x.by === a.name) || (JSON.parse(String(r.comments || "[]")) as { by: string; byId?: string }[]).some((x) => x.byId === a.id || x.by === a.name);
         const names = new Map(this.sql.exec(`SELECT id, name, cls, section FROM users`).toArray().map((r) => [String(r.id), { name: String(r.name), cls: String(r.cls || ""), section: String(r.section || "") }]));
         // t347: also list work a teacher corrected with feedback (comments / verse marks / voice notes after the last submit) but did not grade yet — shown to the assigning teacher and the correcting teacher.
@@ -2400,22 +2426,14 @@ export class LmsStore extends DurableObject<LmsEnv> {
       case "sub-review": {
         const r = this.sql.exec(`SELECT * FROM subs WHERE id=?`, str(input.id, 40)).toArray()[0];
         if (!r) return { status: 404, body: { error: "not_found" } };
-        {
-          const hs = this.allHomework(String(r.hw))[0];
-          if (!hs) return { status: 404, body: { error: "not_found" } };
-          if (a.role !== "admin" && a.role !== "teacher") return { status: 403, body: { error: "forbidden" } };
-          if (a.role === "teacher") {
-            const own = hs.createdBy === a.id;
-            const colleague = !own && this.va(a, hs.createdBy);
-            const shared = !own && this.sharedTo(hs, a.id);
-            if (!own && !colleague && !shared) return { status: 403, body: { error: "forbidden" } };
-            // Own work needs Review. A colleague picked under See all homework can grade with Review or "Correct homework shared with them". A legacy share grades only when that share allows correction.
-            const allowed = (own && can(a, "review")) || (colleague && (can(a, "review") || a.perms.includes("shareCorrect"))) || (shared && this.shareCanCorrect(hs, a));
-            if (!allowed) return { status: 403, body: { error: shared || colleague ? "share_view_only" : "forbidden" } };
-          }
+        // t678: one access rule for every correction action (own work / See all homework colleague / homework share that allows correction).
+        const mc = this.mayCorrect(a, String(r.hw));
+        if (!mc.ok) return { status: mc.status, body: { error: mc.error } };
+        // A share / colleague grant to correct is honoured even when this teacher's own homework switches are off.
+        if (!mc.granted) {
+          { const hg = this.allHomework(String(r.hw))[0]; if (hg && hg.kind !== "quran" && !genOk(a)) return { status: 403, body: { error: "general_hw_not_allowed" } }; }
+          { const hq0 = this.allHomework(String(r.hw))[0]; if (hq0?.kind === "quran" && a.role === "teacher") { const qv = qhwOf(a); if (!(qv.show && qv.view)) return { status: 403, body: { error: "quran_not_allowed" } }; } }
         }
-        { const hg = this.allHomework(String(r.hw))[0]; if (hg && hg.kind !== "quran" && !genOk(a)) return { status: 403, body: { error: "general_hw_not_allowed" } }; }
-        { const hq0 = this.allHomework(String(r.hw))[0]; if (hq0?.kind === "quran" && a.role === "teacher") { const qv = qhwOf(a); if (!(qv.show && qv.view)) return { status: 403, body: { error: "quran_not_allowed" } }; } }
         const comments = (() => { try { const p = JSON.parse(String(r.comments || "[]")); return Array.isArray(p) ? p as { by: string; text: string; at: number }[] : []; } catch { return [] as { by: string; text: string; at: number }[]; } })();
         const c = str(input.comment, 1000);
         if (c) comments.push({ by: a.name, byId: a.id, text: c, at: Date.now() } as { by: string; text: string; at: number });
@@ -2696,9 +2714,9 @@ export class LmsStore extends DurableObject<LmsEnv> {
 
       case "mistakes": {
         // Teacher marks mistakes on an exact verse/word of a Quran submission.
-        if (!can(a, "review")) return { status: 403, body: { error: "forbidden" } };
         const r = this.sql.exec(`SELECT * FROM subs WHERE id=?`, str(input.id, 40)).toArray()[0];
         if (!r) return { status: 404, body: { error: "not_found" } };
+        { const mc = this.mayCorrect(a, String(r.hw)); if (!mc.ok) return { status: mc.status, body: { error: mc.error } }; } // t678: same rule as Save grade
         const list = (Array.isArray(input.mistakes) ? (input.mistakes as Json[]) : []).slice(0, 100).map((m) => ({ ayah: Math.trunc(Number(m.ayah)) || 0, word: Math.trunc(Number(m.word)), text: str(m.text, 80), note: str(m.note, 300), ...(m.audio ? { audio: str(m.audio, 60) } : {}) })).filter((m) => m.ayah > 0);
         this.sql.exec(`UPDATE subs SET mistakes=?, updated=? WHERE id=?`, JSON.stringify(list), Date.now(), String(r.id));
         this.sql.exec(`UPDATE tracker SET marks=? WHERE hw=? AND student=?`, JSON.stringify(list), String(r.hw), String(r.student)); // t332: verse marks flow to the tracker
