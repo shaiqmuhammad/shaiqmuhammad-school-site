@@ -48,6 +48,7 @@ export function HomeworkEditor({ initial, classes, students, catalog, scope = []
   const [slides, setSlides] = useState<Slide[]>(g0.slides?.length ? g0.slides : [{ title: "", text: "", image: "" }]);
   const [question, setQuestion] = useState(g0.question || "");
   const [topic, setTopic] = useState(g0.topic || "");
+  const [pa, setPa] = useState(!!(q0.pa ?? g0.pa));
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -101,7 +102,7 @@ export function HomeworkEditor({ initial, classes, students, catalog, scope = []
         setBusy(true);
         setErr("");
         try {
-          const data = kind === "quran" ? { surah, from, to: Math.max(from, to), reciter, notes, translit, translation, extra: extra.trim(), memorise, memoAudio, attemptLimit } : { slides: slides.filter((s) => s.title || s.text || s.image), question, attemptLimit, topic: topic.trim() };
+          const data = kind === "quran" ? { surah, from, to: Math.max(from, to), reciter, notes, translit, translation, extra: extra.trim(), memorise, memoAudio, attemptLimit, pa } : { slides: slides.filter((s) => s.title || s.text || s.image), question, attemptLimit, topic: topic.trim(), pa };
           const r = await lmsApi.saveHomework({ id: initial?.id, kind, title: kind === "quran" ? autoTitle : title.trim(), cls: who === "students" || (!asAdmin && pick.length) ? "" : cls, section: who === "students" || (!asAdmin && pick.length) ? "" : section || (cls && !wholeClassOk(cls) ? sectionsOf(cls)[0] || "" : ""), students: pick, due: due ? new Date(due + "T23:59:00").getTime() : null, data: data as QuranData | GeneralData }, asAdmin);
           onSaved(r.id);
         } catch (x) {
@@ -240,6 +241,10 @@ export function HomeworkEditor({ initial, classes, students, catalog, scope = []
           <input type="date" className={inputCls} value={due} onChange={(e) => setDue(e.target.value)} />
         </label>
         <AttemptField value={attemptLimit} onChange={setAttemptLimit} />
+        <label className="flex items-center gap-2 text-sm font-semibold sm:col-span-3" data-testid="hw-pa-label">
+          <input type="checkbox" className="h-5 w-5" checked={pa} onChange={(e) => setPa(e.target.checked)} data-testid="hw-pa" />
+          🤝 {tr("Allow peer assessment — classmates can review each other's submitted work", "السماح بتقييم الأقران — يمكن للزملاء مراجعة عمل بعضهم المسلّم")}
+        </label>
       </div>
       {err && <p className="rounded-xl bg-rose-100 px-4 py-2 text-rose-800 dark:bg-rose-900/40 dark:text-rose-100" role="alert">{err}</p>}
       <div className="flex flex-wrap gap-2">
