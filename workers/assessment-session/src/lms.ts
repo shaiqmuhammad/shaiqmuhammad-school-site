@@ -952,6 +952,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     if (!/^image\/(jpeg|png|webp)$/.test(type)) return { status: 415, body: { error: "photo_type" } };
     if (!data.byteLength) return { status: 400, body: { error: "empty" } };
     if (data.byteLength > 1_600_000) return { status: 413, body: { error: "too_large" } };
+    if (q.render === "1") return this.renderUpload(a, q, data, type);
     if (a.role !== "student") return { status: 403, body: { error: "students_only" } };
     const used = Number(this.sql.exec(`SELECT COALESCE(SUM(size),0) AS n FROM blobs WHERE owner=?`, a.id).one().n);
     const total = Number(this.sql.exec(`SELECT COALESCE(SUM(size),0) AS n FROM blobs`).one().n);
@@ -970,7 +971,8 @@ export class LmsStore extends DurableObject<LmsEnv> {
     }
     let photos: { id: string; w: number; h: number }[] = [];
     try { const p = JSON.parse(String(cur.photos || "[]")); if (Array.isArray(p)) photos = p; } catch { photos = []; }
-    if (photos.length >= 6) return { status: 409, body: { error: "too_many_photos" } };
+    const cam = photos.filter((p) => !String(p.id || "").startsWith("wr_") && (p as { kind?: string }).kind !== "render");
+    if (cam.length >= 6) return { status: 409, body: { error: "too_many_photos" } };
     const id = rid("ph");
     const w = Math.max(1, Math.min(4000, Math.round(Number(q.w) || 1)));
     const hh = Math.max(1, Math.min(4000, Math.round(Number(q.h) || 1)));
@@ -980,6 +982,36 @@ export class LmsStore extends DurableObject<LmsEnv> {
     this.sql.exec(`UPDATE subs SET photos=?, status=CASE WHEN status='returned' THEN 'returned' ELSE 'draft' END, updated=? WHERE id=?`, JSON.stringify(photos), Date.now(), String(cur.id));
     this.touch(a.id);
     return { status: 200, body: { ok: true, id, photos } };
+  }
+
+  /** t684: teacher uploads a raster of typed / slide work so the same mark-up tools can be used. */
+  private async renderUpload(a: Actor, q: Json, data: ArrayBuffer, type: string): Promise<Reply> {
+    if (!isStaff(a)) return { status: 403, body: { error: "forbidden" } };
+    const r = this.sql.exec(`SELECT * FROM subs WHERE id=?`, str(q.sub, 40)).toArray()[0];
+    if (!r) return { status: 404, body: { error: "not_found" } };
+    const mc = this.mayCorrect(a, String(r.hw));
+    if (!mc.ok) return { status: mc.status, body: { error: mc.error } };
+    if (a.role === "teacher" && !mc.granted && !a.perms.includes("hwMarkCorrect")) return { status: 403, body: { error: "photo_correct_off" } };
+    if (!["submitted", "approved", "returned"].includes(String(r.status))) return { status: 409, body: { error: "not_submitted" } };
+    const pid = str(q.pid, 40);
+    if (!/^wr_[A-Za-z0-9_-]{1,36}$/.test(pid)) return { status: 400, body: { error: "bad_pid" } };
+    let photos: { id: string; w: number; h: number; kind?: string }[] = [];
+    try { const p = JSON.parse(String(r.photos || "[]")); if (Array.isArray(p)) photos = p; } catch { photos = []; }
+    const w = Math.max(1, Math.min(4000, Math.round(Number(q.w) || 1)));
+    const hh = Math.max(1, Math.min(4000, Math.round(Number(q.h) || 1)));
+    if (photos.some((x) => x.id === pid)) return { status: 200, body: { ok: true, id: pid, photos, existing: true } };
+    if (photos.length >= 16) return { status: 409, body: { error: "too_many_work_pages" } };
+    const owner = String(r.student);
+    const used = Number(this.sql.exec(`SELECT COALESCE(SUM(size),0) AS n FROM blobs WHERE owner=?`, owner).one().n);
+    const total = Number(this.sql.exec(`SELECT COALESCE(SUM(size),0) AS n FROM blobs`).one().n);
+    if (used + data.byteLength > USER_AUDIO_CAP) return { status: 409, body: { error: "audio_user_full" } };
+    if (total + data.byteLength > TOTAL_AUDIO_CAP) return { status: 409, body: { error: "audio_full" } };
+    await this.files.put(pid, data, type);
+    this.sql.exec(`INSERT INTO blobs (id, owner, sub, kind, mime, size, created) VALUES (?, ?, ?, 'ph', ?, ?, ?)`, pid, owner, String(r.id), type, data.byteLength, Date.now());
+    photos.push({ id: pid, w, h: hh, kind: "render" });
+    this.sql.exec(`UPDATE subs SET photos=?, updated=? WHERE id=?`, JSON.stringify(photos), Date.now(), String(r.id));
+    this.touch(a.id);
+    return { status: 200, body: { ok: true, id: pid, photos } };
   }
 
   /** t315: Lesson Pack context (see packs.ts). */
@@ -2138,6 +2170,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         if (!b) return { status: 404, body: { error: "not_found" } };
         const r = this.sql.exec(`SELECT * FROM subs WHERE id=?`, String(b.sub)).toArray()[0];
         if (b.kind === "ph") {
+          if (String(b.id).startsWith("wr_") && a.role === "student") return { status: 403, body: { error: "forbidden" } };
           if (!(a.role === "student" && r?.student === a.id) && a.role !== "admin") return { status: 403, body: { error: "forbidden" } };
           if (a.role === "student" && r?.status === "approved") return { status: 409, body: { error: "already_approved" } };
           if (r) {
@@ -2486,6 +2519,21 @@ export class LmsStore extends DurableObject<LmsEnv> {
         if (cur) this.sql.exec(`UPDATE subs SET status=?, text=?, practised=?, updated=? WHERE id=?`, status, text, practised, Date.now(), String(cur.id));
         else this.sql.exec(`INSERT INTO subs (id, hw, student, status, text, practised, updated) VALUES (?, ?, ?, ?, ?, ?, ?)`, rid("s"), h.id, a.id, status, text, practised, Date.now());
         this.touch(a.id);
+        if (status === "submitted" && cur) {
+          // t684: a new submit drops previous work-page rasters so the teacher gets a fresh copy to mark.
+          let photos: { id: string; kind?: string }[] = [];
+          try { const p = JSON.parse(String(cur.photos || "[]")); if (Array.isArray(p)) photos = p; } catch { photos = []; }
+          const wr = photos.filter((x) => String(x.id || "").startsWith("wr_") || x.kind === "render");
+          if (wr.length) {
+            const keep = photos.filter((x) => !String(x.id || "").startsWith("wr_") && x.kind !== "render");
+            for (const x of wr) await this.dropBlob(String(x.id));
+            let annot: { pages?: Record<string, unknown>; next?: unknown; done?: boolean } = {};
+            try { annot = JSON.parse(String(cur.annot || "{}")) || {}; } catch { annot = {}; }
+            const pages = { ...(annot.pages || {}) };
+            for (const x of wr) delete pages[String(x.id)];
+            this.sql.exec(`UPDATE subs SET photos=?, annot=?, updated=? WHERE id=?`, JSON.stringify(keep), JSON.stringify({ ...annot, pages, done: false }), Date.now(), String(cur.id));
+          }
+        }
         if (status === "submitted") this.sql.exec(`UPDATE subs SET submitted_at=?, nsubmit=? WHERE hw=? AND student=?`, Date.now(), used + 1, h.id, a.id);
         if (status === "submitted") this.ctx.waitUntil(rcSync(this.rcCtx(), a.id).catch(() => undefined));
         if (status === "submitted") this.notify([h.createdBy, "admin"], "sub_new", { hw: h.id, title: h.title, student: a.name });
@@ -2788,7 +2836,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
 
 
       case "annot-save": {
-        // t682: teacher marks on a photo submission. A share/colleague grant uses the same mayCorrect rule as Save grade.
+        // t682 / t684: teacher marks photos or rastered typed/slide work. A share/colleague grant uses the same mayCorrect rule as Save grade.
         const r = this.sql.exec(`SELECT * FROM subs WHERE id=?`, str(input.id, 40)).toArray()[0];
         if (!r) return { status: 404, body: { error: "not_found" } };
         const mc = this.mayCorrect(a, String(r.hw));
@@ -2798,7 +2846,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         const raw = (input.annot || {}) as Json;
         const pagesIn = (raw.pages && typeof raw.pages === "object") ? raw.pages as Record<string, Json> : {};
         const pages: Record<string, Json> = {};
-        for (const [pid, pg] of Object.entries(pagesIn).slice(0, 6)) {
+        for (const [pid, pg] of Object.entries(pagesIn).slice(0, 16)) {
           const strokes = (Array.isArray((pg as Json).strokes) ? (pg as Json).strokes as Json[] : []).slice(0, 200).map((s) => ({
             c: /^#[0-9a-fA-F]{6}$/.test(String(s.c || "")) ? String(s.c) : "#e11d48",
             w: Math.max(1, Math.min(40, Number(s.w) || 4)),
