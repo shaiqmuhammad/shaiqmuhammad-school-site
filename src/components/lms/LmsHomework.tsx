@@ -22,6 +22,8 @@ import { FeedbackText, ScoreBadges, ScoreGrader } from "@/components/lms/QuranSc
 import { VersionTimeline } from "@/components/lms/Versions";
 import { qhwPerm } from "@/lib/lmsMods";
 import { GRADE_STYLE, STATUS_STYLE, card, gradeLabel, inputCls, smallBtn, statusLabel, useLmsActor, useTr } from "@/components/lms/useLms";
+import { HwAnnotate, HwMarkedWork, HwPhotoBox } from "@/components/lms/HwMark";
+import { DEFAULT_CODES, type CorrCode } from "@/lib/hwMark";
 import { attemptCap, attemptOpen, quranExtras, ayahAudio, lmsApi, lmsErrorText, quranChapters, quranVerses, type Chapter, type GeneralData, type QuranData, type Submission, type Attempt, type Mistake, type QrLink, type Catalog, type DashStudent } from "@/lib/lms";
 import { usePinchZoom } from "@/components/lms/usePinchZoom";
 
@@ -265,6 +267,8 @@ function StudentWork({ hw, sub, reload, chapters = [] }: { hw: Data["homework"];
           {!locked && sub?.status !== "approved" && <AudioRecorder replace={!!sub?.audio} label={sub?.audio ? tr("Record again (replaces this take)", "سجّل مجددًا (يستبدل هذه المحاولة)") : tr("Audio answer (optional, up to 3 minutes)", "إجابة صوتية (اختياري، حتى 3 دقائق)")} testId="rec-student" big autoSave onSave={async (b) => { await lmsApi.audioUpload({ hw: hw.id }, b); setDraftOk(true); reload(); }} />}
         </>
       )}
+      {hw.kind !== "quran" && <HwPhotoBox hwId={hw.id} photos={sub?.photos || []} locked={locked} onChange={reload} />}
+      {hw.kind !== "quran" && sub?.annot?.done && <HwMarkedWork sub={sub} />}
       <textarea className={inputCls + " min-h-28"} value={text} onChange={(e) => setText(e.target.value)} disabled={locked} maxLength={4000} dir="auto" placeholder={hw.kind === "quran" ? tr("A note for your teacher (optional)", "ملاحظة لمعلمك (اختياري)") : tr("Your answer", "إجابتك")} data-testid="hw-text" />
       {!open && <p className="text-sm font-bold text-rose-700" data-testid="hw-tries-used">{tr("You have used every attempt for this work.", "لقد استخدمت كل المحاولات لهذا العمل.")}</p>}
       {open && cap === 0 && <p className="text-sm font-semibold" data-testid="hw-tries">{tr("Multiple attempts — you can submit again until this is approved.", "عدة محاولات — يمكنك التسليم مجددًا حتى يُعتمد هذا.")}</p>}
@@ -272,7 +276,7 @@ function StudentWork({ hw, sub, reload, chapters = [] }: { hw: Data["homework"];
       {open && cap > 1 && <p className="text-sm font-semibold" data-testid="hw-tries">{tr(`Attempts left: ${Math.max(0, cap - used)} of ${cap}.`, `المحاولات المتبقية: ${Math.max(0, cap - used)} من ${cap}.`)}</p>}
       {!locked && (
         <div className="flex flex-wrap gap-2">
-          <button type="button" className={primaryBtn} disabled={busy || (hw.kind === "general" ? !(hw.data as { pack?: string }).pack && !text.trim() && !(sub?.audio || draftOk) : !(sub?.audio || draftOk))} onClick={() => { const ask = cap === 0 ? tr("Submit again? You can keep sending until your teacher approves it.", "تسليم مجدد؟ يمكنك الاستمرار حتى يعتمد معلمك العمل.") : cap > 1 ? tr(`Submit now? You can hand this in ${cap} times (${Math.max(0, cap - used)} left).`, `تسليم الآن؟ يمكنك التسليم ${cap} مرات (المتبقي ${Math.max(0, cap - used)}).`) : sentBack ? tr("Send this correction? You can send it once, unless your teacher sends it back again.", "إرسال هذا التصحيح؟ يمكنك إرساله مرة واحدة، إلا إذا أعاده معلمك مجددًا.") : tr("Submit your homework now? You can only submit once, unless your teacher sends it back.", "تسليم واجبك الآن؟ يمكنك التسليم مرة واحدة فقط، إلا إذا أعاده معلمك."); if (confirm(ask)) save(true); }} data-testid="hw-submit">📤 {sentBack ? tr("Submit correction", "تسليم التصحيح") : tr("Submit Your Homework", "سلّم واجبك")}</button>
+          <button type="button" className={primaryBtn} disabled={busy || (hw.kind === "general" ? !(hw.data as { pack?: string }).pack && !text.trim() && !(sub?.audio || draftOk || (sub?.photos || []).length) : !(sub?.audio || draftOk))} onClick={() => { const ask = cap === 0 ? tr("Submit again? You can keep sending until your teacher approves it.", "تسليم مجدد؟ يمكنك الاستمرار حتى يعتمد معلمك العمل.") : cap > 1 ? tr(`Submit now? You can hand this in ${cap} times (${Math.max(0, cap - used)} left).`, `تسليم الآن؟ يمكنك التسليم ${cap} مرات (المتبقي ${Math.max(0, cap - used)}).`) : sentBack ? tr("Send this correction? You can send it once, unless your teacher sends it back again.", "إرسال هذا التصحيح؟ يمكنك إرساله مرة واحدة، إلا إذا أعاده معلمك مجددًا.") : tr("Submit your homework now? You can only submit once, unless your teacher sends it back.", "تسليم واجبك الآن؟ يمكنك التسليم مرة واحدة فقط، إلا إذا أعاده معلمك."); if (confirm(ask)) save(true); }} data-testid="hw-submit">📤 {sentBack ? tr("Submit correction", "تسليم التصحيح") : tr("Submit Your Homework", "سلّم واجبك")}</button>
           <button type="button" className={smallBtn} disabled={busy} onClick={() => save(false)} data-testid="hw-draft">{tr("Save for later", "حفظ لاحقًا")}</button>
         </div>
       )}
@@ -316,6 +320,8 @@ const PRESETS: [string, string][] = [
 
 function Review({ s, asAdmin, reload, quran, qdata, regrade = false, onGraded, pack }: { s: NonNullable<Data["subs"]>[number]; asAdmin: boolean; reload: () => void; quran: boolean; qdata?: QuranData; regrade?: boolean; onGraded?: () => void; pack?: string }) {
   const [editGrade, setEditGrade] = useState(false);
+  const [codes, setCodes] = useState<CorrCode[]>(DEFAULT_CODES);
+  useEffect(() => { let live = true; lmsApi.corrCodes(asAdmin).then((r) => { if (live && r.codes?.length) setCodes(r.codes); }).catch(() => undefined); return () => { live = false; }; }, [asAdmin]);
   const [slidesOpen, setSlidesOpen] = useState(false);
   const { tr, lang } = useTr();
   const [marking, setMarking] = useState(false);
@@ -384,6 +390,7 @@ function Review({ s, asAdmin, reload, quran, qdata, regrade = false, onGraded, p
       {pack && slidesOpen && <PackPlayer id={pack} asAdmin={asAdmin} review={{ student: s.student }} />}
       {quran && s.scores && s.status !== "submitted" && <div className="space-y-1.5" data-testid="hw-sub-scores"><ScoreBadges s={s.scores} /><FeedbackText s={s.scores} /></div>}
       {s.text && <p className="whitespace-pre-wrap rounded-2xl bg-white/80 px-3 py-2 dark:bg-white/5" dir="auto">{s.text}</p>}
+      {(s.photos || []).length > 0 && <HwAnnotate photos={s.photos || []} annot={s.annot || null} codes={codes} edit asAdmin={asAdmin} subId={s.id} onSaved={() => reload()} onCodes={setCodes} />}
       {s.audio && <AudioClip id={s.audio} asAdmin={asAdmin} label={"🎙️ " + tr("Student recording", "تسجيل الطالب")} testId="sub-clip" />}
       {s.comments.map((x, i) => (
         <div key={i} className="text-sm" dir="auto"><b>{x.by}:</b> {x.text}{x.audio && <AudioClip id={x.audio} asAdmin={asAdmin} label={"🎙️ " + tr("Voice feedback", "تعليق صوتي")} testId="fb-clip" onDelete={async () => { if (confirm(tr("Delete this voice feedback?", "حذف هذا التعليق الصوتي؟"))) { await lmsApi.audioDelete(x.audio!, asAdmin).catch(() => undefined); reload(); } }} />}</div>
