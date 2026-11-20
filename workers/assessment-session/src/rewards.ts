@@ -18,16 +18,16 @@ export type RcCtx = {
 };
 type Res = { status: number; body: unknown };
 export type Band = "a" | "b" | "c";
-export const RC_RULES = ["activity", "hw_in", "hw_green", "hw_yellow", "q_in", "q_green", "q_yellow", "as_try", "as_good", "as_top", "att", "streak3", "streak7"] as const;
+export const RC_RULES = ["activity", "hw_in", "hw_ok", "hw_green", "hw_yellow", "q_in", "q_green", "q_yellow", "as_try", "as_good", "as_top", "att", "streak3", "streak7"] as const;
 type Rule = (typeof RC_RULES)[number];
 export type Plan = { on: boolean; deduct: boolean; legacy: boolean; since: number; resetAt: number; cap: Record<Band, number>; rules: Record<Rule, Record<Band, number>>; manualMax: number };
 const B3 = (a: number, b: number, c: number) => ({ a, b, c });
 const DEF_RULES: Plan["rules"] = {
-  activity: B3(2, 2, 2), hw_in: B3(3, 2, 2), hw_green: B3(2, 2, 3), hw_yellow: B3(2, 1, 1), q_in: B3(3, 2, 2), q_green: B3(2, 2, 3), q_yellow: B3(2, 1, 1),
+  activity: B3(2, 2, 2), hw_in: B3(3, 2, 2), hw_ok: B3(2, 2, 2), hw_green: B3(2, 2, 3), hw_yellow: B3(2, 1, 1), q_in: B3(3, 2, 2), q_green: B3(2, 2, 3), q_yellow: B3(2, 1, 1),
   as_try: B3(3, 2, 2), as_good: B3(1, 2, 2), as_top: B3(2, 3, 3), att: B3(2, 2, 2), streak3: B3(3, 3, 3), streak7: B3(7, 7, 7),
 };
 export const RC_LABEL: Record<Rule | "manual" | "spend" | "refund", [string, string]> = {
-  activity: ["Joined a class activity", "شارك في نشاط الصف"], hw_in: ["Homework handed in", "تسليم الواجب"], hw_green: ["Excellent homework (green)", "واجب ممتاز (أخضر)"], hw_yellow: ["Good homework (yellow)", "واجب جيد (أصفر)"],
+  activity: ["Joined a class activity", "شارك في نشاط الصف"], hw_in: ["Homework handed in", "تسليم الواجب"], hw_ok: ["Homework corrected", "تصحيح الواجب"], hw_green: ["Excellent homework (green)", "واجب ممتاز (أخضر)"], hw_yellow: ["Good homework (yellow)", "واجب جيد (أصفر)"],
   q_in: ["Quran homework submitted", "تسليم واجب القرآن"], q_green: ["Quran recitation green", "تلاوة ممتازة (أخضر)"], q_yellow: ["Quran recitation yellow", "تلاوة جيدة (أصفر)"],
   as_try: ["Assessment completed", "إكمال التقييم"], as_good: ["Strong assessment result (70%+)", "نتيجة قوية (70%+)"], as_top: ["Top assessment result (90%+)", "نتيجة متميزة (90%+)"],
   att: ["Present at school", "الحضور في المدرسة"], streak3: ["3-day learning streak", "مواظبة 3 أيام"], streak7: ["7-day learning streak", "مواظبة 7 أيام"], manual: ["Teacher award", "مكافأة المعلم"], spend: ["Reward Shop", "متجر المكافآت"], refund: ["Refund", "استرجاع"],
@@ -94,6 +94,13 @@ function earn(sql: Sql, p: Plan, sid: string, band: Band, kind: Rule, ref: strin
     amt = Math.max(0, Math.min(amt, p.cap[band] - used));
   }
   sql.exec(`INSERT OR IGNORE INTO rc (id, student, kind, ref, amt, label, by, at) VALUES (?, ?, ?, ?, ?, ?, 'auto', ?)`, rid("rc"), sid, kind, ref, amt, label, at);
+}
+
+/** Earn one card now (idempotent). Used at correction-save time so existing balances are not backfilled. */
+export function rcEarnAt(c: RcCtx, sid: string, kind: Rule, ref: string, at: number, label = "") {
+  const p = planOf(c.sql);
+  if (!p.on) return;
+  earn(c.sql, p, sid, bandOf(clsOf(c.sql, sid)), kind, ref, at, label);
 }
 
 /** Lazy, idempotent sync from homework / Quran / login streak (and assessments when a results reader is given). */

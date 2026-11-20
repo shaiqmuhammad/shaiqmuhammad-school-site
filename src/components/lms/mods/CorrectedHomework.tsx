@@ -18,7 +18,7 @@ export function CorrectedHomeworkPage() {
     <AssessmentShell title={tr("Corrected homework", "الواجبات المصحَّحة")} exitHref="/lms" wide toolbar={<LmsStaffToolbar />}>
       <div className="mx-auto w-full max-w-6xl flex-1 px-3 py-6 sm:px-6" data-testid="corrected-page">
         {!ready ? null : !actor || actor.role !== "teacher" ? <p className="rounded-2xl bg-amber-100 px-4 py-3 text-amber-900">{tr("Please sign in as a teacher.", "سجّل الدخول كمعلم.")} <a className="font-bold underline" href="/lms/login/">{tr("Sign in", "دخول")}</a></p>
-          : !p.show || !p.view ? <p className="rounded-2xl bg-amber-100 px-4 py-3 text-amber-900">{tr("You don't have access to Quran Homework.", "ليس لديك صلاحية لواجب القرآن.")}</p>
+          : (!p.show || !p.view) && !(actor.perms || []).includes("assign") ? <p className="rounded-2xl bg-amber-100 px-4 py-3 text-amber-900">{tr("You don't have access to corrected homework.", "ليس لديك صلاحية للواجبات المصحَّحة.")}</p>
           : <CorrectedList asAdmin={false} />}
       </div>
     </AssessmentShell>
@@ -51,7 +51,7 @@ export function CorrectedList({ asAdmin }: { asAdmin: boolean }) {
   const sn = (n: number) => chapters.find((c) => c.id === n)?.name_simple || `Surah ${n}`;
   return (
     <div className="space-y-3">
-      <Head icon="✅" title={tr("Corrected homework", "الواجبات المصحَّحة")} sub={tr("Quran homework you have graded. Open one to edit the grade or reopen it for the student.", "واجبات القرآن التي قيّمتها. افتح واجبًا لتعديل التقييم أو إعادة فتحه للطالب.")} />
+      <Head icon="✅" title={tr("Corrected homework", "الواجبات المصحَّحة")} sub={tr("Quran, homework and tasks you have corrected. Open one to edit the grade, reopen it, or print a PDF.", "واجبات القرآن والواجبات والمهام التي صحّحتها. افتح واحدًا لتعديل التقييم أو إعادة فتحه أو طباعة PDF.")} />
       {groups.length > 0 && <ClassSelect groups={groups} value={grp} onChange={setGrp} all={tr("All groups", "كل المجموعات")} testId="corr-group" />}
       <div className="flex flex-wrap gap-1.5" data-testid="corr-grade-filter">
         {["", "green", "yellow", "red"].map((g) => <button key={g || "all"} type="button" aria-pressed={grade === g} onClick={() => setGrade(g)} className={`rounded-full px-3 py-1 text-xs font-bold ${grade === g ? "ring-2 ring-header" : ""} ${g ? GRADE_STYLE[g] : "bg-black/5 dark:bg-white/10"}`}>{g ? gradeLabel(g, tr) : tr("All grades", "كل التقييمات")}</button>)}
@@ -68,15 +68,15 @@ export function CorrectedList({ asAdmin }: { asAdmin: boolean }) {
                 <span className="flex-1" />
                 <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${GRADE_STYLE[x.grade] || "bg-sky-100 text-sky-900"}`} data-testid="corr-grade">{gradeLabel(x.grade, tr) || tr("📝 Feedback given", "📝 تمت الملاحظات")}</span>
               </div>
-              <p className="text-sm font-semibold" dir="auto">📖 {x.title} <span className="font-normal opacity-70">· {sn(x.data?.surah)} {x.data?.from}–{x.data?.to}</span></p>
-              <ScoreBadges s={x.scores} compact />
+              <p className="text-sm font-semibold" dir="auto">{x.kind === "quran" ? "📖" : (x.photos ? "📷" : "📝")} {x.title}{x.kind === "quran" ? <span className="font-normal opacity-70"> · {sn(Number((x.data as { surah?: number })?.surah))} {(x.data as { from?: number })?.from}–{(x.data as { to?: number })?.to}</span> : null}</p>
+              {x.kind === "quran" && <ScoreBadges s={x.scores} compact />}
               <p className="text-xs opacity-70">🗓 {new Date(x.gradedAt).toLocaleString(lang === "ar" ? "ar" : "en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}{x.by ? ` · ${tr("Corrected by", "صحّحه")} ${x.by}` : ""}{x.setBy && x.setBy !== x.by ? ` · ${tr("set by", "أسنده")} ${x.setBy}` : ""}{x.status === "feedback" ? ` · ${tr("feedback sent, not graded yet", "أُرسلت الملاحظات، دون تقييم بعد")}` : ""}{x.status === "returned" ? ` · 🔁 ${tr("Sent back for practice", "أُعيد للتدرّب")}` : ""}{x.status === "resubmitted" ? ` · 📥 ${tr("Resubmitted — waiting to be corrected again", "أُعيد تسليمه — بانتظار التصحيح مجددًا")}` : ""}</p>
               <div className="flex flex-wrap gap-2">
-                <button type="button" className="inline-flex rounded-full bg-header px-3 py-1 text-xs font-bold text-white" aria-expanded={edit === x.id} onClick={() => setEdit(edit === x.id ? "" : x.id)} data-testid="corr-edit">✎ {tr("Edit grade", "تعديل التقييم")}</button>
+                {(x.kind === "quran" || !x.kind) ? <button type="button" className="inline-flex rounded-full bg-header px-3 py-1 text-xs font-bold text-white" aria-expanded={edit === x.id} onClick={() => setEdit(edit === x.id ? "" : x.id)} data-testid="corr-edit">✎ {tr("Edit grade", "تعديل التقييم")}</button> : null}
                 {x.status === "approved" && <button type="button" className="inline-flex rounded-full bg-black/5 px-3 py-1 text-xs font-bold dark:bg-white/10" onClick={() => { if (confirm(tr("Reopen this homework? The student will be asked to practise and submit again.", "إعادة فتح هذا الواجب؟ سيُطلب من الطالب التدرّب والتسليم مجددًا."))) review(x.id, { status: "returned" }, tr("Reopened — the student can submit again.", "أُعيد فتحه — يمكن للطالب التسليم مجددًا.")); }} data-testid="corr-reopen">↺ {tr("Reopen", "إعادة فتح")}</button>}
                 {!asAdmin && <a className="inline-flex rounded-full bg-black/5 px-3 py-1 text-xs font-bold dark:bg-white/10" href={`/lms/homework?id=${x.hw}#corrected`} data-testid="corr-open">📖 {tr("Open homework", "فتح الواجب")}</a>}
               </div>
-              {edit === x.id && <ScoreGrader asAdmin={asAdmin} onSubmit={({ comment, ...sc }) => review(x.id, { scores: sc, ...(comment ? { comment } : {}) }, tr("✅ Grade updated.", "✅ تم تحديث التقييم."))} />}
+              {edit === x.id && (x.kind === "quran" || !x.kind ? <ScoreGrader asAdmin={asAdmin} onSubmit={({ comment, ...sc }) => review(x.id, { scores: sc, ...(comment ? { comment } : {}) }, tr("✅ Grade updated.", "✅ تم تحديث التقييم."))} /> : <p className="text-sm opacity-70">{tr("Open the homework to see the marked work or download the PDF.", "افتح الواجب لرؤية العمل المصحَّح أو تنزيل PDF.")}</p>)}
             </li>
           ))}
         </ul>

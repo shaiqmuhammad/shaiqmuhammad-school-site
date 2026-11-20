@@ -47,6 +47,7 @@ export function HomeworkEditor({ initial, classes, students, catalog, scope = []
   const [attemptLimit, setAttemptLimit] = useState(typeof (q0.attemptLimit ?? g0.attemptLimit) === "number" ? Number(q0.attemptLimit ?? g0.attemptLimit) : 1);
   const [slides, setSlides] = useState<Slide[]>(g0.slides?.length ? g0.slides : [{ title: "", text: "", image: "" }]);
   const [question, setQuestion] = useState(g0.question || "");
+  const [topic, setTopic] = useState(g0.topic || "");
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -100,7 +101,7 @@ export function HomeworkEditor({ initial, classes, students, catalog, scope = []
         setBusy(true);
         setErr("");
         try {
-          const data = kind === "quran" ? { surah, from, to: Math.max(from, to), reciter, notes, translit, translation, extra: extra.trim(), memorise, memoAudio, attemptLimit } : { slides: slides.filter((s) => s.title || s.text || s.image), question, attemptLimit };
+          const data = kind === "quran" ? { surah, from, to: Math.max(from, to), reciter, notes, translit, translation, extra: extra.trim(), memorise, memoAudio, attemptLimit } : { slides: slides.filter((s) => s.title || s.text || s.image), question, attemptLimit, topic: topic.trim() };
           const r = await lmsApi.saveHomework({ id: initial?.id, kind, title: kind === "quran" ? autoTitle : title.trim(), cls: who === "students" || (!asAdmin && pick.length) ? "" : cls, section: who === "students" || (!asAdmin && pick.length) ? "" : section || (cls && !wholeClassOk(cls) ? sectionsOf(cls)[0] || "" : ""), students: pick, due: due ? new Date(due + "T23:59:00").getTime() : null, data: data as QuranData | GeneralData }, asAdmin);
           onSaved(r.id);
         } catch (x) {
@@ -126,10 +127,16 @@ export function HomeworkEditor({ initial, classes, students, catalog, scope = []
           <span className="mt-1 block text-xs font-normal opacity-70">{tr("Saved as", "يُحفظ باسم")}: <span dir="auto" data-testid="hw-title-final">{autoTitle}</span></span>
         </div>
       ) : (
+      <>
       <label className="block text-sm font-semibold">
         {tr("Title", "العنوان")}
         <input className={inputCls} value={title} onChange={(e) => setTitle(e.target.value)} maxLength={160} dir="auto" data-testid="hw-title" />
       </label>
+      <label className="block text-sm font-semibold">
+        {tr("Topic (same QR for this topic)", "الموضوع (نفس رمز QR لهذا الموضوع)")}
+        <input className={inputCls} value={topic} onChange={(e) => setTopic(e.target.value)} maxLength={80} dir="auto" placeholder={tr("Optional — leave blank to use the title", "اختياري — اتركه فارغًا لاستخدام العنوان")} data-testid="hw-topic" />
+      </label>
+      </>
       )}
 
       {kind === "quran" ? (

@@ -29,7 +29,7 @@ export const mpShown = (a: Actor | null | undefined, m: MpMod) => !a?.mods || !!
 export type Actor = { id: string; role: Role | "admin"; name: string; nameAr?: string; cls: string; perms: string[]; scope?: string[]; viewAs?: boolean; subj?: string[]; subjects?: string[]; subject?: string; arabic?: boolean; mods?: Record<MpMod, MpAcc> };
 export type Slide = { title: string; text: string; image: string };
 export type QuranData = { surah: number; from: number; to: number; reciter: string; notes: string; translit?: boolean; translation?: boolean; extra?: string; memorise?: boolean; memoAudio?: boolean; /** 0 = unlimited, 1 = one (a return allows one more), n = that many submits */ attemptLimit?: number };
-export type GeneralData = { slides: Slide[]; question: string; attemptLimit?: number };
+export type GeneralData = { slides: Slide[]; question: string; attemptLimit?: number; topic?: string };
 export type Homework = { id: string; kind: "quran" | "general"; title: string; cls: string; section?: string; /** t422: subject + resolved Year(s) / Section(s) for display */ subject?: string; aud?: { years: string[]; sections: string[] }; students: string[]; data: QuranData | GeneralData; due: number | null; createdBy: string; created: number; locked?: boolean; lockedBy?: { surah: number; from: number; to: number; title: string } | null; late?: boolean };
 export type Comment = { by: string; text: string; at: number; audio?: string };
 export type RosterStudent = { id: string; name: string; cls: string; section: string; gender?: "" | "b" | "g" | string; avatar: string; badge?: string; parentEmail: boolean; points: number; seen: number; cards?: number; attPct?: number | null };
@@ -46,7 +46,7 @@ export type WallGroupInter = { key: string; post: string; likes: number; liked: 
 export type WallPost = { keys?: string[]; groups?: WallGroupInter[]; id: string; name: string; text: string; hasImage: boolean; hasAudio: boolean; pinned: boolean; at: number; likes: number; liked: boolean; comments: { id: string; name: string; role: string; text: string; at: number }[] };
 export type LiveActivity = { code: string; type: string; title: string; teacher: string; at: number };
 export type MsgContact = { id: string; name: string; role: string; cls: string; seen?: number };
-export type CorrectedItem = { id: string; hw: string; title: string; data: QuranData; student: string; name: string; cls: string; section: string; grade: Grade; status: string; scores: Scores | null; gradedAt: number; by: string; setBy?: string };
+export type CorrectedItem = { id: string; hw: string; kind?: "quran" | "general"; title: string; data: QuranData | GeneralData | Record<string, unknown>; student: string; name: string; cls: string; section: string; grade: Grade; status: string; scores: Scores | null; gradedAt: number; by: string; setBy?: string; photos?: number };
 export type MsgThread = { thread: string; with: string; withName: string; people: string[]; mine: boolean; last: number; preview: string; unread: number };
 export type ParentContact = { student: string; studentName: string; cls: string; parentName: string; canMail: boolean };
 export type ParentThread = { thread: string; student: string; studentName: string; cls: string; parentName: string; teacherName: string; last: number; count: number; unread: number; preview: string; lastDir: string };
@@ -191,7 +191,7 @@ export function lmsSignOut() {
 
 /** Admin read-only "view as" (this browser tab only; never touches the user's real LMS session). */
 export type QrLink = { student: string; name: string; nameAr?: string; arabic?: boolean; cls: string; section: string; token: string };
-export type QrView = { versions?: Version[]; dl?: boolean; student: string; studentAr?: string; arabic?: boolean; cls: string; section: string; homework: { title: string; kind: "quran" | "general"; data: Partial<QuranData> }; status: string; grade: Grade | ""; scores?: Scores | null; recordings: string[]; recAt?: Record<string, number>; attempts: { n: number; grade: Grade; audio: string; at: number; scores?: Scores }[]; feedback: { by: string; text: string; audio: string; at: number }[]; tracker: TrackerRow[] };
+export type QrView = { versions?: Version[]; history?: { v: number; hw: string; title: string; at: number; status: string; grade: string }[]; work?: { photos: { id: string; w: number; h: number }[]; annot: import("@/lib/hwMark").HwAnnot | null }; dl?: boolean; student: string; studentAr?: string; arabic?: boolean; cls: string; section: string; homework: { title: string; kind: "quran" | "general"; data: Partial<QuranData> & { topic?: string } }; status: string; grade: Grade | ""; scores?: Scores | null; recordings: string[]; recAt?: Record<string, number>; attempts: { n: number; grade: Grade; audio: string; at: number; scores?: Scores }[]; feedback: { by: string; text: string; audio: string; at: number }[]; tracker: TrackerRow[] };
 import type { ResultRecord } from "@/lib/resultsRecord";
 export type ViewAs = { id: string; name: string; role: "student" | "teacher"; cls: string; by?: "t" };
 export function viewAs(): ViewAs | null {
