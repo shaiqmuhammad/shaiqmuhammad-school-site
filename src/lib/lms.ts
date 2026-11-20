@@ -391,6 +391,18 @@ export const lmsApi = {
   msgDelete: (id: string) => call<{ ok: true }>("msg-delete", { id }, { asAdmin: true }),
   audioDelete: (id: string, asAdmin = false) => call<{ ok: true }>("audio-delete", { id }, { asAdmin }),
   /** Uploads a recording: student → {hw}, teacher → {sub}. Raw body, so not via call(). */
+  /** t684: teacher uploads a raster of typed / slide work for the same mark-up tools. */
+  async workRender(sub: string, pid: string, blob: Blob, w: number, h: number, asAdmin = false) {
+    const tok = bearer(asAdmin);
+    const q = new URLSearchParams({ sub, photo: "1", render: "1", pid, w: String(w), h: String(h) }).toString();
+    let res: Response;
+    try {
+      res = await fetch(`${ASSESSMENT_API_BASE}/api/lms/audio-upload?${q}`, { method: "POST", headers: { "Content-Type": blob.type || "image/jpeg", ...(tok ? { Authorization: `Bearer ${tok}` } : {}) }, body: blob });
+    } catch { throw new LmsError("network", 0); }
+    const data = (await res.json().catch(() => ({}))) as { error?: string; id?: string };
+    if (!res.ok) throw new LmsError(data.error || "error", res.status);
+    return data as { ok: true; id: string; photos: import("@/lib/hwMark").HwPhoto[]; existing?: boolean };
+  },
   async photoUpload(hw: string, blob: Blob, w: number, h: number, asAdmin = false) {
     const tok = bearer(asAdmin);
     const q = new URLSearchParams({ hw, photo: "1", w: String(w), h: String(h) }).toString();
@@ -461,6 +473,9 @@ export function lmsErrorText(e: unknown, tr: (en: string, ar: string) => string)
     general_hw_not_allowed: ["You don't have permission to correct this homework.", "ليست لديك صلاحية تصحيح هذا الواجب."],
     module_hidden: ["This part is hidden for your account.", "هذا الجزء مخفي لحسابك."],
     too_many_photos: ["You can add up to 6 photos.", "يمكنك إضافة حتى 6 صور."],
+    too_many_work_pages: ["This work already has the maximum number of pages to mark.", "هذا العمل وصل إلى الحد الأقصى من الصفحات للتصحيح."],
+    not_submitted: ["The student has not submitted this work yet.", "لم يسلّم الطالب هذا العمل بعد."],
+    bad_pid: ["Could not save that work page.", "تعذّر حفظ صفحة العمل."],
     photo_type: ["Please choose a photo (JPG or PNG).", "اختر صورة (JPG أو PNG)."],
     photo_correct_off: ["You don't have permission to correct photo homework.", "ليست لديك صلاحية تصحيح الواجب بالصور."],
     share_off: ["You don't have permission to share homework with other teachers.", "ليست لديك صلاحية مشاركة الواجب مع معلمين آخرين."],
