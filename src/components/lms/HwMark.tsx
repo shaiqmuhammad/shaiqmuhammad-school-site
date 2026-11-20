@@ -55,7 +55,7 @@ export function HwPhotoBox({ hwId, photos, locked, asAdmin = false, onChange }: 
   );
 }
 
-function HwImg({ id, asAdmin, className, alt = "", token }: { id: string; asAdmin?: boolean; className?: string; alt?: string; token?: string }) {
+export function HwImg({ id, asAdmin, className, alt = "", token }: { id: string; asAdmin?: boolean; className?: string; alt?: string; token?: string }) {
   const [src, setSrc] = useState("");
   useEffect(() => {
     if (token) { setSrc(lmsApi.qrAudioUrl(token, id)); return; }

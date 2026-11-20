@@ -248,8 +248,22 @@ export async function packHandle(c: PackCtx, a: Actor, action: string, input: Js
     }
     case "lp-work": {
       // Teacher: one student's copy (review) or the progress of everyone.
-      if (!staff) return forbid();
+      // t682 C: a classmate may open submitted slide work when Peer Assessment is on.
       const r = get();
+      if (!staff) {
+        if (!r || !forStudent(a, r)) return { status: 404, body: { error: "not_found" } };
+        const about = str(input.student, 40);
+        if (!about || about === a.id) return forbid();
+        const hwId = String(r.hw || "");
+        const hw = hwId ? c.hwRow(hwId) : undefined;
+        if (!hw || (hw.data as Record<string, unknown> | undefined)?.pa !== true) return forbid("pa_off");
+        const packStudents = (JSON.parse(String(r.students || "[]")) as string[]);
+        if (!packStudents.includes(about)) return forbid();
+        const sb = c.subOf(hwId, about);
+        if (!sb || !["submitted", "approved", "returned"].includes(String(sb.status))) return { status: 409, body: { error: "not_submitted" } };
+        const w = sql.exec(`SELECT * FROM lpwork WHERE pack=? AND student=?`, id, about).toArray()[0];
+        return { status: 200, body: { pack: row(r), work: w ? JSON.parse(String(w.slides || "[]")) : [] } };
+      }
       if (!r || !mine(a, r) || !acc.view) return { status: 404, body: { error: "not_found" } };
       const total = (JSON.parse(String(r.slides || "[]")) as unknown[]).length;
       if (input.student) { const w = sql.exec(`SELECT * FROM lpwork WHERE pack=? AND student=?`, id, str(input.student, 40)).toArray()[0]; return { status: 200, body: { pack: row(r), work: w ? JSON.parse(String(w.slides || "[]")) : [] } }; }

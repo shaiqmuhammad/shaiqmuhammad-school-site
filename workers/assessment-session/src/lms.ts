@@ -329,6 +329,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     if (!cols("subs").has("annot")) this.sql.exec(`ALTER TABLE subs ADD COLUMN annot TEXT DEFAULT ''`);
     if (!cols("subs").has("sa")) this.sql.exec(`ALTER TABLE subs ADD COLUMN sa TEXT DEFAULT ''`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS peer (id TEXT PRIMARY KEY, hw TEXT, about TEXT, by TEXT, text TEXT, score TEXT, at INTEGER)`);
+    this.sql.exec(`CREATE UNIQUE INDEX IF NOT EXISTS peer_one ON peer(hw, about, by)`);
     if (!cols("tracker").has("scores")) this.sql.exec(`ALTER TABLE tracker ADD COLUMN scores TEXT DEFAULT ''`);
     for (const tb of ["subs", "tracker"] as const) {
       for (const r of this.sql.exec(`SELECT id, grade FROM ${tb} WHERE (scores IS NULL OR scores='') AND grade IN ('green','yellow','red')`).toArray()) {
@@ -565,6 +566,16 @@ export class LmsStore extends DurableObject<LmsEnv> {
     if (a.role !== "teacher" || (action !== "sub-review" && action !== "mistakes" && action !== "annot-save")) return false;
     const r = this.sql.exec(`SELECT hw FROM subs WHERE id=?`, str(input?.id, 40)).toArray()[0];
     return !!r && this.mayCorrect(a, String(r.hw)).granted;
+  }
+  /** t682 C: a classmate may see submitted work (audio/photos) when the teacher has switched Peer Assessment on. */
+  private paOn(h: { data: unknown } | undefined) { return !!(h && (h.data as Json).pa === true); }
+  private peerMaySee(a: Actor, subId: string): boolean {
+    if (a.role !== "student" || !subId) return false;
+    const r = this.sql.exec(`SELECT hw, student, status FROM subs WHERE id=?`, subId).toArray()[0];
+    if (!r || String(r.student) === a.id) return false;
+    if (!["submitted", "approved", "returned"].includes(String(r.status))) return false;
+    const h = this.allHomework(String(r.hw))[0];
+    return !!h && this.paOn(h) && this.assignees(h).includes(a.id) && this.assignees(h).includes(String(r.student));
   }
   /** t683: view photo corrections — own work needs the Permissions switch; a share / colleague grant always allows viewing. */
   private mayViewMark(a: Actor, hwId: string): boolean {
@@ -1073,7 +1084,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     if (!b) return { status: 404, error: "not_found" };
     const sub = this.sql.exec(`SELECT student FROM subs WHERE id=?`, String(b.sub)).toArray()[0];
     const parentOk = a.role === "parent" && !!sub && this.sql.exec(`SELECT 1 FROM plink WHERE parent=? AND student=?`, a.id, String(sub.student)).toArray().length > 0; // t332: parents hear their own child's recordings and feedback
-    if (!isStaff(a) && sub?.student !== a.id && !parentOk) return { status: 403, error: "forbidden" };
+    if (!isStaff(a) && sub?.student !== a.id && !parentOk && !this.peerMaySee(a, String(b.sub || ""))) return { status: 403, error: "forbidden" };
     const f = await this.files.get(id);
     if (!f) return { status: 404, error: "not_found" };
     const data = f.body instanceof ArrayBuffer ? f.body : await new Response(f.body).arrayBuffer();
@@ -2350,6 +2361,12 @@ export class LmsStore extends DurableObject<LmsEnv> {
           const cap = d.attemptLimit === 0 || d.attemptLimit === "0" || (d.attemptLimit != null && d.attemptLimit !== "" && Number.isFinite(Number(d.attemptLimit))) ? Math.min(30, Math.max(0, Math.trunc(Number(d.attemptLimit)) || 0)) : undefined;
           data = { slides, question: str(d.question, 1000), ...(d.pack ? { pack: str(d.pack, 40), assignAt: Number(d.assignAt) || 0, ...(d.activity === true ? { activity: true } : {}), ...(cap === undefined ? {} : { attemptLimit: cap }), ...(parts.length ? { parts } : {}) } : {}) };
         }
+        if (input.id) {
+          const prev = this.allHomework(str(input.id, 40))[0];
+          const prevPa = !!(prev && (prev.data as Json).pa === true);
+          const pa = d.pa === true ? true : d.pa === false ? false : prevPa;
+          if (pa) data.pa = true; else delete data.pa;
+        } else if (d.pa === true) data.pa = true;
         const students = Array.isArray(input.students) ? (input.students as unknown[]).map((x) => str(x, 40)).filter(Boolean).slice(0, 500) : [];
         const cls = str(input.cls, 40);
         const section = cls ? str(input.section, 40) : "";
@@ -2516,8 +2533,10 @@ export class LmsStore extends DurableObject<LmsEnv> {
         const status = input.submit === true ? "submitted" : cur?.status === "returned" ? "returned" : "draft";
         const text = str(input.text, 4000);
         const practised = input.practised === true ? 1 : 0;
-        if (cur) this.sql.exec(`UPDATE subs SET status=?, text=?, practised=?, updated=? WHERE id=?`, status, text, practised, Date.now(), String(cur.id));
-        else this.sql.exec(`INSERT INTO subs (id, hw, student, status, text, practised, updated) VALUES (?, ?, ?, ?, ?, ?, ?)`, rid("s"), h.id, a.id, status, text, practised, Date.now());
+        if (input.submit === true && h.kind !== "quran" && !/^(proud|tried|understood|practice|hard)$/.test(String(input.sa || ""))) return { status: 400, body: { error: "sa_needed" } };
+        const sa = h.kind !== "quran" && /^(proud|tried|understood|practice|hard)$/.test(String(input.sa || "")) ? String(input.sa) : String(cur?.sa || "");
+        if (cur) this.sql.exec(`UPDATE subs SET status=?, text=?, practised=?, sa=?, updated=? WHERE id=?`, status, text, practised, sa, Date.now(), String(cur.id));
+        else this.sql.exec(`INSERT INTO subs (id, hw, student, status, text, practised, sa, updated) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, rid("s"), h.id, a.id, status, text, practised, sa, Date.now());
         this.touch(a.id);
         if (status === "submitted" && cur) {
           // t684: a new submit drops previous work-page rasters so the teacher gets a fresh copy to mark.
@@ -2835,6 +2854,73 @@ export class LmsStore extends DurableObject<LmsEnv> {
       }
 
 
+      case "hw-pa": {
+        // t682 C: teacher allows Peer Assessment on this homework / task / Quran homework.
+        const h = this.allHomework(str(input.hw, 40))[0];
+        if (!h) return { status: 404, body: { error: "not_found" } };
+        if (h.kind === "quran" && a.role === "teacher") { const qv = qhwOf(a); if (!(qv.show && (qv.edit || qv.view))) return { status: 403, body: { error: "quran_not_allowed" } }; }
+        if (h.kind !== "quran" && !genOk(a)) return { status: 403, body: { error: "general_hw_not_allowed" } };
+        const own = a.role === "admin" || (a.role === "teacher" && h.createdBy === a.id);
+        if (!own || a.viewAs) return { status: 403, body: { error: "owner_only" } };
+        const on = input.on === true;
+        const data = { ...(h.data as Json) };
+        if (on) data.pa = true; else delete data.pa;
+        this.sql.exec(`UPDATE homework SET data=? WHERE id=?`, JSON.stringify(data), h.id);
+        return { status: 200, body: { ok: true, pa: on } };
+      }
+      case "peer-board": {
+        const h = this.allHomework(str(input.hw, 40))[0];
+        if (!h) return { status: 404, body: { error: "not_found" } };
+        const staff = isStaff(a);
+        if (a.role === "student" && !this.assignees(h).includes(a.id)) return { status: 403, body: { error: "forbidden" } };
+        if (staff) {
+          if (h.kind === "quran" && a.role === "teacher") { const qv = qhwOf(a); if (!(qv.show && qv.view)) return { status: 403, body: { error: "quran_not_allowed" } }; }
+          if (h.kind !== "quran" && !genOk(a)) return { status: 403, body: { error: "general_hw_not_allowed" } };
+          if (a.role === "teacher" && h.createdBy !== a.id && !this.va(a, h.createdBy) && !this.sharedTo(h, a.id)) return { status: 403, body: { error: "forbidden" } };
+        }
+        const names = new Map(this.sql.exec(`SELECT id, name FROM users`).toArray().map((r) => [String(r.id), String(r.name)]));
+        const submitted = this.sql.exec(`SELECT student, status, text, audio, photos, annot, sa FROM subs WHERE hw=? AND status IN ('submitted','approved','returned')`, h.id).toArray();
+        const peers = this.sql.exec(`SELECT * FROM peer WHERE hw=? ORDER BY at DESC`, h.id).toArray();
+        const outPeer = (r: Record<string, unknown>) => ({ id: String(r.id), about: String(r.about), by: String(r.by), byName: names.get(String(r.by)) || "", score: String(r.score || ""), text: String(r.text || ""), at: Number(r.at || 0) });
+        if (a.role === "student") {
+          if (!this.paOn(h)) return { status: 200, body: { pa: false, classmates: [], received: [], work: null } };
+          const classmates = submitted.filter((r) => String(r.student) !== a.id).map((r) => {
+            const mine = peers.find((p) => String(p.about) === String(r.student) && String(p.by) === a.id);
+            return { id: String(r.student), name: names.get(String(r.student)) || "?", status: String(r.status), mine: mine ? { score: String(mine.score || ""), text: String(mine.text || "") } : null };
+          });
+          const received = peers.filter((p) => String(p.about) === a.id).map(outPeer);
+          let work: unknown = null;
+          const about = str(input.about, 40);
+          if (about && about !== a.id) {
+            const r = submitted.find((x) => String(x.student) === about);
+            if (r) {
+              let photos: unknown[] = []; try { const p = JSON.parse(String(r.photos || "[]")); if (Array.isArray(p)) photos = p; } catch { photos = []; }
+              let annot: unknown = null;
+              try { const p = JSON.parse(String(r.annot || "") || "null"); if (p && typeof p === "object" && (p as Json).done) annot = p; } catch { annot = null; }
+              work = { student: about, name: names.get(about) || "?", text: String(r.text || ""), audio: String(r.audio || ""), photos, annot };
+            }
+          }
+          return { status: 200, body: { pa: true, classmates, received, work } };
+        }
+        return { status: 200, body: { pa: this.paOn(h), items: peers.map(outPeer) } };
+      }
+      case "peer-save": {
+        if (a.role !== "student") return { status: 403, body: { error: "students_only" } };
+        const h = this.allHomework(str(input.hw, 40))[0];
+        if (!h || !this.assignees(h).includes(a.id)) return { status: 404, body: { error: "not_found" } };
+        if (!this.paOn(h)) return { status: 403, body: { error: "pa_off" } };
+        const about = str(input.about, 40);
+        if (!about || about === a.id || !this.assignees(h).includes(about)) return { status: 400, body: { error: "bad_peer" } };
+        const target = this.sql.exec(`SELECT status FROM subs WHERE hw=? AND student=?`, h.id, about).toArray()[0];
+        if (!target || !["submitted", "approved", "returned"].includes(String(target.status))) return { status: 409, body: { error: "not_submitted" } };
+        const score = /^(proud|tried|understood|practice|hard)$/.test(String(input.score || "")) ? String(input.score) : "";
+        if (!score) return { status: 400, body: { error: "sa_needed" } };
+        const text = str(input.text, 400);
+        const prev = this.sql.exec(`SELECT id FROM peer WHERE hw=? AND about=? AND by=?`, h.id, about, a.id).toArray()[0];
+        if (prev) this.sql.exec(`UPDATE peer SET text=?, score=?, at=? WHERE id=?`, text, score, Date.now(), String(prev.id));
+        else this.sql.exec(`INSERT INTO peer (id, hw, about, by, text, score, at) VALUES (?, ?, ?, ?, ?, ?, ?)`, rid("pe"), h.id, about, a.id, text, score, Date.now());
+        return { status: 200, body: { ok: true } };
+      }
       case "annot-save": {
         // t682 / t684: teacher marks photos or rastered typed/slide work. A share/colleague grant uses the same mayCorrect rule as Save grade.
         const r = this.sql.exec(`SELECT * FROM subs WHERE id=?`, str(input.id, 40)).toArray()[0];

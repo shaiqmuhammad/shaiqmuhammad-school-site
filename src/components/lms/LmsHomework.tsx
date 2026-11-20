@@ -25,6 +25,7 @@ import { GRADE_STYLE, STATUS_STYLE, card, gradeLabel, inputCls, smallBtn, status
 import { HwAnnotate, HwMarkedWork, HwPhotoBox } from "@/components/lms/HwMark";
 import { HwWorkPages } from "@/components/lms/HwWorkPages";
 import { isWorkPage } from "@/lib/hwMark";
+import { PaToggle, PeerBoard, PeerNotes, SaBadge, SaChips } from "@/components/lms/SaPa";
 import { HwShare } from "@/components/lms/HwShare";
 import { DEFAULT_CODES, type CorrCode } from "@/lib/hwMark";
 import { attemptCap, attemptOpen, quranExtras, ayahAudio, lmsApi, lmsErrorText, quranChapters, quranVerses, type Chapter, type GeneralData, type QuranData, type Submission, type Attempt, type Mistake, type QrLink, type Catalog, type DashStudent } from "@/lib/lms";
@@ -212,6 +213,7 @@ function StudentWork({ hw, sub, reload, chapters = [] }: { hw: Data["homework"];
   const { actor } = useLmsActor();
   const lockName = (n: number, l: "en" | "ar") => { const c = chapters.find((x) => x.id === n); return c ? (l === "ar" ? c.name_arabic : c.name_simple) : String(n); };
   const [text, setText] = useState(sub?.text || "");
+  const [sa, setSa] = useState(sub?.sa || "");
   const [practised] = useState(sub?.practised || false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
@@ -230,7 +232,7 @@ function StudentWork({ hw, sub, reload, chapters = [] }: { hw: Data["homework"];
     setBusy(true);
     setMsg("");
     try {
-      await lmsApi.saveSub(hw.id, text, hw.kind === "quran" ? true : practised, submit); // t328: no 'practised' tick box for Quran; recording is enough
+      await lmsApi.saveSub(hw.id, text, hw.kind === "quran" ? true : practised, submit, hw.kind === "quran" ? undefined : sa); // t328: no 'practised' tick box for Quran; recording is enough
       if (submit) try { sessionStorage.setItem("sm_hw_sent", hw.id); } catch { /* ignore */ }
       if (submit) window.dispatchEvent(new Event("lms-memo-show"));
       setMsg(submit ? tr("✅ Your homework has been submitted! Your teacher will check it soon.", "✅ تم تسليم واجبك! سيراجعه معلمك قريبًا.") : tr("Saved ✓", "تم الحفظ ✓"));
@@ -278,9 +280,10 @@ function StudentWork({ hw, sub, reload, chapters = [] }: { hw: Data["homework"];
       {open && cap === 0 && <p className="text-sm font-semibold" data-testid="hw-tries">{tr("Multiple attempts — you can submit again until this is approved.", "عدة محاولات — يمكنك التسليم مجددًا حتى يُعتمد هذا.")}</p>}
       {open && cap === 1 && <p className="text-sm font-semibold" data-testid="hw-tries">{tr("One attempt. If your teacher sends it back, you can try once more.", "محاولة واحدة. إذا أعاده معلمك يمكنك المحاولة مرة أخرى.")}</p>}
       {open && cap > 1 && <p className="text-sm font-semibold" data-testid="hw-tries">{tr(`Attempts left: ${Math.max(0, cap - used)} of ${cap}.`, `المحاولات المتبقية: ${Math.max(0, cap - used)} من ${cap}.`)}</p>}
+      {hw.kind !== "quran" && <SaChips value={sa} onChange={locked ? undefined : setSa} disabled={locked} />}
       {!locked && (
         <div className="flex flex-wrap gap-2">
-          <button type="button" className={primaryBtn} disabled={busy || (hw.kind === "general" ? !(hw.data as { pack?: string }).pack && !text.trim() && !(sub?.audio || draftOk || (sub?.photos || []).filter((p) => !isWorkPage(p)).length) : !(sub?.audio || draftOk))} onClick={() => { const ask = cap === 0 ? tr("Submit again? You can keep sending until your teacher approves it.", "تسليم مجدد؟ يمكنك الاستمرار حتى يعتمد معلمك العمل.") : cap > 1 ? tr(`Submit now? You can hand this in ${cap} times (${Math.max(0, cap - used)} left).`, `تسليم الآن؟ يمكنك التسليم ${cap} مرات (المتبقي ${Math.max(0, cap - used)}).`) : sentBack ? tr("Send this correction? You can send it once, unless your teacher sends it back again.", "إرسال هذا التصحيح؟ يمكنك إرساله مرة واحدة، إلا إذا أعاده معلمك مجددًا.") : tr("Submit your homework now? You can only submit once, unless your teacher sends it back.", "تسليم واجبك الآن؟ يمكنك التسليم مرة واحدة فقط، إلا إذا أعاده معلمك."); if (confirm(ask)) save(true); }} data-testid="hw-submit">📤 {sentBack ? tr("Submit correction", "تسليم التصحيح") : tr("Submit Your Homework", "سلّم واجبك")}</button>
+          <button type="button" className={primaryBtn} disabled={busy || (hw.kind !== "quran" && !sa) || (hw.kind === "general" ? !(hw.data as { pack?: string }).pack && !text.trim() && !(sub?.audio || draftOk || (sub?.photos || []).filter((p) => !isWorkPage(p)).length) : !(sub?.audio || draftOk))} onClick={() => { const ask = cap === 0 ? tr("Submit again? You can keep sending until your teacher approves it.", "تسليم مجدد؟ يمكنك الاستمرار حتى يعتمد معلمك العمل.") : cap > 1 ? tr(`Submit now? You can hand this in ${cap} times (${Math.max(0, cap - used)} left).`, `تسليم الآن؟ يمكنك التسليم ${cap} مرات (المتبقي ${Math.max(0, cap - used)}).`) : sentBack ? tr("Send this correction? You can send it once, unless your teacher sends it back again.", "إرسال هذا التصحيح؟ يمكنك إرساله مرة واحدة، إلا إذا أعاده معلمك مجددًا.") : tr("Submit your homework now? You can only submit once, unless your teacher sends it back.", "تسليم واجبك الآن؟ يمكنك التسليم مرة واحدة فقط، إلا إذا أعاده معلمك."); if (confirm(ask)) save(true); }} data-testid="hw-submit">📤 {sentBack ? tr("Submit correction", "تسليم التصحيح") : tr("Submit Your Homework", "سلّم واجبك")}</button>
           <button type="button" className={smallBtn} disabled={busy} onClick={() => save(false)} data-testid="hw-draft">{tr("Save for later", "حفظ لاحقًا")}</button>
         </div>
       )}
@@ -322,7 +325,7 @@ const PRESETS: [string, string][] = [
   ["Great effort! Listen to the reciter again before recording.", "جهد رائع! استمع للقارئ مرة أخرى قبل التسجيل."],
 ];
 
-function Review({ s, asAdmin, reload, quran, qdata, regrade = false, onGraded, pack, gdata, markView = true, markEdit = true, hwId, hwTitle }: { s: NonNullable<Data["subs"]>[number]; asAdmin: boolean; reload: () => void; quran: boolean; qdata?: QuranData; gdata?: GeneralData; regrade?: boolean; onGraded?: () => void; pack?: string; markView?: boolean; markEdit?: boolean; hwId?: string; hwTitle?: string }) {
+function Review({ s, asAdmin, reload, quran, qdata, regrade = false, onGraded, pack, gdata, markView = true, markEdit = true, hwId, hwTitle, peers = [] }: { s: NonNullable<Data["subs"]>[number]; asAdmin: boolean; reload: () => void; quran: boolean; qdata?: QuranData; gdata?: GeneralData; regrade?: boolean; onGraded?: () => void; pack?: string; markView?: boolean; markEdit?: boolean; hwId?: string; hwTitle?: string; peers?: { about: string; byName: string; score: string; text: string; at: number }[] }) {
   const [editGrade, setEditGrade] = useState(false);
   const [codes, setCodes] = useState<CorrCode[]>(DEFAULT_CODES);
   useEffect(() => { let live = true; lmsApi.corrCodes(asAdmin).then((r) => { if (live && r.codes?.length) setCodes(r.codes); }).catch(() => undefined); return () => { live = false; }; }, [asAdmin]);
@@ -394,6 +397,8 @@ function Review({ s, asAdmin, reload, quran, qdata, regrade = false, onGraded, p
       {pack && slidesOpen && <PackPlayer id={pack} asAdmin={asAdmin} review={{ student: s.student }} />}
       {quran && s.scores && s.status !== "submitted" && <div className="space-y-1.5" data-testid="hw-sub-scores"><ScoreBadges s={s.scores} /><FeedbackText s={s.scores} /></div>}
       {s.text && <p className="whitespace-pre-wrap rounded-2xl bg-white/80 px-3 py-2 dark:bg-white/5" dir="auto">{s.text}</p>}
+      {!quran && s.sa && <div className="flex flex-wrap items-center gap-2"><span className="text-sm font-bold opacity-70">{tr("Self assessment", "التقييم الذاتي")}:</span><SaBadge id={s.sa} /></div>}
+      <PeerNotes items={peers} student={s.student} />
       {!quran && markView && <HwWorkPages s={s} asAdmin={asAdmin} markView={markView} markEdit={markEdit} pack={pack} gdata={gdata} hwTitle={hwTitle || ""} codes={codes} onCodes={setCodes} reload={reload} pdfMeta={{ title: hwTitle || "", student: s.name, cls: s.cls, hwId, studentId: s.student, date: s.updated }} />}
       {quran && (s.photos || []).length > 0 && markView && <HwAnnotate photos={s.photos || []} annot={s.annot || null} codes={codes} edit={markEdit} asAdmin={asAdmin} subId={s.id} onSaved={() => reload()} onCodes={setCodes} pdfMeta={{ title: hwTitle || "", student: s.name, cls: s.cls, hwId, studentId: s.student, date: s.updated }} />}
       {s.audio && <AudioClip id={s.audio} asAdmin={asAdmin} label={"🎙️ " + tr("Student recording", "تسجيل الطالب")} testId="sub-clip" />}
@@ -443,6 +448,7 @@ export function LmsHomework() {
   const [editing, setEditing] = useState(false);
   const [extra, setExtra] = useState<{ classes: { cls: string; students: number }[]; students: DashStudent[]; catalog?: Catalog; scope?: string[] }>({ classes: [], students: [] });
   const [chapters, setChapters] = useState<Chapter[]>([]);
+  const [peers, setPeers] = useState<{ id: string; about: string; by: string; byName: string; score: string; text: string; at: number }[]>([]);
 
   const load = useCallback(() => {
     lmsApi.homework(id, asAdmin).then(setD).catch((e) => setErr(lmsErrorText(e, tr)));
@@ -479,6 +485,13 @@ export function LmsHomework() {
   const markEdit = isAdmin || viaShare || viaColleague || (!!ownHw && actor?.role === "teacher" && perms.includes("hwMarkCorrect"));
   const markView = isAdmin || perms.includes("hwMarkView") || perms.includes("hwMarkCorrect") || sharedOnly || viaColleague;
   const canShareHw = isAdmin || (!!ownHw && actor?.role === "teacher" && perms.includes("hwShare"));
+  const paOn = !!(hw?.data as { pa?: boolean } | undefined)?.pa;
+  useEffect(() => {
+    if (!staff || !hw?.id || !paOn) { setPeers([]); return; }
+    let on = true;
+    lmsApi.peerBoard(hw.id, {}, asAdmin).then((r) => { if (on) setPeers(r.items || []); }).catch(() => undefined);
+    return () => { on = false; };
+  }, [staff, hw?.id, paOn, asAdmin, d?.subs?.length]);
   const q = hw?.data as QuranData | undefined;
   const ch = q ? chapters.find((c) => c.id === q.surah) : undefined;
   const subtitle = hw?.kind === "quran" && q ? `${ch?.name_simple || `Surah ${q.surah}`} ${ch?.name_arabic || ""} · ${q.from}–${q.to}` : hw?.cls || "";
@@ -523,6 +536,7 @@ export function LmsHomework() {
                 <HwRemindBell hw={hw.id} title={hw.title} asAdmin={asAdmin} />
                 <QrLinks hwId={hw.id} asAdmin={asAdmin} />
                 {(canShareHw || sharedOnly) && <HwShare hw={hw.id} asAdmin={asAdmin} />}
+                <PaToggle hwId={hw.id} on={paOn} asAdmin={asAdmin} canEdit={!!ownHw && !sharedOnly && !actor?.viewAs} onChanged={() => load()} />
                 {hw.kind === "quran" && <LockList hwId={hw.id} asAdmin={asAdmin} />}
 {!sharedOnly && (hw.kind !== "quran" || qhwPerm(actor?.perms, actor?.role === "admin").edit) && (<button
                   type="button"
@@ -556,6 +570,7 @@ export function LmsHomework() {
             {hw.kind === "quran" ? (!staff && (hw.data as QuranData).memorise && memoHide ? <MemoriseCard data={hw.data as QuranData} chapters={chapters} /> : <QuranReader data={hw.data as QuranData} mistakes={(d.sub?.mistakes || [])} />) : <Slides data={hw.data as GeneralData} />}
             {(hw.data as { pack?: string }).pack && <PackPlayer key={String(d?.sub?.status) + (only || "")} id={(hw.data as { pack?: string }).pack!} asAdmin={asAdmin} preview={staff} only={only} locked={!staff && !attemptOpen(hw.data, d?.sub)} />}
             {!staff && <StudentWork key={d?.sub?.updated || 0} hw={hw} sub={d?.sub || null} reload={load} chapters={chapters} />}
+            {!staff && paOn && <PeerBoard hw={hw} />}
             {staff && (
               <section className="space-y-3">
                 {(() => {
@@ -581,7 +596,7 @@ export function LmsHomework() {
                       {list.length === 0 && <p className="text-sm opacity-70" data-testid="subs-empty">{subTab === "corr" ? tr("Nothing corrected yet.", "لا يوجد واجب مصحّح بعد.") : tr("Nothing waiting for review.", "لا شيء بانتظار المراجعة.")}</p>}
                       <ul className="space-y-3">
                         {list.map((s) => (
-                          <Review pack={(d.homework.data as { pack?: string }).pack} quran={quran} qdata={quran ? (d.homework.data as QuranData) : undefined} gdata={!quran ? (d.homework.data as GeneralData) : undefined} key={s.id + s.updated} s={s} asAdmin={asAdmin} markView={markView} markEdit={markEdit} hwId={hw.id} hwTitle={hw.title} reload={load} regrade={subTab === "corr"} onGraded={() => { setGradeMsg(tr("✅ Grade saved — moved to Corrected Homeworks", "✅ تم حفظ التقييم — نُقل إلى الواجبات المصحَّحة")); setTimeout(() => setGradeMsg(""), 6000); }} />
+                          <Review pack={(d.homework.data as { pack?: string }).pack} quran={quran} qdata={quran ? (d.homework.data as QuranData) : undefined} gdata={!quran ? (d.homework.data as GeneralData) : undefined} key={s.id + s.updated} s={s} asAdmin={asAdmin} markView={markView} markEdit={markEdit} hwId={hw.id} hwTitle={hw.title} peers={peers} reload={load} regrade={subTab === "corr"} onGraded={() => { setGradeMsg(tr("✅ Grade saved — moved to Corrected Homeworks", "✅ تم حفظ التقييم — نُقل إلى الواجبات المصحَّحة")); setTimeout(() => setGradeMsg(""), 6000); }} />
                         ))}
                       </ul>
                     </>
@@ -603,7 +618,7 @@ export function LmsHomework() {
                     <h2 className="text-2xl font-extrabold text-[#1b2f44] dark:text-white" dir="auto">{s.name} <span className="text-base font-semibold text-[#1b2f44]/70 dark:text-white/70">{s.cls}</span></h2>
                     {s.submittedAt ? <p className="text-sm text-[#1b2f44]/80 dark:text-white/80">{tr("Submitted", "سُلّم")} {stamp(s.submittedAt, lang, true)}</p> : null}
                     {hw.kind === "quran" ? <div className="rounded-3xl bg-white p-3 text-[#1b2f44]"><QuranReader data={hw.data as QuranData} mistakes={s.mistakes || []} /></div> : ((hw.data as unknown) as { pack?: string }).pack ? <div className="min-h-[70vh] overflow-hidden rounded-3xl bg-white"><PackPlayer id={((hw.data as unknown) as { pack: string }).pack} asAdmin={asAdmin} review={{ student: s.student }} /></div> : <div className="rounded-3xl bg-white p-3 text-[#1b2f44]"><Slides data={hw.data as GeneralData} /></div>}
-                    <ul>{<Review pack={(hw.data as { pack?: string }).pack} quran={hw.kind === "quran"} qdata={hw.kind === "quran" ? (hw.data as QuranData) : undefined} gdata={hw.kind !== "quran" ? (hw.data as GeneralData) : undefined} s={s} asAdmin={asAdmin} markView={markView} markEdit={markEdit} hwId={hw.id} hwTitle={hw.title} reload={load} />}</ul>
+                    <ul>{<Review pack={(hw.data as { pack?: string }).pack} quran={hw.kind === "quran"} qdata={hw.kind === "quran" ? (hw.data as QuranData) : undefined} gdata={hw.kind !== "quran" ? (hw.data as GeneralData) : undefined} s={s} asAdmin={asAdmin} markView={markView} markEdit={markEdit} hwId={hw.id} hwTitle={hw.title} peers={peers} reload={load} />}</ul>
                   </section>
                 ))}
               </div>,
