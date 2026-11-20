@@ -107,7 +107,7 @@ export type MapRow = { id: string; name: string; cls: string; section: string; c
 
 /** Student-account switches. Legacy "Manage students" with none of the stu:* flags set means all four. */
 export const stuUi = (perms: string[], op: "view" | "add" | "edit" | "block" | "delete") => { if (!perms.includes("manageUsers")) return false; const has = perms.filter((p) => p.startsWith("stu:")); return has.length ? has.includes(`stu:${op}`) : true; };
-export const PERMS = ["assign", "review", "manageUsers", "viewAll", "shareCorrect", "viewAsStudent", "pptDownload"] as const;
+export const PERMS = ["assign", "review", "manageUsers", "viewAll", "shareCorrect", "viewAsStudent", "pptDownload", "hwMarkView", "hwMarkCorrect", "hwShare"] as const;
 
 export class LmsError extends Error {
   data?: Record<string, unknown>;
@@ -462,6 +462,8 @@ export function lmsErrorText(e: unknown, tr: (en: string, ar: string) => string)
     module_hidden: ["This part is hidden for your account.", "هذا الجزء مخفي لحسابك."],
     too_many_photos: ["You can add up to 6 photos.", "يمكنك إضافة حتى 6 صور."],
     photo_type: ["Please choose a photo (JPG or PNG).", "اختر صورة (JPG أو PNG)."],
+    photo_correct_off: ["You don't have permission to correct photo homework.", "ليست لديك صلاحية تصحيح الواجب بالصور."],
+    share_off: ["You don't have permission to share homework with other teachers.", "ليست لديك صلاحية مشاركة الواجب مع معلمين آخرين."],
     not_found: ["That homework could not be found.", "تعذر العثور على هذا الواجب."],
     network: ["No connection — try again.", "لا يوجد اتصال — حاول مرة أخرى."],
     verses: ["Check the surah and verse range.", "تحقق من السورة ونطاق الآيات."],
