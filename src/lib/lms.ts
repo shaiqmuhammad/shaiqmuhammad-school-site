@@ -28,8 +28,8 @@ export type MpCfg = { global: MpPart; roles: Record<string, MpPart>; subjects: R
 export const mpShown = (a: Actor | null | undefined, m: MpMod) => !a?.mods || !!a.mods[m]?.view;
 export type Actor = { id: string; role: Role | "admin"; name: string; nameAr?: string; cls: string; perms: string[]; scope?: string[]; viewAs?: boolean; subj?: string[]; subjects?: string[]; subject?: string; arabic?: boolean; mods?: Record<MpMod, MpAcc> };
 export type Slide = { title: string; text: string; image: string };
-export type QuranData = { surah: number; from: number; to: number; reciter: string; notes: string; translit?: boolean; translation?: boolean; extra?: string; memorise?: boolean; memoAudio?: boolean; /** 0 = unlimited, 1 = one (a return allows one more), n = that many submits */ attemptLimit?: number };
-export type GeneralData = { slides: Slide[]; question: string; attemptLimit?: number; topic?: string };
+export type QuranData = { surah: number; from: number; to: number; reciter: string; notes: string; translit?: boolean; translation?: boolean; extra?: string; memorise?: boolean; memoAudio?: boolean; /** 0 = unlimited, 1 = one (a return allows one more), n = that many submits */ attemptLimit?: number; pa?: boolean };
+export type GeneralData = { slides: Slide[]; question: string; attemptLimit?: number; topic?: string; pa?: boolean };
 export type Homework = { id: string; kind: "quran" | "general"; title: string; cls: string; section?: string; /** t422: subject + resolved Year(s) / Section(s) for display */ subject?: string; aud?: { years: string[]; sections: string[] }; students: string[]; data: QuranData | GeneralData; due: number | null; createdBy: string; created: number; locked?: boolean; lockedBy?: { surah: number; from: number; to: number; title: string } | null; late?: boolean };
 export type Comment = { by: string; text: string; at: number; audio?: string };
 export type RosterStudent = { id: string; name: string; cls: string; section: string; gender?: "" | "b" | "g" | string; avatar: string; badge?: string; parentEmail: boolean; points: number; seen: number; cards?: number; attPct?: number | null };
@@ -317,7 +317,16 @@ export const lmsApi = {
   homework: (id: string, asAdmin = false) =>
     call<{ homework: Homework; sub?: Submission | null; subs?: (Submission & { student: string; name: string; cls: string })[]; notStarted?: { id: string; name: string }[] }>("hw", undefined, { asAdmin, query: { id } }),
   corrected: (asAdmin = false) => call<{ items: CorrectedItem[] }>("corrected", {}, { asAdmin }),
-  saveSub: (hw: string, text: string, practised: boolean, submit: boolean) => call<{ ok: true; sub: Submission }>("sub-save", { hw, text, practised, submit }),
+  saveSub: (hw: string, text: string, practised: boolean, submit: boolean, sa?: string) => call<{ ok: true; sub: Submission }>("sub-save", { hw, text, practised, submit, ...(sa ? { sa } : {}) }),
+  hwPa: (hw: string, on: boolean, asAdmin = false) => call<{ ok: true; pa: boolean }>("hw-pa", { hw, on }, { asAdmin }),
+  peerBoard: (hw: string, opts: { about?: string } = {}, asAdmin = false) => call<{
+    pa: boolean;
+    classmates?: { id: string; name: string; status: string; mine: { score: string; text: string } | null }[];
+    received?: { id: string; about: string; by: string; byName: string; score: string; text: string; at: number }[];
+    work?: { student: string; name: string; text: string; audio: string; photos: import("@/lib/hwMark").HwPhoto[]; annot: import("@/lib/hwMark").HwAnnot | null; sa?: string } | null;
+    items?: { id: string; about: string; by: string; byName: string; score: string; text: string; at: number }[];
+  }>("peer-board", { hw, ...opts }, { asAdmin }),
+  peerSave: (hw: string, about: string, score: string, text = "") => call<{ ok: true }>("peer-save", { hw, about, score, text }),
   review: (id: string, patch: { comment?: string; like?: boolean; status?: "approved" | "returned"; grade?: Grade; scores?: { m: Level; t: Level; r: Level; notes?: { m?: string; t?: string; r?: string } } }, asAdmin = false) => call<{ ok: true }>("sub-review", { id, ...patch }, { asAdmin }),
   catalog: (asAdmin = false) => call<Catalog>("catalog", undefined, { asAdmin }),
   catalogSave: (item: { kind: "phase" | "dept" | "subject" | "class" | "section"; id?: string; name: string; parent?: string }) => call<Catalog & { ok: true; id: string }>("catalog-save", item, { asAdmin: true }),
@@ -478,6 +487,10 @@ export function lmsErrorText(e: unknown, tr: (en: string, ar: string) => string)
     bad_pid: ["Could not save that work page.", "تعذّر حفظ صفحة العمل."],
     photo_type: ["Please choose a photo (JPG or PNG).", "اختر صورة (JPG أو PNG)."],
     photo_correct_off: ["You don't have permission to correct photo homework.", "ليست لديك صلاحية تصحيح الواجب بالصور."],
+    sa_needed: ["Please choose how you feel about this work before you submit.", "اختر كيف تشعر تجاه هذا العمل قبل التسليم."],
+    pa_off: ["Peer assessment is not on for this homework.", "تقييم الأقران غير مفعّل لهذا الواجب."],
+    bad_peer: ["You can only assess a classmate's submitted work.", "يمكنك تقييم عمل زميل مسلّم فقط."],
+    owner_only: ["Only the teacher who set this homework can change that.", "فقط المعلم الذي أسند هذا الواجب يمكنه تغيير ذلك."],
     share_off: ["You don't have permission to share homework with other teachers.", "ليست لديك صلاحية مشاركة الواجب مع معلمين آخرين."],
     not_found: ["That homework could not be found.", "تعذر العثور على هذا الواجب."],
     network: ["No connection — try again.", "لا يوجد اتصال — حاول مرة أخرى."],
