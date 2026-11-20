@@ -5,7 +5,7 @@ import { AudioClip, AudioRecorder } from "@/components/lms/Audio";
 import { hwCorrectionPdf } from "@/components/lms/hwCorrectionPdf";
 import { smallBtn, useTr } from "@/components/lms/useLms";
 import { lmsApi, lmsErrorText, type Submission } from "@/lib/lms";
-import { DEFAULT_CODES, NEXT_STEPS, emptyAnnot, emptyPage, pageOf, shrinkHwPhoto, type CorrCode, type HwAnnot, type HwPage, type HwPhoto, type HwStamp, type HwStroke, type HwText } from "@/lib/hwMark";
+import { DEFAULT_CODES, NEXT_STEPS, emptyAnnot, emptyPage, isWorkPage, pageOf, shrinkHwPhoto, type CorrCode, type HwAnnot, type HwPage, type HwPhoto, type HwStamp, type HwStroke, type HwText } from "@/lib/hwMark";
 
 const PENS = ["#e11d48", "#ea580c", "#ca8a04", "#059669", "#0284c7", "#7c3aed", "#0f172a", "#ffffff"];
 const toolBtn = (on: boolean) => `inline-flex min-h-11 items-center gap-1.5 rounded-2xl px-3 py-2 text-sm font-extrabold shadow-sm transition active:scale-95 motion-reduce:transform-none ${on ? "bg-gradient-to-br from-sky-500 to-blue-700 text-white shadow-md" : "bg-white/90 text-[#1b2f44] ring-1 ring-black/10 hover:bg-white dark:bg-white/10 dark:text-white dark:ring-white/15"}`;
@@ -14,6 +14,7 @@ function uid() { return Math.random().toString(36).slice(2, 9); }
 
 /** Student: take / attach oriented photos of written work (up to 6). */
 export function HwPhotoBox({ hwId, photos, locked, asAdmin = false, onChange }: { hwId: string; photos: HwPhoto[]; locked: boolean; asAdmin?: boolean; onChange: () => void }) {
+  const cam = photos.filter((p) => !isWorkPage(p));
   const { tr } = useTr();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -22,7 +23,7 @@ export function HwPhotoBox({ hwId, photos, locked, asAdmin = false, onChange }: 
     setErr("");
     setBusy(true);
     try {
-      for (const f of Array.from(list).slice(0, 6 - photos.length)) {
+      for (const f of Array.from(list).slice(0, 6 - cam.length)) {
         if (!/^image\//.test(f.type) && !/\.(heic|heif|jpe?g|png|webp|gif)$/i.test(f.name)) continue;
         const { blob, w, h } = await shrinkHwPhoto(f);
         await lmsApi.photoUpload(hwId, blob, w, h, asAdmin);
@@ -36,14 +37,14 @@ export function HwPhotoBox({ hwId, photos, locked, asAdmin = false, onChange }: 
   return (
     <div className="space-y-2" data-testid="hw-photos">
       <p className="text-sm font-extrabold">📷 {tr("Photos of my work", "صور عملي")}</p>
-      {!!photos.length && <div className="grid gap-3 sm:grid-cols-2">{photos.map((p) => (
+      {!!cam.length && <div className="grid gap-3 sm:grid-cols-2">{cam.map((p) => (
         <figure key={p.id} className="light-island relative overflow-hidden rounded-3xl bg-black/5 ring-1 ring-black/10 dark:bg-white/5" style={{ aspectRatio: `${Math.max(1, p.w)} / ${Math.max(1, p.h)}` }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <HwImg id={p.id} asAdmin={asAdmin} className="h-full w-full object-contain" />
           {!locked && <button type="button" className="absolute end-2 top-2 rounded-full bg-rose-600 px-2.5 py-1 text-xs font-bold text-white shadow" data-testid="hw-photo-del" onClick={async () => { if (!confirm(tr("Remove this photo?", "إزالة هذه الصورة؟"))) return; await lmsApi.photoDelete(p.id, asAdmin).catch(() => undefined); onChange(); }}>✕</button>}
         </figure>
       ))}</div>}
-      {!locked && photos.length < 6 && (
+      {!locked && cam.length < 6 && (
         <label className="inline-flex min-h-12 cursor-pointer items-center gap-2 rounded-3xl bg-gradient-to-br from-amber-300 to-orange-500 px-4 py-3 text-sm font-extrabold text-[#1b2f44] shadow-md transition hover:-translate-y-0.5 hover:shadow-lg active:scale-95">
           📷 {busy ? tr("Adding…", "جارٍ الإضافة…") : tr("Photograph my work", "صوّر عملي")}
           <input type="file" accept="image/*" capture="environment" multiple className="hidden" data-testid="hw-photo-input" disabled={busy} onChange={(e) => { void add(e.target.files); e.target.value = ""; }} />

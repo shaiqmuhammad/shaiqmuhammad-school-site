@@ -23,6 +23,8 @@ import { VersionTimeline } from "@/components/lms/Versions";
 import { qhwPerm } from "@/lib/lmsMods";
 import { GRADE_STYLE, STATUS_STYLE, card, gradeLabel, inputCls, smallBtn, statusLabel, useLmsActor, useTr } from "@/components/lms/useLms";
 import { HwAnnotate, HwMarkedWork, HwPhotoBox } from "@/components/lms/HwMark";
+import { HwWorkPages } from "@/components/lms/HwWorkPages";
+import { isWorkPage } from "@/lib/hwMark";
 import { HwShare } from "@/components/lms/HwShare";
 import { DEFAULT_CODES, type CorrCode } from "@/lib/hwMark";
 import { attemptCap, attemptOpen, quranExtras, ayahAudio, lmsApi, lmsErrorText, quranChapters, quranVerses, type Chapter, type GeneralData, type QuranData, type Submission, type Attempt, type Mistake, type QrLink, type Catalog, type DashStudent } from "@/lib/lms";
@@ -278,7 +280,7 @@ function StudentWork({ hw, sub, reload, chapters = [] }: { hw: Data["homework"];
       {open && cap > 1 && <p className="text-sm font-semibold" data-testid="hw-tries">{tr(`Attempts left: ${Math.max(0, cap - used)} of ${cap}.`, `المحاولات المتبقية: ${Math.max(0, cap - used)} من ${cap}.`)}</p>}
       {!locked && (
         <div className="flex flex-wrap gap-2">
-          <button type="button" className={primaryBtn} disabled={busy || (hw.kind === "general" ? !(hw.data as { pack?: string }).pack && !text.trim() && !(sub?.audio || draftOk || (sub?.photos || []).length) : !(sub?.audio || draftOk))} onClick={() => { const ask = cap === 0 ? tr("Submit again? You can keep sending until your teacher approves it.", "تسليم مجدد؟ يمكنك الاستمرار حتى يعتمد معلمك العمل.") : cap > 1 ? tr(`Submit now? You can hand this in ${cap} times (${Math.max(0, cap - used)} left).`, `تسليم الآن؟ يمكنك التسليم ${cap} مرات (المتبقي ${Math.max(0, cap - used)}).`) : sentBack ? tr("Send this correction? You can send it once, unless your teacher sends it back again.", "إرسال هذا التصحيح؟ يمكنك إرساله مرة واحدة، إلا إذا أعاده معلمك مجددًا.") : tr("Submit your homework now? You can only submit once, unless your teacher sends it back.", "تسليم واجبك الآن؟ يمكنك التسليم مرة واحدة فقط، إلا إذا أعاده معلمك."); if (confirm(ask)) save(true); }} data-testid="hw-submit">📤 {sentBack ? tr("Submit correction", "تسليم التصحيح") : tr("Submit Your Homework", "سلّم واجبك")}</button>
+          <button type="button" className={primaryBtn} disabled={busy || (hw.kind === "general" ? !(hw.data as { pack?: string }).pack && !text.trim() && !(sub?.audio || draftOk || (sub?.photos || []).filter((p) => !isWorkPage(p)).length) : !(sub?.audio || draftOk))} onClick={() => { const ask = cap === 0 ? tr("Submit again? You can keep sending until your teacher approves it.", "تسليم مجدد؟ يمكنك الاستمرار حتى يعتمد معلمك العمل.") : cap > 1 ? tr(`Submit now? You can hand this in ${cap} times (${Math.max(0, cap - used)} left).`, `تسليم الآن؟ يمكنك التسليم ${cap} مرات (المتبقي ${Math.max(0, cap - used)}).`) : sentBack ? tr("Send this correction? You can send it once, unless your teacher sends it back again.", "إرسال هذا التصحيح؟ يمكنك إرساله مرة واحدة، إلا إذا أعاده معلمك مجددًا.") : tr("Submit your homework now? You can only submit once, unless your teacher sends it back.", "تسليم واجبك الآن؟ يمكنك التسليم مرة واحدة فقط، إلا إذا أعاده معلمك."); if (confirm(ask)) save(true); }} data-testid="hw-submit">📤 {sentBack ? tr("Submit correction", "تسليم التصحيح") : tr("Submit Your Homework", "سلّم واجبك")}</button>
           <button type="button" className={smallBtn} disabled={busy} onClick={() => save(false)} data-testid="hw-draft">{tr("Save for later", "حفظ لاحقًا")}</button>
         </div>
       )}
@@ -320,7 +322,7 @@ const PRESETS: [string, string][] = [
   ["Great effort! Listen to the reciter again before recording.", "جهد رائع! استمع للقارئ مرة أخرى قبل التسجيل."],
 ];
 
-function Review({ s, asAdmin, reload, quran, qdata, regrade = false, onGraded, pack, markView = true, markEdit = true, hwId, hwTitle }: { s: NonNullable<Data["subs"]>[number]; asAdmin: boolean; reload: () => void; quran: boolean; qdata?: QuranData; regrade?: boolean; onGraded?: () => void; pack?: string; markView?: boolean; markEdit?: boolean; hwId?: string; hwTitle?: string }) {
+function Review({ s, asAdmin, reload, quran, qdata, regrade = false, onGraded, pack, gdata, markView = true, markEdit = true, hwId, hwTitle }: { s: NonNullable<Data["subs"]>[number]; asAdmin: boolean; reload: () => void; quran: boolean; qdata?: QuranData; gdata?: GeneralData; regrade?: boolean; onGraded?: () => void; pack?: string; markView?: boolean; markEdit?: boolean; hwId?: string; hwTitle?: string }) {
   const [editGrade, setEditGrade] = useState(false);
   const [codes, setCodes] = useState<CorrCode[]>(DEFAULT_CODES);
   useEffect(() => { let live = true; lmsApi.corrCodes(asAdmin).then((r) => { if (live && r.codes?.length) setCodes(r.codes); }).catch(() => undefined); return () => { live = false; }; }, [asAdmin]);
@@ -392,7 +394,8 @@ function Review({ s, asAdmin, reload, quran, qdata, regrade = false, onGraded, p
       {pack && slidesOpen && <PackPlayer id={pack} asAdmin={asAdmin} review={{ student: s.student }} />}
       {quran && s.scores && s.status !== "submitted" && <div className="space-y-1.5" data-testid="hw-sub-scores"><ScoreBadges s={s.scores} /><FeedbackText s={s.scores} /></div>}
       {s.text && <p className="whitespace-pre-wrap rounded-2xl bg-white/80 px-3 py-2 dark:bg-white/5" dir="auto">{s.text}</p>}
-      {(s.photos || []).length > 0 && markView && <HwAnnotate photos={s.photos || []} annot={s.annot || null} codes={codes} edit={markEdit} asAdmin={asAdmin} subId={s.id} onSaved={() => reload()} onCodes={setCodes} pdfMeta={{ title: hwTitle || "", student: s.name, cls: s.cls, hwId, studentId: s.student, date: s.updated }} />}
+      {!quran && markView && <HwWorkPages s={s} asAdmin={asAdmin} markView={markView} markEdit={markEdit} pack={pack} gdata={gdata} hwTitle={hwTitle || ""} codes={codes} onCodes={setCodes} reload={reload} pdfMeta={{ title: hwTitle || "", student: s.name, cls: s.cls, hwId, studentId: s.student, date: s.updated }} />}
+      {quran && (s.photos || []).length > 0 && markView && <HwAnnotate photos={s.photos || []} annot={s.annot || null} codes={codes} edit={markEdit} asAdmin={asAdmin} subId={s.id} onSaved={() => reload()} onCodes={setCodes} pdfMeta={{ title: hwTitle || "", student: s.name, cls: s.cls, hwId, studentId: s.student, date: s.updated }} />}
       {s.audio && <AudioClip id={s.audio} asAdmin={asAdmin} label={"🎙️ " + tr("Student recording", "تسجيل الطالب")} testId="sub-clip" />}
       {s.comments.map((x, i) => (
         <div key={i} className="text-sm" dir="auto"><b>{x.by}:</b> {x.text}{x.audio && <AudioClip id={x.audio} asAdmin={asAdmin} label={"🎙️ " + tr("Voice feedback", "تعليق صوتي")} testId="fb-clip" onDelete={async () => { if (confirm(tr("Delete this voice feedback?", "حذف هذا التعليق الصوتي؟"))) { await lmsApi.audioDelete(x.audio!, asAdmin).catch(() => undefined); reload(); } }} />}</div>
@@ -578,7 +581,7 @@ export function LmsHomework() {
                       {list.length === 0 && <p className="text-sm opacity-70" data-testid="subs-empty">{subTab === "corr" ? tr("Nothing corrected yet.", "لا يوجد واجب مصحّح بعد.") : tr("Nothing waiting for review.", "لا شيء بانتظار المراجعة.")}</p>}
                       <ul className="space-y-3">
                         {list.map((s) => (
-                          <Review pack={(d.homework.data as { pack?: string }).pack} quran={quran} qdata={quran ? (d.homework.data as QuranData) : undefined} key={s.id + s.updated} s={s} asAdmin={asAdmin} markView={markView} markEdit={markEdit} hwId={hw.id} hwTitle={hw.title} reload={load} regrade={subTab === "corr"} onGraded={() => { setGradeMsg(tr("✅ Grade saved — moved to Corrected Homeworks", "✅ تم حفظ التقييم — نُقل إلى الواجبات المصحَّحة")); setTimeout(() => setGradeMsg(""), 6000); }} />
+                          <Review pack={(d.homework.data as { pack?: string }).pack} quran={quran} qdata={quran ? (d.homework.data as QuranData) : undefined} gdata={!quran ? (d.homework.data as GeneralData) : undefined} key={s.id + s.updated} s={s} asAdmin={asAdmin} markView={markView} markEdit={markEdit} hwId={hw.id} hwTitle={hw.title} reload={load} regrade={subTab === "corr"} onGraded={() => { setGradeMsg(tr("✅ Grade saved — moved to Corrected Homeworks", "✅ تم حفظ التقييم — نُقل إلى الواجبات المصحَّحة")); setTimeout(() => setGradeMsg(""), 6000); }} />
                         ))}
                       </ul>
                     </>
@@ -600,7 +603,7 @@ export function LmsHomework() {
                     <h2 className="text-2xl font-extrabold text-[#1b2f44] dark:text-white" dir="auto">{s.name} <span className="text-base font-semibold text-[#1b2f44]/70 dark:text-white/70">{s.cls}</span></h2>
                     {s.submittedAt ? <p className="text-sm text-[#1b2f44]/80 dark:text-white/80">{tr("Submitted", "سُلّم")} {stamp(s.submittedAt, lang, true)}</p> : null}
                     {hw.kind === "quran" ? <div className="rounded-3xl bg-white p-3 text-[#1b2f44]"><QuranReader data={hw.data as QuranData} mistakes={s.mistakes || []} /></div> : ((hw.data as unknown) as { pack?: string }).pack ? <div className="min-h-[70vh] overflow-hidden rounded-3xl bg-white"><PackPlayer id={((hw.data as unknown) as { pack: string }).pack} asAdmin={asAdmin} review={{ student: s.student }} /></div> : <div className="rounded-3xl bg-white p-3 text-[#1b2f44]"><Slides data={hw.data as GeneralData} /></div>}
-                    <ul>{<Review pack={(hw.data as { pack?: string }).pack} quran={hw.kind === "quran"} qdata={hw.kind === "quran" ? (hw.data as QuranData) : undefined} s={s} asAdmin={asAdmin} markView={markView} markEdit={markEdit} hwId={hw.id} hwTitle={hw.title} reload={load} />}</ul>
+                    <ul>{<Review pack={(hw.data as { pack?: string }).pack} quran={hw.kind === "quran"} qdata={hw.kind === "quran" ? (hw.data as QuranData) : undefined} gdata={hw.kind !== "quran" ? (hw.data as GeneralData) : undefined} s={s} asAdmin={asAdmin} markView={markView} markEdit={markEdit} hwId={hw.id} hwTitle={hw.title} reload={load} />}</ul>
                   </section>
                 ))}
               </div>,
