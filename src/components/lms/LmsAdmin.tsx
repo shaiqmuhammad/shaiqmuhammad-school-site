@@ -26,6 +26,9 @@ const PERM_LABEL: Record<string, [string, string]> = {
   viewAll: ["See all homework", "رؤية كل الواجبات"],
   shareCorrect: ["Correct homework shared with them", "تصحيح الواجبات المشاركة معه"],
   pptDownload: ["Download PPT (Lesson Builder)", "تنزيل PowerPoint (منشئ الدروس)"],
+  hwMarkView: ["View photo homework / task corrections", "عرض تصحيح الواجب/المهمة بالصور"],
+  hwMarkCorrect: ["Correct photo homework / task work", "تصحيح الواجب/المهمة بالصور"],
+  hwShare: ["Share homework with other teachers", "مشاركة الواجب مع معلمين آخرين"],
   viewAsStudent: ["Log in as student (read-only, logged — on by default for own students)", "الدخول كطالب (للعرض فقط، مسجَّل — مفعّل افتراضيًا لطلابه)"],
 };
 
@@ -207,11 +210,11 @@ function PermissionsModal({ u, onClose, onSaved, asAdmin, catalog }: { catalog: 
           <ModulePermsTeacher perms={perms} setPerms={setPerms} />
           <div className="rounded-2xl border border-dashed border-black/15 p-3 dark:border-white/20">
             <p className="mb-2 text-sm font-bold">✅ {tr("General permissions", "الصلاحيات العامة")}</p>
-            <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">{PERMS.filter((p) => p !== "viewAll" && p !== "shareCorrect").map((p) => <label key={p} className="flex items-center gap-1.5"><input type="checkbox" checked={perms.includes(p)} onChange={() => toggle(p)} /> {tr(PERM_LABEL[p][0], PERM_LABEL[p][1])}</label>)}</div>
+            <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">{PERMS.filter((p) => p !== "viewAll" && p !== "shareCorrect" && p !== "hwMarkView" && p !== "hwMarkCorrect" && p !== "hwShare").map((p) => <label key={p} className="flex items-center gap-1.5"><input type="checkbox" checked={perms.includes(p)} onChange={() => toggle(p)} /> {tr(PERM_LABEL[p][0], PERM_LABEL[p][1])}</label>)}</div>
             {/* t334: homework permissions — "Correct homework shared with them" sits right under "See all homework". */}
             <div className="mt-3 space-y-1.5 rounded-xl bg-black/[0.03] p-2 text-sm dark:bg-white/5" data-testid="perm-hw-group">
               <p className="text-xs font-bold opacity-70">📝 {tr("Homework", "الواجبات")}</p>
-              {(["viewAll", "shareCorrect"] as const).map((p) => <label key={p} className="flex items-center gap-1.5" data-testid={`perm-${p}`}><input type="checkbox" role="switch" checked={perms.includes(p)} onChange={() => toggle(p)} /> {tr(PERM_LABEL[p][0], PERM_LABEL[p][1])}</label>)}
+              {(["hwMarkView", "hwMarkCorrect", "hwShare", "viewAll", "shareCorrect"] as const).map((p) => <label key={p} className="flex items-center gap-1.5" data-testid={`perm-${p}`}><input type="checkbox" role="switch" checked={perms.includes(p)} onChange={() => toggle(p)} /> {tr(PERM_LABEL[p][0], PERM_LABEL[p][1])}</label>)}
               {(() => { const same = others.filter((o) => (o.subjects || []).some((x) => subjects.includes(x))); const picked = same.filter((o) => perms.includes(`vat:${o.id}`)); return (
                 <details className="rounded-lg border border-emerald-300 bg-white p-2" data-testid="perm-vat">
                   <summary className="cursor-pointer text-sm font-bold text-emerald-800">👩‍🏫 {tr("Which teachers' homework (see & correct)", "واجبات أي المعلمين (عرض وتصحيح)")}: <span className="font-normal" data-testid="perm-vat-sum">{picked.length ? picked.map((o) => o.name).join(", ") : tr("none selected", "لا أحد")}</span></summary>

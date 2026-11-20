@@ -101,7 +101,7 @@ const TOKEN_DAYS = 3650; // effectively "until you log out" (sliding renewal on 
 const MAX_USERS = 3000;
 const MAX_HW = 2000;
 const FAIL_WINDOW = 15 * 60_000;
-const PERMS = ["assign", "review", "manageUsers", "viewAll", "staff", "shareCorrect", "viewAsStudent", "pptDownload"] as const;
+const PERMS = ["assign", "review", "manageUsers", "viewAll", "staff", "shareCorrect", "viewAsStudent", "pptDownload", "hwMarkView", "hwMarkCorrect", "hwShare"] as const;
 const STU_OPS = ["view", "add", "edit", "block", "delete"] as const;
 const STU_PERM = /^stu:(view|add|edit|block|delete|none)$/;
 /** Cartoon avatar code: stored reroll, else derived from id + gender (gender itself never leaves the server for non-admins). */
@@ -322,6 +322,11 @@ export class LmsStore extends DurableObject<LmsEnv> {
     // Three-criteria Quran scores (Makharij / Tajweed / Recitation). Older colour grades are backfilled as equal levels.
     if (!cols("subs").has("scores")) this.sql.exec(`ALTER TABLE subs ADD COLUMN scores TEXT DEFAULT ''`);
     if (!cols("subs").has("nsubmit")) this.sql.exec(`ALTER TABLE subs ADD COLUMN nsubmit INTEGER DEFAULT 0`);
+    // t682: written-work photos, teacher annotations, self-assessment (SA used in a later batch).
+    if (!cols("subs").has("photos")) this.sql.exec(`ALTER TABLE subs ADD COLUMN photos TEXT DEFAULT '[]'`);
+    if (!cols("subs").has("annot")) this.sql.exec(`ALTER TABLE subs ADD COLUMN annot TEXT DEFAULT ''`);
+    if (!cols("subs").has("sa")) this.sql.exec(`ALTER TABLE subs ADD COLUMN sa TEXT DEFAULT ''`);
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS peer (id TEXT PRIMARY KEY, hw TEXT, about TEXT, by TEXT, text TEXT, score TEXT, at INTEGER)`);
     if (!cols("tracker").has("scores")) this.sql.exec(`ALTER TABLE tracker ADD COLUMN scores TEXT DEFAULT ''`);
     for (const tb of ["subs", "tracker"] as const) {
       for (const r of this.sql.exec(`SELECT id, grade FROM ${tb} WHERE (scores IS NULL OR scores='') AND grade IN ('green','yellow','red')`).toArray()) {
@@ -555,9 +560,21 @@ export class LmsStore extends DurableObject<LmsEnv> {
   }
   /** t678: correction actions on a granted (shared / colleague) homework — the share grant wins over this teacher's own module switches. */
   private grantedCorrection(a: Actor, action: string, input: Json): boolean {
-    if (a.role !== "teacher" || (action !== "sub-review" && action !== "mistakes")) return false;
+    if (a.role !== "teacher" || (action !== "sub-review" && action !== "mistakes" && action !== "annot-save")) return false;
     const r = this.sql.exec(`SELECT hw FROM subs WHERE id=?`, str(input?.id, 40)).toArray()[0];
     return !!r && this.mayCorrect(a, String(r.hw)).granted;
+  }
+  /** t683: view photo corrections — own work needs the Permissions switch; a share / colleague grant always allows viewing. */
+  private mayViewMark(a: Actor, hwId: string): boolean {
+    if (a.role === "admin" || a.role === "student" || a.role === "parent") return true;
+    if (a.role !== "teacher") return false;
+    const hs = this.allHomework(hwId)[0];
+    if (!hs) return false;
+    if (this.sharedTo(hs, a.id) || this.mayCorrect(a, hwId).granted) return true;
+    return a.perms.includes("hwMarkView") || a.perms.includes("hwMarkCorrect");
+  }
+  private withMark<T extends { photos?: unknown; annot?: unknown }>(a: Actor, hwId: string, o: T): T {
+    return this.mayViewMark(a, hwId) ? o : { ...o, photos: [], annot: null };
   }
   private va(a: Actor, by: string): boolean {
     if (!a.perms.includes("viewAll")) return false;
@@ -926,6 +943,43 @@ export class LmsStore extends DurableObject<LmsEnv> {
     return { status: 200, body: { ok: true, id } };
   }
 
+
+  /** t682: student photo of written work (already compressed + EXIF-oriented in the browser). */
+  async photoUpload(a: Actor, q: Json, data: ArrayBuffer, mime: string): Promise<Reply> {
+    const type = mime.split(";")[0];
+    if (!/^image\/(jpeg|png|webp)$/.test(type)) return { status: 415, body: { error: "photo_type" } };
+    if (!data.byteLength) return { status: 400, body: { error: "empty" } };
+    if (data.byteLength > 1_600_000) return { status: 413, body: { error: "too_large" } };
+    if (a.role !== "student") return { status: 403, body: { error: "students_only" } };
+    const used = Number(this.sql.exec(`SELECT COALESCE(SUM(size),0) AS n FROM blobs WHERE owner=?`, a.id).one().n);
+    const total = Number(this.sql.exec(`SELECT COALESCE(SUM(size),0) AS n FROM blobs`).one().n);
+    if (used + data.byteLength > USER_AUDIO_CAP) return { status: 409, body: { error: "audio_user_full" } };
+    if (total + data.byteLength > TOTAL_AUDIO_CAP) return { status: 409, body: { error: "audio_full" } };
+    const h = this.allHomework(str(q.hw, 40))[0];
+    if (!h || !this.assignees(h).includes(a.id)) return { status: 404, body: { error: "not_found" } };
+    if (this.lockedFor(h, a.id)) return { status: 409, body: { error: "locked" } };
+    let cur = this.sql.exec(`SELECT * FROM subs WHERE hw=? AND student=?`, h.id, a.id).toArray()[0];
+    if (cur?.status === "approved") return { status: 409, body: { error: "already_approved" } };
+    const gate = attemptGate(h.data as { attemptLimit?: unknown }, cur ? { status: String(cur.status), nsubmit: Number(cur.nsubmit || 0), comments: commentList(cur.comments), submittedAt: Number(cur.submitted_at || 0) } : null);
+    if (cur && !gate.open) return { status: 409, body: { error: gate.code } };
+    if (!cur) {
+      this.sql.exec(`INSERT INTO subs (id, hw, student, status, text, practised, updated, photos) VALUES (?, ?, ?, 'draft', '', 0, ?, '[]')`, rid("s"), h.id, a.id, Date.now());
+      cur = this.sql.exec(`SELECT * FROM subs WHERE hw=? AND student=?`, h.id, a.id).toArray()[0];
+    }
+    let photos: { id: string; w: number; h: number }[] = [];
+    try { const p = JSON.parse(String(cur.photos || "[]")); if (Array.isArray(p)) photos = p; } catch { photos = []; }
+    if (photos.length >= 6) return { status: 409, body: { error: "too_many_photos" } };
+    const id = rid("ph");
+    const w = Math.max(1, Math.min(4000, Math.round(Number(q.w) || 1)));
+    const hh = Math.max(1, Math.min(4000, Math.round(Number(q.h) || 1)));
+    await this.files.put(id, data, type);
+    this.sql.exec(`INSERT INTO blobs (id, owner, sub, kind, mime, size, created) VALUES (?, ?, ?, 'ph', ?, ?, ?)`, id, a.id, String(cur.id), type, data.byteLength, Date.now());
+    photos.push({ id, w, h: hh });
+    this.sql.exec(`UPDATE subs SET photos=?, status=CASE WHEN status='returned' THEN 'returned' ELSE 'draft' END, updated=? WHERE id=?`, JSON.stringify(photos), Date.now(), String(cur.id));
+    this.touch(a.id);
+    return { status: 200, body: { ok: true, id, photos } };
+  }
+
   /** t315: Lesson Pack context (see packs.ts). */
   private packCtx(): PackCtx {
     return {
@@ -1096,7 +1150,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     if (!a.viewAs) this.presence(a);
     // Per-module Show/Hide for teachers ("hide:<module>" in perms). Hidden modules answer 403 on the server, not just in the menu.
     if (a.role === "teacher") {
-      const mod = action === "assess-results" ? "results" : /^msg-/.test(action) ? "messaging" : /^wall-/.test(action) ? "wall" : /^act-/.test(action) ? "activities" : /^(hw-save|hw-delete|hw-unlock|sub-review)$/.test(action) ? "homework" : /^(assess-|tquiz-)/.test(action) ? "assessments" : "";
+      const mod = action === "assess-results" ? "results" : /^msg-/.test(action) ? "messaging" : /^wall-/.test(action) ? "wall" : /^act-/.test(action) ? "activities" : /^(hw-save|hw-delete|hw-unlock|sub-review|annot-save)$/.test(action) ? "homework" : /^(assess-|tquiz-)/.test(action) ? "assessments" : "";
       if (mod && a.perms.includes(`hide:${mod}`) && !(mod === "homework" && this.grantedCorrection(a, action, input))) return { status: 403, body: { error: "module_hidden" } };
     }
     if (a.role === "parent" && !(input as Record<symbol, unknown>)[PASS]) return this.parentHandle(a, action, input);
@@ -2081,7 +2135,15 @@ export class LmsStore extends DurableObject<LmsEnv> {
         const b = this.sql.exec(`SELECT * FROM blobs WHERE id=?`, str(input.id, 40)).toArray()[0];
         if (!b) return { status: 404, body: { error: "not_found" } };
         const r = this.sql.exec(`SELECT * FROM subs WHERE id=?`, String(b.sub)).toArray()[0];
-        if (b.kind === "rec") {
+        if (b.kind === "ph") {
+          if (!(a.role === "student" && r?.student === a.id) && a.role !== "admin") return { status: 403, body: { error: "forbidden" } };
+          if (a.role === "student" && r?.status === "approved") return { status: 409, body: { error: "already_approved" } };
+          if (r) {
+            let photos: { id: string }[] = [];
+            try { const p = JSON.parse(String(r.photos || "[]")); if (Array.isArray(p)) photos = p; } catch { photos = []; }
+            this.sql.exec(`UPDATE subs SET photos=?, updated=? WHERE id=?`, JSON.stringify(photos.filter((x) => x.id !== String(b.id))), Date.now(), String(r.id));
+          }
+        } else if (b.kind === "rec") {
           if (!(a.role === "student" && r?.student === a.id) && a.role !== "admin") return { status: 403, body: { error: "forbidden" } };
           if (a.role === "student" && r?.status === "approved") return { status: 409, body: { error: "already_approved" } };
           if (r) this.sql.exec(`UPDATE subs SET audio='' WHERE id=?`, String(r.id));
@@ -2374,7 +2436,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         // t347: teachers open only their own, shared, or picked teachers' homework (View all homework → selected teachers).
         if (a.role === "teacher" && h.createdBy !== a.id && !this.va(a, h.createdBy) && !this.sharedTo(h, a.id)) return { status: 403, body: { error: "forbidden" } };
         const names = new Map(this.sql.exec(`SELECT id, name, cls FROM users`).toArray().map((r) => [String(r.id), { name: String(r.name), cls: String(r.cls || "") }]));
-        const subs = this.sql.exec(`SELECT * FROM subs WHERE hw=? ORDER BY updated DESC`, h.id).toArray().map((r) => ({ ...this.withVersions(this.subOut(r), r), student: String(r.student), name: names.get(String(r.student))?.name ?? "?", cls: names.get(String(r.student))?.cls ?? "" }));
+        const subs = this.sql.exec(`SELECT * FROM subs WHERE hw=? ORDER BY updated DESC`, h.id).toArray().map((r) => ({ ...this.withMark(a, h.id, this.withVersions(this.subOut(r), r)), student: String(r.student), name: names.get(String(r.student))?.name ?? "?", cls: names.get(String(r.student))?.cls ?? "" }));
         const pending = this.assignees(h).filter((id) => !subs.some((s) => s.student === id)).map((id) => ({ id, name: names.get(id)?.name ?? "?" }));
         return { status: 200, body: { homework: h, subs, notStarted: pending } };
       }
@@ -2519,16 +2581,23 @@ export class LmsStore extends DurableObject<LmsEnv> {
         return { status: 200, body: { presets: v ? JSON.parse(String(v)) : null } };
       }
       case "hw-share": {
-        // t349: per-homework sharing removed — Permissions (See all homework + teacher list) controls correction access.
-        if (Date.now() > 0) return { status: 410, body: { error: "share_removed" } };
-        // t328: owner (or admin) shares a homework with other teachers; "correct" lets them grade it (needs the admin shareCorrect permission too).
+        // t683: owner (or admin) with the Share permission can share a homework with same-subject teachers; "correct" lets them annotate/grade (they also need shareCorrect).
         const h = this.allHomework(str(input.hw, 40))[0];
         if (!h) return { status: 404, body: { error: "not_found" } };
-        const own = a.role === "admin" || h.createdBy === a.id;
-        const teachers = this.sql.exec(`SELECT id, name, perms, subjects FROM users WHERE role='teacher' AND COALESCE(disabled,0)=0 ORDER BY name`).toArray().filter((t) => String(t.id) !== h.createdBy).map((t) => ({ id: String(t.id), name: String(t.name), permitted: String(t.perms || "").includes("shareCorrect") }));
+        const canShare = a.role === "admin" || (h.createdBy === a.id && a.perms.includes("hwShare"));
+        let ownerSubs: string[] = [];
+        try { ownerSubs = JSON.parse(String(this.userRow("id=?", h.createdBy)?.subjects || "[]")) as string[]; } catch { ownerSubs = []; }
+        const teachers = this.sql.exec(`SELECT id, name, perms, subjects FROM users WHERE role='teacher' AND COALESCE(disabled,0)=0 ORDER BY name`).toArray()
+          .filter((t) => String(t.id) !== h.createdBy)
+          .filter((t) => {
+            if (!ownerSubs.length) return true;
+            let ts: string[] = []; try { ts = JSON.parse(String(t.subjects || "[]")) as string[]; } catch { ts = []; }
+            return ts.some((x) => ownerSubs.includes(x));
+          })
+          .map((t) => ({ id: String(t.id), name: String(t.name), permitted: String(t.perms || "").includes("shareCorrect") }));
         const cur = ((h.data as Json).share || { teachers: [], correct: false }) as { teachers: string[]; correct: boolean };
         if (input.__method === "POST") {
-          if (!own || a.viewAs) return { status: 403, body: { error: "owner_only" } };
+          if (!canShare || a.viewAs) return { status: 403, body: { error: "share_off" } };
           const ids = (Array.isArray(input.teachers) ? input.teachers : []).map((x) => str(x, 40)).filter((x) => teachers.some((t) => t.id === x)).slice(0, 60);
           const next = { teachers: ids, correct: input.correct === true };
           this.sql.exec(`UPDATE homework SET data=? WHERE id=?`, JSON.stringify({ ...(h.data as Json), share: next }), h.id);
@@ -2536,7 +2605,8 @@ export class LmsStore extends DurableObject<LmsEnv> {
           if (fresh.length) this.notify(fresh, "hw_shared", { hw: h.id, title: h.title, by: a.name, correct: next.correct });
           return { status: 200, body: { ok: true, share: next } };
         }
-        return { status: 200, body: { share: cur, teachers: own ? teachers : [], own } };
+        if (!canShare && a.role === "teacher" && !this.sharedTo(h, a.id) && h.createdBy !== a.id) return { status: 403, body: { error: "forbidden" } };
+        return { status: 200, body: { share: cur, teachers: canShare ? teachers : [], own: canShare } };
       }
       case "qr-links": {
         // Teacher/admin: per-student QR tokens for one homework (created on demand; reset/revoke one).
@@ -2712,6 +2782,64 @@ export class LmsStore extends DurableObject<LmsEnv> {
         return { status: 200, body: { token: tok } };
       }
 
+
+      case "annot-save": {
+        // t682: teacher marks on a photo submission. A share/colleague grant uses the same mayCorrect rule as Save grade.
+        const r = this.sql.exec(`SELECT * FROM subs WHERE id=?`, str(input.id, 40)).toArray()[0];
+        if (!r) return { status: 404, body: { error: "not_found" } };
+        const mc = this.mayCorrect(a, String(r.hw));
+        if (!mc.ok) return { status: mc.status, body: { error: mc.error } };
+        // t683: own work needs "Correct photo homework"; a share/colleague grant (PR #17) is enough on its own.
+        if (a.role === "teacher" && !mc.granted && !a.perms.includes("hwMarkCorrect")) return { status: 403, body: { error: "photo_correct_off" } };
+        const raw = (input.annot || {}) as Json;
+        const pagesIn = (raw.pages && typeof raw.pages === "object") ? raw.pages as Record<string, Json> : {};
+        const pages: Record<string, Json> = {};
+        for (const [pid, pg] of Object.entries(pagesIn).slice(0, 6)) {
+          const strokes = (Array.isArray((pg as Json).strokes) ? (pg as Json).strokes as Json[] : []).slice(0, 200).map((s) => ({
+            c: /^#[0-9a-fA-F]{6}$/.test(String(s.c || "")) ? String(s.c) : "#e11d48",
+            w: Math.max(1, Math.min(40, Number(s.w) || 4)),
+            tool: s.tool === "hi" ? "hi" : "pen",
+            d: (Array.isArray(s.d) ? s.d as unknown[] : []).slice(0, 2000).map((n) => Math.max(-20, Math.min(120, Number(n) || 0))),
+          }));
+          const texts = (Array.isArray((pg as Json).texts) ? (pg as Json).texts as Json[] : []).slice(0, 40).map((t) => ({
+            id: str(t.id, 20) || rid("tx"), x: Math.max(-5, Math.min(105, Number(t.x) || 0)), y: Math.max(-5, Math.min(105, Number(t.y) || 0)),
+            text: str(t.text, 400), c: /^#[0-9a-fA-F]{6}$/.test(String(t.c || "")) ? String(t.c) : "#0f172a", size: Math.max(10, Math.min(48, Number(t.size) || 18)),
+          }));
+          const stamps = (Array.isArray((pg as Json).stamps) ? (pg as Json).stamps as Json[] : []).slice(0, 40).map((t) => ({
+            id: str(t.id, 20) || rid("st"), x: Math.max(-5, Math.min(105, Number(t.x) || 0)), y: Math.max(-5, Math.min(105, Number(t.y) || 0)),
+            code: str(t.code, 20), en: str(t.en, 40), ar: str(t.ar, 40), color: /^#[0-9a-fA-F]{6}$/.test(String(t.color || "")) ? String(t.color) : "#0284c7",
+          }));
+          pages[str(pid, 40)] = { strokes, texts, stamps };
+        }
+        const next = (Array.isArray(raw.next) ? raw.next as unknown[] : []).slice(0, 12).map((x) => str(x, 300)).filter(Boolean);
+        const done = input.done === true || raw.done === true;
+        const annot = { pages, next, done, at: Date.now(), by: a.name };
+        this.sql.exec(`UPDATE subs SET annot=?, updated=? WHERE id=?`, JSON.stringify(annot), Date.now(), String(r.id));
+        const hw = this.allHomework(String(r.hw))[0];
+        // General / task work: "Send correction" marks it corrected (approved). Quran stays on its own grade flow.
+        if (done && hw && hw.kind !== "quran" && String(r.status) !== "approved") {
+          this.sql.exec(`UPDATE subs SET status='approved', updated=? WHERE id=?`, Date.now(), String(r.id));
+        }
+        return { status: 200, body: { ok: true, annot } };
+      }
+      case "corr-codes": {
+        if (a.role !== "admin" && a.role !== "teacher") return { status: 403, body: { error: "forbidden" } };
+        const key = "ccodes:" + a.id;
+        const clean = (list: unknown): { id: string; en: string; ar: string; color: string }[] =>
+          (Array.isArray(list) ? list as Json[] : []).slice(0, 20).map((c, i) => ({
+            id: str(c.id, 20) || ("c" + i), en: str(c.en, 40), ar: str(c.ar, 40),
+            color: /^#[0-9a-fA-F]{6}$/.test(String(c.color || "")) ? String(c.color) : "#0284c7",
+          })).filter((c) => c.en || c.ar);
+        if (input && Array.isArray((input as Json).codes)) {
+          const codes = clean((input as Json).codes);
+          this.sql.exec(`INSERT OR REPLACE INTO settings (k, v) VALUES (?, ?)`, key, JSON.stringify(codes));
+          return { status: 200, body: { ok: true, codes } };
+        }
+        let codes: unknown = [];
+        try { codes = JSON.parse(String(this.sql.exec(`SELECT v FROM settings WHERE k=?`, key).toArray()[0]?.v || "[]")); } catch { codes = []; }
+        return { status: 200, body: { codes: clean(codes) } };
+      }
+
       case "mistakes": {
         // Teacher marks mistakes on an exact verse/word of a Quran submission.
         const r = this.sql.exec(`SELECT * FROM subs WHERE id=?`, str(input.id, 40)).toArray()[0];
@@ -2731,7 +2859,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
         const hw = this.allHomework().filter((h) => a.role === "admin" || this.va(a, h.createdBy) || h.createdBy === a.id || this.sharedTo(h, a.id)).filter((h) => h.kind === "quran" || genOk(a));
         const ids = new Set(hw.map((h) => h.id));
         const users = this.sql.exec(`SELECT id, username, name, role, cls, section FROM users`).toArray().map((r) => ({ id: String(r.id), username: String(r.username), name: String(r.name), role: String(r.role), cls: String(r.cls || ""), section: String(r.section || "") }));
-        const subs = this.sql.exec(`SELECT * FROM subs ORDER BY updated`).toArray().filter((r) => ids.has(String(r.hw))).map((r) => ({ ...this.subOut(r), hw: String(r.hw), student: String(r.student) }));
+        const subs = this.sql.exec(`SELECT * FROM subs ORDER BY updated`).toArray().filter((r) => ids.has(String(r.hw))).map((r) => ({ ...this.withMark(a, String(r.hw), this.subOut(r)), hw: String(r.hw), student: String(r.student) }));
         const tracker = this.sql.exec(`SELECT * FROM tracker ORDER BY approved`).toArray().map((r) => ({ student: String(r.student), surah: Number(r.surah), from: Number(r.from_ayah), to: Number(r.to_ayah), hw: String(r.hw), approved: Number(r.approved) }));
         return { status: 200, body: { exportedAt: Date.now(), homework: hw, subs, users, tracker } };
       }
@@ -2811,7 +2939,10 @@ export class LmsStore extends DurableObject<LmsEnv> {
     return this.allHomework().filter((h) => !(Number((h.data as Json).assignAt || 0) > now)).filter((h) => (h.students.includes(a.id) || (h.cls ? h.cls === a.cls && (!h.section || h.section === sec) : !h.students.length)));
   }
   private subOut(r: Record<string, unknown>) {
-    return { id: String(r.id), status: String(r.status), text: String(r.text || ""), practised: Boolean(r.practised), liked: Boolean(r.liked), comments: JSON.parse(String(r.comments || "[]")) as { by: string; text: string; at: number; audio?: string }[], audio: String(r.audio || ""), grade: String(r.grade || ""), scores: parseScores(r.scores) || fromGrade(String(r.grade || "")), mistakes: JSON.parse(String(r.mistakes || "[]")) as { ayah: number; word: number; text: string; note: string }[], submittedAt: Number(r.submitted_at || 0), nsubmit: Number(r.nsubmit || 0), attempts: (JSON.parse(String(r.attempts || "[]")) as { n: number; audio: string; grade: string; by: string; at: number; scores?: Scores }[]).map((x) => ({ ...x, scores: x.scores || fromGrade(x.grade) || undefined })), updated: Number(r.updated) };
+    return { id: String(r.id), status: String(r.status), text: String(r.text || ""), practised: Boolean(r.practised), liked: Boolean(r.liked), comments: JSON.parse(String(r.comments || "[]")) as { by: string; text: string; at: number; audio?: string }[], audio: String(r.audio || ""), grade: String(r.grade || ""), scores: parseScores(r.scores) || fromGrade(String(r.grade || "")), mistakes: JSON.parse(String(r.mistakes || "[]")) as { ayah: number; word: number; text: string; note: string }[], submittedAt: Number(r.submitted_at || 0), nsubmit: Number(r.nsubmit || 0), attempts: (JSON.parse(String(r.attempts || "[]")) as { n: number; audio: string; grade: string; by: string; at: number; scores?: Scores }[]).map((x) => ({ ...x, scores: x.scores || fromGrade(x.grade) || undefined })), updated: Number(r.updated),
+      photos: (() => { try { const p = JSON.parse(String(r.photos || "[]")); return Array.isArray(p) ? p : []; } catch { return []; } })(),
+      annot: (() => { try { const p = JSON.parse(String(r.annot || "") || "null"); return p && typeof p === "object" ? p : null; } catch { return null; } })(),
+      sa: String(r.sa || "") };
   }
   /** t328: Quran submissions carry the student's full version timeline on that Surah (teacher view). */
   private withVersions<T extends { id: string }>(o: T, r: Record<string, unknown>): T {
@@ -3466,9 +3597,9 @@ export async function handleLms(request: Request, env: LmsEnv, action: string): 
       return new Response(r.data, { headers: { ...corsHeaders(origin), "Content-Type": r.mime || "application/octet-stream", "Cache-Control": "private, max-age=86400" } });
     }
     if (request.method !== "POST") return reply(origin, { error: "method" }, 405);
-    if (Number(request.headers.get("Content-Length") || 0) > MAX_AUDIO) return reply(origin, { error: "audio_too_long" }, 413);
+    if (Number(request.headers.get("Content-Length") || 0) > MAX_AUDIO) return reply(origin, { error: q.photo === "1" ? "too_large" : "audio_too_long" }, 413);
     const buf = await request.arrayBuffer();
-    const r = (await store.audioUpload(a, q, buf, request.headers.get("Content-Type") || "")) as unknown as Reply;
+    const r = (await (q.photo === "1" ? store.photoUpload(a, q, buf, request.headers.get("Content-Type") || "") : store.audioUpload(a, q, buf, request.headers.get("Content-Type") || ""))) as unknown as Reply;
     return reply(origin, r.body, r.status);
   }
   let body: Json = {};

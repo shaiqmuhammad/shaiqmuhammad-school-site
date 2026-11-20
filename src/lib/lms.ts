@@ -78,7 +78,7 @@ export type Scores = { m: Level; t: Level; r: Level; h?: Level; notes?: { m?: st
 /** t328: one submission on a Surah (all its homework), numbered v1, v2… */
 export type Version = { v: number; hw: string; title: string; from: number; to: number; audio: string; at: number; grade: Grade | ""; scores: Scores | null; by: string; pending: boolean; feedback: string[] };
 export type HwShare = { teachers: string[]; correct: boolean };
-export type Submission = { versions?: Version[]; id: string; status: "draft" | "submitted" | "approved" | "returned"; text: string; practised: boolean; liked: boolean; comments: Comment[]; audio?: string; grade?: Grade | ""; scores?: Scores | null; attempts?: Attempt[]; mistakes?: Mistake[]; submittedAt?: number; /** How many times this student has submitted. Missing on older replies means 0. */ nsubmit?: number; updated: number };
+export type Submission = { versions?: Version[]; id: string; status: "draft" | "submitted" | "approved" | "returned"; text: string; practised: boolean; liked: boolean; comments: Comment[]; audio?: string; grade?: Grade | ""; scores?: Scores | null; attempts?: Attempt[]; mistakes?: Mistake[]; submittedAt?: number; /** How many times this student has submitted. Missing on older replies means 0. */ nsubmit?: number; updated: number; photos?: import("@/lib/hwMark").HwPhoto[]; annot?: import("@/lib/hwMark").HwAnnot | null; sa?: string };
 /** 0 = multiple until approved. Missing or 1 = one attempt. */
 export function attemptCap(data: { attemptLimit?: number } | null | undefined): number {
   const raw = data?.attemptLimit;
@@ -107,7 +107,7 @@ export type MapRow = { id: string; name: string; cls: string; section: string; c
 
 /** Student-account switches. Legacy "Manage students" with none of the stu:* flags set means all four. */
 export const stuUi = (perms: string[], op: "view" | "add" | "edit" | "block" | "delete") => { if (!perms.includes("manageUsers")) return false; const has = perms.filter((p) => p.startsWith("stu:")); return has.length ? has.includes(`stu:${op}`) : true; };
-export const PERMS = ["assign", "review", "manageUsers", "viewAll", "shareCorrect", "viewAsStudent", "pptDownload"] as const;
+export const PERMS = ["assign", "review", "manageUsers", "viewAll", "shareCorrect", "viewAsStudent", "pptDownload", "hwMarkView", "hwMarkCorrect", "hwShare"] as const;
 
 export class LmsError extends Error {
   data?: Record<string, unknown>;
@@ -391,6 +391,21 @@ export const lmsApi = {
   msgDelete: (id: string) => call<{ ok: true }>("msg-delete", { id }, { asAdmin: true }),
   audioDelete: (id: string, asAdmin = false) => call<{ ok: true }>("audio-delete", { id }, { asAdmin }),
   /** Uploads a recording: student → {hw}, teacher → {sub}. Raw body, so not via call(). */
+  async photoUpload(hw: string, blob: Blob, w: number, h: number, asAdmin = false) {
+    const tok = bearer(asAdmin);
+    const q = new URLSearchParams({ hw, photo: "1", w: String(w), h: String(h) }).toString();
+    let res: Response;
+    try {
+      res = await fetch(`${ASSESSMENT_API_BASE}/api/lms/audio-upload?${q}`, { method: "POST", headers: { "Content-Type": blob.type || "image/jpeg", ...(tok ? { Authorization: `Bearer ${tok}` } : {}) }, body: blob });
+    } catch { throw new LmsError("network", 0); }
+    const data = (await res.json().catch(() => ({}))) as { error?: string; id?: string };
+    if (!res.ok) throw new LmsError(data.error || "error", res.status);
+    return data as { ok: true; id: string; photos: import("@/lib/hwMark").HwPhoto[] };
+  },
+  photoDelete: (id: string, asAdmin = false) => call<{ ok: true }>("audio-delete", { id }, { asAdmin }),
+  annotSave: (id: string, annot: import("@/lib/hwMark").HwAnnot, done = false, asAdmin = false) => call<{ ok: true; annot: import("@/lib/hwMark").HwAnnot }>("annot-save", { id, annot, done }, { asAdmin }),
+  corrCodes: (asAdmin = false) => call<{ codes: import("@/lib/hwMark").CorrCode[] }>("corr-codes", {}, { asAdmin }),
+  corrCodesSave: (codes: import("@/lib/hwMark").CorrCode[], asAdmin = false) => call<{ ok: true; codes: import("@/lib/hwMark").CorrCode[] }>("corr-codes", { codes }, { asAdmin }),
   async audioUpload(target: { hw?: string; sub?: string; mark?: string }, blob: Blob, asAdmin = false) {
     const tok = bearer(asAdmin);
     const q = new URLSearchParams(target as Record<string, string>).toString();
@@ -445,6 +460,10 @@ export function lmsErrorText(e: unknown, tr: (en: string, ar: string) => string)
     quran_not_allowed: ["Quran homework isn't switched on for your account.", "واجب القرآن غير مفعّل لحسابك."],
     general_hw_not_allowed: ["You don't have permission to correct this homework.", "ليست لديك صلاحية تصحيح هذا الواجب."],
     module_hidden: ["This part is hidden for your account.", "هذا الجزء مخفي لحسابك."],
+    too_many_photos: ["You can add up to 6 photos.", "يمكنك إضافة حتى 6 صور."],
+    photo_type: ["Please choose a photo (JPG or PNG).", "اختر صورة (JPG أو PNG)."],
+    photo_correct_off: ["You don't have permission to correct photo homework.", "ليست لديك صلاحية تصحيح الواجب بالصور."],
+    share_off: ["You don't have permission to share homework with other teachers.", "ليست لديك صلاحية مشاركة الواجب مع معلمين آخرين."],
     not_found: ["That homework could not be found.", "تعذر العثور على هذا الواجب."],
     network: ["No connection — try again.", "لا يوجد اتصال — حاول مرة أخرى."],
     verses: ["Check the surah and verse range.", "تحقق من السورة ونطاق الآيات."],
