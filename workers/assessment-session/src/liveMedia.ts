@@ -38,3 +38,17 @@ export function canSetMemberFloor(actorId: string, actorRole: string, teacherId:
   if (!targetId || targetId === teacherId) return false;
   return actorRole === "admin" || (!!actorId && !!teacherId && actorId === teacherId);
 }
+
+
+/** Which SFU track names this member may currently publish. */
+export function allowedPubTracks(
+  m: { role?: string; camAllowed?: boolean; micAllowed?: boolean; shareAllowed?: boolean } | undefined,
+  tracks: string[],
+): { next: string[]; denied: string[] } {
+  const allow = new Set<string>();
+  if (m?.role === "teacher" || m?.camAllowed) allow.add("camera");
+  if (m?.role === "teacher" || m?.micAllowed) allow.add("mic");
+  if (m?.role === "teacher" || m?.shareAllowed) allow.add("screen");
+  const wanted = tracks.map((x) => String(x || "").trim()).filter(Boolean);
+  return { next: wanted.filter((n) => allow.has(n)), denied: wanted.filter((n) => !allow.has(n)) };
+}

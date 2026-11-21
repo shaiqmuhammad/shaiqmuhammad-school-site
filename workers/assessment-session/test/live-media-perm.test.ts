@@ -61,3 +61,20 @@ test("only the host or admin can change a joiner's floor, and never the host's",
   assert.equal(canSetMemberFloor("t1", "teacher", "t1", "t1"), false);
   assert.equal(canSetMemberFloor("s1", "student", "t1", "s2"), false);
 });
+
+import { allowedPubTracks } from "../src/liveMedia";
+
+test("an attendee cannot publish camera or mic until the host grants access", () => {
+  const attendee = { role: "student", camAllowed: false, micAllowed: false };
+  const denied = allowedPubTracks(attendee, ["camera", "mic"]);
+  assert.deepEqual(denied.next, []);
+  assert.deepEqual(denied.denied, ["camera", "mic"]);
+  const granted = allowedPubTracks({ role: "student", camAllowed: true, micAllowed: true }, ["camera", "mic"]);
+  assert.deepEqual(granted.next, ["camera", "mic"]);
+  assert.deepEqual(granted.denied, []);
+});
+
+test("a teacher member may publish camera, mic and screen without a grant flag", () => {
+  const r = allowedPubTracks({ role: "teacher" }, ["camera", "mic", "screen"]);
+  assert.deepEqual(r.next, ["camera", "mic", "screen"]);
+});

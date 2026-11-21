@@ -202,23 +202,37 @@ function DockBtn({ onClick, label, icon, on, end, leave, disabled, testid, badge
 }
 
 /** Remote video stays muted so it can autoplay without any student permission; audio plays here after a tap. */
+function RemoteAudio({ track, unlocked, onBlocked }: { track: MediaStreamTrack; unlocked: boolean; onBlocked: () => void }) {
+  const ref = useRef<HTMLAudioElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const stream = new MediaStream([track]);
+    el.srcObject = stream;
+    el.muted = false;
+    el.volume = 1;
+    if (!unlocked) { el.pause(); return; }
+    const play = () => el.play().catch(() => onBlocked());
+    play();
+    const onUnmute = () => play();
+    track.addEventListener("unmute", onUnmute);
+    return () => track.removeEventListener("unmute", onUnmute);
+  }, [track, unlocked, onBlocked]);
+  return <audio ref={ref} autoPlay playsInline data-testid="live-remote-audio" />;
+}
+
 function ClassAudio({ remotes, unlocked, onBlocked }: { remotes: Record<string, MediaStream>; unlocked: boolean; onBlocked: () => void }) {
   const audioTracks = useMemo(() => {
     const out: MediaStreamTrack[] = [];
     for (const s of Object.values(remotes)) for (const t of s.getAudioTracks()) if (t.readyState !== "ended") out.push(t);
     return out;
   }, [remotes]);
-  const ref = useRef<HTMLAudioElement>(null);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const stream = audioTracks.length ? new MediaStream(audioTracks) : null;
-    el.srcObject = stream;
-    if (!stream || !unlocked) { el.pause(); return; }
-    el.play().catch(() => onBlocked());
-  }, [audioTracks, unlocked, onBlocked]);
   if (!audioTracks.length) return null;
-  return <audio ref={ref} autoPlay playsInline className="hidden" />;
+  return (
+    <div className="sr-only" data-testid="live-class-audio">
+      {audioTracks.map((t) => <RemoteAudio key={t.id} track={t} unlocked={unlocked} onBlocked={onBlocked} />)}
+    </div>
+  );
 }
 
 function LiveCountdown({ endsAt, isHost, onAdd, onSet }: { endsAt: number; isHost: boolean; onAdd: (m: number) => void; onSet: (m: number) => void }) {
@@ -274,11 +288,13 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
   const lms = useLmsActor();
   const [adminSess, setAdminSess] = useState(false);
   useEffect(() => { setAdminSess(!!getServerSession()); }, []);
-  const asAdmin = forceAdmin || (!lms.actor && adminSess);
   const [guest, setGuest] = useState<ReturnType<typeof liveGuest>>(null);
   const [hydrated, setHydrated] = useState(false);
   useEffect(() => { setGuest(liveGuest()); setHydrated(true); }, []);
-  const actor = asAdmin ? ADMIN_ACTOR : (lms.actor || (guest?.token ? { id: guest.id, role: "student" as const, name: guest.name, cls: "", perms: [] as string[], guest: true } : null));
+  const guestCtx = hydrated && typeof window !== "undefined" && (new URLSearchParams(window.location.search).get("guest") === "1" || window.location.pathname.includes("/lms/live/join"));
+  const guestActor = guest?.token ? { id: guest.id, role: "student" as const, name: guest.name, cls: "", perms: [] as string[], guest: true } : null;
+  const asAdmin = (forceAdmin || (!lms.actor && adminSess)) && !guestCtx;
+  const actor = asAdmin ? ADMIN_ACTOR : (guestCtx && guestActor ? guestActor : (lms.actor || guestActor));
   const ready = lms.ready || adminSess || forceAdmin || !!guest?.token;
   const adminElsewhere = lms.adminElsewhere && !asAdmin && !guest?.token;
   const liveHref = (id?: string) => {
@@ -335,7 +351,8 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
   const showChatRef = useRef(false);
   const chatSoundRef = useRef(true);
   const chatBox = useRef<HTMLDivElement>(null);
-  const selfId = actor?.id || "";
+  const [serverSelfId, setServerSelfId] = useState("");
+  const selfId = serverSelfId || actor?.id || "";
   const isHost = !!(room && actor && (
     actor.role === "admin"
     || (actor.role === "teacher" && room.teacherId === actor.id)
@@ -475,14 +492,15 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
   }, [selfId]);
 
   const connectWs = useCallback((roomId: string) => {
-    const tok = asAdmin ? getServerSession()?.token : (lmsSession()?.token || liveGuest()?.token);
+    const tok = asAdmin ? getServerSession()?.token : (guestCtx && liveGuest()?.token ? liveGuest()?.token : (lmsSession()?.token || liveGuest()?.token));
     if (!tok) return;
     closeWs();
     const ws = new WebSocket(liveWsUrl(tok, roomId));
     wsRef.current = ws;
     ws.onmessage = (ev) => {
-      let msg: { t?: string; room?: LiveSnap; msg?: LiveChat; userId?: string; name?: string; camAllowed?: boolean; micAllowed?: boolean; shareAllowed?: boolean; cam?: boolean; mic?: boolean; on?: boolean; asks?: LiveAsk[]; present?: LiveSnap["present"]; view?: LiveView; stroke?: { c: string; w: number; d: number[]; by: string }; ptr?: LivePtr } = {};
+      let msg: { t?: string; room?: LiveSnap; selfId?: string; msg?: LiveChat; userId?: string; name?: string; camAllowed?: boolean; micAllowed?: boolean; shareAllowed?: boolean; cam?: boolean; mic?: boolean; on?: boolean; asks?: LiveAsk[]; present?: LiveSnap["present"]; view?: LiveView; stroke?: { c: string; w: number; d: number[]; by: string }; ptr?: LivePtr } = {};
       try { msg = JSON.parse(String(ev.data)) as typeof msg; } catch { return; }
+      if (msg.selfId) setServerSelfId(msg.selfId);
       if (msg.t === "room" && msg.room) applyRoom(msg.room);
       if (msg.t === "present") setRoom((r) => r ? { ...r, present: msg.present || null } : r);
       if (msg.t === "view" && msg.view) setRoom((r) => r ? { ...r, view: msg.view } : r);
@@ -524,7 +542,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
         setTimeout(() => { if (wsRef.current === ws) connectWs(roomId); }, 1500);
       }
     };
-  }, [applyRoom, asAdmin, cleanupMedia, phase, selfId, tr]);
+  }, [applyRoom, asAdmin, cleanupMedia, guestCtx, phase, selfId, tr]);
 
   const ptrKindRef = useRef<PtrKind>("pen");
   const sendPtr = useCallback((x: number | null, y: number | null, kind?: PtrKind) => {
@@ -545,12 +563,17 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
     if (phase !== "in" || !room?.id || !actor) return;
     if (!room.sfu) return;
     let cancelled = false;
+    const roomId = room.id;
+    const who = selfId || actor.id;
     (async () => {
       try {
-        const ice = (await lmsApi.liveIce(room.id, asAdmin)).iceServers;
-        if (cancelled) return;
-        sfuRef.current?.close();
-        const sfu = new LiveSfu(room.id, actor.id, ice, (key, stream) => {
+        if (sfuRef.current) {
+          sfuRef.current.setSelfId(who);
+          return;
+        }
+        const ice = (await lmsApi.liveIce(roomId, asAdmin)).iceServers;
+        if (cancelled || sfuRef.current) return;
+        const sfu = new LiveSfu(roomId, who, ice, (key, stream) => {
           setRemotes((prev) => {
             const next = { ...prev };
             if (!stream) delete next[key];
@@ -567,7 +590,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
       }
     })();
     return () => { cancelled = true; };
-  }, [phase, room?.id, actor?.id, tr, asAdmin]);
+  }, [phase, room?.id, actor?.id, selfId, asAdmin]);
 
   useEffect(() => {
     if (phase === "in") sfuRef.current?.syncSubs(room?.pubs || []).catch(() => undefined);
@@ -588,6 +611,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
     setBusy(true); setErr("");
     try {
       const r = await lmsApi.liveJoin(id, asAdmin);
+      if (r.selfId) setServerSelfId(r.selfId);
       if (r.room) applyRoom(r.room);
       if (r.status === "in") setPhase("in");
       else if (r.status === "waiting") setPhase("waiting");
@@ -612,7 +636,9 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
   }
 
   async function toggleCam() {
-    if (!sfuRef.current || !me) return;
+    unlockAudio();
+    if (!sfuRef.current) { setErr(tr("Video is still connecting. Try Camera again in a moment.", "الفيديو ما زال يتصل. أعد المحاولة بعد لحظة.")); return; }
+    if (!me) { setErr(tr("You are not in the room yet.", "لست داخل الحصة بعد.")); return; }
     if (camOn) {
       localRef.current?.getVideoTracks().forEach((t) => t.stop());
       await sfuRef.current.unpublish("camera");
@@ -622,7 +648,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
       if (!leftover.length) localRef.current = null;
       return;
     }
-    if (!isHost && !me.camAllowed) return;
+    if (!isHost && !me.camAllowed) { setErr(tr("Wait for the teacher to allow your camera.", "انتظر حتى يسمح المعلم بكاميرتك.")); return; }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
       const track = stream.getVideoTracks()[0];
@@ -640,14 +666,19 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
   }
 
   async function toggleMic() {
-    if (!sfuRef.current || !me) return;
+    unlockAudio();
+    if (!sfuRef.current) { setErr(tr("Video is still connecting. Try Mic again in a moment.", "الفيديو ما زال يتصل. أعد المحاولة بعد لحظة.")); return; }
+    if (!me) { setErr(tr("You are not in the room yet.", "لست داخل الحصة بعد.")); return; }
     if (micOn) {
       localRef.current?.getAudioTracks().forEach((t) => t.stop());
       await sfuRef.current.unpublish("mic");
       setMicOn(false);
+      const leftover = localRef.current?.getVideoTracks() || [];
+      setLocalStream(leftover.length ? new MediaStream(leftover) : null);
+      if (!leftover.length) localRef.current = null;
       return;
     }
-    if (!isHost && !me.micAllowed) return;
+    if (!isHost && !me.micAllowed) { setErr(tr("Wait for the teacher to allow your microphone.", "انتظر حتى يسمح المعلم بميكروفونك.")); return; }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const track = stream.getAudioTracks()[0];
