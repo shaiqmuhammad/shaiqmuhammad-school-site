@@ -306,7 +306,7 @@ export type LivePresent = {
   wheelAngle: number; wheelSpinTo: number; wheelAt: number; winnerId: string; winnerName: string;
   randText: string; answers: LiveAnswer[];
 };
-export type LiveSnap = { id: string; title: string; cls: string; section: string; groupId: string; teacherId: string; status: "live" | "ended"; created: number; waiting: LiveWait[]; members: LiveMember[]; chat: LiveChat[]; pubs: LivePub[]; sfu: boolean; present?: LivePresent | null };
+export type LiveSnap = { id: string; title: string; cls: string; section: string; groupId: string; teacherId: string; status: "live" | "ended"; created: number; waiting: LiveWait[]; members: LiveMember[]; chat: LiveChat[]; pubs: LivePub[]; sfu: boolean; present?: LivePresent | null; endsAt?: number };
 export function liveWsUrl(token: string, room: string) {
   const u = new URL(`${ASSESSMENT_API_BASE}/api/lms/live-ws`);
   u.protocol = u.protocol === "https:" ? "wss:" : "ws:";
@@ -497,7 +497,7 @@ export const lmsApi = {
   },
 
   liveList: (asAdmin = false) => call<{ rooms: LiveRoomInfo[]; canStart: boolean; sfu: boolean; options: { cls: string; section: string }[]; groups: { id: string; name: string }[]; perms?: LivePerms }>("live-list", undefined, { asAdmin }),
-  liveStart: (b: { title?: string; cls?: string; section?: string; groupId?: string }, asAdmin = false) => call<{ id: string; existing?: boolean }>("live-start", b, { asAdmin }),
+  liveStart: (b: { title?: string; cls?: string; section?: string; groupId?: string; minutes?: number }, asAdmin = false) => call<{ id: string; existing?: boolean }>("live-start", b, { asAdmin }),
   liveGet: (id: string, asAdmin = false) => call<{ room: LiveSnap }>("live-get", { id }, { asAdmin }),
   liveJoin: (id: string, asAdmin = false) => call<{ status: "in" | "waiting" | "ended" | "full"; room?: LiveSnap }>("live-join", { id }, { asAdmin }),
   liveAdmit: (id: string, userId: string, asAdmin = false) => call<{ ok: boolean }>("live-admit", { id, userId }, { asAdmin }),
@@ -519,11 +519,13 @@ export const lmsApi = {
   liveLinkInfo: (t: string) => call<{ ok: true; title: string; teacherName: string; starts: number; ends: number; status: string; roomId: string; canJoin: boolean }>("live-link-info", undefined, { query: { t } }),
   liveLinkJoin: (t: string, name: string) => call<{ ok: true; token: string; guestId: string; name: string; schedId: string; roomId: string; canJoin: boolean; title: string }>("live-link-join", { token: t, name }),
   livePresent: (id: string, body: Record<string, unknown>, asAdmin = false) => call<{ ok: boolean; present?: LivePresent | null }>("live-present", { id, ...body }, { asAdmin }),
+  livePack: (id: string, packId: string, asAdmin = false) => call<{ pack: { id: string; title: string; type: string; slides: unknown[] } }>("live-pack", { id, packId }, { asAdmin }),
+  liveDuration: (id: string, body: { endsAt?: number; addMin?: number }, asAdmin = false) => call<{ ok: boolean; endsAt?: number }>("live-duration", { id, ...body }, { asAdmin }),
   exportAll: (asAdmin = false) => call<{ exportedAt: number; homework: Homework[]; subs: (Submission & { hw: string; student: string })[]; users: { id: string; username: string; name: string; role: string; cls: string }[]; tracker: (TrackerRow & { student: string; hw: string })[] }>("export", undefined, { asAdmin }),
 };
 
 export function lmsErrorText(e: unknown, tr: (en: string, ar: string) => string): string {
-  const c = e instanceof LmsError ? e.code : "";
+  const c = e instanceof LmsError ? e.code : (e instanceof Error && /^[a-z_]+$/.test(e.message) ? e.message : "");
   if (c === "topic_taken") { const ex = (e as LmsError).data?.existing as { title?: string; slug?: string } | undefined; const t = ex?.title || ex?.slug || ""; return tr(`This curriculum topic already has an assessment: “${t}”. Only one assessment per topic.`, `هذا الموضوع له تقييم بالفعل: «${t}». لكل موضوع تقييم واحد فقط.`); }
   const m: Record<string, [string, string]> = {
     topic_required: ["Choose the curriculum topic first — every assessment must be linked to one.", "اختر موضوع المنهج أولًا — يجب ربط كل تقييم بموضوع."],
@@ -565,6 +567,7 @@ export function lmsErrorText(e: unknown, tr: (en: string, ar: string) => string)
     pick_class: ["Choose a class to start the live lesson.", "اختر صفًا لبدء الحصة المباشرة."],
     sfu_session: ["Could not start the video connection. Try again.", "تعذر بدء اتصال الفيديو. حاول مرة أخرى."],
     sfu_publish: ["Could not share your camera or mic. Check permissions and try again.", "تعذر مشاركة الكاميرا أو الميكروفون. تحقق من الأذونات وحاول مرة أخرى."],
+    cam_denied: ["Allow camera and microphone in your browser, then try again.", "اسمح للكاميرا والميكروفون في المتصفح ثم حاول مرة أخرى."],
     bad_login: ["Wrong username or password.", "اسم المستخدم أو كلمة المرور غير صحيحة."],
     locked: ["Finish the earlier verses first — this unlocks when your teacher passes them.", "أكمل الآيات السابقة أولًا — تُفتح عندما يجتازها معلمك."],
     leaderboard_off: ["The leaderboard is turned off.", "لوحة المتصدرين متوقفة."],
