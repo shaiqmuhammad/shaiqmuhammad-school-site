@@ -15,7 +15,7 @@ import { AssessmentShell, primaryBtn } from "@/components/assessment/AssessmentS
 import { exportStudentsXlsx, downloadCredentials, downloadSignInSheet, downloadUsersTemplate, exportAllHomeworkZip, parseUsersXlsx } from "@/components/lms/lmsFiles";
 import { ADMIN_ACTOR, adminRelogin, card, inputCls, smallBtn, useLmsActor, useTr } from "@/components/lms/useLms";
 import { clsNum, secLetter } from "@/lib/classFmt";
-import { catDeptOf, catPhaseNames, catPhaseOf, lmsApi, lmsErrorText, PERMS, stuUi, scopeLabel, grpLabel, type Catalog, type LmsUser, type Role, type StudentGroup } from "@/lib/lms";
+import { catDeptOf, catPhaseNames, catPhaseOf, lmsApi, lmsErrorText, PERMS, LIVE_PERMS, stuUi, scopeLabel, grpLabel, type Catalog, type LmsUser, type Role, type StudentGroup } from "@/lib/lms";
 
 type Pins = { username: string; name: string; pin: string }[];
 type Row = Partial<LmsUser & { pin: string }>;
@@ -31,6 +31,12 @@ const PERM_LABEL: Record<string, [string, string]> = {
   hwShare: ["Share homework with other teachers", "مشاركة الواجب مع معلمين آخرين"],
   viewAsStudent: ["Log in as student (read-only, logged — on by default for own students)", "الدخول كطالب (للعرض فقط، مسجَّل — مفعّل افتراضيًا لطلابه)"],
   liveLesson: ["Run live lessons", "تشغيل الدروس المباشرة"],
+  liveSchedule: ["Schedule live lessons", "جدولة الدروس المباشرة"],
+  liveSchedStudent: ["Schedule with individual students", "الجدولة مع طالب فردي"],
+  liveSchedClass: ["Schedule with a class or section", "الجدولة مع صف أو شعبة"],
+  liveShareLink: ["Create a shareable join link", "إنشاء رابط انضمام قابل للمشاركة"],
+  liveCamMic: ["Allow or mute student camera and mic", "السماح بكاميرا وميكروفون الطلاب أو كتمهما"],
+  liveScreenShare: ["Allow student screen share", "السماح بمشاركة شاشة الطلاب"],
 };
 
 const EMPTY: Catalog = { subjects: [], classes: [], sections: [] };
@@ -211,7 +217,7 @@ function PermissionsModal({ u, onClose, onSaved, asAdmin, catalog }: { catalog: 
           <ModulePermsTeacher perms={perms} setPerms={setPerms} />
           <div className="rounded-2xl border border-dashed border-black/15 p-3 dark:border-white/20">
             <p className="mb-2 text-sm font-bold">✅ {tr("General permissions", "الصلاحيات العامة")}</p>
-            <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">{PERMS.filter((p) => p !== "viewAll" && p !== "shareCorrect" && p !== "hwMarkView" && p !== "hwMarkCorrect" && p !== "hwShare").map((p) => <label key={p} className="flex items-center gap-1.5"><input type="checkbox" checked={perms.includes(p)} onChange={() => toggle(p)} /> {tr(PERM_LABEL[p][0], PERM_LABEL[p][1])}</label>)}</div>
+            <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">{PERMS.filter((p) => p !== "viewAll" && p !== "shareCorrect" && p !== "hwMarkView" && p !== "hwMarkCorrect" && p !== "hwShare" && !(LIVE_PERMS as readonly string[]).includes(p)).map((p) => <label key={p} className="flex items-center gap-1.5"><input type="checkbox" checked={perms.includes(p)} onChange={() => toggle(p)} /> {tr(PERM_LABEL[p][0], PERM_LABEL[p][1])}</label>)}</div>
             {/* t334: homework permissions — "Correct homework shared with them" sits right under "See all homework". */}
             <div className="mt-3 space-y-1.5 rounded-xl bg-black/[0.03] p-2 text-sm dark:bg-white/5" data-testid="perm-hw-group">
               <p className="text-xs font-bold opacity-70">📝 {tr("Homework", "الواجبات")}</p>
@@ -222,6 +228,11 @@ function PermissionsModal({ u, onClose, onSaved, asAdmin, catalog }: { catalog: 
                   <p className="my-1 text-xs opacity-70">{tr("Only teachers who share a subject are listed. Works when “See all homework” is on.", "يظهر فقط المعلمون الذين يشاركون مادة. يعمل عند تفعيل «رؤية كل الواجبات».")}</p>
                   <div className="flex flex-col gap-1">{same.map((o) => <label key={o.id} className="flex items-center gap-1.5"><input type="checkbox" checked={perms.includes(`vat:${o.id}`)} onChange={() => toggle(`vat:${o.id}`)} data-testid="perm-vat-opt" /> {o.name} <span className="text-xs opacity-60">({(o.subjects || []).filter((x) => subjects.includes(x)).join(", ")})</span></label>)}{!same.length && <span className="text-xs opacity-60">{tr("No other teacher shares a subject.", "لا يوجد معلم يشارك مادة.")}</span>}</div>
                 </details>); })()}
+            </div>
+            <div className="mt-3 space-y-1.5 rounded-xl bg-fuchsia-50 p-2 text-sm dark:bg-fuchsia-950/30" data-testid="perm-live-group">
+              <p className="text-xs font-bold opacity-70">🎥 {tr("Live lessons", "الدروس المباشرة")}</p>
+              {LIVE_PERMS.map((p) => <label key={p} className="flex items-center gap-1.5" data-testid={`perm-${p}`}><input type="checkbox" role="switch" checked={perms.includes(p)} onChange={() => toggle(p)} /> {tr(PERM_LABEL[p][0], PERM_LABEL[p][1])}</label>)}
+              <p className="text-xs opacity-70">{tr("All off by default. Admin always has these. Students do not need a switch to join a lesson for their class.", "كلها مغلقة افتراضيًا. المسؤول يملكها دائمًا. لا يحتاج الطلاب إلى صلاحية للانضمام إلى حصة صفّهم.")}</p>
             </div>
           </div>
           {perms.includes("manageUsers") && <StudentAccess perms={perms} setPerms={setPerms} />}

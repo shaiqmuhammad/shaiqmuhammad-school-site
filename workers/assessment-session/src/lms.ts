@@ -92,7 +92,7 @@ const EMAIL_KINDS: Record<string, [string, string]> = {
 };
 type Reply = { status: number; body: unknown };
 export type Role = "student" | "teacher" | "parent";
-export type Actor = { id: string; role: Role | "admin"; name: string; cls: string; perms: string[]; scope?: string[]; stu?: string[]; viewAs?: boolean; vaAdmin?: boolean; subj?: string[]; nameAr?: string };
+export type Actor = { id: string; role: Role | "admin"; name: string; cls: string; perms: string[]; scope?: string[]; stu?: string[]; viewAs?: boolean; vaAdmin?: boolean; subj?: string[]; nameAr?: string; guest?: boolean; liveSched?: string };
 /** A student's subjects ("Islamic A, Islamic B" → ["Islamic A", "Islamic B"]). */
 export const subjList = (v: unknown) => String(v || "").split(/\s*,\s*/).map((x) => x.trim()).filter(Boolean);
 type CatKind = "phase" | "dept" | "subject" | "class" | "section";
@@ -101,7 +101,7 @@ const TOKEN_DAYS = 3650; // effectively "until you log out" (sliding renewal on 
 const MAX_USERS = 3000;
 const MAX_HW = 2000;
 const FAIL_WINDOW = 15 * 60_000;
-const PERMS = ["assign", "review", "manageUsers", "viewAll", "staff", "shareCorrect", "viewAsStudent", "pptDownload", "hwMarkView", "hwMarkCorrect", "hwShare", "liveLesson"] as const;
+const PERMS = ["assign", "review", "manageUsers", "viewAll", "staff", "shareCorrect", "viewAsStudent", "pptDownload", "hwMarkView", "hwMarkCorrect", "hwShare", "liveLesson", "liveSchedule", "liveSchedStudent", "liveSchedClass", "liveShareLink", "liveCamMic", "liveScreenShare"] as const;
 const STU_OPS = ["view", "add", "edit", "block", "delete"] as const;
 const STU_PERM = /^stu:(view|add|edit|block|delete|none)$/;
 /** Cartoon avatar code: stored reroll, else derived from id + gender (gender itself never leaves the server for non-admins). */
@@ -3518,22 +3518,32 @@ export class LmsStore extends DurableObject<LmsEnv> {
   /** Part 1 live classroom index (light rows only; media signalling lives in the LiveRoom DO). */
   liveEnsure() {
     this.sql.exec(`CREATE TABLE IF NOT EXISTS live_rooms (id TEXT PRIMARY KEY, teacher TEXT NOT NULL, title TEXT NOT NULL, cls TEXT NOT NULL, section TEXT NOT NULL DEFAULT '', group_id TEXT NOT NULL DEFAULT '', status TEXT NOT NULL, created INTEGER NOT NULL, ended INTEGER)`);
+    this.liveSchedEnsure();
   }
-  livePut(row: { id: string; teacher: string; title: string; cls: string; section: string; groupId: string; status: string; created: number }) {
+  liveSchedEnsure() {
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS live_rooms (id TEXT PRIMARY KEY, teacher TEXT NOT NULL, title TEXT NOT NULL, cls TEXT NOT NULL, section TEXT NOT NULL DEFAULT '', group_id TEXT NOT NULL DEFAULT '', status TEXT NOT NULL, created INTEGER NOT NULL, ended INTEGER)`);
+    for (const col of ["student_id TEXT NOT NULL DEFAULT ''", "sched_id TEXT NOT NULL DEFAULT ''"]) {
+      try { this.sql.exec(`ALTER TABLE live_rooms ADD COLUMN ${col}`); } catch { /* already added */ }
+    }
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS live_sched (id TEXT PRIMARY KEY, teacher TEXT NOT NULL, title TEXT NOT NULL, starts INTEGER NOT NULL, duration INTEGER NOT NULL, cls TEXT NOT NULL DEFAULT '', section TEXT NOT NULL DEFAULT '', group_id TEXT NOT NULL DEFAULT '', student_id TEXT NOT NULL DEFAULT '', pack_id TEXT NOT NULL DEFAULT '', pack_title TEXT NOT NULL DEFAULT '', room_id TEXT NOT NULL DEFAULT '', status TEXT NOT NULL, link_token TEXT NOT NULL DEFAULT '', link_on INTEGER NOT NULL DEFAULT 0, created INTEGER NOT NULL)`);
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS live_guests (token TEXT PRIMARY KEY, guest_id TEXT NOT NULL, name TEXT NOT NULL, sched_id TEXT NOT NULL, exp INTEGER NOT NULL)`);
+  }
+  livePut(row: { id: string; teacher: string; title: string; cls: string; section: string; groupId: string; status: string; created: number; studentId?: string; schedId?: string }) {
     this.liveEnsure();
-    this.sql.exec(`INSERT OR REPLACE INTO live_rooms (id, teacher, title, cls, section, group_id, status, created, ended) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)`, row.id, row.teacher, row.title, row.cls, row.section, row.groupId, row.status, row.created);
+    this.sql.exec(`INSERT OR REPLACE INTO live_rooms (id, teacher, title, cls, section, group_id, status, created, ended, student_id, sched_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)`, row.id, row.teacher, row.title, row.cls, row.section, row.groupId, row.status, row.created, row.studentId || "", row.schedId || "");
   }
   liveListOpen() {
     this.liveEnsure();
-    return this.sql.exec(`SELECT id, teacher, title, cls, section, group_id, status, created FROM live_rooms WHERE status='live' ORDER BY created DESC LIMIT 40`).toArray();
+    return this.sql.exec(`SELECT id, teacher, title, cls, section, group_id, student_id, sched_id, status, created FROM live_rooms WHERE status='live' ORDER BY created DESC LIMIT 40`).toArray();
   }
   liveRow(id: string) {
     this.liveEnsure();
-    return this.sql.exec(`SELECT id, teacher, title, cls, section, group_id, status, created, ended FROM live_rooms WHERE id=?`, id).toArray()[0] || null;
+    return this.sql.exec(`SELECT id, teacher, title, cls, section, group_id, student_id, sched_id, status, created, ended FROM live_rooms WHERE id=?`, id).toArray()[0] || null;
   }
   liveMarkEnded(id: string) {
     this.liveEnsure();
     this.sql.exec(`UPDATE live_rooms SET status='ended', ended=? WHERE id=?`, Date.now(), id);
+    this.sql.exec(`UPDATE live_sched SET status='ended', link_on=0 WHERE room_id=? AND status!='cancelled'`, id);
   }
   liveGroupStudents(groupId: string): string[] {
     if (!groupId) return [];
@@ -3541,8 +3551,9 @@ export class LmsStore extends DurableObject<LmsEnv> {
     if (!g) return [];
     try { return (JSON.parse(String(g.students || "[]")) as unknown[]).map(String).filter(Boolean); } catch { return []; }
   }
-  liveStudentFits(a: Actor, cls: string, section: string, groupId: string): boolean {
+  liveStudentFits(a: Actor, cls: string, section: string, groupId: string, studentId = ""): boolean {
     if (a.role !== "student") return false;
+    if (studentId) return a.id === studentId;
     const u = this.userRow("id=?", a.id);
     if (!u) return false;
     if (groupId) return this.liveGroupStudents(groupId).includes(a.id);
@@ -3552,11 +3563,17 @@ export class LmsStore extends DurableObject<LmsEnv> {
     if (section && ss !== section) return false;
     return !!cls;
   }
-  liveVisible(a: Actor, row: { teacher: string; cls: string; section: string; group_id?: string; groupId?: string }): boolean {
+  liveVisible(a: Actor, row: { teacher: string; cls: string; section: string; group_id?: string; groupId?: string; student_id?: string; studentId?: string }): boolean {
     if (a.role === "admin") return true;
+    if (a.guest) return false;
     const groupId = String(row.group_id || row.groupId || "");
-    if (a.role === "teacher") return row.teacher === a.id || this.inScope(a, String(row.cls || ""), String(row.section || ""));
-    return this.liveStudentFits(a, String(row.cls || ""), String(row.section || ""), groupId);
+    const studentId = String(row.student_id || row.studentId || "");
+    if (a.role === "teacher") {
+      if (row.teacher === a.id) return true;
+      if (studentId) return false;
+      return this.inScope(a, String(row.cls || ""), String(row.section || ""));
+    }
+    return this.liveStudentFits(a, String(row.cls || ""), String(row.section || ""), groupId, studentId);
   }
   liveCanStart(a: Actor, cls: string, section: string, groupId: string): { ok: true } | { ok: false; error: string } {
     if (a.role === "admin") {
@@ -3607,6 +3624,224 @@ export class LmsStore extends DurableObject<LmsEnv> {
     if (!a.scope?.length) return false;
     return a.scope.some((x) => { const [k, s2] = x.split("|"); return k === cls && (!s2 || !section || s2 === section); }) && this.subjOk(a, sid);
   }
+
+  liveSchedExpired(row: { starts: unknown; duration: unknown; status?: unknown; room_id?: unknown }): boolean {
+    if (String(row.status || "") === "ended" || String(row.status || "") === "cancelled") return true;
+    const ends = Number(row.starts) + Number(row.duration) * 60_000;
+    if (String(row.room_id || "") && String(row.status || "") === "live") return false;
+    return Date.now() > ends + 60 * 60_000;
+  }
+  liveSchedPublic(row: Record<string, unknown>, a?: Actor | null, withLink = false) {
+    const starts = Number(row.starts);
+    const duration = Number(row.duration);
+    const ends = starts + duration * 60_000;
+    const status = this.liveSchedExpired(row) && String(row.status) === "scheduled" ? "expired" : String(row.status);
+    const studentId = String(row.student_id || "");
+    const out: Record<string, unknown> = {
+      id: String(row.id),
+      title: String(row.title),
+      starts,
+      duration,
+      ends,
+      cls: String(row.cls || ""),
+      section: String(row.section || ""),
+      groupId: String(row.group_id || ""),
+      studentId,
+      packId: String(row.pack_id || ""),
+      packTitle: String(row.pack_title || ""),
+      roomId: String(row.room_id || ""),
+      status,
+      teacherId: String(row.teacher),
+      teacherName: this.liveTeacherName(String(row.teacher)),
+      hasLink: Number(row.link_on) === 1 && !!String(row.link_token || ""),
+      mine: !!(a && (a.role === "admin" || a.id === String(row.teacher))),
+    };
+    if (studentId && a && (a.role === "admin" || a.role === "teacher")) {
+      const u = this.userRow("id=?", studentId);
+      if (u) out.studentName = String(u.name || "");
+    }
+    if (withLink && out.mine && Number(row.link_on) === 1 && String(row.link_token || "")) out.linkToken = String(row.link_token);
+    return out;
+  }
+  liveSchedRow(id: string) {
+    this.liveSchedEnsure();
+    return this.sql.exec(`SELECT * FROM live_sched WHERE id=?`, id).toArray()[0] || null;
+  }
+  liveSchedByToken(token: string) {
+    this.liveSchedEnsure();
+    if (!token) return null;
+    return this.sql.exec(`SELECT * FROM live_sched WHERE link_token=? AND link_on=1`, token).toArray()[0] || null;
+  }
+  liveSchedVisible(a: Actor, row: Record<string, unknown>): boolean {
+    if (a.role === "admin") return true;
+    if (a.guest) return a.liveSched === String(row.id);
+    if (a.role === "teacher") return String(row.teacher) === a.id;
+    return this.liveStudentFits(a, String(row.cls || ""), String(row.section || ""), String(row.group_id || ""), String(row.student_id || ""));
+  }
+  liveCanSchedule(a: Actor, cls: string, section: string, groupId: string, studentId: string): { ok: true } | { ok: false; error: string } {
+    if (a.role !== "admin" && a.role !== "teacher") return { ok: false, error: "forbidden" };
+    const can = (p: (typeof PERMS)[number]) => a.role === "admin" || a.perms.includes(p);
+    if (!can("liveSchedule")) return { ok: false, error: "no_schedule" };
+    if (studentId) {
+      if (!can("liveSchedStudent")) return { ok: false, error: "no_sched_student" };
+      const u = this.userRow("id=? AND role='student'", studentId);
+      if (!u) return { ok: false, error: "not_found" };
+      if (a.role !== "admin" && !this.inScope(a, ...this.placeOf(studentId), studentId)) return { ok: false, error: "not_your_class" };
+      return { ok: true };
+    }
+    if (groupId) {
+      const ids = this.liveGroupStudents(groupId);
+      if (!ids.length) return { ok: false, error: "no_students" };
+      if (a.role !== "admin" && !ids.every((sid) => this.inScope(a, ...this.placeOf(sid), sid))) return { ok: false, error: "not_your_class" };
+      return { ok: true };
+    }
+    if (cls || section) {
+      if (!can("liveSchedClass")) return { ok: false, error: "no_sched_class" };
+      if (!cls) return { ok: false, error: "pick_class" };
+      if (a.role !== "admin" && !this.inScope(a, cls, section)) return { ok: false, error: "not_your_class" };
+      return { ok: true };
+    }
+    return { ok: false, error: "pick_audience" };
+  }
+  liveSchedList(a: Actor) {
+    this.liveSchedEnsure();
+    const now = Date.now();
+    const from = now - 12 * 3600_000;
+    const to = now + 60 * 24 * 3600_000;
+    const rows = this.sql.exec(`SELECT * FROM live_sched WHERE starts>=? AND starts<=? ORDER BY starts ASC LIMIT 200`, from, to).toArray();
+    return rows.filter((r) => this.liveSchedVisible(a, r as Record<string, unknown>)).slice(0, 80).map((r) => this.liveSchedPublic(r as Record<string, unknown>, a, a.role !== "student"));
+  }
+  liveSchedSave(a: Actor, input: { id?: string; title: string; starts: number; duration: number; cls: string; section: string; groupId: string; studentId: string; packId: string }) {
+    this.liveSchedEnsure();
+    const starts = Math.trunc(Number(input.starts) || 0);
+    const duration = Math.min(180, Math.max(10, Math.trunc(Number(input.duration) || 0)));
+    if (!starts || starts < Date.now() - 5 * 60_000) return { ok: false as const, error: "bad_time" };
+    if (starts > Date.now() + 60 * 24 * 3600_000) return { ok: false as const, error: "bad_time" };
+    let cls = input.cls, section = input.section, studentId = input.studentId;
+    if (studentId) {
+      const place = this.placeOf(studentId);
+      if (!cls) cls = place[0];
+      if (!section) section = place[1];
+    }
+    const chk = this.liveCanSchedule(a, cls, section, input.groupId, studentId);
+    if (!chk.ok) return chk;
+    let packTitle = "";
+    if (input.packId) {
+      const p = this.sql.exec(`SELECT id, title, owner FROM lpack WHERE id=?`, input.packId).toArray()[0];
+      if (!p) return { ok: false as const, error: "pack_not_found" };
+      if (a.role !== "admin" && String(p.owner) !== a.id) return { ok: false as const, error: "pack_not_found" };
+      packTitle = String(p.title || "");
+    }
+    const title = input.title || "Live Lesson";
+    if (input.id) {
+      const old = this.liveSchedRow(input.id);
+      if (!old) return { ok: false as const, error: "not_found" };
+      if (a.role !== "admin" && String(old.teacher) !== a.id) return { ok: false as const, error: "forbidden" };
+      if (String(old.status) !== "scheduled") return { ok: false as const, error: "already_started" };
+      this.sql.exec(`UPDATE live_sched SET title=?, starts=?, duration=?, cls=?, section=?, group_id=?, student_id=?, pack_id=?, pack_title=? WHERE id=?`, title, starts, duration, cls, section, input.groupId, studentId, input.packId, packTitle, input.id);
+      return { ok: true as const, id: input.id };
+    }
+    const n = this.sql.exec(`SELECT COUNT(*) AS n FROM live_sched WHERE teacher=? AND status='scheduled' AND starts>=?`, a.id, Date.now() - 3600_000).toArray()[0];
+    if (Number(n?.n || 0) >= 80) return { ok: false as const, error: "too_many" };
+    const id = "ls_" + [...crypto.getRandomValues(new Uint8Array(6))].map((x) => x.toString(16).padStart(2, "0")).join("");
+    this.sql.exec(`INSERT INTO live_sched (id, teacher, title, starts, duration, cls, section, group_id, student_id, pack_id, pack_title, room_id, status, link_token, link_on, created) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', 'scheduled', '', 0, ?)`, id, a.id, title, starts, duration, cls, section, input.groupId, studentId, input.packId, packTitle, Date.now());
+    return { ok: true as const, id };
+  }
+  liveSchedCancel(a: Actor, id: string) {
+    const row = this.liveSchedRow(id);
+    if (!row) return { ok: false as const, error: "not_found" };
+    if (a.role !== "admin" && String(row.teacher) !== a.id) return { ok: false as const, error: "forbidden" };
+    if (String(row.status) === "live") return { ok: false as const, error: "already_started" };
+    this.sql.exec(`UPDATE live_sched SET status='cancelled', link_on=0 WHERE id=?`, id);
+    this.sql.exec(`DELETE FROM live_guests WHERE sched_id=?`, id);
+    return { ok: true as const };
+  }
+  liveSchedAttachRoom(id: string, roomId: string) {
+    this.sql.exec(`UPDATE live_sched SET room_id=?, status='live' WHERE id=? AND status='scheduled'`, roomId, id);
+  }
+  liveSchedCanStart(row: Record<string, unknown>): boolean {
+    if (String(row.status) === "live" && String(row.room_id || "")) return true;
+    if (String(row.status) !== "scheduled") return false;
+    const starts = Number(row.starts);
+    const ends = starts + Number(row.duration) * 60_000;
+    const now = Date.now();
+    return now >= starts - 30 * 60_000 && now <= ends + 60 * 60_000;
+  }
+  liveSchedCanJoin(row: Record<string, unknown>): boolean {
+    if (!String(row.room_id || "")) return false;
+    if (String(row.status) === "ended" || String(row.status) === "cancelled") return false;
+    const starts = Number(row.starts);
+    const ends = starts + Number(row.duration) * 60_000;
+    const now = Date.now();
+    if (now < starts - 10 * 60_000) return false;
+    if (String(row.status) === "live") return true;
+    return now <= ends;
+  }
+  liveSchedSetLink(a: Actor, id: string, on: boolean): { ok: true; token?: string } | { ok: false; error: string } {
+    const can = (p: (typeof PERMS)[number]) => a.role === "admin" || a.perms.includes(p);
+    if (!can("liveShareLink")) return { ok: false, error: "no_share_link" };
+    const row = this.liveSchedRow(id);
+    if (!row) return { ok: false, error: "not_found" };
+    if (a.role !== "admin" && String(row.teacher) !== a.id) return { ok: false, error: "forbidden" };
+    if (String(row.status) === "cancelled" || this.liveSchedExpired(row as Record<string, unknown>)) return { ok: false, error: "ended" };
+    if (!on) {
+      this.sql.exec(`UPDATE live_sched SET link_on=0, link_token='' WHERE id=?`, id);
+      this.sql.exec(`DELETE FROM live_guests WHERE sched_id=?`, id);
+      return { ok: true };
+    }
+    let token = String(row.link_token || "");
+    if (!token) {
+      token = "lk_" + [...crypto.getRandomValues(new Uint8Array(16))].map((x) => x.toString(16).padStart(2, "0")).join("");
+    }
+    this.sql.exec(`UPDATE live_sched SET link_on=1, link_token=? WHERE id=?`, token, id);
+    return { ok: true, token };
+  }
+  liveSchedPacks(a: Actor): { id: string; title: string }[] {
+    this.liveSchedEnsure();
+    try {
+      if (a.role === "admin") return this.sql.exec(`SELECT id, title FROM lpack ORDER BY updated DESC LIMIT 200`).toArray().map((r) => ({ id: String(r.id), title: String(r.title || "") }));
+      return this.sql.exec(`SELECT id, title FROM lpack WHERE owner=? ORDER BY updated DESC LIMIT 80`, a.id).toArray().map((r) => ({ id: String(r.id), title: String(r.title || "") }));
+    } catch { return []; }
+  }
+  liveLinkInfo(token: string) {
+    const row = this.liveSchedByToken(token);
+    if (!row) return { ok: false as const, error: "bad_link" };
+    if (String(row.status) === "cancelled") return { ok: false as const, error: "revoked" };
+    if (this.liveSchedExpired(row as Record<string, unknown>) && String(row.status) !== "live") return { ok: false as const, error: "ended" };
+    return {
+      ok: true as const,
+      title: String(row.title),
+      teacherName: this.liveTeacherName(String(row.teacher)),
+      starts: Number(row.starts),
+      ends: Number(row.starts) + Number(row.duration) * 60_000,
+      status: String(row.status),
+      roomId: String(row.room_id || ""),
+      canJoin: this.liveSchedCanJoin(row as Record<string, unknown>),
+    };
+  }
+  liveGuestJoin(token: string, name: string) {
+    const info = this.liveLinkInfo(token);
+    if (!info.ok) return info;
+    const row = this.liveSchedByToken(token)!;
+    const guestId = "lgid_" + [...crypto.getRandomValues(new Uint8Array(6))].map((x) => x.toString(16).padStart(2, "0")).join("");
+    const guestTok = "lg_" + [...crypto.getRandomValues(new Uint8Array(16))].map((x) => x.toString(16).padStart(2, "0")).join("");
+    const ends = Number(row.starts) + Number(row.duration) * 60_000;
+    const exp = Math.max(ends, Date.now()) + 4 * 3600_000;
+    const nm = name.trim().slice(0, 80) || "Guest";
+    this.sql.exec(`INSERT INTO live_guests (token, guest_id, name, sched_id, exp) VALUES (?, ?, ?, ?, ?)`, guestTok, guestId, nm, String(row.id), exp);
+    return { ok: true as const, token: guestTok, guestId, name: nm, schedId: String(row.id), roomId: String(row.room_id || ""), canJoin: info.canJoin, title: info.title };
+  }
+  liveGuestActor(token: string): Actor | null {
+    this.liveSchedEnsure();
+    if (!token.startsWith("lg_")) return null;
+    const g = this.sql.exec(`SELECT * FROM live_guests WHERE token=?`, token).toArray()[0];
+    if (!g || Number(g.exp) < Date.now()) return null;
+    const sch = this.liveSchedRow(String(g.sched_id));
+    if (!sch || Number(sch.link_on) !== 1) return null;
+    if (String(sch.status) === "cancelled" || String(sch.status) === "ended") return null;
+    return { id: String(g.guest_id), role: "student", name: String(g.name || "Guest"), cls: "", perms: [], guest: true, liveSched: String(g.sched_id) };
+  }
+
   private placeOf(sid: string): [string, string] {
     const u = this.userRow("id=? AND role='student'", sid);
     return u ? [String(u.cls || ""), String(u.section || "")] : ["\u0000", "\u0000"];
