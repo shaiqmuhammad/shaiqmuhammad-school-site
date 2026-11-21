@@ -55,7 +55,7 @@ export const THEME_PRESETS: { id: string; en: string; ar: string; header: string
 ];
 
 
-/** Keep address lists in sync with workers/assessment-session/src/mail/identity.ts */
+/** School/domain From lists stay in sync with workers/assessment-session/src/mail/identity.ts. The iCloud sender/destination label is frontend-only and is not written in worker code. */
 export const MAIL_EMAIL_RE = /^[^\s@<>"]{1,64}@[a-z0-9.-]+\.[a-z]{2,24}$/i;
 export function isMailAddress(v: string): boolean {
   return MAIL_EMAIL_RE.test(v.trim());
