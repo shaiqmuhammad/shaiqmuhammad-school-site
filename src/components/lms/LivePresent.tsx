@@ -6,14 +6,16 @@ import { lp, type Pack } from "@/lib/packs";
 import { SlideView } from "@/components/lms/packs/SlideView";
 import { lmsApi, lmsErrorText, type LiveMember, type LivePresent as Present, type PointCat } from "@/lib/lms";
 import { primaryBtn } from "@/components/assessment/AssessmentShell";
+import { LiveToolsTray } from "@/components/lms/ClassroomTray";
 
 function presentStudents(members: LiveMember[]) {
   return members.filter((m) => m.role !== "teacher" && m.present);
 }
 
-export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, selfId, members, onPresent }: {
+export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, selfId, members, onPresent, onRoomFocus, roomFocused }: {
   roomId: string; present?: Present | null; isHost: boolean; canPresent: boolean; asAdmin: boolean;
   selfId: string; members: LiveMember[]; onPresent: (p: Present | null) => void;
+  onRoomFocus?: () => void; roomFocused?: boolean;
 }) {
   const { tr } = useTr();
   const [packs, setPacks] = useState<Pack[]>([]);
@@ -188,6 +190,11 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
               {!isHost && (
                 <span className="rounded-full bg-violet-100 px-3 py-1 text-xs font-extrabold text-violet-900 dark:bg-violet-900/40 dark:text-violet-100">{follow ? tr("Following your teacher", "تتابع معلمك") : tr("You can move freely", "يمكنك التنقل بحرية")}</span>
               )}
+              {onRoomFocus && (
+                <button type="button" className={`rounded-full px-3 py-1 text-sm font-bold ${roomFocused ? "bg-[#f5c542] text-[#1b3a57]" : "bg-black/10 dark:bg-white/10"}`} onClick={onRoomFocus} data-testid="lp-full" data-focus-keep title={roomFocused ? tr("Exit Focus (Esc)", "إنهاء التركيز (Esc)") : tr("Focus — open the classroom full screen, with controls and tools still visible", "تركيز — افتح الصف بملء الشاشة مع بقاء أدوات التحكم")}>
+                  {roomFocused ? "✕" : "🎯"} {roomFocused ? tr("Exit Focus", "إنهاء التركيز") : tr("Focus", "تركيز")}
+                </button>
+              )}
             </div>
           </div>
 
@@ -208,30 +215,21 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
             <button type="button" className="rounded-full bg-black/10 px-4 py-2 font-bold dark:bg-white/10" disabled={(isHost || !follow) ? slide >= slides.length - 1 : follow} onClick={() => go(slide + 1)}>▶</button>
           </div>
 
-          {isHost && canPresent && (
-            <div className="flex flex-wrap gap-2" data-testid="live-present-tools">
-              <button type="button" className={`rounded-full px-3 py-1 text-sm font-bold ${present.tool === "board" ? "bg-emerald-300" : "bg-black/10 dark:bg-white/10"}`} onClick={() => call({ op: "nav", tool: present.tool === "board" ? "" : "board" })}>✏️ {tr("Whiteboard", "السبورة")}</button>
-              <button type="button" className={`rounded-full px-3 py-1 text-sm font-bold ${present.tool === "wheel" ? "bg-emerald-300" : "bg-black/10 dark:bg-white/10"}`} onClick={() => call({ op: "nav", tool: present.tool === "wheel" ? "" : "wheel" })}>🎡 {tr("Spin wheel", "العجلة")}</button>
-              <button type="button" className={`rounded-full px-3 py-1 text-sm font-bold ${present.tool === "rand" ? "bg-emerald-300" : "bg-black/10 dark:bg-white/10"}`} onClick={() => call({ op: "nav", tool: present.tool === "rand" ? "" : "rand" })}>🎲 {tr("Randomiser", "العشوائي")}</button>
-              <button type="button" className={`rounded-full px-3 py-1 text-sm font-bold ${present.tool === "award" ? "bg-emerald-300" : "bg-black/10 dark:bg-white/10"}`} onClick={() => call({ op: "nav", tool: present.tool === "award" ? "" : "award" })}>🃏 {tr("Reward Cards", "بطاقات المكافآت")}</button>
-              <label className="flex items-center gap-1 text-sm font-bold">⏱
-                <select className="rounded-full border border-black/10 bg-white px-2 py-1 dark:bg-slate-900" defaultValue="" onChange={(e) => { const v = e.target.value; e.target.value = ""; if (v === "0") call({ op: "nav", timerEnd: null }); else if (v) call({ op: "nav", timerEnd: Date.now() + Number(v) * 1000 }); }} data-testid="live-timer-set">
-                  <option value="">{tr("Timer", "مؤقت")}</option>
-                  <option value="30">0:30</option>
-                  <option value="60">1:00</option>
-                  <option value="120">2:00</option>
-                  <option value="300">5:00</option>
-                  <option value="600">10:00</option>
-                  <option value="0">{tr("Clear", "مسح")}</option>
-                </select>
-              </label>
-              {present.tool === "board" && (
-                <select className="rounded-full border border-black/10 bg-white px-2 py-1 text-sm font-bold dark:bg-slate-900" value={present.penId} onChange={(e) => call({ op: "nav", penId: e.target.value })} data-testid="live-pen">
-                  <option value={members.find((m) => m.role === "teacher")?.id || ""}>{tr("Teacher has the pen", "القلم مع المعلم")}</option>
-                  {people.map((m) => <option key={m.id} value={m.id}>{tr("Pen:", "القلم:")} {m.name}</option>)}
-                </select>
-              )}
-              {present.tool === "board" && <button type="button" className="rounded-full bg-black/10 px-3 py-1 text-sm font-bold dark:bg-white/10" onClick={() => call({ op: "nav", strokes: [] })}>{tr("Clear board", "مسح السبورة")}</button>}
+          <LiveToolsTray
+            isHost={isHost && canPresent}
+            tool={present.tool || ""}
+            onTool={(id) => call({ op: "nav", tool: id })}
+            onTimer={(s) => call({ op: "nav", timerEnd: s == null ? null : Date.now() + s * 1000 })}
+            onTasks={() => document.getElementById("live-task-panel")?.scrollIntoView({ behavior: "smooth", block: "center" })}
+            taskOn={isTask}
+          />
+          {isHost && canPresent && present.tool === "board" && (
+            <div className="flex flex-wrap justify-center gap-2" data-testid="live-present-tools">
+              <select className="rounded-full border border-black/10 bg-white px-2 py-1 text-sm font-bold dark:bg-slate-900" value={present.penId} onChange={(e) => call({ op: "nav", penId: e.target.value })} data-testid="live-pen">
+                <option value={members.find((m) => m.role === "teacher")?.id || ""}>{tr("Teacher has the pen", "القلم مع المعلم")}</option>
+                {people.map((m) => <option key={m.id} value={m.id}>{tr("Pen:", "القلم:")} {m.name}</option>)}
+              </select>
+              <button type="button" className="rounded-full bg-black/10 px-3 py-1 text-sm font-bold dark:bg-white/10" onClick={() => call({ op: "nav", strokes: [] })}>{tr("Clear board", "مسح السبورة")}</button>
             </div>
           )}
 
@@ -276,7 +274,7 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
           )}
 
           {isTask && !isHost && (
-            <form className="flex flex-col gap-2 rounded-2xl bg-violet-50 p-3 dark:bg-violet-950/30" onSubmit={(e) => { e.preventDefault(); sendAnswer(); }} data-testid="live-task">
+            <form className="flex flex-col gap-2 rounded-2xl bg-violet-50 p-3 dark:bg-violet-950/30" onSubmit={(e) => { e.preventDefault(); sendAnswer(); }} id="live-task-panel" data-testid="live-task">
               <label className="text-sm font-bold">{tr("Your answer", "إجابتك")}
                 <textarea className="mt-1 w-full rounded-2xl border border-black/10 bg-white px-3 py-2 dark:bg-slate-900" rows={3} value={answer} onChange={(e) => setAnswer(e.target.value)} maxLength={1000} />
               </label>
@@ -285,7 +283,7 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
           )}
 
           {isHost && isTask && (
-            <div className="rounded-2xl bg-violet-50 p-3 dark:bg-violet-950/30" data-testid="live-task-host">
+            <div className="rounded-2xl bg-violet-50 p-3 dark:bg-violet-950/30" id="live-task-panel" data-testid="live-task-host">
               <p className="mb-2 font-black">{tr("Live answers", "الإجابات المباشرة")} ({(present.answers || []).filter((a) => a.slide === slide).length})</p>
               <ul className="space-y-1 text-sm">
                 {(present.answers || []).filter((a) => a.slide === slide).map((a) => (

@@ -7,6 +7,8 @@ import { NeedLogin } from "@/components/lms/LmsDashboard";
 import { ADMIN_ACTOR, useLmsActor, useTr } from "@/components/lms/useLms";
 import { getServerSession } from "@/lib/adminServer";
 import { LiveSfu } from "@/lib/liveSfu";
+import { requestElFullscreen } from "@/components/FocusMode";
+import { registerSlideFocus, setPageFocus } from "@/components/FullscreenToggle";
 import { LiveSchedulePanel, GuestJoin } from "@/components/lms/LiveSchedule";
 import { LivePresent } from "@/components/lms/LivePresent";
 import { lmsApi, lmsErrorText, lmsSession, liveGuest, liveWsUrl, type LiveChat, type LivePerms, type LiveRoomInfo, type LiveSnap } from "@/lib/lms";
@@ -118,7 +120,7 @@ function VideoDock({ children }: { children: ReactNode }) {
       onPointerDown={onDown}
       onPointerMove={onMove}
       onPointerUp={() => { drag.current = null; }}
-      data-testid="live-video-dock"
+      data-testid="live-video-dock" data-focus-keep
     >
       <div className="mb-1 flex cursor-grab items-center justify-between gap-2 active:cursor-grabbing">
         <p className="text-xs font-black text-[#1b3a57] dark:text-white">{tr("Class video", "فيديو الصف")}</p>
@@ -202,6 +204,8 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
   const [chatSound, setChatSound] = useState(true);
   const [hearOn, setHearOn] = useState(false);
   const [needHear, setNeedHear] = useState(false);
+  const [roomFocused, setRoomFocused] = useState(false);
+  const roomRef = useRef<HTMLDivElement>(null);
   const sfuRef = useRef<LiveSfu | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const localRef = useRef<MediaStream | null>(null);
@@ -239,6 +243,40 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
     const t = setTimeout(() => setChatToast(null), 5000);
     return () => clearTimeout(t);
   }, [chatToast]);
+  const leaveRoomFocus = async () => {
+    setRoomFocused(false);
+    setPageFocus(false);
+    roomRef.current?.classList.remove("live-room-fs");
+    if (document.fullscreenElement) await document.exitFullscreen().catch(() => undefined);
+  };
+  const enterRoomFocus = async () => {
+    setRoomFocused(true);
+    setPageFocus(true);
+    const el = roomRef.current;
+    const ok = await requestElFullscreen(el);
+    if (!ok) el?.classList.add("live-room-fs");
+  };
+  const toggleRoomFocus = async () => { if (roomFocused) await leaveRoomFocus(); else await enterRoomFocus(); };
+  const focusApi = useRef({ enter: enterRoomFocus, exit: leaveRoomFocus });
+  focusApi.current = { enter: enterRoomFocus, exit: leaveRoomFocus };
+  useEffect(() => {
+    if (phase !== "in") return;
+    return registerSlideFocus({ enter: () => focusApi.current.enter(), exit: () => focusApi.current.exit() });
+  }, [phase]);
+  useEffect(() => { if (phase !== "in" && roomFocused) void leaveRoomFocus(); }, [phase, roomFocused]);
+  useEffect(() => {
+    const onFs = () => {
+      if (!document.fullscreenElement && roomFocused) {
+        setRoomFocused(false);
+        setPageFocus(false);
+        roomRef.current?.classList.remove("live-room-fs");
+      }
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && roomFocused) void leaveRoomFocus(); };
+    document.addEventListener("fullscreenchange", onFs);
+    window.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("fullscreenchange", onFs); window.removeEventListener("keydown", onKey); };
+  }, [roomFocused]);
   useEffect(() => { chatSoundRef.current = chatSound; }, [chatSound]);
 
   const cleanupMedia = useCallback(() => {
@@ -490,6 +528,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
     if (room) await lmsApi.liveLeave(room.id, asAdmin).catch(() => undefined);
     cleanupMedia();
     closeWs();
+    void leaveRoomFocus();
     setPhase("lobby");
     setRoom(null);
     history.replaceState(null, "", liveHref());
@@ -501,6 +540,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
     await lmsApi.liveEnd(room.id, asAdmin).catch((e) => setErr(lmsErrorText(e, tr)));
     cleanupMedia();
     closeWs();
+    void leaveRoomFocus();
     setPhase("ended");
   }
   async function addLessonMin(n: number) {
@@ -630,8 +670,8 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
         )}
 
         {phase === "in" && room && (
-          <div className="flex flex-1 flex-col gap-3" data-testid="live-room">
-            <header className="flex flex-wrap items-center justify-between gap-2 rounded-3xl bg-gradient-to-r from-indigo-500 to-fuchsia-500 px-4 py-3 text-white">
+          <div ref={roomRef} className="flex flex-1 flex-col gap-3" data-testid="live-room" data-focus-keep>
+            <header className="flex flex-wrap items-center justify-between gap-2 rounded-3xl bg-gradient-to-r from-indigo-500 to-fuchsia-500 px-4 py-3 text-white" data-focus-keep>
               <div>
                 <h1 className="text-xl font-black sm:text-2xl">{room.title}</h1>
                 <p className="text-sm font-semibold opacity-90">{[room.cls, room.section].filter(Boolean).join(" · ")} · {room.members.filter((m) => m.present).length} {tr("here", "هنا")}</p>
@@ -642,6 +682,9 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
                 <button type="button" className="relative rounded-full bg-white/20 px-3 py-1 text-sm font-bold" onClick={() => setShowChat(true)} data-testid="live-chat-open">
                   💬 {tr("Chat", "الدردشة")}
                   {chatUnread > 0 && <span className="absolute -right-1 -top-1 inline-flex min-w-5 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-black" data-testid="live-chat-unread">{chatUnread}</span>}
+                </button>
+                <button type="button" className={`rounded-full px-3 py-1 text-sm font-bold ${roomFocused ? "bg-[#f5c542] text-[#1b3a57]" : "bg-white/20"}`} onClick={() => void toggleRoomFocus()} data-testid="live-room-focus" data-focus-keep title={roomFocused ? tr("Exit Focus (Esc)", "إنهاء التركيز (Esc)") : tr("Focus — hide menus and fill the screen with this classroom", "تركيز — أخفِ القوائم واملأ الشاشة بهذا الصف")}>
+                  {roomFocused ? "✕" : "🎯"} {roomFocused ? tr("Exit Focus", "إنهاء التركيز") : tr("Focus", "تركيز")}
                 </button>
               </div>
             </header>
@@ -664,7 +707,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
               </div>
             )}
 
-            <LivePresent roomId={room.id} present={room.present} isHost={isHost} canPresent={asAdmin || livePerms.present} asAdmin={asAdmin} selfId={selfId} members={room.members} onPresent={(present) => setRoom((r) => r ? { ...r, present } : r)} />
+            <LivePresent roomId={room.id} present={room.present} isHost={isHost} canPresent={asAdmin || livePerms.present} asAdmin={asAdmin} selfId={selfId} members={room.members} onPresent={(present) => setRoom((r) => r ? { ...r, present } : r)} onRoomFocus={() => void toggleRoomFocus()} roomFocused={roomFocused} />
 
             {(() => {
               const presenting = !!room.present?.packId;
@@ -691,7 +734,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
               </button>
             )}
 
-            <div className="sticky bottom-2 z-20 flex flex-wrap justify-center gap-2 rounded-3xl bg-white/90 p-2 shadow-lg ring-1 ring-black/10 backdrop-blur dark:bg-slate-900/90">
+            <div className="sticky bottom-2 z-20 flex flex-wrap justify-center gap-2 rounded-3xl bg-white/90 p-2 shadow-lg ring-1 ring-black/10 backdrop-blur dark:bg-slate-900/90" data-focus-keep>
               <Btn testid="live-cam" icon={camOn ? "📷" : "🚫"} label={tr("Camera", "الكاميرا")} on={camOn} disabled={!isHost && !me?.camAllowed && !camOn} onClick={() => toggleCam().catch((e) => setErr(lmsErrorText(e, tr)))} />
               <Btn testid="live-mic" icon={micOn ? "🎤" : "🔇"} label={tr("Mic", "الميكروفون")} on={micOn} disabled={!isHost && !me?.micAllowed && !micOn} onClick={() => toggleMic().catch((e) => setErr(lmsErrorText(e, tr)))} />
               {(isHost || me?.shareAllowed) && <Btn testid="live-share" icon="🖥️" label={tr("Share", "مشاركة")} on={shareOn} onClick={() => toggleShare().catch((e) => setErr(lmsErrorText(e, tr)))} />}
@@ -708,7 +751,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
               <p className="text-center text-xs font-semibold opacity-70">{tr("Your camera and mic stay off until your teacher allows them. You can still see and hear the teacher.", "تبقى كاميرتك وميكروفونك مغلقين حتى يسمح بهما معلمك. ما زال بإمكانك رؤية المعلم وسماعه.")}</p>
             )}
             {chatToast && !showChat && (
-              <button type="button" className="fixed bottom-24 left-1/2 z-[75] w-[min(90vw,24rem)] -translate-x-1/2 rounded-2xl bg-[#1b3a57] px-4 py-3 text-left text-sm font-bold text-white shadow-xl dark:bg-indigo-800" onClick={() => setShowChat(true)} data-testid="live-chat-toast">
+              <button type="button" className="fixed bottom-24 left-1/2 z-[75] w-[min(90vw,24rem)] -translate-x-1/2 rounded-2xl bg-[#1b3a57] px-4 py-3 text-left text-sm font-bold text-white shadow-xl dark:bg-indigo-800" onClick={() => setShowChat(true)} data-testid="live-chat-toast" data-focus-keep>
                 <span className="opacity-80">{chatToast.name}</span>
                 <span className="mt-0.5 block truncate">{chatToast.text}</span>
               </button>

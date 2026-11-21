@@ -5,6 +5,7 @@ import { SfxToggle } from "@/components/activity/SfxToggle";
 import { sfxPoints } from "@/lib/sfx";
 import { startWithClass } from "@/components/lms/ClassLaunch";
 import { QuickStart } from "@/components/lms/QuickStart";
+import { TrayBtn } from "@/components/lms/ClassroomTray";
 import { openClassTimer } from "@/components/lms/ClassTimer";
 import type { ActivityType } from "@/lib/activity";
 import { saveNames, saveRosterIds } from "@/components/activity/ClassNames";
@@ -285,12 +286,8 @@ export function LmsClassesPage() {
             .map(([t, ic, en, ar, c]) => {
               const on = t === "att" && attMode;
               return (
-                <button type="button" key={t} onClick={() => (t === "att" ? setAttMode(!attMode) : t === "timer" || t === "stopwatch" ? openClassTimer(t) : direct(t, en))} aria-pressed={t === "att" ? attMode : undefined}
-                  className="group flex w-[4.6rem] shrink-0 snap-start min-w-0 flex-col items-center gap-0.5 rounded-2xl border px-1 sm:w-auto sm:shrink py-1.5 text-center text-[10px] font-extrabold leading-tight text-white shadow-sm backdrop-blur-md transition hover:-translate-y-0.5 hover:shadow-lg sm:text-[11px]"
-                  style={{ background: on ? c : `linear-gradient(160deg, ${c}66, ${c}26)`, borderColor: `${c}99` }} data-testid={`tray-${t}`}>
-                  <span className="grid h-9 w-9 place-items-center rounded-xl bg-white/85 text-2xl shadow-inner transition group-hover:scale-110" aria-hidden>{ic}</span>
-                  <span className="line-clamp-2 drop-shadow">{tr(en, ar)}</span>
-                </button>
+                <TrayBtn key={t} id={t} icon={ic} en={en} ar={ar} color={c} on={on}
+                  onClick={() => (t === "att" ? setAttMode(!attMode) : t === "timer" || t === "stopwatch" ? openClassTimer(t) : direct(t, en))} />
               );
             })}
         </div>
