@@ -1737,3 +1737,49 @@ html.lb-classroom .pub-main { display: flex; flex-direction: column; min-height:
   .lb-head-long { display: none; }
   .lb-countdown { display: none; }
 }
+
+
+/* Hidden media debug panel (?debug=1 only; component is not mounted otherwise). */
+.lb-media-debug {
+  position: fixed;
+  z-index: 6000;
+  inset-inline-start: 10px;
+  bottom: 12px;
+  width: min(22rem, calc(100vw - 20px));
+  max-height: 40vh;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 14px;
+  background: #0f1f30;
+  color: #fff8ec;
+  box-shadow: 0 12px 28px rgba(15,31,48,.4);
+  border: 1px solid rgba(255,248,236,.22);
+  font: 700 11px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.lb-media-debug-top { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.lb-media-debug-top strong { font-size: 12px; }
+.lb-media-debug-log {
+  margin: 0;
+  overflow: auto;
+  flex: 1;
+  min-height: 4rem;
+  max-height: 22vh;
+  background: #17344f;
+  color: #fff8ec;
+  border-radius: 8px;
+  padding: 6px 8px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.lb-media-debug-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.lb-media-debug-actions button {
+  border: 0;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font: 800 11px/1.2 Nunito, system-ui, sans-serif;
+  background: #f3c969;
+  color: #1b3a57;
+  cursor: pointer;
+}

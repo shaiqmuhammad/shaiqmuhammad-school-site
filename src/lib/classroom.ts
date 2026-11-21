@@ -5,6 +5,7 @@ export type ClassroomOpenOpts = {
   guest?: boolean;
   token?: string;
   asAdmin?: boolean;
+  debug?: boolean;
 };
 
 export const CLASSROOM_PATH = "/classroom";
@@ -22,6 +23,8 @@ export function classroomHref(opts: ClassroomOpenOpts = {}): string {
   if (opts.guest) q.set("guest", "1");
   if (opts.token) q.set("t", opts.token);
   if (opts.asAdmin) q.set("as", "admin");
+  const debug = opts.debug ?? (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("debug") === "1");
+  if (debug) q.set("debug", "1");
   const s = q.toString();
   return s ? `${path}?${s}` : path;
 }
