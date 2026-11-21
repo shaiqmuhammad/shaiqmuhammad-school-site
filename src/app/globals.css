@@ -666,8 +666,9 @@ html.lb-classroom .pub-main { display: flex; flex-direction: column; min-height:
 .lb-wait-err { background: #fecdd3; color: #9f1239; }
 .dark .lb-wait-err { background: #9f1239; color: #fff1f2; }
 .lb-workspace { flex: 1; min-height: 0; display: flex; flex-direction: row; gap: 6px; position: relative; }
-.lb-workspace .lb-stage { order: 0; }
-.lb-workspace .lb-side { order: 1; }
+.lb-workspace .lb-tray-root { order: 0; }
+.lb-workspace .lb-stage { order: 1; }
+.lb-workspace .lb-side { order: 2; }
 .lb-stage {
   position: relative; flex: 1; min-width: 0; min-height: 0;
   background: #fff;
@@ -1252,7 +1253,7 @@ html.lb-classroom .pub-main { display: flex; flex-direction: column; min-height:
   .lb-top [data-testid="live-ends-set"] { display: none; }
   .lb-view, .lb-focus, .lb-head-btn { font-size: 11px; padding: 5px 7px; }
   .lb-top-actions { gap: 4px; }
-  .lb-countdown { display: none; }
+  /* class countdown lives in the header now and stays visible */
   .lb-view-lab { display: none; }
   .lb-head-long { display: none; }
   .lb-head-short { display: inline; }
@@ -1553,6 +1554,14 @@ html.lb-classroom .pub-main { display: flex; flex-direction: column; min-height:
 
 /* Right-side people column + dark tools strip (layout batch) */
 .lb-workspace { gap: 8px; }
+
+.lb-tools-rail {
+  flex: 0 0 104px;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+}
+.lb-head-timer button { color: inherit; }
 .lb-side {
   flex: 0 0 228px;
   width: 228px;
@@ -1639,21 +1648,23 @@ html.lb-classroom .pub-main { display: flex; flex-direction: column; min-height:
   gap: 8px;
   width: 100%;
   min-height: 0;
-  border-radius: 20px;
-  padding: 6px 8px;
-  background: linear-gradient(90deg, rgba(27,58,87,.94) 0%, rgba(36,80,122,.92) 55%, rgba(27,58,87,.94) 100%);
-  box-shadow: 0 -8px 24px rgba(11,27,43,.28);
+  border-radius: 18px;
+  padding: 4px 8px;
+  background: #fff;
+  color: #1b3a57;
+  box-shadow: 0 -2px 0 #f3c969 inset, 0 8px 20px rgba(27,58,87,.16);
+  overflow: visible;
+}
+.dark .lb-bottom-strip {
+  background: #17344f;
   color: #fff8ec;
+  box-shadow: 0 -2px 0 #f3c969 inset, 0 8px 20px rgba(0,0,0,.4);
 }
-.lb-bottom-strip .lb-tray-root {
-  flex: 0 1 auto;
-  flex-basis: auto;
+.lb-bottom-strip .lb-teach-tray {
+  flex: 1 1 auto;
   min-width: 0;
-  width: auto;
-  padding: 0;
+  width: 100%;
 }
-.lb-tools-bar,
-.lb-bottom-strip .lb-tray-root [data-testid="live-tools-tray"],
 .lb-bottom-strip .lb-teach-bar {
   position: static !important;
   transform: none !important;
@@ -1667,43 +1678,53 @@ html.lb-classroom .pub-main { display: flex; flex-direction: column; min-height:
   border: 0;
   border-radius: 0;
   padding: 0;
-  overflow-x: auto;
-  overflow-y: visible;
+  overflow: visible;
   max-height: none;
-  width: auto;
+  width: 100%;
+  color: inherit;
 }
-.lb-bottom-strip .lb-teach-tray { flex: 1 1 auto; min-width: 0; width: auto; }
+.lb-bottom-strip .lb-teach-row { flex-wrap: wrap; overflow: visible; }
+.lb-bottom-strip .lb-teach-bar .group span.line-clamp-2 { color: #1b3a57; font-size: 9px; }
+.dark .lb-bottom-strip .lb-teach-bar .group span.line-clamp-2 { color: #fff8ec; }
 .lb-bottom-strip .group { width: auto !important; min-width: 52px; padding: 4px 6px; }
-.lb-bottom-strip .group span.line-clamp-2 { color: #fff8ec; font-size: 9px; }
-.lb-bottom-timer {
-  margin-inline-start: auto;
-  display: flex;
-  align-items: center;
-  flex: 0 0 auto;
-  padding-inline: 4px;
+.lb-head-timer { flex: 0 0 auto; max-width: 100%; }
+.lb-head-timer-actions select,
+.lb-head-timer-actions button { color: #fff8ec; }
+.lb-head-timer.is-compact .lb-head-timer-actions {
+  position: absolute;
+  top: calc(100% + 6px);
+  inset-inline-end: 0;
+  z-index: 30;
+  padding: 6px;
+  border-radius: 12px;
+  background: #1b3a57;
+  box-shadow: 0 8px 18px rgba(15,31,48,.35);
 }
-.lb-bottom-timer [data-testid="live-ends-clock"] > span:first-child {
-  font-weight: 900; font-size: 12px; padding: 5px 9px; border-radius: 999px; white-space: nowrap;
-}
-.lb-bottom-timer [data-testid="live-ends-plus5"],
-.lb-bottom-timer [data-testid="live-ends-plus10"],
-.lb-bottom-timer [data-testid="live-ends-set"] {
-  background: rgba(255,255,255,.2); color: #fff8ec;
-  font-weight: 800; font-size: 11px; border-radius: 999px;
-}
+
 .lb-shape-pop {
   position: absolute;
   bottom: calc(100% + 6px);
   inset-inline-start: 0;
-  z-index: 20;
-  min-width: 9rem;
+  z-index: 40;
+  width: min(22rem, 92vw);
+  max-height: min(34rem, 74vh);
+  overflow: auto;
   border-radius: 16px;
   background: #1b3a57;
   color: #fff8ec;
-  padding: 6px;
+  padding: 8px;
   box-shadow: 0 10px 24px rgba(15,31,48,.35);
   border: 1px solid rgba(255,248,236,.2);
 }
+.lb-shape-cat {
+  margin: 8px 0 4px;
+  font: 800 10px/1.2 Nunito, sans-serif;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: #f3c969;
+}
+.lb-shape-cat:first-child { margin-top: 0; }
+.lb-shape-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
 .lb-shape-opt {
   display: flex; align-items: center; gap: 8px;
   width: 100%; text-align: start;
@@ -1714,6 +1735,14 @@ html.lb-classroom .pub-main { display: flex; flex-direction: column; min-height:
 }
 .lb-shape-opt:hover, .lb-shape-opt.is-on { background: rgba(255,248,236,.14); }
 .lb-shape-opt.is-on { background: #f3c969; color: #1b3a57; }
+.lb-shape-opt.is-insert { justify-content: center; background: #f3c969; color: #1b3a57; margin-top: 6px; }
+.lb-shape-table { display: flex; flex-direction: column; gap: 6px; padding: 4px 2px 2px; }
+.lb-shape-table label { display: flex; align-items: center; justify-content: space-between; gap: 8px; font: 800 12px/1.2 Nunito, sans-serif; }
+.lb-shape-table label span { display: inline-flex; align-items: center; gap: 6px; }
+.lb-shape-table label button {
+  width: 24px; height: 24px; border-radius: 999px; border: 0;
+  background: rgba(255,248,236,.16); color: #fff8ec; font-weight: 900; cursor: pointer;
+}
 .lb-sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
 .lb-sheet-head h3 { margin: 0; font-size: 13px; font-weight: 900; }
 .lb-sheet-head button { border: 0; background: transparent; color: inherit; font-size: 18px; line-height: 1; cursor: pointer; padding: 2px 6px; }
@@ -1734,8 +1763,9 @@ html.lb-classroom .pub-main { display: flex; flex-direction: column; min-height:
   .lb-bottom-strip { border-radius: 14px; padding: 4px 6px; gap: 4px; }
   .lb-bottom-strip .group { min-width: 44px; padding: 3px 4px; }
   .lb-bottom-strip .group span.line-clamp-2 { display: none; }
+  .lb-tools-rail { flex-basis: 56px; }
   .lb-head-long { display: none; }
-  .lb-countdown { display: none; }
+  /* class countdown lives in the header now and stays visible */
 }
 
 

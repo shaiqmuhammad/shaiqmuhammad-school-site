@@ -302,9 +302,10 @@ function ClassAudio({ remotes, unlocked, onBlocked }: { remotes: Record<string, 
   );
 }
 
-function LiveCountdown({ endsAt, isHost, onAdd, onSet }: { endsAt: number; isHost: boolean; onAdd: (m: number) => void; onSet: (m: number) => void }) {
+function LiveCountdown({ endsAt, isHost, onAdd, onSet, compact = false }: { endsAt: number; isHost: boolean; onAdd: (m: number) => void; onSet: (m: number) => void; compact?: boolean }) {
   const { tr } = useTr();
   const [now, setNow] = useState(Date.now());
+  const [open, setOpen] = useState(false);
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 250);
     return () => clearInterval(t);
@@ -313,14 +314,8 @@ function LiveCountdown({ endsAt, isHost, onAdd, onSet }: { endsAt: number; isHos
   const mm = Math.floor(left / 60);
   const ss = String(left % 60).padStart(2, "0");
   const tone = left <= 60 ? "bg-rose-500 text-white ring-rose-200 animate-pulse" : left <= 5 * 60 ? "bg-amber-400 text-[#3b2a00] ring-amber-100 animate-pulse" : "bg-emerald-400 text-[#10331c] ring-emerald-100";
-  return (
-    <div className="flex flex-wrap items-center gap-2" data-testid="live-ends-clock">
-      <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-sm font-black ring-2 ${tone}`}>
-        <span aria-hidden>⏱️</span>
-        {left <= 0 ? tr("Time's up", "انتهى الوقت") : `${mm}:${ss} ${tr("left", "متبقٍ")}`}
-      </span>
-      {isHost && (
-        <span className="flex flex-wrap gap-1">
+  const extras = isHost && (
+        <span className="lb-head-timer-actions flex flex-wrap gap-1">
           <button type="button" className="rounded-full bg-white/20 px-2 py-0.5 text-xs font-bold" onClick={() => onAdd(5)} data-testid="live-ends-plus5">+5</button>
           <button type="button" className="rounded-full bg-white/20 px-2 py-0.5 text-xs font-bold" onClick={() => onAdd(10)} data-testid="live-ends-plus10">+10</button>
           <select className="rounded-full bg-white/20 px-2 py-0.5 text-xs font-bold" defaultValue="" onChange={(e) => { const v = Number(e.target.value); e.target.value = ""; if (v) onSet(v); }} data-testid="live-ends-set" aria-label={tr("Set duration", "تعيين المدة")}>
@@ -328,7 +323,14 @@ function LiveCountdown({ endsAt, isHost, onAdd, onSet }: { endsAt: number; isHos
             {[20, 30, 40, 45, 60, 90].map((n) => <option key={n} value={n}>{n} {tr("min", "د")}</option>)}
           </select>
         </span>
-      )}
+  );
+  return (
+    <div className={`lb-head-timer relative flex flex-wrap items-center gap-2 ${compact ? "is-compact" : ""}`} data-testid="live-ends-clock">
+      <button type="button" className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-sm font-black ring-2 ${tone}`} onClick={() => { if (compact && isHost) setOpen((v) => !v); }} aria-expanded={compact ? open : undefined}>
+        <span aria-hidden>⏱️</span>
+        {left <= 0 ? tr("Time's up", "انتهى الوقت") : `${mm}:${ss} ${tr("left", "متبقٍ")}`}
+      </button>
+      {compact ? (open ? extras : null) : extras}
     </div>
   );
 }
@@ -1184,6 +1186,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
                 </button>
               </div>
               <div className="lb-top-actions">
+                <LiveCountdown endsAt={room.endsAt || room.created + 40 * 60_000} isHost={isHost} onAdd={addLessonMin} onSet={setLessonMin} compact={narrow} />
                 <div className="relative">
                   <button type="button" className="lb-view" onClick={() => setViewOpen((v) => !v)} data-testid="live-view-open" aria-expanded={viewOpen}>
                     <span aria-hidden>{VIEW_CARDS.find((c) => c.id === viewMode)?.icon}</span>
@@ -1355,6 +1358,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
               return (
                 <>
                 <div className="lb-workspace">
+                  <div id="lb-tray-root" className="lb-tray-root lb-tools-rail" ref={setTrayRoot} data-testid="live-tools-rail" />
                   <div className="lb-stage">
                     {stageInner}
                     <ClassAudio remotes={remotes} unlocked={hearOn} onBlocked={() => setNeedHear(true)} />
@@ -1395,12 +1399,8 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
                 </>
               );
             })()}
-            <div className="lb-bottom-strip" data-testid="live-bottom-strip" data-focus-keep>
-              <div id="lb-tray-root" className="lb-tray-root" ref={setTrayRoot} />
+            <div className="lb-dock lb-bottom-strip" data-testid="live-bottom-strip" data-focus-keep>
               <div id="lb-teach-tray" className="lb-teach-tray" ref={setTeachRoot} />
-              <div className="lb-bottom-timer">
-                <LiveCountdown endsAt={room.endsAt || room.created + 40 * 60_000} isHost={isHost} onAdd={addLessonMin} onSet={setLessonMin} />
-              </div>
             </div>
             {isHost && asAdmin && !livePerms.recs && (
               <p className="lb-hint" data-testid="live-rec-note">{tr("Turn on R2 storage to enable recording", "فعّل تخزين R2 لتفعيل التسجيل")}</p>

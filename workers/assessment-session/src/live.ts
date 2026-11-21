@@ -14,6 +14,7 @@ import { allowedPubTracks, canControlStudentMedia, canPresentInRoom, canSetMembe
 import { SWEEP_MS, shouldDropMember, nextAlarmAt } from "./livePresence";
 import { activatePresentItem, applyActivePresentItem, closeLibraryPresentItems, closePresentItem, openPresentItem, stashActivePresentItem, youtubeVideoId, type LivePresentItem } from "./livePresentItems";
 import { keepDebugLogs, sanitizeLiveDebug, type LiveDebugBlob } from "./liveDebug";
+import { normalizeLiveShapes, type LiveShape, type LiveShapeKind } from "./liveShapes";
 
 export interface LiveEnv extends LmsEnv {
   LIVE: DurableObjectNamespace<LiveRoom>;
@@ -39,8 +40,7 @@ export type LiveWait = { id: string; name: string; at: number };
 export type LiveAsk = { userId: string; name: string; cam: boolean; mic: boolean; at: number };
 export type LiveChat = { id: string; from: string; name: string; text: string; at: number };
 export type LiveStroke = { c: string; w: number; d: number[]; by: string };
-export type LiveShapeKind = "rect" | "circle" | "line" | "arrow" | "triangle";
-export type LiveShape = { id: string; kind: LiveShapeKind; x: number; y: number; w: number; h: number; c: string; by: string };
+export type { LiveShape, LiveShapeKind } from "./liveShapes";
 export type LiveAnswer = { userId: string; name: string; slide: number; text: string; at: number };
 export const LIVE_VIEW_MODES = ["teach", "lecture", "gallery", "speaker", "board", "discuss"] as const;
 export type LiveViewMode = (typeof LIVE_VIEW_MODES)[number];
@@ -596,17 +596,7 @@ export class LiveRoom extends DurableObject<LiveEnv> {
       }));
     }
     if (Array.isArray(patch?.shapes)) {
-      const kinds = new Set(["rect", "circle", "line", "arrow", "triangle"]);
-      p.shapes = patch!.shapes.slice(-80).map((x) => ({
-        id: str(x.id, 40) || newId(),
-        kind: kinds.has(String(x.kind)) ? x.kind : "rect",
-        x: Math.max(0, Math.min(100, Number(x.x) || 0)),
-        y: Math.max(0, Math.min(100, Number(x.y) || 0)),
-        w: Math.max(0, Math.min(100, Number(x.w) || 0)),
-        h: Math.max(0, Math.min(100, Number(x.h) || 0)),
-        c: str(x.c, 20) || "#1b3a57",
-        by: str(x.by, 40),
-      }));
+      p.shapes = normalizeLiveShapes(patch!.shapes, newId);
     }
     stashActivePresentItem(p);
     applyActivePresentItem(p);

@@ -339,8 +339,8 @@ export type LivePresentItemKind = "lesson" | "task" | "activity" | "homework" | 
 export type LivePresentItem = {
   id: string; kind: LivePresentItemKind; title: string; packId: string; slide: number; strokes: LiveStroke[]; src?: string;
 };
-export type LiveShapeKind = "rect" | "circle" | "line" | "arrow" | "triangle";
-export type LiveShape = { id: string; kind: LiveShapeKind; x: number; y: number; w: number; h: number; c: string; by: string };
+import type { LiveShape, LiveShapeKind } from "./liveShapes";
+export type { LiveShape, LiveShapeKind };
 export type LivePresent = {
   packId: string; packTitle: string; slide: number; follow: boolean; timerEnd: number | null;
   penId: string; strokes: LiveStroke[]; tool: "" | "wheel" | "rand" | "award" | "board";
