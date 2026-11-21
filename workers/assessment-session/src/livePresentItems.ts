@@ -1,4 +1,5 @@
 import { normalizeMediaSync, type LiveMediaSync } from "./liveMediaSync";
+import { normalizeUploadSlides, type LiveUploadSlide } from "./liveUpload";
 
 export type LivePresentItemKind = "lesson" | "task" | "activity" | "homework" | "quran" | "upload" | "youtube" | "board";
 
@@ -15,6 +16,7 @@ export type LivePresentItem = {
   strokes: PresentStroke[];
   src?: string;
   media?: LiveMediaSync;
+  slides?: LiveUploadSlide[];
 };
 
 export type PresentItemsState = {
@@ -26,6 +28,7 @@ export type PresentItemsState = {
   activeId?: string;
   src?: string;
   media?: LiveMediaSync;
+  slides?: LiveUploadSlide[];
 };
 
 const KIND_SET = new Set<string>(LIVE_PRESENT_ITEM_KINDS);
@@ -76,6 +79,8 @@ function normalizeItem(raw: Partial<LivePresentItem> | null | undefined): LivePr
   };
   const media = kind === "youtube" ? normalizeMediaSync(raw.media, src) : undefined;
   if (media) item.media = media;
+  const slides = kind === "upload" ? normalizeUploadSlides(raw.slides) : [];
+  if (slides.length) item.slides = slides;
   return item;
 }
 
@@ -120,6 +125,7 @@ export function stashActivePresentItem(p: PresentItemsState): void {
   if (p.packTitle) it.title = p.packTitle;
   if (p.src) it.src = p.src;
   if (it.kind === "youtube" && p.media && p.media.src === (it.src || p.src)) it.media = p.media;
+  if (it.kind === "upload" && p.slides && p.slides.length) it.slides = p.slides;
 }
 
 export function applyActivePresentItem(p: PresentItemsState): void {
@@ -136,9 +142,11 @@ export function applyActivePresentItem(p: PresentItemsState): void {
   } else {
     p.media = undefined;
   }
+  if (it.kind === "upload") p.slides = it.slides || [];
+  else p.slides = undefined;
 }
 
-export function openPresentItem(p: PresentItemsState, start: { packId?: string; packTitle?: string; kind?: string; src?: string; slide?: number }): LivePresentItem {
+export function openPresentItem(p: PresentItemsState, start: { packId?: string; packTitle?: string; kind?: string; src?: string; slide?: number; slides?: LiveUploadSlide[] }): LivePresentItem {
   stashActivePresentItem(p);
   const src = String(start.src || "").trim().slice(0, 80);
   const packId = String(start.packId || "").trim().slice(0, 40);
@@ -146,10 +154,12 @@ export function openPresentItem(p: PresentItemsState, start: { packId?: string; 
   const id = presentItemId(kind, packId, src);
   const title = String(start.packTitle || (kind === "youtube" ? "YouTube" : kind === "board" ? "Whiteboard" : "Lesson")).trim().slice(0, 80);
   const existing = (p.items || []).find((i) => i.id === id);
+  const slides = kind === "upload" ? normalizeUploadSlides(start.slides) : [];
   if (existing) {
     p.activeId = existing.id;
     if (title) existing.title = title;
     if (typeof start.slide === "number") existing.slide = clampSlide(start.slide);
+    if (slides.length) existing.slides = slides;
   } else if (kind === "board") {
     p.activeId = "board";
   } else {
@@ -162,6 +172,7 @@ export function openPresentItem(p: PresentItemsState, start: { packId?: string; 
       strokes: [],
       src,
     };
+    if (slides.length) item.slides = slides;
     p.items = [...(p.items || []), item].slice(0, 12);
     p.activeId = id;
   }

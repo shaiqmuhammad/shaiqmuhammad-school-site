@@ -341,9 +341,11 @@ import type { LiveShape, LiveShapeKind } from "./liveShapes";
 export type { LiveShape, LiveShapeKind };
 export type { LiveMediaSync } from "./liveMediaSync";
 import type { LiveMediaSync } from "./liveMediaSync";
+export type { LiveUploadSlide } from "./liveUpload";
+import type { LiveUploadSlide } from "./liveUpload";
 export type LivePresentItemKind = "lesson" | "task" | "activity" | "homework" | "quran" | "upload" | "youtube" | "board";
 export type LivePresentItem = {
-  id: string; kind: LivePresentItemKind; title: string; packId: string; slide: number; strokes: LiveStroke[]; src?: string; media?: LiveMediaSync;
+  id: string; kind: LivePresentItemKind; title: string; packId: string; slide: number; strokes: LiveStroke[]; src?: string; media?: LiveMediaSync; slides?: LiveUploadSlide[];
 };
 export type LivePresent = {
   packId: string; packTitle: string; slide: number; follow: boolean; timerEnd: number | null;
@@ -351,7 +353,7 @@ export type LivePresent = {
   wheelAngle: number; wheelSpinTo: number; wheelAt: number; winnerId: string; winnerName: string;
   randText: string; answers: LiveAnswer[];
   items?: LivePresentItem[]; activeId?: string; src?: string;
-  shapes?: LiveShape[]; media?: LiveMediaSync;
+  shapes?: LiveShape[]; media?: LiveMediaSync; slides?: LiveUploadSlide[];
 };
 export function youtubeVideoId(raw: string): string {
   const s = String(raw || "").trim();
@@ -557,7 +559,7 @@ export const lmsApi = {
   liveStart: (b: { title?: string; cls?: string; section?: string; groupId?: string; minutes?: number }, asAdmin = false) => call<{ id: string; existing?: boolean }>("live-start", b, { asAdmin }),
   liveGet: (id: string, asAdmin = false) => call<{ room: LiveSnap }>("live-get", { id }, { asAdmin }),
   liveStatus: (id: string) => call<{ status: "live" | "ended" | "not_found" }>("live-status", { id }),
-  liveJoin: (id: string, asAdmin = false) => call<{ status: "in" | "waiting" | "ended" | "full"; room?: LiveSnap; selfId?: string }>("live-join", { id }, { asAdmin }),
+  liveJoin: (id: string, asAdmin = false) => call<{ status: "in" | "waiting" | "ended" | "full"; room?: LiveSnap; selfId?: string; perms?: LivePerms }>("live-join", { id }, { asAdmin }),
   liveAdmit: (id: string, userId: string, asAdmin = false) => call<{ ok: boolean }>("live-admit", { id, userId }, { asAdmin }),
   liveDeny: (id: string, userId: string, asAdmin = false) => call<{ ok: boolean }>("live-deny", { id, userId }, { asAdmin }),
   liveRemove: (id: string, userId: string, asAdmin = false) => call<{ ok: boolean }>("live-remove", { id, userId }, { asAdmin }),
@@ -629,6 +631,9 @@ export function lmsErrorText(e: unknown, tr: (en: string, ar: string) => string,
     no_instant: ["Your admin hasn't switched on “Start instant meetings” for you yet.", "لم يفعّل المسؤول صلاحية «بدء الاجتماعات الفورية» لك بعد."],
     no_record: ["Your admin hasn't switched on “Record live lessons” for you yet.", "لم يفعّل المسؤول صلاحية «تسجيل الدروس المباشرة» لك بعد."],
     rec_disabled: ["Turn on R2 storage to enable recording.", "فعّل تخزين R2 لتفعيل التسجيل."],
+    rec_full: ["The recording reached the size limit. It has been saved up to here.", "وصل التسجيل إلى الحد الأقصى للحجم. تم حفظه حتى هنا."],
+    bad_upload: ["Could not open that PowerPoint or PDF.", "تعذر فتح ملف PowerPoint أو PDF."],
+    upload_unavailable: ["PDF and PowerPoint uploads are not available yet.", "رفع ملفات PDF وPowerPoint غير متاح بعد."],
     bad_tz: ["That time zone isn't recognised. Search for a country or city.", "هذه المنطقة الزمنية غير معروفة. ابحث عن دولة أو مدينة."],
     already_started: ["This live lesson has already started.", "بدأت هذه الحصة المباشرة بالفعل."],
     not_yet: ["It's too early (or too late) to start this scheduled lesson.", "مبكر جدًا أو متأخر جدًا لبدء هذه الحصة المجدولة."],

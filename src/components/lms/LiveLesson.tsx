@@ -23,6 +23,7 @@ import { ClassroomRemoved } from "@/components/lms/ClassroomRemoved";
 import { ClassroomConnecting, type ConnectStep } from "@/components/lms/ClassroomConnecting";
 import LiveMediaDebug from "@/components/lms/LiveMediaDebug";
 import { liveMediaLog } from "@/lib/liveMediaLog";
+import { blobToBase64, mixRecStream, pickRecMime, REC_TIMESLICE_MS, MAX_REC_MS } from "@/lib/liveRecord";
 
 type Phase = "lobby" | "waiting" | "in" | "goodbye" | "expired" | "removed";
 
@@ -398,6 +399,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
   const [rooms, setRooms] = useState<LiveRoomInfo[]>([]);
   const [canStart, setCanStart] = useState(false);
   const [livePerms, setLivePerms] = useState<LivePerms>({ run: false, schedule: false, schedStudent: false, schedClass: false, shareLink: false, camMic: false, screenShare: false, present: false, instant: false, record: false, recs: false });
+  const [recording, setRecording] = useState(false);
   const [sfuOn, setSfuOn] = useState(true);
   const [options, setOptions] = useState<{ cls: string; section: string }[]>([]);
   const [groups, setGroups] = useState<{ id: string; name: string }[]>([]);
@@ -455,6 +457,9 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
   const wsRef = useRef<WebSocket | null>(null);
   const localRef = useRef<MediaStream | null>(null);
   const shareRef = useRef<MediaStream | null>(null);
+  const remotesRef = useRef<Record<string, MediaStream>>({});
+  const recCtl = useRef<{ rec?: MediaRecorder; close?: () => void; key?: string; part: number; uploads: Promise<void>[]; timer?: number; roomId?: string }>({ part: 0, uploads: [] });
+  remotesRef.current = remotes;
   const showChatRef = useRef(false);
   const chatSoundRef = useRef(true);
   const chatBox = useRef<HTMLDivElement>(null);
@@ -595,7 +600,65 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
     setViewOpen(false);
   };
 
+
+  const stopRecording = useCallback(async () => {
+    const ctl = recCtl.current;
+    if (ctl.timer) { window.clearTimeout(ctl.timer); ctl.timer = 0; }
+    const finish = async () => {
+      ctl.close?.();
+      ctl.close = undefined;
+      try { await Promise.all(ctl.uploads); } catch { /* already surfaced */ }
+      if (ctl.key && ctl.roomId) {
+        await lmsApi.liveRec({ op: "stop", id: ctl.roomId, key: ctl.key }, asAdmin).catch(() => undefined);
+      }
+      recCtl.current = { part: 0, uploads: [] };
+      setRecording(false);
+    };
+    if (ctl.rec && ctl.rec.state !== "inactive") {
+      await new Promise<void>((resolve) => {
+        ctl.rec!.onstop = () => { void finish().finally(resolve); };
+        try { ctl.rec!.requestData(); ctl.rec!.stop(); } catch { void finish().finally(resolve); }
+      });
+    } else {
+      await finish();
+    }
+  }, [asAdmin]);
+
+  const startRecording = useCallback(async () => {
+    if (!room?.id) return;
+    const mixed = mixRecStream({ camera: localRef.current, share: shareRef.current, remotes: remotesRef.current });
+    if (!mixed) {
+      setErr(tr("Turn on your camera, microphone, or screen share to record.", "شغّل الكاميرا أو الميكروفون أو مشاركة الشاشة للتسجيل."));
+      return;
+    }
+    const mime = pickRecMime();
+    let recorder: MediaRecorder;
+    try {
+      recorder = new MediaRecorder(mixed.stream, { mimeType: mime, videoBitsPerSecond: 400_000, audioBitsPerSecond: 48_000 });
+    } catch {
+      recorder = new MediaRecorder(mixed.stream);
+    }
+    const started = await lmsApi.liveRec({ op: "start", id: room.id }, asAdmin);
+    recCtl.current = { rec: recorder, close: mixed.close, key: started.key, part: 0, uploads: [], roomId: room.id };
+    recorder.ondataavailable = (ev) => {
+      if (!ev.data || ev.data.size < 64 || !recCtl.current.key) return;
+      const part = recCtl.current.part++;
+      const key = recCtl.current.key;
+      const id = recCtl.current.roomId || room.id;
+      const work = blobToBase64(ev.data).then((data) => lmsApi.liveRec({ op: "chunk", id, key, part, data }, asAdmin)).then(() => undefined).catch((e) => {
+        fail(e, "Record", "تسجيل");
+        void stopRecording();
+      });
+      recCtl.current.uploads.push(work);
+    };
+    recorder.onerror = () => { fail(new Error("record_failed"), "Record", "تسجيل"); void stopRecording(); };
+    recorder.start(REC_TIMESLICE_MS);
+    setRecording(true);
+    recCtl.current.timer = window.setTimeout(() => { void stopRecording(); }, MAX_REC_MS);
+  }, [asAdmin, room?.id, tr]);
+
   const cleanupMedia = useCallback(() => {
+    void stopRecording();
     sfuRef.current?.close();
     sfuRef.current = null;
     mediaReadyRef.current = false;
@@ -609,7 +672,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
     setCamOn(false);
     setMicOn(false);
     setShareOn(false);
-  }, []);
+  }, [stopRecording]);
 
   const closeWs = () => {
     try { wsRef.current?.close(); } catch { /* */ }
@@ -896,6 +959,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
     try {
       const r = await lmsApi.liveJoin(id, asAdmin);
       if (r.selfId) setServerSelfId(r.selfId);
+      if (r.perms) setLivePerms(r.perms);
       if (r.room) applyRoom(r.room);
       if (r.status === "ended") { hideConnecting(); setPhase("expired"); return; }
       if (r.status === "in") setPhase("in");
@@ -1426,7 +1490,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
                     <DockBtn testid="live-people-dock" icon="👥" label={tr("People", "الحاضرون")} on={showPeople} onClick={() => setShowPeople(true)} />
                     <DockBtn testid="live-chat-btn" icon="💬" label={tr("Chat", "دردشة")} on={showChat} onClick={() => setShowChat(true)} badge={chatUnread} />
                     {isHost && (asAdmin || livePerms.record) && (
-                      <DockBtn testid="live-record" icon="⏺️" label={tr("Record", "تسجيل")} disabled={!livePerms.recs} onClick={() => undefined} />
+                      <DockBtn testid="live-record" icon={recording ? "⏹️" : "⏺️"} label={recording ? tr("Stop", "إيقاف") : tr("Record", "تسجيل")} on={recording} disabled={!livePerms.recs} onClick={() => { if (!livePerms.recs) return; if (recording) void stopRecording(); else void startRecording().catch((e) => fail(e, "Record", "تسجيل")); }} />
                     )}
                   </div>
                   <div className="lb-side-people" data-testid="live-student-strip">

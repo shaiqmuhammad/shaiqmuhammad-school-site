@@ -97,3 +97,16 @@ test("youtube media cursor is stashed per tab and restored on switch", () => {
   assert.equal(p.src, "");
   assert.equal(p.media, undefined);
 });
+
+test("upload slides are stashed per tab and restored on switch", () => {
+  const p: PresentItemsState = { packId: "", packTitle: "Whiteboard", slide: 0, strokes: [] };
+  const slides = [{ id: "s1", bg: "#fff", els: [{ id: "e1", t: "img", src: "lpm_1", x: 0, y: 0, w: 100, h: 100 }] }];
+  openPresentItem(p, { packId: "up_a", packTitle: "Notes", kind: "upload", src: "up_a", slides });
+  assert.equal(p.slides?.length, 1);
+  assert.equal(p.slides?.[0].id, "s1");
+  openPresentItem(p, { packId: "", packTitle: "YouTube", kind: "youtube", src: "dQw4w9wgGcQ" });
+  assert.equal(p.slides, undefined);
+  activatePresentItem(p, "upload:up_a");
+  assert.equal(p.packTitle, "Notes");
+  assert.equal(p.slides?.[0].els[0].src, "lpm_1");
+});

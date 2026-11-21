@@ -15,6 +15,7 @@ import { SWEEP_MS, shouldDropMember, nextAlarmAt } from "./livePresence";
 import { liveRemoveCheck } from "./liveRemove";
 import { activatePresentItem, applyActivePresentItem, closeLibraryPresentItems, closePresentItem, openPresentItem, stashActivePresentItem, youtubeVideoId, type LivePresentItem } from "./livePresentItems";
 import { normalizeMediaSync, type LiveMediaSync } from "./liveMediaSync";
+import { MAX_REC_CHUNK, normalizeUploadSlides, recOverCap, type LiveUploadSlide } from "./liveUpload";
 import { keepDebugLogs, sanitizeLiveDebug, type LiveDebugBlob } from "./liveDebug";
 import { normalizeSfuReply } from "./sfuError";
 import { normalizeLiveShapes, type LiveShape, type LiveShapeKind } from "./liveShapes";
@@ -74,6 +75,7 @@ export type LivePresent = {
   src?: string;
   shapes?: LiveShape[];
   media?: LiveMediaSync;
+  slides?: LiveUploadSlide[];
 };
 export type LiveSnap = {
   id: string;
@@ -629,6 +631,9 @@ export class LiveRoom extends DurableObject<LiveEnv> {
       const media = normalizeMediaSync(patch.media, p.src || "", Date.now());
       p.media = media;
     }
+    if (patch && "slides" in patch) {
+      p.slides = normalizeUploadSlides(patch.slides);
+    }
     stashActivePresentItem(p);
     applyActivePresentItem(p);
     await this.save();
@@ -925,7 +930,9 @@ export async function handleLive(request: Request, env: LiveEnv, action: string)
       const b64 = str(body.data, 2_000_000);
       let bytes: Uint8Array;
       try { bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)); } catch { return reply(origin, { error: "bad_json" }, 400); }
-      if (bytes.byteLength > 1_500_000) return reply(origin, { error: "too_large" }, 413);
+      if (bytes.byteLength > MAX_REC_CHUNK) return reply(origin, { error: "too_large" }, 413);
+      if (recOverCap(Number(recRow.rec_bytes) || 0, bytes.byteLength)) return reply(origin, { error: "rec_full" }, 413);
+      if (part >= 200) return reply(origin, { error: "rec_full" }, 413);
       const objKey = `${key}.p${String(part).padStart(4, "0")}`;
       await bucket.put(objKey, bytes, { httpMetadata: { contentType: "video/webm" } });
       await store.liveRecBytes(recId, (Number(recRow.rec_bytes) || 0) + bytes.byteLength);
@@ -937,9 +944,25 @@ export async function handleLive(request: Request, env: LiveEnv, action: string)
     if (op === "get") {
       const key = str(body.key || recRow.rec_key, 160);
       if (!key || !key.startsWith("live/")) return reply(origin, { error: "not_found" }, 404);
-      const obj = await bucket.get(key) || await bucket.get(`${key}.p0000`);
-      if (!obj) return reply(origin, { error: "not_found" }, 404);
-      return new Response(obj.body, { status: 200, headers: { ...corsHeaders(origin), "Content-Type": obj.httpMetadata?.contentType || "video/webm", "Cache-Control": "private, max-age=60" } });
+      const obj = await bucket.get(key);
+      if (obj) return new Response(obj.body, { status: 200, headers: { ...corsHeaders(origin), "Content-Type": obj.httpMetadata?.contentType || "video/webm", "Cache-Control": "private, max-age=60" } });
+      const listed = await bucket.list({ prefix: `${key}.p`, limit: 200 });
+      const keys = (listed.objects || []).map((o) => o.key).filter((k) => k.startsWith(`${key}.p`)).sort();
+      if (!keys.length) return reply(origin, { error: "not_found" }, 404);
+      const stream = new ReadableStream({
+        async start(ctrl) {
+          try {
+            for (const k of keys) {
+              const part = await bucket.get(k);
+              if (!part) continue;
+              const buf = await part.arrayBuffer();
+              if (buf.byteLength) ctrl.enqueue(new Uint8Array(buf));
+            }
+            ctrl.close();
+          } catch (e) { ctrl.error(e); }
+        },
+      });
+      return new Response(stream, { status: 200, headers: { ...corsHeaders(origin), "Content-Type": "video/webm", "Cache-Control": "private, max-age=60" } });
     }
     return reply(origin, { error: "bad_op" }, 400);
   }
@@ -1068,7 +1091,7 @@ export async function handleLive(request: Request, env: LiveEnv, action: string)
     if (String(row.status) !== "live") return reply(origin, { error: "ended" }, 410);
     const r = await stub.requestJoin({ id: a.id, name: a.name, role: a.role === "admin" || a.id === String(row.teacher) ? "teacher" : "student" });
     if (r.status === "in" && a.role === "student" && !a.guest) await store.liveAttSync(id, [a.id]);
-    return reply(origin, { ...r, selfId: a.id }, r.status === "full" ? 409 : r.status === "ended" ? 410 : 200);
+    return reply(origin, { ...r, selfId: a.id, perms: liveFlags(a, env) }, r.status === "full" ? 409 : r.status === "ended" ? 410 : 200);
   }
 
   if (action === "live-admit" || action === "live-deny") {
@@ -1315,7 +1338,13 @@ export async function handleLive(request: Request, env: LiveEnv, action: string)
         const r = await stub.setPresent(host, { follow: true }, { packId: "", packTitle: str(body.packTitle, 80) || "YouTube", kind: "youtube", src });
         return reply(origin, r, r.ok ? 200 : r.error === "ended" ? 410 : 403);
       }
-      if (kind === "upload") return reply(origin, { error: "upload_unavailable" }, 400);
+      if (kind === "upload") {
+        const slides = normalizeUploadSlides(body.slides);
+        if (!slides.length) return reply(origin, { error: "bad_upload" }, 400);
+        const src = str(body.src, 80) || `up_${crypto.randomUUID().slice(0, 8)}`;
+        const r = await stub.setPresent(host, { follow: true }, { packId: src, packTitle: str(body.packTitle, 80) || "Upload", kind: "upload", src, slide: 0, slides });
+        return reply(origin, r, r.ok ? 200 : r.error === "ended" ? 410 : 403);
+      }
       const packId = str(body.packId, 40);
       if (!packId) return reply(origin, { error: "pack_not_found" }, 400);
       const packTitle = str(body.packTitle, 80);
