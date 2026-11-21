@@ -1,4 +1,5 @@
 import { initDeployment } from "./deployment";
+import { isLiveGuestId, liveAttPeriod } from "./liveAtt";
 import { loadCat, catPhases, rulePhase, ruleDept } from "./catx";
 /**
  * LMS phase 1: student/teacher accounts (username + PIN), homework (Quran + general), review, tracker.
@@ -101,7 +102,7 @@ const TOKEN_DAYS = 3650; // effectively "until you log out" (sliding renewal on 
 const MAX_USERS = 3000;
 const MAX_HW = 2000;
 const FAIL_WINDOW = 15 * 60_000;
-const PERMS = ["assign", "review", "manageUsers", "viewAll", "staff", "shareCorrect", "viewAsStudent", "pptDownload", "hwMarkView", "hwMarkCorrect", "hwShare", "liveLesson", "liveSchedule", "liveSchedStudent", "liveSchedClass", "liveShareLink", "liveCamMic", "liveScreenShare", "livePresent", "liveInstant"] as const;
+const PERMS = ["assign", "review", "manageUsers", "viewAll", "staff", "shareCorrect", "viewAsStudent", "pptDownload", "hwMarkView", "hwMarkCorrect", "hwShare", "liveLesson", "liveSchedule", "liveSchedStudent", "liveSchedClass", "liveShareLink", "liveCamMic", "liveScreenShare", "livePresent", "liveInstant", "liveRecord"] as const;
 const STU_OPS = ["view", "add", "edit", "block", "delete"] as const;
 const STU_PERM = /^stu:(view|add|edit|block|delete|none)$/;
 /** Cartoon avatar code: stored reroll, else derived from id + gender (gender itself never leaves the server for non-admins). */
@@ -3554,12 +3555,101 @@ export class LmsStore extends DurableObject<LmsEnv> {
   }
   liveRow(id: string) {
     this.liveEnsure();
-    return this.sql.exec(`SELECT id, teacher, title, cls, section, group_id, student_id, sched_id, status, created, ended FROM live_rooms WHERE id=?`, id).toArray()[0] || null;
+    this.liveAttEnsure();
+    return this.sql.exec(`SELECT id, teacher, title, cls, section, group_id, student_id, sched_id, status, created, ended, rec_key, rec_bytes FROM live_rooms WHERE id=?`, id).toArray()[0] || null;
   }
   liveMarkEnded(id: string) {
     this.liveEnsure();
     this.sql.exec(`UPDATE live_rooms SET status='ended', ended=? WHERE id=?`, Date.now(), id);
     this.sql.exec(`UPDATE live_sched SET status='ended', link_on=0 WHERE room_id=? AND status!='cancelled'`, id);
+  }
+
+  liveAttEnsure() {
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS att (id TEXT PRIMARY KEY, student TEXT, cls TEXT, section TEXT, day TEXT, period TEXT, status TEXT, note TEXT DEFAULT '', by TEXT, by_name TEXT, at INTEGER, alerted INTEGER DEFAULT 0, UNIQUE (student, day, period))`);
+    this.sql.exec(`CREATE INDEX IF NOT EXISTS att_day ON att (day, cls)`);
+    for (const col of ["rec_key TEXT NOT NULL DEFAULT ''", "rec_bytes INTEGER NOT NULL DEFAULT 0"]) {
+      try { this.sql.exec(`ALTER TABLE live_rooms ADD COLUMN ${col}`); } catch { /* already added */ }
+    }
+  }
+
+  /** Insert-only Present marks for enrolled students who joined. Never overwrites, never guests, never att-save. */
+  liveAttSync(roomId: string, userIds: string[]): { saved: number } {
+    this.liveEnsure();
+    this.liveAttEnsure();
+    const row = this.liveRow(roomId);
+    if (!row) return { saved: 0 };
+    const cls = String(row.cls || "");
+    if (!cls) return { saved: 0 };
+    const { day, period } = liveAttPeriod(Number(row.created) || Date.now());
+    const teacher = String(row.teacher || "");
+    const tname = teacher === "admin" ? "Admin" : String(this.userRow("id=?", teacher)?.name || "Teacher");
+    const now = Date.now();
+    let saved = 0;
+    for (const sid of [...new Set(userIds.map(String))].slice(0, 80)) {
+      if (isLiveGuestId(sid) || sid === teacher || sid === "admin") continue;
+      const u = this.userRow("id=?", sid);
+      if (!u || String(u.role) !== "student") continue;
+      const exists = this.sql.exec(`SELECT 1 FROM att WHERE student=? AND day=? AND period=?`, sid, day, period).toArray()[0];
+      if (exists) continue;
+      this.sql.exec(
+        `INSERT INTO att (id, student, cls, section, day, period, status, note, by, by_name, at) VALUES (?, ?, ?, ?, ?, ?, 'P', '', ?, ?, ?)`,
+        rid("at"), sid, cls, String(row.section || u.section || ""), day, period, teacher, tname, now,
+      );
+      saved++;
+    }
+    return { saved };
+  }
+
+  liveHistory(a: Actor): Record<string, unknown>[] {
+    this.liveEnsure();
+    this.liveAttEnsure();
+    if (a.guest || a.role === "student" || a.role === "parent") return [];
+    const rows = this.sql.exec(`SELECT id, teacher, title, cls, section, group_id, status, created, ended, rec_key, rec_bytes FROM live_rooms ORDER BY created DESC LIMIT 80`).toArray();
+    const out: Record<string, unknown>[] = [];
+    for (const r of rows) {
+      if (a.role !== "admin" && String(r.teacher) !== a.id) continue;
+      const created = Number(r.created) || 0;
+      const { day, period } = liveAttPeriod(created);
+      const cls = String(r.cls || "");
+      const marks = cls
+        ? this.sql.exec(`SELECT att.student AS id, att.status AS status, att.at AS at, att.note AS note, users.name AS name, users.section AS section FROM att LEFT JOIN users ON users.id=att.student WHERE att.day=? AND att.period=? AND att.cls=? ORDER BY users.name`, day, period, cls).toArray()
+        : [];
+      out.push({
+        id: String(r.id),
+        title: String(r.title || ""),
+        cls,
+        section: String(r.section || ""),
+        teacherId: String(r.teacher || ""),
+        teacherName: this.liveTeacherNameSync(String(r.teacher || "")),
+        started: created,
+        ended: r.ended != null ? Number(r.ended) : null,
+        day,
+        period,
+        status: String(r.status || ""),
+        recKey: String(r.rec_key || ""),
+        recBytes: Number(r.rec_bytes || 0),
+        present: marks.filter((m) => String(m.status) === "P").length,
+        marks: marks.map((m) => ({ id: String(m.id || ""), name: String(m.name || ""), section: String(m.section || ""), status: String(m.status || ""), at: Number(m.at || 0), note: String(m.note || "") })),
+      });
+    }
+    return out;
+  }
+
+  liveTeacherNameSync(id: string): string {
+    if (id === "admin") return "Admin";
+    return String(this.userRow("id=?", id)?.name || "Teacher");
+  }
+
+  liveRecStart(roomId: string, key: string) {
+    this.liveEnsure();
+    this.liveAttEnsure();
+    this.sql.exec(`UPDATE live_rooms SET rec_key=?, rec_bytes=0 WHERE id=?`, key, roomId);
+  }
+
+  liveRecBytes(roomId: string, bytes: number) {
+    this.liveEnsure();
+    this.liveAttEnsure();
+    this.sql.exec(`UPDATE live_rooms SET rec_bytes=? WHERE id=?`, bytes, roomId);
   }
   liveGroupStudents(groupId: string): string[] {
     if (!groupId) return [];

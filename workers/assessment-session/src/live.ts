@@ -3,11 +3,13 @@
  *
  * Signalling and membership live in the DO (hibernating WebSockets). Media flows
  * browser ↔ Cloudflare Realtime SFU; the App Secret never leaves this worker.
- * No recording, no emails, no student notifications, no reward-balance changes.
+ * Attendance is insert-only into att (not att-save). Staff-only recording uses optional LIVE_RECS R2.
+ * No emails, no student notifications, no reward-balance changes, no SQLite video fallback.
  */
 import { DurableObject } from "cloudflare:workers";
 import { corsHeaders, reply } from "./admin";
 import { lmsActor, type Actor, type LmsEnv } from "./lms";
+import { recObjectKey } from "./liveAtt";
 
 export interface LiveEnv extends LmsEnv {
   LIVE: DurableObjectNamespace<LiveRoom>;
@@ -15,6 +17,8 @@ export interface LiveEnv extends LmsEnv {
   REALTIME_SFU_APP_SECRET?: string;
   REALTIME_TURN_TOKEN_ID?: string;
   REALTIME_TURN_API_TOKEN?: string;
+  /** Optional. Present only after R2 is enabled and bucket shaiqmuhammad-live-recordings is bound as LIVE_RECS. */
+  LIVE_RECS?: R2Bucket;
 }
 
 const SFU = "https://rtc.live.cloudflare.com/v1";
@@ -90,7 +94,7 @@ function canRun(a: Actor) {
 function canLive(a: Actor, perm: string) {
   return a.role === "admin" || (a.role === "teacher" && a.perms.includes(perm));
 }
-function liveFlags(a: Actor) {
+function liveFlags(a: Actor, env?: LiveEnv) {
   return {
     run: canRun(a),
     schedule: canLive(a, "liveSchedule"),
@@ -101,6 +105,8 @@ function liveFlags(a: Actor) {
     screenShare: canLive(a, "liveScreenShare"),
     present: canLive(a, "livePresent"),
     instant: canLive(a, "liveInstant"),
+    record: canLive(a, "liveRecord"),
+    recs: !!(env && env.LIVE_RECS),
   };
 }
 function tokenOf(request: Request, fallback = "") {
@@ -576,7 +582,8 @@ export async function handleLive(request: Request, env: LiveEnv, action: string)
   let body: Record<string, unknown> = {};
   if (request.method === "POST") {
     const text = await request.text();
-    if (text.length > 60_000) return reply(origin, { error: "too_large" }, 413);
+    const max = action === "live-rec" ? 2_200_000 : 60_000;
+    if (text.length > max) return reply(origin, { error: "too_large" }, 413);
     try { body = JSON.parse(text || "{}") as Record<string, unknown>; } catch { return reply(origin, { error: "bad_json" }, 400); }
   }
   const url = new URL(request.url);
@@ -621,14 +628,67 @@ export async function handleLive(request: Request, env: LiveEnv, action: string)
     }
     const options = canRun(a) ? await store.liveScopeOptions(a) : [];
     const groups = canRun(a) && a.role !== "student" ? ((await store.handle("grp-list", a, {})) as { status: number; body: { items?: { id: string; name: string }[] } }).body?.items || [] : [];
-    return reply(origin, { rooms, canStart: canRun(a), sfu: sfuOn, options, groups, perms: liveFlags(a) }, 200);
+    return reply(origin, { rooms, canStart: canRun(a), sfu: sfuOn, options, groups, perms: liveFlags(a, env) }, 200);
+  }
+
+  if (action === "live-history") {
+    if (a.guest || a.role === "student" || a.role === "parent") return reply(origin, { error: "forbidden" }, 403);
+    const items = await store.liveHistory(a);
+    return reply(origin, { items, perms: liveFlags(a, env) }, 200);
+  }
+
+  if (action === "live-rec") {
+    if (a.guest || a.role === "student" || a.role === "parent") return reply(origin, { error: "forbidden" }, 403);
+    const ready = !!env.LIVE_RECS;
+    const allowed = canLive(a, "liveRecord");
+    const op = str(body.op, 20) || "status";
+    if (op === "status" || op === "list") {
+      const items = (op === "list" && allowed) ? (await store.liveHistory(a)).filter((x) => x.recKey) : [];
+      return reply(origin, { ready, record: allowed, items, perms: liveFlags(a, env) }, 200);
+    }
+    if (!allowed) return reply(origin, { error: "no_record" }, 403);
+    if (!ready || !env.LIVE_RECS) return reply(origin, { error: "rec_disabled" }, 503);
+    const recId = str(body.id || id, 40);
+    if (!ROOM_RE.test(recId)) return reply(origin, { error: "not_found" }, 404);
+    const recRow = await store.liveRow(recId);
+    if (!recRow) return reply(origin, { error: "not_found" }, 404);
+    if (a.role !== "admin" && String(recRow.teacher) !== a.id) return reply(origin, { error: "forbidden" }, 403);
+    const bucket = env.LIVE_RECS;
+    if (op === "start") {
+      const key = recObjectKey(recId, Number(recRow.created) || Date.now());
+      await store.liveRecStart(recId, key);
+      return reply(origin, { ok: true, key }, 200);
+    }
+    if (op === "chunk") {
+      const key = str(body.key, 160) || recObjectKey(recId, Number(recRow.created) || Date.now());
+      const part = Math.max(0, Math.trunc(Number(body.part) || 0));
+      const b64 = str(body.data, 2_000_000);
+      let bytes: Uint8Array;
+      try { bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)); } catch { return reply(origin, { error: "bad_json" }, 400); }
+      if (bytes.byteLength > 1_500_000) return reply(origin, { error: "too_large" }, 413);
+      const objKey = `${key}.p${String(part).padStart(4, "0")}`;
+      await bucket.put(objKey, bytes, { httpMetadata: { contentType: "video/webm" } });
+      await store.liveRecBytes(recId, (Number(recRow.rec_bytes) || 0) + bytes.byteLength);
+      return reply(origin, { ok: true, key: objKey, bytes: bytes.byteLength }, 200);
+    }
+    if (op === "stop") {
+      return reply(origin, { ok: true, key: String(recRow.rec_key || "") }, 200);
+    }
+    if (op === "get") {
+      const key = str(body.key || recRow.rec_key, 160);
+      if (!key || !key.startsWith("live/")) return reply(origin, { error: "not_found" }, 404);
+      const obj = await bucket.get(key) || await bucket.get(`${key}.p0000`);
+      if (!obj) return reply(origin, { error: "not_found" }, 404);
+      return new Response(obj.body, { status: 200, headers: { ...corsHeaders(origin), "Content-Type": obj.httpMetadata?.contentType || "video/webm", "Cache-Control": "private, max-age=60" } });
+    }
+    return reply(origin, { error: "bad_op" }, 400);
   }
 
   if (action === "live-sched-list") {
     if (a.guest) return reply(origin, { error: "forbidden" }, 403);
     const items = await store.liveSchedList(a);
     const packs = canLive(a, "liveSchedule") ? await store.liveSchedPacks(a) : [];
-    return reply(origin, { items, packs, perms: liveFlags(a), options: canLive(a, "liveSchedule") ? await store.liveScopeOptions(a) : [], groups: canLive(a, "liveSchedule") && a.role !== "student" ? ((await store.handle("grp-list", a, {})) as { status: number; body: { items?: { id: string; name: string }[] } }).body?.items || [] : [] }, 200);
+    return reply(origin, { items, packs, perms: liveFlags(a, env), options: canLive(a, "liveSchedule") ? await store.liveScopeOptions(a) : [], groups: canLive(a, "liveSchedule") && a.role !== "student" ? ((await store.handle("grp-list", a, {})) as { status: number; body: { items?: { id: string; name: string }[] } }).body?.items || [] : [] }, 200);
   }
 
   if (action === "live-sched-save") {
@@ -747,6 +807,7 @@ export async function handleLive(request: Request, env: LiveEnv, action: string)
   if (action === "live-join") {
     if (String(row.status) !== "live") return reply(origin, { error: "ended" }, 410);
     const r = await stub.requestJoin({ id: a.id, name: a.name, role: a.role === "admin" || a.id === String(row.teacher) ? "teacher" : "student" });
+    if (r.status === "in" && a.role === "student" && !a.guest) await store.liveAttSync(id, [a.id]);
     return reply(origin, r, r.status === "full" ? 409 : r.status === "ended" ? 410 : 200);
   }
 
@@ -755,6 +816,11 @@ export async function handleLive(request: Request, env: LiveEnv, action: string)
     const userId = str(body.userId, 40);
     if (!userId) return reply(origin, { error: "bad_request" }, 400);
     const r = action === "live-admit" ? await stub.admit(String(row.teacher), userId) : await stub.deny(String(row.teacher), userId);
+    if (r.ok && action === "live-admit") {
+      const snap = await stub.snapshot();
+      const ids = snap ? snap.members.filter((m) => m.role === "student").map((m) => m.id) : (userId === "all" ? [] : [userId]);
+      if (ids.length) await store.liveAttSync(id, ids);
+    }
     return reply(origin, r, r.ok ? 200 : 403);
   }
 
@@ -765,7 +831,9 @@ export async function handleLive(request: Request, env: LiveEnv, action: string)
 
   if (action === "live-end") {
     if (a.id !== String(row.teacher) && a.role !== "admin") return reply(origin, { error: "forbidden" }, 403);
+    const snap = await stub.snapshot();
     const r = await stub.endClass(a.role === "admin" ? "admin" : a.id);
+    if (r.ok && snap) await store.liveAttSync(id, snap.members.filter((m) => m.role === "student").map((m) => m.id));
     return reply(origin, r, r.ok ? 200 : 403);
   }
 
