@@ -38,7 +38,7 @@ export const LIVE_TOOLS = [
   { id: "timer", icon: "⏱️", en: "Timer", ar: "المؤقت", color: "#22d3ee" },
   { id: "award", icon: "🃏", en: "Reward Cards", ar: "بطاقات المكافآت", color: "#f5c542" },
   { id: "tasks", icon: "📝", en: "Tasks", ar: "المهام", color: "#a78bfa" },
-  { id: "open", icon: "📚", en: "Open", ar: "فتح", color: "#34d399" },
+  { id: "open", icon: "📚", en: "Library", ar: "المكتبة", color: "#34d399" },
 ] as const;
 
 export type LiveToolId = (typeof LIVE_TOOLS)[number]["id"];

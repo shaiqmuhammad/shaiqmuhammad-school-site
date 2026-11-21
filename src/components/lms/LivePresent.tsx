@@ -472,7 +472,7 @@ function ContentPicker({ packs, kind, onKind, busy, onOpen, onClose }: {
     <div className="lb-content-picker" data-testid="live-content-picker">
       <div className="mb-3 flex items-start justify-between gap-2">
         <div>
-          <p className="text-sm font-extrabold text-[#1b3a57] dark:text-[#fff8ec]">{tr("Open in the classroom", "افتح في الصف")}</p>
+          <p className="text-sm font-extrabold text-[#1b3a57] dark:text-[#fff8ec]">{tr("Library", "المكتبة")}</p>
           <p className="text-xs font-semibold text-[#334155] dark:text-[#cbd5e1]">{tr("Students follow you. Turn Follow me off if they should move freely.", "يتابعك الطلاب. أوقف «تابعني» إن أردت أن يتنقلوا بأنفسهم.")}</p>
         </div>
         {onClose && <button type="button" className="rounded-full bg-black/10 px-3 py-1 text-sm font-bold text-[#1b3a57] dark:bg-white/15 dark:text-[#fff8ec]" onClick={onClose} data-testid="live-content-close">{tr("Close", "إغلاق")}</button>}
