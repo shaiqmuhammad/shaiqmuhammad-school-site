@@ -64,6 +64,7 @@ export type LiveSnap = {
   pubs: LivePub[];
   sfu: boolean;
   present?: LivePresent | null;
+  endsAt: number;
 };
 
 type State = Omit<LiveSnap, "sfu">;
@@ -108,7 +109,7 @@ async function liveActor(request: Request, env: LiveEnv, store: ReturnType<LiveE
 }
 
 function publicSnap(s: State, sfu: boolean): LiveSnap {
-  return { ...s, waiting: s.waiting.map((w) => ({ id: w.id, name: w.name, at: w.at })), sfu };
+  return { ...s, endsAt: s.endsAt || s.created + 40 * 60_000, waiting: s.waiting.map((w) => ({ id: w.id, name: w.name, at: w.at })), sfu };
 }
 
 export class LiveRoom extends DurableObject<LiveEnv> {
@@ -146,7 +147,7 @@ export class LiveRoom extends DurableObject<LiveEnv> {
     return this.state?.members.find((m) => m.id === id);
   }
 
-  async init(meta: { id: string; title: string; cls: string; section: string; groupId: string; teacherId: string; teacherName: string }) {
+  async init(meta: { id: string; title: string; cls: string; section: string; groupId: string; teacherId: string; teacherName: string; endsAt?: number }) {
     await this.load();
     if (this.state && this.state.status === "live") return publicSnap(this.state, this.sfuReady());
     const now = Date.now();
@@ -159,6 +160,7 @@ export class LiveRoom extends DurableObject<LiveEnv> {
       teacherId: meta.teacherId,
       status: "live",
       created: now,
+      endsAt: Math.max(now + 60_000, Math.min(now + 180 * 60_000, Number(meta.endsAt) || (now + 40 * 60_000))),
       waiting: [],
       members: [{ id: meta.teacherId, name: meta.teacherName || "Teacher", role: "teacher", camAllowed: true, micAllowed: true, hand: false, present: true }],
       chat: [],
@@ -302,8 +304,8 @@ export class LiveRoom extends DurableObject<LiveEnv> {
     const m = this.member(userId);
     if (!this.state || !m || this.state.status !== "live") return { ok: false, error: "forbidden" };
     const allow = new Set<string>();
-    if (m.camAllowed) allow.add("camera");
-    if (m.micAllowed) allow.add("mic");
+    if (m.role === "teacher" || m.camAllowed) allow.add("camera");
+    if (m.role === "teacher" || m.micAllowed) allow.add("mic");
     if (m.role === "teacher" || m.shareAllowed) allow.add("screen");
     const next = tracks.map((t) => str(t, 20)).filter((t) => allow.has(t));
     const sid = str(sessionId, 80);
@@ -330,6 +332,17 @@ export class LiveRoom extends DurableObject<LiveEnv> {
     return { ok: true };
   }
 
+
+  async setEndsAt(hostId: string, endsAt: number): Promise<{ ok: boolean; error?: string; endsAt?: number }> {
+    await this.load();
+    if (!this.state || this.state.status !== "live") return { ok: false, error: "ended" };
+    if (hostId !== this.state.teacherId && hostId !== "admin") return { ok: false, error: "forbidden" };
+    const now = Date.now();
+    this.state.endsAt = Math.max(now + 30_000, Math.min(now + 180 * 60_000, Math.trunc(endsAt)));
+    await this.save();
+    this.roomMsg();
+    return { ok: true, endsAt: this.state.endsAt };
+  }
 
   private presentMsg() {
     if (!this.state) return;
@@ -643,7 +656,8 @@ export async function handleLive(request: Request, env: LiveEnv, action: string)
     const roomId = newId();
     const title = String(sch.title || "Live Lesson");
     const stub = roomStub(env, roomId);
-    await stub.init({ id: roomId, title, cls, section, groupId, teacherId: a.id, teacherName: a.name });
+    const endsAt = Number(sch.starts) + Number(sch.duration) * 60_000;
+    await stub.init({ id: roomId, title, cls, section, groupId, teacherId: a.id, teacherName: a.name, endsAt });
     await store.livePut({ id: roomId, teacher: a.id, title, cls, section, groupId, status: "live", created: Date.now(), studentId, schedId: String(sch.id) });
     await store.liveSchedAttachRoom(String(sch.id), roomId);
     return reply(origin, { id: roomId }, 200);
@@ -661,7 +675,8 @@ export async function handleLive(request: Request, env: LiveEnv, action: string)
     const roomId = newId();
     const title = str(body.title, 80) || "Live Lesson";
     const stub = roomStub(env, roomId);
-    await stub.init({ id: roomId, title, cls, section, groupId, teacherId: a.id, teacherName: a.name });
+    const minutes = Math.min(180, Math.max(5, Math.trunc(Number(body.minutes) || 40)));
+    await stub.init({ id: roomId, title, cls, section, groupId, teacherId: a.id, teacherName: a.name, endsAt: Date.now() + minutes * 60_000 });
     await store.livePut({ id: roomId, teacher: a.id, title, cls, section, groupId, status: "live", created: Date.now() });
     return reply(origin, { id: roomId }, 200);
   }
@@ -736,15 +751,47 @@ export async function handleLive(request: Request, env: LiveEnv, action: string)
     return reply(origin, { ok: true }, 200);
   }
 
-  if (action === "live-ice") {
+  if (action === "live-duration") {
+    if (a.guest) return reply(origin, { error: "forbidden" }, 403);
+    if (a.id !== String(row.teacher) && a.role !== "admin") return reply(origin, { error: "forbidden" }, 403);
+    const now = Date.now();
+    let endsAt = Number(body.endsAt);
+    if (typeof body.addMin === "number") {
+      const snap = await stub.snapshot();
+      endsAt = Math.max(now, snap?.endsAt || now) + Math.trunc(body.addMin) * 60_000;
+    }
+    const r = await stub.setEndsAt(a.role === "admin" ? "admin" : a.id, endsAt);
+    return reply(origin, r, r.ok ? 200 : 403);
+  }
+
+  if (action === "live-pack") {
     const room = await stub.snapshot();
-    if (!room || room.status !== "live" || !room.members.some((m) => m.id === a.id)) return reply(origin, { error: "forbidden" }, 403);
+    if (!room || room.status !== "live") return reply(origin, { error: "ended" }, 410);
+    const inRoom = a.role === "admin" || room.teacherId === a.id || room.members.some((m) => m.id === a.id);
+    if (!inRoom) return reply(origin, { error: "forbidden" }, 403);
+    const packId = str(body.packId || room.present?.packId, 40);
+    if (!room.present?.packId || packId !== room.present.packId) return reply(origin, { error: "not_presenting" }, 404);
+    const pack = await store.livePresentedPack(packId);
+    if (!pack) return reply(origin, { error: "pack_not_found" }, 404);
+    return reply(origin, { pack }, 200);
+  }
+
+  const inLiveRoom = async () => {
+    const room = await stub.snapshot();
+    if (!room || room.status !== "live") return null;
+    if (a.role === "admin" || room.teacherId === a.id || room.members.some((m) => m.id === a.id)) return room;
+    return null;
+  };
+
+  if (action === "live-ice") {
+    const room = await inLiveRoom();
+    if (!room) return reply(origin, { error: "forbidden" }, 403);
     return reply(origin, { iceServers: await iceServers(env) }, 200);
   }
 
   if (action === "live-sfu") {
-    const room = await stub.snapshot();
-    if (!room || room.status !== "live" || !room.members.some((m) => m.id === a.id)) return reply(origin, { error: "forbidden" }, 403);
+    const room = await inLiveRoom();
+    if (!room) return reply(origin, { error: "forbidden" }, 403);
     const op = str(body.op, 20);
     const sessionId = str(body.sessionId, 80);
     if (op === "session-new") {
