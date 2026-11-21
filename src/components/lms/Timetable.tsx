@@ -18,6 +18,12 @@ export type TtRow = { id: string; dow: number; period: string; cls: string; sect
 export type TtShare = { id: string; by: string; byName: string; title: string; rows: TtRow[]; n: number; mine: boolean; at: number };
 /** t317: a lesson's own times win over its period's saved times. */
 export const seOf = (r: TtRow, times: Record<string, { s: string; e: string }>) => ({ s: r.s || times[r.period]?.s || "", e: r.e || times[r.period]?.e || "" });
+export const dateOfDow = (weekOf: string, dow: number) => {
+  const [y, m, da] = weekOf.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, (m || 1) - 1, da || 1, 12));
+  dt.setUTCDate(dt.getUTCDate() + (dow - dt.getUTCDay()));
+  return dt.toISOString().slice(0, 10);
+};
 export const SWATCHES = ["#bae6fd", "#fde68a", "#bbf7d0", "#ddd6fe", "#fecdd3", "#a5f3fc", "#fed7aa", "#e5e7eb"];
 export type TtData = {
   times: Record<string, { s: string; e: string }>; timetable: TtRow[]; now: { dow: number; hm: string; period: string }; current: TtRow | null;
@@ -57,7 +63,7 @@ const ttlOf = (r: TtRow) => (!r.obs && r.title && r.title !== secTxt(r) ? r.titl
 const obsRows = (obs: TtObs[] | undefined, me: string, tr: (en: string, ar: string) => string): TtRow[] => (obs || []).filter((o) => o.status === "approved").map((o) => ({ id: "obs-" + o.id + "-" + (o.req === me ? "r" : "t"), dow: o.dow, period: "", cls: o.cls, sections: [], teacher: o.req === me ? o.req : o.target, teacherName: "", subject: o.subject, phase: "", dept: "", s: o.s, e: o.e, color: "#fef3c7", title: o.req === me ? tr(`👀 Observing ${o.targetName} (${o.day})`, `👀 ملاحظة ${o.targetName} (${o.day})`) : tr(`👀 Observed by ${o.reqName} (${o.day})`, `👀 ملاحظة من ${o.reqName} (${o.day})`), obs: o.id }));
 const nextDate = (dow: number) => { const d = new Date(Date.now() + 4 * 3600e3); const add = (dow - d.getUTCDay() + 7) % 7 || 7; return new Date(d.getTime() + add * 864e5).toISOString().slice(0, 10); };
 /** t384: colourful glass strip of one day's lessons (dashboard, teacher and student areas; light and dark mode). */
-export function GlassStrip({ rows, times, now, dow, onPick, testId = "tt-strip", empty, onEdit, onDel, canEdit, canDel }: { rows: TtRow[]; times: TtData["times"]; now: TtData["now"]; dow: number; onPick?: (r: TtRow) => void; testId?: string; empty?: string; onEdit?: (r: TtRow) => void; onDel?: (r: TtRow) => void; canEdit?: boolean; canDel?: boolean }) {
+export function GlassStrip({ rows, times, now, dow, onPick, testId = "tt-strip", empty, onEdit, onDel, onLive, canEdit, canDel }: { rows: TtRow[]; times: TtData["times"]; now: TtData["now"]; dow: number; onPick?: (r: TtRow) => void; testId?: string; empty?: string; onEdit?: (r: TtRow) => void; onDel?: (r: TtRow) => void; onLive?: (r: TtRow) => void; canEdit?: boolean; canDel?: boolean }) {
   const { tr } = useTr();
   const list = rows.filter((r) => r.dow === dow).sort((a, b) => (seOf(a, times).s || a.period).localeCompare(seOf(b, times).s || b.period));
   return (
@@ -72,8 +78,8 @@ export function GlassStrip({ rows, times, now, dow, onPick, testId = "tt-strip",
               <p className="text-[21px] font-black leading-tight" dir="auto">{r.obs ? r.title : secTxt(r) || r.title}</p>
               {ttlOf(r) && secTxt(r) && <p className="text-[21px] font-black leading-tight" dir="auto" data-testid="tt-title">{ttlOf(r)}</p>}
               <p className="text-xs opacity-80" dir="auto">{[r.teacherName, r.subject].filter(Boolean).join(" · ")}</p>
-              {(canEdit || canDel) && !locked && <p className="mt-1 flex gap-1">{canEdit && <button type="button" className="rounded-full bg-white/80 px-1.5 text-xs" onClick={() => onEdit?.(r)} aria-label={tr("Edit", "تعديل")} data-testid="tt-edit">✎</button>}{canDel && <button type="button" className="rounded-full bg-white/80 px-1.5 text-xs" onClick={() => onDel?.(r)} aria-label={tr("Delete", "حذف")} data-testid="tt-del">🗑</button>}</p>}
-              {onPick && <button type="button" className="mt-1 rounded-full bg-[#1b3a57] px-2 py-0.5 text-[11px] font-bold text-[#f5c542]" onClick={() => onPick(r)} data-testid="tt-obs-ask">👀 {tr("Request to observe", "طلب ملاحظة")}</button>}
+              {(canEdit || canDel) && !locked && <p className="mt-1 flex gap-1">{canEdit && <button type="button" className="rounded-full bg-white/80 px-1.5 text-xs" onClick={() => onEdit?.(r)} aria-label={tr("Edit", "تعديل")} data-testid="tt-edit">✎</button>}{canDel && <button type="button" className="rounded-full bg-white/80 px-1.5 text-xs" onClick={() => onDel?.(r)} aria-label={tr("Delete", "حذف")} data-testid="tt-del">🗑</button>}{onLive && !locked && <button type="button" className="rounded-full bg-white/80 px-1.5 text-xs" onClick={() => onLive(r)} aria-label={tr("Schedule live lesson", "جدولة حصة مباشرة")} data-testid="tt-live-sched">🎥</button>}</p>}
+              {onLive && !((canEdit || canDel) && !locked) && !r.obs && <button type="button" className="mt-1 rounded-full bg-fuchsia-200 px-2 py-0.5 text-[11px] font-bold text-[#1b3a57]" onClick={() => onLive(r)} data-testid="tt-live-sched">🎥 {tr("Schedule live lesson", "جدولة حصة مباشرة")}</button>}{onPick && <button type="button" className="mt-1 rounded-full bg-[#1b3a57] px-2 py-0.5 text-[11px] font-bold text-[#f5c542]" onClick={() => onPick(r)} data-testid="tt-obs-ask">👀 {tr("Request to observe", "طلب ملاحظة")}</button>}
             </li>); })}
         </ol>)}
     </div>
@@ -82,7 +88,7 @@ export function GlassStrip({ rows, times, now, dow, onPick, testId = "tt-strip",
 
 
 /** t433: school-day hour timeline — duration-sized events, period bands, now line, scroll to current hour. */
-function DayTimeline({ rows, times, now, dow, onEdit, onDel, canEdit, canDel, studentsOf }: { rows: TtRow[]; times: TtData["times"]; now: TtData["now"]; dow: number; onEdit?: (r: TtRow) => void; onDel?: (r: TtRow) => void; canEdit?: boolean; canDel?: boolean; studentsOf?: (r: TtRow) => number }) {
+function DayTimeline({ rows, times, now, dow, onEdit, onDel, onLive, canEdit, canDel, studentsOf }: { rows: TtRow[]; times: TtData["times"]; now: TtData["now"]; dow: number; onEdit?: (r: TtRow) => void; onDel?: (r: TtRow) => void; onLive?: (r: TtRow) => void; canEdit?: boolean; canDel?: boolean; studentsOf?: (r: TtRow) => number }) {
   const { tr } = useTr();
   const [el, setEl] = useState<HTMLDivElement | null>(null);
   const START = 0, END = 24, PX = 52;
@@ -123,7 +129,7 @@ function DayTimeline({ rows, times, now, dow, onEdit, onDel, canEdit, canDel, st
                 <p className="text-[11px] font-extrabold leading-tight">{r.period ? `${pidLabel(r.period, tr)} · ` : ""}{span12(tm)}{live ? ` · ${left}${tr("m left", " د")}` : ""}</p>
                 <p className="truncate text-sm font-black" dir="auto">{r.obs ? r.title : secTxt(r) || r.title}</p>
                 <p className="truncate text-[11px] opacity-80">{[r.teacherName, r.subject, n ? `${n} 👥` : ""].filter(Boolean).join(" · ")}</p>
-                {(canEdit || canDel) && !locked && <p className="absolute end-1 top-1 flex gap-0.5">{canEdit && <button type="button" className="rounded-full bg-white/90 px-1 text-[10px]" onClick={() => onEdit?.(r)} data-testid="tt-edit">✎</button>}{canDel && <button type="button" className="rounded-full bg-white/90 px-1 text-[10px]" onClick={() => onDel?.(r)} data-testid="tt-del">🗑</button>}</p>}
+                {(canEdit || canDel) && !locked && <p className="absolute end-1 top-1 flex gap-0.5">{canEdit && <button type="button" className="rounded-full bg-white/90 px-1 text-[10px]" onClick={() => onEdit?.(r)} data-testid="tt-edit">✎</button>}{canDel && <button type="button" className="rounded-full bg-white/90 px-1 text-[10px]" onClick={() => onDel?.(r)} data-testid="tt-del">🗑</button>}{onLive && !locked && <button type="button" className="rounded-full bg-white/90 px-1 text-[10px]" onClick={() => onLive(r)} data-testid="tt-live-sched">🎥</button>}</p>}
               </div>
             );
           })}
@@ -252,6 +258,7 @@ const EMPTY: Draft = { title: "", tAuto: true, dows: [1], period: "", cls: "", s
 /** Full timetable: week grid (or list on phones), filters by phase / department / teacher / subject / class, and add / edit / delete per permission. */
 export function TimetableManager({ asAdmin, full = false }: { asAdmin: boolean; full?: boolean }) {
   const { tr } = useTr();
+  const { actor } = useLmsActor();
   const { d, err, load } = useTimetable(asAdmin);
   const { roster } = useRosterData(); // t433: student counts in cells
   const [f, setF] = useState({ phase: "", dept: "", teacher: "", subject: "", cls: "", sec: "" });
@@ -294,6 +301,20 @@ export function TimetableManager({ asAdmin, full = false }: { asAdmin: boolean; 
   const phaseOpts = scope?.phase ? [scope.phase] : uniq([...d.phases, ...d.timetable.map((r) => r.phase)]);
   const deptOpts = scope ? uniq(scope.depts) : uniq([...d.depts]);
   const ro = !!src; const canAdd = !pupil && d.acc.add && !ro, canEdit = !pupil && d.acc.edit && !ro, canDel = !pupil && d.acc.delete && !ro;
+  const canSchedLive = !pupil && !stu && !ro && (asAdmin || actor?.role === "admin" || !!(actor?.perms || []).includes("liveSchedule"));
+  const schedLive = (r: TtRow) => {
+    if (r.obs) return;
+    const t = seOf(r, d.times);
+    const qs = new URLSearchParams({ schedule: "1" });
+    if (r.cls) qs.set("cls", r.cls);
+    if (r.sections.length === 1) qs.set("section", r.sections[0]);
+    qs.set("date", dateOfDow(weekOf, r.dow));
+    if (t.s) qs.set("s", t.s);
+    if (t.e) qs.set("e", t.e);
+    const title = r.title || r.subject || "";
+    if (title) qs.set("title", title);
+    window.location.href = asAdmin ? `/admin?${qs.toString()}#live` : `/lms/live?${qs.toString()}`;
+  };
   const dSel = day ?? d.now.dow;
   const autoT = (cls: string, secs: string[]) => classLabel(cls, secs, classes.find((c) => c.name === cls)?.sections || []);
   const save = async () => {
@@ -322,7 +343,7 @@ export function TimetableManager({ asAdmin, full = false }: { asAdmin: boolean; 
   const cell = (r: TtRow) => (
     <div key={r.id} style={r.color ? { background: r.color } : undefined} className={`rounded-xl bg-gradient-to-br ${r.color ? "" : tone(r.subject)} px-2 py-1.5 text-start text-xs text-[#1b2f44]`} data-testid="tt-cell">
       <p className="font-extrabold" data-testid="tt-cell-time">{r.period ? `${pidLabel(r.period, tr)} · ` : ""}{span12(seOf(r, d.times))}</p><p className="text-base font-black leading-tight" dir="auto">{r.obs ? r.title : secTxt(r)}</p>{ttlOf(r) && <p className="text-base font-black leading-tight" dir="auto" data-testid="tt-title">{ttlOf(r)}</p>}<p className="opacity-80" dir="auto">{[r.teacherName, r.subject].filter(Boolean).join(" · ")}{studentsOf(r) ? ` · ${studentsOf(r)} 👥` : ""}</p>
-      {(canEdit || canDel) && !r.obs && <p className="mt-1 flex gap-1">{canEdit && <button type="button" className="rounded-full bg-white/70 px-1.5" onClick={() => { const t = seOf(r, d.times); setEd({ title: r.title || "", tAuto: !r.title, id: r.id, dows: [r.dow], period: r.period || "", cls: r.cls, sections: r.sections, teacher: r.teacher, subject: r.subject, phase: r.phase, dept: r.dept, same: true, s: t.s || "08:00", e: t.e || "08:45", per: {}, color: r.color || "" }); }} aria-label={tr("Edit", "تعديل")} data-testid="tt-edit">✎</button>}{canDel && <button type="button" className="rounded-full bg-white/70 px-1.5" onClick={() => del(r)} aria-label={tr("Delete", "حذف")} data-testid="tt-del">🗑</button>}</p>}
+      {(canEdit || canDel || canSchedLive) && !r.obs && <p className="mt-1 flex gap-1">{canEdit && <button type="button" className="rounded-full bg-white/70 px-1.5" onClick={() => { const t = seOf(r, d.times); setEd({ title: r.title || "", tAuto: !r.title, id: r.id, dows: [r.dow], period: r.period || "", cls: r.cls, sections: r.sections, teacher: r.teacher, subject: r.subject, phase: r.phase, dept: r.dept, same: true, s: t.s || "08:00", e: t.e || "08:45", per: {}, color: r.color || "" }); }} aria-label={tr("Edit", "تعديل")} data-testid="tt-edit">✎</button>}{canDel && <button type="button" className="rounded-full bg-white/70 px-1.5" onClick={() => del(r)} aria-label={tr("Delete", "حذف")} data-testid="tt-del">🗑</button>}{canSchedLive && <button type="button" className="rounded-full bg-white/70 px-1.5" onClick={() => schedLive(r)} aria-label={tr("Schedule live lesson", "جدولة حصة مباشرة")} data-testid="tt-live-sched">🎥</button>}</p>}
     </div>
   );
   const clsSections = classes.find((c) => c.name === ed?.cls)?.sections || [];
@@ -395,14 +416,14 @@ export function TimetableManager({ asAdmin, full = false }: { asAdmin: boolean; 
         </div>
       )}
       <TtTools d={d} rows={rows} asAdmin={asAdmin} studentsOf={studentsOf} filt={[f.phase, f.dept, d.teachers.find((t) => t.id === f.teacher)?.name || "", f.subject, f.cls].filter(Boolean).join(" · ")} />
-      {view === "today" && <GlassStrip rows={rows} times={d.times} now={d.now} dow={d.now.dow} testId="tt-today" onPick={ro && d.acc.observe ? (r) => askObs(r) : undefined} empty={tr("No events today 🌿 Enjoy your day!", "لا توجد أحداث اليوم 🌿 يومًا سعيدًا!")} canEdit={canEdit} canDel={canDel} onEdit={(r) => { const t = seOf(r, d.times); setEd({ title: r.title || "", tAuto: !r.title, id: r.id, dows: [r.dow], period: r.period || "", cls: r.cls, sections: r.sections, teacher: r.teacher, subject: r.subject, phase: r.phase, dept: r.dept, same: true, s: t.s || "08:00", e: t.e || "08:45", per: {}, color: r.color || "" }); }} onDel={del} />}
+      {view === "today" && <GlassStrip rows={rows} times={d.times} now={d.now} dow={d.now.dow} testId="tt-today" onPick={ro && d.acc.observe ? (r) => askObs(r) : undefined} empty={tr("No events today 🌿 Enjoy your day!", "لا توجد أحداث اليوم 🌿 يومًا سعيدًا!")} canEdit={canEdit} canDel={canDel} onLive={canSchedLive ? schedLive : undefined} onEdit={(r) => { const t = seOf(r, d.times); setEd({ title: r.title || "", tAuto: !r.title, id: r.id, dows: [r.dow], period: r.period || "", cls: r.cls, sections: r.sections, teacher: r.teacher, subject: r.subject, phase: r.phase, dept: r.dept, same: true, s: t.s || "08:00", e: t.e || "08:45", per: {}, color: r.color || "" }); }} onDel={del} />}
       {view === "day" && <div className="space-y-2" data-testid="tt-dayview">{rows.filter((r) => r.dow === dSel).sort((a, b) => (seOf(a, d.times).s || "").localeCompare(seOf(b, d.times).s || "")).map((r) => <div key={r.id} className="flex items-start gap-3"><span className="w-28 shrink-0 pt-2 text-sm font-extrabold">{r.period ? <span className="block text-[11px] opacity-70">{pidLabel(r.period, tr)}</span> : null}{h12(seOf(r, d.times).s)}<br />{h12(seOf(r, d.times).e)}</span><div className="flex-1">{cell(r)}{ro && d.acc.observe && <button type="button" className="mt-1 rounded-full bg-[#1b3a57] px-2 py-0.5 text-xs font-bold text-[#f5c542]" onClick={() => askObs(r)} data-testid="tt-obs-ask">👀 {tr("Request to observe", "طلب ملاحظة")}</button>}</div></div>)}{!rows.some((r) => r.dow === dSel) && <p className="py-6 text-center opacity-60">{tr("No lessons on this day.", "لا توجد حصص في هذا اليوم.")}</p>}</div>}
       {view === "week" && <>
       <div className="hidden overflow-x-auto md:block"><table className="w-full table-fixed border-separate border-spacing-1 text-sm" data-testid="tt-table"><thead><tr><th className="w-24 text-xs opacity-60">{tr("Time", "الوقت")}</th>{days.map((x) => <th key={x} className={`text-sm ${x === d.now.dow ? "text-emerald-600" : ""}`}>{tr(DOW[x][0], DOW[x][1])}</th>)}</tr></thead>
         <tbody>{slots.map((sl) => <tr key={sl.k}><td className="align-top text-xs font-bold opacity-70">{sl.label}</td>{days.map((x) => <td key={x} className={`align-top ${x === d.now.dow && sl.s && sl.s <= d.now.hm && d.now.hm < sl.e ? "rounded-xl ring-2 ring-emerald-400" : ""}`}><div className="space-y-1">{rows.filter((r) => r.dow === x && slotKey(r) === sl.k).map(cell)}</div></td>)}</tr>)}
         {!rows.length && <tr><td colSpan={days.length + 1} className="py-6 text-center opacity-60">{tr("No lessons yet.", "لا توجد حصص بعد.")}</td></tr>}</tbody></table></div>
       <div className="space-y-3 md:hidden" data-testid="tt-list">{days.map((x) => { const l = rows.filter((r) => r.dow === x); return l.length ? <section key={x}><h3 className={`mb-1 font-extrabold ${x === d.now.dow ? "text-emerald-600" : ""}`}>{tr(DOW[x][0], DOW[x][1])}</h3><div className="grid gap-1.5">{l.sort((a, b) => (seOf(a, d.times).s || a.period).localeCompare(seOf(b, d.times).s || b.period)).map((r) => <div key={r.id} className="flex items-start gap-2"><span className="w-16 shrink-0 pt-1 text-xs font-bold opacity-70">{r.period ? <span className="block">{pidLabel(r.period, tr)}</span> : null}{seOf(r, d.times).s || ""}</span><div className="flex-1">{cell(r)}</div></div>)}</div></section> : null; })}{!rows.length && <p className="py-6 text-center opacity-60">{tr("No lessons yet.", "لا توجد حصص بعد.")}</p>}</div></>}
-      {view === "timeline" && <DayTimeline rows={rows} times={d.times} now={d.now} dow={dSel} canEdit={canEdit} canDel={canDel} studentsOf={studentsOf} onEdit={(r) => { const t = seOf(r, d.times); setEd({ title: r.title || "", tAuto: !r.title, id: r.id, dows: [r.dow], period: r.period || "", cls: r.cls, sections: r.sections, teacher: r.teacher, subject: r.subject, phase: r.phase, dept: r.dept, same: true, s: t.s || "08:00", e: t.e || "08:45", per: {}, color: r.color || "" }); }} onDel={del} />}
+      {view === "timeline" && <DayTimeline rows={rows} times={d.times} now={d.now} dow={dSel} canEdit={canEdit} canDel={canDel} studentsOf={studentsOf} onLive={canSchedLive ? schedLive : undefined} onEdit={(r) => { const t = seOf(r, d.times); setEd({ title: r.title || "", tAuto: !r.title, id: r.id, dows: [r.dow], period: r.period || "", cls: r.cls, sections: r.sections, teacher: r.teacher, subject: r.subject, phase: r.phase, dept: r.dept, same: true, s: t.s || "08:00", e: t.e || "08:45", per: {}, color: r.color || "" }); }} onDel={del} />}
       {view === "year" && !stu && <YearCalendar rows={rows} times={d.times} weekOf={weekOf} canAdd={canAdd} onAdd={(iso) => { const dow = new Date(iso + "T12:00:00Z").getUTCDay(); setWeekOf(iso); setDay(dow); setEd({ ...EMPTY, teacher: asAdmin ? "" : d.teachers[0]?.id || "", dows: [dow] }); }} onPickDate={(iso) => { const dow = new Date(iso + "T12:00:00Z").getUTCDay(); setWeekOf(iso); setDay(dow); setView("timeline"); }} />}
       {!!d.shared?.length && <SharedList list={d.shared} times={d.times} asAdmin={asAdmin} onChange={load} />}
     </div>

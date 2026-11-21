@@ -8,6 +8,7 @@ import { TodayLessons } from "@/components/lms/Timetable";
 
 import { DlGate } from "@/components/lms/DlGate";
 import { LiveActivityBanner } from "@/components/lms/LiveActivity";
+import { LiveUpcomingBanner } from "@/components/lms/LiveSchedule";
 import { AnnFeed } from "@/components/lms/Messages";
 import { CriteriaChart, TrackerEntries } from "@/components/lms/QuranScores";
 import { useRouter } from "next/navigation";
@@ -157,6 +158,7 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
           {editTiles && <MenuEditor title={tr("Edit shortcuts", "تعديل الاختصارات")} items={TILES.map((t) => ({ id: t.id, label: tr(t.en, t.ar), icon: t.ic }))} pref={uiPrefs.tiles} defHidden={tileDefHidden} onSave={(p) => saveUi("tiles", p)} onClose={() => setEditTiles(false)} tr={tr} />}
           </>
         )}
+        {!staff && actor && !hwOnly && <LiveUpcomingBanner />}
         {!staff && actor && !hwOnly && <LiveActivityBanner />}
         {dash && !hwOnly && <AnnFeed />}
         {dash && !hwOnly && <DashCarousel items={((staff ? [
