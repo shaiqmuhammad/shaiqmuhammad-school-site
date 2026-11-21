@@ -5,7 +5,7 @@ import { createRoot } from "react-dom/client";
 
 /* Minimal typings for the IFrame API */
 type YTPlayer = { playVideo(): void; pauseVideo(): void; seekTo(s: number, a: boolean): void; getCurrentTime(): number; getDuration(): number; getPlayerState(): number; mute(): void; unMute(): void; isMuted(): boolean; destroy(): void };
-declare global { interface Window { YT?: { Player: new (el: HTMLElement, o: unknown) => YTPlayer; PlayerState: { PLAYING: number; PAUSED: number; ENDED: number } }; onYouTubeIframeAPIReady?: () => void } }
+declare global { interface Window { YT?: { Player: new (el: HTMLElement, o: unknown) => YTPlayer; PlayerState: { UNSTARTED: number; PLAYING: number; PAUSED: number; BUFFERING: number; CUED: number; ENDED: number } }; onYouTubeIframeAPIReady?: () => void } }
 
 let apiPromise: Promise<void> | null = null;
 function loadApi(): Promise<void> {
