@@ -62,23 +62,25 @@ export function isMailAddress(v: string): boolean {
 }
 
 export const MAIL_QUICK_PICKS: { id: string; email: string; en: string; ar: string }[] = [
-  { id: "alm-support", email: "support@almudarris.com", en: "Support · almudarris.com", ar: "الدعم · almudarris.com" },
-  { id: "alm-admin", email: "admin@almudarris.com", en: "Admin · almudarris.com", ar: "الإدارة · almudarris.com" },
-  { id: "alm-billing", email: "billings@almudarris.com", en: "Billing · almudarris.com", ar: "الفوترة · almudarris.com" },
-  { id: "icloud", email: "shaiqmuhammad@icloud.com", en: "iCloud", ar: "iCloud" },
   { id: "info", email: "info@shaiqmuhammad.com", en: "Info · shaiqmuhammad.com", ar: "المعلومات · shaiqmuhammad.com" },
   { id: "support", email: "support@shaiqmuhammad.com", en: "Support · shaiqmuhammad.com", ar: "الدعم · shaiqmuhammad.com" },
   { id: "contact", email: "contact@shaiqmuhammad.com", en: "Contact · shaiqmuhammad.com", ar: "التواصل · shaiqmuhammad.com" },
+  { id: "admin", email: "admin@shaiqmuhammad.com", en: "Admin · shaiqmuhammad.com", ar: "الإدارة · shaiqmuhammad.com" },
+  { id: "billing", email: "billings@shaiqmuhammad.com", en: "Billing · shaiqmuhammad.com", ar: "الفوترة · shaiqmuhammad.com" },
+  { id: "icloud", email: "shaiqmuhammad@icloud.com", en: "iCloud", ar: "iCloud" },
+  { id: "alm-support", email: "support@almudarris.com", en: "Support · almudarris.com", ar: "الدعم · almudarris.com" },
+  { id: "alm-admin", email: "admin@almudarris.com", en: "Admin · almudarris.com", ar: "الإدارة · almudarris.com" },
+  { id: "alm-billing", email: "billings@almudarris.com", en: "Billing · almudarris.com", ar: "الفوترة · almudarris.com" },
 ];
 
 export const MAIL_SENDER_TYPES = ["notify", "account", "billing", "reports", "contact"] as const;
 export type MailSenderType = (typeof MAIL_SENDER_TYPES)[number];
 export const MAIL_SENDER_DEFAULTS: Record<MailSenderType, string> = {
-  notify: "support@almudarris.com",
-  account: "admin@almudarris.com",
-  billing: "billings@almudarris.com",
-  reports: "billings@almudarris.com",
-  contact: "support@almudarris.com",
+  notify: "info@shaiqmuhammad.com",
+  account: "admin@shaiqmuhammad.com",
+  billing: "billings@shaiqmuhammad.com",
+  reports: "info@shaiqmuhammad.com",
+  contact: "contact@shaiqmuhammad.com",
 };
 export const MAIL_SENDER_LABELS: Record<MailSenderType, { en: string; ar: string }> = {
   notify: { en: "Notifications & reminders", ar: "الإشعارات والتذكيرات" },
