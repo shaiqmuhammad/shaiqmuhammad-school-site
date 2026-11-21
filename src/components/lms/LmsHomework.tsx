@@ -406,7 +406,7 @@ function Review({ s, asAdmin, reload, quran, qdata, regrade = false, onGraded, p
         <div key={i} className="text-sm" dir="auto"><b>{x.by}:</b> {x.text}{x.audio && <AudioClip id={x.audio} asAdmin={asAdmin} label={"🎙️ " + tr("Voice feedback", "تعليق صوتي")} testId="fb-clip" onDelete={async () => { if (confirm(tr("Delete this voice feedback?", "حذف هذا التعليق الصوتي؟"))) { await lmsApi.audioDelete(x.audio!, asAdmin).catch(() => undefined); reload(); } }} />}</div>
       ))}
       {s.versions && s.versions.length > 0 ? <VersionTimeline list={s.versions} audio={(id) => <AudioClip id={id} asAdmin={asAdmin} testId="version-clip" />} /> : s.attempts && s.attempts.length > 0 && <Attempts list={s.attempts} asAdmin={asAdmin} />}
-      <AudioRecorder big autoSave light label={tr("Record voice feedback (up to 3 minutes)", "سجّل تعليقًا صوتيًا (حتى 3 دقائق)")} savedText={tr("Saved — the student will hear it. Tap the mic to record another.", "تم الحفظ — سيسمعه الطالب. اضغط الميكروفون لتسجيل آخر.")} testId="rec-teacher" onSave={async (b) => { await lmsApi.audioUpload({ sub: s.id }, b, asAdmin); reload(); }} />
+      {quran && <AudioRecorder big autoSave light label={tr("Record voice feedback (up to 3 minutes)", "سجّل تعليقًا صوتيًا (حتى 3 دقائق)")} savedText={tr("Saved — the student will hear it. Tap the mic to record another.", "تم الحفظ — سيسمعه الطالب. اضغط الميكروفون لتسجيل آخر.")} testId="rec-teacher" onSave={async (b) => { await lmsApi.audioUpload({ sub: s.id }, b, asAdmin); reload(); }} />}
       {quran && qdata && (
         <div className="space-y-2">
           <button type="button" className={smallBtn} aria-pressed={marking} onClick={() => setMarking(!marking)} data-testid="hw-mark-mistakes">✏️ {marking ? tr("Done marking", "إنهاء التحديد") : tr(`Mark mistakes${mistakes.length ? ` (${mistakes.length})` : ""}`, `حدّد الأخطاء${mistakes.length ? ` (${mistakes.length})` : ""}`)}</button>
@@ -417,7 +417,7 @@ function Review({ s, asAdmin, reload, quran, qdata, regrade = false, onGraded, p
               : <AudioRecorder compact autoSave label={tr(`Record a voice note for verse ${m.ayah}`, `سجّل ملاحظة صوتية للآية ${m.ayah}`)} testId="mark-rec" onSave={async (b) => { const r = await lmsApi.audioUpload({ sub: s.id, mark: "1" }, b, asAdmin) as { id?: string }; if (!r?.id) return; const next = mistakes.map((x) => (x === m ? { ...x, audio: r.id } : x)); setMistakes(next); await lmsApi.saveMistakes(s.id, next, asAdmin); }} />}</li>)}</ul>}
         </div>
       )}
-      {!(quran && s.status === "submitted") && <>{/* t335: while grading Quran work, comments are composed in the grader and sent with Save grade */}
+      {quran && s.status !== "submitted" && <>{/* t335/t757: Quran-only quick comments. General homework uses Next Steps + stamps on the work page. */}
       <div className="flex flex-wrap gap-1" data-testid="hw-presets">
         {PRESETS.map(([en, ar]) => <button key={en} type="button" className="rounded-full bg-black/5 px-2.5 py-1 text-xs font-semibold hover:bg-sun/40 dark:bg-white/10" onClick={() => act({ comment: tr(en, ar) })} data-testid="hw-preset">{tr(en, ar)}</button>)}
       </div>

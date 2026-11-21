@@ -145,7 +145,7 @@ export function HwWorkPages({
         </p>
       )}
       {photos.length > 0 && (
-        <HwAnnotate photos={photos} annot={s.annot || null} codes={codes} edit={markEdit} asAdmin={asAdmin} subId={s.id} onSaved={() => reload()} onCodes={onCodes} pdfMeta={pdfMeta} />
+        <HwAnnotate photos={photos} annot={s.annot || null} codes={codes} edit={markEdit} asAdmin={asAdmin} subId={s.id} onSaved={() => reload()} onCodes={onCodes} pdfMeta={pdfMeta} showVoice={false} />
       )}
       {markEdit && pack && (packSet || []).length > 0 && (
         <div ref={host} className="pointer-events-none fixed start-[-4200px] top-0 z-[-1] w-[1280px] opacity-0" aria-hidden>
