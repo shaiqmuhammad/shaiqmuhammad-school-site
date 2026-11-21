@@ -2,9 +2,13 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   genericErrorBanner,
+  dedupeLivePtrs,
+  friendlyMediaPhrases,
   isRetryableSubError,
+  isSessionDisconnectError,
   matchRemoteTrack,
   mediaErrorDetail,
+  pruneLivePtrs,
   sfuResponseDetail,
   withErrorDetail,
 } from "./liveMediaError.ts";
@@ -111,5 +115,50 @@ describe("isRetryableSubError", () => {
     assert.equal(isRetryableSubError("mic: empty_track_error: no media yet"), true);
     assert.equal(isRetryableSubError("not_found_track_error"), true);
     assert.equal(isRetryableSubError("invalid_session_description: SDP cannot be accepted"), false);
+  });
+});
+
+describe("isSessionDisconnectError", () => {
+  it("matches Cloudflare session_error disconnected payloads", () => {
+    const er = lmsLike("sfu_publish", 200, {
+      errorCode: "session_error",
+      errorDescription: "Session appears to be disconnected. Please check if the PeerConnection is connected.",
+    });
+    assert.equal(isSessionDisconnectError(er), true);
+    assert.equal(isSessionDisconnectError(lmsLike("error", 406, { errorCode: "empty_track_error" })), false);
+  });
+});
+
+describe("friendly media banner", () => {
+  const tr = (en: string) => en;
+  it("keeps the detailed cause in parentheses", () => {
+    const er = lmsLike("sfu_publish", 200, {
+      errorCode: "session_error",
+      errorDescription: "Session appears to be disconnected. Please check if the PeerConnection is connected.",
+    });
+    const text = genericErrorBanner("Mic", mediaErrorDetail(er), friendlyMediaPhrases(tr));
+    assert.match(text, /Couldn't connect your Mic/);
+    assert.match(text, /session_error: Session appears to be disconnected/);
+  });
+});
+
+describe("dedupeLivePtrs and pruneLivePtrs", () => {
+  it("keeps one pointer per user and drops leftovers after leave", () => {
+    const stacked = [
+      { userId: "a", name: "A", on: true, x: 1 },
+      { userId: "a", name: "A", on: true, x: 2 },
+      { userId: "b", name: "B", on: true, x: 3 },
+      { userId: "b", name: "B", on: false, x: 3 },
+      { userId: "", name: "ghost", on: true, x: 0 },
+    ];
+    const deduped = dedupeLivePtrs(stacked);
+    assert.equal(deduped.length, 1);
+    assert.equal(deduped[0]?.userId, "a");
+    assert.equal(deduped[0]?.x, 2);
+    const pruned = pruneLivePtrs([
+      { userId: "a", name: "A", on: true },
+      { userId: "gone", name: "Old", on: true },
+    ], ["a"]);
+    assert.deepEqual(pruned.map((p) => p.userId), ["a"]);
   });
 });

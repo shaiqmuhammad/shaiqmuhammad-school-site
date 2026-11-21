@@ -113,3 +113,62 @@ export async function waitConnected(pc: ConnLike, ms = CONNECT_WAIT_MS) {
     pc.addEventListener("iceconnectionstatechange", on);
   });
 }
+
+
+export function isPcConnected(pc?: { connectionState?: string; iceConnectionState?: string } | null): boolean {
+  if (!pc) return false;
+  return pc.connectionState === "connected" || pc.iceConnectionState === "connected" || pc.iceConnectionState === "completed";
+}
+
+export function isPcConnecting(pc?: { connectionState?: string; iceConnectionState?: string } | null): boolean {
+  if (!pc) return false;
+  return pc.connectionState === "connecting" || pc.iceConnectionState === "checking";
+}
+
+/** True when the PeerConnection cannot be used for a new tracks/new (or never existed). */
+export function isPcDead(pc?: { connectionState?: string; iceConnectionState?: string } | null): boolean {
+  if (!pc) return true;
+  const c = pc.connectionState || "";
+  const ice = pc.iceConnectionState || "";
+  return c === "closed" || c === "failed" || c === "disconnected" || ice === "failed" || ice === "disconnected" || ice === "closed";
+}
+
+/** Recreate the SFU session unless the PC is already connected or currently connecting. */
+export function shouldRefreshSession(
+  pc?: { connectionState?: string; iceConnectionState?: string } | null,
+  sessionId?: string,
+): boolean {
+  if (!pc || !sessionId) return true;
+  if (isPcConnected(pc) || isPcConnecting(pc)) return false;
+  return true;
+}
+
+export function hasTurnServer(servers: IceServerLike[] | undefined): boolean {
+  for (const s of servers || []) {
+    for (const u of Array.isArray(s.urls) ? s.urls : [s.urls]) {
+      if (/^turns?:/i.test(String(u))) return true;
+    }
+  }
+  return false;
+}
+
+export function isMobileUa(ua: string): boolean {
+  return /iPhone|iPad|iPod|Android/i.test(ua || "");
+}
+
+/** PeerConnection config: Cloudflare STUN plus worker TURN, with a mobile relay fallback. */
+export function icePeerConfig(servers: IceServerLike[], relay = false): {
+  iceServers: IceServerLike[];
+  bundlePolicy: "max-bundle";
+  iceCandidatePoolSize: number;
+  iceTransportPolicy?: "relay" | "all";
+} {
+  const iceServers = mergeIceServers(servers);
+  const useRelay = relay && hasTurnServer(iceServers);
+  return {
+    iceServers,
+    bundlePolicy: "max-bundle",
+    iceCandidatePoolSize: 2,
+    ...(useRelay ? { iceTransportPolicy: "relay" as const } : {}),
+  };
+}

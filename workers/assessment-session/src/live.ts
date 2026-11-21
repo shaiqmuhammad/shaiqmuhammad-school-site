@@ -222,9 +222,16 @@ export class LiveRoom extends DurableObject<LiveEnv> {
   private presence(ev: "join" | "leave", m: { id: string; name: string }) {
     this.broadcast({ t: "presence", ev, userId: m.id, name: m.name });
   }
+  private clearPtr(userId: string) {
+    if (!this.ptrs.has(userId)) return;
+    this.ptrs.delete(userId);
+    this.broadcast({ t: "ptr", ptr: { userId, on: false } });
+  }
+
   /** Remove an attendee (or mark the host offline). Returns the member if the roster changed. */
   private dropMember(userId: string): LiveMember | null {
     if (!this.state) return null;
+    this.clearPtr(userId);
     this.state.waiting = this.state.waiting.filter((w) => w.id !== userId);
     const m = this.member(userId);
     if (!m) return null;
@@ -250,6 +257,7 @@ export class LiveRoom extends DurableObject<LiveEnv> {
           m.present = false;
           m.seenAt = now;
           this.state.pubs = this.state.pubs.filter((p) => p.userId !== m.id);
+          this.clearPtr(m.id);
           left.push(m);
         }
         if (sockets && m.hb) {
