@@ -2,13 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { clearServerSession, getServerSession } from "@/lib/adminServer";
-import { lmsApi, lmsRenew, lmsSession, viewAs, type Actor, lmsRestoreRemembered } from "@/lib/lms";
+import { lmsApi, lmsRenew, lmsSession, viewAs, type Actor, lmsRestoreRemembered, PERMS } from "@/lib/lms";
 import { useI18n } from "@/lib/i18n";
 import { LANG_STORAGE_KEY } from "@/lib/langStorage";
 /** Subjects delivered in Arabic (they share another subject's curriculum, shown in Arabic by default). */
 export const ARABIC_SUBJECTS = ["Islamic A"];
 
-export const ADMIN_ACTOR: Actor = { id: "admin", role: "admin", name: "Admin", cls: "", perms: ["assign", "review", "manageUsers", "viewAll"] };
+export const ADMIN_ACTOR: Actor = { id: "admin", role: "admin", name: "Admin", cls: "", perms: [...PERMS] };
 
 /** The LMS (/lms) user: the signed-in student/teacher only. The admin session never counts here (Admin has its own pages). */
 export function useLmsActor(): { actor: Actor | null; asAdmin: false; ready: boolean; adminElsewhere: boolean } {

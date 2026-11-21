@@ -7,7 +7,8 @@ import { NeedLogin } from "@/components/lms/LmsDashboard";
 import { ADMIN_ACTOR, useLmsActor, useTr } from "@/components/lms/useLms";
 import { getServerSession } from "@/lib/adminServer";
 import { LiveSfu } from "@/lib/liveSfu";
-import { lmsApi, lmsErrorText, lmsSession, liveWsUrl, type LiveChat, type LiveRoomInfo, type LiveSnap } from "@/lib/lms";
+import { LiveSchedulePanel, GuestJoin } from "@/components/lms/LiveSchedule";
+import { lmsApi, lmsErrorText, lmsSession, liveGuest, liveWsUrl, type LiveChat, type LivePerms, type LiveRoomInfo, type LiveSnap } from "@/lib/lms";
 
 type Phase = "lobby" | "waiting" | "in" | "ended";
 
@@ -44,15 +45,18 @@ function Btn({ onClick, label, icon, on, danger, disabled, testid }: { onClick: 
   );
 }
 
-export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false }: { embedded?: boolean; asAdmin?: boolean } = {}) {
+export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, guestLink = false }: { embedded?: boolean; asAdmin?: boolean; guestLink?: boolean } = {}) {
   const { tr, lang } = useTr();
   const lms = useLmsActor();
   const [adminSess, setAdminSess] = useState(false);
   useEffect(() => { setAdminSess(!!getServerSession()); }, []);
   const asAdmin = forceAdmin || (!lms.actor && adminSess);
-  const actor = asAdmin ? ADMIN_ACTOR : lms.actor;
-  const ready = lms.ready || adminSess || forceAdmin;
-  const adminElsewhere = lms.adminElsewhere && !asAdmin;
+  const [guest, setGuest] = useState<ReturnType<typeof liveGuest>>(null);
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => { setGuest(liveGuest()); setHydrated(true); }, []);
+  const actor = asAdmin ? ADMIN_ACTOR : (lms.actor || (guest?.token ? { id: guest.id, role: "student" as const, name: guest.name, cls: "", perms: [] as string[], guest: true } : null));
+  const ready = lms.ready || adminSess || forceAdmin || !!guest?.token;
+  const adminElsewhere = lms.adminElsewhere && !asAdmin && !guest?.token;
   const liveHref = (id?: string) => {
     if (embedded) return id ? `/admin?room=${encodeURIComponent(id)}#live` : "/admin#live";
     return id ? `/lms/live?room=${encodeURIComponent(id)}` : "/lms/live";
@@ -60,6 +64,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false }
   const [phase, setPhase] = useState<Phase>("lobby");
   const [rooms, setRooms] = useState<LiveRoomInfo[]>([]);
   const [canStart, setCanStart] = useState(false);
+  const [livePerms, setLivePerms] = useState<LivePerms>({ run: false, schedule: false, schedStudent: false, schedClass: false, shareLink: false, camMic: false, screenShare: false });
   const [sfuOn, setSfuOn] = useState(true);
   const [options, setOptions] = useState<{ cls: string; section: string }[]>([]);
   const [groups, setGroups] = useState<{ id: string; name: string }[]>([]);
@@ -94,13 +99,15 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false }
     setRooms(r.rooms);
     setCanStart(r.canStart);
     setSfuOn(r.sfu);
+    if (r.perms) setLivePerms(r.perms);
+    else if (asAdmin) setLivePerms({ run: true, schedule: true, schedStudent: true, schedClass: true, shareLink: true, camMic: true, screenShare: true });
     setOptions(r.options || []);
     setGroups(r.groups || []);
     if (!pick && r.options?.[0]) setPick(r.options[0].section ? `${r.options[0].cls}|${r.options[0].section}` : r.options[0].cls);
   }, [pick, asAdmin]);
 
   useEffect(() => {
-    if (!ready || !actor) return;
+    if (!ready || !actor || actor.guest) return;
     loadList().catch((e) => setErr(lmsErrorText(e, tr)));
   }, [ready, actor, loadList, tr]);
 
@@ -139,7 +146,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false }
   }, [selfId]);
 
   const connectWs = useCallback((roomId: string) => {
-    const tok = lmsSession()?.token || getServerSession()?.token;
+    const tok = lmsSession()?.token || getServerSession()?.token || liveGuest()?.token;
     if (!tok) return;
     closeWs();
     const ws = new WebSocket(liveWsUrl(tok, roomId));
@@ -291,7 +298,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false }
   }
 
   async function toggleShare() {
-    if (!sfuRef.current || !isHost) return;
+    if (!sfuRef.current || (!isHost && !me?.shareAllowed)) return;
     if (shareOn) {
       shareRef.current?.getTracks().forEach((t) => t.stop());
       shareRef.current = null;
@@ -349,7 +356,13 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false }
   const screenRemote = screenKey ? remotes[screenKey] : undefined;
   const mainScreen = shareStream || screenRemote;
 
-  if (ready && !actor) return <NeedLogin adminElsewhere={adminElsewhere} />;
+  if (guestLink) {
+    const tok = hydrated && typeof window !== "undefined" ? (new URLSearchParams(window.location.search).get("t") || "") : "";
+    if (!hydrated) return <p className="p-8 text-center font-bold opacity-70">…</p>;
+    return <GuestJoin token={tok} />;
+  }
+
+  if (hydrated && ready && !actor) return <NeedLogin adminElsewhere={adminElsewhere} />;
 
   const body = (
       <div className={embedded ? "flex w-full flex-1 flex-col gap-4" : "mx-auto flex w-full max-w-6xl flex-1 flex-col gap-4 px-3 py-4 sm:px-6"} data-testid="live-lesson" dir={lang === "ar" ? "rtl" : "ltr"}>
@@ -394,6 +407,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false }
             {!canStart && actor?.role === "teacher" && (
               <p className="rounded-3xl bg-amber-100 px-4 py-3 font-bold text-amber-900 dark:bg-amber-900/40 dark:text-amber-100" data-testid="live-no-perm">{tr("Your admin hasn't switched on “Run live lessons” for you yet.", "لم يفعّل المسؤول صلاحية «تشغيل الدروس المباشرة» لك بعد.")}</p>
             )}
+            <LiveSchedulePanel asAdmin={asAdmin} perms={asAdmin ? { run: true, schedule: true, schedStudent: true, schedClass: true, shareLink: true, camMic: true, screenShare: true } : livePerms} onStart={(id) => enter(id)} busy={busy} />
             <section>
               <h2 className="mb-3 text-lg font-black">{tr("Live now", "مباشر الآن")}</h2>
               {!rooms.length ? <p className="rounded-3xl bg-black/5 px-4 py-6 text-center font-semibold opacity-70 dark:bg-white/10">{tr("No live lessons for your class right now.", "لا توجد حصص مباشرة لصفك الآن.")}</p> : (
@@ -464,7 +478,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false }
             <div className={`grid flex-1 gap-3 ${mainScreen ? "lg:grid-cols-3" : "sm:grid-cols-2 lg:grid-cols-3"}`}>
               {mainScreen && (
                 <div className="lg:col-span-2">
-                  <Tile label={tr("Teacher's screen", "شاشة المعلم")} stream={mainScreen} muted big />
+                  <Tile label={tr("Shared screen", "الشاشة المشاركة")} stream={mainScreen} muted big />
                 </div>
               )}
               {room.members.filter((m) => m.role === "teacher").map((m) => (
@@ -478,7 +492,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false }
             <div className="sticky bottom-2 z-20 flex flex-wrap justify-center gap-2 rounded-3xl bg-white/90 p-2 shadow-lg ring-1 ring-black/10 backdrop-blur dark:bg-slate-900/90">
               <Btn testid="live-cam" icon={camOn ? "📷" : "🚫"} label={tr("Camera", "الكاميرا")} on={camOn} disabled={!isHost && !me?.camAllowed && !camOn} onClick={() => toggleCam().catch((e) => setErr(lmsErrorText(e, tr)))} />
               <Btn testid="live-mic" icon={micOn ? "🎤" : "🔇"} label={tr("Mic", "الميكروفون")} on={micOn} disabled={!isHost && !me?.micAllowed && !micOn} onClick={() => toggleMic().catch((e) => setErr(lmsErrorText(e, tr)))} />
-              {isHost && <Btn testid="live-share" icon="🖥️" label={tr("Share", "مشاركة")} on={shareOn} onClick={() => toggleShare().catch((e) => setErr(lmsErrorText(e, tr)))} />}
+              {(isHost || me?.shareAllowed) && <Btn testid="live-share" icon="🖥️" label={tr("Share", "مشاركة")} on={shareOn} onClick={() => toggleShare().catch((e) => setErr(lmsErrorText(e, tr)))} />}
               <Btn testid="live-hand" icon="✋" label={tr("Hand", "يد")} on={hand} onClick={() => toggleHand().catch(() => undefined)} />
               <Btn testid="live-chat-btn" icon="💬" label={tr("Chat", "دردشة")} on={showChat} onClick={() => setShowChat(true)} />
               <Btn testid="live-leave" icon="🚪" label={tr("Leave", "خروج")} danger onClick={leave} />
@@ -500,8 +514,9 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false }
                     <span className="font-bold">{m.name}{m.role === "teacher" ? ` · ${tr("Teacher", "المعلم")}` : ""} {m.hand ? "✋" : ""} {!m.present ? tr("(away)", "(غادر)") : ""}</span>
                     {isHost && m.role !== "teacher" && (
                       <span className="flex gap-1 text-xs">
-                        <button type="button" className={`rounded-full px-2 py-1 font-bold ${m.camAllowed ? "bg-emerald-200" : "bg-white dark:bg-slate-800"}`} onClick={() => lmsApi.livePerm(room.id, m.id, !m.camAllowed, undefined, asAdmin)}>{tr("Cam", "كاميرا")}</button>
-                        <button type="button" className={`rounded-full px-2 py-1 font-bold ${m.micAllowed ? "bg-emerald-200" : "bg-white dark:bg-slate-800"}`} onClick={() => lmsApi.livePerm(room.id, m.id, undefined, !m.micAllowed, asAdmin)}>{tr("Mic", "ميكروفون")}</button>
+                        {(asAdmin || livePerms.camMic) && <button type="button" className={`rounded-full px-2 py-1 font-bold ${m.camAllowed ? "bg-emerald-200" : "bg-white dark:bg-slate-800"}`} onClick={() => lmsApi.livePerm(room.id, m.id, !m.camAllowed, undefined, asAdmin)}>{tr("Cam", "كاميرا")}</button>}
+                        {(asAdmin || livePerms.camMic) && <button type="button" className={`rounded-full px-2 py-1 font-bold ${m.micAllowed ? "bg-emerald-200" : "bg-white dark:bg-slate-800"}`} onClick={() => lmsApi.livePerm(room.id, m.id, undefined, !m.micAllowed, asAdmin)}>{tr("Mic", "ميكروفون")}</button>}
+                        {(asAdmin || livePerms.screenShare) && <button type="button" className={`rounded-full px-2 py-1 font-bold ${m.shareAllowed ? "bg-emerald-200" : "bg-white dark:bg-slate-800"}`} onClick={() => lmsApi.livePerm(room.id, m.id, undefined, undefined, asAdmin, !m.shareAllowed)}>{tr("Share", "مشاركة")}</button>}
                       </span>
                     )}
                   </li>

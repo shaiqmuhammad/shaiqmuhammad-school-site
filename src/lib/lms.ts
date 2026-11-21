@@ -26,7 +26,7 @@ export type MpAcc = Record<MpKey, boolean>;
 export type MpPart = Partial<Record<MpMod, Partial<MpAcc>>>;
 export type MpCfg = { global: MpPart; roles: Record<string, MpPart>; subjects: Record<string, MpPart> };
 export const mpShown = (a: Actor | null | undefined, m: MpMod) => !a?.mods || !!a.mods[m]?.view;
-export type Actor = { id: string; role: Role | "admin"; name: string; nameAr?: string; cls: string; perms: string[]; scope?: string[]; viewAs?: boolean; subj?: string[]; subjects?: string[]; subject?: string; arabic?: boolean; mods?: Record<MpMod, MpAcc> };
+export type Actor = { id: string; role: Role | "admin"; name: string; nameAr?: string; cls: string; perms: string[]; scope?: string[]; viewAs?: boolean; subj?: string[]; subjects?: string[]; subject?: string; arabic?: boolean; mods?: Record<MpMod, MpAcc>; guest?: boolean };
 export type Slide = { title: string; text: string; image: string };
 export type QuranData = { surah: number; from: number; to: number; reciter: string; notes: string; translit?: boolean; translation?: boolean; extra?: string; memorise?: boolean; memoAudio?: boolean; /** 0 = unlimited, 1 = one (a return allows one more), n = that many submits */ attemptLimit?: number; pa?: boolean };
 export type GeneralData = { slides: Slide[]; question: string; attemptLimit?: number; topic?: string; pa?: boolean };
@@ -107,7 +107,8 @@ export type MapRow = { id: string; name: string; cls: string; section: string; c
 
 /** Student-account switches. Legacy "Manage students" with none of the stu:* flags set means all four. */
 export const stuUi = (perms: string[], op: "view" | "add" | "edit" | "block" | "delete") => { if (!perms.includes("manageUsers")) return false; const has = perms.filter((p) => p.startsWith("stu:")); return has.length ? has.includes(`stu:${op}`) : true; };
-export const PERMS = ["assign", "review", "manageUsers", "viewAll", "shareCorrect", "viewAsStudent", "pptDownload", "hwMarkView", "hwMarkCorrect", "hwShare", "liveLesson"] as const;
+export const PERMS = ["assign", "review", "manageUsers", "viewAll", "shareCorrect", "viewAsStudent", "pptDownload", "hwMarkView", "hwMarkCorrect", "hwShare", "liveLesson", "liveSchedule", "liveSchedStudent", "liveSchedClass", "liveShareLink", "liveCamMic", "liveScreenShare"] as const;
+export const LIVE_PERMS = ["liveLesson", "liveSchedule", "liveSchedStudent", "liveSchedClass", "liveShareLink", "liveCamMic", "liveScreenShare"] as const;
 
 export class LmsError extends Error {
   data?: Record<string, unknown>;
@@ -217,8 +218,30 @@ function authHeaders(asAdmin = false): Record<string, string> {
 }
 
 /** Admin pages send ONLY the admin token; the LMS (/lms) sends ONLY the student/teacher token. Never mixed. */
+const LIVE_GUEST_KEY = "sm_live_guest_v1";
+export type LiveGuest = { token: string; id: string; name: string };
+export function liveGuest(): LiveGuest | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(LIVE_GUEST_KEY) || "";
+    if (!raw) return null;
+    if (raw.startsWith("lg_")) return { token: raw, id: "", name: "Guest" };
+    return JSON.parse(raw) as LiveGuest;
+  } catch { return null; }
+}
+export function liveGuestToken(): string { return liveGuest()?.token || ""; }
+export function setLiveGuestToken(t: string) {
+  if (!t) { setLiveGuest(null); return; }
+  const cur = liveGuest();
+  setLiveGuest({ token: t, id: cur?.id || "", name: cur?.name || "Guest" });
+}
+export function setLiveGuest(g: LiveGuest | null) {
+  if (typeof window === "undefined") return;
+  try { if (g?.token) sessionStorage.setItem(LIVE_GUEST_KEY, JSON.stringify(g)); else sessionStorage.removeItem(LIVE_GUEST_KEY); } catch { /* */ }
+}
 function bearer(asAdmin = false): string | null {
-  return asAdmin ? (getServerSession()?.token ?? null) : (lmsSession()?.token ?? null);
+  if (asAdmin) return getServerSession()?.token ?? null;
+  return lmsSession()?.token || liveGuestToken() || null;
 }
 
 async function call<T>(action: string, body?: unknown, opts: { asAdmin?: boolean; query?: Record<string, string> } = {}): Promise<T> {
@@ -235,7 +258,7 @@ async function call<T>(action: string, body?: unknown, opts: { asAdmin?: boolean
     throw new LmsError("network", 0);
   }
   const data = (await res.json().catch(() => ({}))) as T & { error?: string };
-  if (res.status === 401 && !opts.asAdmin && !viewAs() && lmsSession() && !["login", "qr-login", "refresh"].includes(action)) {
+  if (res.status === 401 && !opts.asAdmin && !viewAs() && lmsSession() && !liveGuestToken() && !["login", "qr-login", "refresh"].includes(action)) {
     // The session was ended on the server (blocked account / PIN changed elsewhere / expired): back to the right login, then return here.
     lmsSignOut();
     try {
@@ -269,7 +292,9 @@ export const hwRemind = (hw: string, confirm: boolean, asAdmin = false) => call<
 
 
 export type LiveRoomInfo = { id: string; title: string; cls: string; section: string; teacherId: string; teacherName: string; created: number; mine: boolean };
-export type LiveMember = { id: string; name: string; role: "teacher" | "student"; camAllowed: boolean; micAllowed: boolean; hand: boolean; present: boolean };
+export type LivePerms = { run: boolean; schedule: boolean; schedStudent: boolean; schedClass: boolean; shareLink: boolean; camMic: boolean; screenShare: boolean };
+export type LiveSched = { id: string; title: string; starts: number; duration: number; ends: number; cls: string; section: string; groupId: string; studentId: string; studentName?: string; packId: string; packTitle: string; roomId: string; status: string; teacherId: string; teacherName: string; hasLink: boolean; linkToken?: string; mine: boolean };
+export type LiveMember = { id: string; name: string; role: "teacher" | "student"; camAllowed: boolean; micAllowed: boolean; shareAllowed?: boolean; hand: boolean; present: boolean };
 export type LiveWait = { id: string; name: string; at: number };
 export type LiveChat = { id: string; from: string; name: string; text: string; at: number };
 export type LivePub = { userId: string; sessionId: string; tracks: string[] };
@@ -463,7 +488,7 @@ export const lmsApi = {
     return { url: URL.createObjectURL(blob), type: blob.type };
   },
 
-  liveList: (asAdmin = false) => call<{ rooms: LiveRoomInfo[]; canStart: boolean; sfu: boolean; options: { cls: string; section: string }[]; groups: { id: string; name: string }[] }>("live-list", undefined, { asAdmin }),
+  liveList: (asAdmin = false) => call<{ rooms: LiveRoomInfo[]; canStart: boolean; sfu: boolean; options: { cls: string; section: string }[]; groups: { id: string; name: string }[]; perms?: LivePerms }>("live-list", undefined, { asAdmin }),
   liveStart: (b: { title?: string; cls?: string; section?: string; groupId?: string }, asAdmin = false) => call<{ id: string; existing?: boolean }>("live-start", b, { asAdmin }),
   liveGet: (id: string, asAdmin = false) => call<{ room: LiveSnap }>("live-get", { id }, { asAdmin }),
   liveJoin: (id: string, asAdmin = false) => call<{ status: "in" | "waiting" | "ended" | "full"; room?: LiveSnap }>("live-join", { id }, { asAdmin }),
@@ -471,13 +496,20 @@ export const lmsApi = {
   liveDeny: (id: string, userId: string, asAdmin = false) => call<{ ok: boolean }>("live-deny", { id, userId }, { asAdmin }),
   liveLeave: (id: string, asAdmin = false) => call<{ ok: true }>("live-leave", { id }, { asAdmin }),
   liveEnd: (id: string, asAdmin = false) => call<{ ok: boolean }>("live-end", { id }, { asAdmin }),
-  livePerm: (id: string, userId: string, cam?: boolean, mic?: boolean, asAdmin = false) => call<{ ok: boolean }>("live-perm", { id, userId, cam, mic }, { asAdmin }),
+  livePerm: (id: string, userId: string, cam?: boolean, mic?: boolean, asAdmin = false, share?: boolean) => call<{ ok: boolean }>("live-perm", { id, userId, cam, mic, share }, { asAdmin }),
   liveRaise: (id: string, on: boolean, asAdmin = false) => call<{ ok: boolean }>("live-raise", { id, on }, { asAdmin }),
   liveChat: (id: string, text: string, asAdmin = false) => call<{ ok: boolean }>("live-chat", { id, text }, { asAdmin }),
   livePub: (id: string, sessionId: string, tracks: string[], asAdmin = false) => call<{ ok: boolean }>("live-pub", { id, sessionId, tracks }, { asAdmin }),
   liveUnpub: (id: string, tracks: string[], asAdmin = false) => call<{ ok: true }>("live-unpub", { id, tracks }, { asAdmin }),
   liveSfu: (id: string, body: Record<string, unknown>, asAdmin = false) => call<Record<string, unknown>>("live-sfu", { id, ...body }, { asAdmin }),
   liveIce: (id: string, asAdmin = false) => call<{ iceServers: RTCIceServer[] }>("live-ice", { id }, { asAdmin }),
+  liveSchedList: (asAdmin = false) => call<{ items: LiveSched[]; packs: { id: string; title: string }[]; perms: LivePerms; options: { cls: string; section: string }[]; groups: { id: string; name: string }[] }>("live-sched-list", undefined, { asAdmin }),
+  liveSchedSave: (b: { id?: string; title?: string; starts: number; duration: number; cls?: string; section?: string; groupId?: string; studentId?: string; packId?: string }, asAdmin = false) => call<{ id: string; item: LiveSched }>("live-sched-save", b, { asAdmin }),
+  liveSchedCancel: (id: string, asAdmin = false) => call<{ ok: true }>("live-sched-cancel", { id }, { asAdmin }),
+  liveSchedStart: (id: string, asAdmin = false) => call<{ id: string; existing?: boolean }>("live-sched-start", { id }, { asAdmin }),
+  liveSchedLink: (id: string, off = false, asAdmin = false) => call<{ ok: true; token?: string }>("live-sched-link", { id, off }, { asAdmin }),
+  liveLinkInfo: (t: string) => call<{ ok: true; title: string; teacherName: string; starts: number; ends: number; status: string; roomId: string; canJoin: boolean }>("live-link-info", undefined, { query: { t } }),
+  liveLinkJoin: (t: string, name: string) => call<{ ok: true; token: string; guestId: string; name: string; schedId: string; roomId: string; canJoin: boolean; title: string }>("live-link-join", { token: t, name }),
   exportAll: (asAdmin = false) => call<{ exportedAt: number; homework: Homework[]; subs: (Submission & { hw: string; student: string })[]; users: { id: string; username: string; name: string; role: string; cls: string }[]; tracker: (TrackerRow & { student: string; hw: string })[] }>("export", undefined, { asAdmin }),
 };
 
@@ -502,6 +534,21 @@ export function lmsErrorText(e: unknown, tr: (en: string, ar: string) => string)
     empty: ["Write something first.", "اكتب شيئًا أولًا."],
     not_your_class: ["That student is not in your classes.", "هذا الطالب ليس في صفوفك."],
     no_permission: ["Your admin hasn't switched on “Run live lessons” for you yet.", "لم يفعّل المسؤول صلاحية «تشغيل الدروس المباشرة» لك بعد."],
+    no_schedule: ["Your admin hasn't switched on “Schedule live lessons” for you yet.", "لم يفعّل المسؤول صلاحية «جدولة الدروس المباشرة» لك بعد."],
+    no_sched_student: ["Your admin hasn't switched on scheduling with individual students.", "لم يفعّل المسؤول جدولة الحصة مع طالب فردي."],
+    no_sched_class: ["Your admin hasn't switched on scheduling with a class or section.", "لم يفعّل المسؤول جدولة الحصة مع صف أو شعبة."],
+    no_share_link: ["Your admin hasn't switched on shareable join links.", "لم يفعّل المسؤول روابط الانضمام القابلة للمشاركة."],
+    no_cam_mic: ["Your admin hasn't switched on allowing student camera and mic.", "لم يفعّل المسؤول السماح بكاميرا وميكروفون الطلاب."],
+    no_screen_share: ["Your admin hasn't switched on student screen share.", "لم يفعّل المسؤول مشاركة شاشة الطلاب."],
+    pick_audience: ["Choose a class, section, group or student for this live lesson.", "اختر صفًا أو شعبة أو مجموعة أو طالبًا لهذه الحصة المباشرة."],
+    bad_time: ["Pick a future date and time for the live lesson (Dubai time).", "اختر تاريخًا ووقتًا قادمين للحصة المباشرة (بتوقيت دبي)."],
+    already_started: ["This live lesson has already started.", "بدأت هذه الحصة المباشرة بالفعل."],
+    not_yet: ["It's too early (or too late) to start this scheduled lesson.", "مبكر جدًا أو متأخر جدًا لبدء هذه الحصة المجدولة."],
+    bad_link: ["This join link isn't valid. Ask your teacher for a new one.", "رابط الانضمام غير صالح. اطلب رابطًا جديدًا من معلمك."],
+    revoked: ["This join link was switched off.", "تم إيقاف رابط الانضمام."],
+    need_name: ["Please type your name to join.", "اكتب اسمك للانضمام."],
+    pack_not_found: ["That lesson pack couldn't be found.", "تعذر العثور على حزمة الدرس."],
+    too_many: ["You already have many upcoming live lessons. Cancel one first.", "لديك العديد من الحصص المباشرة القادمة. ألغِ واحدة أولًا."],
     sfu_not_configured: ["Live video isn't set up yet. You can still use chat and the waiting room.", "فيديو الحصة غير مُعد بعد. يمكنك استخدام الدردشة وغرفة الانتظار."],
     pick_class: ["Choose a class to start the live lesson.", "اختر صفًا لبدء الحصة المباشرة."],
     sfu_session: ["Could not start the video connection. Try again.", "تعذر بدء اتصال الفيديو. حاول مرة أخرى."],
