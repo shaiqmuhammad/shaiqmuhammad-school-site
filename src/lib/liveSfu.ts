@@ -3,8 +3,9 @@
 /** Browser helper for Cloudflare Realtime SFU (publish + subscribe). App Secret stays on the worker. */
 import { lmsApi, type LivePub } from "@/lib/lms";
 import { isMaxBundleError, sdpDesc } from "@/lib/liveSdp";
-import { ICE_RETRY_WAIT_MS, ICE_WAIT_MS, iceSummary, waitIce } from "@/lib/liveIceWait";
+import { ICE_RETRY_WAIT_MS, ICE_WAIT_MS, iceSummary, waitConnected, waitIce } from "@/lib/liveIceWait";
 import { liveMediaLog as mediaLog } from "@/lib/liveMediaLog";
+import { isRetryableSubError, matchRemoteTrack, sfuResponseDetail, type RemoteTrackRow } from "@/lib/liveMediaError";
 
 export { ICE_WAIT_MS, waitIce };
 
@@ -15,7 +16,16 @@ function sfuField<T = unknown>(r: Record<string, unknown>, key: string): T | und
 }
 
 type RemoteFn = (key: string, stream: MediaStream | null) => void;
-type TrackRow = { mid?: string; sessionId?: string; trackName?: string; errorCode?: string };
+type TrackRow = RemoteTrackRow;
+
+async function waitForMid(trans: RTCRtpTransceiver, ms = 800): Promise<string> {
+  const start = Date.now();
+  while (Date.now() - start < ms) {
+    if (trans.mid != null && String(trans.mid) !== "") return String(trans.mid);
+    await new Promise((res) => setTimeout(res, 20));
+  }
+  throw new Error("sfu_publish: transceiver mid was not assigned after setLocalDescription");
+}
 
 export class LiveSfu {
   private roomId: string;
@@ -35,10 +45,14 @@ export class LiveSfu {
   private pendingOntrack = new Map<string, RTCTrackEvent>();
   private pubQ: Promise<void> = Promise.resolve();
   private recvQ: Promise<void> = Promise.resolve();
+  private pubSetup?: Promise<void>;
+  private recvSetup?: Promise<void>;
   private warm?: Promise<void>;
   private lastPubs: LivePub[] = [];
   private pubRetries = 0;
   private recvRetries = 0;
+  private subRetries = 0;
+  private subRetryTimer?: number;
   constructor(roomId: string, selfId: string, ice: RTCIceServer[], onRemote: RemoteFn, asAdmin = false) {
     this.roomId = roomId;
     this.selfId = selfId;
@@ -62,6 +76,28 @@ export class LiveSfu {
 
   private call(body: Record<string, unknown>) {
     return lmsApi.liveSfu(this.roomId, body, this.asAdmin);
+  }
+
+  private tracksOf(r: Record<string, unknown>): TrackRow[] {
+    return (Array.isArray(sfuField(r, "tracks")) ? sfuField(r, "tracks") : Array.isArray(r.tracks) ? r.tracks : []) as TrackRow[];
+  }
+
+  private sfuFailed(r: Record<string, unknown>, name?: string) {
+    const tracks = this.tracksOf(r);
+    const top = r.errorCode != null && String(r.errorCode).trim() !== "";
+    if (r.errorErrors || top) return true;
+    if (name) return tracks.some((x) => (x.trackName === name || (!x.trackName && tracks.length === 1)) && !!x.errorCode);
+    return tracks.some((x) => x.errorCode);
+  }
+
+  private throwIfSfuFailed(r: Record<string, unknown>, name?: string, kind: "sfu_publish" | "sfu_session" = "sfu_publish"): void {
+    if (!this.sfuFailed(r, name)) return;
+    const detail = sfuResponseDetail(r) || "sfu request failed";
+    mediaLog.mark("sfu_error", `${name || kind}:${detail}`);
+    const err = new Error(`${kind}: ${detail}`) as Error & { code: string; data: Record<string, unknown> };
+    err.code = kind;
+    err.data = r;
+    throw err;
   }
 
   private newPc(label: "pub" | "recv") {
@@ -104,20 +140,32 @@ export class LiveSfu {
     await pc.setRemoteDescription(desc);
   }
 
-  private sfuFailed(r: Record<string, unknown>, name?: string) {
-    const tracks = (Array.isArray(sfuField(r, "tracks")) ? sfuField(r, "tracks") : Array.isArray(r.tracks) ? r.tracks : []) as TrackRow[];
-    if (r.errorErrors || r.errorCode) return true;
-    if (name) return tracks.some((x) => x.trackName === name && x.errorCode);
-    return tracks.some((x) => x.errorCode);
-  }
-
   private async ensurePub() {
-    if (this.pub) return;
-    this.pub = this.newPc("pub");
-    const r = await this.call({ op: "session-new" });
-    this.pubId = String(r.sessionId || "");
-    mediaLog.mark("sfu_session_pub", this.pubId ? this.pubId.slice(0, 10) : "failed");
-    if (!this.pubId) throw new Error("sfu_session");
+    if (this.pub && this.pubId && this.pub.connectionState !== "closed") return;
+    if (this.pubSetup) return this.pubSetup;
+    this.pubSetup = (async () => {
+      if (this.pub && this.pubId && this.pub.connectionState !== "closed") return;
+      this.pub = this.newPc("pub");
+      const r = await this.call({ op: "session-new" });
+      this.pubId = String(sfuField(r, "sessionId") || r.sessionId || "");
+      mediaLog.mark("sfu_session_pub", this.pubId ? this.pubId.slice(0, 10) : "failed");
+      if (!this.pubId) {
+        const err = new Error("sfu_session: the SFU did not return a session id") as Error & { code: string; data: Record<string, unknown> };
+        err.code = "sfu_session";
+        err.data = r;
+        throw err;
+      }
+    })();
+    try {
+      await this.pubSetup;
+    } catch (e) {
+      try { this.pub?.close(); } catch { /* */ }
+      this.pub = undefined;
+      this.pubId = "";
+      throw e;
+    } finally {
+      this.pubSetup = undefined;
+    }
   }
 
   private attachRecv(pc: RTCPeerConnection) {
@@ -138,13 +186,32 @@ export class LiveSfu {
   }
 
   private async ensureRecv() {
-    if (this.recv) return;
-    this.recv = this.newPc("recv");
-    this.attachRecv(this.recv);
-    const r = await this.call({ op: "session-new" });
-    this.recvId = String(r.sessionId || "");
-    mediaLog.mark("sfu_session_recv", this.recvId ? this.recvId.slice(0, 10) : "failed");
-    if (!this.recvId) throw new Error("sfu_session");
+    if (this.recv && this.recvId && this.recv.connectionState !== "closed") return;
+    if (this.recvSetup) return this.recvSetup;
+    this.recvSetup = (async () => {
+      if (this.recv && this.recvId && this.recv.connectionState !== "closed") return;
+      this.recv = this.newPc("recv");
+      this.attachRecv(this.recv);
+      const r = await this.call({ op: "session-new" });
+      this.recvId = String(sfuField(r, "sessionId") || r.sessionId || "");
+      mediaLog.mark("sfu_session_recv", this.recvId ? this.recvId.slice(0, 10) : "failed");
+      if (!this.recvId) {
+        const err = new Error("sfu_session: the SFU did not return a session id") as Error & { code: string; data: Record<string, unknown> };
+        err.code = "sfu_session";
+        err.data = r;
+        throw err;
+      }
+    })();
+    try {
+      await this.recvSetup;
+    } catch (e) {
+      try { this.recv?.close(); } catch { /* */ }
+      this.recv = undefined;
+      this.recvId = "";
+      throw e;
+    } finally {
+      this.recvSetup = undefined;
+    }
   }
 
   /** Create publish and receive sessions in parallel as soon as the student or teacher joins. */
@@ -164,6 +231,7 @@ export class LiveSfu {
     this.pubId = "";
     this.published.clear();
     this.slots.clear();
+    this.pubSetup = undefined;
     this.warm = undefined;
   }
 
@@ -173,6 +241,7 @@ export class LiveSfu {
     this.recvId = "";
     this.midKey.clear();
     this.pendingOntrack.clear();
+    this.recvSetup = undefined;
     this.warm = undefined;
   }
 
@@ -189,16 +258,23 @@ export class LiveSfu {
     const offer = await this.pub!.createOffer();
     await this.pub!.setLocalDescription(offer);
     await waitIce(this.pub!, iceMs);
+    const rows = [];
+    for (const { name, trans } of items) {
+      rows.push({ location: "local", mid: await waitForMid(trans), trackName: name });
+    }
     mediaLog.mark("tracks_new_push", items.map((x) => x.name).join(",") || "none");
     const r = await this.call({
       op: "tracks-new",
       sessionId: this.pubId,
       sessionDescription: { type: "offer", sdp: this.pub!.localDescription?.sdp },
-      tracks: items.map(({ name, trans }) => ({ location: "local", mid: trans.mid, trackName: name })),
+      tracks: rows,
     });
-    if (this.sfuFailed(r)) throw new Error("sfu_publish");
+    this.throwIfSfuFailed(r);
     if (r.sessionDescription) await this.applyRemote(this.pub!, r.sessionDescription, "answer");
-    for (const { name, trans } of items) this.published.set(name, trans);
+    for (const { name, trans } of items) {
+      this.slots.set(name, trans);
+      this.published.set(name, trans);
+    }
   }
 
   private activePubs(extra?: { name: string; track: MediaStreamTrack }) {
@@ -213,6 +289,12 @@ export class LiveSfu {
       if (i >= 0) out[i] = extra;
     }
     return out;
+  }
+
+  private isPermanentPubError(e: unknown) {
+    const code = e && typeof e === "object" && "code" in e ? String((e as { code?: unknown }).code || "") : "";
+    const msg = e instanceof Error ? e.message : "";
+    return /not_allowed|forbidden|unauthorized|sfu_not_configured|bad_session/.test(`${code} ${msg}`);
   }
 
   async publish(name: string, track: MediaStreamTrack) {
@@ -231,14 +313,15 @@ export class LiveSfu {
         const offer = await this.pub!.createOffer();
         await this.pub!.setLocalDescription(offer);
         await waitIce(this.pub!);
+        const mid = await waitForMid(trans);
         mediaLog.mark("tracks_new_push", name);
         const r = await this.call({
           op: "tracks-new",
           sessionId: this.pubId,
           sessionDescription: { type: "offer", sdp: this.pub!.localDescription?.sdp },
-          tracks: [{ location: "local", mid: trans.mid, trackName: name }],
+          tracks: [{ location: "local", mid, trackName: name }],
         });
-        if (this.sfuFailed(r, name)) throw new Error("sfu_publish");
+        this.throwIfSfuFailed(r, name);
         if (r.sessionDescription) await this.applyRemote(this.pub!, r.sessionDescription, "answer");
         this.slots.set(name, trans);
         this.published.set(name, trans);
@@ -247,10 +330,18 @@ export class LiveSfu {
         // First answer without BUNDLE (or a later add/remove) makes Chrome refuse createOffer
         // with ERROR_CONTENT "max-bundle configured". Rebuild the publish session as one offer.
         if (!isMaxBundleError(e) && !this.published.size && !this.pub?.currentRemoteDescription) throw e;
+        if (this.isPermanentPubError(e)) throw e;
+        mediaLog.mark("pub_rebuild", name);
         await this.republishAll(this.activePubs({ name, track }));
       }
     });
     if (this.pubId) {
+      // Cloudflare: announce only after the publisher is connected, otherwise
+      // subscribers get empty_track_error and used to never retry.
+      if (this.pub) {
+        const ok = await waitConnected(this.pub);
+        mediaLog.mark(ok ? "ice_connected" : "ice_failed", "pub:" + (this.pub.connectionState || "timeout"));
+      }
       mediaLog.mark("pub_announce", [...this.published.keys()].join(",") || "none");
       await lmsApi.livePub(this.roomId, this.pubId, [...this.published.keys()], this.asAdmin);
     }
@@ -281,9 +372,25 @@ export class LiveSfu {
     this.onRemote(key, stream);
   }
 
+  private scheduleSubRetry() {
+    if (this.subRetries >= 5 || this.subRetryTimer) return;
+    const delay = [400, 1000, 2000, 4000, 4000][this.subRetries] || 4000;
+    this.subRetries += 1;
+    mediaLog.mark("sfu_sub_retry", String(this.subRetries));
+    this.subRetryTimer = window.setTimeout(() => {
+      this.subRetryTimer = undefined;
+      if (this.lastPubs.length) {
+        void this.enqueueRecv(async () => {
+          await this.ensureRecv();
+          await this.pullFresh(this.lastPubs);
+        });
+      }
+    }, delay);
+  }
+
   private async pullFresh(pubs: LivePub[], iceMs = ICE_WAIT_MS) {
     const wanted = new Set<string>();
-    const fresh: { sessionId: string; name: string; subId: string; key: string }[] = [];
+    const fresh: { sessionId: string; name: string; subId: string; key: string; mid?: string }[] = [];
     for (const p of pubs) {
       if (p.userId === this.selfId) continue;
       for (const name of p.tracks) {
@@ -301,20 +408,22 @@ export class LiveSfu {
         sessionId: this.recvId,
         tracks: fresh.map((t) => ({ location: "remote", sessionId: t.sessionId, trackName: t.name })),
       }) as Record<string, unknown>;
-      const tracks = (Array.isArray(sfuField(r, "tracks")) ? sfuField(r, "tracks") : []) as TrackRow[];
+      const tracks = this.tracksOf(r);
       const used = new Set<string>();
-      for (const item of fresh) {
-        if (this.sfuFailed(r, item.name)) continue;
-        const mine = tracks.find((t) => {
-          const mid = t.mid != null ? String(t.mid) : "";
-          if (!mid || t.errorCode || used.has(mid)) return false;
-          return t.trackName === item.name || ((!t.trackName || t.trackName === item.name) && (!t.sessionId || t.sessionId === item.sessionId));
-        });
+      const failed: string[] = [];
+      for (let i = 0; i < fresh.length; i++) {
+        const item = fresh[i]!;
+        const mine = matchRemoteTrack(tracks, item, used, i);
         const mid = mine?.mid != null ? String(mine.mid) : "";
-        if (!mid) continue;
+        if (!mid || mine?.errorCode) {
+          const why = sfuResponseDetail({ tracks: mine ? [mine] : tracks }) || sfuResponseDetail(r) || "no mid in tracks/new result";
+          failed.push(`${item.name}:${why}`);
+          mediaLog.mark("sfu_sub_fail", `${item.name}:${why}`);
+          continue;
+        }
         used.add(mid);
+        item.mid = mid;
         this.bindMid(mid, item.key);
-        this.subbed.add(item.subId);
       }
       const offer = sfuField(r, "sessionDescription") ?? sfuField(r, "session_description");
       if (offer) {
@@ -323,12 +432,23 @@ export class LiveSfu {
         await this.recv!.setLocalDescription(answer);
         await waitIce(this.recv!, iceMs);
         const local = this.recv!.localDescription;
-        await this.call({
+        const done = await this.call({
           op: "renegotiate",
           sessionId: this.recvId,
           sessionDescription: local ? { type: "answer", sdp: sdpDesc(local, "answer")?.sdp || local.sdp } : { type: "answer", sdp: answer.sdp },
         });
+        this.throwIfSfuFailed(done, undefined, "sfu_session");
         this.recvRetries = 0;
+      }
+      for (const item of fresh) {
+        if (item.mid) this.subbed.add(item.subId);
+      }
+      if (failed.length) {
+        const retry = failed.some((d) => isRetryableSubError(d)) || failed.some((d) => /no mid/i.test(d));
+        if (retry) this.scheduleSubRetry();
+        else mediaLog.mark("sfu_sub_fail", failed.join(" | "));
+      } else {
+        this.subRetries = 0;
       }
     }
     for (const subId of [...this.subbed]) {
@@ -352,6 +472,10 @@ export class LiveSfu {
 
   close() {
     this.warm = undefined;
+    if (this.subRetryTimer) {
+      window.clearTimeout(this.subRetryTimer);
+      this.subRetryTimer = undefined;
+    }
     for (const tr of this.published.values()) {
       try { tr.sender.track?.stop(); } catch { /* */ }
       try { tr.stop(); } catch { /* */ }

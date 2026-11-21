@@ -444,9 +444,14 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
   const [askNote, setAskNote] = useState<"" | "sent" | "allowed">("");
   const [ptrs, setPtrs] = useState<LivePtr[]>([]);
   const lastPtrAt = useRef(0);
-  const fail = (e: unknown, en: string, ar: string) => setErr(lmsErrorText(e, tr, undefined, tr(en, ar)));
+  const fail = (e: unknown, en: string, ar: string) => {
+    const text = lmsErrorText(e, tr, undefined, tr(en, ar));
+    liveMediaLog.mark("error", text.slice(0, 160));
+    setErr(text);
+  };
   const roomRef = useRef<HTMLDivElement>(null);
   const sfuRef = useRef<LiveSfu | null>(null);
+  const pubsRef = useRef<LivePub[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
   const localRef = useRef<MediaStream | null>(null);
   const shareRef = useRef<MediaStream | null>(null);
@@ -649,12 +654,18 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
       if (msg.selfId) setServerSelfId(msg.selfId);
       if (msg.t === "pubs" && Array.isArray(msg.pubs)) {
         liveMediaLog.mark("pub_announce", `${msg.pubs.length}:${msg.pubs.reduce((n, p) => n + p.tracks.length, 0)}`);
+        pubsRef.current = msg.pubs;
         setRoom((r) => r ? { ...r, pubs: msg.pubs! } : r);
-        sfuRef.current?.syncSubs(msg.pubs).catch(() => undefined);
+        sfuRef.current?.syncSubs(msg.pubs).catch((e: unknown) => {
+          liveMediaLog.mark("error", e instanceof Error ? e.message.slice(0, 160) : "sync_subs");
+        });
       }
       if (msg.t === "room" && msg.room) {
+        if (msg.room.pubs) pubsRef.current = msg.room.pubs;
         applyRoom(msg.room);
-        if (msg.room.pubs) sfuRef.current?.syncSubs(msg.room.pubs).catch(() => undefined);
+        if (msg.room.pubs) sfuRef.current?.syncSubs(msg.room.pubs).catch((e: unknown) => {
+          liveMediaLog.mark("error", e instanceof Error ? e.message.slice(0, 160) : "sync_subs");
+        });
       }
       if (msg.t === "present") setRoom((r) => r ? { ...r, present: msg.present || null } : r);
       if (msg.t === "view" && msg.view) setRoom((r) => r ? { ...r, view: msg.view } : r);
@@ -735,6 +746,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
   useEffect(() => () => { closeWs(); cleanupMedia(); }, [cleanupMedia]);
 
   const pubKey = (room?.pubs || []).map((p) => `${p.userId}:${p.sessionId}:${p.tracks.join(",")}`).join("|");
+  pubsRef.current = room?.pubs || [];
   const attachRemote = useCallback((key: string, stream: MediaStream | null) => {
     if (stream && joinStartedAt.current) {
       const kind = key.includes(":") ? key.slice(key.lastIndexOf(":") + 1) : "media";
@@ -808,7 +820,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
           else sfuRef.current.setSelfId(who);
           await sfuRef.current.warmup();
           if (cancelled) return;
-          await sfuRef.current.syncSubs(room.pubs || []);
+          await sfuRef.current.syncSubs(pubsRef.current);
         }
         await gumP.catch(() => undefined);
         if (cancelled) return;
@@ -833,7 +845,9 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
   useEffect(() => {
     if (phase !== "in") return;
     sfuRef.current?.setSelfId(selfId);
-    sfuRef.current?.syncSubs(room?.pubs || []).catch(() => undefined);
+    sfuRef.current?.syncSubs(room?.pubs || []).catch((e: unknown) => {
+      liveMediaLog.mark("error", e instanceof Error ? e.message.slice(0, 160) : "sync_subs");
+    });
   }, [phase, pubKey, room?.pubs, selfId]);
   useEffect(() => {
     const hasAudio = Object.values(remotes).some((s) => s.getAudioTracks().some((t) => t.readyState !== "ended"));
@@ -929,10 +943,15 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
       const track = stream.getVideoTracks()[0];
       if (!track) return;
+      try {
+        await sfuRef.current.publish("camera", track);
+      } catch (e) {
+        try { track.stop(); } catch { /* */ }
+        throw e;
+      }
       const mixed = new MediaStream([...(localRef.current?.getAudioTracks() || []), track]);
       localRef.current = mixed;
       setLocalStream(mixed);
-      await sfuRef.current.publish("camera", track);
       setCamOn(true);
       setPermHelp("");
     } catch (e) {
@@ -959,10 +978,15 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const track = stream.getAudioTracks()[0];
       if (!track) return;
+      try {
+        await sfuRef.current.publish("mic", track);
+      } catch (e) {
+        try { track.stop(); } catch { /* */ }
+        throw e;
+      }
       const mixed = new MediaStream([...(localRef.current?.getVideoTracks() || []), track]);
       localRef.current = mixed;
       setLocalStream(mixed);
-      await sfuRef.current.publish("mic", track);
       setMicOn(true);
       setPermHelp("");
     } catch (e) {

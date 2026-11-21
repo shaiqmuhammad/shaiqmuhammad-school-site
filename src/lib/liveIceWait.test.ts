@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { ICE_WAIT_MS, iceSummary, mergeIceServers, waitIce, type IceLike } from "./liveIceWait.ts";
+import { ICE_WAIT_MS, iceSummary, mergeIceServers, waitConnected, waitIce, type IceLike } from "./liveIceWait.ts";
 
 class FakePc implements IceLike {
   iceGatheringState = "gathering";
@@ -65,4 +65,34 @@ test("mergeIceServers always keeps Cloudflare STUN and drops port 53", () => {
 
 test("ICE_WAIT_MS stays a short cap", () => {
   assert.equal(ICE_WAIT_MS, 150);
+});
+
+
+function fakeConn(state: string) {
+  const listeners: Record<string, Array<() => void>> = {};
+  const pc = {
+    connectionState: state,
+    iceConnectionState: state,
+    addEventListener: (type: string, fn: () => void) => { (listeners[type] ||= []).push(fn); },
+    removeEventListener: (type: string, fn: () => void) => { listeners[type] = (listeners[type] || []).filter((x) => x !== fn); },
+    fire(type: string) { for (const fn of listeners[type] || []) fn(); },
+  };
+  return pc;
+}
+
+test("waitConnected resolves immediately when already connected", async () => {
+  const pc = fakeConn("connected");
+  assert.equal(await waitConnected(pc, 50), true);
+});
+
+test("waitConnected waits for connectionstatechange", async () => {
+  const pc = fakeConn("connecting");
+  const p = waitConnected(pc, 500);
+  setTimeout(() => { pc.connectionState = "connected"; pc.iceConnectionState = "connected"; pc.fire("connectionstatechange"); }, 20);
+  assert.equal(await p, true);
+});
+
+test("waitConnected times out as false when it never connects", async () => {
+  const pc = fakeConn("connecting");
+  assert.equal(await waitConnected(pc, 30), false);
 });

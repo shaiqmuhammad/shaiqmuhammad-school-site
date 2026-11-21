@@ -5,6 +5,7 @@ import { siteOrigin } from "@/lib/siteOrigin";
 import { ASSESSMENT_API_BASE } from "@/lib/groupSession";
 import { sortBy } from "@/lib/classSort";
 import { rememberForget, rememberOn, rememberSave, rememberedToken } from "@/lib/remember";
+import { mediaErrorDetail, withErrorDetail, genericErrorBanner } from "@/lib/liveMediaError";
 
 /** LMS phase 1 client (see workers/assessment-session/src/lms.ts). */
 export type Role = "student" | "teacher" | "parent";
@@ -593,7 +594,9 @@ export const lmsApi = {
 
 export function lmsErrorText(e: unknown, tr: (en: string, ar: string) => string, fallback?: [string, string], source?: string): string {
   const raw = e instanceof Error ? String(e.message || "").trim() : (typeof e === "string" ? e.trim() : "");
-  const c = e instanceof LmsError ? e.code : (e instanceof Error && /^[a-z_]+$/.test(e.message) ? e.message : "");
+  const codeField = e && typeof e === "object" && "code" in e ? String((e as { code?: unknown }).code || "") : "";
+  const c = e instanceof LmsError ? e.code
+    : (/^[a-z_]+$/.test(codeField) ? codeField : (e instanceof Error && /^[a-z_]+$/.test(e.message) ? e.message : ""));
   if (c === "topic_taken") { const ex = (e as LmsError).data?.existing as { title?: string; slug?: string } | undefined; const t = ex?.title || ex?.slug || ""; return tr(`This curriculum topic already has an assessment: “${t}”. Only one assessment per topic.`, `هذا الموضوع له تقييم بالفعل: «${t}». لكل موضوع تقييم واحد فقط.`); }
   const m: Record<string, [string, string]> = {
     topic_required: ["Choose the curriculum topic first — every assessment must be linked to one.", "اختر موضوع المنهج أولًا — يجب ربط كل تقييم بموضوع."],
@@ -692,14 +695,18 @@ export function lmsErrorText(e: unknown, tr: (en: string, ar: string) => string,
     already_submitted: ["You have already submitted this. You can send it again only if your teacher sends it back.", "لقد سلّمت هذا مسبقًا. يمكنك الإرسال مجددًا فقط إذا أعاده معلمك."],
     attempts_used: ["You have used every attempt for this work.", "لقد استخدمت كل المحاولات لهذا العمل."],
   };
-  if (c && c !== "error" && m[c]) return tr(m[c][0], m[c][1]);
-  if (fallback) return tr(fallback[0], fallback[1]);
+  const extra = mediaErrorDetail(e);
+  const extraOrRaw = extra || (raw && raw !== "error" && raw !== c ? raw.replace(/\s+/g, " ").slice(0, 140) : "");
+  if (c && c !== "error" && m[c]) return withErrorDetail(tr(m[c][0], m[c][1]), extraOrRaw === c ? "" : extraOrRaw);
+  if (fallback) return withErrorDetail(tr(fallback[0], fallback[1]), extraOrRaw);
   const label = source || (c && c !== "error" ? c : "");
-  const detail = raw && !/^[a-z_]+$/.test(raw) ? raw.replace(/\s+/g, " ").slice(0, 140) : "";
-  if (detail && label) return tr(`Something went wrong (${label}): ${detail}`, `حدث خطأ ما (${label}): ${detail}`);
-  if (detail) return tr(`Something went wrong: ${detail}`, `حدث خطأ ما: ${detail}`);
-  if (label) return tr(`Something went wrong (${label}).`, `حدث خطأ ما (${label}).`);
-  return tr("Something went wrong.", "حدث خطأ ما.");
+  const detail = extraOrRaw;
+  return genericErrorBanner(label, detail, {
+    both: (l, d) => tr(`Something went wrong (${l}): ${d}`, `حدث خطأ ما (${l}): ${d}`),
+    detailOnly: (d) => tr(`Something went wrong: ${d}`, `حدث خطأ ما: ${d}`),
+    labelOnly: (l) => tr(`Something went wrong (${l}).`, `حدث خطأ ما (${l}).`),
+    none: tr("Something went wrong.", "حدث خطأ ما."),
+  });
 }
 
 /* ---------- Quran (api.quran.com text, everyayah.com audio) ---------- */
