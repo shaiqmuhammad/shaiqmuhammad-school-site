@@ -235,7 +235,7 @@ function PermissionsModal({ u, onClose, onSaved, asAdmin, catalog }: { catalog: 
             <div className="mt-3 space-y-1.5 rounded-xl bg-fuchsia-50 p-2 text-sm dark:bg-fuchsia-950/30" data-testid="perm-live-group">
               <p className="text-xs font-bold opacity-70">🎥 {tr("Live lessons", "الدروس المباشرة")}</p>
               {LIVE_PERMS.map((p) => <label key={p} className="flex items-center gap-1.5" data-testid={`perm-${p}`}><input type="checkbox" role="switch" checked={perms.includes(p)} onChange={() => toggle(p)} /> {tr(PERM_LABEL[p][0], PERM_LABEL[p][1])}</label>)}
-              <p className="text-xs opacity-70">{tr("All off by default. Admin always has these. Students do not need a switch to join a lesson for their class.", "كلها مغلقة افتراضيًا. المسؤول يملكها دائمًا. لا يحتاج الطلاب إلى صلاحية للانضمام إلى حصة صفّهم.")}</p>
+              <p className="text-xs opacity-70">{tr("All off by default. Admin always has these. Students do not need a switch to join a lesson for their class. The teacher who starts a room can always allow student camera and mic, present lesson packs, and open the whiteboard in that room.", "كلها مغلقة افتراضيًا. المسؤول يملكها دائمًا. لا يحتاج الطلاب إلى صلاحية للانضمام إلى حصة صفّهم. المعلم الذي يبدأ الحصة يمكنه دائمًا السماح بكاميرا وميكروفون الطلاب، وعرض حزم الدروس، وفتح السبورة في حصته.")}</p>
             </div>
           </div>
           {perms.includes("manageUsers") && <StudentAccess perms={perms} setPerms={setPerms} />}

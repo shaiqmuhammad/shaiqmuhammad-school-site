@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTr } from "@/components/lms/useLms";
 import { lp, type Pack } from "@/lib/packs";
 import { SlideView } from "@/components/lms/packs/SlideView";
-import { lmsApi, lmsErrorText, type LiveMember, type LivePresent as Present, type PointCat } from "@/lib/lms";
+import { lmsApi, lmsErrorText, type LiveMember, type LivePresent as Present, type LivePtr, type PointCat } from "@/lib/lms";
 import { primaryBtn } from "@/components/assessment/AssessmentShell";
 import { createPortal } from "react-dom";
 import { LiveToolsTray } from "@/components/lms/ClassroomTray";
@@ -13,11 +13,11 @@ function presentStudents(members: LiveMember[]) {
   return members.filter((m) => m.role !== "teacher" && m.present);
 }
 
-export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, selfId, members, onPresent, onRoomFocus: _onRoomFocus, roomFocused: _roomFocused, layout = "full", trayRoot }: {
+export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, selfId, members, onPresent, onRoomFocus: _onRoomFocus, roomFocused: _roomFocused, layout = "full", trayRoot, ptrs = [], onPtr }: {
   roomId: string; present?: Present | null; isHost: boolean; canPresent: boolean; asAdmin: boolean;
   selfId: string; members: LiveMember[]; onPresent: (p: Present | null) => void;
   onRoomFocus?: () => void; roomFocused?: boolean; layout?: "full" | "side" | "compact" | "board";
-  trayRoot?: HTMLElement | null;
+  trayRoot?: HTMLElement | null; ptrs?: LivePtr[]; onPtr?: (x: number | null, y: number | null) => void;
 }) {
   const { tr } = useTr();
   const [packs, setPacks] = useState<Pack[]>([]);
@@ -42,7 +42,7 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
     if (!present?.packId) { setPack(null); return; }
     lmsApi.livePack(roomId, present.packId, asAdmin)
       .then((r) => { setPack(r.pack as Pack); setErr(""); })
-      .catch((e) => setErr(lmsErrorText(e, tr, ["Couldn't open that lesson pack.", "تعذر فتح حزمة الدرس."])));
+      .catch((e) => setErr(lmsErrorText(e, tr, ["Couldn't open that lesson pack.", "تعذر فتح حزمة الدرس."], tr("Open pack", "فتح الحزمة"))));
   }, [present?.packId, asAdmin, tr, roomId]);
   useEffect(() => {
     if (!isHost) return;
@@ -76,22 +76,29 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
     if (!p) return;
     setBusy(true); setErr("");
     try { await call({ op: "start", packId: p.id, packTitle: p.title }); }
-    catch (e) { setErr(lmsErrorText(e, tr, ["Couldn't start presenting that lesson pack.", "تعذر بدء عرض حزمة الدرس."])); }
+    catch (e) { setErr(lmsErrorText(e, tr, ["Couldn't start presenting that lesson pack.", "تعذر بدء عرض حزمة الدرس."], tr("Present pack", "عرض الحزمة"))); }
     finally { setBusy(false); }
   }
   async function go(n: number) {
     const next = Math.max(0, Math.min(slides.length - 1, n));
-    if (isHost) await call({ op: "nav", slide: next }).catch((e) => setErr(lmsErrorText(e, tr)));
+    if (isHost) await call({ op: "nav", slide: next }).catch((e) => setErr(lmsErrorText(e, tr, undefined, tr("Change slide", "تغيير الشريحة"))));
     else setLocalSlide(next);
   }
 
+  const boardOn = !!(present && (present.tool === "board" || layout === "board"));
+  const canLaser = !!(present && (isHost || present.penId === selfId));
+  const hasPack = !!(present?.packId);
   function pointer(e: React.PointerEvent<SVGSVGElement>, end = false) {
-    if (!canDraw || !present || present.tool !== "board") return;
+    if (!present || !boardOn) return;
     const svg = svgRef.current;
     if (!svg) return;
     const r = svg.getBoundingClientRect();
+    if (!r.width || !r.height) return;
     const x = ((e.clientX - r.left) / r.width) * 100;
     const y = ((e.clientY - r.top) / r.height) * 100;
+    if (canLaser && (e.type === "pointermove" || e.type === "pointerdown") && !end) onPtr?.(x, y);
+    if (end || e.type === "pointerup" || e.type === "pointercancel" || e.type === "pointerleave") onPtr?.(null, null);
+    if (!canDraw) return;
     if (e.type === "pointerdown") {
       draw.current = { pts: [x, y], drawing: true };
       (e.target as Element).setPointerCapture?.(e.pointerId);
@@ -141,7 +148,7 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
       const r = await lmsApi.ptsAward(cat, ids, asAdmin);
       setErr("");
       await call({ op: "nav", tool: "award", randText: tr(`Awarded ${r.count} student(s).`, `تم منح ${r.count} من الطلاب.`) });
-    } catch (e) { setErr(lmsErrorText(e, tr)); }
+    } catch (e) { setErr(lmsErrorText(e, tr, undefined, tr("Award cards", "بطاقات المكافآت"))); }
   }
 
   async function sendAnswer() {
@@ -155,7 +162,7 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
         await lp.workSave(present.packId, work, [slide]).catch(() => undefined);
       }
       setAnswer("");
-    } catch (e) { setErr(lmsErrorText(e, tr)); }
+    } catch (e) { setErr(lmsErrorText(e, tr, undefined, tr("Send answer", "إرسال الإجابة"))); }
     finally { setBusy(false); }
   }
 
@@ -169,7 +176,10 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
       docked
       isHost={isHost && canPresent}
       tool={present?.tool || ""}
-      onTool={(id) => { if (present) void call({ op: "nav", tool: id }); }}
+      onTool={(id) => {
+        if (id === "board" && !present) void lmsApi.livePresent(roomId, { op: "board" }, asAdmin).then((r) => { if (r.present !== undefined) onPresent(r.present || null); }).catch((e) => setErr(lmsErrorText(e, tr, undefined, tr("Whiteboard", "السبورة"))));
+        else if (present) void call({ op: "nav", tool: id });
+      }}
       onTimer={(s) => { if (present) void call({ op: "nav", timerEnd: s == null ? null : Date.now() + s * 1000 }); }}
       onTasks={() => setTasksOpen((v) => !v)}
       taskOn={!!isTask && tasksOpen}
@@ -243,7 +253,13 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
       {trayRoot ? createPortal(tray, trayRoot) : null}
       {err && <p className="m-2 rounded-2xl bg-rose-100 px-3 py-2 text-sm font-bold text-rose-800 dark:bg-rose-900/60 dark:text-rose-100" role="alert">{err}</p>}
 
-      {!present && canPresent && (
+      {!present && canPresent && layout === "board" && (
+        <div className="lb-slide-body lb-board-on" data-testid="live-board-opening">
+          <div className="lb-slide-wrap"><div className="lb-board-surface" /><p className="relative z-[1] font-bold opacity-70">{tr("Opening the whiteboard…", "جارٍ فتح السبورة…")}</p></div>
+        </div>
+      )}
+
+      {!present && canPresent && layout !== "board" && (
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-6">
           <label className="w-full max-w-md text-sm font-bold">{tr("Present a lesson pack", "عرض حزمة درس")}
             <select className="mt-1 w-full rounded-2xl border border-black/10 bg-white px-3 py-2 font-semibold dark:bg-slate-900" value={pick} onChange={(e) => setPick(e.target.value)} data-testid="live-present-pick">
@@ -260,9 +276,9 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
           <div className="lb-slide-bar">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div className="min-w-0">
-                <div className="lb-eyebrow">{isTask ? tr("Task", "مهمة") : tr("Live lesson", "حصة مباشرة")}</div>
-                <h3 dir="auto">{present.packTitle}</h3>
-                <div className="lb-slide-sub">{`${slide + 1} / ${slides.length || 1}`}</div>
+                <div className="lb-eyebrow">{boardOn && !hasPack ? tr("Whiteboard", "السبورة") : isTask ? tr("Task", "مهمة") : tr("Live lesson", "حصة مباشرة")}</div>
+                <h3 dir="auto">{hasPack ? present.packTitle : tr("Whiteboard", "السبورة")}</h3>
+                {hasPack && <div className="lb-slide-sub">{`${slide + 1} / ${slides.length || 1}`}</div>}
               </div>
               <div className="flex flex-wrap items-center justify-end gap-2">
                 {left !== null && (
@@ -281,25 +297,34 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
             </div>
           </div>
 
-          <div className="lb-slide-body">
-            {cur ? (
-              <div className="relative min-h-0 flex-1 overflow-hidden rounded-2xl" style={{ containerType: "inline-size" }}>
-                <SlideView slide={cur} asAdmin={asAdmin} live testId="live-present-slide" />
-                <svg ref={svgRef} viewBox="0 0 100 56.25" className="absolute inset-0 h-full w-full touch-none" onPointerDown={pointer} onPointerMove={pointer} onPointerUp={(e) => pointer(e, true)} onPointerCancel={(e) => pointer(e, true)} data-testid="live-board">
-                  {(present.strokes || []).map((st, i) => (
-                    <polyline key={i} fill="none" stroke={st.c || "#1b3a57"} strokeWidth={((st.w || 3) / 1600) * 100} strokeLinecap="round" strokeLinejoin="round" points={Array.from({ length: Math.floor((st.d || []).length / 2) }, (_, k) => `${st.d[k * 2]},${(st.d[k * 2 + 1] * 56.25) / 100}`).join(" ")} />
-                  ))}
-                </svg>
-              </div>
-            ) : <p className="flex-1 py-8 text-center font-semibold opacity-70">{tr("Loading slides…", "جارٍ تحميل الشرائح…")}</p>}
-
-            <div className="lb-nav">
-              <button type="button" className="rounded-full bg-black/10 px-4 py-2 font-bold dark:bg-white/10" disabled={(isHost || !follow) ? slide <= 0 : follow} onClick={() => go(slide - 1)}>◀</button>
-              <span className="font-extrabold">{slide + 1} / {slides.length || 1}</span>
-              <button type="button" className="rounded-full bg-black/10 px-4 py-2 font-bold dark:bg-white/10" disabled={(isHost || !follow) ? slide >= slides.length - 1 : follow} onClick={() => go(slide + 1)}>▶</button>
+          <div className={`lb-slide-body${boardOn ? " lb-board-on" : ""}`}>
+            <div className="lb-slide-wrap" style={{ containerType: "inline-size" }}>
+              {boardOn && <div className="lb-board-surface" aria-hidden />}
+              {cur && !boardOn && <SlideView slide={cur} asAdmin={asAdmin} live testId="live-present-slide" />}
+              {cur && boardOn && <div className="lb-slide-bg"><SlideView slide={cur} asAdmin={asAdmin} live testId="live-present-slide" /></div>}
+              {!cur && hasPack && !boardOn && <p className="flex-1 py-8 text-center font-semibold opacity-70">{tr("Loading slides…", "جارٍ تحميل الشرائح…")}</p>}
+              <svg ref={svgRef} viewBox="0 0 100 56.25" preserveAspectRatio={boardOn ? "none" : "xMidYMid meet"} className={boardOn ? "lb-board-svg touch-none" : "pointer-events-none absolute inset-0 h-full w-full"} onPointerDown={pointer} onPointerMove={pointer} onPointerUp={(e) => pointer(e, true)} onPointerCancel={(e) => pointer(e, true)} onPointerLeave={(e) => pointer(e, true)} data-testid="live-board">
+                {(present.strokes || []).map((st, i) => (
+                  <polyline key={i} fill="none" stroke={st.c || "#1b3a57"} strokeWidth={((st.w || 3) / 1600) * 100} strokeLinecap="round" strokeLinejoin="round" points={Array.from({ length: Math.floor((st.d || []).length / 2) }, (_, k) => `${st.d[k * 2]},${(st.d[k * 2 + 1] * 56.25) / 100}`).join(" ")} />
+                ))}
+              </svg>
+              {boardOn && ptrs.filter((pt) => pt.on !== false).map((pt) => (
+                <div key={pt.userId} className="lb-laser" style={{ left: `${pt.x}%`, top: `${pt.y}%`, color: pt.color }} data-testid="live-laser">
+                  <div className="lb-laser-dot" />
+                  <div className="lb-laser-name" dir="auto">{pt.name}</div>
+                </div>
+              ))}
             </div>
 
-            {isHost && canPresent && present.tool === "board" && (
+            {hasPack && !boardOn && (
+              <div className="lb-nav">
+                <button type="button" className="rounded-full bg-black/10 px-4 py-2 font-bold dark:bg-white/10" disabled={(isHost || !follow) ? slide <= 0 : follow} onClick={() => go(slide - 1)}>◀</button>
+                <span className="font-extrabold">{slide + 1} / {slides.length || 1}</span>
+                <button type="button" className="rounded-full bg-black/10 px-4 py-2 font-bold dark:bg-white/10" disabled={(isHost || !follow) ? slide >= slides.length - 1 : follow} onClick={() => go(slide + 1)}>▶</button>
+              </div>
+            )}
+
+            {isHost && canPresent && boardOn && (
               <div className="absolute start-3 top-3 z-[9] flex flex-wrap gap-2 rounded-2xl bg-white/95 p-2 shadow-md dark:bg-slate-900/95" data-testid="live-present-tools">
                 <select className="rounded-full border border-black/10 bg-white px-2 py-1 text-sm font-bold dark:bg-slate-900" value={present.penId} onChange={(e) => call({ op: "nav", penId: e.target.value })} data-testid="live-pen">
                   <option value={members.find((m) => m.role === "teacher")?.id || ""}>{tr("Teacher has the pen", "القلم مع المعلم")}</option>

@@ -297,6 +297,8 @@ export type LiveHistoryMark = { id: string; name: string; section: string; statu
 export type LiveHistoryItem = { id: string; title: string; cls: string; section: string; teacherId: string; teacherName: string; started: number; ended: number | null; day: string; period: string; status: string; recKey: string; recBytes: number; present: number; marks: LiveHistoryMark[] };
 export type LiveSched = { id: string; title: string; starts: number; duration: number; ends: number; cls: string; section: string; groupId: string; studentId: string; studentName?: string; packId: string; packTitle: string; roomId: string; status: string; teacherId: string; teacherName: string; hasLink: boolean; linkToken?: string; mine: boolean; kind?: "meeting" | "" };
 export type LiveMember = { id: string; name: string; role: "teacher" | "student"; camAllowed: boolean; micAllowed: boolean; shareAllowed?: boolean; hand: boolean; present: boolean };
+export type LiveAsk = { userId: string; name: string; cam: boolean; mic: boolean; at: number };
+export type LivePtr = { userId: string; name: string; x: number; y: number; color: string; on?: boolean };
 export type LiveWait = { id: string; name: string; at: number };
 export type LiveChat = { id: string; from: string; name: string; text: string; at: number };
 export type LivePub = { userId: string; sessionId: string; tracks: string[] };
@@ -311,7 +313,7 @@ export type LivePresent = {
   wheelAngle: number; wheelSpinTo: number; wheelAt: number; winnerId: string; winnerName: string;
   randText: string; answers: LiveAnswer[];
 };
-export type LiveSnap = { id: string; title: string; cls: string; section: string; groupId: string; teacherId: string; status: "live" | "ended"; created: number; waiting: LiveWait[]; members: LiveMember[]; chat: LiveChat[]; pubs: LivePub[]; sfu: boolean; present?: LivePresent | null; endsAt?: number; view?: LiveView };
+export type LiveSnap = { id: string; title: string; cls: string; section: string; groupId: string; teacherId: string; status: "live" | "ended"; created: number; waiting: LiveWait[]; members: LiveMember[]; chat: LiveChat[]; pubs: LivePub[]; asks?: LiveAsk[]; sfu: boolean; present?: LivePresent | null; endsAt?: number; view?: LiveView };
 export function liveWsUrl(token: string, room: string) {
   const u = new URL(`${ASSESSMENT_API_BASE}/api/lms/live-ws`);
   u.protocol = u.protocol === "https:" ? "wss:" : "ws:";
@@ -510,6 +512,7 @@ export const lmsApi = {
   liveLeave: (id: string, asAdmin = false) => call<{ ok: true }>("live-leave", { id }, { asAdmin }),
   liveEnd: (id: string, asAdmin = false) => call<{ ok: boolean }>("live-end", { id }, { asAdmin }),
   livePerm: (id: string, userId: string, cam?: boolean, mic?: boolean, asAdmin = false, share?: boolean) => call<{ ok: boolean }>("live-perm", { id, userId, cam, mic, share }, { asAdmin }),
+  liveAsk: (id: string, b: { cam?: boolean; mic?: boolean; on?: boolean; userId?: string }, asAdmin = false) => call<{ ok: boolean }>("live-ask", { id, ...b }, { asAdmin }),
   liveRaise: (id: string, on: boolean, asAdmin = false) => call<{ ok: boolean }>("live-raise", { id, on }, { asAdmin }),
   liveChat: (id: string, text: string, asAdmin = false) => call<{ ok: boolean }>("live-chat", { id, text }, { asAdmin }),
   livePub: (id: string, sessionId: string, tracks: string[], asAdmin = false) => call<{ ok: boolean }>("live-pub", { id, sessionId, tracks }, { asAdmin }),
@@ -536,7 +539,8 @@ export const lmsApi = {
   exportAll: (asAdmin = false) => call<{ exportedAt: number; homework: Homework[]; subs: (Submission & { hw: string; student: string })[]; users: { id: string; username: string; name: string; role: string; cls: string }[]; tracker: (TrackerRow & { student: string; hw: string })[] }>("export", undefined, { asAdmin }),
 };
 
-export function lmsErrorText(e: unknown, tr: (en: string, ar: string) => string, fallback?: [string, string]): string {
+export function lmsErrorText(e: unknown, tr: (en: string, ar: string) => string, fallback?: [string, string], source?: string): string {
+  const raw = e instanceof Error ? String(e.message || "").trim() : (typeof e === "string" ? e.trim() : "");
   const c = e instanceof LmsError ? e.code : (e instanceof Error && /^[a-z_]+$/.test(e.message) ? e.message : "");
   if (c === "topic_taken") { const ex = (e as LmsError).data?.existing as { title?: string; slug?: string } | undefined; const t = ex?.title || ex?.slug || ""; return tr(`This curriculum topic already has an assessment: “${t}”. Only one assessment per topic.`, `هذا الموضوع له تقييم بالفعل: «${t}». لكل موضوع تقييم واحد فقط.`); }
   const m: Record<string, [string, string]> = {
@@ -636,9 +640,13 @@ export function lmsErrorText(e: unknown, tr: (en: string, ar: string) => string,
     already_submitted: ["You have already submitted this. You can send it again only if your teacher sends it back.", "لقد سلّمت هذا مسبقًا. يمكنك الإرسال مجددًا فقط إذا أعاده معلمك."],
     attempts_used: ["You have used every attempt for this work.", "لقد استخدمت كل المحاولات لهذا العمل."],
   };
-  if (m[c]) return tr(m[c][0], m[c][1]);
+  if (c && c !== "error" && m[c]) return tr(m[c][0], m[c][1]);
   if (fallback) return tr(fallback[0], fallback[1]);
-  if (c) return tr(`Something went wrong (${c}).`, `حدث خطأ ما (${c}).`);
+  const label = source || (c && c !== "error" ? c : "");
+  const detail = raw && !/^[a-z_]+$/.test(raw) ? raw.replace(/\s+/g, " ").slice(0, 140) : "";
+  if (detail && label) return tr(`Something went wrong (${label}): ${detail}`, `حدث خطأ ما (${label}): ${detail}`);
+  if (detail) return tr(`Something went wrong: ${detail}`, `حدث خطأ ما: ${detail}`);
+  if (label) return tr(`Something went wrong (${label}).`, `حدث خطأ ما (${label}).`);
   return tr("Something went wrong.", "حدث خطأ ما.");
 }
 

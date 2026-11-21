@@ -7,6 +7,7 @@ import { lmsApi, lmsErrorText, lmsSession } from "@/lib/lms";
 import { getServerSession } from "@/lib/adminServer";
 import { SITE_TZ, fmtWhen, zoneLabel, zoneMs, zoneParts } from "@/lib/timeZone";
 import { SchedulePreview, Time12Field, TimeZonePicker, useViewerZone } from "@/components/lms/TimeZonePicker";
+import { qrImageUrl } from "@/lib/groupSession";
 
 const DURS = [15, 30, 40, 45, 60, 75, 90, 120];
 
@@ -44,6 +45,21 @@ export function ShareMeeting({
   const url = joinUrl(token);
   const text = inviteText(title, starts, lang, zone, url);
   const [copied, setCopied] = useState("");
+  const [showQr, setShowQr] = useState(false);
+  const qrSrc = qrImageUrl(url, 640);
+  const downloadQr = async () => {
+    try {
+      const r = await fetch(qrSrc);
+      const blob = await r.blob();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "meeting-qr.png";
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } catch {
+      window.open(qrSrc, "_blank", "noopener");
+    }
+  };
   const copy = async (v: string, kind: string) => {
     try { await navigator.clipboard.writeText(v); setCopied(kind); setTimeout(() => setCopied(""), 2000); } catch { setCopied(""); }
   };
@@ -66,8 +82,17 @@ export function ShareMeeting({
         <button type="button" className="rounded-full bg-black/10 px-4 py-2 text-sm font-bold dark:bg-white/10" onClick={() => void copy(text, "invite")} data-testid="meet-copy-invite">📝 {copied === "invite" ? tr("Copied!", "تم النسخ!") : tr("Copy invite text", "نسخ نص الدعوة")}</button>
         {canShare && <button type="button" className="rounded-full bg-black/10 px-4 py-2 text-sm font-bold dark:bg-white/10" onClick={() => void share()} data-testid="meet-share-btn">📤 {tr("Share", "مشاركة")}</button>}
         <a className="rounded-full bg-black/10 px-4 py-2 text-sm font-bold dark:bg-white/10" href={mail} data-testid="meet-email">✉️ {tr("Email", "بريد")}</a>
+        <button type="button" className="rounded-full bg-black/10 px-4 py-2 text-sm font-bold dark:bg-white/10" onClick={() => setShowQr((v) => !v)} data-testid="meet-qr">{showQr ? tr("Hide QR", "إخفاء الرمز") : tr("Show QR", "عرض رمز QR")}</button>
         {roomId && onEnter && <button type="button" className={primaryBtn} onClick={() => onEnter(roomId)} data-testid="meet-go">🎥 {tr("Go to meeting", "دخول الاجتماع")}</button>}
       </div>
+      {showQr && (
+        <div className="flex flex-col items-center gap-3 rounded-3xl bg-white p-6 ring-1 ring-black/5 dark:bg-slate-900" data-testid="meet-qr-panel">
+          <p className="text-center text-sm font-bold">{tr("Project this QR so people can join with their camera.", "اعرض هذا الرمز على الشاشة لينضم الآخرون بكاميراتهم.")}</p>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={qrSrc} alt={tr("Join QR code", "رمز QR للانضمام")} width={320} height={320} className="h-auto w-full max-w-xs rounded-2xl bg-white p-2" data-testid="meet-qr-img" />
+          <button type="button" className="rounded-full bg-[#1b3a57] px-4 py-2 text-sm font-bold text-[#f5c542]" onClick={() => void downloadQr()} data-testid="meet-qr-download">⬇️ {tr("Download PNG", "تنزيل PNG")}</button>
+        </div>
+      )}
       <p className="text-xs opacity-70">{tr("Guests and students who open the link wait in the waiting room until you admit them.", "الضيوف والطلاب الذين يفتحون الرابط ينتظرون في غرفة الانتظار حتى تسمح لهم بالدخول.")}</p>
     </div>
   );
