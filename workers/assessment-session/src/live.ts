@@ -11,6 +11,7 @@ import { corsHeaders, reply } from "./admin";
 import { lmsActor, type Actor, type LmsEnv } from "./lms";
 import { recObjectKey } from "./liveAtt";
 import { allowedPubTracks, canControlStudentMedia, canPresentInRoom, canSetMemberFloor, memberFloor, normalizePtrKind, type LiveFloor } from "./liveMedia";
+import { SWEEP_MS, shouldDropMember, nextAlarmAt } from "./livePresence";
 
 export interface LiveEnv extends LmsEnv {
   LIVE: DurableObjectNamespace<LiveRoom>;
@@ -28,11 +29,10 @@ const MAX_MEMBERS = 40;
 const MAX_WAITING = 40;
 const MAX_CHAT = 80;
 const MAX_TEXT = 400;
-const ROOM_MS = 4 * 60 * 60 * 1000;
 
 type Role = "teacher" | "student";
 export type LivePub = { userId: string; sessionId: string; tracks: string[] };
-export type LiveMember = { id: string; name: string; role: Role; camAllowed: boolean; micAllowed: boolean; shareAllowed?: boolean; hand: boolean; present: boolean; floor?: LiveFloor };
+export type LiveMember = { id: string; name: string; role: Role; camAllowed: boolean; micAllowed: boolean; shareAllowed?: boolean; hand: boolean; present: boolean; floor?: LiveFloor; seenAt?: number; hb?: boolean };
 export type LiveWait = { id: string; name: string; at: number };
 export type LiveAsk = { userId: string; name: string; cam: boolean; mic: boolean; at: number };
 export type LiveChat = { id: string; from: string; name: string; text: string; at: number };
@@ -125,8 +125,12 @@ async function liveActor(request: Request, env: LiveEnv, store: ReturnType<LiveE
   return store.liveGuestActor(tok);
 }
 
+function publicMember(m: LiveMember, teacherId: string): LiveMember {
+  const { seenAt: _seen, hb: _hb, ...rest } = m;
+  return { ...rest, floor: memberFloor(m, teacherId) };
+}
 function publicSnap(s: State, sfu: boolean): LiveSnap {
-  const members = s.members.map((m) => ({ ...m, floor: memberFloor(m, s.teacherId) }));
+  const members = s.members.map((m) => publicMember(m, s.teacherId));
   return { ...s, members, endsAt: s.endsAt || s.created + 40 * 60_000, waiting: s.waiting.map((w) => ({ id: w.id, name: w.name, at: w.at })), asks: s.asks || [], sfu };
 }
 
@@ -168,6 +172,78 @@ export class LiveRoom extends DurableObject<LiveEnv> {
   private member(id: string) {
     return this.state?.members.find((m) => m.id === id);
   }
+  private roomEndsAt() {
+    return this.state?.endsAt || (this.state ? this.state.created + 40 * 60_000 : Date.now() + SWEEP_MS);
+  }
+  private async scheduleSweep() {
+    if (!this.state || this.state.status !== "live") return;
+    await this.ctx.storage.setAlarm(nextAlarmAt(Date.now(), this.roomEndsAt()));
+  }
+  private touch(uid: string, ping = false) {
+    const m = this.member(uid);
+    if (!m) return false;
+    const was = m.present;
+    m.present = true;
+    m.seenAt = Date.now();
+    if (ping) m.hb = true;
+    return !was;
+  }
+  private presence(ev: "join" | "leave", m: { id: string; name: string }) {
+    this.broadcast({ t: "presence", ev, userId: m.id, name: m.name });
+  }
+  /** Remove an attendee (or mark the host offline). Returns the member if the roster changed. */
+  private dropMember(userId: string): LiveMember | null {
+    if (!this.state) return null;
+    this.state.waiting = this.state.waiting.filter((w) => w.id !== userId);
+    const m = this.member(userId);
+    if (!m) return null;
+    this.state.pubs = this.state.pubs.filter((p) => p.userId !== userId);
+    if (userId === this.state.teacherId) {
+      if (!m.present && !this.ctx.getWebSockets(userId).length) return null;
+      m.present = false;
+      m.seenAt = Date.now();
+      return m;
+    }
+    this.state.members = this.state.members.filter((x) => x.id !== userId);
+    return m;
+  }
+  private async sweepStale(now = Date.now()) {
+    if (!this.state || this.state.status !== "live") return;
+    const left: LiveMember[] = [];
+    for (const m of [...this.state.members]) {
+      const sockets = this.ctx.getWebSockets(m.id).length;
+      const action = shouldDropMember(m, { now, sockets, isHost: m.id === this.state.teacherId });
+      if (action === "keep") continue;
+      if (action === "offline") {
+        if (m.present) {
+          m.present = false;
+          m.seenAt = now;
+          this.state.pubs = this.state.pubs.filter((p) => p.userId !== m.id);
+          left.push(m);
+        }
+        if (sockets && m.hb) {
+          for (const ws of this.ctx.getWebSockets(m.id)) {
+            try { ws.close(4000, "stale"); } catch { /* */ }
+          }
+        }
+        continue;
+      }
+      const dropped = this.dropMember(m.id);
+      if (dropped) {
+        left.push(dropped);
+        if (sockets) {
+          for (const ws of this.ctx.getWebSockets(m.id)) {
+            try { ws.close(4000, "stale"); } catch { /* */ }
+          }
+        }
+      }
+    }
+    if (left.length) {
+      await this.save();
+      for (const m of left) this.presence("leave", m);
+      this.roomMsg();
+    }
+  }
 
   async init(meta: { id: string; title: string; cls: string; section: string; groupId: string; teacherId: string; teacherName: string; endsAt?: number }) {
     await this.load();
@@ -190,7 +266,7 @@ export class LiveRoom extends DurableObject<LiveEnv> {
       asks: [],
     };
     await this.save();
-    await this.ctx.storage.setAlarm(now + ROOM_MS);
+    await this.scheduleSweep();
     return publicSnap(this.state, this.sfuReady());
   }
 
@@ -204,8 +280,10 @@ export class LiveRoom extends DurableObject<LiveEnv> {
     if (!this.state || this.state.status !== "live") return { status: "ended" };
     if (a.id === this.state.teacherId || this.member(a.id)) {
       const m = this.member(a.id);
-      if (m) m.present = true;
+      const joined = m ? this.touch(m.id) : false;
+      if (m) m.name = m.name || a.name;
       await this.save();
+      if (joined && m) this.presence("join", m);
       this.roomMsg();
       return { status: "in", room: publicSnap(this.state, this.sfuReady()) };
     }
@@ -223,14 +301,17 @@ export class LiveRoom extends DurableObject<LiveEnv> {
     if (!this.state || this.state.status !== "live") return { ok: false, error: "ended" };
     if (hostId !== this.state.teacherId) return { ok: false, error: "forbidden" };
     const ids = userId === "all" ? this.state.waiting.map((w) => w.id) : [userId];
+    const joined: { id: string; name: string }[] = [];
     for (const id of ids) {
       const w = this.state.waiting.find((x) => x.id === id);
       if (!w) continue;
       if (this.state.members.length >= MAX_MEMBERS) break;
       this.state.waiting = this.state.waiting.filter((x) => x.id !== id);
-      this.state.members.push({ id: w.id, name: w.name, role: "student", camAllowed: false, micAllowed: false, shareAllowed: false, hand: false, present: true, floor: "attendee" });
+      this.state.members.push({ id: w.id, name: w.name, role: "student", camAllowed: false, micAllowed: false, shareAllowed: false, hand: false, present: true, floor: "attendee", seenAt: Date.now() });
+      joined.push({ id: w.id, name: w.name });
     }
     await this.save();
+    for (const m of joined) this.presence("join", m);
     this.roomMsg();
     return { ok: true };
   }
@@ -249,12 +330,9 @@ export class LiveRoom extends DurableObject<LiveEnv> {
   async leave(userId: string): Promise<{ ok: boolean }> {
     await this.load();
     if (!this.state) return { ok: true };
-    this.state.waiting = this.state.waiting.filter((w) => w.id !== userId);
-    const m = this.member(userId);
-    if (m) m.present = false;
-    if (userId !== this.state.teacherId) this.state.members = this.state.members.filter((x) => x.id !== userId);
-    this.state.pubs = this.state.pubs.filter((p) => p.userId !== userId);
+    const m = this.dropMember(userId);
     await this.save();
+    if (m) this.presence("leave", m);
     this.roomMsg();
     for (const ws of this.ctx.getWebSockets(userId)) {
       try { ws.close(1000, "left"); } catch { /* */ }
@@ -394,6 +472,7 @@ export class LiveRoom extends DurableObject<LiveEnv> {
     const now = Date.now();
     this.state.endsAt = Math.max(now + 30_000, Math.min(now + 180 * 60_000, Math.trunc(endsAt)));
     await this.save();
+    await this.scheduleSweep();
     this.roomMsg();
     return { ok: true, endsAt: this.state.endsAt };
   }
@@ -539,7 +618,13 @@ export class LiveRoom extends DurableObject<LiveEnv> {
 
   async alarm() {
     await this.load();
-    if (this.state && this.state.status === "live") await this.endClass(this.state.teacherId);
+    if (!this.state || this.state.status !== "live") return;
+    if (Date.now() >= this.roomEndsAt()) {
+      await this.endClass(this.state.teacherId);
+      return;
+    }
+    await this.sweepStale();
+    await this.scheduleSweep();
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -554,11 +639,17 @@ export class LiveRoom extends DurableObject<LiveEnv> {
     if (!uid || (!isHost && !member && !waiting)) return new Response("forbidden", { status: 403 });
     const pair = new WebSocketPair();
     this.ctx.acceptWebSocket(pair[1], [uid]);
-    if (member) member.present = true;
+    let joined = false;
+    if (member) joined = this.touch(uid);
     else if (isHost) {
-      this.state.members.push({ id: uid, name: name || "Teacher", role: "teacher", camAllowed: true, micAllowed: true, hand: false, present: true, floor: "presenter" });
+      this.state.members.push({ id: uid, name: name || "Teacher", role: "teacher", camAllowed: true, micAllowed: true, hand: false, present: true, floor: "presenter", seenAt: Date.now() });
+      joined = true;
     }
     await this.save();
+    if (joined) {
+      const m = this.member(uid);
+      if (m) this.presence("join", m);
+    }
     this.send(pair[1], { t: "room", room: publicSnap(this.state, this.sfuReady()), selfId: uid });
     this.roomMsg();
     return new Response(null, { status: 101, webSocket: pair[0] });
@@ -570,7 +661,13 @@ export class LiveRoom extends DurableObject<LiveEnv> {
     let data: { t?: string; text?: string; on?: boolean; x?: number; y?: number; kind?: string } = {};
     try { data = JSON.parse(typeof message === "string" ? message : new TextDecoder().decode(message)) as typeof data; } catch { return; }
     const uid = this.ctx.getTags(ws)[0] || "";
-    if (data.t === "ping") { this.send(ws, { t: "pong" }); return; }
+    if (data.t === "ping") {
+      this.touch(uid, true);
+      await this.save();
+      this.send(ws, { t: "pong" });
+      return;
+    }
+    if (uid) this.touch(uid);
     if (data.t === "ptr") { this.setPointer(uid, data.x, data.y, data.kind); return; }
     if (data.t === "chat") await this.addChat(uid, String(data.text || ""));
     if (data.t === "raise") await this.setHand(uid, !!data.on);
@@ -578,14 +675,17 @@ export class LiveRoom extends DurableObject<LiveEnv> {
 
   async webSocketClose(ws: WebSocket) {
     await this.load();
+    if (!this.state || this.state.status !== "live") return;
     const uid = this.ctx.getTags(ws)[0] || "";
     const m = this.member(uid);
-    if (m) {
-      const still = this.ctx.getWebSockets(uid).filter((x) => x !== ws).length;
-      if (!still) m.present = false;
-      await this.save();
-      this.roomMsg();
-    }
+    if (!m) return;
+    const still = this.ctx.getWebSockets(uid).filter((x) => x !== ws).length;
+    if (still) return;
+    m.present = false;
+    m.seenAt = Date.now();
+    await this.save();
+    this.roomMsg();
+    await this.scheduleSweep();
   }
 
   async webSocketError(ws: WebSocket) {

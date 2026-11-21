@@ -89,7 +89,7 @@ function AllowBtns({ roomId, member, teacherId, asAdmin, canCam, canShare, canFl
   );
 }
 
-function Tile({ label, stream, hand, big, off, compact, size, featured, allow }: { label: string; stream?: MediaStream | null; hand?: boolean; big?: boolean; off?: boolean; compact?: boolean; size?: "hero" | "main" | "card" | "thumb"; featured?: boolean; allow?: ReactNode }) {
+function Tile({ label, stream, hand, big, off, compact, size, featured, allow, online = true }: { label: string; stream?: MediaStream | null; hand?: boolean; big?: boolean; off?: boolean; compact?: boolean; size?: "hero" | "main" | "card" | "thumb"; featured?: boolean; allow?: ReactNode; online?: boolean }) {
   const ref = useRef<HTMLVideoElement>(null);
   useEffect(() => {
     const el = ref.current;
@@ -112,7 +112,10 @@ function Tile({ label, stream, hand, big, off, compact, size, featured, allow }:
       )}
       {allow}
       <div className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-gradient-to-t from-black/70 to-transparent px-2 py-1 text-xs font-extrabold text-white sm:px-3 sm:py-2 sm:text-sm">
-        <span className="truncate">{label}</span>
+        <span className="flex min-w-0 items-center gap-1.5">
+          <span className={`lb-online ${online ? "" : "is-off"}`} title={online ? "Online" : "Offline"} aria-label={online ? "Online" : "Offline"} />
+          <span className="truncate">{label}</span>
+        </span>
         {hand ? <span className="animate-bounce text-xl sm:text-2xl" aria-label="hand raised">✋</span> : null}
       </div>
     </div>
@@ -121,7 +124,7 @@ function Tile({ label, stream, hand, big, off, compact, size, featured, allow }:
 
 const STU_COLORS = ["#c9a227", "#5b7cbf", "#d08080", "#7a6bb0", "#3d8a7a", "#4aa3c2"];
 
-function PipTile({ label, stream, min, onToggle }: { label: string; stream?: MediaStream | null; min: boolean; onToggle: () => void }) {
+function PipTile({ label, stream, min, onToggle, online = true }: { label: string; stream?: MediaStream | null; min: boolean; onToggle: () => void; online?: boolean }) {
   const ref = useRef<HTMLVideoElement>(null);
   const box = useRef<HTMLDivElement>(null);
   const drag = useRef<{ sx: number; sy: number; x: number; y: number } | null>(null);
@@ -164,13 +167,13 @@ function PipTile({ label, stream, min, onToggle }: { label: string; stream?: Med
       </div>
       <div className="lb-pip-meta">
         <span className="truncate">{label}</span>
-        <span className="lb-live-dot" aria-hidden />
+        <span className={`lb-live-dot ${online ? "" : "is-off"}`} title={online ? "Online" : "Offline"} aria-label={online ? "Online" : "Offline"} />
       </div>
     </div>
   );
 }
 
-function StuTile({ label, stream, hand, off, color, allow }: { label: string; stream?: MediaStream | null; hand?: boolean; off?: boolean; color: string; allow?: ReactNode }) {
+function StuTile({ label, stream, hand, off, color, allow, online = true }: { label: string; stream?: MediaStream | null; hand?: boolean; off?: boolean; color: string; allow?: ReactNode; online?: boolean }) {
   const ref = useRef<HTMLVideoElement>(null);
   useEffect(() => {
     const el = ref.current;
@@ -186,6 +189,7 @@ function StuTile({ label, stream, hand, off, color, allow }: { label: string; st
       {!hasVideo && <div className="lb-stu-face" aria-hidden>{off ? "😴" : "🙂"}</div>}
       {allow}
       <div className="lb-stu-meta">
+        <span className={`lb-online ${online ? "" : "is-off"}`} title={online ? "Online" : "Offline"} aria-label={online ? "Online" : "Offline"} />
         <span className="truncate">{label}</span>
         {hand ? <span aria-label="hand raised">✋</span> : null}
       </div>
@@ -344,6 +348,8 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
   const [permHelp, setPermHelp] = useState("");
   const [chatUnread, setChatUnread] = useState(0);
   const [chatToast, setChatToast] = useState<LiveChat | null>(null);
+  const [presenceToasts, setPresenceToasts] = useState<{ id: number; ev: "join" | "leave"; name: string }[]>([]);
+  const presenceSeq = useRef(0);
   const [chatSound, setChatSound] = useState(true);
   const [hearOn, setHearOn] = useState(false);
   const [needHear, setNeedHear] = useState(false);
@@ -500,12 +506,24 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
   const applyRoom = useCallback((snap: LiveSnap) => {
     setRoom(snap);
     setChat(snap.chat || []);
+    const ids = new Set(snap.members.map((m) => m.id));
+    setRemotes((prev) => {
+      let changed = false;
+      const next: typeof prev = {};
+      for (const [k, v] of Object.entries(prev)) {
+        const uid = k.split(":")[0];
+        if (ids.has(uid) || uid === "screen") { next[k] = v; }
+        else changed = true;
+      }
+      return changed ? next : prev;
+    });
     const self = snap.members.find((m) => m.id === selfId);
     if (self) setHand(self.hand);
     if (self) setPhase("in");
     else if (snap.waiting.some((w) => w.id === selfId)) setPhase("waiting");
+    else if (snap.status === "live" && phase === "in") setPhase("ended");
     if (snap.status === "ended") { setPhase("ended"); setErr(""); }
-  }, [selfId]);
+  }, [selfId, phase]);
 
   const connectWs = useCallback((roomId: string) => {
     const tok = asAdmin ? getServerSession()?.token : (guestCtx && liveGuest()?.token ? liveGuest()?.token : (lmsSession()?.token || liveGuest()?.token));
@@ -514,7 +532,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
     const ws = new WebSocket(liveWsUrl(tok, roomId));
     wsRef.current = ws;
     ws.onmessage = (ev) => {
-      let msg: { t?: string; room?: LiveSnap; selfId?: string; msg?: LiveChat; userId?: string; name?: string; camAllowed?: boolean; micAllowed?: boolean; shareAllowed?: boolean; cam?: boolean; mic?: boolean; on?: boolean; asks?: LiveAsk[]; present?: LiveSnap["present"]; view?: LiveView; stroke?: { c: string; w: number; d: number[]; by: string }; ptr?: LivePtr } = {};
+      let msg: { t?: string; ev?: "join" | "leave"; room?: LiveSnap; selfId?: string; msg?: LiveChat; userId?: string; name?: string; camAllowed?: boolean; micAllowed?: boolean; shareAllowed?: boolean; cam?: boolean; mic?: boolean; on?: boolean; asks?: LiveAsk[]; present?: LiveSnap["present"]; view?: LiveView; stroke?: { c: string; w: number; d: number[]; by: string }; ptr?: LivePtr } = {};
       try { msg = JSON.parse(String(ev.data)) as typeof msg; } catch { return; }
       if (msg.selfId) setServerSelfId(msg.selfId);
       if (msg.t === "room" && msg.room) applyRoom(msg.room);
@@ -548,12 +566,25 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
         }
       }
       if (msg.t === "ask" && msg.asks) setRoom((r) => r ? { ...r, asks: msg.asks } : r);
+      if (msg.t === "presence" && msg.userId && msg.userId !== selfId && (msg.ev === "join" || msg.ev === "leave")) {
+        const ev = msg.ev;
+        const name = msg.name || "Someone";
+        const id = ++presenceSeq.current;
+        setPresenceToasts((list) => [...list, { id, ev, name }].slice(-4));
+        setTimeout(() => setPresenceToasts((list) => list.filter((x) => x.id !== id)), 5000);
+      }
       if (msg.t === "ptr" && msg.ptr) {
         const ptr = msg.ptr;
         setPtrs((list) => ptr.on === false ? list.filter((x) => x.userId !== ptr.userId) : [...list.filter((x) => x.userId !== ptr.userId), ptr]);
       }
     };
+    const ping = () => {
+      if (ws.readyState === 1) ws.send(JSON.stringify({ t: "ping" }));
+    };
+    ws.onopen = () => ping();
+    const beat = setInterval(ping, 15_000);
     ws.onclose = () => {
+      clearInterval(beat);
       if (wsRef.current === ws && (phase === "in" || phase === "waiting")) {
         setTimeout(() => { if (wsRef.current === ws) connectWs(roomId); }, 1500);
       }
@@ -1043,14 +1074,14 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
                 <LivePresent roomId={room.id} present={room.present} isHost={isHost} canPresent={isHost || asAdmin || livePerms.present || memberFloor(me, room.teacherId) === "presenter"} asAdmin={asAdmin} selfId={selfId} members={room.members} onPresent={(present) => setRoom((r) => r ? { ...r, present } : r)} onRoomFocus={() => void toggleRoomFocus()} roomFocused={roomFocused} layout={boardFs ? "board" : layout} trayRoot={trayRoot} teachRoot={teachRoot} ptrs={ptrs} onPtr={sendPtr} />
               ) : null;
               const screen = mainScreen ? <Tile label={tr("Shared screen", "الشاشة المشاركة")} stream={mainScreen} size={viewMode === "lecture" || viewMode === "teach" ? "main" : "thumb"} /> : null;
-              const teacher = teachers.map((m) => <Tile key={m.id} label={who(m)} stream={streamOf(m)} hand={m.hand} size="thumb" featured={m.id === speakerId} />);
-              const teacherHero = teachers.map((m) => <Tile key={m.id} label={who(m)} stream={streamOf(m)} hand={m.hand} size="hero" featured={m.id === speakerId} />);
-              const studentTiles = students.map((m) => <Tile key={m.id} label={who(m)} stream={streamOf(m)} hand={m.hand} off={!streamOf(m) && m.id !== selfId} size="thumb" featured={m.id === speakerId} allow={<AllowBtns roomId={room.id} member={m} teacherId={room.teacherId} asAdmin={asAdmin} canCam={canCamAllow} canShare={canShareAllow} canFloor={isHost} onErr={fail} labels={allowLabels} />} />);
+              const teacher = teachers.map((m) => <Tile key={m.id} label={who(m)} stream={streamOf(m)} hand={m.hand} size="thumb" featured={m.id === speakerId} online={m.present} />);
+              const teacherHero = teachers.map((m) => <Tile key={m.id} label={who(m)} stream={streamOf(m)} hand={m.hand} size="hero" featured={m.id === speakerId} online={m.present} />);
+              const studentTiles = students.map((m) => <Tile key={m.id} label={who(m)} stream={streamOf(m)} hand={m.hand} off={!streamOf(m) && m.id !== selfId} size="thumb" featured={m.id === speakerId} online={m.present} allow={<AllowBtns roomId={room.id} member={m} teacherId={room.teacherId} asAdmin={asAdmin} canCam={canCamAllow} canShare={canShareAllow} canFloor={isHost} onErr={fail} labels={allowLabels} />} />);
               const thumbs = studentTiles;
-              const gallery = [...teachers, ...students].map((m) => <Tile key={m.id} label={who(m)} stream={streamOf(m)} hand={m.hand} off={!streamOf(m) && m.id !== selfId} size="card" featured={m.id === speakerId} allow={<AllowBtns roomId={room.id} member={m} teacherId={room.teacherId} asAdmin={asAdmin} canCam={canCamAllow} canShare={canShareAllow} canFloor={isHost} onErr={fail} labels={allowLabels} />} />);
+              const gallery = [...teachers, ...students].map((m) => <Tile key={m.id} label={who(m)} stream={streamOf(m)} hand={m.hand} off={!streamOf(m) && m.id !== selfId} size="card" featured={m.id === speakerId} online={m.present} allow={<AllowBtns roomId={room.id} member={m} teacherId={room.teacherId} asAdmin={asAdmin} canCam={canCamAllow} canShare={canShareAllow} canFloor={isHost} onErr={fail} labels={allowLabels} />} />);
               const featuredMem = room.members.find((m) => m.id === speakerId) || teachers[0];
-              const featured = featuredMem ? <Tile key={featuredMem.id} label={who(featuredMem)} stream={streamOf(featuredMem)} hand={featuredMem.hand} off={!streamOf(featuredMem) && featuredMem.id !== selfId} size="hero" featured allow={<AllowBtns roomId={room.id} member={featuredMem} teacherId={room.teacherId} asAdmin={asAdmin} canCam={canCamAllow} canShare={canShareAllow} canFloor={isHost} onErr={fail} labels={allowLabels} />} /> : null;
-              const others = room.members.filter((m) => m.id !== featuredMem?.id).map((m) => <Tile key={m.id} label={who(m)} stream={streamOf(m)} hand={m.hand} off={!streamOf(m) && m.id !== selfId} size="thumb" allow={<AllowBtns roomId={room.id} member={m} teacherId={room.teacherId} asAdmin={asAdmin} canCam={canCamAllow} canShare={canShareAllow} canFloor={isHost} onErr={fail} labels={allowLabels} />} />);
+              const featured = featuredMem ? <Tile key={featuredMem.id} label={who(featuredMem)} stream={streamOf(featuredMem)} hand={featuredMem.hand} off={!streamOf(featuredMem) && featuredMem.id !== selfId} size="hero" featured online={featuredMem.present} allow={<AllowBtns roomId={room.id} member={featuredMem} teacherId={room.teacherId} asAdmin={asAdmin} canCam={canCamAllow} canShare={canShareAllow} canFloor={isHost} onErr={fail} labels={allowLabels} />} /> : null;
+              const others = room.members.filter((m) => m.id !== featuredMem?.id).map((m) => <Tile key={m.id} label={who(m)} stream={streamOf(m)} hand={m.hand} off={!streamOf(m) && m.id !== selfId} size="thumb" online={m.present} allow={<AllowBtns roomId={room.id} member={m} teacherId={room.teacherId} asAdmin={asAdmin} canCam={canCamAllow} canShare={canShareAllow} canFloor={isHost} onErr={fail} labels={allowLabels} />} />);
               const bubblesStage = viewMode === "teach" || viewMode === "board";
               const teacherMem = teachers[0];
               const stageInner = bubblesStage ? (
@@ -1091,6 +1122,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
                         stream={streamOf(teacherMem)}
                         min={pipMin}
                         onToggle={() => setPipMin((v) => !v)}
+                        online={teacherMem.present}
                       />
                     )}
                     {bubblesStage && students.length > 0 && (
@@ -1103,7 +1135,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
                             hand={m.hand}
                             off={!streamOf(m) && m.id !== selfId}
                             color={STU_COLORS[i % STU_COLORS.length]}
-                            allow={<AllowBtns roomId={room.id} member={m} teacherId={room.teacherId} asAdmin={asAdmin} canCam={canCamAllow} canShare={canShareAllow} canFloor={isHost} onErr={fail} labels={allowLabels} />}
+                            online={m.present} allow={<AllowBtns roomId={room.id} member={m} teacherId={room.teacherId} asAdmin={asAdmin} canCam={canCamAllow} canShare={canShareAllow} canFloor={isHost} onErr={fail} labels={allowLabels} />}
                           />
                         ))}
                       </div>
@@ -1113,6 +1145,15 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
                       <button type="button" className="lb-hear" onClick={unlockAudio} data-testid="live-hear">
                         🔊 {tr("Tap to hear class", "اضغط لسماع الصف")}
                       </button>
+                    )}
+                    {!!presenceToasts.length && (
+                      <div className="lb-presence-toasts" data-testid="live-presence-toasts" aria-live="polite">
+                        {presenceToasts.map((x) => (
+                          <p key={x.id} className={`lb-presence-toast ${x.ev === "join" ? "is-join" : "is-leave"}`} data-testid="live-presence-toast">
+                            {x.ev === "join" ? tr(`${x.name} joined`, `انضم ${x.name}`) : tr(`${x.name} left`, `غادر ${x.name}`)}
+                          </p>
+                        ))}
+                      </div>
                     )}
                     {chatToast && !showChat && viewMode !== "discuss" && (
                       <button type="button" className="lb-toast" onClick={() => setShowChat(true)} data-testid="live-chat-toast" data-focus-keep>
@@ -1155,12 +1196,16 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
 
         {showPeople && room && createPortal(
           <div className="fixed inset-0 z-[4500] flex justify-end bg-black/40" onClick={() => setShowPeople(false)} role="presentation">
-            <aside className="lms-card flex h-full w-full max-w-sm flex-col p-4 shadow-xl text-[#1b3a57] dark:text-[#fff8ec]" onClick={(e) => e.stopPropagation()} data-testid="live-people-panel">
+            <aside className="flex h-full w-full max-w-sm flex-col bg-white p-4 text-[#1b3a57] shadow-xl dark:bg-[#0f1f30] dark:text-[#fff8ec]" onClick={(e) => e.stopPropagation()} data-testid="live-people-panel">
               <div className="mb-3 flex items-center justify-between"><h3 className="text-lg font-black">{tr("People", "الحاضرون")}</h3><button type="button" onClick={() => setShowPeople(false)}>✕</button></div>
               <ul className="flex-1 space-y-2 overflow-auto">
                 {room.members.map((m) => (
-                  <li key={m.id} className="flex items-center justify-between gap-2 rounded-2xl bg-black/5 px-3 py-2 dark:bg-white/10">
-                    <span className="font-bold">{liveWho(m, selfId, room.teacherId, tr)} {m.hand ? "✋" : ""} {!m.present ? tr("(away)", "(غادر)") : ""}</span>
+                  <li key={m.id} className="flex items-center justify-between gap-2 rounded-2xl bg-[#eef2f6] px-3 py-2 text-[#1b3a57] dark:bg-[#1b3a57] dark:text-[#fff8ec]">
+                    <span className="flex min-w-0 items-center gap-2 font-bold">
+                      <span className={`lb-online ${m.present ? "" : "is-off"}`} aria-hidden />
+                      <span className="truncate">{liveWho(m, selfId, room.teacherId, tr)} {m.hand ? "✋" : ""}</span>
+                      <span className={`text-xs font-extrabold ${m.present ? "text-[#065f46] dark:text-[#a7f3d0]" : "text-[#475569] dark:text-[#cbd5e1]"}`}>{m.present ? tr("Online", "متصل") : tr("Offline", "غير متصل")}</span>
+                    </span>
                     <AllowBtns roomId={room.id} member={m} teacherId={room.teacherId} asAdmin={asAdmin} canCam={canCamAllow} canShare={canShareAllow} canFloor={isHost} onErr={fail} labels={allowLabels} />
                   </li>
                 ))}
