@@ -15,6 +15,7 @@ import { SWEEP_MS, shouldDropMember, nextAlarmAt } from "./livePresence";
 import { liveRemoveCheck } from "./liveRemove";
 import { activatePresentItem, applyActivePresentItem, closeLibraryPresentItems, closePresentItem, openPresentItem, stashActivePresentItem, youtubeVideoId, type LivePresentItem } from "./livePresentItems";
 import { keepDebugLogs, sanitizeLiveDebug, type LiveDebugBlob } from "./liveDebug";
+import { normalizeSfuReply } from "./sfuError";
 import { normalizeLiveShapes, type LiveShape, type LiveShapeKind } from "./liveShapes";
 
 export interface LiveEnv extends LmsEnv {
@@ -782,7 +783,7 @@ async function sfuCall(env: LiveEnv, method: string, path: string, body?: unknow
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const json = (await r.json().catch(() => ({}))) as Record<string, unknown>;
-  return { status: r.status, json };
+  return normalizeSfuReply(r.status, json);
 }
 
 type IceServer = { urls: string | string[]; username?: string; credential?: string };

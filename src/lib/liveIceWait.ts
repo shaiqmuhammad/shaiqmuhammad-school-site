@@ -3,6 +3,7 @@
 export const ICE_WAIT_MS = 150;
 export const ICE_RETRY_WAIT_MS = 800;
 export const ICE_EXTEND_MS = 500;
+export const CONNECT_WAIT_MS = 2500;
 
 export type IceLike = {
   iceGatheringState: string;
@@ -77,4 +78,38 @@ export function iceSummary(servers: IceServerLike[]): string {
     }
   }
   return `stun:${stun} turn:${turn}`;
+}
+
+export type ConnLike = {
+  connectionState: string;
+  iceConnectionState?: string;
+  addEventListener: (type: string, fn: () => void) => void;
+  removeEventListener: (type: string, fn: () => void) => void;
+};
+
+function isConnected(pc: ConnLike) {
+  return pc.connectionState === "connected" || pc.iceConnectionState === "connected" || pc.iceConnectionState === "completed";
+}
+
+/** Wait until the PeerConnection is connected so publications can be announced (Cloudflare SFU). */
+export async function waitConnected(pc: ConnLike, ms = CONNECT_WAIT_MS) {
+  if (isConnected(pc)) return true;
+  return await new Promise<boolean>((res) => {
+    let settled = false;
+    const done = (ok: boolean) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(t);
+      pc.removeEventListener("connectionstatechange", on);
+      pc.removeEventListener("iceconnectionstatechange", on);
+      res(ok);
+    };
+    const on = () => {
+      if (isConnected(pc)) done(true);
+      else if (pc.connectionState === "failed" || pc.connectionState === "closed") done(false);
+    };
+    const t = setTimeout(() => done(isConnected(pc)), ms);
+    pc.addEventListener("connectionstatechange", on);
+    pc.addEventListener("iceconnectionstatechange", on);
+  });
 }

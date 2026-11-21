@@ -8,6 +8,7 @@ export const LIVE_DEBUG_EVENTS = [
   "ice_gather", "ice_connected", "ice_failed", "ice_restart",
   "pub_announce", "first_remote_track", "first_remote_frame",
   "ready", "error", "retry",
+  "sfu_error", "sfu_sub_fail", "sfu_sub_retry", "pub_rebuild",
 ] as const;
 
 export type LiveDebugEvent = { t: number; ev: string; detail?: string };
