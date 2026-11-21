@@ -14,6 +14,7 @@ import { allowedPubTracks, canControlStudentMedia, canPresentInRoom, canSetMembe
 import { SWEEP_MS, shouldDropMember, nextAlarmAt } from "./livePresence";
 import { liveRemoveCheck } from "./liveRemove";
 import { activatePresentItem, applyActivePresentItem, closeLibraryPresentItems, closePresentItem, openPresentItem, stashActivePresentItem, youtubeVideoId, type LivePresentItem } from "./livePresentItems";
+import { normalizeMediaSync, type LiveMediaSync } from "./liveMediaSync";
 import { keepDebugLogs, sanitizeLiveDebug, type LiveDebugBlob } from "./liveDebug";
 import { normalizeSfuReply } from "./sfuError";
 import { normalizeLiveShapes, type LiveShape, type LiveShapeKind } from "./liveShapes";
@@ -72,6 +73,7 @@ export type LivePresent = {
   activeId?: string;
   src?: string;
   shapes?: LiveShape[];
+  media?: LiveMediaSync;
 };
 export type LiveSnap = {
   id: string;
@@ -622,6 +624,10 @@ export class LiveRoom extends DurableObject<LiveEnv> {
     }
     if (Array.isArray(patch?.shapes)) {
       p.shapes = normalizeLiveShapes(patch!.shapes, newId);
+    }
+    if (patch && "media" in patch) {
+      const media = normalizeMediaSync(patch.media, p.src || "", Date.now());
+      p.media = media;
     }
     stashActivePresentItem(p);
     applyActivePresentItem(p);
@@ -1338,6 +1344,7 @@ export async function handleLive(request: Request, env: LiveEnv, action: string)
     if (typeof body.randText === "string") patch.randText = body.randText;
     if (Array.isArray(body.strokes)) patch.strokes = body.strokes;
     if (Array.isArray(body.shapes)) patch.shapes = body.shapes;
+    if (body.media != null || op === "media") patch.media = body.media != null ? body.media : { src: body.src, playing: body.playing === true, t: body.t };
     const r = await stub.setPresent(host, patch as never);
     return reply(origin, r, r.ok ? 200 : 403);
   }

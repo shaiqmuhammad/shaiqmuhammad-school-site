@@ -1,3 +1,5 @@
+import { normalizeMediaSync, type LiveMediaSync } from "./liveMediaSync";
+
 export type LivePresentItemKind = "lesson" | "task" | "activity" | "homework" | "quran" | "upload" | "youtube" | "board";
 
 export const LIVE_PRESENT_ITEM_KINDS: LivePresentItemKind[] = ["lesson", "task", "activity", "homework", "quran", "upload", "youtube", "board"];
@@ -12,6 +14,7 @@ export type LivePresentItem = {
   slide: number;
   strokes: PresentStroke[];
   src?: string;
+  media?: LiveMediaSync;
 };
 
 export type PresentItemsState = {
@@ -22,6 +25,7 @@ export type PresentItemsState = {
   items?: LivePresentItem[];
   activeId?: string;
   src?: string;
+  media?: LiveMediaSync;
 };
 
 const KIND_SET = new Set<string>(LIVE_PRESENT_ITEM_KINDS);
@@ -61,7 +65,7 @@ function normalizeItem(raw: Partial<LivePresentItem> | null | undefined): LivePr
   const kind = asPresentKind(raw.kind, packId, src);
   const id = String(raw.id || presentItemId(kind, packId, src)).slice(0, 80);
   if (!id) return null;
-  return {
+  const item: LivePresentItem = {
     id,
     kind,
     title: String(raw.title || (kind === "youtube" ? "YouTube" : kind === "board" ? "Whiteboard" : "Lesson")).trim().slice(0, 80),
@@ -70,6 +74,9 @@ function normalizeItem(raw: Partial<LivePresentItem> | null | undefined): LivePr
     strokes: Array.isArray(raw.strokes) ? raw.strokes.slice(-200) : [],
     src,
   };
+  const media = kind === "youtube" ? normalizeMediaSync(raw.media, src) : undefined;
+  if (media) item.media = media;
+  return item;
 }
 
 export function normalizePresentItems(p: PresentItemsState): LivePresentItem[] {
@@ -112,6 +119,7 @@ export function stashActivePresentItem(p: PresentItemsState): void {
   if (p.packId) it.packId = p.packId;
   if (p.packTitle) it.title = p.packTitle;
   if (p.src) it.src = p.src;
+  if (it.kind === "youtube" && p.media && p.media.src === (it.src || p.src)) it.media = p.media;
 }
 
 export function applyActivePresentItem(p: PresentItemsState): void {
@@ -123,6 +131,11 @@ export function applyActivePresentItem(p: PresentItemsState): void {
   p.slide = it.slide;
   p.strokes = it.strokes;
   p.src = it.src || "";
+  if (it.kind === "youtube" && it.src) {
+    p.media = it.media && it.media.src === it.src ? it.media : { src: it.src, playing: false, t: 0, at: Date.now() };
+  } else {
+    p.media = undefined;
+  }
 }
 
 export function openPresentItem(p: PresentItemsState, start: { packId?: string; packTitle?: string; kind?: string; src?: string; slide?: number }): LivePresentItem {

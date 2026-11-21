@@ -77,3 +77,23 @@ test("the board tab cannot be closed", () => {
   assert.ok(p.items?.some((i) => i.id === "board"));
   assert.equal(p.activeId, "lesson:a");
 });
+
+test("youtube media cursor is stashed per tab and restored on switch", () => {
+  const p: PresentItemsState = { packId: "", packTitle: "Whiteboard", slide: 0, strokes: [] };
+  openPresentItem(p, { packId: "", packTitle: "YouTube", kind: "youtube", src: "dQw4w9wgGcQ" });
+  assert.equal(p.src, "dQw4w9wgGcQ");
+  assert.equal(p.media?.src, "dQw4w9wgGcQ");
+  assert.equal(p.media?.playing, false);
+  p.media = { src: "dQw4w9wgGcQ", playing: true, t: 42, at: 9 };
+  openPresentItem(p, { packId: "", packTitle: "YouTube", kind: "youtube", src: "oHg5SJYRHA0" });
+  assert.equal(p.src, "oHg5SJYRHA0");
+  assert.equal(p.media?.src, "oHg5SJYRHA0");
+  assert.equal(p.media?.t, 0);
+  activatePresentItem(p, "youtube:dQw4w9wgGcQ");
+  assert.equal(p.src, "dQw4w9wgGcQ");
+  assert.equal(p.media?.playing, true);
+  assert.equal(p.media?.t, 42);
+  activatePresentItem(p, "board");
+  assert.equal(p.src, "");
+  assert.equal(p.media, undefined);
+});

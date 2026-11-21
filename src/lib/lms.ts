@@ -337,19 +337,21 @@ export type LiveAnswer = { userId: string; name: string; slide: number; text: st
 export const LIVE_VIEW_MODES = ["teach", "lecture", "gallery", "speaker", "board", "discuss"] as const;
 export type LiveViewMode = (typeof LIVE_VIEW_MODES)[number];
 export type LiveView = { mode: LiveViewMode; follow: boolean };
-export type LivePresentItemKind = "lesson" | "task" | "activity" | "homework" | "quran" | "upload" | "youtube" | "board";
-export type LivePresentItem = {
-  id: string; kind: LivePresentItemKind; title: string; packId: string; slide: number; strokes: LiveStroke[]; src?: string;
-};
 import type { LiveShape, LiveShapeKind } from "./liveShapes";
 export type { LiveShape, LiveShapeKind };
+export type { LiveMediaSync } from "./liveMediaSync";
+import type { LiveMediaSync } from "./liveMediaSync";
+export type LivePresentItemKind = "lesson" | "task" | "activity" | "homework" | "quran" | "upload" | "youtube" | "board";
+export type LivePresentItem = {
+  id: string; kind: LivePresentItemKind; title: string; packId: string; slide: number; strokes: LiveStroke[]; src?: string; media?: LiveMediaSync;
+};
 export type LivePresent = {
   packId: string; packTitle: string; slide: number; follow: boolean; timerEnd: number | null;
   penId: string; strokes: LiveStroke[]; tool: "" | "wheel" | "rand" | "award" | "board";
   wheelAngle: number; wheelSpinTo: number; wheelAt: number; winnerId: string; winnerName: string;
   randText: string; answers: LiveAnswer[];
   items?: LivePresentItem[]; activeId?: string; src?: string;
-  shapes?: LiveShape[];
+  shapes?: LiveShape[]; media?: LiveMediaSync;
 };
 export function youtubeVideoId(raw: string): string {
   const s = String(raw || "").trim();
