@@ -14,7 +14,7 @@ import { StartMeetingPanel } from "@/components/lms/StartMeeting";
 import { LiveHistory } from "@/components/lms/LiveHistory";
 import { LivePresent } from "@/components/lms/LivePresent";
 import { LiveViewPicker, RoomStage, useActiveSpeaker, presentLayout, VIEW_CARDS } from "@/components/lms/LiveViews";
-import { lmsApi, lmsErrorText, lmsSession, liveGuest, liveWsUrl, type LiveAsk, type LiveChat, type LivePerms, type LiveRoomInfo, type LiveSnap, type LiveView, type LiveViewMode } from "@/lib/lms";
+import { lmsApi, lmsErrorText, lmsSession, liveGuest, liveWsUrl, type LiveAsk, type LivePtr, type LiveChat, type LivePerms, type LiveRoomInfo, type LiveSnap, type LiveView, type LiveViewMode } from "@/lib/lms";
 
 type Phase = "lobby" | "waiting" | "in" | "ended";
 
@@ -232,6 +232,9 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
   const [pipMin, setPipMin] = useState(false);
   const [trayRoot, setTrayRoot] = useState<HTMLDivElement | null>(null);
   const [askNote, setAskNote] = useState<"" | "sent" | "allowed">("");
+  const [ptrs, setPtrs] = useState<LivePtr[]>([]);
+  const lastPtrAt = useRef(0);
+  const fail = (e: unknown, en: string, ar: string) => setErr(lmsErrorText(e, tr, undefined, tr(en, ar)));
   const roomRef = useRef<HTMLDivElement>(null);
   const sfuRef = useRef<LiveSfu | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -258,7 +261,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
 
   useEffect(() => {
     if (!ready || !actor || actor.guest) return;
-    loadList().catch((e) => setErr(lmsErrorText(e, tr)));
+    loadList().catch((e) => fail(e, "Lesson list", "قائمة الحصص"));
   }, [ready, actor, loadList, tr]);
 
   useEffect(() => {
@@ -322,11 +325,17 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
     try {
       const r = await lmsApi.liveView(room.id, { mode: body.mode || hostViewMode, follow: body.follow ?? viewFollow }, asAdmin);
       if (r.view) setRoom((prev) => prev ? { ...prev, view: r.view } : prev);
-    } catch (e) { setErr(lmsErrorText(e, tr)); }
+    } catch (e) { fail(e, "Change view", "تغيير العرض"); }
   };
   const pickView = (mode: LiveViewMode) => {
-    if (isHost) void applyView({ mode });
-    else setLocalView(mode);
+    if (isHost) {
+      void applyView({ mode });
+      if (mode === "board" && room) {
+        lmsApi.livePresent(room.id, { op: "board" }, asAdmin)
+          .then((r) => { if (r.present !== undefined) setRoom((prev) => prev ? { ...prev, present: r.present || null } : prev); })
+          .catch((e) => fail(e, "Whiteboard", "السبورة"));
+      }
+    } else setLocalView(mode);
     setViewOpen(false);
   };
 
@@ -367,7 +376,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
     const ws = new WebSocket(liveWsUrl(tok, roomId));
     wsRef.current = ws;
     ws.onmessage = (ev) => {
-      let msg: { t?: string; room?: LiveSnap; msg?: LiveChat; userId?: string; name?: string; camAllowed?: boolean; micAllowed?: boolean; shareAllowed?: boolean; cam?: boolean; mic?: boolean; on?: boolean; asks?: LiveAsk[]; present?: LiveSnap["present"]; view?: LiveView; stroke?: { c: string; w: number; d: number[]; by: string } } = {};
+      let msg: { t?: string; room?: LiveSnap; msg?: LiveChat; userId?: string; name?: string; camAllowed?: boolean; micAllowed?: boolean; shareAllowed?: boolean; cam?: boolean; mic?: boolean; on?: boolean; asks?: LiveAsk[]; present?: LiveSnap["present"]; view?: LiveView; stroke?: { c: string; w: number; d: number[]; by: string }; ptr?: LivePtr } = {};
       try { msg = JSON.parse(String(ev.data)) as typeof msg; } catch { return; }
       if (msg.t === "room" && msg.room) applyRoom(msg.room);
       if (msg.t === "present") setRoom((r) => r ? { ...r, present: msg.present || null } : r);
@@ -400,6 +409,10 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
         }
       }
       if (msg.t === "ask" && msg.asks) setRoom((r) => r ? { ...r, asks: msg.asks } : r);
+      if (msg.t === "ptr" && msg.ptr) {
+        const ptr = msg.ptr;
+        setPtrs((list) => ptr.on === false ? list.filter((x) => x.userId !== ptr.userId) : [...list.filter((x) => x.userId !== ptr.userId), ptr]);
+      }
     };
     ws.onclose = () => {
       if (wsRef.current === ws && (phase === "in" || phase === "waiting")) {
@@ -407,6 +420,15 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
       }
     };
   }, [applyRoom, asAdmin, cleanupMedia, phase, selfId, tr]);
+
+  const sendPtr = useCallback((x: number | null, y: number | null) => {
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== 1) return;
+    const now = Date.now();
+    if (x != null && now - lastPtrAt.current < 40) return;
+    lastPtrAt.current = now;
+    ws.send(JSON.stringify(x == null || y == null ? { t: "ptr" } : { t: "ptr", x, y }));
+  }, []);
 
   useEffect(() => () => { closeWs(); cleanupMedia(); }, [cleanupMedia]);
 
@@ -447,7 +469,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
           }
         }
       } catch (e) {
-        if (!cancelled) setErr(lmsErrorText(e, tr));
+        if (!cancelled) fail(e, "Video", "الفيديو");
       }
     })();
     return () => { cancelled = true; };
@@ -480,7 +502,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
       connectWs(id);
       if (typeof window !== "undefined") history.replaceState(null, "", liveHref(id));
     } catch (e) {
-      setErr(lmsErrorText(e, tr));
+      fail(e, "Join room", "دخول الحصة");
     } finally { setBusy(false); }
   }
 
@@ -491,7 +513,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
       const r = await lmsApi.liveStart({ title: title.trim() || undefined, cls, section, groupId: groupId || undefined, minutes }, asAdmin);
       await enter(r.id);
     } catch (e) {
-      setErr(lmsErrorText(e, tr));
+      fail(e, "Start lesson", "بدء الحصة");
     } finally { setBusy(false); }
   }
 
@@ -519,7 +541,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
       setPermHelp("");
     } catch (e) {
       if (isPermErr(e)) setPermHelp("cam");
-      else setErr(lmsErrorText(e, tr));
+      else fail(e, "Camera", "الكاميرا");
     }
   }
 
@@ -544,7 +566,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
       setPermHelp("");
     } catch (e) {
       if (isPermErr(e)) setPermHelp("mic");
-      else setErr(lmsErrorText(e, tr));
+      else fail(e, "Mic", "الميكروفون");
     }
   }
 
@@ -582,21 +604,21 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
     try {
       await lmsApi.liveAsk(room.id, { cam, mic, on: true }, asAdmin);
       setAskNote("sent");
-    } catch (e) { setErr(lmsErrorText(e, tr)); }
+    } catch (e) { fail(e, "Ask to speak", "طلب التحدث"); }
   }
 
   async function allowAsk(userId: string, cam: boolean, mic: boolean) {
     if (!room) return;
     try {
       await lmsApi.livePerm(room.id, userId, cam ? true : undefined, mic ? true : undefined, asAdmin);
-    } catch (e) { setErr(lmsErrorText(e, tr)); }
+    } catch (e) { fail(e, "Allow camera or mic", "السماح بالكاميرا أو الميكروفون"); }
   }
 
   async function sendChat() {
     const text = draft.trim();
     if (!text || !room) return;
     setDraft("");
-    await lmsApi.liveChat(room.id, text, asAdmin).catch((e) => setErr(lmsErrorText(e, tr)));
+    await lmsApi.liveChat(room.id, text, asAdmin).catch((e) => fail(e, "Chat", "الدردشة"));
   }
 
   async function leave() {
@@ -607,6 +629,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
     setErr("");
     setPhase("lobby");
     setRoom(null);
+    setPtrs([]);
     history.replaceState(null, "", liveHref());
     loadList().catch(() => undefined);
   }
@@ -614,7 +637,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
   async function endClass() {
     if (!room) return;
     setErr("");
-    await lmsApi.liveEnd(room.id, asAdmin).catch((e) => setErr(lmsErrorText(e, tr)));
+    await lmsApi.liveEnd(room.id, asAdmin).catch((e) => fail(e, "End class", "إنهاء الحصة"));
     cleanupMedia();
     closeWs();
     void leaveRoomFocus();
@@ -625,14 +648,14 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
     try {
       const r = await lmsApi.liveDuration(room.id, { addMin: n }, asAdmin);
       if (r.endsAt) setRoom((prev) => prev ? { ...prev, endsAt: r.endsAt } : prev);
-    } catch (e) { setErr(lmsErrorText(e, tr)); }
+    } catch (e) { fail(e, "Lesson time", "وقت الحصة"); }
   }
   async function setLessonMin(n: number) {
     if (!room) return;
     try {
       const r = await lmsApi.liveDuration(room.id, { endsAt: Date.now() + n * 60_000 }, asAdmin);
       if (r.endsAt) setRoom((prev) => prev ? { ...prev, endsAt: r.endsAt } : prev);
-    } catch (e) { setErr(lmsErrorText(e, tr)); }
+    } catch (e) { fail(e, "Lesson time", "وقت الحصة"); }
   }
   function unlockAudio() {
     setHearOn(true);
@@ -836,7 +859,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
               const students = room.members.filter((m) => m.role !== "teacher");
               const showPresent = presenting || isHost || asAdmin || livePerms.present;
               const presentSlot = showPresent ? (
-                <LivePresent roomId={room.id} present={room.present} isHost={isHost} canPresent={asAdmin || livePerms.present} asAdmin={asAdmin} selfId={selfId} members={room.members} onPresent={(present) => setRoom((r) => r ? { ...r, present } : r)} onRoomFocus={() => void toggleRoomFocus()} roomFocused={roomFocused} layout={layout} trayRoot={trayRoot} />
+                <LivePresent roomId={room.id} present={room.present} isHost={isHost} canPresent={isHost || asAdmin || livePerms.present} asAdmin={asAdmin} selfId={selfId} members={room.members} onPresent={(present) => setRoom((r) => r ? { ...r, present } : r)} onRoomFocus={() => void toggleRoomFocus()} roomFocused={roomFocused} layout={layout} trayRoot={trayRoot} ptrs={ptrs} onPtr={sendPtr} />
               ) : null;
               const screen = mainScreen ? <Tile label={tr("Shared screen", "الشاشة المشاركة")} stream={mainScreen} size={viewMode === "lecture" || viewMode === "teach" ? "main" : "thumb"} /> : null;
               const teacher = teachers.map((m) => <Tile key={m.id} label={m.id === selfId ? tr("You (teacher)", "أنت (المعلم)") : m.name} stream={streamOf(m)} hand={m.hand} size="thumb" featured={m.id === speakerId} />);
@@ -924,9 +947,9 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
               <p className="lb-hint" data-testid="live-rec-note">{tr("Turn on R2 storage to enable recording", "فعّل تخزين R2 لتفعيل التسجيل")}</p>
             )}
             <div className="lb-dock" data-focus-keep>
-              <DockBtn testid="live-cam" icon={camOn ? "📷" : "🚫"} label={tr("Camera", "الكاميرا")} on={camOn} disabled={!isHost && !me?.camAllowed && !camOn} onClick={() => toggleCam().catch((e) => setErr(lmsErrorText(e, tr)))} />
-              <DockBtn testid="live-mic" icon={micOn ? "🎤" : "🔇"} label={tr("Mic", "الميكروفون")} on={micOn} disabled={!isHost && !me?.micAllowed && !micOn} onClick={() => toggleMic().catch((e) => setErr(lmsErrorText(e, tr)))} />
-              {(isHost || me?.shareAllowed) && <DockBtn testid="live-share" icon="🖥️" label={tr("Share", "مشاركة")} on={shareOn} onClick={() => toggleShare().catch((e) => setErr(lmsErrorText(e, tr)))} />}
+              <DockBtn testid="live-cam" icon={camOn ? "📷" : "🚫"} label={tr("Camera", "الكاميرا")} on={camOn} disabled={!isHost && !me?.camAllowed && !camOn} onClick={() => toggleCam().catch((e) => fail(e, "Camera", "الكاميرا"))} />
+              <DockBtn testid="live-mic" icon={micOn ? "🎤" : "🔇"} label={tr("Mic", "الميكروفون")} on={micOn} disabled={!isHost && !me?.micAllowed && !micOn} onClick={() => toggleMic().catch((e) => fail(e, "Mic", "الميكروفون"))} />
+              {(isHost || me?.shareAllowed) && <DockBtn testid="live-share" icon="🖥️" label={tr("Share", "مشاركة")} on={shareOn} onClick={() => toggleShare().catch((e) => fail(e, "Share screen", "مشاركة الشاشة"))} />}
               <DockBtn testid="live-hand" icon="✋" label={tr("Hand", "يد")} on={hand} onClick={() => toggleHand().catch(() => undefined)} />
               {!isHost && me && (!me.camAllowed || !me.micAllowed) && (
                 <DockBtn testid="live-ask" icon="🙋" label={askNote === "sent" ? tr("Asked…", "تم الطلب…") : tr("Ask to speak", "طلب التحدث")} on={askNote === "sent"} onClick={() => askToSpeak().catch(() => undefined)} />
@@ -955,9 +978,9 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
                     <span className="font-bold">{m.name}{m.role === "teacher" ? ` · ${tr("Teacher", "المعلم")}` : ""} {m.hand ? "✋" : ""} {!m.present ? tr("(away)", "(غادر)") : ""}</span>
                     {(isHost || livePerms.camMic || livePerms.screenShare) && m.role !== "teacher" && (
                       <span className="flex gap-1 text-xs">
-                        {(isHost || livePerms.camMic) && <button type="button" className={`rounded-full px-2 py-1 font-bold ${m.camAllowed ? "bg-emerald-200" : "bg-white dark:bg-slate-800"}`} onClick={() => lmsApi.livePerm(room.id, m.id, !m.camAllowed, undefined, asAdmin).catch((e) => setErr(lmsErrorText(e, tr)))} data-testid="live-allow-cam">{tr("Cam", "كاميرا")}</button>}
-                        {(isHost || livePerms.camMic) && <button type="button" className={`rounded-full px-2 py-1 font-bold ${m.micAllowed ? "bg-emerald-200" : "bg-white dark:bg-slate-800"}`} onClick={() => lmsApi.livePerm(room.id, m.id, undefined, !m.micAllowed, asAdmin).catch((e) => setErr(lmsErrorText(e, tr)))} data-testid="live-allow-mic">{tr("Mic", "ميكروفون")}</button>}
-                        {(isHost || livePerms.screenShare) && <button type="button" className={`rounded-full px-2 py-1 font-bold ${m.shareAllowed ? "bg-emerald-200" : "bg-white dark:bg-slate-800"}`} onClick={() => lmsApi.livePerm(room.id, m.id, undefined, undefined, asAdmin, !m.shareAllowed).catch((e) => setErr(lmsErrorText(e, tr)))} data-testid="live-allow-share">{tr("Share", "مشاركة")}</button>}
+                        {(isHost || livePerms.camMic) && <button type="button" className={`rounded-full px-2 py-1 font-bold ${m.camAllowed ? "bg-emerald-200" : "bg-white dark:bg-slate-800"}`} onClick={() => lmsApi.livePerm(room.id, m.id, !m.camAllowed, undefined, asAdmin).catch((e) => fail(e, "Allow camera", "السماح بالكاميرا"))} data-testid="live-allow-cam">{tr("Cam", "كاميرا")}</button>}
+                        {(isHost || livePerms.camMic) && <button type="button" className={`rounded-full px-2 py-1 font-bold ${m.micAllowed ? "bg-emerald-200" : "bg-white dark:bg-slate-800"}`} onClick={() => lmsApi.livePerm(room.id, m.id, undefined, !m.micAllowed, asAdmin).catch((e) => fail(e, "Allow mic", "السماح بالميكروفون"))} data-testid="live-allow-mic">{tr("Mic", "ميكروفون")}</button>}
+                        {(isHost || livePerms.screenShare) && <button type="button" className={`rounded-full px-2 py-1 font-bold ${m.shareAllowed ? "bg-emerald-200" : "bg-white dark:bg-slate-800"}`} onClick={() => lmsApi.livePerm(room.id, m.id, undefined, undefined, asAdmin, !m.shareAllowed).catch((e) => fail(e, "Allow share", "السماح بالمشاركة"))} data-testid="live-allow-share">{tr("Share", "مشاركة")}</button>}
                       </span>
                     )}
                   </li>
