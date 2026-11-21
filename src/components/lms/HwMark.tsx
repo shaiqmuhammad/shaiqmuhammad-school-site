@@ -68,7 +68,7 @@ export function HwImg({ id, asAdmin, className, alt = "", token }: { id: string;
 
 /** Overlay + tools. `edit` = teacher can mark; otherwise the student (or QR view) only sees the marks. */
 export function HwAnnotate({
-  photos, annot, codes, edit, asAdmin = false, subId, audioId, onSaved, onCodes, token, pdfMeta,
+  photos, annot, codes, edit, asAdmin = false, subId, audioId, onSaved, onCodes, token, pdfMeta, showVoice = true,
 }: {
   photos: HwPhoto[];
   annot: HwAnnot | null;
@@ -81,6 +81,8 @@ export function HwAnnotate({
   onCodes?: (c: CorrCode[]) => void;
   token?: string;
   pdfMeta?: { title: string; student: string; cls?: string; section?: string; teacher?: string; date?: number; hwId?: string; studentId?: string };
+  /** t757: voice recorder stays on Quran homework; general homework / tasks use stamps + Next Steps only. */
+  showVoice?: boolean;
 }) {
   const { tr, lang } = useTr();
   const [tab, setTab] = useState(photos[0]?.id || "");
@@ -118,8 +120,8 @@ export function HwAnnotate({
       const t: HwText = { id: uid(), x, y, text: "", c: color, size: 18 };
       setPage({ ...page, texts: [...page.texts, t] });
       setSel({ k: "text", id: t.id });
-    } else if (tool === "stamp" && code) {
-      const s: HwStamp = { id: uid(), x, y, code: code.id, en: code.en, ar: code.ar, color: code.color };
+    } else if (tool === "stamp" && activeCode) {
+      const s: HwStamp = { id: uid(), x, y, code: activeCode.id, en: activeCode.en, ar: activeCode.ar, color: activeCode.color };
       setPage({ ...page, stamps: [...page.stamps, s] });
       setSel({ k: "stamp", id: s.id });
     }
@@ -159,6 +161,7 @@ export function HwAnnotate({
   };
   const photo = photos.find((p) => p.id === tab);
   const palette = codes.length ? codes : DEFAULT_CODES;
+  const activeCode = (code && palette.some((c) => c.id === code.id)) ? code : (palette[0] || null);
   if (!photos.length) return null;
   return (
     <div className="space-y-3" data-testid="hw-mark">
@@ -198,13 +201,12 @@ export function HwAnnotate({
             <button type="button" className={toolBtn(false)} onClick={() => setPage({ ...page, strokes: page.strokes.slice(0, -1) })} data-testid="hw-mark-undo">↩ {tr("Undo stroke", "تراجع عن الخط")}</button>
           </div>
           {(tool === "pen" || tool === "hi" || tool === "text") && <div className="flex flex-wrap items-center gap-2">{PENS.map((c) => <button key={c} type="button" className={`h-9 w-9 rounded-full shadow ring-2 ${color === c ? "ring-sky-500 scale-110" : "ring-black/10"}`} style={{ background: c }} aria-label={c} onClick={() => setColor(c)} />)}<label className="text-xs font-bold">{tr("Size", "الحجم")}<input type="range" min={2} max={14} value={width} onChange={(e) => setWidth(Number(e.target.value))} className="ms-2 align-middle" /></label></div>}
-          {tool === "stamp" && (
-            <div className="space-y-2">
-              <div className="flex flex-wrap gap-2" data-testid="hw-codes">{palette.map((c) => <button key={c.id} type="button" className={`rounded-2xl px-3 py-2 text-xs font-black text-white shadow ${code?.id === c.id ? "ring-4 ring-white/80" : ""}`} style={{ background: c.color }} onClick={() => { setCode(c); setTool("stamp"); }}>{lang === "ar" ? c.ar : c.en}</button>)}</div>
-              <button type="button" className={smallBtn} onClick={() => setCodesOpen(!codesOpen)} data-testid="hw-codes-edit">➕ {tr("My correction codes", "رموز التصحيح")}</button>
-              {codesOpen && <CodesEditor list={palette} asAdmin={asAdmin} onSave={(c) => { onCodes?.(c); setCode(c[0] || null); }} />}
-            </div>
-          )}
+          <div className="space-y-2" data-testid="hw-codes-wrap">
+            <p className="text-xs font-extrabold uppercase tracking-wide opacity-70">{tr("Correction codes — tap a stamp, then tap the work", "رموز التصحيح — اضغط رمزًا ثم اضغط على العمل")}</p>
+            <div className="flex flex-wrap gap-2" data-testid="hw-codes">{palette.map((c) => <button key={c.id} type="button" className={`rounded-2xl px-3 py-2 text-xs font-black text-white shadow ${tool === "stamp" && activeCode?.id === c.id ? "ring-4 ring-[#1b3a57] ring-offset-2 dark:ring-offset-[#12233a]" : "ring-1 ring-black/10"}`} style={{ background: c.color }} onClick={() => { setCode(c); setTool("stamp"); }} data-testid={`hw-code-${c.id}`}>{lang === "ar" ? c.ar : c.en}</button>)}</div>
+            <button type="button" className={smallBtn} onClick={() => setCodesOpen(!codesOpen)} data-testid="hw-codes-edit">➕ {tr("My correction codes", "رموز التصحيح")}</button>
+            {codesOpen && <CodesEditor list={palette} asAdmin={asAdmin} onSave={(c) => { onCodes?.(c); setCode(c[0] || null); }} />}
+          </div>
           <div className="rounded-3xl bg-gradient-to-br from-emerald-50 to-sky-50 p-3 ring-1 ring-black/5 dark:from-emerald-900/20 dark:to-sky-900/20" data-testid="hw-next-steps">
             <button type="button" className={toolBtn(nextOpen)} onClick={() => setNextOpen(!nextOpen)}>💬 {tr("Next Steps — ready-made comments", "الخطوات التالية — تعليقات جاهزة")}</button>
             {nextOpen && <div className="mt-2 max-h-56 space-y-1 overflow-y-auto">
@@ -216,7 +218,7 @@ export function HwAnnotate({
             {!!draft.next.length && <ul className="mt-2 list-disc ps-5 text-sm font-semibold">{draft.next.map((n) => <li key={n} dir="auto">{n}</li>)}</ul>}
           </div>
           {audioId && <AudioClip id={audioId} asAdmin={asAdmin} label={"🎙️ " + tr("Voice feedback", "تعليق صوتي")} testId="mark-fb-clip" />}
-          <AudioRecorder big autoSave light label={tr("Record voice feedback (up to 3 minutes)", "سجّل تعليقًا صوتيًا (حتى 3 دقائق)")} savedText={tr("Saved — the student will hear it.", "تم الحفظ — سيسمعه الطالب.")} testId="mark-fb-rec" onSave={async (b) => { await lmsApi.audioUpload({ sub: subId }, b, asAdmin); }} />
+          {showVoice && <AudioRecorder big autoSave light label={tr("Record voice feedback (up to 3 minutes)", "سجّل تعليقًا صوتيًا (حتى 3 دقائق)")} savedText={tr("Saved — the student will hear it.", "تم الحفظ — سيسمعه الطالب.")} testId="mark-fb-rec" onSave={async (b) => { await lmsApi.audioUpload({ sub: subId }, b, asAdmin); }} />}
           <div className="flex flex-wrap gap-2">
             <button type="button" className={smallBtn} disabled={busy} onClick={() => save(false)} data-testid="hw-mark-save">{busy ? "…" : tr("Save marks", "حفظ العلامات")}</button>
             <button type="button" className="rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 px-4 py-2 text-sm font-extrabold text-white shadow-md" disabled={busy} onClick={() => save(true)} data-testid="hw-mark-send">✅ {tr("Send correction", "إرسال التصحيح")}</button>

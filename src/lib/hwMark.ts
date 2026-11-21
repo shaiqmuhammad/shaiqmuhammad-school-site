@@ -23,6 +23,8 @@ export const emptyAnnot = (): HwAnnot => ({ pages: {}, next: [] });
 export const DEFAULT_CODES: CorrCode[] = [
   { id: "ok", en: "Great", ar: "رائع", color: "#059669" },
   { id: "star", en: "Excellent", ar: "ممتاز", color: "#d97706" },
+  { id: "sa", en: "SA", ar: "تقييم ذاتي", color: "#0d9488" },
+  { id: "pa", en: "PA", ar: "تقييم الأقران", color: "#7c3aed" },
   { id: "sp", en: "Spelling", ar: "إملاء", color: "#e11d48" },
   { id: "p", en: "Punctuation", ar: "ترقيم", color: "#ea580c" },
   { id: "c", en: "Capital letter", ar: "حرف كبير", color: "#0284c7" },
