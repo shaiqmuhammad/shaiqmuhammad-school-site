@@ -44,7 +44,7 @@ const TEACHER: Tab[] = [
   { id: "live", href: "/lms/live", en: "Live Lesson", ar: "الحصة المباشرة", icon: I.live, lvl: 1 },
   { id: "lessons", href: "/lms/homework?tab=lessons", en: "Lessons", ar: "الدروس", icon: I.hw, lvl: 1 },
   { id: "hw", href: "/lms/homework", en: "Homework", ar: "الواجبات", icon: I.hw, lvl: 1 },
-  { id: "review", href: "/lms/homework?tab=review", en: "To Review", ar: "للمراجعة", icon: I.hw, lvl: 1 },
+  { id: "review", href: "/lms/homework?tab=review", en: "Review", ar: "مراجعة", icon: I.hw, lvl: 1 },
   { id: "assess", href: "/lms/assessments", en: "Assessments", ar: "التقييمات", icon: I.assess, lvl: 2 },
   { id: "msg", href: "/lms/messages", en: "Messages", ar: "الرسائل", icon: I.msg, lvl: 2 },
   { id: "act", href: "/lms/activities", en: "Activities", ar: "الأنشطة", icon: I.act, lvl: 3 },
