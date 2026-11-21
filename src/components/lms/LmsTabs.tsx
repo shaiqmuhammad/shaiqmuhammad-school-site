@@ -24,11 +24,13 @@ const I = {
   cur: "M4 5h6a2 2 0 0 1 2 2v13a2 2 0 0 0-2-2H4zM20 5h-6a2 2 0 0 0-2 2v13a2 2 0 0 1 2-2h6z",
   res: "M7 4h10v5a5 5 0 0 1-10 0zM9 20h6M12 14v6",
   lb: "M3 4h14v10H3zM7 18h6M10 14v4M15 21l6-6M19 9l.6 1.4L21 11l-1.4.6L19 13l-.6-1.4L17 11l1.4-.6z",
+  live: "M3 8h11v8H3zM16 10l5-2.5v9L16 14z",
 };
 // lvl = smallest width class at which the tab sits in the strip (0 = always, 1 = sm, 2 = md, 3 = lg); the rest live in "More".
 const STUDENT: Tab[] = [
   { id: "dash", href: "/lms", en: "Dashboard", ar: "اللوحة", icon: I.dash, lvl: 0 },
   { id: "hw", href: "/lms/homework", en: "Homework", ar: "الواجبات", icon: I.hw, lvl: 0 },
+  { id: "live", href: "/lms/live", en: "Live Lesson", ar: "الحصة المباشرة", icon: I.live, lvl: 1 },
   { id: "assess", href: "/lms/assessments", en: "Assessments", ar: "التقييمات", icon: I.assess, lvl: 1 },
   { id: "msg", href: "/lms/messages", en: "Messages", ar: "الرسائل", icon: I.msg, lvl: 1 },
   { id: "wall", href: "/lms/wall", en: "Class Wall", ar: "جدار الصف", icon: I.wall, lvl: 2 },
@@ -39,6 +41,7 @@ const STUDENT: Tab[] = [
 const TEACHER: Tab[] = [
   { id: "dash", href: "/lms", en: "Dashboard", ar: "اللوحة", icon: I.dash, lvl: 0 },
   { id: "cls", href: "/lms/classes", en: "My classes", ar: "صفوفي", icon: I.cls, lvl: 0 },
+  { id: "live", href: "/lms/live", en: "Live Lesson", ar: "الحصة المباشرة", icon: I.live, lvl: 1 },
   { id: "lessons", href: "/lms/homework?tab=lessons", en: "Lessons", ar: "الدروس", icon: I.hw, lvl: 1 },
   { id: "hw", href: "/lms/homework", en: "Homework", ar: "الواجبات", icon: I.hw, lvl: 1 },
   { id: "review", href: "/lms/homework?tab=review", en: "To Review", ar: "للمراجعة", icon: I.hw, lvl: 1 },
@@ -50,7 +53,7 @@ const TEACHER: Tab[] = [
 ];
 // Child-friendly look: one emoji per area, each on its own theme-coloured disc.
 // t449/t450: every LMS module a unique icon — redeploy — Homework 📝 · Libraries 📚 · Curriculum 🗂️ · Assessments 🧩 · Quran Tracker 📖 · Quran Homework 🎙️ · Attendance 🗓️ · Activities 🎲 · Results 🧾 · Timetable ⏰ · Tracker 📋 · Progress Check 📊 · Lesson Builder 📑 · Reward Cards 🃏
-const EMOJI: Record<string, string> = { tt: "⏰", std: "📘", lib: "📚", rep: "📈", dash: "🏠", lessons: "🎤", hw: "📝", assigned: "📋", review: "📥", assess: "🧩", msg: "💬", wall: "🧱", quran: "📖", qhw: "🎙️", cls: "🏫", act: "🎲", res: "🧾", att: "🗓️", beh: "🌟", cur: "🗂️", logins: "🔑", acct: "🦸", stu: "👥", map: "📗", pts: "🏆", fcur: "🗂️", fassess: "🧩", corr: "💯", lp: "📑", qa: "📊", rc: "🃏", trk: "📋" };
+const EMOJI: Record<string, string> = { tt: "⏰", std: "📘", lib: "📚", rep: "📈", dash: "🏠", lessons: "🎤", hw: "📝", assigned: "📋", review: "📥", assess: "🧩", msg: "💬", wall: "🧱", quran: "📖", qhw: "🎙️", cls: "🏫", act: "🎲", res: "🧾", att: "🗓️", beh: "🌟", cur: "🗂️", logins: "🔑", acct: "🦸", stu: "👥", map: "📗", pts: "🏆", fcur: "🗂️", fassess: "🧩", corr: "💯", lp: "📑", qa: "📊", rc: "🃏", trk: "📋", live: "🎥" };
 /** Open book with a rising progress stroke — readable at the rail's small size. */
 function QuranTrackerIcon() {
   return (

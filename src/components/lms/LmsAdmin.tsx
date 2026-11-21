@@ -30,6 +30,7 @@ const PERM_LABEL: Record<string, [string, string]> = {
   hwMarkCorrect: ["Correct photo homework / task work", "تصحيح الواجب/المهمة بالصور"],
   hwShare: ["Share homework with other teachers", "مشاركة الواجب مع معلمين آخرين"],
   viewAsStudent: ["Log in as student (read-only, logged — on by default for own students)", "الدخول كطالب (للعرض فقط، مسجَّل — مفعّل افتراضيًا لطلابه)"],
+  liveLesson: ["Run live lessons", "تشغيل الدروس المباشرة"],
 };
 
 const EMPTY: Catalog = { subjects: [], classes: [], sections: [] };
