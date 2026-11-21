@@ -297,6 +297,7 @@ export type LiveHistoryMark = { id: string; name: string; section: string; statu
 export type LiveHistoryItem = { id: string; title: string; cls: string; section: string; teacherId: string; teacherName: string; started: number; ended: number | null; day: string; period: string; status: string; recKey: string; recBytes: number; present: number; marks: LiveHistoryMark[] };
 export type LiveSched = { id: string; title: string; starts: number; duration: number; ends: number; cls: string; section: string; groupId: string; studentId: string; studentName?: string; packId: string; packTitle: string; roomId: string; status: string; teacherId: string; teacherName: string; hasLink: boolean; linkToken?: string; mine: boolean; kind?: "meeting" | "" };
 export type LiveMember = { id: string; name: string; role: "teacher" | "student"; camAllowed: boolean; micAllowed: boolean; shareAllowed?: boolean; hand: boolean; present: boolean };
+export type LiveAsk = { userId: string; name: string; cam: boolean; mic: boolean; at: number };
 export type LiveWait = { id: string; name: string; at: number };
 export type LiveChat = { id: string; from: string; name: string; text: string; at: number };
 export type LivePub = { userId: string; sessionId: string; tracks: string[] };
@@ -311,7 +312,7 @@ export type LivePresent = {
   wheelAngle: number; wheelSpinTo: number; wheelAt: number; winnerId: string; winnerName: string;
   randText: string; answers: LiveAnswer[];
 };
-export type LiveSnap = { id: string; title: string; cls: string; section: string; groupId: string; teacherId: string; status: "live" | "ended"; created: number; waiting: LiveWait[]; members: LiveMember[]; chat: LiveChat[]; pubs: LivePub[]; sfu: boolean; present?: LivePresent | null; endsAt?: number; view?: LiveView };
+export type LiveSnap = { id: string; title: string; cls: string; section: string; groupId: string; teacherId: string; status: "live" | "ended"; created: number; waiting: LiveWait[]; members: LiveMember[]; chat: LiveChat[]; pubs: LivePub[]; asks?: LiveAsk[]; sfu: boolean; present?: LivePresent | null; endsAt?: number; view?: LiveView };
 export function liveWsUrl(token: string, room: string) {
   const u = new URL(`${ASSESSMENT_API_BASE}/api/lms/live-ws`);
   u.protocol = u.protocol === "https:" ? "wss:" : "ws:";
@@ -510,6 +511,7 @@ export const lmsApi = {
   liveLeave: (id: string, asAdmin = false) => call<{ ok: true }>("live-leave", { id }, { asAdmin }),
   liveEnd: (id: string, asAdmin = false) => call<{ ok: boolean }>("live-end", { id }, { asAdmin }),
   livePerm: (id: string, userId: string, cam?: boolean, mic?: boolean, asAdmin = false, share?: boolean) => call<{ ok: boolean }>("live-perm", { id, userId, cam, mic, share }, { asAdmin }),
+  liveAsk: (id: string, b: { cam?: boolean; mic?: boolean; on?: boolean; userId?: string }, asAdmin = false) => call<{ ok: boolean }>("live-ask", { id, ...b }, { asAdmin }),
   liveRaise: (id: string, on: boolean, asAdmin = false) => call<{ ok: boolean }>("live-raise", { id, on }, { asAdmin }),
   liveChat: (id: string, text: string, asAdmin = false) => call<{ ok: boolean }>("live-chat", { id, text }, { asAdmin }),
   livePub: (id: string, sessionId: string, tracks: string[], asAdmin = false) => call<{ ok: boolean }>("live-pub", { id, sessionId, tracks }, { asAdmin }),

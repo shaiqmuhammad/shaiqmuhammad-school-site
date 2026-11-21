@@ -10,6 +10,7 @@ import { DurableObject } from "cloudflare:workers";
 import { corsHeaders, reply } from "./admin";
 import { lmsActor, type Actor, type LmsEnv } from "./lms";
 import { recObjectKey } from "./liveAtt";
+import { canControlStudentMedia } from "./liveMedia";
 
 export interface LiveEnv extends LmsEnv {
   LIVE: DurableObjectNamespace<LiveRoom>;
@@ -33,6 +34,7 @@ type Role = "teacher" | "student";
 export type LivePub = { userId: string; sessionId: string; tracks: string[] };
 export type LiveMember = { id: string; name: string; role: Role; camAllowed: boolean; micAllowed: boolean; shareAllowed?: boolean; hand: boolean; present: boolean };
 export type LiveWait = { id: string; name: string; at: number };
+export type LiveAsk = { userId: string; name: string; cam: boolean; mic: boolean; at: number };
 export type LiveChat = { id: string; from: string; name: string; text: string; at: number };
 export type LiveStroke = { c: string; w: number; d: number[]; by: string };
 export type LiveAnswer = { userId: string; name: string; slide: number; text: string; at: number };
@@ -72,6 +74,7 @@ export type LiveSnap = {
   members: LiveMember[];
   chat: LiveChat[];
   pubs: LivePub[];
+  asks?: LiveAsk[];
   sfu: boolean;
   present?: LivePresent | null;
   endsAt: number;
@@ -123,7 +126,7 @@ async function liveActor(request: Request, env: LiveEnv, store: ReturnType<LiveE
 }
 
 function publicSnap(s: State, sfu: boolean): LiveSnap {
-  return { ...s, endsAt: s.endsAt || s.created + 40 * 60_000, waiting: s.waiting.map((w) => ({ id: w.id, name: w.name, at: w.at })), sfu };
+  return { ...s, endsAt: s.endsAt || s.created + 40 * 60_000, waiting: s.waiting.map((w) => ({ id: w.id, name: w.name, at: w.at })), asks: s.asks || [], sfu };
 }
 
 export class LiveRoom extends DurableObject<LiveEnv> {
@@ -179,6 +182,7 @@ export class LiveRoom extends DurableObject<LiveEnv> {
       members: [{ id: meta.teacherId, name: meta.teacherName || "Teacher", role: "teacher", camAllowed: true, micAllowed: true, hand: false, present: true }],
       chat: [],
       pubs: [],
+      asks: [],
     };
     await this.save();
     await this.ctx.storage.setAlarm(now + ROOM_MS);
@@ -278,6 +282,14 @@ export class LiveRoom extends DurableObject<LiveEnv> {
     if (typeof cam === "boolean") m.camAllowed = cam;
     if (typeof mic === "boolean") m.micAllowed = mic;
     if (typeof share === "boolean") m.shareAllowed = share;
+    if (m.camAllowed || m.micAllowed) {
+      this.state.asks = (this.state.asks || []).filter((x) => {
+        if (x.userId !== userId) return true;
+        const stillCam = x.cam && !m.camAllowed;
+        const stillMic = x.mic && !m.micAllowed;
+        return stillCam || stillMic;
+      }).map((x) => x.userId !== userId ? x : { ...x, cam: x.cam && !m.camAllowed, mic: x.mic && !m.micAllowed });
+    }
     const pub = this.state.pubs.find((p) => p.userId === userId);
     if (pub) {
       if (!m.camAllowed) pub.tracks = pub.tracks.filter((t) => t !== "camera");
@@ -291,7 +303,25 @@ export class LiveRoom extends DurableObject<LiveEnv> {
     return { ok: true };
   }
 
+  async askMedia(userId: string, cam: boolean, mic: boolean, on: boolean): Promise<{ ok: boolean; error?: string }> {
+    await this.load();
+    if (!this.state || this.state.status !== "live") return { ok: false, error: "ended" };
+    const m = this.member(userId);
+    if (!m || m.role === "teacher") return { ok: false, error: "forbidden" };
+    this.state.asks = (this.state.asks || []).filter((x) => x.userId !== userId);
+    const wantCam = !!cam && !m.camAllowed;
+    const wantMic = !!mic && !m.micAllowed;
+    if (on && (wantCam || wantMic)) {
+      this.state.asks.push({ userId, name: m.name, cam: wantCam, mic: wantMic, at: Date.now() });
+    }
+    await this.save();
+    this.broadcast({ t: "ask", userId, name: m.name, cam: wantCam, mic: wantMic, on, asks: this.state.asks });
+    this.roomMsg();
+    return { ok: true };
+  }
+
   async setHand(userId: string, on: boolean): Promise<{ ok: boolean; error?: string }> {
+
     await this.load();
     const m = this.member(userId);
     if (!this.state || !m) return { ok: false, error: "forbidden" };
@@ -839,9 +869,21 @@ export async function handleLive(request: Request, env: LiveEnv, action: string)
 
   if (action === "live-perm") {
     if (a.id !== String(row.teacher) && a.role !== "admin") return reply(origin, { error: "forbidden" }, 403);
-    if (typeof body.share === "boolean" && !canLive(a, "liveScreenShare")) return reply(origin, { error: "no_screen_share" }, 403);
-    if ((typeof body.cam === "boolean" || typeof body.mic === "boolean") && !canLive(a, "liveCamMic")) return reply(origin, { error: "no_cam_mic" }, 403);
-    const r = await stub.setPerm(a.role === "admin" ? "admin" : String(row.teacher), str(body.userId, 40), typeof body.cam === "boolean" ? body.cam : undefined, typeof body.mic === "boolean" ? body.mic : undefined, typeof body.share === "boolean" ? body.share : undefined);
+    const teacherId = String(row.teacher);
+    if (typeof body.share === "boolean" && !canControlStudentMedia(a, teacherId, "screenShare")) return reply(origin, { error: "no_screen_share" }, 403);
+    if ((typeof body.cam === "boolean" || typeof body.mic === "boolean") && !canControlStudentMedia(a, teacherId, "camMic")) return reply(origin, { error: "no_cam_mic" }, 403);
+    const r = await stub.setPerm(a.role === "admin" ? "admin" : teacherId, str(body.userId, 40), typeof body.cam === "boolean" ? body.cam : undefined, typeof body.mic === "boolean" ? body.mic : undefined, typeof body.share === "boolean" ? body.share : undefined);
+    return reply(origin, r, r.ok ? 200 : 403);
+  }
+
+  if (action === "live-ask") {
+    const target = str(body.userId, 40) || a.id;
+    if (target !== a.id) {
+      if (!canControlStudentMedia(a, String(row.teacher), "camMic")) return reply(origin, { error: "no_cam_mic" }, 403);
+    } else if (a.role === "teacher" && a.id === String(row.teacher)) {
+      return reply(origin, { error: "forbidden" }, 403);
+    }
+    const r = await stub.askMedia(target, body.cam !== false, body.mic !== false, body.on !== false);
     return reply(origin, r, r.ok ? 200 : 403);
   }
 
