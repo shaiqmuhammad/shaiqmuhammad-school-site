@@ -44,6 +44,19 @@ export function packParts(p: { type?: string; parts?: string[]; slides?: { part?
   if (uniq.length) return uniq;
   return p.type === "lesson" || p.type === "activity" || p.type === "homework" ? [p.type] : [];
 }
+/** Whether a pack can be opened as this classroom content type (list rows may only have type/parts). */
+export function packHasPart(p: { type?: string; parts?: string[]; slides?: { part?: string }[] }, part: Part): boolean {
+  if (p.type === part) return true;
+  if ((p.parts || []).includes(part)) return true;
+  if ((p.slides || []).some((s) => s.part === part)) return true;
+  if (part === "lesson" && !p.type && !(p.parts || []).length && !(p.slides || []).some((s) => s.part)) return true;
+  return false;
+}
+export function firstSlideOf(slides: { part?: string }[] | undefined, part: Part, packType?: string): number {
+  const i = (slides || []).findIndex((s) => slideKind(s, packType) === part);
+  return i >= 0 ? i : 0;
+}
+
 /** Pages a homework row belongs on. `parts` is copied from the slides when the pack is assigned. */
 export function hwParts(data: { activity?: boolean; parts?: unknown } | null | undefined, kind?: string): Part[] {
   // t650: lesson slides are never assigned to students, so a row's "lesson" page is ignored (old rows keep their other pages).
