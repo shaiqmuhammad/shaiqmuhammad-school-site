@@ -1,23 +1,24 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useTr } from "@/components/lms/useLms";
 import { lp, type Pack } from "@/lib/packs";
 import { SlideView } from "@/components/lms/packs/SlideView";
-import { lmsApi, lmsErrorText, type LiveMember, type LivePresent as Present, type LivePtr, type PointCat } from "@/lib/lms";
+import { lmsApi, lmsErrorText, normalizePtrKind, type LiveMember, type LivePresent as Present, type LivePtr, type PointCat, type PtrKind } from "@/lib/lms";
 import { primaryBtn } from "@/components/assessment/AssessmentShell";
 import { createPortal } from "react-dom";
-import { LiveToolsTray } from "@/components/lms/ClassroomTray";
+import { LiveToolsTray, TeachToolsTray } from "@/components/lms/ClassroomTray";
 
 function presentStudents(members: LiveMember[]) {
   return members.filter((m) => m.role !== "teacher" && m.present);
 }
 
-export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, selfId, members, onPresent, onRoomFocus: _onRoomFocus, roomFocused: _roomFocused, layout = "full", trayRoot, ptrs = [], onPtr }: {
+export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, selfId, members, onPresent, onRoomFocus: _onRoomFocus, roomFocused: _roomFocused, layout = "full", trayRoot, teachRoot, ptrs = [], onPtr }: {
   roomId: string; present?: Present | null; isHost: boolean; canPresent: boolean; asAdmin: boolean;
   selfId: string; members: LiveMember[]; onPresent: (p: Present | null) => void;
   onRoomFocus?: () => void; roomFocused?: boolean; layout?: "full" | "side" | "compact" | "board";
-  trayRoot?: HTMLElement | null; ptrs?: LivePtr[]; onPtr?: (x: number | null, y: number | null) => void;
+  trayRoot?: HTMLElement | null; teachRoot?: HTMLElement | null;
+  ptrs?: LivePtr[]; onPtr?: (x: number | null, y: number | null, kind?: PtrKind) => void;
 }) {
   const { tr } = useTr();
   const [packs, setPacks] = useState<Pack[]>([]);
@@ -32,6 +33,9 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
   const [tasksOpen, setTasksOpen] = useState(false);
   const draw = useRef<{ pts: number[]; drawing: boolean }>({ pts: [], drawing: false });
   const svgRef = useRef<SVGSVGElement>(null);
+  const [ptrKind, setPtrKind] = useState<PtrKind>("pen");
+  const [drawTool, setDrawTool] = useState<"draw" | "highlighter" | "eraser">("draw");
+  const [ink, setInk] = useState("#1b3a57");
 
   useEffect(() => {
     if (!present?.packId) setErr("");
@@ -88,17 +92,22 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
   const boardOn = !!(present && (present.tool === "board" || layout === "board"));
   const canLaser = !!(present && (isHost || present.penId === selfId));
   const hasPack = !!(present?.packId);
+  function inkStroke() {
+    if (drawTool === "highlighter") return { c: "rgba(245,197,66,0.45)", w: 18 };
+    if (drawTool === "eraser") return { c: "erase", w: 18 };
+    return { c: ink || "#1b3a57", w: 3 };
+  }
   function pointer(e: React.PointerEvent<SVGSVGElement>, end = false) {
-    if (!present || !boardOn) return;
+    if (!present) return;
     const svg = svgRef.current;
     if (!svg) return;
     const r = svg.getBoundingClientRect();
     if (!r.width || !r.height) return;
     const x = ((e.clientX - r.left) / r.width) * 100;
     const y = ((e.clientY - r.top) / r.height) * 100;
-    if (canLaser && (e.type === "pointermove" || e.type === "pointerdown") && !end) onPtr?.(x, y);
-    if (end || e.type === "pointerup" || e.type === "pointercancel" || e.type === "pointerleave") onPtr?.(null, null);
-    if (!canDraw) return;
+    if (canLaser && (e.type === "pointermove" || e.type === "pointerdown") && !end) onPtr?.(x, y, ptrKind);
+    if (end || e.type === "pointerup" || e.type === "pointercancel" || e.type === "pointerleave") onPtr?.(null, null, ptrKind);
+    if (!canDraw || !boardOn) return;
     if (e.type === "pointerdown") {
       draw.current = { pts: [x, y], drawing: true };
       (e.target as Element).setPointerCapture?.(e.pointerId);
@@ -109,7 +118,7 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
     if (end || e.type === "pointerup" || e.type === "pointercancel") {
       const d = draw.current.pts;
       draw.current = { pts: [], drawing: false };
-      if (d.length >= 4) lmsApi.livePresent(roomId, { op: "stroke", stroke: { c: "#1b3a57", w: 3, d } }, asAdmin).catch(() => undefined);
+      if (d.length >= 4) lmsApi.livePresent(roomId, { op: "stroke", stroke: { ...inkStroke(), d } }, asAdmin).catch(() => undefined);
     }
   }
 
@@ -248,9 +257,29 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
     </div>
   ) : null;
 
+  const teacherId = members.find((m) => m.role === "teacher")?.id || "";
+  const teach = (canLaser || canDraw) ? (
+    <TeachToolsTray
+      canPoint={canLaser}
+      canDraw={!!(canDraw && boardOn)}
+      ptrKind={ptrKind}
+      onPtrKind={(id) => { setPtrKind(id); }}
+      drawTool={drawTool}
+      onDrawTool={setDrawTool}
+      ink={ink}
+      onInk={(c) => { setInk(c); setDrawTool("draw"); }}
+      onUndo={isHost && canPresent && boardOn ? () => { void call({ op: "nav", strokes: (present?.strokes || []).slice(0, -1) }); } : undefined}
+      onClear={isHost && canPresent && boardOn ? () => { void call({ op: "nav", strokes: [] }); } : undefined}
+      penId={present?.penId}
+      onPen={isHost && canPresent && boardOn ? (id) => { void call({ op: "nav", penId: id || teacherId }); } : undefined}
+      people={people}
+    />
+  ) : null;
+
   return (
     <section className="lb-present flex min-h-0 flex-1 flex-col" data-testid="live-present" data-layout={layout}>
       {trayRoot ? createPortal(tray, trayRoot) : null}
+      {teachRoot && teach ? createPortal(teach, teachRoot) : teach}
       {err && <p className="m-2 rounded-2xl bg-rose-100 px-3 py-2 text-sm font-bold text-rose-800 dark:bg-rose-900/60 dark:text-rose-100" role="alert">{err}</p>}
 
       {!present && canPresent && layout === "board" && (
@@ -303,16 +332,13 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
               {cur && !boardOn && <div className="lb-zoom"><SlideView slide={cur} asAdmin={asAdmin} live testId="live-present-slide" /></div>}
               {cur && boardOn && <div className="lb-slide-bg"><SlideView slide={cur} asAdmin={asAdmin} live testId="live-present-slide" /></div>}
               {!cur && hasPack && !boardOn && <p className="flex-1 py-8 text-center font-semibold opacity-70">{tr("Loading slides…", "جارٍ تحميل الشرائح…")}</p>}
-              <svg ref={svgRef} viewBox="0 0 100 56.25" preserveAspectRatio={boardOn ? "none" : "xMidYMid meet"} className={boardOn ? "lb-board-svg touch-none" : "pointer-events-none absolute inset-0 h-full w-full"} onPointerDown={pointer} onPointerMove={pointer} onPointerUp={(e) => pointer(e, true)} onPointerCancel={(e) => pointer(e, true)} onPointerLeave={(e) => pointer(e, true)} data-testid="live-board">
+              <svg ref={svgRef} viewBox="0 0 100 56.25" preserveAspectRatio={boardOn ? "none" : "xMidYMid meet"} className={boardOn || canLaser ? "lb-board-svg touch-none" : "pointer-events-none absolute inset-0 h-full w-full"} onPointerDown={pointer} onPointerMove={pointer} onPointerUp={(e) => pointer(e, true)} onPointerCancel={(e) => pointer(e, true)} onPointerLeave={(e) => pointer(e, true)} data-testid="live-board">
                 {(present.strokes || []).map((st, i) => (
-                  <polyline key={i} fill="none" stroke={st.c || "#1b3a57"} strokeWidth={((st.w || 3) / 1600) * 100} strokeLinecap="round" strokeLinejoin="round" points={Array.from({ length: Math.floor((st.d || []).length / 2) }, (_, k) => `${st.d[k * 2]},${(st.d[k * 2 + 1] * 56.25) / 100}`).join(" ")} />
+                  <polyline key={i} fill="none" stroke={st.c === "erase" ? "#000" : (st.c || "#1b3a57")} strokeWidth={((st.w || 3) / 1600) * 100} strokeLinecap="round" strokeLinejoin="round" style={st.c === "erase" ? ({ mixBlendMode: "destination-out" } as unknown as CSSProperties) : undefined} points={Array.from({ length: Math.floor((st.d || []).length / 2) }, (_, k) => `${st.d[k * 2]},${(st.d[k * 2 + 1] * 56.25) / 100}`).join(" ")} />
                 ))}
               </svg>
-              {boardOn && ptrs.filter((pt) => pt.on !== false).map((pt) => (
-                <div key={pt.userId} className="lb-laser" style={{ left: `${pt.x}%`, top: `${pt.y}%`, color: pt.color }} data-testid="live-laser">
-                  <div className="lb-laser-dot" />
-                  <div className="lb-laser-name" dir="auto">{pt.name}</div>
-                </div>
+              {ptrs.filter((pt) => pt.on !== false).map((pt) => (
+                <PointerMark key={pt.userId} pt={pt} />
               ))}
             </div>
 
@@ -324,15 +350,6 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
               </div>
             )}
 
-            {isHost && canPresent && boardOn && (
-              <div className="absolute start-3 top-3 z-[9] flex flex-wrap gap-2 rounded-2xl bg-white/95 p-2 shadow-md dark:bg-slate-900/95" data-testid="live-present-tools">
-                <select className="rounded-full border border-black/10 bg-white px-2 py-1 text-sm font-bold dark:bg-slate-900" value={present.penId} onChange={(e) => call({ op: "nav", penId: e.target.value })} data-testid="live-pen">
-                  <option value={members.find((m) => m.role === "teacher")?.id || ""}>{tr("Teacher has the pen", "القلم مع المعلم")}</option>
-                  {people.map((m) => <option key={m.id} value={m.id}>{tr("Pen:", "القلم:")} {m.name}</option>)}
-                </select>
-                <button type="button" className="rounded-full bg-black/10 px-3 py-1 text-sm font-bold dark:bg-white/10" onClick={() => call({ op: "nav", strokes: [] })}>{tr("Clear board", "مسح السبورة")}</button>
-              </div>
-            )}
 
             {toolOverlay}
             {!isHost && present.penId === selfId && <p className="absolute bottom-24 start-0 end-0 z-[9] text-center text-sm font-bold text-emerald-800 dark:text-emerald-200">{tr("You have the pen — draw on the board.", "القلم معك — ارسم على السبورة.")}</p>}
@@ -340,5 +357,49 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
         </>
       )}
     </section>
+  );
+}
+
+
+function PointerMark({ pt }: { pt: LivePtr }) {
+  const kind = normalizePtrKind(pt.kind);
+  return (
+    <div className="lb-ptr" style={{ left: `${pt.x}%`, top: `${pt.y}%`, color: pt.color }} data-kind={kind} data-testid="live-laser">
+      <PointerGlyph kind={kind} color={pt.color} />
+      <div className="lb-ptr-name" dir="auto">{pt.name}</div>
+    </div>
+  );
+}
+
+function PointerGlyph({ kind, color }: { kind: PtrKind; color: string }) {
+  if (kind === "laser") return <div className="lb-ptr-laser" />;
+  if (kind === "hand") return <span className="lb-ptr-icon" aria-hidden>✋</span>;
+  if (kind === "finger") return <span className="lb-ptr-icon" aria-hidden>👆</span>;
+  if (kind === "arrow") {
+    return (
+      <svg className="lb-ptr-svg" viewBox="0 0 32 32" aria-hidden>
+        <path d="M4 2 L4 24 L11 18 L16 30 L20 28 L15 16 L26 16 Z" fill={color} stroke="#fff8ec" strokeWidth="1.6" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+  if (kind === "stick") {
+    return (
+      <svg className="lb-ptr-svg" viewBox="0 0 72 72" aria-hidden>
+        <line x1="62" y1="66" x2="16" y2="18" stroke="#8b5a2b" strokeWidth="5" strokeLinecap="round" />
+        <line x1="62" y1="66" x2="16" y2="18" stroke="#d6a36a" strokeWidth="2.2" strokeLinecap="round" />
+        <circle cx="14" cy="14" r="7" fill={color} stroke="#fff8ec" strokeWidth="2" />
+      </svg>
+    );
+  }
+  // default: a tidy felt-tip pen nib
+  return (
+    <svg className="lb-ptr-svg" viewBox="0 0 40 40" aria-hidden>
+      <g transform="rotate(-35 20 20)">
+        <rect x="17" y="8" width="6" height="20" rx="1.4" fill="#1b3a57" />
+        <rect x="17" y="8" width="6" height="8" rx="1.2" fill="#f3c969" />
+        <path d="M17 28 L23 28 L20 36 Z" fill={color} stroke="#1b3a57" strokeWidth="0.6" />
+        <rect x="18.4" y="4" width="3.2" height="5" rx="1" fill="#24557a" />
+      </g>
+    </svg>
   );
 }

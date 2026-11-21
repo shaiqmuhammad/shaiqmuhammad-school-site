@@ -296,9 +296,27 @@ export type LivePerms = { run: boolean; schedule: boolean; schedStudent: boolean
 export type LiveHistoryMark = { id: string; name: string; section: string; status: string; at: number; note: string };
 export type LiveHistoryItem = { id: string; title: string; cls: string; section: string; teacherId: string; teacherName: string; started: number; ended: number | null; day: string; period: string; status: string; recKey: string; recBytes: number; present: number; marks: LiveHistoryMark[] };
 export type LiveSched = { id: string; title: string; starts: number; duration: number; ends: number; cls: string; section: string; groupId: string; studentId: string; studentName?: string; packId: string; packTitle: string; roomId: string; status: string; teacherId: string; teacherName: string; hasLink: boolean; linkToken?: string; mine: boolean; kind?: "meeting" | "" };
-export type LiveMember = { id: string; name: string; role: "teacher" | "student"; camAllowed: boolean; micAllowed: boolean; shareAllowed?: boolean; hand: boolean; present: boolean };
+export type LiveFloor = "presenter" | "attendee";
+export type LiveMember = { id: string; name: string; role: "teacher" | "student"; camAllowed: boolean; micAllowed: boolean; shareAllowed?: boolean; hand: boolean; present: boolean; floor?: LiveFloor };
+export function memberFloor(m: { id?: string; floor?: string } | undefined, teacherId: string): LiveFloor {
+  if (m?.id && teacherId && m.id === teacherId) return "presenter";
+  return m?.floor === "presenter" ? "presenter" : "attendee";
+}
 export type LiveAsk = { userId: string; name: string; cam: boolean; mic: boolean; at: number };
-export type LivePtr = { userId: string; name: string; x: number; y: number; color: string; on?: boolean };
+export const PTR_KINDS = ["pen", "hand", "finger", "stick", "arrow", "laser"] as const;
+export type PtrKind = (typeof PTR_KINDS)[number];
+export function isPtrKind(v: unknown): v is PtrKind {
+  return typeof v === "string" && (PTR_KINDS as readonly string[]).includes(v);
+}
+export function normalizePtrKind(v: unknown): PtrKind {
+  return isPtrKind(v) ? v : "pen";
+}
+export type LivePtr = { userId: string; name: string; x: number; y: number; color: string; on?: boolean; kind?: PtrKind };
+/** Host teacher (or admin) always sees Cam/Mic/Share allow controls, even if liveCamMic is off. */
+export function canShowHostAllow(isHost: boolean, livePerms?: { camMic?: boolean; screenShare?: boolean }, kind: "camMic" | "screenShare" = "camMic"): boolean {
+  if (isHost) return true;
+  return kind === "screenShare" ? !!livePerms?.screenShare : !!livePerms?.camMic;
+}
 export type LiveWait = { id: string; name: string; at: number };
 export type LiveChat = { id: string; from: string; name: string; text: string; at: number };
 export type LivePub = { userId: string; sessionId: string; tracks: string[] };
@@ -512,6 +530,7 @@ export const lmsApi = {
   liveLeave: (id: string, asAdmin = false) => call<{ ok: true }>("live-leave", { id }, { asAdmin }),
   liveEnd: (id: string, asAdmin = false) => call<{ ok: boolean }>("live-end", { id }, { asAdmin }),
   livePerm: (id: string, userId: string, cam?: boolean, mic?: boolean, asAdmin = false, share?: boolean) => call<{ ok: boolean }>("live-perm", { id, userId, cam, mic, share }, { asAdmin }),
+  liveFloor: (id: string, userId: string, floor: LiveFloor, asAdmin = false) => call<{ ok: boolean }>("live-perm", { id, userId, floor }, { asAdmin }),
   liveAsk: (id: string, b: { cam?: boolean; mic?: boolean; on?: boolean; userId?: string }, asAdmin = false) => call<{ ok: boolean }>("live-ask", { id, ...b }, { asAdmin }),
   liveRaise: (id: string, on: boolean, asAdmin = false) => call<{ ok: boolean }>("live-raise", { id, on }, { asAdmin }),
   liveChat: (id: string, text: string, asAdmin = false) => call<{ ok: boolean }>("live-chat", { id, text }, { asAdmin }),
