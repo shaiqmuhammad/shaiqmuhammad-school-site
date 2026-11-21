@@ -99,9 +99,18 @@ function playAndCapture(track) {
     return track;
   }
 }
+window.sfuCloseSession = (sessionId) => {
+  const ses = sessions.get(sessionId);
+  if (!ses) return false;
+  ses.closed = true;
+  try { ses.pc.close(); } catch {}
+  return true;
+};
 window.sfuTracksNew = async (sessionId, body) => {
   const ses = sessions.get(sessionId);
   if (!ses) return { errorCode: "session_error", errorDescription: "unknown session", status: 410 };
+  const dead = ses.closed || ses.pc.connectionState === "closed" || ses.pc.signalingState === "closed";
+  if (dead) return { errorCode: "session_error", errorDescription: "Session appears to be disconnected. Please check if the PeerConnection is connected.", status: 400 };
   const tracksIn = Array.isArray(body.tracks) ? body.tracks : [];
   const remotes = tracksIn.filter((t) => t.location === "remote");
   const locals = tracksIn.filter((t) => t.location !== "remote");
@@ -249,9 +258,21 @@ async function api(body) {
   }
   return j;
 }
-async function ensure(kind) {
+function pcFresh(pc) {
+  if (!pc) return false;
+  const c = pc.connectionState;
+  const ice = pc.iceConnectionState;
+  if (c === "closed" || c === "failed" || c === "disconnected") return false;
+  if (ice === "failed" || ice === "disconnected" || ice === "closed") return false;
+  return true;
+}
+async function ensure(kind, forceNew) {
   const st = window.state;
-  if (st[kind] && st[kind + "Id"]) return;
+  if (!forceNew && st[kind] && st[kind + "Id"] && pcFresh(st[kind])) return;
+  if (st[kind]) { try { st[kind].close(); } catch {} }
+  st[kind] = null;
+  st[kind + "Id"] = "";
+  if (kind === "pub") { st.slots = {}; st.published = {}; }
   st[kind] = new RTCPeerConnection({ bundlePolicy: "max-bundle", iceServers: [{ urls: "stun:stun.cloudflare.com:3478" }] });
   if (kind === "recv") {
     st[kind].ontrack = (ev) => {
@@ -267,30 +288,93 @@ async function ensure(kind) {
   const r = await api({ op: "session-new" });
   st[kind + "Id"] = r.sessionId;
 }
-async function publish(name, track) {
+async function publishAll(items) {
   const st = window.state;
-  await ensure("pub");
-  if (st.slots[name]) {
-    await st.slots[name].sender.replaceTrack(track);
-    st.published[name] = st.slots[name];
-    return;
+  await ensure("pub", true);
+  const rows = [];
+  for (const { name, track } of items) {
+    const trans = st.pub.addTransceiver(track, { direction: "sendonly" });
+    st.slots[name] = trans;
+    st.published[name] = trans;
+    rows.push({ name, trans });
   }
-  const trans = st.pub.addTransceiver(track, { direction: "sendonly" });
   const offer = await st.pub.createOffer();
   const watch = beginGather(st.pub);
   await st.pub.setLocalDescription(offer);
   const local = await gatherSdp(st.pub, watch, 3000);
-  const mid = await waitMid(trans);
+  const tracks = [];
+  for (const { name, trans } of rows) tracks.push({ location: "local", mid: await waitMid(trans), trackName: name });
   const r = await api({
     op: "tracks-new",
     sessionId: st.pubId,
     sessionDescription: local || { type: "offer", sdp: st.pub.localDescription.sdp },
-    tracks: [{ location: "local", mid, trackName: name }],
+    tracks,
   });
   if (r.sessionDescription) await st.pub.setRemoteDescription(r.sessionDescription);
-  st.slots[name] = trans;
-  st.published[name] = trans;
 }
+function activeTracks(extra) {
+  const st = window.state;
+  const out = [];
+  for (const [name, trans] of Object.entries(st.published || {})) {
+    const track = trans.sender && trans.sender.track;
+    if (track && track.readyState !== "ended") out.push({ name, track });
+  }
+  if (extra && !out.some((x) => x.name === extra.name)) out.push(extra);
+  else if (extra) {
+    const i = out.findIndex((x) => x.name === extra.name);
+    if (i >= 0) out[i] = extra;
+  }
+  return out;
+}
+async function publish(name, track) {
+  const st = window.state;
+  if (!st.pub || !pcFresh(st.pub)) {
+    await publishAll(activeTracks({ name, track }));
+    return;
+  }
+  if (st.slots[name]) {
+    try {
+      await st.slots[name].sender.replaceTrack(track);
+      st.published[name] = st.slots[name];
+      return;
+    } catch {}
+  }
+  try {
+    const trans = st.pub.addTransceiver(track, { direction: "sendonly" });
+    const offer = await st.pub.createOffer();
+    const watch = beginGather(st.pub);
+    await st.pub.setLocalDescription(offer);
+    const local = await gatherSdp(st.pub, watch, 3000);
+    const mid = await waitMid(trans);
+    const r = await api({
+      op: "tracks-new",
+      sessionId: st.pubId,
+      sessionDescription: local || { type: "offer", sdp: st.pub.localDescription.sdp },
+      tracks: [{ location: "local", mid, trackName: name }],
+    });
+    if (r.sessionDescription) await st.pub.setRemoteDescription(r.sessionDescription);
+    st.slots[name] = trans;
+    st.published[name] = trans;
+  } catch (e) {
+    const msg = e && e.message ? String(e.message) : String(e);
+    if (!/session_error/i.test(msg) || !/disconnect/i.test(msg)) throw e;
+    log("session_retry " + name);
+    await publishAll(activeTracks({ name, track }));
+  }
+}
+window.forceClosePubAndRepublish = async () => {
+  const st = window.state;
+  const oldId = st.pubId;
+  const stream = st.localStream;
+  try { st.pub && st.pub.close(); } catch {}
+  try { await fetch("/sfu-close", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sessionId: oldId }) }); } catch {}
+  const cam = stream && stream.getVideoTracks()[0];
+  const mic = stream && stream.getAudioTracks()[0];
+  if (cam) await publish("camera", cam);
+  if (mic) await publish("mic", mic);
+  await fetch("/pub", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ userId: st.role, sessionId: st.pubId, tracks: Object.keys(st.published) }) });
+  return { oldId, newId: st.pubId, changed: oldId !== st.pubId, pubState: st.pub && st.pub.connectionState };
+};
 async function unpublish(name) {
   const st = window.state;
   const trans = st.published[name];
@@ -369,6 +453,8 @@ window.runHost = async () => {
   const st = window.state;
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+    st.localStream = stream;
+    st.role = "host";
     document.getElementById("local").srcObject = stream;
     await publish("camera", stream.getVideoTracks()[0]);
     st.camOn = true;
@@ -395,6 +481,8 @@ window.runAttendee = async () => {
   const st = window.state;
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+    st.localStream = stream;
+    st.role = "attendee";
     document.getElementById("local").srcObject = stream;
     await publish("camera", stream.getVideoTracks()[0]);
     st.camOn = true;
@@ -440,6 +528,11 @@ function startServer(sfuPage) {
         catch (e) { reject(e); }
       });
     });
+    if (url === "/sfu-close" && req.method === "POST") {
+      const b = await read();
+      const out = await sfuPage.evaluate((sessionId) => window.sfuCloseSession(sessionId), b.sessionId);
+      return send(200, { ok: !!out });
+    }
     if (url === "/pub" && req.method === "POST") {
       const b = await read();
       pubs.set(b.userId, { userId: b.userId, sessionId: b.sessionId, tracks: b.tracks || [] });
@@ -451,6 +544,7 @@ function startServer(sfuPage) {
         let out;
         if (b.op === "session-new") out = await sfuPage.evaluate(() => window.sfuSessionNew());
         else if (b.op === "tracks-new") out = await sfuPage.evaluate(({ sessionId, body }) => window.sfuTracksNew(sessionId, body), { sessionId: b.sessionId, body: b });
+        else if (b.op === "close") out = await sfuPage.evaluate((sessionId) => window.sfuCloseSession(sessionId), b.sessionId);
         else if (b.op === "renegotiate") out = await sfuPage.evaluate(({ sessionId, body }) => window.sfuRenegotiate(sessionId, body), { sessionId: b.sessionId, body: b });
         else return send(400, { error: "bad_op" });
         if (out && out.status && out.status >= 400) return send(out.status, { error: out.errorCode || "sfu_error", errorCode: out.errorCode, errorDescription: out.errorDescription, detail: [out.errorCode, out.errorDescription].filter(Boolean).join(": ") });
@@ -489,6 +583,7 @@ async function snapshot(page) {
     micOn: window.state.micOn,
     camOn: window.state.camOn,
     remotes: Object.keys(window.state.remotes),
+    pubId: window.state.pubId,
     pc: window.pcInfo(),
   }));
 }
@@ -505,6 +600,40 @@ async function runScenario(browser, base, order) {
   await att.goto(base + "/attendee");
   await fetch(base + "/reset", { method: "POST" }).catch(() => {});
 
+  if (order === "force-pc-close") {
+    await host.evaluate(() => window.runHost());
+    await att.evaluate(() => window.runAttendee());
+    await host.evaluate(() => window.pullPubs("host"));
+    await att.evaluate(() => window.pullPubs("attendee"));
+    await new Promise((r) => setTimeout(r, 400));
+    const before = await snapshot(att);
+    const recon = await att.evaluate(() => window.forceClosePubAndRepublish());
+    await host.evaluate(() => window.pullPubs("host"));
+    await new Promise((r) => setTimeout(r, 1500));
+    const hostState = await snapshot(host);
+    const attState = await snapshot(att);
+    await hostCtx.close();
+    await attCtx.close();
+    const failed = [];
+    if (hostState.err) failed.push("host error: " + hostState.err);
+    if (attState.err) failed.push("attendee error: " + attState.err);
+    if (!recon || !recon.changed) failed.push("attendee pub session did not change after forced PC close: " + JSON.stringify(recon));
+    if (!hostState.remotes.includes("attendee:camera") || !hostState.remotes.includes("attendee:mic")) {
+      failed.push("host missing attendee remotes after reconnect: " + JSON.stringify(hostState.remotes));
+    }
+    if (!attState.micOn || !attState.camOn) failed.push("attendee mic/cam not on after reconnect");
+    return {
+      order,
+      ms: Date.now() - t0,
+      recon,
+      beforePubId: before.pubId,
+      host: hostState,
+      attendee: attState,
+      pageErrors: errors,
+      ok: failed.length === 0,
+      failed,
+    };
+  }
   if (order === "attendee-first") {
     await att.evaluate(() => window.runAttendee());
     await host.evaluate(() => window.runHost());
@@ -583,7 +712,7 @@ async function runLocal() {
   const { server, port } = await startServer(sfuPage);
   const base = `http://127.0.0.1:${port}`;
   await sfuPage.goto(base + "/sfu-page");
-  const orders = ["host-first", "attendee-first", "grant-after-join"];
+  const orders = ["host-first", "attendee-first", "grant-after-join", "force-pc-close"];
   const scenarios = [];
   for (const order of orders) {
     scenarios.push(await runScenario(browser, base, order));
@@ -593,11 +722,35 @@ async function runLocal() {
   const failed = scenarios.flatMap((s) => s.failed.map((f) => s.order + ": " + f));
   return {
     mode: "local-mock-sfu",
+    engine: "chromium",
     totalMs: Date.now() - started,
     scenarios,
     ok: failed.length === 0,
     failed,
   };
+}
+
+async function runWebkitIfPossible() {
+  let webkit;
+  try { webkit = require(playwrightPath).webkit; } catch { return { ok: true, skipped: true, reason: "webkit not importable" }; }
+  if (!webkit) return { ok: true, skipped: true, reason: "webkit not available" };
+  try {
+    const started = Date.now();
+    const browser = await webkit.launch({ headless: true });
+    const sfuCtx = await browser.newContext();
+    const sfuPage = await sfuCtx.newPage();
+    const { server, port } = await startServer(sfuPage);
+    const base = `http://127.0.0.1:${port}`;
+    await sfuPage.goto(base + "/sfu-page");
+    const force = await runScenario(browser, base, "force-pc-close");
+    const hostFirst = await runScenario(browser, base, "host-first");
+    await browser.close();
+    server.close();
+    const failed = [...force.failed.map((f) => "force-pc-close: " + f), ...hostFirst.failed.map((f) => "host-first: " + f)];
+    return { mode: "local-mock-sfu", engine: "webkit", totalMs: Date.now() - started, scenarios: [force, hostFirst], ok: failed.length === 0, failed };
+  } catch (e) {
+    return { ok: true, skipped: true, reason: String(e && e.message || e) };
+  }
 }
 
 async function runPreview() {
@@ -612,8 +765,10 @@ async function runPreview() {
 }
 
 const local = await runLocal();
+const webkitRun = await runWebkitIfPossible();
 const preview = PREVIEW_HOST && PREVIEW_ATTENDEE
   ? { mode: "preview", ok: false, skipped: true, reason: "Preview URLs were set, but a shared live classroom login path is still unsanctioned from this bot." }
   : await runPreview();
-console.log(JSON.stringify({ local, preview }, null, 2));
+console.log(JSON.stringify({ local, webkit: webkitRun, preview }, null, 2));
 if (!local.ok) process.exit(1);
+if (webkitRun && webkitRun.ok === false && !webkitRun.skipped) process.exit(1);

@@ -121,3 +121,53 @@ export function genericErrorBanner(
   if (l) return phrases.labelOnly(l);
   return phrases.none;
 }
+
+export function isSessionDisconnectError(e: unknown): boolean {
+  const rec = asRecord(e);
+  const msg = [
+    mediaErrorDetail(e),
+    e instanceof Error ? e.message : "",
+    typeof e === "string" ? e : "",
+    rec ? text(rec.errorCode, 80) : "",
+    rec ? text(rec.errorDescription, 160) : "",
+  ].join(" ").toLowerCase();
+  return /session_error/.test(msg) && /disconnect/.test(msg);
+}
+
+/** Friendlier live-classroom lead-in; the precise SFU/WebRTC detail stays in parentheses. */
+export function friendlyMediaPhrases(tr: (en: string, ar: string) => string): {
+  both: (label: string, detail: string) => string;
+  detailOnly: (detail: string) => string;
+  labelOnly: (label: string) => string;
+  none: string;
+} {
+  return {
+    both: (l, d) => tr(`Couldn't connect your ${l}. (${d})`, `تعذّر توصيل ${l}. (${d})`),
+    detailOnly: (d) => tr(`The call didn't connect. (${d})`, `لم يتصل البث. (${d})`),
+    labelOnly: (l) => tr(`Couldn't connect your ${l}. Try again.`, `تعذّر توصيل ${l}. حاول مرة أخرى.`),
+    none: tr("The call didn't connect. Try again.", "لم يتصل البث. حاول مرة أخرى."),
+  };
+}
+
+export type LivePtrLike = { userId?: string; on?: boolean; name?: string };
+
+/** Keep the latest pointer per user and drop empty or off entries. */
+export function dedupeLivePtrs<T extends LivePtrLike>(list: T[]): T[] {
+  const by = new Map<string, T>();
+  for (const p of list || []) {
+    const id = String(p.userId || "").trim();
+    if (!id) continue;
+    if (p.on === false) {
+      by.delete(id);
+      continue;
+    }
+    by.set(id, p);
+  }
+  return [...by.values()];
+}
+
+/** Drop pointers for people who have left (and dedupe by userId). */
+export function pruneLivePtrs<T extends LivePtrLike>(list: T[], memberIds: Iterable<string>, extraKeep: Iterable<string> = []): T[] {
+  const keep = new Set([...memberIds, ...extraKeep].map((id) => String(id)));
+  return dedupeLivePtrs(list).filter((p) => keep.has(String(p.userId)));
+}

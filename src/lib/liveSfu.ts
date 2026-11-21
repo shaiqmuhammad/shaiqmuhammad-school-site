@@ -3,9 +3,9 @@
 /** Browser helper for Cloudflare Realtime SFU (publish + subscribe). App Secret stays on the worker. */
 import { lmsApi, type LivePub } from "@/lib/lms";
 import { isMaxBundleError, sdpDesc } from "@/lib/liveSdp";
-import { ICE_RETRY_WAIT_MS, ICE_WAIT_MS, iceSummary, waitConnected, waitIce } from "@/lib/liveIceWait";
+import { ICE_RETRY_WAIT_MS, ICE_WAIT_MS, icePeerConfig, iceSummary, isMobileUa, isPcConnected, isPcConnecting, shouldRefreshSession, waitConnected, waitIce } from "@/lib/liveIceWait";
 import { liveMediaLog as mediaLog } from "@/lib/liveMediaLog";
-import { isRetryableSubError, matchRemoteTrack, sfuResponseDetail, type RemoteTrackRow } from "@/lib/liveMediaError";
+import { isRetryableSubError, isSessionDisconnectError, matchRemoteTrack, sfuResponseDetail, type RemoteTrackRow } from "@/lib/liveMediaError";
 
 export { ICE_WAIT_MS, waitIce };
 
@@ -53,13 +53,26 @@ export class LiveSfu {
   private recvRetries = 0;
   private subRetries = 0;
   private subRetryTimer?: number;
+  private forceRelay = false;
+  private mobile = false;
+  private disconnectTimer: Partial<Record<"pub" | "recv", number>> = {};
+  private onVis?: () => void;
   constructor(roomId: string, selfId: string, ice: RTCIceServer[], onRemote: RemoteFn, asAdmin = false) {
     this.roomId = roomId;
     this.selfId = selfId;
-    this.ice = ice;
+    this.ice = icePeerConfig(ice).iceServers as RTCIceServer[];
     this.onRemote = onRemote;
     this.asAdmin = asAdmin;
-    mediaLog.mark("ice_servers", iceSummary(ice));
+    this.mobile = typeof navigator !== "undefined" && isMobileUa(navigator.userAgent || "");
+    mediaLog.mark("ice_servers", iceSummary(this.ice) + (this.mobile ? " mobile" : ""));
+    if (typeof document !== "undefined") {
+      this.onVis = () => {
+        if (document.visibilityState !== "visible") return;
+        if (shouldRefreshSession(this.pub, this.pubId)) this.scheduleRetry("pub");
+        if (shouldRefreshSession(this.recv, this.recvId)) this.scheduleRetry("recv");
+      };
+      document.addEventListener("visibilitychange", this.onVis);
+    }
   }
 
   private enqueuePub(fn: () => Promise<void>) {
@@ -101,16 +114,45 @@ export class LiveSfu {
   }
 
   private newPc(label: "pub" | "recv") {
-    const pc = new RTCPeerConnection({ iceServers: this.ice, bundlePolicy: "max-bundle", iceCandidatePoolSize: 2 });
+    const cfg = icePeerConfig(this.ice, this.forceRelay);
+    const pc = new RTCPeerConnection(cfg as RTCConfiguration);
     mediaLog.watchPc(pc, label);
-    pc.onconnectionstatechange = () => {
-      if (pc.connectionState === "failed") {
-        mediaLog.mark("ice_restart", label);
-        try { pc.restartIce(); } catch { /* */ }
-        this.scheduleRetry(label);
-      }
-    };
+    const onState = () => this.onPcState(label, pc);
+    pc.addEventListener("connectionstatechange", onState);
+    pc.addEventListener("iceconnectionstatechange", onState);
     return pc;
+  }
+
+  private onPcState(label: "pub" | "recv", pc: RTCPeerConnection) {
+    if (pc !== this.pub && pc !== this.recv) return;
+    if (isPcConnected(pc)) {
+      if (label === "pub") this.pubRetries = 0;
+      else this.recvRetries = 0;
+      const t = this.disconnectTimer[label];
+      if (t) {
+        window.clearTimeout(t);
+        this.disconnectTimer[label] = undefined;
+      }
+      return;
+    }
+    const c = pc.connectionState;
+    const ice = pc.iceConnectionState;
+    if (c === "failed" || ice === "failed") {
+      mediaLog.mark("ice_restart", label);
+      try { pc.restartIce(); } catch { /* */ }
+      this.scheduleRetry(label);
+      return;
+    }
+    if (c === "disconnected" || ice === "disconnected" || c === "closed") {
+      if (this.disconnectTimer[label]) return;
+      this.disconnectTimer[label] = window.setTimeout(() => {
+        this.disconnectTimer[label] = undefined;
+        if (pc !== this.pub && pc !== this.recv) return;
+        if (isPcConnected(pc)) return;
+        mediaLog.mark("pc_disconnected", `${label}:${c || ice}`);
+        this.scheduleRetry(label);
+      }, 800);
+    }
   }
 
   private scheduleRetry(label: "pub" | "recv") {
@@ -118,11 +160,20 @@ export class LiveSfu {
     if (n >= 2) return;
     if (label === "pub") this.pubRetries += 1;
     else this.recvRetries += 1;
+    if (n >= 1 && !this.forceRelay && this.mobile) {
+      this.forceRelay = true;
+      mediaLog.mark("ice_relay_fallback", label);
+    }
     mediaLog.mark("retry", `${label}:${n + 1}`);
     window.setTimeout(() => {
       if (label === "pub") {
         const tracks = this.activePubs();
-        if (tracks.length) void this.enqueuePub(() => this.republishAll(tracks, ICE_RETRY_WAIT_MS));
+        if (!tracks.length) {
+          // Drop a stale unused publish session so the next Mic/Camera tap starts fresh.
+          if (shouldRefreshSession(this.pub, this.pubId)) this.dropPubPc();
+          return;
+        }
+        void this.enqueuePub(() => this.republishAll(tracks, ICE_RETRY_WAIT_MS));
       } else if (this.lastPubs.length) {
         void this.enqueueRecv(async () => {
           this.dropRecvPc();
@@ -132,6 +183,17 @@ export class LiveSfu {
         });
       }
     }, 400);
+  }
+
+  /** If the publish PeerConnection is not connected, open a fresh SFU session first. */
+  private async ensurePubForPublish(extra?: { name: string; track: MediaStreamTrack }): Promise<"ready" | "rebuilt"> {
+    if (this.pub && this.pubId && isPcConnected(this.pub)) return "ready";
+    if (this.pub && this.pubId && isPcConnecting(this.pub)) {
+      if (await waitConnected(this.pub)) return "ready";
+    }
+    mediaLog.mark("pub_fresh_session", this.pub ? (this.pub.connectionState || "none") : "none");
+    await this.republishAll(this.activePubs(extra));
+    return "rebuilt";
   }
 
   private async applyRemote(pc: RTCPeerConnection, raw: unknown, fallback: RTCSdpType) {
@@ -299,9 +361,10 @@ export class LiveSfu {
 
   async publish(name: string, track: MediaStreamTrack) {
     await this.enqueuePub(async () => {
-      await this.ensurePub();
+      const ready = await this.ensurePubForPublish({ name, track });
+      if (ready === "rebuilt") return;
       const existing = this.slots.get(name) || this.published.get(name);
-      if (existing) {
+      if (existing && this.pub && !shouldRefreshSession(this.pub, this.pubId)) {
         try {
           await existing.sender.replaceTrack(track);
           this.published.set(name, existing);
@@ -309,6 +372,7 @@ export class LiveSfu {
         } catch { /* fall through and renegotiate */ }
       }
       try {
+        await this.ensurePub();
         const trans = this.pub!.addTransceiver(track, { direction: "sendonly" });
         const offer = await this.pub!.createOffer();
         await this.pub!.setLocalDescription(offer);
@@ -327,12 +391,14 @@ export class LiveSfu {
         this.published.set(name, trans);
         this.pubRetries = 0;
       } catch (e) {
-        // First answer without BUNDLE (or a later add/remove) makes Chrome refuse createOffer
-        // with ERROR_CONTENT "max-bundle configured". Rebuild the publish session as one offer.
-        if (!isMaxBundleError(e) && !this.published.size && !this.pub?.currentRemoteDescription) throw e;
-        if (this.isPermanentPubError(e)) throw e;
-        mediaLog.mark("pub_rebuild", name);
-        await this.republishAll(this.activePubs({ name, track }));
+        if (this.isPermanentPubError(e) && !isSessionDisconnectError(e)) throw e;
+        // Stale SFU session (iOS idle / background) or max-bundle: one rebuild on a fresh session.
+        if (isSessionDisconnectError(e) || isMaxBundleError(e) || this.published.size || this.pub?.currentRemoteDescription) {
+          mediaLog.mark(isSessionDisconnectError(e) ? "session_retry" : "pub_rebuild", name);
+          await this.republishAll(this.activePubs({ name, track }));
+          return;
+        }
+        throw e;
       }
     });
     if (this.pubId) {
@@ -472,6 +538,15 @@ export class LiveSfu {
 
   close() {
     this.warm = undefined;
+    if (this.onVis && typeof document !== "undefined") {
+      document.removeEventListener("visibilitychange", this.onVis);
+      this.onVis = undefined;
+    }
+    for (const k of ["pub", "recv"] as const) {
+      const t = this.disconnectTimer[k];
+      if (t) window.clearTimeout(t);
+      this.disconnectTimer[k] = undefined;
+    }
     if (this.subRetryTimer) {
       window.clearTimeout(this.subRetryTimer);
       this.subRetryTimer = undefined;

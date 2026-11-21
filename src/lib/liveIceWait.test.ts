@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { ICE_WAIT_MS, iceSummary, mergeIceServers, waitConnected, waitIce, type IceLike } from "./liveIceWait.ts";
+import { ICE_WAIT_MS, icePeerConfig, iceSummary, hasTurnServer, isMobileUa, isPcConnected, isPcDead, isPcConnecting, mergeIceServers, shouldRefreshSession, waitConnected, waitIce, type IceLike } from "./liveIceWait.ts";
 
 class FakePc implements IceLike {
   iceGatheringState = "gathering";
@@ -95,4 +95,42 @@ test("waitConnected waits for connectionstatechange", async () => {
 test("waitConnected times out as false when it never connects", async () => {
   const pc = fakeConn("connecting");
   assert.equal(await waitConnected(pc, 30), false);
+});
+
+test("isPcConnected accepts connected or ICE completed", () => {
+  assert.equal(isPcConnected({ connectionState: "connected", iceConnectionState: "checking" }), true);
+  assert.equal(isPcConnected({ connectionState: "connecting", iceConnectionState: "completed" }), true);
+  assert.equal(isPcConnected({ connectionState: "new", iceConnectionState: "new" }), false);
+  assert.equal(isPcConnected(null), false);
+});
+
+test("isPcDead and shouldRefreshSession cover disconnected/failed/closed and idle new sessions", () => {
+  assert.equal(isPcDead({ connectionState: "disconnected", iceConnectionState: "disconnected" }), true);
+  assert.equal(isPcDead({ connectionState: "failed", iceConnectionState: "failed" }), true);
+  assert.equal(isPcDead({ connectionState: "closed", iceConnectionState: "closed" }), true);
+  assert.equal(isPcDead({ connectionState: "connected", iceConnectionState: "connected" }), false);
+  assert.equal(isPcConnecting({ connectionState: "connecting", iceConnectionState: "checking" }), true);
+  assert.equal(shouldRefreshSession({ connectionState: "connected", iceConnectionState: "connected" }, "sid"), false);
+  assert.equal(shouldRefreshSession({ connectionState: "connecting", iceConnectionState: "checking" }, "sid"), false);
+  assert.equal(shouldRefreshSession({ connectionState: "new", iceConnectionState: "new" }, "sid"), true);
+  assert.equal(shouldRefreshSession({ connectionState: "disconnected", iceConnectionState: "disconnected" }, "sid"), true);
+  assert.equal(shouldRefreshSession({ connectionState: "connected" }, ""), true);
+  assert.equal(shouldRefreshSession(undefined, "sid"), true);
+});
+
+test("icePeerConfig keeps TURN and only forces relay when asked and TURN is present", () => {
+  const servers = [
+    { urls: "stun:stun.cloudflare.com:3478" },
+    { urls: "turn:turn.example:3478?transport=udp", username: "u", credential: "c" },
+  ];
+  assert.equal(hasTurnServer(servers), true);
+  const all = icePeerConfig(servers, false);
+  assert.equal(all.iceTransportPolicy, undefined);
+  assert.ok(iceSummary(all.iceServers).includes("turn:1"));
+  const relay = icePeerConfig(servers, true);
+  assert.equal(relay.iceTransportPolicy, "relay");
+  const stunOnly = icePeerConfig([{ urls: "stun:stun.cloudflare.com:3478" }], true);
+  assert.equal(stunOnly.iceTransportPolicy, undefined);
+  assert.equal(isMobileUa("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)"), true);
+  assert.equal(isMobileUa("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15)"), false);
 });

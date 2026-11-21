@@ -8,6 +8,8 @@ import { NeedLogin } from "@/components/lms/LmsDashboard";
 import { ADMIN_ACTOR, useLmsActor, useTr } from "@/components/lms/useLms";
 import { getServerSession } from "@/lib/adminServer";
 import { LiveSfu } from "@/lib/liveSfu";
+import { mergeIceServers } from "@/lib/liveIceWait";
+import { dedupeLivePtrs, friendlyMediaPhrases, genericErrorBanner, mediaErrorDetail, pruneLivePtrs } from "@/lib/liveMediaError";
 import { requestElFullscreen } from "@/components/FocusMode";
 import { registerSlideFocus, setPageFocus } from "@/components/FullscreenToggle";
 import { LiveSchedulePanel, GuestJoin } from "@/components/lms/LiveSchedule";
@@ -447,7 +449,10 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
   const [ptrs, setPtrs] = useState<LivePtr[]>([]);
   const lastPtrAt = useRef(0);
   const fail = (e: unknown, en: string, ar: string) => {
-    const text = lmsErrorText(e, tr, undefined, tr(en, ar));
+    const media = /^(Video|Camera|Mic|Screen)/i.test(en);
+    const text = media
+      ? genericErrorBanner(tr(en, ar), mediaErrorDetail(e), friendlyMediaPhrases(tr))
+      : lmsErrorText(e, tr, undefined, tr(en, ar));
     liveMediaLog.mark("error", text.slice(0, 160));
     setErr(text);
   };
@@ -683,6 +688,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
     setRoom(snap);
     setChat(snap.chat || []);
     const ids = new Set(snap.members.map((m) => m.id));
+    setPtrs((list) => pruneLivePtrs(list, ids, snap.teacherId ? [snap.teacherId] : []));
     setRemotes((prev) => {
       let changed = false;
       const next: typeof prev = {};
@@ -761,6 +767,10 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
         }
       }
       if (msg.t === "ask" && msg.asks) setRoom((r) => r ? { ...r, asks: msg.asks } : r);
+      if (msg.t === "presence" && msg.userId && msg.ev === "leave") {
+        const leftId = msg.userId;
+        setPtrs((list) => list.filter((x) => x.userId !== leftId));
+      }
       if (msg.t === "presence" && msg.userId && msg.userId !== selfId && (msg.ev === "join" || msg.ev === "leave")) {
         const ev = msg.ev;
         const name = msg.name || "Someone";
@@ -770,7 +780,8 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
       }
       if (msg.t === "ptr" && msg.ptr) {
         const ptr = msg.ptr;
-        setPtrs((list) => ptr.on === false ? list.filter((x) => x.userId !== ptr.userId) : [...list.filter((x) => x.userId !== ptr.userId), ptr]);
+        if (!ptr.userId) return;
+        setPtrs((list) => dedupeLivePtrs(ptr.on === false ? list.filter((x) => x.userId !== ptr.userId) : [...list.filter((x) => x.userId !== ptr.userId), ptr]));
       }
     };
     const ping = () => {
@@ -877,7 +888,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
         })();
         setConnectStep("joining");
         if (iceP) {
-          const ice = (await iceP).iceServers;
+          const ice = mergeIceServers((await iceP).iceServers) as RTCIceServer[];
           if (cancelled) return;
           if (!sfuRef.current) sfuRef.current = new LiveSfu(roomId, who, ice, attachRemote, asAdmin);
           else sfuRef.current.setSelfId(who);
@@ -989,13 +1000,22 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
     } finally { setBusy(false); }
   }
 
+  async function ensureLiveSfu(): Promise<LiveSfu | null> {
+    if (sfuRef.current) return sfuRef.current;
+    if (!room?.id || !room.sfu) return null;
+    const who = selfId || actor?.id || "";
+    const ice = mergeIceServers((await lmsApi.liveIce(room.id, asAdmin)).iceServers) as RTCIceServer[];
+    const sfu = new LiveSfu(room.id, who, ice, attachRemote, asAdmin);
+    sfuRef.current = sfu;
+    return sfu;
+  }
+
   async function toggleCam() {
     unlockAudio();
-    if (!sfuRef.current) { setErr(tr("Video is still connecting. Try Camera again in a moment.", "الفيديو ما زال يتصل. أعد المحاولة بعد لحظة.")); return; }
     if (!me) { setErr(tr("You are not in the room yet.", "لست داخل الحصة بعد.")); return; }
     if (camOn) {
       localRef.current?.getVideoTracks().forEach((t) => t.stop());
-      await sfuRef.current.unpublish("camera");
+      await sfuRef.current?.unpublish("camera");
       setCamOn(false);
       const leftover = localRef.current?.getAudioTracks() || [];
       setLocalStream(leftover.length ? new MediaStream(leftover) : null);
@@ -1004,11 +1024,14 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
     }
     if (!isHost && !me.camAllowed) { setErr(tr("Wait for the teacher to allow your camera.", "انتظر حتى يسمح المعلم بكاميرتك.")); return; }
     try {
+      // iOS Safari: getUserMedia must run in the tap gesture, before any new session negotiate.
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
       const track = stream.getVideoTracks()[0];
       if (!track) return;
       try {
-        await sfuRef.current.publish("camera", track);
+        const sfu = await ensureLiveSfu();
+        if (!sfu) { try { track.stop(); } catch { /* */ } setErr(tr("Video is still connecting. Try Camera again in a moment.", "الفيديو ما زال يتصل. أعد المحاولة بعد لحظة.")); return; }
+        await sfu.publish("camera", track);
       } catch (e) {
         try { track.stop(); } catch { /* */ }
         throw e;
@@ -1026,11 +1049,10 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
 
   async function toggleMic() {
     unlockAudio();
-    if (!sfuRef.current) { setErr(tr("Video is still connecting. Try Mic again in a moment.", "الفيديو ما زال يتصل. أعد المحاولة بعد لحظة.")); return; }
     if (!me) { setErr(tr("You are not in the room yet.", "لست داخل الحصة بعد.")); return; }
     if (micOn) {
       localRef.current?.getAudioTracks().forEach((t) => t.stop());
-      await sfuRef.current.unpublish("mic");
+      await sfuRef.current?.unpublish("mic");
       setMicOn(false);
       const leftover = localRef.current?.getVideoTracks() || [];
       setLocalStream(leftover.length ? new MediaStream(leftover) : null);
@@ -1039,11 +1061,14 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
     }
     if (!isHost && !me.micAllowed) { setErr(tr("Wait for the teacher to allow your microphone.", "انتظر حتى يسمح المعلم بميكروفونك.")); return; }
     try {
+      // iOS Safari: acquire the mic in the same tap, then negotiate / refresh the SFU session.
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const track = stream.getAudioTracks()[0];
       if (!track) return;
       try {
-        await sfuRef.current.publish("mic", track);
+        const sfu = await ensureLiveSfu();
+        if (!sfu) { try { track.stop(); } catch { /* */ } setErr(tr("Video is still connecting. Try Mic again in a moment.", "الفيديو ما زال يتصل. أعد المحاولة بعد لحظة.")); return; }
+        await sfu.publish("mic", track);
       } catch (e) {
         try { track.stop(); } catch { /* */ }
         throw e;

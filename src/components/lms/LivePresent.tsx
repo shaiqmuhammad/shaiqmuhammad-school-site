@@ -5,6 +5,7 @@ import { useTr } from "@/components/lms/useLms";
 import { firstSlideOf, lp, packHasPart, type Pack, type Part, type Slide } from "@/lib/packs";
 import { SlideView } from "@/components/lms/packs/SlideView";
 import { lmsApi, lmsErrorText, livePresentingContent, normalizePtrKind, youtubeVideoId, type LiveMember, type LivePresent as Present, type LivePresentItem, type LivePresentItemKind, type LivePtr, type LiveView, type PointCat, type PtrKind } from "@/lib/lms";
+import { dedupeLivePtrs } from "@/lib/liveMediaError";
 import { primaryBtn } from "@/components/assessment/AssessmentShell";
 import { createPortal } from "react-dom";
 import { LiveToolsTray, TeachToolsTray, type LiveShapeKindId, type ShapeGrid } from "@/components/lms/ClassroomTray";
@@ -526,7 +527,7 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
                 ))}
                 {(present.shapes || []).concat(draftShape ? [draftShape] : []).map((sh) => <ShapeMark key={sh.id} sh={sh} />)}
               </svg>
-              {ptrs.filter((pt) => pt.on !== false).map((pt) => (
+              {dedupeLivePtrs(ptrs).filter((pt) => pt.on !== false && pt.userId).map((pt) => (
                 <PointerMark key={pt.userId} pt={pt} />
               ))}
             </div>
