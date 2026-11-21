@@ -239,8 +239,18 @@ export function setLiveGuest(g: LiveGuest | null) {
   if (typeof window === "undefined") return;
   try { if (g?.token) sessionStorage.setItem(LIVE_GUEST_KEY, JSON.stringify(g)); else sessionStorage.removeItem(LIVE_GUEST_KEY); } catch { /* */ }
 }
+function isLiveGuestContext() {
+  if (typeof window === "undefined") return false;
+  try {
+    const q = new URLSearchParams(window.location.search);
+    return q.get("guest") === "1" || window.location.pathname.includes("/lms/live/join");
+  } catch { return false; }
+}
 function bearer(asAdmin = false): string | null {
   if (asAdmin) return getServerSession()?.token ?? null;
+  // Share-link joiners keep the guest token even if a leftover LMS or admin
+  // session exists in the same browser.
+  if (isLiveGuestContext() && liveGuestToken()) return liveGuestToken();
   return lmsSession()?.token || liveGuestToken() || null;
 }
 
@@ -524,7 +534,7 @@ export const lmsApi = {
   liveList: (asAdmin = false) => call<{ rooms: LiveRoomInfo[]; canStart: boolean; sfu: boolean; options: { cls: string; section: string }[]; groups: { id: string; name: string }[]; perms?: LivePerms }>("live-list", undefined, { asAdmin }),
   liveStart: (b: { title?: string; cls?: string; section?: string; groupId?: string; minutes?: number }, asAdmin = false) => call<{ id: string; existing?: boolean }>("live-start", b, { asAdmin }),
   liveGet: (id: string, asAdmin = false) => call<{ room: LiveSnap }>("live-get", { id }, { asAdmin }),
-  liveJoin: (id: string, asAdmin = false) => call<{ status: "in" | "waiting" | "ended" | "full"; room?: LiveSnap }>("live-join", { id }, { asAdmin }),
+  liveJoin: (id: string, asAdmin = false) => call<{ status: "in" | "waiting" | "ended" | "full"; room?: LiveSnap; selfId?: string }>("live-join", { id }, { asAdmin }),
   liveAdmit: (id: string, userId: string, asAdmin = false) => call<{ ok: boolean }>("live-admit", { id, userId }, { asAdmin }),
   liveDeny: (id: string, userId: string, asAdmin = false) => call<{ ok: boolean }>("live-deny", { id, userId }, { asAdmin }),
   liveLeave: (id: string, asAdmin = false) => call<{ ok: true }>("live-leave", { id }, { asAdmin }),

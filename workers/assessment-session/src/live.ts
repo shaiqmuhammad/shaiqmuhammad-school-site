@@ -10,7 +10,7 @@ import { DurableObject } from "cloudflare:workers";
 import { corsHeaders, reply } from "./admin";
 import { lmsActor, type Actor, type LmsEnv } from "./lms";
 import { recObjectKey } from "./liveAtt";
-import { canControlStudentMedia, canPresentInRoom, canSetMemberFloor, memberFloor, normalizePtrKind, type LiveFloor } from "./liveMedia";
+import { allowedPubTracks, canControlStudentMedia, canPresentInRoom, canSetMemberFloor, memberFloor, normalizePtrKind, type LiveFloor } from "./liveMedia";
 
 export interface LiveEnv extends LmsEnv {
   LIVE: DurableObjectNamespace<LiveRoom>;
@@ -156,7 +156,11 @@ export class LiveRoom extends DurableObject<LiveEnv> {
   }
   private roomMsg() {
     if (!this.state) return;
-    this.broadcast({ t: "room", room: publicSnap(this.state, this.sfuReady()) });
+    const room = publicSnap(this.state, this.sfuReady());
+    for (const ws of this.ctx.getWebSockets()) {
+      const selfId = this.ctx.getTags(ws)[0] || "";
+      this.send(ws, { t: "room", room, selfId });
+    }
   }
   private sfuReady() {
     return !!(this.env.REALTIME_SFU_APP_ID && this.env.REALTIME_SFU_APP_SECRET);
@@ -355,13 +359,11 @@ export class LiveRoom extends DurableObject<LiveEnv> {
     await this.load();
     const m = this.member(userId);
     if (!this.state || !m || this.state.status !== "live") return { ok: false, error: "forbidden" };
-    const allow = new Set<string>();
-    if (m.role === "teacher" || m.camAllowed) allow.add("camera");
-    if (m.role === "teacher" || m.micAllowed) allow.add("mic");
-    if (m.role === "teacher" || m.shareAllowed) allow.add("screen");
-    const next = tracks.map((t) => str(t, 20)).filter((t) => allow.has(t));
+    const wanted = tracks.map((t) => str(t, 20)).filter(Boolean);
+    const { next, denied } = allowedPubTracks(m, wanted);
     const sid = str(sessionId, 80);
     if (!sid) return { ok: false, error: "bad_session" };
+    if (denied.length && !next.length) return { ok: false, error: "not_allowed" };
     this.state.pubs = this.state.pubs.filter((p) => p.userId !== userId);
     if (next.length) this.state.pubs.push({ userId, sessionId: sid, tracks: next });
     await this.save();
@@ -557,7 +559,7 @@ export class LiveRoom extends DurableObject<LiveEnv> {
       this.state.members.push({ id: uid, name: name || "Teacher", role: "teacher", camAllowed: true, micAllowed: true, hand: false, present: true, floor: "presenter" });
     }
     await this.save();
-    this.send(pair[1], { t: "room", room: publicSnap(this.state, this.sfuReady()) });
+    this.send(pair[1], { t: "room", room: publicSnap(this.state, this.sfuReady()), selfId: uid });
     this.roomMsg();
     return new Response(null, { status: 101, webSocket: pair[0] });
   }
@@ -869,7 +871,7 @@ export async function handleLive(request: Request, env: LiveEnv, action: string)
     if (String(row.status) !== "live") return reply(origin, { error: "ended" }, 410);
     const r = await stub.requestJoin({ id: a.id, name: a.name, role: a.role === "admin" || a.id === String(row.teacher) ? "teacher" : "student" });
     if (r.status === "in" && a.role === "student" && !a.guest) await store.liveAttSync(id, [a.id]);
-    return reply(origin, r, r.status === "full" ? 409 : r.status === "ended" ? 410 : 200);
+    return reply(origin, { ...r, selfId: a.id }, r.status === "full" ? 409 : r.status === "ended" ? 410 : 200);
   }
 
   if (action === "live-admit" || action === "live-deny") {
@@ -1003,10 +1005,17 @@ export async function handleLive(request: Request, env: LiveEnv, action: string)
     if (!sessionId) return reply(origin, { error: "bad_session" }, 400);
     if (op === "tracks-new") {
       const tracks = Array.isArray(body.tracks) ? body.tracks as Record<string, unknown>[] : [];
+      const member = room.members.find((m) => m.id === a.id);
+      const isHost = a.role === "admin" || a.id === room.teacherId;
       for (const tr of tracks) {
         if (String(tr.location) === "remote") {
           const pubSid = str(tr.sessionId, 80);
           if (!room.pubs.some((p) => p.sessionId === pubSid)) return reply(origin, { error: "forbidden" }, 403);
+        }
+        if (String(tr.location) === "local" && !isHost) {
+          const name = str(tr.trackName, 20);
+          const { denied } = allowedPubTracks(member, name ? [name] : []);
+          if (denied.length) return reply(origin, { error: "not_allowed" }, 403);
         }
       }
       const r = await sfuCall(env, "POST", `/sessions/${sessionId}/tracks/new`, {
