@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { HomeworkEditor } from "@/components/lms/HomeworkEditor";
 import { HwMeta, hwAud, packAud } from "@/components/lms/HwMeta";
@@ -22,8 +22,8 @@ const TAB_ITEMS: { id: HwHubTab; ic: string; en: string; ar: string }[] = [
   { id: "tasks", ic: "✏️", en: "Tasks", ar: "مهام" },
   { id: "homeworks", ic: "📝", en: "Homeworks", ar: "الواجبات" },
   { id: "quran", ic: "📖", en: "Quran Homeworks", ar: "واجبات القرآن" },
-  // t664: To Review keeps working (rail link, dashboard tile, ?tab=review) and shows here only while open.
-  { id: "review", ic: "📥", en: "To Review", ar: "للمراجعة" },
+  // t664/t756: Review keeps working (rail link, dashboard tile, ?tab=review) and shows here only while open.
+  { id: "review", ic: "📥", en: "Review", ar: "مراجعة" },
 ];
 /** t663: Homework sub-tabs (mirror Tasks). "Not assigned yet" keeps drafts / scheduled work reachable. */
 export type HwSub = "assigned" | "completed" | "corrected" | "unassigned";
@@ -193,41 +193,210 @@ export function kidSubRow(t: KidTheme) {
   return `flex flex-wrap gap-2 rounded-3xl p-2 ring-1 ring-black/5 dark:ring-white/10 ${tint[t]}`;
 }
 
-export function HwHubTabs({ tab, onTab, className = "", counts }: { tab: HwHubTab; onTab: (t: HwHubTab) => void; className?: string; counts?: Partial<Record<HwHubTab, number>> }) {
+/** t756: hover (desktop) / tap (mobile) menu on a homework widget. Keyboard: Enter/Space/Arrow to open, arrows to move, Escape to close. */
+export type HwMenuItem = { key: string; ic: string; en: string; ar: string; n: number };
+
+export function HwKidWidget({
+  theme, ic, label, selected, count, href, items, activeKey, onPick, testId,
+}: {
+  theme: KidTheme;
+  ic: string;
+  label: string;
+  selected: boolean;
+  count?: number;
+  href?: string;
+  items?: HwMenuItem[];
+  activeKey?: string;
+  onPick?: (key?: string) => void;
+  testId: string;
+}) {
+  const { tr } = useTr();
+  const uid = useId();
+  const menuId = `${uid}-menu`;
+  const wrap = useRef<HTMLDivElement>(null);
+  const btn = useRef<HTMLButtonElement>(null);
+  const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const closeT = useRef<number>(0);
+  const [open, setOpen] = useState(false);
+  const hasMenu = !!(items && items.length);
+
+  const clearClose = () => { if (closeT.current) window.clearTimeout(closeT.current); closeT.current = 0; };
+  const close = () => { clearClose(); setOpen(false); };
+  const openMenu = () => { if (hasMenu) { clearClose(); setOpen(true); } };
+
+  useEffect(() => () => clearClose(), []);
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => { if (!wrap.current?.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+
+  const focusItem = (i: number) => {
+    const list = itemRefs.current.filter(Boolean) as HTMLButtonElement[];
+    if (!list.length) return;
+    const n = (i + list.length) % list.length;
+    list[n]?.focus();
+  };
+
+  const onBtnKey = (e: KeyboardEvent<HTMLButtonElement>) => {
+    if (!hasMenu) return;
+    if (e.key === "ArrowDown" || e.key === "Enter" || e.key === " " || e.key === "ArrowUp") {
+      e.preventDefault();
+      openMenu();
+      window.setTimeout(() => focusItem(e.key === "ArrowUp" ? (items!.length - 1) : 0), 0);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      close();
+    }
+  };
+
+  const onItemKey = (e: KeyboardEvent<HTMLButtonElement>, i: number) => {
+    if (e.key === "ArrowDown") { e.preventDefault(); focusItem(i + 1); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); focusItem(i - 1); }
+    else if (e.key === "Home") { e.preventDefault(); focusItem(0); }
+    else if (e.key === "End") { e.preventDefault(); focusItem((items?.length || 1) - 1); }
+    else if (e.key === "Escape") { e.preventDefault(); close(); btn.current?.focus(); }
+    else if (e.key === "Tab") { close(); }
+  };
+
+  const pick = (key?: string) => {
+    close();
+    onPick?.(key);
+  };
+
+  const face = (
+    <>
+      <KidIcon t={theme} on={selected} ic={ic} />
+      <span className="flex-1 text-start">{label}</span>
+      {count !== undefined && <KidBubble t={theme} on={selected} n={count} />}
+      {hasMenu && <span aria-hidden className={`text-xs opacity-80 transition ${open ? "rotate-180" : ""}`}>▾</span>}
+    </>
+  );
+
+  const menu = hasMenu && open && (
+    <div
+      id={menuId}
+      role="menu"
+      aria-label={label}
+      className="absolute start-0 top-[calc(100%-0.25rem)] z-40 mt-1 min-w-[16.5rem] rounded-2xl bg-white p-1.5 text-[#1b2f44] shadow-2xl ring-1 ring-black/10 dark:bg-[#12233a] dark:text-white dark:ring-white/15"
+      data-testid={testId + "-menu"}
+    >
+      {items!.map((it, i) => {
+        const on = selected && activeKey === it.key;
+        return (
+          <button
+            key={it.key}
+            type="button"
+            role="menuitem"
+            ref={(el) => { itemRefs.current[i] = el; }}
+            className={`flex w-full min-h-11 items-center gap-2 rounded-xl px-3 py-2 text-start text-sm font-extrabold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1b3a57] ${on ? `bg-gradient-to-br ${KID_GRAD[theme]} text-white` : "hover:bg-black/5 dark:hover:bg-white/10"}`}
+            onClick={() => pick(it.key)}
+            onKeyDown={(e) => onItemKey(e, i)}
+            data-testid={`${testId}-${it.key}`}
+          >
+            <span aria-hidden className="text-lg">{it.ic}</span>
+            <span className="flex-1">{tr(it.en, it.ar)}</span>
+            <KidBubble t={theme} on={on} n={it.n} small />
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  return (
+    <div
+      ref={wrap}
+      className="relative"
+      onPointerEnter={(e) => { if (e.pointerType === "mouse") openMenu(); }}
+      onPointerLeave={(e) => { if (e.pointerType === "mouse") { clearClose(); closeT.current = window.setTimeout(() => setOpen(false), 160); } }}
+    >
+      {hasMenu ? (
+        <button
+          ref={btn}
+          type="button"
+          className={kidTabCls(theme, selected)}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          aria-controls={menuId}
+          onClick={() => (open ? close() : openMenu())}
+          onKeyDown={onBtnKey}
+          data-testid={testId}
+        >
+          {face}
+        </button>
+      ) : href ? (
+        <a
+          href={href}
+          role="tab"
+          aria-selected={selected}
+          className={kidTabCls(theme, selected)}
+          onClick={(e) => {
+            if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+            e.preventDefault();
+            pick();
+          }}
+          data-testid={testId}
+        >
+          {face}
+        </a>
+      ) : (
+        <button type="button" role="tab" aria-selected={selected} className={kidTabCls(theme, selected)} onClick={() => pick()} data-testid={testId}>
+          {face}
+        </button>
+      )}
+      {menu}
+    </div>
+  );
+}
+
+export function HwHubTabs({ tab, onTab, className = "", counts, menus, activeSub }: {
+  tab: HwHubTab;
+  onTab: (t: HwHubTab, sub?: string) => void;
+  className?: string;
+  counts?: Partial<Record<HwHubTab, number>>;
+  menus?: Partial<Record<HwHubTab, HwMenuItem[]>>;
+  activeSub?: string;
+}) {
   const { tr } = useTr();
   return (
     <div className={`flex flex-wrap gap-3 ${className}`} role="tablist" data-testid="hw-hub-tabs">
       {TAB_ITEMS.filter(({ id }) => id !== "review" || tab === "review").map(({ id, ic, en, ar }) => (
-        <a
+        <HwKidWidget
           key={id}
+          theme={id as KidTheme}
+          ic={ic}
+          label={tr(en, ar)}
+          selected={tab === id}
+          count={counts?.[id]}
           href={tabHref(id)}
-          role="tab"
-          aria-selected={tab === id}
-          onClick={(e) => {
-            if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
-            e.preventDefault();
-            onTab(id);
-          }}
-          className={kidTabCls(id as KidTheme, tab === id)}
-          data-testid={`hw-tab-${id}`}
-        >
-          <KidIcon t={id as KidTheme} on={tab === id} ic={ic} />
-          <span className="flex-1">{tr(en, ar)}</span>
-          {counts?.[id] !== undefined && <KidBubble t={id as KidTheme} on={tab === id} n={counts[id]!} />}
-        </a>
+          items={menus?.[id]}
+          activeKey={tab === id ? activeSub : undefined}
+          onPick={(key) => onTab(id, key)}
+          testId={`hw-tab-${id}`}
+        />
       ))}
     </div>
   );
 }
 
 /** Same tab bar on list pages and on an opened homework; from an opened homework, a tab goes back to that list. */
-export function HomeworkHubTabs({ tab, onTab, counts }: { tab: HwHubTab; onTab?: (t: HwHubTab) => void; counts?: Partial<Record<HwHubTab, number>> }) {
+export function HomeworkHubTabs({ tab, onTab, counts, menus, activeSub }: {
+  tab: HwHubTab;
+  onTab?: (t: HwHubTab, sub?: string) => void;
+  counts?: Partial<Record<HwHubTab, number>>;
+  menus?: Partial<Record<HwHubTab, HwMenuItem[]>>;
+  activeSub?: string;
+}) {
   const router = useRouter();
-  const go = (t: HwHubTab) => {
-    if (onTab) onTab(t);
-    else router.push(tabHref(t));
+  const go = (t: HwHubTab, sub?: string) => {
+    if (onTab) onTab(t, sub);
+    else {
+      const href = tabHref(t);
+      router.push(sub && sub !== "assigned" ? `${href}${href.includes("?") ? "&" : "?"}sub=${sub}` : href);
+    }
   };
-  return <HwHubTabs tab={tab} onTab={go} counts={counts} />;
+  return <HwHubTabs tab={tab} onTab={go} counts={counts} menus={menus} activeSub={activeSub} />;
 }
 
 function sharedOnly(h: DashHw, actorId?: string, role?: string) {
@@ -546,7 +715,7 @@ export function TeacherHomeworkHub({
   asAdmin: boolean;
   canAssign: boolean;
   tab: HwHubTab;
-  onTab: (t: HwHubTab) => void;
+  onTab: (t: HwHubTab, sub?: string) => void;
   onReload: () => void;
   toolbar?: ReactNode;
 }) {
@@ -563,11 +732,10 @@ export function TeacherHomeworkHub({
     }).catch(() => { if (live) setQuranCorr({ ids: new Set(), n: {} }); });
     return () => { live = false; };
   }, [asAdmin, dash.homework]);
-  /** t664: Tasks, Homeworks and Quran Homeworks each have sub-tabs — assigned, completed (handed in, waiting for correction),
-   *  corrected — plus "Not assigned yet" (only shown when something is waiting). Counts come from the dashboard data already loaded. */
+  /** t664/t756: Tasks, Homeworks and Quran Homeworks offer Assigned / Completed / Corrected (plus Not assigned yet when something is waiting) from a hover/tap menu on each widget. Counts come from the dashboard data already loaded. */
   const [subs, setSubs] = useState<Partial<Record<HwHubTab, HwSub>>>({});
   const sub: HwSub = subs[tab] || "assigned";
-  // eslint-disable-next-line react-hooks/set-state-in-effect -- deep link from ?sub= / an old ?tab=assigned|corrected link
+  // Deep link from ?sub= / an old ?tab=assigned|corrected link.
   useEffect(() => {
     const read = () => setSubs({ [tabFromLocation()]: hwSubFromLocation() });
     read();
@@ -578,12 +746,6 @@ export function TeacherHomeworkHub({
     window.addEventListener("popstate", read);
     return () => window.removeEventListener("popstate", read);
   }, []);
-  const setSub = (k: HwSub) => {
-    setSubs((m) => ({ ...m, [tab]: k }));
-    if (window.location.pathname.replace(/\/$/, "") !== "/lms/homework") return;
-    const base = tab === "homeworks" ? "/lms/homework" : `/lms/homework?tab=${tab}`;
-    window.history.replaceState(null, "", k === "assigned" ? base : `${base}${base.includes("?") ? "&" : "?"}sub=${k}`);
-  };
   const pagesOf = (h: DashHw) => hwParts(h.data as { activity?: boolean; parts?: unknown }, h.kind);
   const groupOf = (h: DashHw): "tasks" | "homeworks" | "quran" => (h.kind === "quran" ? "quran" : pagesOf(h).includes("homework") || !pagesOf(h).length ? "homeworks" : "tasks");
   const live = dash.homework.filter((h) => hwBucket(h) === "assigned");
@@ -620,15 +782,25 @@ export function TeacherHomeworkHub({
     homeworks: { assigned: ["Assigned Homework", "الواجبات المسندة"], completed: ["Completed Homework", "الواجبات المكتملة"], corrected: ["Corrected Homework", "الواجبات المصحَّحة"], unassigned: ["Not assigned yet", "لم تُسند بعد"] },
     quran: { assigned: ["Assigned Quran Homework", "واجبات القرآن المسندة"], completed: ["Completed Quran Homework", "واجبات القرآن المكتملة"], corrected: ["Corrected Quran Homework", "واجبات القرآن المصحَّحة"], unassigned: ["Not assigned yet", "لم تُسند بعد"] },
   };
+  const menus: Partial<Record<HwHubTab, HwMenuItem[]>> = {};
+  for (const g of ["tasks", "homeworks", "quran"] as const) {
+    const rows = subRows(g);
+    menus[g] = HW_SUBS.filter(([k]) => k !== "unassigned" || rows.unassigned.length > 0 || (tab === g && sub === "unassigned")).map(([k, ic]) => ({
+      key: k, ic, en: SUB_LABEL[g][k][0], ar: SUB_LABEL[g][k][1], n: rows[k].length,
+    }));
+  }
+  const goTab = (t: HwHubTab, k?: string) => {
+    const next = (k === "completed" || k === "corrected" || k === "unassigned" || k === "assigned") ? k : undefined;
+    if (next && (t === "tasks" || t === "homeworks" || t === "quran")) setSubs((m) => ({ ...m, [t]: next }));
+    onTab(t, next);
+  };
+
   return (
     <section id="homework" className="scroll-mt-28 space-y-4" data-testid="hw-hub">
       <div className="flex flex-wrap items-center gap-2">
-        <HomeworkHubTabs tab={tab} onTab={onTab} counts={hubCounts} />
+        <HomeworkHubTabs tab={tab} onTab={goTab} counts={hubCounts} menus={menus} activeSub={grp ? sub : undefined} />
         {toolbar}
       </div>
-      {grp && cur && <div className={kidSubRow(grp)} role="tablist" data-testid={grp === "tasks" ? "hw-task-subtabs" : `hw-${grp}-subtabs`}>
-        {HW_SUBS.filter(([k]) => k !== "unassigned" || cur.unassigned.length > 0 || sub === "unassigned").map(([k, ic]) => <button key={k} type="button" role="tab" aria-selected={sub === k} onClick={() => setSub(k)} className={kidSubCls(grp, sub === k)} data-testid={grp === "tasks" ? `hw-task-sub-${k}` : `hw-${grp}-sub-${k}`}><span aria-hidden className="text-lg">{ic}</span>{tr(...SUB_LABEL[grp][k])} <KidBubble t={grp} on={sub === k} n={cur[k].length} small /></button>)}
-      </div>}
       {tab === "lessons" ? <LessonBoard asAdmin={asAdmin} onCount={setLessonCount} /> : (
         <HwPortionGrid items={rows} chapters={chapters} asAdmin={asAdmin} canAssign={canAssign} empty={empty} onChange={onReload} extra={extra} openHash={openHash} correctedCounts={corrView ? { ...Object.fromEntries(rows.map((h) => [h.id, h.kind === "quran" ? 0 : countsOf(h).approved])), ...quranCorr.n } : quranCorr.n} />
       )}

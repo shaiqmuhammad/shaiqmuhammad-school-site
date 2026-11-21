@@ -20,7 +20,7 @@ import { AssessmentShell, primaryBtn } from "@/components/assessment/AssessmentS
 import { HomeworkEditor } from "@/components/lms/HomeworkEditor";
 import { Certificates, Leaderboard, LeaderboardSetting, ProgressCard, RevisionList } from "@/components/lms/Progress";
 import { Avatar } from "@/components/lms/Avatar";
-import { KidBubble, KidIcon, PORTION_BAR, PORTION_LIFT, PORTION_WASH, kidSubCls, kidSubRow, kidTabCls, TeacherHomeworkHub, reviewCount, tabFromLocation, type HwHubTab } from "@/components/lms/HwHub";
+import { HwKidWidget, PORTION_BAR, PORTION_LIFT, PORTION_WASH, TeacherHomeworkHub, reviewCount, tabFromLocation, type HwHubTab, type HwMenuItem } from "@/components/lms/HwHub";
 import { exportAllHomeworkZip } from "@/components/lms/lmsFiles";
 import { STATUS_STYLE, card, smallBtn, statusLabel, useLmsActor, useTr, GRADE_STYLE, gradeLabel } from "@/components/lms/useLms";
 import { lmsApi, lmsErrorText, lmsSignOut, mpShown, quranChapters, type Chapter, type QuranData } from "@/lib/lms";
@@ -165,7 +165,7 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
         {!staff && actor && !hwOnly && <LiveActivityBanner />}
         {dash && !hwOnly && <AnnFeed />}
         {dash && !hwOnly && <DashCarousel items={((staff ? [
-          { icon: "📥", title: tr("To Review", "للمراجعة"), value: dash.homework.reduce((n, h) => n + reviewCount(h), 0), sub: tr("submissions waiting", "تسليمات بانتظارك"), href: "/lms/homework?tab=review", tone: "coral" },
+          { icon: "📥", title: tr("Review", "مراجعة"), value: dash.homework.reduce((n, h) => n + reviewCount(h), 0), sub: tr("submissions waiting", "تسليمات بانتظارك"), href: "/lms/homework?tab=review", tone: "coral" },
           { icon: "📝", title: tr("Homework", "الواجبات"), value: dash.homework.length, sub: tr("active", "نشطة"), href: "/lms/homework", tone: "sun" },
           { icon: "🏫", title: tr("My classes", "صفوفي"), value: (dash.classes || []).length, sub: tr("classes & groups", "صفوف ومجموعات"), href: "/lms/classes", tone: "teal" },
           { icon: "🎒", title: tr("Students", "الطلاب"), value: (dash.students || []).length, sub: tr("in my groups", "في مجموعاتي"), href: "/lms/classes", tone: "navy" },
@@ -207,16 +207,13 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
                 const sub = hwOnly ? stuSub[stuTab] || "pending" : "pending";
                 const showingDone = sub === "done";
                 const list = !hwOnly ? openHw : sub === "all" ? allOf[stuTab] : sub === "done" ? doneOf[stuTab] : pendOf[stuTab];
-                const pick = (t: "open" | "tasks" | "quran") => {
+                const pickBoth = (t: "open" | "tasks" | "quran", k?: "all" | "pending" | "done") => {
+                  const subk = k || "pending";
                   setStuTab(t);
+                  setStuSub((m) => ({ ...m, [t]: subk }));
                   if (!hwOnly) return;
-                  window.history.pushState(null, "", t === "open" ? "/lms/homework" : `/lms/homework?tab=${t}`);
-                };
-                const pickSub = (k: "all" | "pending" | "done") => {
-                  setStuSub((m) => ({ ...m, [stuTab]: k }));
-                  if (!hwOnly) return;
-                  const base = stuTab === "open" ? "/lms/homework" : `/lms/homework?tab=${stuTab}`;
-                  window.history.replaceState(null, "", k === "pending" ? base : `${base}${base.includes("?") ? "&" : "?"}sub=${k}`);
+                  const base = t === "open" ? "/lms/homework" : `/lms/homework?tab=${t}`;
+                  window.history.pushState(null, "", subk === "pending" ? base : `${base}${base.includes("?") ? "&" : "?"}sub=${subk}`);
                 };
                 const MAIN = [["tasks", "✏️", "Tasks", "مهام"], ["open", "📝", "Homeworks", "الواجبات"], ["quran", "📖", "Quran Homeworks", "واجبات القرآن"]] as const;
                 const SUBL = {
@@ -224,14 +221,29 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
                   open: [["all", "📋", "Assigned Homework", "الواجبات المسندة"], ["pending", "⏳", "Pending Homework", "الواجبات المعلّقة"], ["done", "✅", "Completed Homework", "الواجبات المكتملة"]],
                   quran: [["all", "📋", "Assigned Quran Homework", "واجبات القرآن المسندة"], ["pending", "⏳", "Pending Quran Homework", "واجبات القرآن المعلّقة"], ["done", "✅", "Completed Quran Homework", "واجبات القرآن المكتملة"]],
                 } as const;
-                const nOf = { all: allOf[stuTab].length, pending: pendOf[stuTab].length, done: doneOf[stuTab].length };
+                const nOfFor = (k: "open" | "tasks" | "quran") => ({ all: allOf[k].length, pending: pendOf[k].length, done: doneOf[k].length });
                 const kTheme = { tasks: "tasks", open: "homeworks", quran: "quran" } as const;
-                const subKey = showingTasks ? "task" : stuTab === "open" ? "hw" : "quran";
                 return (
                   <>
                     {hwOnly ? (
                       <div className="mb-3 flex flex-wrap gap-3" role="tablist" data-testid="stu-hw-tabs">
-                        {MAIN.map(([k, ic, en, ar]) => <button key={k} type="button" role="tab" aria-selected={stuTab === k} onClick={() => pick(k)} className={kidTabCls(kTheme[k], stuTab === k)} data-testid={`stu-hw-tab-${k}`}><KidIcon t={kTheme[k]} on={stuTab === k} ic={ic} /><span className="flex-1 text-start">{tr(en, ar)}</span><KidBubble t={kTheme[k]} on={stuTab === k} n={pendOf[k].length} /></button>)}
+                        {MAIN.map(([k, ic, en, ar]) => {
+                          const items: HwMenuItem[] = SUBL[k].map(([sk, sic, sen, sar]) => ({ key: sk, ic: sic, en: sen, ar: sar, n: nOfFor(k)[sk] }));
+                          return (
+                            <HwKidWidget
+                              key={k}
+                              theme={kTheme[k]}
+                              ic={ic}
+                              label={tr(en, ar)}
+                              selected={stuTab === k}
+                              count={pendOf[k].length}
+                              items={items}
+                              activeKey={stuTab === k ? sub : undefined}
+                              onPick={(key) => pickBoth(k, key === "all" || key === "pending" || key === "done" ? key : undefined)}
+                              testId={`stu-hw-tab-${k}`}
+                            />
+                          );
+                        })}
                       </div>
                     ) : (
                       <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
@@ -242,9 +254,6 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
                         </span>
                       </div>
                     )}
-                    {hwOnly && <div className={"mb-3 " + kidSubRow(kTheme[stuTab])} role="tablist" data-testid={`stu-${subKey}-subtabs`}>
-                      {SUBL[stuTab].map(([k, ic, en, ar]) => <button key={k} type="button" role="tab" aria-selected={sub === k} onClick={() => pickSub(k)} className={kidSubCls(kTheme[stuTab], sub === k)} data-testid={`stu-${subKey}-sub-${k}`}><span aria-hidden className="text-lg">{ic}</span>{tr(en, ar)} <KidBubble t={kTheme[stuTab]} on={sub === k} n={nOf[k]} small /></button>)}
-                    </div>}
                     {list.length === 0 && <p className={card + " opacity-80"} data-testid="stu-hw-empty">{showingDone ? tr("Nothing submitted yet.", "لم يُسلَّم شيء بعد.") : showingTasks ? tr("No tasks yet.", "لا توجد مهام بعد.") : dash.homework.length === 0 ? tr("No homework yet — enjoy your day!", "لا توجد واجبات بعد — استمتع بيومك!") : tr("Nothing waiting. Handed-in work is under Completed Homework.", "لا شيء بانتظارك. العمل المُسلَّم في الواجبات المكتملة.")}</p>}
                     <ul className="grid gap-3 sm:grid-cols-2">
                       {list.map((h, i) => {
@@ -316,18 +325,19 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
             {hwOnly && creating && (
               (dash as { quran?: { add: boolean } }).quran && !(dash as { quran?: { add: boolean } }).quran!.add ? <a href="/lms/material?new=homework" className="inline-block rounded-full bg-sun px-4 py-2 font-extrabold text-[#1b2f44]" data-testid="hw-kind-pack">📑 {tr("New homework as slides (Lesson Pack)", "واجب جديد بالشرائح")}</a> : <HomeworkEditor classes={dash.classes || []} students={dash.students || []} catalog={dash.catalog} scope={dash.scope} asAdmin={asAdmin} kinds={(dash as { quran?: { add: boolean } }).quran && !(dash as { quran?: { add: boolean } }).quran!.add ? ["general"] : ["quran", "general"]} onCancel={() => setCreating(false)} onSaved={(id) => router.push(`/lms/homework?id=${id}`)} />
             )}
-            {/* Homework page: Lessons, Tasks, Homeworks, Quran Homeworks (+ To Review) — Year / section cards. */}
+            {/* Homework page: Lessons, Tasks, Homeworks, Quran Homeworks (+ Review) — Year / section cards. */}
             {hwOnly && <TeacherHomeworkHub
               dash={dash}
               chapters={chapters}
               asAdmin={!!asAdmin}
               canAssign={!!canAssign}
               tab={hubTab}
-              onTab={(id) => {
+              onTab={(id, sub) => {
                 setHubTab(id);
                 if (!hwOnly) return;
                 const href = id === "homeworks" ? "/lms/homework" : `/lms/homework?tab=${id}`;
-                window.history.replaceState(null, "", href);
+                const url = sub && sub !== "assigned" ? `${href}${href.includes("?") ? "&" : "?"}sub=${sub}` : href;
+                window.history.replaceState(null, "", url);
               }}
               onReload={load}
             />}
