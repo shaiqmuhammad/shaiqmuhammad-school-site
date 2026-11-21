@@ -335,12 +335,27 @@ export type LiveAnswer = { userId: string; name: string; slide: number; text: st
 export const LIVE_VIEW_MODES = ["teach", "lecture", "gallery", "speaker", "board", "discuss"] as const;
 export type LiveViewMode = (typeof LIVE_VIEW_MODES)[number];
 export type LiveView = { mode: LiveViewMode; follow: boolean };
+export type LivePresentItemKind = "lesson" | "task" | "activity" | "homework" | "quran" | "upload" | "youtube" | "board";
+export type LivePresentItem = {
+  id: string; kind: LivePresentItemKind; title: string; packId: string; slide: number; strokes: LiveStroke[]; src?: string;
+};
 export type LivePresent = {
   packId: string; packTitle: string; slide: number; follow: boolean; timerEnd: number | null;
   penId: string; strokes: LiveStroke[]; tool: "" | "wheel" | "rand" | "award" | "board";
   wheelAngle: number; wheelSpinTo: number; wheelAt: number; winnerId: string; winnerName: string;
   randText: string; answers: LiveAnswer[];
+  items?: LivePresentItem[]; activeId?: string; src?: string;
 };
+export function youtubeVideoId(raw: string): string {
+  const s = String(raw || "").trim();
+  const m = s.match(/(?:youtu\.be\/|youtube(?:-nocookie)?\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|live\/)|[?&]v=)([\w-]{11})/) || s.match(/^([\w-]{11})$/);
+  return m ? m[1] : "";
+}
+export function livePresentingContent(present?: Pick<LivePresent, "packId" | "src" | "tool" | "items"> | null): boolean {
+  if (!present) return false;
+  if (present.packId || present.src || present.tool === "board") return true;
+  return !!present.items?.some((i) => i.id !== "board");
+}
 export type LiveSnap = { id: string; title: string; cls: string; section: string; groupId: string; teacherId: string; status: "live" | "ended"; created: number; waiting: LiveWait[]; members: LiveMember[]; chat: LiveChat[]; pubs: LivePub[]; asks?: LiveAsk[]; sfu: boolean; present?: LivePresent | null; endsAt?: number; view?: LiveView };
 export function liveWsUrl(token: string, room: string) {
   const u = new URL(`${ASSESSMENT_API_BASE}/api/lms/live-ws`);

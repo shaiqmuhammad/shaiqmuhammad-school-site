@@ -12,6 +12,7 @@ import { lmsActor, type Actor, type LmsEnv } from "./lms";
 import { recObjectKey } from "./liveAtt";
 import { allowedPubTracks, canControlStudentMedia, canPresentInRoom, canSetMemberFloor, memberFloor, normalizePtrKind, type LiveFloor } from "./liveMedia";
 import { SWEEP_MS, shouldDropMember, nextAlarmAt } from "./livePresence";
+import { activatePresentItem, applyActivePresentItem, closeLibraryPresentItems, closePresentItem, openPresentItem, stashActivePresentItem, youtubeVideoId, type LivePresentItem } from "./livePresentItems";
 
 export interface LiveEnv extends LmsEnv {
   LIVE: DurableObjectNamespace<LiveRoom>;
@@ -44,6 +45,8 @@ export type LiveView = { mode: LiveViewMode; follow: boolean };
 function isViewMode(v: unknown): v is LiveViewMode {
   return LIVE_VIEW_MODES.includes(v as LiveViewMode);
 }
+
+export type { LivePresentItem, LivePresentItemKind } from "./livePresentItems";
 export type LivePresent = {
   packId: string;
   packTitle: string;
@@ -60,6 +63,9 @@ export type LivePresent = {
   winnerName: string;
   randText: string;
   answers: LiveAnswer[];
+  items?: LivePresentItem[];
+  activeId?: string;
+  src?: string;
 };
 export type LiveSnap = {
   id: string;
@@ -506,7 +512,7 @@ export class LiveRoom extends DurableObject<LiveEnv> {
     this.roomMsg();
   }
 
-  async setPresent(hostId: string, patch: Partial<LivePresent> | null, start?: { packId: string; packTitle: string }): Promise<{ ok: boolean; error?: string; present?: LivePresent | null }> {
+  async setPresent(hostId: string, patch: (Partial<LivePresent> & { closeId?: string; closeAll?: boolean; activeId?: string }) | null, start?: { packId: string; packTitle: string; kind?: string; src?: string; slide?: number }): Promise<{ ok: boolean; error?: string; present?: LivePresent | null }> {
     await this.load();
     if (!this.state || this.state.status !== "live") return { ok: false, error: "ended" };
     const asPresenter = hostId !== this.state.teacherId && hostId !== "admin" && memberFloor(this.member(hostId), this.state.teacherId) === "presenter";
@@ -517,10 +523,10 @@ export class LiveRoom extends DurableObject<LiveEnv> {
       this.presentMsg();
       return { ok: true, present: null };
     }
-    if (start) {
+    if (!this.state.present) {
       this.state.present = {
-        packId: str(start.packId, 40),
-        packTitle: str(start.packTitle, 80) || "Lesson",
+        packId: "",
+        packTitle: "Whiteboard",
         slide: 0,
         follow: true,
         timerEnd: null,
@@ -534,10 +540,20 @@ export class LiveRoom extends DurableObject<LiveEnv> {
         winnerName: "",
         randText: "",
         answers: [],
+        items: [{ id: "board", kind: "board", title: "Whiteboard", packId: "", slide: 0, strokes: [], src: "" }],
+        activeId: "board",
+        src: "",
       };
     }
-    if (!this.state.present) return { ok: false, error: "not_presenting" };
     const p = this.state.present;
+    if (start) {
+      openPresentItem(p, start);
+      if (typeof patch?.follow !== "boolean") p.follow = true;
+    }
+    if (patch?.closeAll) closeLibraryPresentItems(p);
+    else if (typeof patch?.closeId === "string") closePresentItem(p, str(patch.closeId, 80));
+    if (typeof patch?.activeId === "string" && !start) activatePresentItem(p, str(patch.activeId, 80));
+    if (patch?.tool === "board" && !start) activatePresentItem(p, "board");
     if (typeof patch?.slide === "number") p.slide = Math.max(0, Math.min(59, Math.trunc(patch.slide)));
     if (typeof patch?.follow === "boolean") p.follow = patch.follow;
     if (patch && "timerEnd" in patch) p.timerEnd = patch.timerEnd == null ? null : Math.trunc(Number(patch.timerEnd) || 0);
@@ -557,6 +573,8 @@ export class LiveRoom extends DurableObject<LiveEnv> {
         by: str(x.by, 40),
       }));
     }
+    stashActivePresentItem(p);
+    applyActivePresentItem(p);
     await this.save();
     this.presentMsg();
     return { ok: true, present: p };
@@ -597,6 +615,8 @@ export class LiveRoom extends DurableObject<LiveEnv> {
     };
     if (next.d.length < 4) return { ok: false, error: "bad_stroke" };
     p.strokes = [...p.strokes, next].slice(-200);
+    stashActivePresentItem(p);
+    applyActivePresentItem(p);
     await this.save();
     this.broadcast({ t: "stroke", stroke: next });
     return { ok: true };
@@ -1171,17 +1191,35 @@ export async function handleLive(request: Request, env: LiveEnv, action: string)
     if (!canPresent) return reply(origin, { error: "no_present" }, 403);
     const host = a.role === "admin" ? "admin" : (isHost || floor === "presenter" ? (isHost ? teacherId : a.id) : teacherId);
     if (op === "stop") {
-      const r = await stub.setPresent(host, null);
+      const r = await stub.setPresent(host, { closeAll: true });
       return reply(origin, r, r.ok ? 200 : 403);
     }
     if (op === "board") {
-      const room = await stub.snapshot();
-      const r = room?.present
-        ? await stub.setPresent(host, { tool: "board" })
-        : await stub.setPresent(host, { tool: "board" }, { packId: "", packTitle: "Whiteboard" });
+      const r = await stub.setPresent(host, { tool: "board" }, { packId: "", packTitle: "Whiteboard", kind: "board" });
+      return reply(origin, r, r.ok ? 200 : r.error === "ended" ? 410 : 403);
+    }
+    if (op === "close") {
+      const closeId = str(body.itemId || body.closeId, 80);
+      if (!closeId) return reply(origin, { error: "bad_item" }, 400);
+      const r = await stub.setPresent(host, { closeId });
+      return reply(origin, r, r.ok ? 200 : r.error === "ended" ? 410 : 403);
+    }
+    if (op === "activate") {
+      const activeId = str(body.itemId || body.activeId, 80);
+      if (!activeId) return reply(origin, { error: "bad_item" }, 400);
+      const r = await stub.setPresent(host, { activeId });
       return reply(origin, r, r.ok ? 200 : r.error === "ended" ? 410 : 403);
     }
     if (op === "start") {
+      const kind = str(body.kind, 20);
+      const srcRaw = str(body.src || body.url, 200);
+      if (kind === "youtube" || (!str(body.packId, 40) && srcRaw)) {
+        const src = youtubeVideoId(srcRaw);
+        if (!src) return reply(origin, { error: "bad_youtube" }, 400);
+        const r = await stub.setPresent(host, { follow: true }, { packId: "", packTitle: str(body.packTitle, 80) || "YouTube", kind: "youtube", src });
+        return reply(origin, r, r.ok ? 200 : r.error === "ended" ? 410 : 403);
+      }
+      if (kind === "upload") return reply(origin, { error: "upload_unavailable" }, 400);
       const packId = str(body.packId, 40);
       if (!packId) return reply(origin, { error: "pack_not_found" }, 400);
       const packTitle = str(body.packTitle, 80);
@@ -1189,13 +1227,14 @@ export async function handleLive(request: Request, env: LiveEnv, action: string)
         const pack = await store.livePresentedPack(packId);
         if (!pack) return reply(origin, { error: "pack_not_found" }, 404);
         const slide = typeof body.slide === "number" ? body.slide : 0;
-        const r = await stub.setPresent(host, { slide, follow: true }, { packId, packTitle: packTitle || pack.title });
+        const r = await stub.setPresent(host, { slide, follow: true }, { packId, packTitle: packTitle || pack.title, kind: kind || "lesson", slide });
         return reply(origin, r, r.ok ? 200 : r.error === "ended" ? 410 : 403);
       } catch {
         return reply(origin, { error: "present_failed" }, 500);
       }
     }
     const patch: Record<string, unknown> = {};
+    if (typeof body.itemId === "string" || typeof body.activeId === "string") patch.activeId = str(body.itemId || body.activeId, 80);
     if (typeof body.slide === "number") patch.slide = body.slide;
     if (typeof body.follow === "boolean") patch.follow = body.follow;
     if ("timerEnd" in body) patch.timerEnd = body.timerEnd == null ? null : Number(body.timerEnd);

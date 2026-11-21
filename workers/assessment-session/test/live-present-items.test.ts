@@ -1,0 +1,79 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import {
+  activatePresentItem,
+  applyActivePresentItem,
+  closeLibraryPresentItems,
+  closePresentItem,
+  normalizePresentItems,
+  openPresentItem,
+  presentItemId,
+  youtubeVideoId,
+  type PresentItemsState,
+} from "../src/livePresentItems";
+
+function blank(): PresentItemsState {
+  return { packId: "", packTitle: "Whiteboard", slide: 0, strokes: [] };
+}
+
+test("youtubeVideoId accepts watch, short, and embed links", () => {
+  assert.equal(youtubeVideoId("https://www.youtube.com/watch?v=dQw4w9wgGcQ"), "dQw4w9wgGcQ");
+  assert.equal(youtubeVideoId("https://youtu.be/dQw4w9wgGcQ"), "dQw4w9wgGcQ");
+  assert.equal(youtubeVideoId("https://www.youtube-nocookie.com/embed/dQw4w9wgGcQ"), "dQw4w9wgGcQ");
+  assert.equal(youtubeVideoId("nope"), "");
+});
+
+test("legacy present state becomes a board tab plus the open pack", () => {
+  const p: PresentItemsState = { packId: "pk1", packTitle: "Fractions", slide: 2, strokes: [{ c: "#000", w: 3, d: [1, 2, 3, 4], by: "t" }] };
+  normalizePresentItems(p);
+  applyActivePresentItem(p);
+  assert.deepEqual(p.items?.map((i) => i.id), ["board", "lesson:pk1"]);
+  assert.equal(p.activeId, "lesson:pk1");
+  assert.equal(p.slide, 2);
+  assert.equal(p.items?.[1].strokes.length, 1);
+});
+
+test("opening a second library item keeps the first and switches the active tab", () => {
+  const p = blank();
+  openPresentItem(p, { packId: "pk1", packTitle: "Fractions", kind: "lesson", slide: 0 });
+  p.slide = 3;
+  p.strokes = [{ c: "#1b3a57", w: 3, d: [0, 0, 1, 1], by: "t" }];
+  openPresentItem(p, { packId: "pk2", packTitle: "Homework 1", kind: "homework", slide: 1 });
+  assert.equal(p.activeId, "homework:pk2");
+  assert.equal(p.packTitle, "Homework 1");
+  assert.equal(p.slide, 1);
+  assert.equal(p.strokes.length, 0);
+  activatePresentItem(p, "lesson:pk1");
+  assert.equal(p.packTitle, "Fractions");
+  assert.equal(p.slide, 3);
+  assert.equal(p.strokes.length, 1);
+});
+
+test("opening the same lesson again only switches to that tab", () => {
+  const p = blank();
+  openPresentItem(p, { packId: "pk1", packTitle: "Fractions", kind: "lesson" });
+  openPresentItem(p, { packId: "pk2", packTitle: "Task", kind: "task" });
+  openPresentItem(p, { packId: "pk1", packTitle: "Fractions", kind: "lesson" });
+  assert.equal(p.items?.filter((i) => i.kind === "lesson").length, 1);
+  assert.equal(p.activeId, presentItemId("lesson", "pk1"));
+});
+
+test("closing the active item reveals the remaining pack, and stop returns to the board", () => {
+  const p = blank();
+  openPresentItem(p, { packId: "a", packTitle: "A", kind: "lesson" });
+  openPresentItem(p, { packId: "b", packTitle: "B", kind: "homework" });
+  closePresentItem(p, "homework:b");
+  assert.equal(p.activeId, "lesson:a");
+  closeLibraryPresentItems(p);
+  assert.equal(p.activeId, "board");
+  assert.equal(p.packId, "");
+  assert.equal(p.items?.length, 1);
+});
+
+test("the board tab cannot be closed", () => {
+  const p = blank();
+  openPresentItem(p, { packId: "a", packTitle: "A", kind: "lesson" });
+  closePresentItem(p, "board");
+  assert.ok(p.items?.some((i) => i.id === "board"));
+  assert.equal(p.activeId, "lesson:a");
+});

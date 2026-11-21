@@ -22,10 +22,11 @@ export function presentLayout(mode: LiveViewMode, presenting: boolean): "full" |
   return "compact";
 }
 
-/** Whiteboard fills the stage only when no lesson pack is on screen. */
-export function boardFillsStage(mode: LiveViewMode, present?: { packId?: string; tool?: string } | null): boolean {
-  if (present?.packId) return false;
-  return mode === "board" || present?.tool === "board";
+/** Whiteboard fills the stage only when no Library item or YouTube tab is on screen. */
+export function boardFillsStage(mode: LiveViewMode, present?: { packId?: string; tool?: string; src?: string; activeId?: string } | null): boolean {
+  if (present?.packId || present?.src) return false;
+  if (present?.activeId && present.activeId !== "board") return false;
+  return mode === "board" || present?.tool === "board" || present?.activeId === "board";
 }
 
 export function useActiveSpeaker(

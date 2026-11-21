@@ -15,7 +15,7 @@ import { StartMeetingPanel } from "@/components/lms/StartMeeting";
 import { LiveHistory } from "@/components/lms/LiveHistory";
 import { LivePresent } from "@/components/lms/LivePresent";
 import { LiveViewPicker, RoomStage, useActiveSpeaker, presentLayout, boardFillsStage, VIEW_CARDS } from "@/components/lms/LiveViews";
-import { canShowHostAllow, lmsApi, lmsErrorText, lmsSession, liveGuest, liveWsUrl, memberFloor, normalizePtrKind, type LiveAsk, type LiveFloor, type LiveMember, type LivePtr, type LivePub, type LiveChat, type LivePerms, type LiveRoomInfo, type LiveSnap, type LiveView, type LiveViewMode, type PtrKind } from "@/lib/lms";
+import { canShowHostAllow, lmsApi, lmsErrorText, lmsSession, liveGuest, livePresentingContent, liveWsUrl, memberFloor, normalizePtrKind, type LiveAsk, type LiveFloor, type LiveMember, type LivePtr, type LivePub, type LiveChat, type LivePerms, type LiveRoomInfo, type LiveSnap, type LiveView, type LiveViewMode, type PtrKind } from "@/lib/lms";
 import { classroomHref, isClassroomPath, openClassroomTab } from "@/lib/classroom";
 import { ClassroomBrand } from "@/components/lms/ClassroomBrand";
 import { ClassroomConnecting, type ConnectStep } from "@/components/lms/ClassroomConnecting";
@@ -1076,7 +1076,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
         )}
 
         {shellLess && phase === "in" && room && (
-          <div ref={roomRef} className={`lb-room${roomFocused ? " is-focus" : ""}${toolsOpen ? " tools-open" : ""}${(!!room.present?.packId || shareOn || viewMode === "board" || room.present?.tool === "board") ? " stage-first" : ""}${boardFillsStage(viewMode, room.present) ? " board-on" : ""}`} data-testid="live-room" data-focus-keep data-stage-first={!!room.present?.packId || shareOn || viewMode === "board" || room.present?.tool === "board" ? "1" : "0"}>
+          <div ref={roomRef} className={`lb-room${roomFocused ? " is-focus" : ""}${toolsOpen ? " tools-open" : ""}${(livePresentingContent(room.present) || shareOn || viewMode === "board") ? " stage-first" : ""}${boardFillsStage(viewMode, room.present) ? " board-on" : ""}`} data-testid="live-room" data-focus-keep data-stage-first={livePresentingContent(room.present) || shareOn || viewMode === "board" ? "1" : "0"}>
             {err && <p className="lb-wait lb-wait-err" role="alert">{err}</p>}
             {permHelp && (
               <div className="lb-wait" role="status" data-testid="live-perm-help">
@@ -1171,7 +1171,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
               </div>
             )}
             {(() => {
-              const presenting = !!room.present?.packId;
+              const presenting = livePresentingContent(room.present);
 
               const layout = presentLayout(viewMode, presenting);
               const streamOf = (m: { id: string }) => m.id === selfId ? localStream : mixedRemotes[`${m.id}:camera`] || mixedRemotes[`${m.id}:mic`];
