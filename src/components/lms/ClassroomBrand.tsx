@@ -10,7 +10,7 @@ export function ClassroomBrand({ variant = "page", testId = "classroom-brand" }:
   return (
     <div className={`lb-site lb-site-${variant}`} data-testid={testId}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={logoUrl} alt="" width={32} height={32} className="lb-logo" />
+      <img src={logoUrl} alt="" width={44} height={44} className="lb-logo" />
       <span className="lb-site-name">{siteName}</span>
     </div>
   );

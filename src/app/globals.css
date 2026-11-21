@@ -552,9 +552,9 @@ html.lb-session:not(.page-focus) .lb-room {
   z-index: 5;
   display: flex; flex-direction: column;
   height: 100%; max-height: 100%;
-  padding: 14px max(16px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
-  padding-top: max(14px, env(safe-area-inset-top));
-  gap: 10px;
+  padding: 6px max(8px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+  padding-top: max(6px, env(safe-area-inset-top));
+  gap: 6px;
   background:
     radial-gradient(circle at 8% 18%, rgba(243,201,105,.45), transparent 28%),
     radial-gradient(circle at 92% 8%, rgba(167,139,250,.32), transparent 26%),
@@ -574,47 +574,62 @@ html.lb-session:not(.page-focus) .lb-room {
 }
 .lb-top-break { display: none; }
 .lb-top {
-  display: flex; align-items: center; gap: 12px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
   background: linear-gradient(135deg, #1b3a57 0%, #24557a 60%, #2a6a7a 100%);
   color: #fff;
-  border-radius: 28px;
-  padding: 10px 14px 10px 18px;
-  box-shadow: 0 10px 28px -12px rgba(27,58,87,.55), inset 0 1px 0 rgba(255,255,255,.18);
-  flex: 0 0 auto; min-height: 64px;
+  border-radius: 16px;
+  padding: 4px 8px 4px 10px;
+  box-shadow: 0 8px 20px -12px rgba(27,58,87,.55), inset 0 1px 0 rgba(255,255,255,.18);
+  flex: 0 0 auto; min-height: 0;
 }
-.lb-brand { flex: 1; min-width: 0; }
-.lb-site { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.lb-site-room { margin-bottom: 2px; }
+.lb-brand { min-width: 0; justify-self: start; }
+.lb-meet { min-width: 0; justify-self: center; text-align: center; max-width: 100%; }
+.lb-top-actions { justify-self: end; display: flex; align-items: center; justify-content: flex-end; gap: 6px; min-width: 0; flex-wrap: nowrap; }
+.lb-site { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.lb-site-room { margin-bottom: 0; }
 .lb-logo {
-  height: 28px; width: 28px; border-radius: 999px; object-fit: cover;
+  height: 40px; width: 40px; border-radius: 999px; object-fit: cover;
   border: 2px solid #f3c969; background: #fff; flex-shrink: 0;
 }
 .lb-site-name {
-  font-weight: 800; font-size: 12px; line-height: 1.2;
+  font-weight: 800; font-size: 15px; line-height: 1.15;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  color: #fff;
+  color: #fff; min-width: 0;
 }
+.lb-head-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 999px; border: 1px solid transparent;
+  font-weight: 800; font-size: 12px; line-height: 1;
+  padding: 6px 10px; white-space: nowrap;
+}
+.lb-head-leave { background: rgba(255,255,255,.18); color: #fff; border-color: rgba(255,255,255,.28); }
+.lb-head-end { background: #fecdd3; color: #9f1239; }
+.dark .lb-head-end { background: #9f1239; color: #fff1f2; }
+.lb-head-short { display: none; }
 .lb-classroom-bar {
   display: flex; align-items: center; gap: 12px;
   padding: 10px 16px; padding-top: max(10px, env(safe-area-inset-top));
   background: #1b3a57; color: #fff;
 }
 html.lb-classroom .pub-main { display: flex; flex-direction: column; min-height: 100dvh; }
-.lb-title { font-weight: 900; font-size: 20px; letter-spacing: -.02em; line-height: 1.1; }
-.lb-sub { font-size: 12px; font-weight: 700; opacity: .8; margin-top: 2px; cursor: pointer; }
+.lb-title { font-weight: 900; font-size: 16px; letter-spacing: -.02em; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lb-sub { font-size: 11px; font-weight: 700; opacity: .85; margin-top: 0; cursor: pointer; color: #fff; }
 .lb-countdown { display: flex; align-items: center; gap: 6px; }
 .lb-top [data-testid="live-ends-clock"] { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; }
 .lb-top [data-testid="live-ends-clock"] > span:first-child {
-  font-weight: 900; font-size: 14px;
-  padding: 7px 14px; border-radius: 999px;
-  box-shadow: 0 6px 14px rgba(16,51,28,.15);
+  font-weight: 900; font-size: 12px;
+  padding: 5px 9px; border-radius: 999px;
+  box-shadow: 0 4px 10px rgba(16,51,28,.15);
   white-space: nowrap;
 }
 .lb-top [data-testid="live-ends-plus5"],
 .lb-top [data-testid="live-ends-plus10"] {
   background: rgba(255,255,255,.2); color: #fff;
-  font-weight: 800; font-size: 12px;
-  width: 32px; height: 32px; border-radius: 50%;
+  font-weight: 800; font-size: 11px;
+  width: 24px; height: 24px; border-radius: 50%;
   padding: 0; display: grid; place-items: center;
 }
 .lb-top [data-testid="live-ends-set"] {
@@ -622,10 +637,10 @@ html.lb-classroom .pub-main { display: flex; flex-direction: column; min-height:
   border-radius: 999px; font-size: 11px; font-weight: 800; padding: 4px 8px;
 }
 .lb-view, .lb-focus {
-  display: inline-flex; align-items: center; gap: 6px;
+  display: inline-flex; align-items: center; gap: 4px;
   background: rgba(255,255,255,.16);
-  color: #fff; font-weight: 800; font-size: 13px;
-  padding: 8px 14px; border-radius: 999px;
+  color: #fff; font-weight: 800; font-size: 12px;
+  padding: 6px 10px; border-radius: 999px;
   border: 1px solid rgba(255,255,255,.2);
   white-space: nowrap;
 }
@@ -642,7 +657,7 @@ html.lb-classroom .pub-main { display: flex; flex-direction: column; min-height:
 .dark .lb-wait { background: #92400e; color: #fff8ec; }
 .lb-wait-err { background: #fecdd3; color: #9f1239; }
 .dark .lb-wait-err { background: #9f1239; color: #fff1f2; }
-.lb-workspace { flex: 1; min-height: 0; display: flex; flex-direction: row; gap: 10px; }
+.lb-workspace { flex: 1; min-height: 0; display: flex; flex-direction: row; gap: 6px; }
 .lb-workspace .lb-tray-root { order: 0; }
 .lb-workspace .lb-stage { order: 1; }
 .lb-stage {
@@ -770,7 +785,7 @@ html.lb-classroom .pub-main { display: flex; flex-direction: column; min-height:
   height: 100%;
   border-radius: 0;
 }
-.lb-room.board-on .lb-stage { border-radius: 24px; }
+.lb-room.board-on .lb-stage { border-radius: 16px; }
 .lb-room.board-on .lb-pip {
   top: 4.75rem;
   z-index: 11;
@@ -1032,11 +1047,11 @@ html.lb-classroom .pub-main { display: flex; flex-direction: column; min-height:
   flex-wrap: nowrap;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 4px;
   background: #fff;
-  border-radius: 28px;
-  padding: 8px 12px;
-  box-shadow: 0 -2px 0 #f3c969 inset, 0 12px 28px rgba(27,58,87,.16);
+  border-radius: 18px;
+  padding: 4px 8px;
+  box-shadow: 0 -2px 0 #f3c969 inset, 0 8px 20px rgba(27,58,87,.16);
   flex: 0 0 auto !important;
   width: 100%;
   overflow-x: auto;
@@ -1045,13 +1060,13 @@ html.lb-classroom .pub-main { display: flex; flex-direction: column; min-height:
 .lb-dock::-webkit-scrollbar { display: none; }
 .dark .lb-dock { background: #1b3a57; box-shadow: 0 -2px 0 #f3c969 inset, 0 12px 28px rgba(0,0,0,.35); }
 .lb-ctl {
-  display: flex; flex-direction: column; align-items: center; gap: 2px;
-  min-width: 64px; padding: 6px 8px; border-radius: 18px;
+  display: flex; flex-direction: column; align-items: center; gap: 0;
+  min-width: 52px; padding: 4px 6px; border-radius: 14px;
   font-weight: 800; font-size: 10px; color: #1b3a57; position: relative;
   background: none; border: 0;
 }
 .dark .lb-ctl { color: #fff8ec; }
-.lb-ctl i, .lb-ctl .lb-ico { font-style: normal; font-size: 20px; line-height: 1; }
+.lb-ctl i, .lb-ctl .lb-ico { font-style: normal; font-size: 18px; line-height: 1; }
 .lb-ctl.on { background: #d8f3ef; }
 .dark .lb-ctl.on { background: #18665d; }
 .lb-ctl.leave { color: #8a3a2e; }
@@ -1097,19 +1112,30 @@ html.lb-classroom .pub-main { display: flex; flex-direction: column; min-height:
   .lb-pip-vid { height: 84px; }
 }
 @media (max-width: 640px) {
-  .lb-room { padding: 8px; gap: 7px; }
-  .lb-top { border-radius: 20px; padding: 8px 8px 8px 12px; gap: 6px; min-height: 0; flex-wrap: wrap; }
-  .lb-top-break { display: block; flex-basis: 100%; height: 0; order: 5; }
-  .lb-brand { order: 1; }
-  .lb-countdown { order: 2; }
-  .lb-view { order: 6; }
-  .lb-focus { order: 7; }
-  .lb-title { font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .lb-top [data-testid="live-ends-clock"] > span:first-child { font-size: 11px; padding: 5px 9px; }
+  .lb-room { padding: 4px; gap: 4px; }
+  .lb-top {
+    border-radius: 14px; padding: 3px 4px 3px 6px; gap: 2px 6px; min-height: 0;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "brand actions" "meet meet";
+  }
+  .lb-brand { grid-area: brand; overflow: hidden; }
+  .lb-meet { grid-area: meet; justify-self: center; max-width: 100%; }
+  .lb-top-actions { grid-area: actions; }
+  .lb-top-break { display: none; }
+  .lb-logo { height: 34px; width: 34px; }
+  .lb-site-name { font-size: 13px; }
+  .lb-title { font-size: 13px; }
+  .lb-sub { display: none; }
+  .lb-top [data-testid="live-ends-clock"] > span:first-child { font-size: 10px; padding: 4px 7px; }
   .lb-top [data-testid="live-ends-plus5"],
-  .lb-top [data-testid="live-ends-plus10"] { width: 24px; height: 24px; font-size: 10px; }
+  .lb-top [data-testid="live-ends-plus10"] { display: none; }
   .lb-top [data-testid="live-ends-set"] { display: none; }
-  .lb-view, .lb-focus { font-size: 11px; padding: 6px 9px; }
+  .lb-view, .lb-focus, .lb-head-btn { font-size: 11px; padding: 5px 7px; }
+  .lb-top-actions { gap: 4px; }
+  .lb-countdown { display: none; }
+  .lb-view-lab { display: none; }
+  .lb-head-long { display: none; }
+  .lb-head-short { display: inline; }
   .lb-workspace { gap: 6px; }
   .lb-stage { border-radius: 20px; }
   .lb-slide-bar { padding: 10px 14px; padding-inline-end: 128px; }
@@ -1132,8 +1158,8 @@ html.lb-classroom .pub-main { display: flex; flex-direction: column; min-height:
     width: 48px !important; padding: 4px 2px 3px; border-radius: 14px; font-size: 0 !important;
   }
   .lb-tray-root [data-testid="live-tools-tray"] button[class*="group"] span.line-clamp-2 { display: none; }
-  .lb-dock { border-radius: 20px; padding: 4px; gap: 2px; }
-  .lb-ctl { min-width: 0; flex: 1; padding: 6px 2px 4px; border-radius: 14px; font-size: 0; }
+  .lb-dock { border-radius: 14px; padding: 2px 4px; gap: 1px; }
+  .lb-ctl { min-width: 0; flex: 1; padding: 4px 2px 2px; border-radius: 12px; font-size: 0; }
   .lb-ctl span.lb-lab { display: none; }
   .lb-ctl.end { padding-inline: 6px; }
   .lb-badge { right: 4px; top: 0; }
