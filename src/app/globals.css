@@ -1848,3 +1848,99 @@ html.lb-classroom .pub-main { display: flex; flex-direction: column; min-height:
   color: #1b3a57;
   cursor: pointer;
 }
+
+
+/* Good Bye / ended-class screens */
+.lb-goodbye {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  flex: 1;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+  background:
+    radial-gradient(ellipse at 50% 20%, rgba(243, 201, 105, 0.28), transparent 55%),
+    linear-gradient(180deg, #fff8ec 0%, #ffffff 55%, #f6efe0 100%);
+  color: #1b3a57;
+}
+.dark .lb-goodbye {
+  background:
+    radial-gradient(ellipse at 50% 20%, rgba(243, 201, 105, 0.22), transparent 55%),
+    linear-gradient(180deg, #0d1b2a 0%, #17344f 60%, #0d1b2a 100%);
+  color: #fff8ec;
+}
+.lb-goodbye-card {
+  position: relative;
+  width: min(32rem, 100%);
+  text-align: center;
+  padding: 2.4rem 1.6rem 2rem;
+  border-radius: 2rem;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 18px 48px -18px rgba(27, 58, 87, 0.35);
+  color: #1b3a57;
+}
+.dark .lb-goodbye-card {
+  background: rgba(15, 31, 48, 0.78);
+  color: #fff8ec;
+  box-shadow: 0 18px 48px -18px rgba(0, 0, 0, 0.55);
+}
+.lb-goodbye-mark { position: relative; display: grid; place-items: center; margin-bottom: 1.1rem; }
+.lb-goodbye .lb-logo { width: 64px; height: 64px; }
+.lb-goodbye .lb-site-name { color: #1b3a57; font-size: 1.15rem; }
+.dark .lb-goodbye .lb-site-name { color: #fff8ec; }
+.lb-goodbye-glow {
+  position: absolute;
+  width: 8.5rem; height: 8.5rem; border-radius: 999px;
+  background: radial-gradient(circle, rgba(243, 201, 105, 0.55), transparent 70%);
+  animation: lb-goodbye-pulse 2.4s ease-in-out infinite;
+}
+.lb-goodbye-mark .lb-site { position: relative; z-index: 1; animation: lb-goodbye-rise 0.7s ease-out both; }
+.lb-goodbye-title {
+  margin: 0;
+  font: 900 clamp(2.1rem, 6vw, 3.2rem)/1.1 Nunito, sans-serif;
+  color: #1b3a57;
+  animation: lb-goodbye-rise 0.8s ease-out 0.08s both;
+}
+.dark .lb-goodbye-title { color: #fff8ec; }
+.lb-goodbye-sub, .lb-goodbye-count {
+  margin: 0.7rem auto 0;
+  max-width: 28rem;
+  font: 700 1rem/1.45 Nunito, sans-serif;
+  color: #17344f;
+  animation: lb-goodbye-rise 0.8s ease-out 0.16s both;
+}
+.dark .lb-goodbye-sub, .dark .lb-goodbye-count { color: #fff8ec; }
+.lb-goodbye-count { opacity: 0.85; font-size: 0.95rem; }
+.lb-goodbye-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1.4rem;
+  min-height: 2.75rem;
+  padding: 0.55rem 1.4rem;
+  border-radius: 999px;
+  background: #f3c969;
+  color: #1b3a57;
+  font: 800 1rem/1 Nunito, sans-serif;
+  text-decoration: none;
+  box-shadow: 0 8px 18px rgba(185, 134, 15, 0.28);
+  animation: lb-goodbye-rise 0.8s ease-out 0.24s both;
+}
+.lb-goodbye-btn:hover { background: #f6d589; }
+.lb-goodbye-btn:focus-visible { outline: 3px solid #1b3a57; outline-offset: 3px; }
+.dark .lb-goodbye-btn:focus-visible { outline-color: #fff8ec; }
+@keyframes lb-goodbye-pulse {
+  0%, 100% { transform: scale(0.92); opacity: 0.75; }
+  50% { transform: scale(1.12); opacity: 1; }
+}
+@keyframes lb-goodbye-rise {
+  from { opacity: 0; transform: translateY(14px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lb-goodbye-glow, .lb-goodbye-mark .lb-site, .lb-goodbye-title, .lb-goodbye-sub, .lb-goodbye-count, .lb-goodbye-btn {
+    animation: none;
+  }
+}

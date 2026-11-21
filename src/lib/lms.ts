@@ -116,6 +116,7 @@ export class LmsError extends Error {
     super(code);
   }
 }
+export { isLiveEndedError } from "./liveEnded";
 
 const SESSION_KEY = "sm_lms_session_v1";
 type Session = { token: string; exp: number; user: Actor };
@@ -552,6 +553,7 @@ export const lmsApi = {
   liveList: (asAdmin = false) => call<{ rooms: LiveRoomInfo[]; canStart: boolean; sfu: boolean; options: { cls: string; section: string }[]; groups: { id: string; name: string }[]; perms?: LivePerms }>("live-list", undefined, { asAdmin }),
   liveStart: (b: { title?: string; cls?: string; section?: string; groupId?: string; minutes?: number }, asAdmin = false) => call<{ id: string; existing?: boolean }>("live-start", b, { asAdmin }),
   liveGet: (id: string, asAdmin = false) => call<{ room: LiveSnap }>("live-get", { id }, { asAdmin }),
+  liveStatus: (id: string) => call<{ status: "live" | "ended" | "not_found" }>("live-status", { id }),
   liveJoin: (id: string, asAdmin = false) => call<{ status: "in" | "waiting" | "ended" | "full"; room?: LiveSnap; selfId?: string }>("live-join", { id }, { asAdmin }),
   liveAdmit: (id: string, userId: string, asAdmin = false) => call<{ ok: boolean }>("live-admit", { id, userId }, { asAdmin }),
   liveDeny: (id: string, userId: string, asAdmin = false) => call<{ ok: boolean }>("live-deny", { id, userId }, { asAdmin }),

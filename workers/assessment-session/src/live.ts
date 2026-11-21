@@ -823,6 +823,13 @@ export async function handleLive(request: Request, env: LiveEnv, action: string)
     if (!r.ok) return reply(origin, { error: r.error }, r.error === "ended" ? 410 : 404);
     return reply(origin, r, 200);
   }
+  if (action === "live-status") {
+    const rid = str(body.id || url.searchParams.get("id") || url.searchParams.get("room"), 40);
+    if (!ROOM_RE.test(rid)) return reply(origin, { status: "not_found" }, 200);
+    const row = await store.liveRow(rid);
+    if (!row) return reply(origin, { status: "not_found" }, 200);
+    return reply(origin, { status: String(row.status) === "live" ? "live" : "ended" }, 200);
+  }
 
   const a = await liveActor(request, env, store);
   if (!a) return reply(origin, { error: "unauthorized" }, 401);

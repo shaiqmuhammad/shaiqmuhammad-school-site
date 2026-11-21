@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { primaryBtn } from "@/components/assessment/AssessmentShell";
 import { useTr } from "@/components/lms/useLms";
-import { lmsApi, lmsErrorText, liveGuest, setLiveGuest, type LivePerms, type LiveSched, type RosterStudent } from "@/lib/lms";
+import { isLiveEndedError, lmsApi, lmsErrorText, liveGuest, setLiveGuest, type LivePerms, type LiveSched, type RosterStudent } from "@/lib/lms";
 import { SITE_TZ, fmtWhen, isValidZone, zoneCity, zoneLabel, zoneMs, zoneParts } from "@/lib/timeZone";
 import { FormatWhen, SchedulePreview, Time12Field, TimeZonePicker, ZoneChip, useViewerZone } from "@/components/lms/TimeZonePicker";
 import { classroomHref, classroomJoinUrl, prepareClassroomTab, type ClassroomTabHandle } from "@/lib/classroom";
+import { ClassroomGoodbye } from "@/components/lms/ClassroomGoodbye";
 
 const DURS = [15, 30, 40, 45, 60, 75, 90, 120];
 
@@ -313,18 +314,31 @@ export function GuestJoin({ token }: { token: string }) {
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   const [ready, setReady] = useState(false);
+  const [ended, setEnded] = useState(false);
 
   const load = useCallback(() => {
     if (!token) return;
-    lmsApi.liveLinkInfo(token).then((r) => { setInfo(r); setErr(""); }).catch((e) => setErr(lmsErrorText(e, tr)));
+    lmsApi.liveLinkInfo(token).then((r) => {
+      if (r.status === "ended") { setEnded(true); return; }
+      setInfo(r); setErr("");
+    }).catch((e) => {
+      if (isLiveEndedError(e)) { setEnded(true); return; }
+      setErr(lmsErrorText(e, tr));
+    });
   }, [token, tr]);
-  useEffect(() => { load(); const t = setInterval(load, 10_000); return () => clearInterval(t); }, [load]);
+  useEffect(() => {
+    load();
+    if (ended) return;
+    const t = setInterval(load, 10_000);
+    return () => clearInterval(t);
+  }, [load, ended]);
   useEffect(() => {
     if (!ready || !info?.canJoin || !info.roomId || !liveGuest()?.token) return;
     window.location.href = classroomHref({ room: info.roomId, guest: true });
   }, [ready, info]);
 
   if (!token) return <p className="p-8 text-center font-bold opacity-70">{tr("This join link is missing.", "رابط الانضمام ناقص.")}</p>;
+  if (ended) return <ClassroomGoodbye kind="expired" />;
   if (err && !info) {
     return (
       <div className="mx-auto flex min-h-[60vh] max-w-lg flex-col items-center justify-center gap-4 rounded-[2rem] bg-gradient-to-br from-amber-100 to-rose-100 p-8 text-center dark:from-slate-800 dark:to-rose-950" data-testid="live-link-bad">
@@ -362,7 +376,10 @@ export function GuestJoin({ token }: { token: string }) {
             } else {
               setReady(true);
             }
-          } catch (e) { setErr(lmsErrorText(e, tr)); }
+          } catch (e) {
+            if (isLiveEndedError(e)) setEnded(true);
+            else setErr(lmsErrorText(e, tr));
+          }
           finally { setBusy(false); }
         }}
       >🚪 {tr("Join waiting room", "انضم إلى غرفة الانتظار")}</button>

@@ -15,14 +15,15 @@ import { StartMeetingPanel } from "@/components/lms/StartMeeting";
 import { LiveHistory } from "@/components/lms/LiveHistory";
 import { LivePresent } from "@/components/lms/LivePresent";
 import { LiveViewPicker, RoomStage, useActiveSpeaker, presentLayout, boardFillsStage, VIEW_CARDS } from "@/components/lms/LiveViews";
-import { canShowHostAllow, lmsApi, lmsErrorText, lmsSession, liveGuest, livePresentingContent, liveWsUrl, memberFloor, normalizePtrKind, type LiveAsk, type LiveFloor, type LiveMember, type LivePtr, type LivePub, type LiveChat, type LivePerms, type LiveRoomInfo, type LiveSnap, type LiveView, type LiveViewMode, type PtrKind } from "@/lib/lms";
+import { canShowHostAllow, isLiveEndedError, lmsApi, lmsErrorText, lmsSession, liveGuest, livePresentingContent, liveWsUrl, memberFloor, normalizePtrKind, type LiveAsk, type LiveFloor, type LiveMember, type LivePtr, type LivePub, type LiveChat, type LivePerms, type LiveRoomInfo, type LiveSnap, type LiveView, type LiveViewMode, type PtrKind } from "@/lib/lms";
 import { classroomHref, isClassroomPath, openClassroomTab, prepareClassroomTab, type ClassroomTabHandle } from "@/lib/classroom";
 import { ClassroomBrand } from "@/components/lms/ClassroomBrand";
+import { ClassroomGoodbye } from "@/components/lms/ClassroomGoodbye";
 import { ClassroomConnecting, type ConnectStep } from "@/components/lms/ClassroomConnecting";
 import LiveMediaDebug from "@/components/lms/LiveMediaDebug";
 import { liveMediaLog } from "@/lib/liveMediaLog";
 
-type Phase = "lobby" | "waiting" | "in" | "ended";
+type Phase = "lobby" | "waiting" | "in" | "goodbye" | "expired";
 
 function isPermErr(e: unknown) {
   const n = e && typeof e === "object" && "name" in e ? String((e as { name: string }).name) : "";
@@ -388,6 +389,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
     openClassroomTab({ room: id, asAdmin, guest: guestCtx });
   };
   const [phase, setPhase] = useState<Phase>("lobby");
+  const [statusKnown, setStatusKnown] = useState(false);
   const [rooms, setRooms] = useState<LiveRoomInfo[]>([]);
   const [canStart, setCanStart] = useState(false);
   const [livePerms, setLivePerms] = useState<LivePerms>({ run: false, schedule: false, schedStudent: false, schedClass: false, shareLink: false, camMic: false, screenShare: false, present: false, instant: false, record: false, recs: false });
@@ -620,10 +622,14 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
     });
     const self = snap.members.find((m) => m.id === selfId);
     if (self) setHand(self.hand);
+    if (snap.status === "ended") {
+      setErr("");
+      setPhase(phase === "in" || phase === "waiting" ? "goodbye" : "expired");
+      return;
+    }
     if (self) setPhase("in");
     else if (snap.waiting.some((w) => w.id === selfId)) setPhase("waiting");
-    else if (snap.status === "live" && phase === "in") setPhase("ended");
-    if (snap.status === "ended") { setPhase("ended"); setErr(""); }
+    else if (snap.status === "live" && phase === "in") setPhase("goodbye");
   }, [selfId, phase]);
 
   const connectWs = useCallback((roomId: string) => {
@@ -656,7 +662,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
           if (chatSoundRef.current) playChatBeep();
         }
       }
-      if (msg.t === "ended") { setPhase("ended"); setErr(""); cleanupMedia(); closeWs(); }
+      if (msg.t === "ended") { setErr(""); cleanupMedia(); closeWs(); void leaveRoomFocus(); setPhase("goodbye"); }
       if (msg.t === "denied" && msg.userId === selfId) { setPhase("lobby"); setErr(tr("The teacher didn't let you in this time.", "لم يسمح لك المعلم بالدخول هذه المرة.")); closeWs(); }
       if (msg.t === "perm" && msg.userId) {
         setRoom((r) => r ? { ...r, members: r.members.map((m) => m.id !== msg.userId ? m : { ...m, camAllowed: msg.camAllowed ?? m.camAllowed, micAllowed: msg.micAllowed ?? m.micAllowed, shareAllowed: msg.shareAllowed ?? m.shareAllowed }), asks: (r.asks || []).filter((a) => a.userId !== msg.userId) } : r);
@@ -822,16 +828,25 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
   }, [remotes, phase, hearOn]);
 
   useEffect(() => {
-    if (typeof window === "undefined" || !actor) return;
+    if (typeof window === "undefined" || phase !== "lobby") return;
     const q = new URLSearchParams(window.location.search).get("room") || "";
-    if (!q || phase !== "lobby") return;
-    // Only auto-join when this tab already is the classroom. Area pages must not
-    // window.open from an effect (Safari was opening / reloading in a loop).
-    if (shellLess || isClassroomPath(window.location.pathname)) {
-      enter(q).catch(() => undefined);
-    }
+    if (!q) { setStatusKnown(true); return; }
+    let cancelled = false;
+    const onClassroom = shellLess || isClassroomPath(window.location.pathname);
+    if (!onClassroom) { setStatusKnown(true); return; }
+    lmsApi.liveStatus(q).then((r) => {
+      if (cancelled) return;
+      if (r.status !== "live") { setPhase("expired"); return; }
+      setStatusKnown(true);
+      if (actor) enter(q).catch(() => undefined);
+    }).catch(() => {
+      if (cancelled) return;
+      setStatusKnown(true);
+      if (actor) enter(q).catch(() => undefined);
+    });
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [actor]);
+  }, [actor, hydrated]);
 
   async function enter(id: string) {
     if (!shellLess && !(typeof window !== "undefined" && isClassroomPath(window.location.pathname))) {
@@ -855,16 +870,17 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
       const r = await lmsApi.liveJoin(id, asAdmin);
       if (r.selfId) setServerSelfId(r.selfId);
       if (r.room) applyRoom(r.room);
+      if (r.status === "ended") { hideConnecting(); setPhase("expired"); return; }
       if (r.status === "in") setPhase("in");
       else if (r.status === "waiting") { setPhase("waiting"); hideConnecting(); }
-      else if (r.status === "ended") { setPhase("ended"); hideConnecting(); }
       else if (r.status === "full") { setErr(tr("This class is full.", "هذا الصف ممتلئ.")); hideConnecting(); }
       else hideConnecting();
       connectWs(id);
       if (typeof window !== "undefined") history.replaceState(null, "", liveHref(id));
     } catch (e) {
-      fail(e, "Join room", "دخول الحصة");
       hideConnecting();
+      if (isLiveEndedError(e)) { setPhase("expired"); return; }
+      fail(e, "Join room", "دخول الحصة");
     } finally { setBusy(false); }
   }
 
@@ -1013,8 +1029,22 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
     cleanupMedia();
     closeWs();
     void leaveRoomFocus();
-    setPhase("ended");
+    setPhase("goodbye");
   }
+
+  useEffect(() => {
+    if ((phase !== "in" && phase !== "waiting") || !room?.endsAt) return;
+    const wait = room.endsAt - Date.now();
+    const t = setTimeout(() => {
+      cleanupMedia();
+      closeWs();
+      void leaveRoomFocus();
+      setErr("");
+      setPhase("goodbye");
+    }, Math.max(0, wait));
+    return () => clearTimeout(t);
+  }, [phase, room?.endsAt]);
+
   async function addLessonMin(n: number) {
     if (!room) return;
     try {
@@ -1053,10 +1083,22 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
     </div>
   );
 
+  if (phase === "goodbye" || phase === "expired") {
+    const screen = <ClassroomGoodbye kind={phase === "goodbye" ? "goodbye" : "expired"} />;
+    return shellLess ? classroomFrame(screen, false) : screen;
+  }
+
   if (guestLink) {
     const tok = hydrated && typeof window !== "undefined" ? (new URLSearchParams(window.location.search).get("t") || "") : "";
     const join = !hydrated ? <p className="p-8 text-center font-bold opacity-70">…</p> : <GuestJoin token={tok} />;
     return classroomFrame(join);
+  }
+
+  const roomQ = hydrated && typeof window !== "undefined" ? (new URLSearchParams(window.location.search).get("room") || "") : "";
+  const waitingOnRoomStatus = !!(roomQ && phase === "lobby" && !statusKnown && (shellLess || isClassroomPath(path)));
+  if (waitingOnRoomStatus) {
+    const wait = <p className="p-8 text-center font-bold opacity-70">…</p>;
+    return shellLess ? classroomFrame(wait, false) : wait;
   }
 
   if (hydrated && ready && !actor) {
@@ -1161,13 +1203,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
           </div>
         )}
 
-        {shellLess && phase === "ended" && (
-          <div className="flex flex-1 flex-col items-center justify-center gap-4 rounded-[2rem] bg-gradient-to-br from-amber-100 to-rose-100 p-8 text-center dark:from-slate-800 dark:to-rose-950" data-testid="live-ended">
-            <p className="text-6xl" aria-hidden>👋</p>
-            <h2 className="text-2xl font-black">{tr("Class has ended", "انتهت الحصة")}</h2>
-            <button type="button" className={primaryBtn} onClick={() => { if (shellLess && !guestCtx) { window.location.href = areaHref; return; } setErr(""); setPhase("lobby"); setRoom(null); history.replaceState(null, "", liveHref()); loadList().catch(() => undefined); }}>{shellLess && !guestCtx ? tr("Back to dashboard", "العودة إلى اللوحة") : tr("Back to Live Lesson", "العودة إلى الحصة المباشرة")}</button>
-          </div>
-        )}
+
 
         {shellLess && phase === "in" && room && (
           <div ref={roomRef} className={`lb-room${roomFocused ? " is-focus" : ""}${toolsOpen ? " tools-open" : ""}${(livePresentingContent(room.present) || shareOn || viewMode === "board") ? " stage-first" : ""}${boardFillsStage(viewMode, room.present) ? " board-on" : ""}`} data-testid="live-room" data-focus-keep data-stage-first={livePresentingContent(room.present) || shareOn || viewMode === "board" ? "1" : "0"}>
