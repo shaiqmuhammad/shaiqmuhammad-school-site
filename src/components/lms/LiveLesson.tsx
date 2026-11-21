@@ -457,7 +457,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
     return () => { document.removeEventListener("fullscreenchange", onFs); window.removeEventListener("keydown", onKey); };
   }, [roomFocused]);
   useEffect(() => { chatSoundRef.current = chatSound; }, [chatSound]);
-  const hostViewMode: LiveViewMode = room?.view?.mode || (room?.present?.packId ? "teach" : "gallery");
+  const hostViewMode: LiveViewMode = room?.view?.mode || "board";
   const viewFollow = room?.view?.follow !== false;
   const viewMode: LiveViewMode = isHost || viewFollow ? hostViewMode : (localView || hostViewMode);
   const canPickView = isHost || !viewFollow;
@@ -471,6 +471,24 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
       if (r.view) setRoom((prev) => prev ? { ...prev, view: r.view } : prev);
     } catch (e) { fail(e, "Change view", "تغيير العرض"); }
   };
+  const boardBoot = useRef("");
+  useEffect(() => {
+    if (!isHost || !room || phase !== "in") return;
+    if (boardBoot.current === room.id) return;
+    if (room.view?.mode && room.view.mode !== "board") {
+      boardBoot.current = room.id;
+      return;
+    }
+    boardBoot.current = room.id;
+    if (!room.view?.mode) void applyView({ mode: "board" });
+    if (!room.present?.packId && room.present?.tool !== "board") {
+      lmsApi.livePresent(room.id, { op: "board" }, asAdmin)
+        .then((r) => { if (r.present !== undefined) setRoom((prev) => prev ? { ...prev, present: r.present || null } : prev); })
+        .catch((e) => fail(e, "Whiteboard", "السبورة"));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isHost, room?.id, phase]);
+
   const pickView = (mode: LiveViewMode) => {
     if (isHost) {
       void applyView({ mode });
@@ -988,6 +1006,8 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
             <header className="lb-top">
               <div className="lb-brand">
                 <ClassroomBrand variant="room" />
+              </div>
+              <div className="lb-meet">
                 <div className="lb-title" dir="auto">{room.title}</div>
                 <button type="button" className="lb-sub" onClick={() => setShowPeople(true)} data-testid="live-people">
                   {[room.cls, room.section].filter(Boolean).join(" · ") || tr("Meeting", "اجتماع")}
@@ -995,28 +1015,37 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
                   {tr(`${room.members.filter((m) => m.present).length} here`, `${room.members.filter((m) => m.present).length} حاضر`)}
                 </button>
               </div>
-              <div className="lb-countdown">
-                <LiveCountdown endsAt={room.endsAt || room.created + 40 * 60_000} isHost={isHost} onAdd={addLessonMin} onSet={setLessonMin} />
-              </div>
-              <i className="lb-top-break" aria-hidden />
-              <div className="relative">
-                <button type="button" className="lb-view" onClick={() => setViewOpen((v) => !v)} data-testid="live-view-open" aria-expanded={viewOpen}>
-                  {VIEW_CARDS.find((c) => c.id === viewMode)?.icon} {tr(VIEW_CARDS.find((c) => c.id === viewMode)?.en || "View", VIEW_CARDS.find((c) => c.id === viewMode)?.ar || "عرض")}
+              <div className="lb-top-actions">
+                <div className="lb-countdown">
+                  <LiveCountdown endsAt={room.endsAt || room.created + 40 * 60_000} isHost={isHost} onAdd={addLessonMin} onSet={setLessonMin} />
+                </div>
+                <div className="relative">
+                  <button type="button" className="lb-view" onClick={() => setViewOpen((v) => !v)} data-testid="live-view-open" aria-expanded={viewOpen}>
+                    <span aria-hidden>{VIEW_CARDS.find((c) => c.id === viewMode)?.icon}</span>
+                    <span className="lb-view-lab">{tr(VIEW_CARDS.find((c) => c.id === viewMode)?.en || "View", VIEW_CARDS.find((c) => c.id === viewMode)?.ar || "عرض")}</span>
+                  </button>
+                  {viewOpen && (
+                    <LiveViewPicker
+                      mode={viewMode}
+                      follow={!!room.view?.follow}
+                      canPush={isHost}
+                      onMode={pickView}
+                      onFollow={isHost ? (on) => void applyView({ follow: on }) : undefined}
+                      onClose={() => setViewOpen(false)}
+                    />
+                  )}
+                </div>
+                <button type="button" className={`lb-focus ${roomFocused ? "is-on" : ""}`} onClick={() => void toggleRoomFocus()} data-testid="live-room-focus" data-focus-keep title={roomFocused ? tr("Exit Focus (Esc)", "إنهاء التركيز (Esc)") : tr("Focus — open the classroom full screen, with controls and tools still visible", "تركيز — افتح الصف بملء الشاشة مع بقاء أدوات التحكم")}>
+                  🎯 {roomFocused ? tr("Exit", "إنهاء") : tr("Focus", "تركيز")}
                 </button>
-                {viewOpen && (
-                  <LiveViewPicker
-                    mode={viewMode}
-                    follow={!!room.view?.follow}
-                    canPush={isHost}
-                    onMode={pickView}
-                    onFollow={isHost ? (on) => void applyView({ follow: on }) : undefined}
-                    onClose={() => setViewOpen(false)}
-                  />
+                <button type="button" className="lb-head-btn lb-head-leave" onClick={leave} data-testid="live-leave">{tr("Leave", "خروج")}</button>
+                {isHost && (
+                  <button type="button" className="lb-head-btn lb-head-end" onClick={endClass} data-testid="live-end">
+                    <span className="lb-head-long">{tr("End class", "إنهاء الحصة")}</span>
+                    <span className="lb-head-short">{tr("End", "إنهاء")}</span>
+                  </button>
                 )}
               </div>
-              <button type="button" className={`lb-focus ${roomFocused ? "is-on" : ""}`} onClick={() => void toggleRoomFocus()} data-testid="live-room-focus" data-focus-keep title={roomFocused ? tr("Exit Focus (Esc)", "إنهاء التركيز (Esc)") : tr("Focus — open the classroom full screen, with controls and tools still visible", "تركيز — افتح الصف بملء الشاشة مع بقاء أدوات التحكم")}>
-                🎯 {roomFocused ? tr("Exit", "إنهاء") : tr("Focus", "تركيز")}
-              </button>
             </header>
 
             {isHost && !!room.waiting.length && (
@@ -1184,9 +1213,6 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
               {isHost && (asAdmin || livePerms.record) && (
                 <DockBtn testid="live-record" icon="⏺️" label={tr("Record", "تسجيل")} disabled={!livePerms.recs} onClick={() => undefined} />
               )}
-              <span className="lb-dock-gap" aria-hidden />
-              <DockBtn testid="live-leave" icon="🚪" label={tr("Leave", "خروج")} leave onClick={leave} />
-              {isHost && <DockBtn testid="live-end" icon="🛑" label={tr("End class", "إنهاء الحصة")} end onClick={endClass} />}
             </div>
             {!isHost && me && !me.camAllowed && !me.micAllowed && (
               <p className="lb-hint">{tr("Your camera and mic stay off until your teacher allows them. You can still see and hear the teacher.", "تبقى كاميرتك وميكروفونك مغلقين حتى يسمح بهما معلمك. ما زال بإمكانك رؤية المعلم وسماعه.")}</p>
