@@ -44,15 +44,19 @@ function Btn({ onClick, label, icon, on, danger, disabled, testid }: { onClick: 
   );
 }
 
-export function LiveLessonPage() {
+export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false }: { embedded?: boolean; asAdmin?: boolean } = {}) {
   const { tr, lang } = useTr();
   const lms = useLmsActor();
   const [adminSess, setAdminSess] = useState(false);
   useEffect(() => { setAdminSess(!!getServerSession()); }, []);
-  const asAdmin = !lms.actor && adminSess;
-  const actor = lms.actor || (asAdmin ? ADMIN_ACTOR : null);
-  const ready = lms.ready || adminSess;
+  const asAdmin = forceAdmin || (!lms.actor && adminSess);
+  const actor = asAdmin ? ADMIN_ACTOR : lms.actor;
+  const ready = lms.ready || adminSess || forceAdmin;
   const adminElsewhere = lms.adminElsewhere && !asAdmin;
+  const liveHref = (id?: string) => {
+    if (embedded) return id ? `/admin?room=${encodeURIComponent(id)}#live` : "/admin#live";
+    return id ? `/lms/live?room=${encodeURIComponent(id)}` : "/lms/live";
+  };
   const [phase, setPhase] = useState<Phase>("lobby");
   const [rooms, setRooms] = useState<LiveRoomInfo[]>([]);
   const [canStart, setCanStart] = useState(false);
@@ -228,7 +232,7 @@ export function LiveLessonPage() {
       else if (r.status === "ended") setPhase("ended");
       else if (r.status === "full") setErr(tr("This class is full.", "هذا الصف ممتلئ."));
       connectWs(id);
-      if (typeof window !== "undefined") history.replaceState(null, "", `/lms/live?room=${encodeURIComponent(id)}`);
+      if (typeof window !== "undefined") history.replaceState(null, "", liveHref(id));
     } catch (e) {
       setErr(lmsErrorText(e, tr));
     } finally { setBusy(false); }
@@ -325,7 +329,7 @@ export function LiveLessonPage() {
     closeWs();
     setPhase("lobby");
     setRoom(null);
-    history.replaceState(null, "", "/lms/live");
+    history.replaceState(null, "", liveHref());
     loadList().catch(() => undefined);
   }
 
@@ -347,9 +351,8 @@ export function LiveLessonPage() {
 
   if (ready && !actor) return <NeedLogin adminElsewhere={adminElsewhere} />;
 
-  return (
-    <AssessmentShell title={tr("Live Lesson", "الحصة المباشرة")} exitHref="/lms" wide toolbar={<LmsStaffToolbar />}>
-      <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-4 px-3 py-4 sm:px-6" data-testid="live-lesson" dir={lang === "ar" ? "rtl" : "ltr"}>
+  const body = (
+      <div className={embedded ? "flex w-full flex-1 flex-col gap-4" : "mx-auto flex w-full max-w-6xl flex-1 flex-col gap-4 px-3 py-4 sm:px-6"} data-testid="live-lesson" dir={lang === "ar" ? "rtl" : "ltr"}>
         {err && <p className="rounded-2xl bg-rose-100 px-4 py-2 text-sm font-bold text-rose-800 dark:bg-rose-900/60 dark:text-rose-100" role="alert">{err}</p>}
 
         {phase === "lobby" && (
@@ -358,6 +361,7 @@ export function LiveLessonPage() {
               <p className="text-4xl" aria-hidden>🎥</p>
               <h1 className="mt-1 text-3xl font-black text-[#1b3a57] dark:text-white">{tr("Live Lesson", "الحصة المباشرة")}</h1>
               <p className="mt-1 max-w-xl text-sm font-semibold opacity-80">{tr("Join your class on camera, or start a live room right now.", "انضم إلى صفك بالكاميرا، أو ابدأ حصة مباشرة الآن.")}</p>
+              {asAdmin && <p className="mt-1 max-w-xl text-sm font-semibold opacity-80">{tr("As admin you can start a room for any class and see every live lesson.", "بصفتك مسؤولاً يمكنك بدء حصة لأي صف ورؤية كل الحصص المباشرة.")}</p>}
               {!sfuOn && <p className="mt-3 rounded-xl bg-white/80 px-3 py-2 text-sm font-bold text-amber-800 dark:bg-slate-900/80 dark:text-amber-200">{tr("Video isn't fully set up yet. Chat, hand-raise and the waiting room still work.", "الفيديو غير مُعد بالكامل بعد. الدردشة ورفع اليد وغرفة الانتظار تعمل.")}</p>}
             </header>
             {canStart && (
@@ -422,7 +426,7 @@ export function LiveLessonPage() {
           <div className="flex flex-1 flex-col items-center justify-center gap-4 rounded-[2rem] bg-gradient-to-br from-amber-100 to-rose-100 p-8 text-center dark:from-slate-800 dark:to-rose-950" data-testid="live-ended">
             <p className="text-6xl" aria-hidden>👋</p>
             <h2 className="text-2xl font-black">{tr("Class has ended", "انتهت الحصة")}</h2>
-            <button type="button" className={primaryBtn} onClick={() => { setPhase("lobby"); setRoom(null); history.replaceState(null, "", "/lms/live"); loadList().catch(() => undefined); }}>{tr("Back to Live Lesson", "العودة إلى الحصة المباشرة")}</button>
+            <button type="button" className={primaryBtn} onClick={() => { setPhase("lobby"); setRoom(null); history.replaceState(null, "", liveHref()); loadList().catch(() => undefined); }}>{tr("Back to Live Lesson", "العودة إلى الحصة المباشرة")}</button>
           </div>
         )}
 
@@ -524,6 +528,11 @@ export function LiveLessonPage() {
           </div>
         )}
       </div>
+  );
+  if (embedded) return body;
+  return (
+    <AssessmentShell title={tr("Live Lesson", "الحصة المباشرة")} exitHref="/lms" wide toolbar={<LmsStaffToolbar />}>
+      {body}
     </AssessmentShell>
   );
 }

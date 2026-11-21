@@ -12,7 +12,7 @@ import { mailApi } from "@/lib/mail";
 import { useI18n } from "@/lib/i18n";
 import { SiteNameText } from "@/components/SiteIdentity";
 
-type Tab = "timetable" | "logins" | "groups" | "downloads" | "parents" | "attendance" | "behaviour" | "curriculum" | "youtube" | "sitepages" | "home" | "pages" | "quizzes" | "certificate" | "banners" | "announcements" | "teacher" | "forum" | "results" | "activities" | "settings" | "students" | "teachers" | "setup" | "lmshw" | "classes" | "mail" | "homepage" | "staff" | "messages" | "notices" | "vcomments" | "reports" | "wall" | "tracker" | "asys" | "qa" | "rewards" | "backup" | "security" | "branding";
+type Tab = "timetable" | "logins" | "groups" | "downloads" | "parents" | "attendance" | "behaviour" | "curriculum" | "youtube" | "sitepages" | "home" | "pages" | "quizzes" | "certificate" | "banners" | "announcements" | "teacher" | "forum" | "results" | "activities" | "settings" | "students" | "teachers" | "setup" | "lmshw" | "classes" | "mail" | "homepage" | "staff" | "messages" | "notices" | "vcomments" | "reports" | "wall" | "tracker" | "asys" | "qa" | "rewards" | "live" | "backup" | "security" | "branding";
 
 type Props = {
   busy: boolean;
@@ -29,7 +29,7 @@ type Props = {
 };
 
 const GROUPS: { id: string; en: string; ar: string; ids: Tab[] }[] = [
-  { id: "teach", en: "Teaching and Learning", ar: "التعليم والتعلّم", ids: ["setup", "curriculum", "timetable", "pages", "classes", "rewards"] },
+  { id: "teach", en: "Teaching and Learning", ar: "التعليم والتعلّم", ids: ["setup", "curriculum", "timetable", "pages", "live", "classes", "rewards"] },
   { id: "members", en: "Members", ar: "الأعضاء", ids: ["students", "teachers", "logins", "parents", "groups", "downloads", "staff", "attendance", "behaviour"] },
   { id: "assess", en: "Assessment", ar: "التقييم", ids: ["quizzes", "lmshw", "certificate", "results", "tracker", "reports", "asys", "qa"] },
   { id: "tools", en: "Teaching Tools", ar: "أدوات التدريس", ids: ["activities"] },
@@ -45,6 +45,7 @@ const DESC: Partial<Record<Tab, [string, string]>> = {
   notices: ["Announcements for the student and teacher areas, by audience. Each person is notified.", "إعلانات لمنطقة الطلاب والمعلمين حسب الفئة. يُشعَر كل شخص."],
   staff: ["Staff accounts: permissions like teachers, no class teaching required.", "حسابات الموظفين: صلاحيات مثل المعلمين دون تدريس صفوف."],
   pages: ["Lesson and library pages shown on the website.", "صفحات الدروس والمكتبة المعروضة على الموقع."],
+  live: ["Start or join a live lesson, admit students, and monitor every live room.", "ابدأ حصة مباشرة أو انضم إليها، واقبل الطلاب، وراقب كل الحصص المباشرة."],
   banners: ["Slides at the top of the home page.", "الشرائح أعلى الصفحة الرئيسية."],
   announcements: ["The scrolling ticker and news items.", "الشريط المتحرك والأخبار."],
   teacher: ["Your public About page: profile, experience, education and more.", "صفحة نبذة عني العامة: الملف والخبرات والتعليم وغيرها."],
@@ -129,6 +130,7 @@ const ICONS: Record<Tab, ReactNode> = {
   mail: <><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3 7 9 6 9-6" /></>,
   lmshw: <><path d="M4 4h12l4 4v12H4z" /><path d="M8 12h8M8 16h5M8 8h4" /></>,
   rewards: <><rect x="4" y="8" width="11" height="13" rx="2" /><rect x="8" y="4" width="11" height="13" rx="2" /><path d="M13.5 8.5v6M10.5 11.5h6" /></>,
+  live: <><rect x="2.5" y="7" width="13" height="10" rx="2" /><path d="M15.5 10.5 21.5 7v10l-6-3.5z" /></>,
   security: <><path d="M12 3 4 6v6c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V6z" /><path d="m9 12 2 2 4-4" /></>,
   branding: <><circle cx="13.5" cy="6.5" r="1.5" /><circle cx="17.5" cy="10.5" r="1.5" /><circle cx="8.5" cy="7.5" r="1.5" /><circle cx="6.5" cy="12.5" r="1.5" /><path d="M12 2a10 10 0 0 0 0 20c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.3-.3-.4-.5-.8-.5-1.3 0-1.1.9-2 2-2h2.4A5.6 5.6 0 0 0 22 9.8C22 5.5 17.5 2 12 2z" /></>,
   backup: <><path d="M12 3v11" /><path d="m7 9 5 5 5-5" /><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" /></>,
@@ -218,7 +220,7 @@ function SettingsGear({ tab, onTab, labelFor }: { tab: Tab; onTab: (t: Tab) => v
   );
 }
 
-const WIDE = ["logins", "groups", "downloads", "parents", "attendance", "behaviour", "curriculum", "youtube", "sitepages", "students", "teachers", "classes", "lmshw", "mail", "home", "homepage", "rewards"];
+const WIDE = ["logins", "groups", "downloads", "parents", "attendance", "behaviour", "curriculum", "youtube", "sitepages", "students", "teachers", "classes", "lmshw", "mail", "home", "homepage", "rewards", "live"];
 
 export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPublishAll, onLogout, pendingCount = 0, onBell, children }: Props) {
   const { t, lang } = useI18n();
@@ -275,7 +277,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
   const drawerRef = useRef<HTMLDivElement>(null);
   const homeLabel = tr("Admin home — refresh content", "الرئيسية وتحديث المحتوى");
   const label = (id: Tab) =>
-    id === "home" ? tr("Dashboard", "لوحة التحكم") : id === "security" ? tr("Security", "الأمان") : id === "branding" ? tr("Site & branding", "الموقع والهوية") : id === "announcements" ? tr("Announcements", "الإعلانات") : id === "results" ? tr("Results", "النتائج") : id === "reports" ? tr("Department Report", "تقرير القسم") : id === "wall" ? tr("Class Wall", "جدار الصف") : id === "tracker" ? tr("Assessment Tracker", "متتبع التقييم") : id === "asys" ? tr("Attainment & Progress Systems", "أنظمة التحصيل والتقدّم") : id === "qa" ? tr("Progress Check QA", "ضمان جودة فحص التقدم") : id === "timetable" ? tr("Timetable", "الجدول الدراسي") : id === "activities" ? tr("Activities", "الأنشطة") : id === "students" ? tr("Students", "الطلاب") : id === "teachers" ? tr("Teachers", "المعلمون") : id === "setup" ? tr("Classes & Subjects", "الصفوف والمواد") : id === "lmshw" ? tr("Homework", "الواجبات") : id === "rewards" ? tr("Reward Cards", "بطاقات المكافآت") : id === "mail" ? tr("Mail", "البريد") : id === "homepage" ? tr("Web Pages", "صفحات الموقع") : id === "logins" ? tr("Student Logins", "بيانات دخول الطلاب") : id === "groups" ? tr("Groups", "المجموعات") : id === "downloads" ? tr("Downloads", "التنزيلات") : id === "parents" ? tr("Parents", "أولياء الأمور") : id === "attendance" ? tr("Attendance", "الحضور") : id === "behaviour" ? tr("Behaviour", "السلوك") : id === "curriculum" ? tr("Curriculum", "المنهج") : id === "classes" ? tr("Classes", "الصفوف") : id === "staff" ? tr("Staff", "الموظفون") : id === "vcomments" ? tr("Video comments", "تعليقات الفيديو") : id === "messages" ? tr("Messages", "الرسائل") : id === "notices" ? tr("Class announcements", "إعلانات الصفوف") : id === "pages" ? tr("Lesson Builder", "منشئ الدروس") : id === "youtube" ? "YouTube" : id === "sitepages" ? tr("Pages and menus", "الصفحات والقوائم") : id === "backup" ? tr("Backup", "النسخ الاحتياطي") : t(`admin.tab.${id}`);
+    id === "home" ? tr("Dashboard", "لوحة التحكم") : id === "security" ? tr("Security", "الأمان") : id === "branding" ? tr("Site & branding", "الموقع والهوية") : id === "announcements" ? tr("Announcements", "الإعلانات") : id === "results" ? tr("Results", "النتائج") : id === "reports" ? tr("Department Report", "تقرير القسم") : id === "wall" ? tr("Class Wall", "جدار الصف") : id === "tracker" ? tr("Assessment Tracker", "متتبع التقييم") : id === "asys" ? tr("Attainment & Progress Systems", "أنظمة التحصيل والتقدّم") : id === "qa" ? tr("Progress Check QA", "ضمان جودة فحص التقدم") : id === "timetable" ? tr("Timetable", "الجدول الدراسي") : id === "activities" ? tr("Activities", "الأنشطة") : id === "students" ? tr("Students", "الطلاب") : id === "teachers" ? tr("Teachers", "المعلمون") : id === "setup" ? tr("Classes & Subjects", "الصفوف والمواد") : id === "lmshw" ? tr("Homework", "الواجبات") : id === "rewards" ? tr("Reward Cards", "بطاقات المكافآت") : id === "mail" ? tr("Mail", "البريد") : id === "homepage" ? tr("Web Pages", "صفحات الموقع") : id === "logins" ? tr("Student Logins", "بيانات دخول الطلاب") : id === "groups" ? tr("Groups", "المجموعات") : id === "downloads" ? tr("Downloads", "التنزيلات") : id === "parents" ? tr("Parents", "أولياء الأمور") : id === "attendance" ? tr("Attendance", "الحضور") : id === "behaviour" ? tr("Behaviour", "السلوك") : id === "curriculum" ? tr("Curriculum", "المنهج") : id === "classes" ? tr("Classes", "الصفوف") : id === "staff" ? tr("Staff", "الموظفون") : id === "vcomments" ? tr("Video comments", "تعليقات الفيديو") : id === "messages" ? tr("Messages", "الرسائل") : id === "notices" ? tr("Class announcements", "إعلانات الصفوف") : id === "live" ? tr("Live Lesson", "الحصة المباشرة") : id === "pages" ? tr("Lesson Builder", "منشئ الدروس") : id === "youtube" ? "YouTube" : id === "sitepages" ? tr("Pages and menus", "الصفحات والقوائم") : id === "backup" ? tr("Backup", "النسخ الاحتياطي") : t(`admin.tab.${id}`);
 
   useEffect(() => {
     try {
