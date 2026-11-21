@@ -57,13 +57,13 @@ test("senderForType uses defaults until a type is configured", () => {
   assert.equal(senderForType("contact", {}, ""), MAIL_SENDER_DEFAULTS.contact);
 });
 
-test("school quick picks include admin, billing and the iCloud label, not a redacted placeholder", () => {
+test("school quick picks include admin and billing school addresses, not a redacted placeholder", () => {
   assert.ok(BUILTIN_ALLOWED_FROM.includes("admin@shaiqmuhammad.com"));
   assert.ok(BUILTIN_ALLOWED_FROM.includes("billings@shaiqmuhammad.com"));
   assert.ok(BUILTIN_ALLOWED_FROM.includes("contact@shaiqmuhammad.com"));
   assert.ok(BUILTIN_ALLOWED_FROM.includes("info@shaiqmuhammad.com"));
-  assert.ok(BUILTIN_ALLOWED_FROM.includes("shaiqmuhammad@icloud.com"));
   assert.ok(!BUILTIN_ALLOWED_FROM.includes("[REDACTED]"));
+  assert.ok(!BUILTIN_ALLOWED_FROM.some((v) => v.endsWith("@icloud.com")));
   assert.ok(!Object.values(MAIL_SENDER_DEFAULTS).some((v) => v.endsWith("@almudarris.com")));
 });
 
