@@ -226,7 +226,7 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
                 return (
                   <>
                     {hwOnly ? (
-                      <div className="mb-3 flex flex-wrap gap-3" role="tablist" data-testid="stu-hw-tabs">
+                      <div className="mb-3 flex flex-wrap gap-3" aria-label={tr("Homework", "الواجبات")} data-testid="stu-hw-tabs">
                         {MAIN.map(([k, ic, en, ar]) => {
                           const items: HwMenuItem[] = SUBL[k].map(([sk, sic, sen, sar]) => ({ key: sk, ic: sic, en: sen, ar: sar, n: nOfFor(k)[sk] }));
                           return (
