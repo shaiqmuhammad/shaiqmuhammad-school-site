@@ -34,8 +34,8 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
   }, [asAdmin, canPresent, present?.packId]);
   useEffect(() => {
     if (!present?.packId) { setPack(null); return; }
-    lp.get(present.packId, asAdmin).then((r) => setPack(r.pack)).catch(() => setErr(tr("Couldn't open that lesson pack.", "تعذر فتح حزمة الدرس.")));
-  }, [present?.packId, asAdmin, tr]);
+    lmsApi.livePack(roomId, present.packId, asAdmin).then((r) => setPack(r.pack as Pack)).catch(() => setErr(tr("Couldn't open that lesson pack.", "تعذر فتح حزمة الدرس.")));
+  }, [present?.packId, asAdmin, tr, roomId]);
   useEffect(() => {
     if (!isHost) return;
     lmsApi.pcatList().then((r) => setCats(r.items || [])).catch(() => undefined);

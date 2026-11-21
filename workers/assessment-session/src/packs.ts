@@ -79,6 +79,14 @@ function slideMeta(s: Json): Json {
 function slides(v: unknown, student = false): Json[] {
   return (Array.isArray(v) ? (v as Json[]) : []).slice(0, 60).map((s) => ({ id: str(s?.id, 30) || rid("s"), bg: color(s?.bg) || "#ffffff", ...(student ? {} : slideMeta(s)), els: (Array.isArray(s?.els) ? (s.els as Json[]) : []).slice(0, 80).map((e) => el(e, student)).filter(Boolean) }));
 }
+/** Slides for a live classroom: all teacher elements stay visible; Quran teacher notes are stripped. */
+export function liveViewSlides(raw: unknown): Json[] {
+  return slides(raw, false).map((s) => ({
+    ...s,
+    els: (Array.isArray(s.els) ? (s.els as Json[]) : []).map((e) => (e && e.t === "quran" ? { ...e, notes: "" } : e)),
+  }));
+}
+
 export function packInit(sql: Sql) {
   sql.exec(`CREATE TABLE IF NOT EXISTS lpack (id TEXT PRIMARY KEY, owner TEXT, owner_name TEXT, title TEXT, type TEXT, subject TEXT DEFAULT '', aud TEXT DEFAULT '[]', students TEXT DEFAULT '[]', topic TEXT DEFAULT '{}', slides TEXT DEFAULT '[]', mode TEXT DEFAULT 'self', assign_at INTEGER DEFAULT 0, due INTEGER DEFAULT 0, status TEXT DEFAULT 'draft', hw TEXT DEFAULT '', live INTEGER DEFAULT -1, tpl INTEGER DEFAULT 0, notified INTEGER DEFAULT 0, due_notified INTEGER DEFAULT 0, created INTEGER, updated INTEGER)`);
   // t646: one Quran homework row per "Quran Homework" slide of a pack.

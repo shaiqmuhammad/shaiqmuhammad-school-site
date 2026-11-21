@@ -33,6 +33,7 @@ export class LiveSfu {
   private published = new Map<string, RTCRtpTransceiver>();
   private midKey = new Map<string, string>();
   private subbed = new Set<string>();
+  private pendingOntrack = new Map<string, RTCTrackEvent>();
   private q: Promise<void> = Promise.resolve();
   constructor(roomId: string, selfId: string, ice: RTCIceServer[], onRemote: RemoteFn, asAdmin = false) {
     this.roomId = roomId;
@@ -72,10 +73,16 @@ export class LiveSfu {
     this.recv = this.newPc();
     this.recv.ontrack = (ev) => {
       const mid = ev.transceiver?.mid || ev.receiver?.track?.id || "";
-      const key = this.midKey.get(mid) || "";
-      if (!key) return;
+      const key = this.midKey.get(mid) || this.midKey.get(String(ev.transceiver?.mid || "")) || "";
       const stream = ev.streams[0] || new MediaStream([ev.track]);
-      ev.track.onended = () => this.onRemote(key, null);
+      ev.track.onended = () => {
+        const k = this.midKey.get(mid) || key;
+        if (k) this.onRemote(k, null);
+      };
+      if (!key) {
+        if (mid) this.pendingOntrack.set(mid, ev);
+        return;
+      }
       this.onRemote(key, stream);
     };
     const r = await this.call({ op: "session-new" });
@@ -149,9 +156,16 @@ export class LiveSfu {
             tracks: [{ location: "remote", sessionId: p.sessionId, trackName: name }],
           });
           const tracks = (Array.isArray(r.tracks) ? r.tracks : []) as { mid?: string; sessionId?: string; trackName?: string; errorCode?: string }[];
-          const mine = tracks.find((t) => t.trackName === name && !t.errorCode) || tracks[0];
-          if (mine?.mid) this.midKey.set(String(mine.mid), key);
-          this.subbed.add(key);
+          const mine = tracks.find((t) => t.trackName === name && !t.errorCode);
+          if (!mine?.mid) continue;
+          this.midKey.set(String(mine.mid), key);
+          const pending = this.pendingOntrack.get(String(mine.mid));
+          if (pending) {
+            this.pendingOntrack.delete(String(mine.mid));
+            const stream = pending.streams[0] || new MediaStream([pending.track]);
+            pending.track.onended = () => this.onRemote(key, null);
+            this.onRemote(key, stream);
+          }
           if (r.sessionDescription) {
             await this.recv!.setRemoteDescription(r.sessionDescription as RTCSessionDescriptionInit);
             const answer = await this.recv!.createAnswer();
@@ -163,6 +177,7 @@ export class LiveSfu {
               sessionDescription: { type: "answer", sdp: this.recv!.localDescription?.sdp },
             });
           }
+          this.subbed.add(key);
         }
       }
       for (const key of [...this.subbed]) {
@@ -181,6 +196,7 @@ export class LiveSfu {
     }
     this.published.clear();
     this.subbed.clear();
+    this.pendingOntrack.clear();
     try { this.pub?.close(); } catch { /* */ }
     try { this.recv?.close(); } catch { /* */ }
     this.pub = undefined;

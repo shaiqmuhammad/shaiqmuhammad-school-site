@@ -51,7 +51,7 @@ import { pageHandle, pagesInit } from "./lpages";
 import { initMods, modHandle, pubQuizzes, tquizTopics, today as modToday } from "./lmsmods";
 import { bankFromTquizzes, draftFromCurriculum, parseImportText, unitFromRow } from "./tquizDraft";
 import { reportHandle } from "./reports";
-import { packHandle, packInit, packSweep, type PackCtx } from "./packs";
+import { packHandle, packInit, packSweep, liveViewSlides, type PackCtx } from "./packs";
 import { attemptGate, commentList } from "./tries";
 import { CONTACT, FROM_NAME, SITE_URL, renderEmail, renderText } from "./mail/template";
 import { blobStore, sqliteChunkStore, type BlobStore, type StorageEnv } from "./storage";
@@ -3591,6 +3591,16 @@ export class LmsStore extends DurableObject<LmsEnv> {
     if (!cls) return { ok: false, error: "pick_class" };
     if (!this.inScope(a, cls, section)) return { ok: false, error: "not_your_class" };
     return { ok: true };
+  }
+
+  livePresentedPack(packId: string): { id: string; title: string; type: string; slides: unknown[] } | null {
+    if (!packId) return null;
+    packInit(this.sql);
+    const r = this.sql.exec(`SELECT id, title, type, slides FROM lpack WHERE id=?`, packId).toArray()[0];
+    if (!r) return null;
+    let raw: unknown = [];
+    try { raw = JSON.parse(String(r.slides || "[]")); } catch { raw = []; }
+    return { id: String(r.id), title: String(r.title || ""), type: String(r.type || ""), slides: liveViewSlides(raw) };
   }
   liveTeacherName(id: string): string {
     if (id === "admin") return "Admin";
