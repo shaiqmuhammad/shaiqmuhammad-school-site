@@ -38,12 +38,13 @@ export const LIVE_TOOLS = [
   { id: "timer", icon: "⏱️", en: "Timer", ar: "المؤقت", color: "#22d3ee" },
   { id: "award", icon: "🃏", en: "Reward Cards", ar: "بطاقات المكافآت", color: "#f5c542" },
   { id: "tasks", icon: "📝", en: "Tasks", ar: "المهام", color: "#a78bfa" },
+  { id: "open", icon: "📚", en: "Open", ar: "فتح", color: "#34d399" },
 ] as const;
 
 export type LiveToolId = (typeof LIVE_TOOLS)[number]["id"];
 
 export function LiveToolsTray({
-  isHost, tool, onTool, onTimer, onTasks, taskOn, docked,
+  isHost, tool, onTool, onTimer, onTasks, taskOn, docked, onOpen, openOn,
 }: {
   isHost: boolean;
   tool: string;
@@ -52,6 +53,8 @@ export function LiveToolsTray({
   onTasks?: () => void;
   taskOn?: boolean;
   docked?: boolean;
+  onOpen?: () => void;
+  openOn?: boolean;
 }) {
   const { tr } = useTr();
   const [open, setOpen] = useState(true);
@@ -95,6 +98,9 @@ export function LiveToolsTray({
         }
         if (x.id === "tasks") {
           return <TrayBtn key={x.id} id={x.id} icon={x.icon} en={x.en} ar={x.ar} color={x.color} on={!!taskOn} onClick={() => onTasks?.()} />;
+        }
+        if (x.id === "open") {
+          return <TrayBtn key={x.id} id={x.id} icon={x.icon} en={x.en} ar={x.ar} color={x.color} on={!!openOn} onClick={() => { if (!isHost) return; onOpen?.(); }} title={isHost ? tr("Open a lesson, task, activity, homework or Quran homework", "افتح درسًا أو مهمة أو نشاطًا أو واجبًا أو واجب القرآن") : tr("The teacher opens class work", "المعلم يفتح عمل الصف")} />;
         }
         const tid = x.id as "board" | "wheel" | "rand" | "award";
         return (

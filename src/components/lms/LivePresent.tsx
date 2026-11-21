@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useTr } from "@/components/lms/useLms";
-import { lp, type Pack } from "@/lib/packs";
+import { firstSlideOf, lp, packHasPart, type Pack, type Part } from "@/lib/packs";
 import { SlideView } from "@/components/lms/packs/SlideView";
 import { lmsApi, lmsErrorText, normalizePtrKind, type LiveMember, type LivePresent as Present, type LivePtr, type PointCat, type PtrKind } from "@/lib/lms";
 import { primaryBtn } from "@/components/assessment/AssessmentShell";
@@ -31,6 +31,9 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
   const [cats, setCats] = useState<PointCat[]>([]);
   const [now, setNow] = useState(Date.now());
   const [tasksOpen, setTasksOpen] = useState(false);
+  const [contentOpen, setContentOpen] = useState(false);
+  const [contentKind, setContentKind] = useState<ContentKind>("lesson");
+  const pendingKind = useRef<Part | "">("");
   const draw = useRef<{ pts: number[]; drawing: boolean }>({ pts: [], drawing: false });
   const svgRef = useRef<SVGSVGElement>(null);
   const [ptrKind, setPtrKind] = useState<PtrKind>("pen");
@@ -45,9 +48,19 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
   useEffect(() => {
     if (!present?.packId) { setPack(null); return; }
     lmsApi.livePack(roomId, present.packId, asAdmin)
-      .then((r) => { setPack(r.pack as Pack); setErr(""); })
+      .then((r) => {
+        const next = r.pack as Pack;
+        setPack(next);
+        setErr("");
+        const kind = pendingKind.current;
+        if (kind && isHost) {
+          const n = firstSlideOf(next.slides, kind, next.type);
+          pendingKind.current = "";
+          if (n > 0) void lmsApi.livePresent(roomId, { op: "nav", slide: n }, asAdmin).then((res) => { if (res.present !== undefined) onPresent(res.present || null); }).catch(() => undefined);
+        }
+      })
       .catch((e) => setErr(lmsErrorText(e, tr, ["Couldn't open that lesson pack.", "تعذر فتح حزمة الدرس."], tr("Open pack", "فتح الحزمة"))));
-  }, [present?.packId, asAdmin, tr, roomId]);
+  }, [present?.packId, asAdmin, tr, roomId, isHost, onPresent]);
   useEffect(() => {
     if (!isHost) return;
     lmsApi.pcatList(asAdmin).then((r) => setCats(r.items || [])).catch(() => undefined);
@@ -75,13 +88,22 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
     return r;
   }, [roomId, asAdmin, onPresent]);
 
+  async function startPack(p: Pack, kind: Part) {
+    setBusy(true); setErr("");
+    pendingKind.current = kind;
+    try {
+      const slide = firstSlideOf(p.slides, kind, p.type);
+      await call({ op: "start", packId: p.id, packTitle: p.title, slide, follow: true });
+      setContentOpen(false);
+    } catch (e) {
+      pendingKind.current = "";
+      setErr(lmsErrorText(e, tr, ["Couldn't start presenting that lesson pack.", "تعذر بدء عرض حزمة الدرس."], tr("Present pack", "عرض الحزمة")));
+    } finally { setBusy(false); }
+  }
   async function start() {
     const p = packs.find((x) => x.id === pick);
     if (!p) return;
-    setBusy(true); setErr("");
-    try { await call({ op: "start", packId: p.id, packTitle: p.title }); }
-    catch (e) { setErr(lmsErrorText(e, tr, ["Couldn't start presenting that lesson pack.", "تعذر بدء عرض حزمة الدرس."], tr("Present pack", "عرض الحزمة"))); }
-    finally { setBusy(false); }
+    await startPack(p, partForKind(contentKind));
   }
   async function go(n: number) {
     const next = Math.max(0, Math.min(slides.length - 1, n));
@@ -192,6 +214,8 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
       onTimer={(s) => { if (present) void call({ op: "nav", timerEnd: s == null ? null : Date.now() + s * 1000 }); }}
       onTasks={() => setTasksOpen((v) => !v)}
       taskOn={!!isTask && tasksOpen}
+      onOpen={() => setContentOpen((v) => !v)}
+      openOn={contentOpen || (!present && canPresent && layout !== "board")}
     />
   );
 
@@ -288,16 +312,15 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
         </div>
       )}
 
-      {!present && canPresent && layout !== "board" && (
-        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-6">
-          <label className="w-full max-w-md text-sm font-bold">{tr("Present a lesson pack", "عرض حزمة درس")}
-            <select className="mt-1 w-full rounded-2xl border border-black/10 bg-white px-3 py-2 font-semibold dark:bg-slate-900" value={pick} onChange={(e) => setPick(e.target.value)} data-testid="live-present-pick">
-              <option value="">{tr("Choose a pack…", "اختر حزمة…")}</option>
-              {packs.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
-            </select>
-          </label>
-          <button type="button" className={primaryBtn} disabled={busy || !pick} onClick={start} data-testid="live-present-start">📑 {tr("Present", "عرض")}</button>
-        </div>
+      {canPresent && (contentOpen || (!present && layout !== "board")) && (
+        <ContentPicker
+          packs={packs}
+          kind={contentKind}
+          onKind={setContentKind}
+          busy={busy}
+          onOpen={(p, kind) => void startPack(p, kind)}
+          onClose={present ? () => setContentOpen(false) : undefined}
+        />
       )}
 
       {present && (
@@ -305,7 +328,7 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
           <div className="lb-slide-bar">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div className="min-w-0">
-                <div className="lb-eyebrow">{boardOn && !hasPack ? tr("Whiteboard", "السبورة") : isTask ? tr("Task", "مهمة") : tr("Live lesson", "حصة مباشرة")}</div>
+                <div className="lb-eyebrow">{boardOn && !hasPack ? tr("Whiteboard", "السبورة") : contentEyebrow(cur?.part || pack?.type, tr)}</div>
                 <h3 dir="auto">{hasPack ? present.packTitle : tr("Whiteboard", "السبورة")}</h3>
                 {hasPack && <div className="lb-slide-sub">{`${slide + 1} / ${slides.length || 1}`}</div>}
               </div>
@@ -401,5 +424,97 @@ function PointerGlyph({ kind, color }: { kind: PtrKind; color: string }) {
         <rect x="18.4" y="4" width="3.2" height="5" rx="1" fill="#24557a" />
       </g>
     </svg>
+  );
+}
+
+
+type ContentKind = "lesson" | "task" | "activity" | "homework" | "quran";
+
+const CONTENT_TABS: { id: ContentKind; icon: string; en: string; ar: string }[] = [
+  { id: "lesson", icon: "🎤", en: "Lesson", ar: "درس" },
+  { id: "task", icon: "✏️", en: "Task", ar: "مهمة" },
+  { id: "activity", icon: "🎯", en: "Activity", ar: "نشاط" },
+  { id: "homework", icon: "📝", en: "Homework", ar: "واجب" },
+  { id: "quran", icon: "📖", en: "Quran Homework", ar: "واجب القرآن" },
+];
+
+function partForKind(kind: ContentKind): Part {
+  if (kind === "task" || kind === "activity") return "activity";
+  if (kind === "homework") return "homework";
+  if (kind === "quran") return "quran";
+  return "lesson";
+}
+
+function packMatches(p: Pack, kind: ContentKind): boolean {
+  if (kind === "lesson") return packHasPart(p, "lesson") || (!packHasPart(p, "activity") && !packHasPart(p, "homework") && !packHasPart(p, "quran") && (p.type === "lesson" || p.type === "material" || !p.type));
+  if (kind === "task") return packHasPart(p, "activity");
+  if (kind === "activity") return p.type === "activity" || p.mode === "live" || packHasPart(p, "activity");
+  if (kind === "homework") return packHasPart(p, "homework");
+  return packHasPart(p, "quran");
+}
+
+function contentEyebrow(part: string | undefined, tr: (en: string, ar: string) => string) {
+  if (part === "activity") return tr("Task", "مهمة");
+  if (part === "homework") return tr("Homework", "واجب");
+  if (part === "quran") return tr("Quran Homework", "واجب القرآن");
+  if (part === "lesson") return tr("Lesson", "درس");
+  return tr("Live lesson", "حصة مباشرة");
+}
+
+function ContentPicker({ packs, kind, onKind, busy, onOpen, onClose }: {
+  packs: Pack[]; kind: ContentKind; onKind: (k: ContentKind) => void; busy: boolean;
+  onOpen: (p: Pack, kind: Part) => void; onClose?: () => void;
+}) {
+  const { tr } = useTr();
+  const items = packs.filter((p) => packMatches(p, kind));
+  const tab = CONTENT_TABS.find((x) => x.id === kind);
+  return (
+    <div className="lb-content-picker" data-testid="live-content-picker">
+      <div className="mb-3 flex items-start justify-between gap-2">
+        <div>
+          <p className="text-sm font-extrabold text-[#1b3a57] dark:text-[#fff8ec]">{tr("Open in the classroom", "افتح في الصف")}</p>
+          <p className="text-xs font-semibold text-[#334155] dark:text-[#cbd5e1]">{tr("Students follow you. Turn Follow me off if they should move freely.", "يتابعك الطلاب. أوقف «تابعني» إن أردت أن يتنقلوا بأنفسهم.")}</p>
+        </div>
+        {onClose && <button type="button" className="rounded-full bg-black/10 px-3 py-1 text-sm font-bold text-[#1b3a57] dark:bg-white/15 dark:text-[#fff8ec]" onClick={onClose} data-testid="live-content-close">{tr("Close", "إغلاق")}</button>}
+      </div>
+      <div className="mb-3 flex flex-wrap gap-2" role="tablist" aria-label={tr("Content type", "نوع المحتوى")}>
+        {CONTENT_TABS.map((x) => (
+          <button
+            key={x.id}
+            type="button"
+            role="tab"
+            aria-selected={kind === x.id}
+            className={`rounded-full px-3 py-1.5 text-xs font-extrabold ${kind === x.id ? "bg-[#1b3a57] text-[#fff8ec] dark:bg-[#f3c969] dark:text-[#1b3a57]" : "bg-[#e8eef5] text-[#1b3a57] dark:bg-[#1b3a57] dark:text-[#fff8ec]"}`}
+            onClick={() => onKind(x.id)}
+            data-testid={`live-content-tab-${x.id}`}
+          >{x.icon} {tr(x.en, x.ar)}</button>
+        ))}
+      </div>
+      {!items.length ? (
+        <p className="rounded-2xl bg-[#eef2f6] px-4 py-6 text-center text-sm font-semibold text-[#1b3a57] dark:bg-[#1b3a57] dark:text-[#fff8ec]" data-testid="live-content-empty">
+          {tr(`No ${tab?.en || "items"} here yet. Add them in Lesson Builder, then open them for the class.`, `لا يوجد ${tab?.ar || "محتوى"} هنا بعد. أضفه في منشئ الدروس ثم افتحه للصف.`)}
+        </p>
+      ) : (
+        <ul className="grid max-h-[50vh] gap-2 overflow-auto sm:grid-cols-2" data-testid="live-content-list">
+          {items.map((p) => (
+            <li key={p.id}>
+              <button
+                type="button"
+                disabled={busy}
+                className="flex w-full items-center gap-3 rounded-2xl bg-white px-3 py-3 text-start text-[#1b3a57] shadow-sm ring-1 ring-black/10 hover:bg-[#fff8ec] disabled:opacity-60 dark:bg-[#10263b] dark:text-[#fff8ec] dark:ring-white/15 dark:hover:bg-[#1b3a57]"
+                onClick={() => onOpen(p, partForKind(kind))}
+                data-testid="live-content-item"
+              >
+                <span className="text-2xl" aria-hidden>{tab?.icon || "📑"}</span>
+                <span className="min-w-0 flex-1">
+                  <b className="block truncate" dir="auto">{p.title}</b>
+                  <span className="text-xs font-semibold opacity-80">{p.subject || p.ownerName || ""}</span>
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }

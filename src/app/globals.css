@@ -1241,3 +1241,17 @@ html.lb-classroom .pub-main { display: flex; flex-direction: column; min-height:
 .lb-tools-fab { display: none; }
 .lb-pip { touch-action: none; }
 .lb-pip.is-drag { cursor: grabbing; }
+
+.lb-content-picker {
+  margin: 12px;
+  border-radius: 24px;
+  padding: 16px;
+  background: #fff;
+  color: #1b3a57;
+  box-shadow: 0 12px 32px rgba(15,31,48,.18);
+  z-index: 12;
+}
+.lb-present:has(.lb-slide-bar) .lb-content-picker {
+  position: absolute; inset: 12px; overflow: auto; max-height: calc(100% - 24px);
+}
+.dark .lb-content-picker { background: #0f1f30; color: #fff8ec; }

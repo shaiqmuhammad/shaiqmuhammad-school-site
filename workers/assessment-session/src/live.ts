@@ -1182,7 +1182,8 @@ export async function handleLive(request: Request, env: LiveEnv, action: string)
       try {
         const pack = await store.livePresentedPack(packId);
         if (!pack) return reply(origin, { error: "pack_not_found" }, 404);
-        const r = await stub.setPresent(host, {}, { packId, packTitle: packTitle || pack.title });
+        const slide = typeof body.slide === "number" ? body.slide : 0;
+        const r = await stub.setPresent(host, { slide, follow: true }, { packId, packTitle: packTitle || pack.title });
         return reply(origin, r, r.ok ? 200 : r.error === "ended" ? 410 : 403);
       } catch {
         return reply(origin, { error: "present_failed" }, 500);
