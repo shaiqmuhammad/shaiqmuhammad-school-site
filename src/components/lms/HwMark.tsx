@@ -5,7 +5,7 @@ import { AudioClip, AudioRecorder } from "@/components/lms/Audio";
 import { hwCorrectionPdf } from "@/components/lms/hwCorrectionPdf";
 import { smallBtn, useTr } from "@/components/lms/useLms";
 import { lmsApi, lmsErrorText, type Submission } from "@/lib/lms";
-import { DEFAULT_CODES, NEXT_STEPS, emptyAnnot, emptyPage, isWorkPage, pageOf, shrinkHwPhoto, type CorrCode, type HwAnnot, type HwPage, type HwPhoto, type HwStamp, type HwStroke, type HwText } from "@/lib/hwMark";
+import { DEFAULT_CODES, NEXT_STEPS, emptyAnnot, emptyPage, inkOn, isWorkPage, pageOf, shrinkHwPhoto, type CorrCode, type HwAnnot, type HwPage, type HwPhoto, type HwStamp, type HwStroke, type HwText } from "@/lib/hwMark";
 
 const PENS = ["#e11d48", "#ea580c", "#ca8a04", "#059669", "#0284c7", "#7c3aed", "#0f172a", "#ffffff"];
 const toolBtn = (on: boolean) => `inline-flex min-h-11 items-center gap-1.5 rounded-2xl px-3 py-2 text-sm font-extrabold shadow-sm transition active:scale-95 motion-reduce:transform-none ${on ? "bg-gradient-to-br from-sky-500 to-blue-700 text-white shadow-md" : "bg-white/90 text-[#1b2f44] ring-1 ring-black/10 hover:bg-white dark:bg-white/10 dark:text-white dark:ring-white/15"}`;
@@ -190,7 +190,7 @@ export function HwAnnotate({
             </div>
           ))}
           {page.stamps.map((s) => (
-            <button key={s.id} type="button" className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-2xl px-2 py-1 text-xs font-black text-white shadow-md ${edit ? "cursor-grab" : ""}`} style={{ left: `${s.x}%`, top: `${s.y}%`, background: s.color }} title={lang === "ar" ? s.ar : s.en} onPointerDown={(e) => { if (!edit) return; e.stopPropagation(); setSel({ k: "stamp", id: s.id }); setTool("move"); }} data-testid="hw-stamp">{(lang === "ar" ? s.ar : s.en).slice(0, 12)}</button>
+            <button key={s.id} type="button" className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-2xl px-2 py-1 text-xs font-black shadow-md ${edit ? "cursor-grab" : ""}`} style={{ left: `${s.x}%`, top: `${s.y}%`, background: s.color, color: inkOn(s.color) }} title={lang === "ar" ? s.ar : s.en} onPointerDown={(e) => { if (!edit) return; e.stopPropagation(); setSel({ k: "stamp", id: s.id }); setTool("move"); }} data-testid="hw-stamp">{(lang === "ar" ? s.ar : s.en).slice(0, 12)}</button>
           ))}
         </div>
       )}
@@ -203,7 +203,7 @@ export function HwAnnotate({
           {(tool === "pen" || tool === "hi" || tool === "text") && <div className="flex flex-wrap items-center gap-2">{PENS.map((c) => <button key={c} type="button" className={`h-9 w-9 rounded-full shadow ring-2 ${color === c ? "ring-sky-500 scale-110" : "ring-black/10"}`} style={{ background: c }} aria-label={c} onClick={() => setColor(c)} />)}<label className="text-xs font-bold">{tr("Size", "الحجم")}<input type="range" min={2} max={14} value={width} onChange={(e) => setWidth(Number(e.target.value))} className="ms-2 align-middle" /></label></div>}
           <div className="space-y-2" data-testid="hw-codes-wrap">
             <p className="text-xs font-extrabold uppercase tracking-wide opacity-70">{tr("Correction codes — tap a stamp, then tap the work", "رموز التصحيح — اضغط رمزًا ثم اضغط على العمل")}</p>
-            <div className="flex flex-wrap gap-2" data-testid="hw-codes">{palette.map((c) => <button key={c.id} type="button" className={`rounded-2xl px-3 py-2 text-xs font-black text-white shadow ${tool === "stamp" && activeCode?.id === c.id ? "ring-4 ring-[#1b3a57] ring-offset-2 dark:ring-offset-[#12233a]" : "ring-1 ring-black/10"}`} style={{ background: c.color }} onClick={() => { setCode(c); setTool("stamp"); }} data-testid={`hw-code-${c.id}`}>{lang === "ar" ? c.ar : c.en}</button>)}</div>
+            <div className="flex flex-wrap gap-2" data-testid="hw-codes">{palette.map((c) => <button key={c.id} type="button" className={`rounded-2xl px-3 py-2 text-xs font-black shadow ${tool === "stamp" && activeCode?.id === c.id ? "ring-4 ring-[#1b3a57] ring-offset-2 dark:ring-offset-[#12233a]" : "ring-1 ring-black/10"}`} style={{ background: c.color, color: inkOn(c.color) }} onClick={() => { setCode(c); setTool("stamp"); }} data-testid={`hw-code-${c.id}`}>{lang === "ar" ? c.ar : c.en}</button>)}</div>
             <button type="button" className={smallBtn} onClick={() => setCodesOpen(!codesOpen)} data-testid="hw-codes-edit">➕ {tr("My correction codes", "رموز التصحيح")}</button>
             {codesOpen && <CodesEditor list={palette} asAdmin={asAdmin} onSave={(c) => { onCodes?.(c); setCode(c[0] || null); }} />}
           </div>
@@ -253,7 +253,7 @@ export function HwAnnotate({
 function NextChip({ en, ar, on, onToggle }: { en: string; ar: string; on: boolean; onToggle: (t: string) => void }) {
   const { tr, lang } = useTr();
   const t = lang === "ar" ? ar : en;
-  return <button type="button" className={`block w-full rounded-2xl px-3 py-2 text-start text-sm font-semibold ${on ? "bg-emerald-600 text-white" : "bg-white/80 hover:bg-white dark:bg-white/10"}`} onClick={() => onToggle(t)} aria-pressed={on}>{on ? "✓ " : ""}{tr(en, ar)}</button>;
+  return <button type="button" className={`block w-full rounded-2xl px-3 py-2 text-start text-sm font-semibold ${on ? "bg-emerald-700 text-white" : "bg-white/80 hover:bg-white dark:bg-white/10"}`} onClick={() => onToggle(t)} aria-pressed={on}>{on ? "✓ " : ""}{tr(en, ar)}</button>;
 }
 
 function CodesEditor({ list, asAdmin, onSave }: { list: CorrCode[]; asAdmin: boolean; onSave: (c: CorrCode[]) => void }) {

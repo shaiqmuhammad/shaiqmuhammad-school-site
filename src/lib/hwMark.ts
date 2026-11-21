@@ -17,6 +17,49 @@ export type HwPage = { strokes: HwStroke[]; texts: HwText[]; stamps: HwStamp[] }
 export type HwAnnot = { pages: Record<string, HwPage>; next: string[]; done?: boolean; at?: number; by?: string };
 export type CorrCode = { id: string; en: string; ar: string; color: string };
 
+
+/** Near-black ink used when white text would fall short of WCAG AA (4.5:1) on a stamp colour. */
+export const STAMP_INK = "#000000";
+export const STAMP_WHITE = "#ffffff";
+
+function channel(c: number): number {
+  const s = c / 255;
+  return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+}
+function luminance(rgb: [number, number, number]): number {
+  return 0.2126 * channel(rgb[0]) + 0.7152 * channel(rgb[1]) + 0.0722 * channel(rgb[2]);
+}
+function contrastRatio(a: [number, number, number], b: [number, number, number]): number {
+  const l1 = luminance(a), l2 = luminance(b);
+  const hi = Math.max(l1, l2), lo = Math.min(l1, l2);
+  return (hi + 0.05) / (lo + 0.05);
+}
+/** Parse #rgb, #rrggbb, or rgb()/rgba() into sRGB 0–255. */
+export function parseCssColor(raw: string): [number, number, number] | null {
+  const s = (raw || "").trim();
+  const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(s);
+  if (hex) {
+    const h = hex[1];
+    if (h.length === 3) return [parseInt(h[0] + h[0], 16), parseInt(h[1] + h[1], 16), parseInt(h[2] + h[2], 16)];
+    return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+  }
+  const rgb = /^rgba?\(\s*([\d.]+)\s*[, ]\s*([\d.]+)\s*[, ]\s*([\d.]+)/i.exec(s);
+  if (rgb) return [Number(rgb[1]), Number(rgb[2]), Number(rgb[3])].map((n) => Math.max(0, Math.min(255, n))) as [number, number, number];
+  return null;
+}
+
+/** Text colour for a stamp or chip: white when it already meets 4.5:1, otherwise black (or the better of the two). */
+export function inkOn(bg: string): string {
+  const rgb = parseCssColor(bg);
+  if (!rgb) return STAMP_WHITE;
+  const white = contrastRatio(rgb, [255, 255, 255]);
+  const ink = contrastRatio(rgb, [0, 0, 0]);
+  if (white >= 4.5) return STAMP_WHITE;
+  if (ink >= 4.5) return STAMP_INK;
+  return white >= ink ? STAMP_WHITE : STAMP_INK;
+}
+
+
 export const emptyPage = (): HwPage => ({ strokes: [], texts: [], stamps: [] });
 export const emptyAnnot = (): HwAnnot => ({ pages: {}, next: [] });
 
