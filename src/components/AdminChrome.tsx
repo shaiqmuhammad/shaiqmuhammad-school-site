@@ -11,6 +11,8 @@ import { LmsBell } from "@/components/lms/LmsBell";
 import { mailApi } from "@/lib/mail";
 import { useI18n } from "@/lib/i18n";
 import { SiteNameText } from "@/components/SiteIdentity";
+import { StartMeetingButton } from "@/components/lms/StartMeeting";
+import { TimeZoneCard } from "@/components/lms/TimeZonePicker";
 
 type Tab = "timetable" | "logins" | "groups" | "downloads" | "parents" | "attendance" | "behaviour" | "curriculum" | "youtube" | "sitepages" | "home" | "pages" | "quizzes" | "certificate" | "banners" | "announcements" | "teacher" | "forum" | "results" | "activities" | "settings" | "students" | "teachers" | "setup" | "lmshw" | "classes" | "mail" | "homepage" | "staff" | "messages" | "notices" | "vcomments" | "reports" | "wall" | "tracker" | "asys" | "qa" | "rewards" | "live" | "backup" | "security" | "branding";
 
@@ -199,7 +201,7 @@ function SettingsGear({ tab, onTab, labelFor }: { tab: Tab; onTab: (t: Tab) => v
           role="menu"
           aria-label={settingsLabel}
           data-testid="admin-settings-menu"
-          className="absolute end-0 top-full z-50 mt-2 min-w-[14rem] overflow-hidden rounded-2xl border border-black/10 bg-white py-1 text-heading shadow-lg dark:border-white/10 dark:bg-[#0f1f30]"
+          className="absolute end-0 top-full z-50 mt-2 max-h-[min(80vh,36rem)] min-w-[18rem] overflow-auto rounded-2xl border border-black/10 bg-white py-1 text-heading shadow-lg dark:border-white/10 dark:bg-[#0f1f30] sm:min-w-[22rem]"
         >
           {SITE_TABS.map((id) => (
             <button
@@ -214,6 +216,9 @@ function SettingsGear({ tab, onTab, labelFor }: { tab: Tab; onTab: (t: Tab) => v
               {labelFor(id)}
             </button>
           ))}
+          <div className="border-t border-black/10 p-3 dark:border-white/10" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+            <TimeZoneCard asAdmin />
+          </div>
         </div>
       )}
     </div>
@@ -463,6 +468,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
           <FocusPill />
           <FullscreenToggle />
           </div>
+          <StartMeetingButton asAdmin compact onEnter={(id) => { window.location.href = `/admin?room=${encodeURIComponent(id)}#live`; }} />
           <SettingsGear tab={tab} onTab={onTab} labelFor={label} />
         </div>
         <div className="flex items-center justify-between gap-2 border-t border-black/5 px-3 py-1.5 dark:border-white/10" data-testid="admin-date-row"><GregPill tone="light" compact /><HijriPill tone="light" compact /></div>
@@ -506,6 +512,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
             <AdminToolbar variant="glass" onLogout={onLogout} msg={<MsgIcon variant="glass" asAdmin onClick={() => onTab("messages")} />} bell={<LmsBell asAdmin testId="admin-bell" variant={"glass"} extra={onBell ? { count: pendingCount, label: tr(`${pendingCount} forum post${pendingCount === 1 ? "" : "s"} waiting for approval`, `${pendingCount} مشاركة في المنتدى بانتظار الموافقة`), onClick: onBell } : undefined} />} />
           <FocusPill />
           <FullscreenToggle />
+          <StartMeetingButton asAdmin compact onEnter={(id) => { window.location.href = `/admin?room=${encodeURIComponent(id)}#live`; }} />
           <SettingsGear tab={tab} onTab={onTab} labelFor={label} />
         </div>
         <div className={`mx-auto px-4 sm:px-8 ${tab === "mail" ? "py-3 lg:py-3" : "py-6 lg:py-8"} ${tab === "mail" || WIDE.includes(tab) ? "max-w-none" : collapsed ? "max-w-5xl" : "max-w-4xl"}`}>

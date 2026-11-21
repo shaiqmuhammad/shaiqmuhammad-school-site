@@ -11,6 +11,7 @@ import { AdminToolbar } from "@/components/AdminToolbar";
 import { MsgIcon } from "@/components/lms/Messages";
 import { viewAs, lmsSession, lmsSignOut } from "@/lib/lms";
 import { useI18n } from "@/lib/i18n";
+import { StartMeetingButton } from "@/components/lms/StartMeeting";
 
 /** True once a student/teacher session exists on this device (read after hydration). */
 export function useLmsSignedIn() {
@@ -111,6 +112,7 @@ export function LmsStaffToolbar() {
   const roleLabel = who?.role === "teacher" ? (ar ? "المعلم" : "Teacher") : who?.role === "parent" ? (ar ? "ولي الأمر" : "Parent") : ar ? "الطالب" : "Student";
   return (
     <div className="flex items-center gap-2">
+      {who?.role === "teacher" && <StartMeetingButton compact onEnter={(id) => { window.location.href = `/lms/live?room=${encodeURIComponent(id)}`; }} />}
       {who?.role === "student" && <JoinButton lang={lang} />}
       {who && who.role !== "parent" && (
         // t308: "Hello 👋 Teacher/Student <Full name>" (Arabic: Islamic A students see their Arabic name); the avatar opens My account.

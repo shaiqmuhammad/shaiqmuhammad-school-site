@@ -8,7 +8,7 @@ import { rememberForget, rememberOn, rememberSave, rememberedToken } from "@/lib
 
 /** LMS phase 1 client (see workers/assessment-session/src/lms.ts). */
 export type Role = "student" | "teacher" | "parent";
-export type LmsUser = { id: string; username: string; name: string; nameAr?: string; role: Role; cls: string; section: string; subjects: string[]; scope: string[]; perms: string[]; groups?: { id: string; name: string; subject: string }[]; subject?: string; phase?: string; disabled: boolean; hasPin: boolean; firstName?: string; lastName?: string; parentEmail?: boolean; parentName?: string; gender?: string; avatar?: string; badge?: string; email?: string; dob?: string; phone?: string; semail?: string; nationality?: string; prefLang?: string; sen?: boolean; eal?: boolean; gt?: boolean; /** Tracker Target (as entered), scaled score, and the effective Target (Target, else from scaled score) */ target?: string; scaled?: string; targetEff?: string; /** iSAMS (admin only) */ isamsId?: string; isamsSurname?: string; created: number; lastLogin: number | null; lastSeen?: number };
+export type LmsUser = { id: string; username: string; name: string; nameAr?: string; role: Role; cls: string; section: string; subjects: string[]; scope: string[]; perms: string[]; groups?: { id: string; name: string; subject: string }[]; subject?: string; phase?: string; disabled: boolean; hasPin: boolean; firstName?: string; lastName?: string; parentEmail?: boolean; parentName?: string; gender?: string; avatar?: string; badge?: string; email?: string; dob?: string; phone?: string; semail?: string; nationality?: string; prefLang?: string; tz?: string; sen?: boolean; eal?: boolean; gt?: boolean; /** Tracker Target (as entered), scaled score, and the effective Target (Target, else from scaled score) */ target?: string; scaled?: string; targetEff?: string; /** iSAMS (admin only) */ isamsId?: string; isamsSurname?: string; created: number; lastLogin: number | null; lastSeen?: number };
 /** t349: Phase > Department > Subject; classes → phase; sections → class (all optional links). */
 export type Catalog = { phases?: { id: string; name: string }[]; depts?: { id: string; name: string; phaseId: string }[]; subjects: { id: string; name: string; deptId?: string }[]; classes: { id: string; name: string; phaseId?: string }[]; sections: { id: string; name: string; classId: string; cls: string }[] };
 export const catPhaseNames = (c?: Catalog | null) => (c?.phases?.length ? c.phases.map((p) => p.name) : ["EYFS", "Primary", "Secondary"]);
@@ -32,7 +32,7 @@ export type QuranData = { surah: number; from: number; to: number; reciter: stri
 export type GeneralData = { slides: Slide[]; question: string; attemptLimit?: number; topic?: string; pa?: boolean };
 export type Homework = { id: string; kind: "quran" | "general"; title: string; cls: string; section?: string; /** t422: subject + resolved Year(s) / Section(s) for display */ subject?: string; aud?: { years: string[]; sections: string[] }; students: string[]; data: QuranData | GeneralData; due: number | null; createdBy: string; created: number; locked?: boolean; lockedBy?: { surah: number; from: number; to: number; title: string } | null; late?: boolean };
 export type Comment = { by: string; text: string; at: number; audio?: string };
-export type RosterStudent = { id: string; name: string; cls: string; section: string; gender?: "" | "b" | "g" | string; avatar: string; badge?: string; parentEmail: boolean; points: number; seen: number; cards?: number; attPct?: number | null };
+export type RosterStudent = { id: string; name: string; cls: string; section: string; gender?: "" | "b" | "g" | string; avatar: string; badge?: string; parentEmail: boolean; points: number; seen: number; cards?: number; attPct?: number | null; tz?: string };
 export type PointCat = { id: string; label: string; pts: number; icon: string };
 export type PointRow = { id: string; student: string; name: string; label: string; pts: number; icon: string; by: string; at: number };
 export type WallClass = { key: string; label: string; group?: boolean; count?: number; members?: { id: string; name: string }[] };
@@ -107,8 +107,8 @@ export type MapRow = { id: string; name: string; cls: string; section: string; c
 
 /** Student-account switches. Legacy "Manage students" with none of the stu:* flags set means all four. */
 export const stuUi = (perms: string[], op: "view" | "add" | "edit" | "block" | "delete") => { if (!perms.includes("manageUsers")) return false; const has = perms.filter((p) => p.startsWith("stu:")); return has.length ? has.includes(`stu:${op}`) : true; };
-export const PERMS = ["assign", "review", "manageUsers", "viewAll", "shareCorrect", "viewAsStudent", "pptDownload", "hwMarkView", "hwMarkCorrect", "hwShare", "liveLesson", "liveSchedule", "liveSchedStudent", "liveSchedClass", "liveShareLink", "liveCamMic", "liveScreenShare", "livePresent"] as const;
-export const LIVE_PERMS = ["liveLesson", "liveSchedule", "liveSchedStudent", "liveSchedClass", "liveShareLink", "liveCamMic", "liveScreenShare", "livePresent"] as const;
+export const PERMS = ["assign", "review", "manageUsers", "viewAll", "shareCorrect", "viewAsStudent", "pptDownload", "hwMarkView", "hwMarkCorrect", "hwShare", "liveLesson", "liveSchedule", "liveSchedStudent", "liveSchedClass", "liveShareLink", "liveCamMic", "liveScreenShare", "livePresent", "liveInstant"] as const;
+export const LIVE_PERMS = ["liveLesson", "liveSchedule", "liveSchedStudent", "liveSchedClass", "liveShareLink", "liveCamMic", "liveScreenShare", "livePresent", "liveInstant"] as const;
 
 export class LmsError extends Error {
   data?: Record<string, unknown>;
@@ -292,8 +292,8 @@ export const hwRemind = (hw: string, confirm: boolean, asAdmin = false) => call<
 
 
 export type LiveRoomInfo = { id: string; title: string; cls: string; section: string; teacherId: string; teacherName: string; created: number; mine: boolean };
-export type LivePerms = { run: boolean; schedule: boolean; schedStudent: boolean; schedClass: boolean; shareLink: boolean; camMic: boolean; screenShare: boolean; present: boolean };
-export type LiveSched = { id: string; title: string; starts: number; duration: number; ends: number; cls: string; section: string; groupId: string; studentId: string; studentName?: string; packId: string; packTitle: string; roomId: string; status: string; teacherId: string; teacherName: string; hasLink: boolean; linkToken?: string; mine: boolean };
+export type LivePerms = { run: boolean; schedule: boolean; schedStudent: boolean; schedClass: boolean; shareLink: boolean; camMic: boolean; screenShare: boolean; present: boolean; instant: boolean };
+export type LiveSched = { id: string; title: string; starts: number; duration: number; ends: number; cls: string; section: string; groupId: string; studentId: string; studentName?: string; packId: string; packTitle: string; roomId: string; status: string; teacherId: string; teacherName: string; hasLink: boolean; linkToken?: string; mine: boolean; kind?: "meeting" | "" };
 export type LiveMember = { id: string; name: string; role: "teacher" | "student"; camAllowed: boolean; micAllowed: boolean; shareAllowed?: boolean; hand: boolean; present: boolean };
 export type LiveWait = { id: string; name: string; at: number };
 export type LiveChat = { id: string; from: string; name: string; text: string; at: number };
@@ -524,6 +524,10 @@ export const lmsApi = {
   livePresent: (id: string, body: Record<string, unknown>, asAdmin = false) => call<{ ok: boolean; present?: LivePresent | null }>("live-present", { id, ...body }, { asAdmin }),
   livePack: (id: string, packId: string, asAdmin = false) => call<{ pack: { id: string; title: string; type: string; slides: unknown[] } }>("live-pack", { id, packId }, { asAdmin }),
   liveDuration: (id: string, body: { endsAt?: number; addMin?: number }, asAdmin = false) => call<{ ok: boolean; endsAt?: number }>("live-duration", { id, ...body }, { asAdmin }),
+  liveMeet: (b: { title?: string; duration?: number; now?: boolean; starts?: number }, asAdmin = false) => call<{ ok: boolean; schedId: string; roomId?: string; token: string; title: string; starts: number; ends: number; existing?: boolean }>("live-meet", b, { asAdmin }),
+  tzGet: (asAdmin = false) => call<{ pref: string }>("tz-set", undefined, { asAdmin }),
+  tzSet: (pref: string, asAdmin = false) => call<{ pref: string }>("tz-set", { pref }, { asAdmin }),
+
   liveView: (id: string, body: { mode?: LiveViewMode; follow?: boolean }, asAdmin = false) => call<{ ok: boolean; view?: LiveView }>("live-view", { id, ...body }, { asAdmin }),
   exportAll: (asAdmin = false) => call<{ exportedAt: number; homework: Homework[]; subs: (Submission & { hw: string; student: string })[]; users: { id: string; username: string; name: string; role: string; cls: string }[]; tracker: (TrackerRow & { student: string; hw: string })[] }>("export", undefined, { asAdmin }),
 };
@@ -556,7 +560,9 @@ export function lmsErrorText(e: unknown, tr: (en: string, ar: string) => string,
     no_cam_mic: ["Your admin hasn't switched on allowing student camera and mic.", "لم يفعّل المسؤول السماح بكاميرا وميكروفون الطلاب."],
     no_screen_share: ["Your admin hasn't switched on student screen share.", "لم يفعّل المسؤول مشاركة شاشة الطلاب."],
     pick_audience: ["Choose a class, section, group or student for this live lesson.", "اختر صفًا أو شعبة أو مجموعة أو طالبًا لهذه الحصة المباشرة."],
-    bad_time: ["Pick a future date and time for the live lesson (Dubai time).", "اختر تاريخًا ووقتًا قادمين للحصة المباشرة (بتوقيت دبي)."],
+    bad_time: ["Pick a future date and time for the live lesson.", "اختر تاريخًا ووقتًا قادمين للحصة المباشرة."],
+    no_instant: ["Your admin hasn't switched on “Start instant meetings” for you yet.", "لم يفعّل المسؤول صلاحية «بدء الاجتماعات الفورية» لك بعد."],
+    bad_tz: ["That time zone isn't recognised. Search for a country or city.", "هذه المنطقة الزمنية غير معروفة. ابحث عن دولة أو مدينة."],
     already_started: ["This live lesson has already started.", "بدأت هذه الحصة المباشرة بالفعل."],
     not_yet: ["It's too early (or too late) to start this scheduled lesson.", "مبكر جدًا أو متأخر جدًا لبدء هذه الحصة المجدولة."],
     bad_link: ["This join link isn't valid. Ask your teacher for a new one.", "رابط الانضمام غير صالح. اطلب رابطًا جديدًا من معلمك."],

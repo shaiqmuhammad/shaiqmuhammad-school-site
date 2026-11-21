@@ -100,6 +100,7 @@ function liveFlags(a: Actor) {
     camMic: canLive(a, "liveCamMic"),
     screenShare: canLive(a, "liveScreenShare"),
     present: canLive(a, "livePresent"),
+    instant: canLive(a, "liveInstant"),
   };
 }
 function tokenOf(request: Request, fallback = "") {
@@ -661,11 +662,34 @@ export async function handleLive(request: Request, env: LiveEnv, action: string)
     return reply(origin, { ok: true, token: r.token || "" }, 200);
   }
 
+  if (action === "live-meet") {
+    if (a.guest) return reply(origin, { error: "forbidden" }, 403);
+    if (a.viewAs) return reply(origin, { error: "read_only" }, 403);
+    const r = await store.liveMeet(a, {
+      title: str(body.title, 80),
+      duration: Number(body.duration) || 0,
+      now: body.now === true,
+      starts: Number(body.starts) || 0,
+    });
+    if (!r.ok) return reply(origin, { error: r.error }, r.error === "no_instant" || r.error === "forbidden" ? 403 : 400);
+    if (body.now === true && !r.roomId) {
+      const roomId = newId();
+      const title = r.title || "Quick meeting";
+      const stub = roomStub(env, roomId);
+      await stub.init({ id: roomId, title, cls: "", section: "", groupId: "", teacherId: a.id, teacherName: a.name, endsAt: r.ends });
+      await store.livePut({ id: roomId, teacher: a.id, title, cls: "", section: "", groupId: "", status: "live", created: Date.now(), schedId: r.schedId });
+      await store.liveSchedAttachRoom(r.schedId, roomId);
+      return reply(origin, { ...r, roomId }, 200);
+    }
+    return reply(origin, r, 200);
+  }
+
   if (action === "live-sched-start") {
     if (a.guest) return reply(origin, { error: "forbidden" }, 403);
-    if (!canRun(a)) return reply(origin, { error: "no_permission" }, 403);
     const sch = await store.liveSchedRow(str(body.id, 40));
     if (!sch) return reply(origin, { error: "not_found" }, 404);
+    const isMeeting = String(sch.kind || "") === "meeting";
+    if (!canRun(a) && !(isMeeting && canLive(a, "liveInstant"))) return reply(origin, { error: "no_permission" }, 403);
     if (a.role !== "admin" && String(sch.teacher) !== a.id) return reply(origin, { error: "forbidden" }, 403);
     if (String(sch.room_id || "")) return reply(origin, { id: String(sch.room_id), existing: true }, 200);
     if (!store.liveSchedCanStart(sch as Record<string, unknown>)) return reply(origin, { error: "not_yet" }, 400);
@@ -675,7 +699,7 @@ export async function handleLive(request: Request, env: LiveEnv, action: string)
     const section = String(sch.section || "");
     const groupId = String(sch.group_id || "");
     const studentId = String(sch.student_id || "");
-    const ok = studentId ? { ok: true as const } : await store.liveCanStart(a, cls, section, groupId);
+    const ok = isMeeting ? { ok: true as const } : (studentId ? { ok: true as const } : await store.liveCanStart(a, cls, section, groupId));
     if (!ok.ok) return reply(origin, { error: ok.error }, 403);
     const roomId = newId();
     const title = String(sch.title || "Live Lesson");
