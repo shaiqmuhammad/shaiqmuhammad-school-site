@@ -4,8 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 
 /* Minimal typings for the IFrame API */
-type YTPlayer = { playVideo(): void; pauseVideo(): void; seekTo(s: number, a: boolean): void; getCurrentTime(): number; getDuration(): number; mute(): void; unMute(): void; isMuted(): boolean; destroy(): void };
-declare global { interface Window { YT?: { Player: new (el: HTMLElement, o: unknown) => YTPlayer; PlayerState: { PLAYING: number; PAUSED: number; ENDED: number } }; onYouTubeIframeAPIReady?: () => void } }
+type YTPlayer = { playVideo(): void; pauseVideo(): void; seekTo(s: number, a: boolean): void; getCurrentTime(): number; getDuration(): number; getPlayerState(): number; mute(): void; unMute(): void; isMuted(): boolean; destroy(): void };
+declare global { interface Window { YT?: { Player: new (el: HTMLElement, o: unknown) => YTPlayer; PlayerState: { UNSTARTED: number; PLAYING: number; PAUSED: number; BUFFERING: number; CUED: number; ENDED: number } }; onYouTubeIframeAPIReady?: () => void } }
 
 let apiPromise: Promise<void> | null = null;
 function loadApi(): Promise<void> {
@@ -29,11 +29,26 @@ const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).p
  *   seek / mute / fullscreen, so nothing on screen can open YouTube.
  * - Solid covers sit over the top (YouTube's title bar) and the bottom (logo / "more videos" strip) while paused.
  */
-export function YtPlayer({ id, title, autoPlay = false, className = "" }: { id: string; title?: string; autoPlay?: boolean; className?: string }) {
+export type YtSyncMode = "off" | "leader" | "follow";
+export type YtMediaCursor = { playing: boolean; t: number; at: number };
+
+export function YtPlayer({ id, title, autoPlay = false, className = "", fill = false, syncMode = "off", media = null, onMedia, playWithTeacherLabel = "Play with your teacher" }: {
+  id: string; title?: string; autoPlay?: boolean; className?: string;
+  fill?: boolean; syncMode?: YtSyncMode; media?: YtMediaCursor | null;
+  onMedia?: (s: { playing: boolean; t: number }) => void;
+  playWithTeacherLabel?: string;
+}) {
   const box = useRef<HTMLDivElement>(null);
   const host = useRef<HTMLDivElement>(null);
   const player = useRef<YTPlayer | null>(null);
-  const [started, setStarted] = useState(autoPlay);
+  const applying = useRef(false);
+  const onMediaRef = useRef(onMedia);
+  onMediaRef.current = onMedia;
+  const mediaRef = useRef(media);
+  mediaRef.current = media;
+  const syncRef = useRef(syncMode);
+  syncRef.current = syncMode;
+  const [started, setStarted] = useState(autoPlay || syncMode !== "off");
   const [playing, setPlaying] = useState(false);
   const [ready, setReady] = useState(false);
   const [t, setT] = useState(0);
@@ -41,6 +56,19 @@ export function YtPlayer({ id, title, autoPlay = false, className = "" }: { id: 
   const [muted, setMuted] = useState(false);
   const [ended, setEnded] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [blocked, setBlocked] = useState(false);
+
+  useEffect(() => {
+    if (syncMode !== "off") setStarted(true);
+  }, [syncMode, id]);
+
+  const emitMedia = useCallback((nextPlaying?: boolean) => {
+    if (applying.current || syncRef.current !== "leader") return;
+    const p = player.current;
+    if (!p) return;
+    const playingNow = typeof nextPlaying === "boolean" ? nextPlaying : playing;
+    onMediaRef.current?.({ playing: playingNow, t: p.getCurrentTime() || 0 });
+  }, [playing]);
 
   useEffect(() => {
     if (!started) return;
@@ -53,10 +81,19 @@ export function YtPlayer({ id, title, autoPlay = false, className = "" }: { id: 
         host: "https://www.youtube-nocookie.com",
         videoId: id,
         width: "100%", height: "100%",
-        playerVars: { autoplay: 1, controls: 0, modestbranding: 1, rel: 0, iv_load_policy: 3, fs: 0, disablekb: 1, playsinline: 1, cc_load_policy: 0, origin: window.location.origin },
+        playerVars: { autoplay: syncRef.current === "off" ? 1 : 0, controls: 0, modestbranding: 1, rel: 0, iv_load_policy: 3, fs: 0, disablekb: 1, playsinline: 1, cc_load_policy: 0, origin: window.location.origin },
         events: {
-          onReady: () => { setReady(true); setD(player.current?.getDuration() || 0); player.current?.playVideo(); },
-          onStateChange: (e: { data: number }) => { const S = window.YT!.PlayerState; setPlaying(e.data === S.PLAYING); setEnded(e.data === S.ENDED); if (e.data === S.PLAYING) setD(player.current?.getDuration() || 0); },
+          onReady: () => { setReady(true); setD(player.current?.getDuration() || 0); if (syncRef.current === "off") player.current?.playVideo(); },
+          onStateChange: (e: { data: number }) => {
+            const S = window.YT!.PlayerState;
+            const isPlay = e.data === S.PLAYING;
+            setPlaying(isPlay);
+            setEnded(e.data === S.ENDED);
+            if (isPlay) { setD(player.current?.getDuration() || 0); setBlocked(false); }
+            if (!applying.current && syncRef.current === "leader") {
+              onMediaRef.current?.({ playing: isPlay || e.data === S.BUFFERING, t: player.current?.getCurrentTime() || 0 });
+            }
+          },
         },
       });
     }).catch(() => !dead && setFailed(true));
@@ -69,15 +106,55 @@ export function YtPlayer({ id, title, autoPlay = false, className = "" }: { id: 
     return () => clearInterval(i);
   }, [playing]);
 
+  useEffect(() => {
+    if (!ready || syncMode !== "follow" || !media || !player.current) return;
+    const p = player.current;
+    const elapsed = media.playing ? Math.max(0, (Date.now() - media.at) / 1000) : 0;
+    const expect = media.t + elapsed;
+    const cur = p.getCurrentTime() || 0;
+    applying.current = true;
+    if (Math.abs(cur - expect) > 1.25) p.seekTo(expect, true);
+    if (media.playing) p.playVideo();
+    else p.pauseVideo();
+    const clear = window.setTimeout(() => { applying.current = false; }, 280);
+    let blockTimer = 0;
+    if (media.playing) {
+      blockTimer = window.setTimeout(() => {
+        const st = p.getPlayerState?.();
+        const S = window.YT?.PlayerState;
+        if (S && st !== S.PLAYING && st !== S.BUFFERING) setBlocked(true);
+      }, 500);
+    } else setBlocked(false);
+    return () => { clearTimeout(clear); if (blockTimer) clearTimeout(blockTimer); };
+  }, [ready, syncMode, media?.playing, media?.t, media?.at, id]);
+
+  useEffect(() => {
+    if (!ready || syncMode !== "leader" || !playing) return;
+    const i = setInterval(() => emitMedia(true), 2000);
+    return () => clearInterval(i);
+  }, [ready, syncMode, playing, emitMedia]);
+
   const toggle = useCallback(() => {
     const p = player.current; if (!p) return;
+    if (syncMode === "follow") {
+      applying.current = true;
+      const m = mediaRef.current;
+      const elapsed = m?.playing ? Math.max(0, (Date.now() - (m.at || 0)) / 1000) : 0;
+      const expect = m ? m.t + elapsed : p.getCurrentTime() || 0;
+      p.seekTo(expect, true);
+      if (!m || m.playing) p.playVideo();
+      else p.pauseVideo();
+      setBlocked(false);
+      window.setTimeout(() => { applying.current = false; }, 280);
+      return;
+    }
     if (ended) { p.seekTo(0, true); p.playVideo(); } else if (playing) p.pauseVideo(); else p.playVideo();
-  }, [playing, ended]);
+  }, [playing, ended, syncMode]);
   const fs = () => { const el = box.current; if (!el) return; if (document.fullscreenElement) void document.exitFullscreen(); else void el.requestFullscreen?.(); };
 
   const showCovers = !playing; // YouTube's own title bar / logo / suggestions only appear when not playing
   return (
-    <div ref={box} className={`group relative aspect-video w-full overflow-hidden bg-black text-white ${className}`} data-testid="yt-embed" data-id={id}>
+    <div ref={box} className={`group relative overflow-hidden bg-black text-white ${fill ? "h-full w-full" : "aspect-video w-full"} ${className}`} data-testid="yt-embed" data-id={id}>
       {!started ? (
         <button type="button" onClick={() => setStarted(true)} className="absolute inset-0 block h-full w-full" aria-label={title ? `Play: ${title}` : "Play video"} data-testid="yt-poster">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -103,11 +180,14 @@ export function YtPlayer({ id, title, autoPlay = false, className = "" }: { id: 
           <div className={`absolute inset-x-0 bottom-0 z-30 flex items-center gap-2 bg-black px-3 py-1.5 text-xs min-h-11`} data-testid="yt-controls">
             <button type="button" onClick={toggle} className="grid h-8 w-8 place-items-center rounded-full bg-white/15 hover:bg-white/30" aria-label={playing ? "Pause" : "Play"}>{playing ? "❚❚" : "▶"}</button>
             <span className="tabular-nums" dir="ltr">{fmt(t)}</span>
-            <input type="range" min={0} max={Math.max(1, Math.floor(d))} value={Math.floor(t)} onChange={(e) => { const v = Number(e.target.value); setT(v); player.current?.seekTo(v, true); }} className="min-w-0 flex-1 accent-[#f5b800]" aria-label="Seek" dir="ltr" />
+            <input type="range" min={0} max={Math.max(1, Math.floor(d))} value={Math.floor(t)} disabled={syncMode === "follow"} onChange={(e) => { const v = Number(e.target.value); setT(v); player.current?.seekTo(v, true); if (syncMode === "leader") onMediaRef.current?.({ playing, t: v }); }} className="min-w-0 flex-1 accent-[#f5b800]" aria-label="Seek" dir="ltr" />
             <span className="tabular-nums" dir="ltr">{fmt(d)}</span>
             <button type="button" onClick={() => { const p = player.current; if (!p) return; if (muted) p.unMute(); else p.mute(); setMuted(!muted); }} className="grid h-8 w-8 place-items-center rounded-full bg-white/15 hover:bg-white/30" aria-label={muted ? "Unmute" : "Mute"}>{muted ? "🔇" : "🔊"}</button>
             <button type="button" onClick={fs} className="grid h-8 w-8 place-items-center rounded-full bg-white/15 hover:bg-white/30" aria-label="Fullscreen">⛶</button>
           </div>
+          {blocked && syncMode === "follow" && (
+            <button type="button" onClick={toggle} className="absolute inset-x-4 bottom-16 z-40 rounded-full bg-sun px-4 py-2 text-sm font-extrabold text-[#0b1b2b] shadow-xl" data-testid="yt-play-with-teacher">{playWithTeacherLabel}</button>
+          )}
         </>
       )}
     </div>

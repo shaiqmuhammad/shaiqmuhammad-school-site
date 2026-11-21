@@ -10,6 +10,7 @@ import { createPortal } from "react-dom";
 import { LiveToolsTray, TeachToolsTray, type LiveShapeKindId, type ShapeGrid } from "@/components/lms/ClassroomTray";
 import { ShapeMark } from "@/components/lms/LiveShapeMark";
 import type { LiveShape } from "@/lib/lms";
+import { YtPlayer } from "@/components/YtPlayer";
 
 function presentStudents(members: LiveMember[]) {
   return members.filter((m) => m.role !== "teacher" && m.present);
@@ -97,6 +98,23 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
     if (r.present !== undefined) onPresent(r.present || null);
     return r;
   }, [roomId, asAdmin, onPresent]);
+
+  const ytSrcRef = useRef("");
+  const mediaTimer = useRef(0);
+  const lastMedia = useRef<{ playing?: boolean; t?: number }>({});
+  const pushYtMedia = useCallback((src: string, s: { playing: boolean; t: number }) => {
+    if (!src) return;
+    ytSrcRef.current = src;
+    const prev = lastMedia.current;
+    const playChanged = prev.playing !== s.playing;
+    const send = () => {
+      lastMedia.current = { playing: s.playing, t: s.t };
+      void call({ op: "media", media: { src: ytSrcRef.current, playing: s.playing, t: s.t } });
+    };
+    if (mediaTimer.current) window.clearTimeout(mediaTimer.current);
+    if (playChanged) send();
+    else mediaTimer.current = window.setTimeout(send, 200);
+  }, [call]);
 
   async function startPack(p: Pack, kind: ContentKind) {
     setBusy(true); setErr("");
@@ -451,14 +469,18 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
             <div className="lb-slide-wrap" style={{ containerType: "inline-size" }}>
               {boardOn && <div className="lb-board-surface" aria-hidden />}
               {isYoutube && ytId && (
-                <iframe
-                  title={present.packTitle || "YouTube"}
-                  src={`https://www.youtube-nocookie.com/embed/${ytId}?rel=0&modestbranding=1`}
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
-                  allowFullScreen
-                  className="h-full w-full border-0"
-                  data-testid="live-present-youtube"
-                />
+                <div className="h-full w-full" data-testid="live-present-youtube">
+                  <YtPlayer
+                    key={ytId}
+                    id={ytId}
+                    title={present.packTitle || "YouTube"}
+                    fill
+                    syncMode={canPresent ? "leader" : follow ? "follow" : "off"}
+                    media={present.media && present.media.src === ytId ? present.media : null}
+                    onMedia={(s) => pushYtMedia(ytId, s)}
+                    playWithTeacherLabel={tr("Play with your teacher", "شغّل مع معلمك")}
+                  />
+                </div>
               )}
               {cur && hasPack && <div className="lb-zoom"><SlideView slide={cur} asAdmin={asAdmin} live testId="live-present-slide" /></div>}
               {!cur && hasPack && <p className="relative z-[1] flex-1 py-8 text-center font-semibold opacity-70" data-testid="live-present-loading">{tr("Loading slides…", "جارٍ تحميل الشرائح…")}</p>}
