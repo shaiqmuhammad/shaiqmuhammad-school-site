@@ -32,6 +32,12 @@ export type LiveWait = { id: string; name: string; at: number };
 export type LiveChat = { id: string; from: string; name: string; text: string; at: number };
 export type LiveStroke = { c: string; w: number; d: number[]; by: string };
 export type LiveAnswer = { userId: string; name: string; slide: number; text: string; at: number };
+export const LIVE_VIEW_MODES = ["teach", "lecture", "gallery", "speaker", "board", "discuss"] as const;
+export type LiveViewMode = (typeof LIVE_VIEW_MODES)[number];
+export type LiveView = { mode: LiveViewMode; follow: boolean };
+function isViewMode(v: unknown): v is LiveViewMode {
+  return LIVE_VIEW_MODES.includes(v as LiveViewMode);
+}
 export type LivePresent = {
   packId: string;
   packTitle: string;
@@ -65,6 +71,7 @@ export type LiveSnap = {
   sfu: boolean;
   present?: LivePresent | null;
   endsAt: number;
+  view?: LiveView;
 };
 
 type State = Omit<LiveSnap, "sfu">;
@@ -342,6 +349,23 @@ export class LiveRoom extends DurableObject<LiveEnv> {
     await this.save();
     this.roomMsg();
     return { ok: true, endsAt: this.state.endsAt };
+  }
+
+  async setView(hostId: string, mode?: string, follow?: boolean): Promise<{ ok: boolean; error?: string; view?: LiveView }> {
+    await this.load();
+    if (!this.state || this.state.status !== "live") return { ok: false, error: "ended" };
+    if (hostId !== this.state.teacherId && hostId !== "admin") return { ok: false, error: "forbidden" };
+    const prev = this.state.view || { mode: "gallery" as LiveViewMode, follow: true };
+    if (mode != null && mode !== "" && !isViewMode(mode)) return { ok: false, error: "bad_view" };
+    const view: LiveView = {
+      mode: isViewMode(mode) ? mode : prev.mode,
+      follow: typeof follow === "boolean" ? follow : prev.follow,
+    };
+    this.state.view = view;
+    await this.save();
+    this.broadcast({ t: "view", view });
+    this.roomMsg();
+    return { ok: true, view };
   }
 
   private presentMsg() {
@@ -762,6 +786,13 @@ export async function handleLive(request: Request, env: LiveEnv, action: string)
     }
     const r = await stub.setEndsAt(a.role === "admin" ? "admin" : a.id, endsAt);
     return reply(origin, r, r.ok ? 200 : 403);
+  }
+
+  if (action === "live-view") {
+    if (a.guest) return reply(origin, { error: "forbidden" }, 403);
+    if (a.id !== String(row.teacher) && a.role !== "admin") return reply(origin, { error: "forbidden" }, 403);
+    const r = await stub.setView(a.role === "admin" ? "admin" : a.id, str(body.mode, 20), typeof body.follow === "boolean" ? body.follow : undefined);
+    return reply(origin, r, r.ok ? 200 : r.error === "bad_view" ? 400 : 403);
   }
 
   if (action === "live-pack") {

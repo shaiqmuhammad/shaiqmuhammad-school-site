@@ -502,3 +502,6 @@ html.wb-board-fill [data-testid=class-timer] { z-index: 2600 !important; }
   color: #ffffff;
 }
 .qmap-fill { position: fixed; inset: 0; z-index: 2400; overflow: auto; background: var(--background); color: var(--foreground); padding: 1rem 1.25rem 2rem; }
+
+/* Live classroom view-mode transitions */
+.live-stage, .live-stage > * { transition: layout 0.35s ease, flex-basis 0.35s ease, width 0.35s ease, height 0.35s ease, opacity 0.3s ease, transform 0.3s ease; }
