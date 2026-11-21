@@ -739,15 +739,9 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
                   {tr(`${room.members.filter((m) => m.present).length} here`, `${room.members.filter((m) => m.present).length} حاضر`)}
                 </button>
               </div>
-              {room.endsAt ? (
-                <div className="lb-countdown">
-                  <LiveCountdown endsAt={room.endsAt} isHost={isHost} onAdd={(m) => lmsApi.liveTimer(room.id, { addMin: m }, asAdmin).catch(() => undefined)} onSet={(m) => lmsApi.liveTimer(room.id, { setMin: m }, asAdmin).catch(() => undefined)} />
-                </div>
-              ) : isHost ? (
-                <div className="lb-countdown">
-                  <button type="button" className="lb-view" onClick={() => lmsApi.liveTimer(room.id, { setMin: minutes }, asAdmin).catch(() => undefined)} data-testid="live-ends-start">{tr("Show time left", "أظهر الوقت المتبقي")}</button>
-                </div>
-              ) : null}
+              <div className="lb-countdown">
+                <LiveCountdown endsAt={room.endsAt || room.created + 40 * 60_000} isHost={isHost} onAdd={addLessonMin} onSet={setLessonMin} />
+              </div>
               <i className="lb-top-break" aria-hidden />
               <div className="relative">
                 <button type="button" className="lb-view" onClick={() => setViewOpen((v) => !v)} data-testid="live-view-open" aria-expanded={viewOpen}>
@@ -758,8 +752,8 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
                     mode={viewMode}
                     follow={!!room.view?.follow}
                     canPush={isHost}
-                    onMode={(m) => { void setView(m, isHost || !!room.view?.follow); setViewOpen(false); }}
-                    onFollow={isHost ? (on) => { void lmsApi.liveView(room.id, { mode: viewMode, follow: on }, asAdmin); } : undefined}
+                    onMode={pickView}
+                    onFollow={isHost ? (on) => void applyView({ follow: on }) : undefined}
                     onClose={() => setViewOpen(false)}
                   />
                 )}
@@ -769,11 +763,11 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
               </button>
             </header>
 
-            {isHost && waiting.length > 0 && (
+            {isHost && !!room.waiting.length && (
               <div className="lb-wait" data-testid="live-waiting-host">
-                <span className="font-black">{tr("Waiting room", "غرفة الانتظار")} ({waiting.length})</span>
+                <span className="font-black">{tr("Waiting room", "غرفة الانتظار")} ({room.waiting.length})</span>
                 <ul className="mt-1 flex flex-wrap gap-2">
-                  {waiting.map((w) => (
+                  {room.waiting.map((w) => (
                     <li key={w.id} className="flex items-center gap-2 rounded-full bg-white px-3 py-1 text-sm font-bold dark:bg-slate-800">
                       {w.name}
                       <button type="button" className="text-emerald-700" onClick={() => lmsApi.liveAdmit(room.id, w.id, asAdmin)}>{tr("Admit", "قبول")}</button>

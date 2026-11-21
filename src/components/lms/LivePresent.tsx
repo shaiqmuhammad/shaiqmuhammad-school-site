@@ -262,7 +262,7 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
               <div className="min-w-0">
                 <div className="lb-eyebrow">{isTask ? tr("Task", "مهمة") : tr("Live lesson", "حصة مباشرة")}</div>
                 <h3 dir="auto">{present.packTitle}</h3>
-                <div className="lb-slide-sub">{cur?.title ? cur.title : `${slide + 1} / ${slides.length || 1}`}</div>
+                <div className="lb-slide-sub">{`${slide + 1} / ${slides.length || 1}`}</div>
               </div>
               <div className="flex flex-wrap items-center justify-end gap-2">
                 {left !== null && (
