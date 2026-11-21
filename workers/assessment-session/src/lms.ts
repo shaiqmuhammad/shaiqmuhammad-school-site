@@ -3954,6 +3954,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     const row = this.liveSchedByToken(token);
     if (!row) return { ok: false as const, error: "bad_link" };
     if (String(row.status) === "cancelled") return { ok: false as const, error: "revoked" };
+    if (String(row.status) === "ended") return { ok: false as const, error: "ended" };
     if (this.liveSchedExpired(row as Record<string, unknown>) && String(row.status) !== "live") return { ok: false as const, error: "ended" };
     return {
       ok: true as const,
