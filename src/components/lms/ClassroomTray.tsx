@@ -38,8 +38,9 @@ export const LIVE_TOOLS = [
   { id: "timer", icon: "⏱️", en: "Timer", ar: "المؤقت", color: "#22d3ee" },
   { id: "award", icon: "🃏", en: "Reward Cards", ar: "بطاقات المكافآت", color: "#f5c542" },
   { id: "tasks", icon: "📝", en: "Tasks", ar: "المهام", color: "#a78bfa" },
-  { id: "open", icon: "📚", en: "Library", ar: "المكتبة", color: "#34d399" },
 ] as const;
+
+export const LIBRARY_TOOL = { id: "open", icon: "📚", en: "Library", ar: "المكتبة", color: "#34d399" } as const;
 
 export type LiveToolId = (typeof LIVE_TOOLS)[number]["id"];
 
@@ -102,9 +103,6 @@ export function LiveToolsTray({
         if (x.id === "tasks") {
           return <TrayBtn key={x.id} id={x.id} icon={x.icon} en={x.en} ar={x.ar} color={x.color} on={!!taskOn} onClick={() => onTasks?.()} />;
         }
-        if (x.id === "open") {
-          return <TrayBtn key={x.id} id={x.id} icon={x.icon} en={x.en} ar={x.ar} color={x.color} on={!!openOn} onClick={() => { if (!canPresent) return; onOpen?.(); }} title={canPresent ? tr("Open a lesson, task, activity, homework or Quran homework", "افتح درسًا أو مهمة أو نشاطًا أو واجبًا أو واجب القرآن") : tr("The teacher opens class work", "المعلم يفتح عمل الصف")} />;
-        }
         const tid = x.id as "board" | "wheel" | "rand" | "award";
         return (
           <TrayBtn
@@ -124,6 +122,22 @@ export function LiveToolsTray({
   );
 }
 
+
+export function LibraryBtn({ on, onClick, disabled }: { on?: boolean; onClick: () => void; disabled?: boolean }) {
+  const { tr } = useTr();
+  return (
+    <TrayBtn
+      id={LIBRARY_TOOL.id}
+      icon={LIBRARY_TOOL.icon}
+      en={LIBRARY_TOOL.en}
+      ar={LIBRARY_TOOL.ar}
+      color={LIBRARY_TOOL.color}
+      on={!!on}
+      onClick={() => { if (disabled) return; onClick(); }}
+      title={disabled ? tr("The teacher opens class work", "المعلم يفتح عمل الصف") : tr("Open a lesson, task, activity, homework or Quran homework", "افتح درسًا أو مهمة أو نشاطًا أو واجبًا أو واجب القرآن")}
+    />
+  );
+}
 
 export const PTR_KIND_TOOLS = [
   { id: "pen", icon: "🖊️", en: "Pen", ar: "قلم" },
@@ -148,13 +162,42 @@ export const SHAPE_TOOLS = [
   { id: "line", icon: "／", en: "Line", ar: "خط" },
   { id: "arrow", icon: "➤", en: "Arrow", ar: "سهم" },
   { id: "triangle", icon: "△", en: "Triangle", ar: "مثلث" },
+  { id: "star", icon: "☆", en: "Star", ar: "نجمة" },
+  { id: "hexagon", icon: "⬡", en: "Hexagon", ar: "سداسي" },
 ] as const;
 
-export type LiveShapeKindId = (typeof SHAPE_TOOLS)[number]["id"];
+export const MATH_SHAPE_TOOLS = [
+  { id: "numberline", icon: "➖", en: "Number line", ar: "خط الأعداد" },
+  { id: "axes", icon: "➕", en: "Axes / graph", ar: "محاور / رسم" },
+  { id: "angle", icon: "∠", en: "Angle", ar: "زاوية" },
+  { id: "fraction", icon: "◑", en: "Fractions circle", ar: "دائرة الكسور" },
+  { id: "cube", icon: "⬜", en: "Cube", ar: "مكعب" },
+  { id: "cylinder", icon: "🛢️", en: "Cylinder", ar: "أسطوانة" },
+  { id: "cone", icon: "▲", en: "Cone", ar: "مخروط" },
+  { id: "protractor", icon: "⌒", en: "Protractor", ar: "منقلة" },
+  { id: "ruler", icon: "📏", en: "Ruler", ar: "مسطرة" },
+] as const;
+
+export const SCIENCE_SHAPE_TOOLS = [
+  { id: "beaker", icon: "🥤", en: "Beaker", ar: "كأس" },
+  { id: "flask", icon: "🧪", en: "Flask", ar: "دورق" },
+  { id: "testtube", icon: "🧫", en: "Test tube", ar: "أنبوب اختبار" },
+  { id: "atom", icon: "⚛️", en: "Atom", ar: "ذرة" },
+  { id: "magnet", icon: "🧲", en: "Magnet", ar: "مغناطيس" },
+  { id: "battery", icon: "🔋", en: "Battery", ar: "بطارية" },
+  { id: "resistor", icon: "⌇", en: "Resistor", ar: "مقاومة" },
+  { id: "bulb", icon: "💡", en: "Bulb", ar: "مصباح" },
+  { id: "switch", icon: "⏻", en: "Switch", ar: "مفتاح" },
+  { id: "cycle", icon: "🔄", en: "Cycle diagram", ar: "مخطط دورة" },
+  { id: "flow", icon: "➡️", en: "Flow arrows", ar: "أسهم التدفق" },
+] as const;
+
+export type LiveShapeKindId = import("@/lib/liveShapes").LiveShapeKind;
+export type ShapeGrid = { rows: number; cols: number };
 
 export function TeachToolsTray({
   canPoint, canDraw, ptrKind, onPtrKind, drawTool, onDrawTool, ink, onInk, onUndo, onClear, penId, onPen, people,
-  shapeKind, onShapeKind,
+  shapeKind, onShapeKind, shapeGrid,
 }: {
   canPoint: boolean;
   canDraw: boolean;
@@ -170,7 +213,8 @@ export function TeachToolsTray({
   onPen?: (id: string) => void;
   people?: { id: string; name: string }[];
   shapeKind?: LiveShapeKindId | "";
-  onShapeKind?: (id: LiveShapeKindId | "") => void;
+  onShapeKind?: (id: LiveShapeKindId | "", grid?: ShapeGrid) => void;
+  shapeGrid?: ShapeGrid;
 }) {
   const { tr } = useTr();
   if (!canPoint && !canDraw) return null;
@@ -194,7 +238,7 @@ export function TeachToolsTray({
         {canDraw && DRAW_TOOLS.map((x) => (
           <TrayBtn key={x.id} id={x.id} icon={x.icon} en={x.en} ar={x.ar} color={x.color} on={drawTool === x.id} onClick={() => onDrawTool(x.id)} testId={`live-draw-${x.id}`} />
         ))}
-        {canDraw && onShapeKind && <ShapesBtn kind={shapeKind || ""} onKind={onShapeKind} />}
+        {canDraw && onShapeKind && <ShapesBtn kind={shapeKind || ""} grid={shapeGrid} onKind={onShapeKind} />}
         {canDraw && INK.map((c) => (
           <button
             key={c}
@@ -210,7 +254,7 @@ export function TeachToolsTray({
         {canDraw && onUndo && <TrayBtn id="undo" icon="↩️" en="Undo" ar="تراجع" color="#94a3b8" onClick={onUndo} testId="live-undo-stroke" />}
         {canDraw && onClear && <TrayBtn id="clear" icon="🧹" en="Clear" ar="مسح" color="#fb7185" onClick={onClear} testId="live-clear-board" />}
         {canDraw && onPen && (
-          <label className="ms-1 flex min-w-[8.5rem] flex-col justify-center text-[10px] font-extrabold text-[#fff8ec]">
+          <label className="ms-1 flex min-w-[8.5rem] flex-col justify-center text-[10px] font-extrabold text-[#1b3a57] dark:text-[#fff8ec]">
             {tr("Give pen", "إعطاء القلم")}
             <select
               className="mt-0.5 rounded-full border border-white/30 bg-[#1b3a57] px-2 py-1 text-[11px] font-bold text-[#fff8ec]"
@@ -228,9 +272,16 @@ export function TeachToolsTray({
   );
 }
 
-function ShapesBtn({ kind, onKind }: { kind: LiveShapeKindId | ""; onKind: (id: LiveShapeKindId | "") => void }) {
+function ShapesBtn({ kind, grid, onKind }: { kind: LiveShapeKindId | ""; grid?: ShapeGrid; onKind: (id: LiveShapeKindId | "", grid?: ShapeGrid) => void }) {
   const { tr } = useTr();
   const [open, setOpen] = useState(false);
+  const [rows, setRows] = useState(grid?.rows || 3);
+  const [cols, setCols] = useState(grid?.cols || 3);
+  const pick = (id: LiveShapeKindId, extra?: ShapeGrid) => {
+    onKind(kind === id && !extra ? "" : id, extra);
+    setOpen(false);
+  };
+  const bump = (v: number, set: (n: number) => void, cur: number) => set(Math.max(1, Math.min(12, cur + v)));
   return (
     <div className="relative">
       <TrayBtn
@@ -245,18 +296,52 @@ function ShapesBtn({ kind, onKind }: { kind: LiveShapeKindId | ""; onKind: (id: 
       />
       {open && (
         <div className="lb-shape-pop" data-testid="live-shapes-pop" role="menu">
-          {SHAPE_TOOLS.map((x) => (
-            <button
-              key={x.id}
-              type="button"
-              role="menuitem"
-              className={`lb-shape-opt ${kind === x.id ? "is-on" : ""}`}
-              onClick={() => { onKind(kind === x.id ? "" : x.id); setOpen(false); }}
-              data-testid={`live-shape-${x.id}`}
-            >
-              <span aria-hidden>{x.icon}</span> {tr(x.en, x.ar)}
+          <p className="lb-shape-cat">{tr("Basic shapes", "أشكال أساسية")}</p>
+          <div className="lb-shape-grid">
+            {SHAPE_TOOLS.map((x) => (
+              <button key={x.id} type="button" role="menuitem" className={`lb-shape-opt ${kind === x.id ? "is-on" : ""}`} onClick={() => pick(x.id)} data-testid={`live-shape-${x.id}`}>
+                <span aria-hidden>{x.icon}</span> {tr(x.en, x.ar)}
+              </button>
+            ))}
+          </div>
+          <p className="lb-shape-cat">{tr("Tables", "جداول")}</p>
+          <div className="lb-shape-table" data-testid="live-shape-table">
+            <label>
+              {tr("Rows", "صفوف")}
+              <span>
+                <button type="button" onClick={() => bump(-1, setRows, rows)} aria-label={tr("Fewer rows", "أقل صفوفًا")}>−</button>
+                <strong>{rows}</strong>
+                <button type="button" onClick={() => bump(1, setRows, rows)} aria-label={tr("More rows", "المزيد من الصفوف")}>+</button>
+              </span>
+            </label>
+            <label>
+              {tr("Columns", "أعمدة")}
+              <span>
+                <button type="button" onClick={() => bump(-1, setCols, cols)} aria-label={tr("Fewer columns", "أقل أعمدة")}>−</button>
+                <strong>{cols}</strong>
+                <button type="button" onClick={() => bump(1, setCols, cols)} aria-label={tr("More columns", "المزيد من الأعمدة")}>+</button>
+              </span>
+            </label>
+            <button type="button" className={`lb-shape-opt is-insert ${kind === "table" ? "is-on" : ""}`} onClick={() => pick("table", { rows, cols })} data-testid="live-shape-table-insert">
+              {tr("Insert grid", "إدراج شبكة")}
             </button>
-          ))}
+          </div>
+          <p className="lb-shape-cat">{tr("Maths shapes", "أشكال رياضية")}</p>
+          <div className="lb-shape-grid">
+            {MATH_SHAPE_TOOLS.map((x) => (
+              <button key={x.id} type="button" role="menuitem" className={`lb-shape-opt ${kind === x.id ? "is-on" : ""}`} onClick={() => pick(x.id)} data-testid={`live-shape-${x.id}`}>
+                <span aria-hidden>{x.icon}</span> {tr(x.en, x.ar)}
+              </button>
+            ))}
+          </div>
+          <p className="lb-shape-cat">{tr("Science shapes", "أشكال علمية")}</p>
+          <div className="lb-shape-grid">
+            {SCIENCE_SHAPE_TOOLS.map((x) => (
+              <button key={x.id} type="button" role="menuitem" className={`lb-shape-opt ${kind === x.id ? "is-on" : ""}`} onClick={() => pick(x.id)} data-testid={`live-shape-${x.id}`}>
+                <span aria-hidden>{x.icon}</span> {tr(x.en, x.ar)}
+              </button>
+            ))}
+          </div>
         </div>
       )}
     </div>

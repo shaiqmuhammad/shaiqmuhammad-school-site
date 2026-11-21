@@ -7,7 +7,8 @@ import { SlideView } from "@/components/lms/packs/SlideView";
 import { lmsApi, lmsErrorText, livePresentingContent, normalizePtrKind, youtubeVideoId, type LiveMember, type LivePresent as Present, type LivePresentItem, type LivePresentItemKind, type LivePtr, type LiveView, type PointCat, type PtrKind } from "@/lib/lms";
 import { primaryBtn } from "@/components/assessment/AssessmentShell";
 import { createPortal } from "react-dom";
-import { LiveToolsTray, TeachToolsTray, type LiveShapeKindId } from "@/components/lms/ClassroomTray";
+import { LibraryBtn, LiveToolsTray, TeachToolsTray, type LiveShapeKindId, type ShapeGrid } from "@/components/lms/ClassroomTray";
+import { ShapeMark } from "@/components/lms/LiveShapeMark";
 import type { LiveShape } from "@/lib/lms";
 
 function presentStudents(members: LiveMember[]) {
@@ -42,6 +43,7 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
   const [drawTool, setDrawTool] = useState<"draw" | "highlighter" | "eraser">("draw");
   const [ink, setInk] = useState("#1b3a57");
   const [shapeKind, setShapeKind] = useState<LiveShapeKindId | "">("");
+  const [shapeGrid, setShapeGrid] = useState<ShapeGrid>({ rows: 3, cols: 3 });
   const [draftShape, setDraftShape] = useState<LiveShape | null>(null);
   const draftRef = useRef<LiveShape | null>(null);
 
@@ -172,7 +174,7 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
     if (end || e.type === "pointerup" || e.type === "pointercancel" || e.type === "pointerleave") onPtr?.(null, null, ptrKind);
     if (canDraw && shapeKind) {
       if (e.type === "pointerdown") {
-        const start: LiveShape = { id: "draft", kind: shapeKind, x, y, w: x, h: y, c: ink || "#1b3a57", by: selfId };
+        const start: LiveShape = { id: "draft", kind: shapeKind, x, y, w: x, h: y, c: ink || "#1b3a57", by: selfId, ...(shapeKind === "table" || shapeKind === "fraction" ? { rows: shapeGrid.rows, cols: shapeGrid.cols } : {}) };
         draftRef.current = start;
         setDraftShape(start);
         (e.target as Element).setPointerCapture?.(e.pointerId);
@@ -273,7 +275,6 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
     <LiveToolsTray
       docked
       canPresent={canPresent}
-      horizontal
       tool={present?.tool || ""}
       onTool={(id) => {
         if (id === "board" && !present) void lmsApi.livePresent(roomId, { op: "board" }, asAdmin).then((r) => { if (r.present !== undefined) onPresent(r.present || null); }).catch((e) => setErr(lmsErrorText(e, tr, undefined, tr("Whiteboard", "السبورة"))));
@@ -282,8 +283,6 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
       onTimer={(s) => { if (present) void call({ op: "nav", timerEnd: s == null ? null : Date.now() + s * 1000 }); }}
       onTasks={() => setTasksOpen((v) => !v)}
       taskOn={!!isTask && tasksOpen}
-      onOpen={() => setContentOpen((v) => !v)}
-      openOn={contentOpen || (!present && canPresent && layout !== "board")}
     />
   );
 
@@ -361,7 +360,8 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
       ink={ink}
       onInk={(c) => { setInk(c); setDrawTool("draw"); }}
       shapeKind={shapeKind}
-      onShapeKind={(id) => { setShapeKind(id); }}
+      shapeGrid={shapeGrid}
+      onShapeKind={(id, grid) => { setShapeKind(id); if (grid) setShapeGrid(grid); }}
       onUndo={canPresent ? () => {
         if ((present?.shapes || []).length && (shapeKind || !boardOn)) void call({ op: "nav", shapes: (present?.shapes || []).slice(0, -1) });
         else if (boardOn) void call({ op: "nav", strokes: (present?.strokes || []).slice(0, -1) });
@@ -376,7 +376,7 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
   return (
     <section className={`lb-present is-stage flex min-h-0 flex-1 flex-col${hasPack ? " is-pack" : ""}`} data-testid="live-present" data-layout={layout} data-pack={hasPack ? "1" : "0"} data-kind={activeKind}>
       {trayRoot ? createPortal(tray, trayRoot) : null}
-      {teachRoot && teach ? createPortal(teach, teachRoot) : teach}
+      {teachRoot ? createPortal(<>{canPresent && <LibraryBtn on={contentOpen} onClick={() => setContentOpen((v) => !v)} />}{teach}</>, teachRoot) : <>{canPresent && <LibraryBtn on={contentOpen} onClick={() => setContentOpen((v) => !v)} />}{teach}</>}
       {err && <p className="m-2 rounded-2xl bg-rose-100 px-3 py-2 text-sm font-bold text-rose-800 dark:bg-rose-900/60 dark:text-rose-100" role="alert">{err}</p>}
 
       {!present && canPresent && layout === "board" && (
@@ -489,38 +489,6 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
   );
 }
 
-
-function ShapeMark({ sh }: { sh: LiveShape }) {
-  const c = sh.c || "#1b3a57";
-  const y = (n: number) => (n * 56.25) / 100;
-  const x1 = Math.min(sh.x, sh.w);
-  const y1 = y(Math.min(sh.y, sh.h));
-  const x2 = Math.max(sh.x, sh.w);
-  const y2 = y(Math.max(sh.y, sh.h));
-  const sw = Math.max(0.6, x2 - x1);
-  const shh = Math.max(0.6, y2 - y1);
-  if (sh.kind === "rect") return <rect x={x1} y={y1} width={sw} height={shh} fill="none" stroke={c} strokeWidth="0.9" />;
-  if (sh.kind === "circle") {
-    return <ellipse cx={(x1 + x2) / 2} cy={(y1 + y2) / 2} rx={sw / 2} ry={shh / 2} fill="none" stroke={c} strokeWidth="0.9" />;
-  }
-  if (sh.kind === "triangle") {
-    const pts = `${(x1 + x2) / 2},${y1} ${x1},${y2} ${x2},${y2}`;
-    return <polygon points={pts} fill="none" stroke={c} strokeWidth="0.9" strokeLinejoin="round" />;
-  }
-  const xA = sh.x, yA = y(sh.y), xB = sh.w, yB = y(sh.h);
-  if (sh.kind === "arrow") {
-    const ang = Math.atan2(yB - yA, xB - xA);
-    const hx = xB - Math.cos(ang) * 3, hy = yB - Math.sin(ang) * 3;
-    const left = `${xB},${yB} ${hx + Math.cos(ang + 1.3) * 2},${hy + Math.sin(ang + 1.3) * 2} ${hx + Math.cos(ang - 1.3) * 2},${hy + Math.sin(ang - 1.3) * 2}`;
-    return (
-      <g>
-        <line x1={xA} y1={yA} x2={xB} y2={yB} stroke={c} strokeWidth="0.9" strokeLinecap="round" />
-        <polygon points={left} fill={c} />
-      </g>
-    );
-  }
-  return <line x1={xA} y1={yA} x2={xB} y2={yB} stroke={c} strokeWidth="0.9" strokeLinecap="round" />;
-}
 
 function PointerMark({ pt }: { pt: LivePtr }) {
   const kind = normalizePtrKind(pt.kind);
