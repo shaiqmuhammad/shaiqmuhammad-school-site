@@ -166,6 +166,10 @@ export class LiveRoom extends DurableObject<LiveEnv> {
       this.send(ws, { t: "room", room, selfId });
     }
   }
+  private pubsMsg() {
+    if (!this.state) return;
+    this.broadcast({ t: "pubs", pubs: this.state.pubs });
+  }
   private sfuReady() {
     return !!(this.env.REALTIME_SFU_APP_ID && this.env.REALTIME_SFU_APP_SECRET);
   }
@@ -445,6 +449,7 @@ export class LiveRoom extends DurableObject<LiveEnv> {
     this.state.pubs = this.state.pubs.filter((p) => p.userId !== userId);
     if (next.length) this.state.pubs.push({ userId, sessionId: sid, tracks: next });
     await this.save();
+    this.pubsMsg();
     this.roomMsg();
     return { ok: true };
   }
@@ -460,6 +465,7 @@ export class LiveRoom extends DurableObject<LiveEnv> {
       if (!pub.tracks.length) this.state.pubs = this.state.pubs.filter((p) => p.userId !== userId);
     }
     await this.save();
+    this.pubsMsg();
     this.roomMsg();
     return { ok: true };
   }

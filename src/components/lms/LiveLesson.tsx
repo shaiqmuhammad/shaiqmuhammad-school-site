@@ -15,9 +15,10 @@ import { StartMeetingPanel } from "@/components/lms/StartMeeting";
 import { LiveHistory } from "@/components/lms/LiveHistory";
 import { LivePresent } from "@/components/lms/LivePresent";
 import { LiveViewPicker, RoomStage, useActiveSpeaker, presentLayout, boardFillsStage, VIEW_CARDS } from "@/components/lms/LiveViews";
-import { canShowHostAllow, lmsApi, lmsErrorText, lmsSession, liveGuest, liveWsUrl, memberFloor, normalizePtrKind, type LiveAsk, type LiveFloor, type LiveMember, type LivePtr, type LiveChat, type LivePerms, type LiveRoomInfo, type LiveSnap, type LiveView, type LiveViewMode, type PtrKind } from "@/lib/lms";
+import { canShowHostAllow, lmsApi, lmsErrorText, lmsSession, liveGuest, liveWsUrl, memberFloor, normalizePtrKind, type LiveAsk, type LiveFloor, type LiveMember, type LivePtr, type LivePub, type LiveChat, type LivePerms, type LiveRoomInfo, type LiveSnap, type LiveView, type LiveViewMode, type PtrKind } from "@/lib/lms";
 import { classroomHref, isClassroomPath, openClassroomTab } from "@/lib/classroom";
 import { ClassroomBrand } from "@/components/lms/ClassroomBrand";
+import { ClassroomConnecting, type ConnectStep } from "@/components/lms/ClassroomConnecting";
 
 type Phase = "lobby" | "waiting" | "in" | "ended";
 
@@ -336,6 +337,11 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
   const [showPeople, setShowPeople] = useState(false);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const [connectStep, setConnectStep] = useState<ConnectStep>("connecting");
+  const [connectFading, setConnectFading] = useState(false);
+  const mediaReadyRef = useRef(false);
+  const joinStartedAt = useRef(0);
   const [camOn, setCamOn] = useState(false);
   const [micOn, setMicOn] = useState(false);
   const [shareOn, setShareOn] = useState(false);
@@ -503,6 +509,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
   const cleanupMedia = useCallback(() => {
     sfuRef.current?.close();
     sfuRef.current = null;
+    mediaReadyRef.current = false;
     localRef.current?.getTracks().forEach((t) => t.stop());
     shareRef.current?.getTracks().forEach((t) => t.stop());
     localRef.current = null;
@@ -549,10 +556,17 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
     const ws = new WebSocket(liveWsUrl(tok, roomId));
     wsRef.current = ws;
     ws.onmessage = (ev) => {
-      let msg: { t?: string; ev?: "join" | "leave"; room?: LiveSnap; selfId?: string; msg?: LiveChat; userId?: string; name?: string; camAllowed?: boolean; micAllowed?: boolean; shareAllowed?: boolean; cam?: boolean; mic?: boolean; on?: boolean; asks?: LiveAsk[]; present?: LiveSnap["present"]; view?: LiveView; stroke?: { c: string; w: number; d: number[]; by: string }; ptr?: LivePtr } = {};
+      let msg: { t?: string; ev?: "join" | "leave"; room?: LiveSnap; pubs?: LivePub[]; selfId?: string; msg?: LiveChat; userId?: string; name?: string; camAllowed?: boolean; micAllowed?: boolean; shareAllowed?: boolean; cam?: boolean; mic?: boolean; on?: boolean; asks?: LiveAsk[]; present?: LiveSnap["present"]; view?: LiveView; stroke?: { c: string; w: number; d: number[]; by: string }; ptr?: LivePtr } = {};
       try { msg = JSON.parse(String(ev.data)) as typeof msg; } catch { return; }
       if (msg.selfId) setServerSelfId(msg.selfId);
-      if (msg.t === "room" && msg.room) applyRoom(msg.room);
+      if (msg.t === "pubs" && Array.isArray(msg.pubs)) {
+        setRoom((r) => r ? { ...r, pubs: msg.pubs! } : r);
+        sfuRef.current?.syncSubs(msg.pubs).catch(() => undefined);
+      }
+      if (msg.t === "room" && msg.room) {
+        applyRoom(msg.room);
+        if (msg.room.pubs) sfuRef.current?.syncSubs(msg.room.pubs).catch(() => undefined);
+      }
       if (msg.t === "present") setRoom((r) => r ? { ...r, present: msg.present || null } : r);
       if (msg.t === "view" && msg.view) setRoom((r) => r ? { ...r, view: msg.view } : r);
       if (msg.t === "stroke" && msg.stroke) setRoom((r) => r?.present ? { ...r, present: { ...r.present, strokes: [...(r.present.strokes || []), msg.stroke!].slice(-200) } } : r);
@@ -623,6 +637,28 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
   useEffect(() => () => { closeWs(); cleanupMedia(); }, [cleanupMedia]);
 
   const pubKey = (room?.pubs || []).map((p) => `${p.userId}:${p.sessionId}:${p.tracks.join(",")}`).join("|");
+  const attachRemote = useCallback((key: string, stream: MediaStream | null) => {
+    if (stream && joinStartedAt.current) {
+      const w = window as Window & { __liveFirstRemoteMs?: number };
+      if (w.__liveFirstRemoteMs == null) {
+        w.__liveFirstRemoteMs = Date.now() - joinStartedAt.current;
+        console.debug("live-media first remote", w.__liveFirstRemoteMs, "ms");
+      }
+    }
+    setRemotes((prev) => {
+      const next = { ...prev };
+      if (!stream) delete next[key];
+      else next[key] = stream;
+      return next;
+    });
+  }, []);
+  const hideConnecting = useCallback(() => {
+    setConnectFading(true);
+    window.setTimeout(() => {
+      setConnecting(false);
+      setConnectFading(false);
+    }, 280);
+  }, []);
   const remoteSig = Object.keys(remotes).sort().map((k) => `${k}:${remotes[k].getTracks().map((t) => t.id + t.readyState).join(",")}`).join("|");
   const mixedRemotes = useMemo(() => {
     const out: Record<string, MediaStream> = { ...remotes };
@@ -640,47 +676,55 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
   }, [remoteSig]);
   useEffect(() => {
     if (phase !== "in" || !room?.id || !actor) return;
-    if (!room.sfu) return;
+    if (mediaReadyRef.current) return;
     let cancelled = false;
     const roomId = room.id;
     const who = selfId || actor.id;
+    const sfuOn = !!room.sfu;
+    setConnecting(true);
+    setConnectFading(false);
+    setConnectStep("media");
     (async () => {
       try {
-        if (sfuRef.current) {
-          sfuRef.current.setSelfId(who);
-        } else {
-          const ice = (await lmsApi.liveIce(roomId, asAdmin)).iceServers;
-          if (cancelled || sfuRef.current) return;
-          const sfu = new LiveSfu(roomId, who, ice, (key, stream) => {
-            setRemotes((prev) => {
-              const next = { ...prev };
-              if (!stream) delete next[key];
-              else next[key] = stream;
-              return next;
-            });
-          }, asAdmin);
-          sfuRef.current = sfu;
+        const iceP = sfuOn ? lmsApi.liveIce(roomId, asAdmin) : null;
+        if (typeof navigator !== "undefined" && navigator.mediaDevices?.getUserMedia) {
+          try {
+            const preview = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+            preview.getTracks().forEach((tr) => tr.stop());
+          } catch { /* they can allow camera later */ }
         }
-        // Always pull the latest pubs after the receive session exists. The first
-        // pubKey effect can run before LiveSfu is constructed (liveIce is async).
-        await sfuRef.current.syncSubs(room.pubs || []);
+        if (cancelled) return;
+        setConnectStep("joining");
+        if (iceP) {
+          const ice = (await iceP).iceServers;
+          if (cancelled) return;
+          if (!sfuRef.current) sfuRef.current = new LiveSfu(roomId, who, ice, attachRemote, asAdmin);
+          else sfuRef.current.setSelfId(who);
+          await sfuRef.current.warmup();
+          if (cancelled) return;
+          await sfuRef.current.syncSubs(room.pubs || []);
+        }
+        if (cancelled) return;
+        mediaReadyRef.current = true;
+        if (joinStartedAt.current) {
+          (window as Window & { __liveReadyMs?: number }).__liveReadyMs = Date.now() - joinStartedAt.current;
+        }
+        hideConnecting();
       } catch (e) {
-        if (!cancelled) fail(e, "Video", "الفيديو");
+        if (!cancelled) {
+          fail(e, "Video", "الفيديو");
+          hideConnecting();
+        }
       }
     })();
     return () => { cancelled = true; };
-  }, [phase, room?.id, actor?.id, selfId, asAdmin]);
+  }, [phase, room?.id, actor?.id, selfId, asAdmin, attachRemote, hideConnecting]);
 
   useEffect(() => {
     if (phase !== "in") return;
-    const pubs = room?.pubs || [];
-    if (sfuRef.current) {
-      sfuRef.current.syncSubs(pubs).catch(() => undefined);
-      return;
-    }
-    const t = window.setTimeout(() => { sfuRef.current?.syncSubs(pubs).catch(() => undefined); }, 400);
-    return () => clearTimeout(t);
-  }, [phase, pubKey, room?.pubs]);
+    sfuRef.current?.setSelfId(selfId);
+    sfuRef.current?.syncSubs(room?.pubs || []).catch(() => undefined);
+  }, [phase, pubKey, room?.pubs, selfId]);
   useEffect(() => {
     const hasAudio = Object.values(remotes).some((s) => s.getAudioTracks().some((t) => t.readyState !== "ended"));
     if (phase === "in" && hasAudio && !hearOn) setNeedHear(true);
@@ -706,18 +750,29 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
       return;
     }
     setBusy(true); setErr("");
+    setConnecting(true);
+    setConnectFading(false);
+    setConnectStep("connecting");
+    mediaReadyRef.current = false;
+    joinStartedAt.current = Date.now();
+    if (typeof window !== "undefined") {
+      delete (window as Window & { __liveFirstRemoteMs?: number; __liveReadyMs?: number }).__liveFirstRemoteMs;
+      delete (window as Window & { __liveFirstRemoteMs?: number; __liveReadyMs?: number }).__liveReadyMs;
+    }
     try {
       const r = await lmsApi.liveJoin(id, asAdmin);
       if (r.selfId) setServerSelfId(r.selfId);
       if (r.room) applyRoom(r.room);
       if (r.status === "in") setPhase("in");
-      else if (r.status === "waiting") setPhase("waiting");
-      else if (r.status === "ended") setPhase("ended");
-      else if (r.status === "full") setErr(tr("This class is full.", "هذا الصف ممتلئ."));
+      else if (r.status === "waiting") { setPhase("waiting"); hideConnecting(); }
+      else if (r.status === "ended") { setPhase("ended"); hideConnecting(); }
+      else if (r.status === "full") { setErr(tr("This class is full.", "هذا الصف ممتلئ.")); hideConnecting(); }
+      else hideConnecting();
       connectWs(id);
       if (typeof window !== "undefined") history.replaceState(null, "", liveHref(id));
     } catch (e) {
       fail(e, "Join room", "دخول الحصة");
+      hideConnecting();
     } finally { setBusy(false); }
   }
 
@@ -917,6 +972,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
 
   const body = (
       <div className={embedded ? "flex w-full flex-1 flex-col gap-4" : shellLess && phase === "in" ? "flex min-h-dvh w-full flex-1 flex-col" : "mx-auto flex w-full max-w-6xl flex-1 flex-col gap-4 px-3 py-4 sm:px-6"} data-testid="live-lesson" data-standalone={shellLess ? "1" : undefined} dir={lang === "ar" ? "rtl" : "ltr"}>
+        {shellLess && (connecting || connectFading) && <ClassroomConnecting step={connectStep} fading={connectFading} />}
         {err && <p className="rounded-2xl bg-rose-100 px-4 py-2 text-sm font-bold text-rose-800 dark:bg-rose-900/60 dark:text-rose-100" role="alert">{err}</p>}
         {permHelp && (
           <div className="rounded-2xl bg-amber-100 px-4 py-3 text-sm font-bold text-amber-950 dark:bg-amber-900/50 dark:text-amber-50" role="status" data-testid="live-perm-help">
