@@ -307,12 +307,11 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
   const actor = asAdmin ? ADMIN_ACTOR : (guestCtx && guestActor ? guestActor : (lms.actor || guestActor));
   const ready = lms.ready || adminSess || forceAdmin || !!guest?.token;
   const adminElsewhere = lms.adminElsewhere && !asAdmin && !guest?.token;
+  const areaHref = asAdmin ? "/admin#live" : "/lms/live";
   const liveHref = (id?: string) => {
     if (shellLess) return id ? classroomHref({ room: id, asAdmin, guest: guestCtx }) : (guestLink ? "/classroom/join" : "/classroom");
-    if (embedded) return id ? `/admin?room=${encodeURIComponent(id)}#live` : "/admin#live";
-    return id ? `/lms/live?room=${encodeURIComponent(id)}` : "/lms/live";
+    return areaHref;
   };
-  const areaHref = asAdmin ? "/admin#live" : "/lms/live";
   const goToRoom = (id: string) => {
     if (shellLess) {
       void enter(id);
@@ -673,13 +672,17 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
       enter(q).catch(() => undefined);
       return;
     }
-    if (!embedded) {
-      window.location.replace(classroomHref({ room: q, asAdmin, guest: guestCtx }));
-    }
+    // Never join in the LMS/admin tab. Try a new tab; if the popup is blocked, the lobby
+    // still shows “Open classroom in a new tab” because ?room= stays in the address.
+    openClassroomTab({ room: q, asAdmin, guest: guestCtx }, "none");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [actor]);
 
   async function enter(id: string) {
+    if (!shellLess) {
+      openClassroomTab({ room: id, asAdmin, guest: guestCtx });
+      return;
+    }
     setBusy(true); setErr("");
     try {
       const r = await lmsApi.liveJoin(id, asAdmin);
@@ -907,9 +910,9 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
               <h1 className="mt-1 text-3xl font-black text-[#1b3a57] dark:text-white">{tr("Live Lesson", "الحصة المباشرة")}</h1>
               <p className="mt-1 max-w-xl text-sm font-semibold opacity-80">{tr("Join your class on camera, or start a live room right now.", "انضم إلى صفك بالكاميرا، أو ابدأ حصة مباشرة الآن.")}</p>
               {asAdmin && <p className="mt-1 max-w-xl text-sm font-semibold opacity-80">{tr("As admin you can start a room for any class and see every live lesson.", "بصفتك مسؤولاً يمكنك بدء حصة لأي صف ورؤية كل الحصص المباشرة.")}</p>}
-              {embedded && search?.get("room") && (
+              {!shellLess && search?.get("room") && (
                 <p className="mt-3">
-                  <a className={primaryBtn} href={classroomHref({ room: search.get("room") || "", asAdmin: true })} target="_blank" rel="noopener noreferrer" data-testid="live-open-classroom">{tr("Open classroom in a new tab", "افتح الصف في علامة تبويب جديدة")}</a>
+                  <a className={primaryBtn} href={classroomHref({ room: search.get("room") || "", asAdmin, guest: guestCtx })} target="_blank" rel="noopener noreferrer" data-testid="live-open-classroom">{tr("Open classroom in a new tab", "افتح الصف في علامة تبويب جديدة")}</a>
                 </p>
               )}
               {!sfuOn && <p className="mt-3 rounded-xl bg-white/80 px-3 py-2 text-sm font-bold text-amber-800 dark:bg-slate-900/80 dark:text-amber-200">{tr("Video isn't fully set up yet. Chat, hand-raise and the waiting room still work.", "الفيديو غير مُعد بالكامل بعد. الدردشة ورفع اليد وغرفة الانتظار تعمل.")}</p>}
@@ -977,7 +980,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
           </div>
         )}
 
-        {phase === "waiting" && (
+        {shellLess && phase === "waiting" && (
           <div className="flex flex-1 flex-col items-center justify-center gap-4 rounded-[2rem] bg-gradient-to-br from-sky-100 to-violet-200 p-8 text-center dark:from-slate-800 dark:to-indigo-950" data-testid="live-waiting">
             <p className="animate-bounce text-6xl" aria-hidden>🚪</p>
             <h2 className="text-2xl font-black">{tr("Waiting for your teacher…", "بانتظار معلمك…")}</h2>
@@ -986,7 +989,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
           </div>
         )}
 
-        {phase === "ended" && (
+        {shellLess && phase === "ended" && (
           <div className="flex flex-1 flex-col items-center justify-center gap-4 rounded-[2rem] bg-gradient-to-br from-amber-100 to-rose-100 p-8 text-center dark:from-slate-800 dark:to-rose-950" data-testid="live-ended">
             <p className="text-6xl" aria-hidden>👋</p>
             <h2 className="text-2xl font-black">{tr("Class has ended", "انتهت الحصة")}</h2>
@@ -994,7 +997,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
           </div>
         )}
 
-        {phase === "in" && room && (
+        {shellLess && phase === "in" && room && (
           <div ref={roomRef} className={`lb-room${roomFocused ? " is-focus" : ""}${toolsOpen ? " tools-open" : ""}${(!!room.present?.packId || shareOn || viewMode === "board" || room.present?.tool === "board") ? " stage-first" : ""}${(viewMode === "board" || room.present?.tool === "board") ? " board-on" : ""}`} data-testid="live-room" data-focus-keep data-stage-first={!!room.present?.packId || shareOn || viewMode === "board" || room.present?.tool === "board" ? "1" : "0"}>
             {err && <p className="lb-wait lb-wait-err" role="alert">{err}</p>}
             {permHelp && (

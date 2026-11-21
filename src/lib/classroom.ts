@@ -35,10 +35,16 @@ export function classroomJoinUrl(token: string, origin?: string): string {
   return `${o}${classroomJoinHref(token)}`;
 }
 
-/** Open the classroom in a new tab so the LMS/admin area stays usable. Falls back to same-tab if a popup is blocked. */
-export function openClassroomTab(opts: ClassroomOpenOpts): void {
-  if (typeof window === "undefined") return;
+/** Open the classroom in a new tab so the LMS/admin area stays usable.
+ *  User-gesture clicks fall back to same-tab if the popup is blocked.
+ *  Pass fallback "none" from non-gesture code so the area tab is never navigated away. */
+export function openClassroomTab(opts: ClassroomOpenOpts, fallback: "assign" | "none" = "assign"): boolean {
+  if (typeof window === "undefined") return false;
   const href = classroomHref(opts);
   const w = window.open(href, "_blank", "noopener,noreferrer");
-  if (!w) window.location.assign(href);
+  if (!w) {
+    if (fallback === "assign") window.location.assign(href);
+    return false;
+  }
+  return true;
 }
