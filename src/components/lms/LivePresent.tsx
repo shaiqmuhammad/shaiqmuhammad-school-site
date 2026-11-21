@@ -7,7 +7,8 @@ import { SlideView } from "@/components/lms/packs/SlideView";
 import { lmsApi, lmsErrorText, livePresentingContent, normalizePtrKind, youtubeVideoId, type LiveMember, type LivePresent as Present, type LivePresentItem, type LivePresentItemKind, type LivePtr, type LiveView, type PointCat, type PtrKind } from "@/lib/lms";
 import { primaryBtn } from "@/components/assessment/AssessmentShell";
 import { createPortal } from "react-dom";
-import { LiveToolsTray, TeachToolsTray } from "@/components/lms/ClassroomTray";
+import { LiveToolsTray, TeachToolsTray, type LiveShapeKindId } from "@/components/lms/ClassroomTray";
+import type { LiveShape } from "@/lib/lms";
 
 function presentStudents(members: LiveMember[]) {
   return members.filter((m) => m.role !== "teacher" && m.present);
@@ -40,6 +41,9 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
   const [ptrKind, setPtrKind] = useState<PtrKind>("pen");
   const [drawTool, setDrawTool] = useState<"draw" | "highlighter" | "eraser">("draw");
   const [ink, setInk] = useState("#1b3a57");
+  const [shapeKind, setShapeKind] = useState<LiveShapeKindId | "">("");
+  const [draftShape, setDraftShape] = useState<LiveShape | null>(null);
+  const draftRef = useRef<LiveShape | null>(null);
 
   useEffect(() => {
     if (!present?.packId) setErr("");
@@ -164,8 +168,34 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
     if (!r.width || !r.height) return;
     const x = ((e.clientX - r.left) / r.width) * 100;
     const y = ((e.clientY - r.top) / r.height) * 100;
-    if (canLaser && (e.type === "pointermove" || e.type === "pointerdown") && !end) onPtr?.(x, y, ptrKind);
+    if (canLaser && !shapeKind && (e.type === "pointermove" || e.type === "pointerdown") && !end) onPtr?.(x, y, ptrKind);
     if (end || e.type === "pointerup" || e.type === "pointercancel" || e.type === "pointerleave") onPtr?.(null, null, ptrKind);
+    if (canDraw && shapeKind) {
+      if (e.type === "pointerdown") {
+        const start: LiveShape = { id: "draft", kind: shapeKind, x, y, w: x, h: y, c: ink || "#1b3a57", by: selfId };
+        draftRef.current = start;
+        setDraftShape(start);
+        (e.target as Element).setPointerCapture?.(e.pointerId);
+        return;
+      }
+      if (draftRef.current) {
+        const next = { ...draftRef.current, w: x, h: y };
+        if (end || e.type === "pointerup" || e.type === "pointercancel") {
+          draftRef.current = null;
+          setDraftShape(null);
+          const dx = Math.abs(next.w - next.x);
+          const dy = Math.abs(next.h - next.y);
+          if (dx >= 1 || dy >= 1) {
+            const sh: LiveShape = { ...next, id: `sh${Date.now().toString(36)}` };
+            void call({ op: "nav", shapes: [...(present.shapes || []), sh] }).catch(() => undefined);
+          }
+        } else {
+          draftRef.current = next;
+          setDraftShape(next);
+        }
+      }
+      return;
+    }
     if (!canDraw || !boardOn) return;
     if (e.type === "pointerdown") {
       draw.current = { pts: [x, y], drawing: true };
@@ -242,7 +272,8 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
   const tray = (
     <LiveToolsTray
       docked
-      isHost={isHost && canPresent}
+      canPresent={canPresent}
+      horizontal
       tool={present?.tool || ""}
       onTool={(id) => {
         if (id === "board" && !present) void lmsApi.livePresent(roomId, { op: "board" }, asAdmin).then((r) => { if (r.present !== undefined) onPresent(r.present || null); }).catch((e) => setErr(lmsErrorText(e, tr, undefined, tr("Whiteboard", "السبورة"))));
@@ -264,13 +295,13 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
             <div className="absolute start-1/2 top-0 z-10 -translate-x-1/2 text-2xl">▼</div>
             <div className="h-full w-full rounded-full shadow-inner ring-4 ring-[#1b3a57]" style={{ background: wheelNames.length ? `conic-gradient(${wheelNames.map((_, i) => `${["#fde68a", "#a5f3fc", "#bbf7d0", "#fecdd3", "#ddd6fe", "#fed7aa"][i % 6]} ${i * (360 / wheelNames.length)}deg ${(i + 1) * (360 / wheelNames.length)}deg`).join(", ")})` : "#e5e7eb", transform: `rotate(${present.wheelSpinTo || present.wheelAngle || 0}deg)`, transition: present.wheelAt ? "transform 3.2s cubic-bezier(0.12, 0.7, 0.08, 1)" : "none" }} />
           </div>
-          {isHost && <button type="button" className="lb-spin mt-3" onClick={spin} disabled={wheelNames.length < 1}>🎡 {tr("Spin", "أدر")}</button>}
+          {canPresent && <button type="button" className="lb-spin mt-3" onClick={spin} disabled={wheelNames.length < 1}>🎡 {tr("Spin", "أدر")}</button>}
           {present.winnerName && <p className="mt-2 text-xl font-black" dir="auto">⭐ {present.winnerName}</p>}
         </div>
       )}
       {present.tool === "rand" && (
         <div className="lb-tool-card" data-testid="live-rand">
-          {isHost && <div className="mb-2 flex flex-wrap justify-center gap-2">
+          {canPresent && <div className="mb-2 flex flex-wrap justify-center gap-2">
             <button type="button" className={primaryBtn} onClick={() => randomise("one")}>{tr("Pick a student", "اختر طالبًا")}</button>
             <button type="button" className="rounded-full bg-black/10 px-4 py-2 font-bold dark:bg-white/10" onClick={() => randomise("groups")}>{tr("Make groups", "كوّن مجموعات")}</button>
             <button type="button" className="rounded-full bg-black/10 px-4 py-2 font-bold dark:bg-white/10" onClick={() => randomise("number")}>{tr("Random number", "رقم عشوائي")}</button>
@@ -278,7 +309,7 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
           {present.randText && <p className="text-lg font-black" dir="auto">{present.randText}</p>}
         </div>
       )}
-      {present.tool === "award" && isHost && (
+      {present.tool === "award" && canPresent && (
         <div className="lb-tool-card" data-testid="live-award">
           <p className="mb-2 text-sm font-bold">{tr("Award Reward Cards to students who are in the room.", "امنح بطاقات المكافآت للطلاب الموجودين في الحصة.")}</p>
           {!cats.length ? <p className="text-sm font-semibold opacity-70">{tr("Add Reward Card types in Reward Cards first.", "أضف أنواع بطاقات المكافآت من بطاقات المكافآت أولًا.")}</p> : (
@@ -303,7 +334,7 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
           <button type="submit" className={primaryBtn} disabled={busy || !answer.trim()}>{tr("Send to teacher", "أرسل إلى المعلم")}</button>
         </form>
       )}
-      {isHost && isTask && tasksOpen && (
+      {canPresent && isTask && tasksOpen && (
         <div className="lb-tool-card" id="live-task-panel" data-testid="live-task-host">
           <p className="mb-2 font-black">{tr("Live answers", "الإجابات المباشرة")} ({(present.answers || []).filter((a) => a.slide === slide).length})</p>
           <ul className="space-y-1 text-sm">
@@ -322,17 +353,22 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
   const teach = (canLaser || canDraw) ? (
     <TeachToolsTray
       canPoint={canLaser}
-      canDraw={!!(canDraw && boardOn)}
+      canDraw={!!(canDraw && (boardOn || hasPack || !!shapeKind))}
       ptrKind={ptrKind}
       onPtrKind={(id) => { setPtrKind(id); }}
       drawTool={drawTool}
-      onDrawTool={setDrawTool}
+      onDrawTool={(id) => { setDrawTool(id); setShapeKind(""); }}
       ink={ink}
       onInk={(c) => { setInk(c); setDrawTool("draw"); }}
-      onUndo={isHost && canPresent && boardOn ? () => { void call({ op: "nav", strokes: (present?.strokes || []).slice(0, -1) }); } : undefined}
-      onClear={isHost && canPresent && boardOn ? () => { void call({ op: "nav", strokes: [] }); } : undefined}
+      shapeKind={shapeKind}
+      onShapeKind={(id) => { setShapeKind(id); }}
+      onUndo={canPresent ? () => {
+        if ((present?.shapes || []).length && (shapeKind || !boardOn)) void call({ op: "nav", shapes: (present?.shapes || []).slice(0, -1) });
+        else if (boardOn) void call({ op: "nav", strokes: (present?.strokes || []).slice(0, -1) });
+      } : undefined}
+      onClear={canPresent ? () => { void call({ op: "nav", strokes: boardOn ? [] : (present?.strokes || []), shapes: [] }); } : undefined}
       penId={present?.penId}
-      onPen={isHost && canPresent && boardOn ? (id) => { void call({ op: "nav", penId: id || teacherId }); } : undefined}
+      onPen={isHost && canPresent ? (id) => { void call({ op: "nav", penId: id || teacherId }); } : undefined}
       people={people}
     />
   ) : null;
@@ -424,10 +460,11 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
               )}
               {cur && hasPack && <div className="lb-zoom"><SlideView slide={cur} asAdmin={asAdmin} live testId="live-present-slide" /></div>}
               {!cur && hasPack && <p className="relative z-[1] flex-1 py-8 text-center font-semibold opacity-70" data-testid="live-present-loading">{tr("Loading slides…", "جارٍ تحميل الشرائح…")}</p>}
-              <svg ref={svgRef} viewBox="0 0 100 56.25" preserveAspectRatio={boardOn ? "none" : "xMidYMid meet"} className={boardOn || (canLaser && !isYoutube) ? "lb-board-svg touch-none" : "pointer-events-none absolute inset-0 h-full w-full"} onPointerDown={pointer} onPointerMove={pointer} onPointerUp={(e) => pointer(e, true)} onPointerCancel={(e) => pointer(e, true)} onPointerLeave={(e) => pointer(e, true)} data-testid="live-board">
+              <svg ref={svgRef} viewBox="0 0 100 56.25" preserveAspectRatio={boardOn ? "none" : "xMidYMid meet"} className={boardOn || !!shapeKind || (canLaser && !isYoutube) ? "lb-board-svg touch-none" : "pointer-events-none absolute inset-0 h-full w-full"} onPointerDown={pointer} onPointerMove={pointer} onPointerUp={(e) => pointer(e, true)} onPointerCancel={(e) => pointer(e, true)} onPointerLeave={(e) => pointer(e, true)} data-testid="live-board">
                 {(present.strokes || []).map((st, i) => (
                   <polyline key={i} fill="none" stroke={st.c === "erase" ? "#000" : (st.c || "#1b3a57")} strokeWidth={((st.w || 3) / 1600) * 100} strokeLinecap="round" strokeLinejoin="round" style={st.c === "erase" ? ({ mixBlendMode: "destination-out" } as unknown as CSSProperties) : undefined} points={Array.from({ length: Math.floor((st.d || []).length / 2) }, (_, k) => `${st.d[k * 2]},${(st.d[k * 2 + 1] * 56.25) / 100}`).join(" ")} />
                 ))}
+                {(present.shapes || []).concat(draftShape ? [draftShape] : []).map((sh) => <ShapeMark key={sh.id} sh={sh} />)}
               </svg>
               {ptrs.filter((pt) => pt.on !== false).map((pt) => (
                 <PointerMark key={pt.userId} pt={pt} />
@@ -452,6 +489,38 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
   );
 }
 
+
+function ShapeMark({ sh }: { sh: LiveShape }) {
+  const c = sh.c || "#1b3a57";
+  const y = (n: number) => (n * 56.25) / 100;
+  const x1 = Math.min(sh.x, sh.w);
+  const y1 = y(Math.min(sh.y, sh.h));
+  const x2 = Math.max(sh.x, sh.w);
+  const y2 = y(Math.max(sh.y, sh.h));
+  const sw = Math.max(0.6, x2 - x1);
+  const shh = Math.max(0.6, y2 - y1);
+  if (sh.kind === "rect") return <rect x={x1} y={y1} width={sw} height={shh} fill="none" stroke={c} strokeWidth="0.9" />;
+  if (sh.kind === "circle") {
+    return <ellipse cx={(x1 + x2) / 2} cy={(y1 + y2) / 2} rx={sw / 2} ry={shh / 2} fill="none" stroke={c} strokeWidth="0.9" />;
+  }
+  if (sh.kind === "triangle") {
+    const pts = `${(x1 + x2) / 2},${y1} ${x1},${y2} ${x2},${y2}`;
+    return <polygon points={pts} fill="none" stroke={c} strokeWidth="0.9" strokeLinejoin="round" />;
+  }
+  const xA = sh.x, yA = y(sh.y), xB = sh.w, yB = y(sh.h);
+  if (sh.kind === "arrow") {
+    const ang = Math.atan2(yB - yA, xB - xA);
+    const hx = xB - Math.cos(ang) * 3, hy = yB - Math.sin(ang) * 3;
+    const left = `${xB},${yB} ${hx + Math.cos(ang + 1.3) * 2},${hy + Math.sin(ang + 1.3) * 2} ${hx + Math.cos(ang - 1.3) * 2},${hy + Math.sin(ang - 1.3) * 2}`;
+    return (
+      <g>
+        <line x1={xA} y1={yA} x2={xB} y2={yB} stroke={c} strokeWidth="0.9" strokeLinecap="round" />
+        <polygon points={left} fill={c} />
+      </g>
+    );
+  }
+  return <line x1={xA} y1={yA} x2={xB} y2={yB} stroke={c} strokeWidth="0.9" strokeLinecap="round" />;
+}
 
 function PointerMark({ pt }: { pt: LivePtr }) {
   const kind = normalizePtrKind(pt.kind);

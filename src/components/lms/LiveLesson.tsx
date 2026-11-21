@@ -47,6 +47,64 @@ function MicIcon({ on }: { on: boolean }) {
   );
 }
 
+function LeaveIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="lb-head-svg" aria-hidden>
+      <rect x="13" y="4" width="7" height="16" rx="1.4" fill="none" stroke="currentColor" strokeWidth="1.8" />
+      <path fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" d="M13 12H4m0 0 3.4-3.4M4 12l3.4 3.4" />
+    </svg>
+  );
+}
+function PowerIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="lb-head-svg" aria-hidden>
+      <path fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" d="M12 3.5v8" />
+      <path fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" d="M7.05 6.2a7.2 7.2 0 1 0 9.9 0" />
+    </svg>
+  );
+}
+
+function SideTile({ label, stream, hand, off, online = true, allow, selfMedia, hero }: {
+  label: string; stream?: MediaStream | null; hand?: boolean; off?: boolean; online?: boolean; allow?: ReactNode;
+  selfMedia?: { camOn: boolean; micOn: boolean; onCam: () => void; onMic: () => void; camDisabled?: boolean; micDisabled?: boolean };
+  hero?: boolean;
+}) {
+  const ref = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.srcObject = stream || null;
+    el.muted = true;
+    el.play().catch(() => undefined);
+  }, [stream]);
+  const hasVideo = !!stream?.getVideoTracks().some((t) => t.readyState !== "ended");
+  return (
+    <div className={`lb-side-tile ${hero ? "is-hero" : ""} ${off ? "is-off" : ""} ${hand ? "has-hand" : ""}`} data-testid={hero ? "live-teacher-pip" : "live-side-attendee"}>
+      <div className="lb-side-vid">
+        <video ref={ref} autoPlay playsInline muted className={hasVideo ? "" : "hidden"} />
+        {!hasVideo && <span className="lb-side-avatar" aria-hidden>{hero ? "👨‍🏫" : off ? "😴" : "🙂"}</span>}
+        {allow}
+      </div>
+      <div className="lb-side-meta">
+        <span className={`lb-live-dot ${online ? "" : "is-off"}`} title={online ? "Online" : "Offline"} aria-label={online ? "Online" : "Offline"} />
+        <span className="truncate" dir="auto">{label}</span>
+        {hand ? <span aria-label="hand raised">✋</span> : null}
+        {selfMedia && (
+          <span className="lb-self-media">
+            <button type="button" className={`lb-ico-btn ${selfMedia.micOn ? "is-on" : "is-off"}`} aria-pressed={selfMedia.micOn} disabled={selfMedia.micDisabled} title="Mic" aria-label="Mic" onClick={selfMedia.onMic} data-testid="live-self-mic">
+              <MicIcon on={selfMedia.micOn} />
+            </button>
+            <button type="button" className={`lb-ico-btn ${selfMedia.camOn ? "is-on" : "is-off"}`} aria-pressed={selfMedia.camOn} disabled={selfMedia.camDisabled} title="Camera" aria-label="Camera" onClick={selfMedia.onCam} data-testid="live-self-cam">
+              <CamIcon on={selfMedia.camOn} />
+            </button>
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
 
 function liveWho(m: LiveMember, selfId: string, teacherId: string, tr: (en: string, ar: string) => string) {
   const floor = memberFloor(m, teacherId) === "presenter" ? tr("Presenter", "مقدّم") : tr("Attendee", "مشارك");
@@ -362,6 +420,8 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
   const [localView, setLocalView] = useState<LiveViewMode | null>(null);
   const [viewOpen, setViewOpen] = useState(false);
   const [pipMin, setPipMin] = useState(false);
+  const [sideOpen, setSideOpen] = useState(false);
+  const [narrow, setNarrow] = useState(false);
   const [trayRoot, setTrayRoot] = useState<HTMLDivElement | null>(null);
   const [teachRoot, setTeachRoot] = useState<HTMLDivElement | null>(null);
   const [toolsOpen, setToolsOpen] = useState(false);
@@ -394,6 +454,14 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
     makeAttendee: tr("Make attendee", "جعل مشاركًا"),
   };
   const me = room?.members.find((m) => m.id === selfId);
+  const iAmPresenter = !!(room && (isHost || memberFloor(me, room.teacherId) === "presenter"));
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 640px)");
+    const sync = () => setNarrow(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
 
   const loadList = useCallback(async () => {
     const r = await lmsApi.liveList(asAdmin);
@@ -1097,9 +1165,6 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
                 </button>
               </div>
               <div className="lb-top-actions">
-                <div className="lb-countdown">
-                  <LiveCountdown endsAt={room.endsAt || room.created + 40 * 60_000} isHost={isHost} onAdd={addLessonMin} onSet={setLessonMin} />
-                </div>
                 <div className="relative">
                   <button type="button" className="lb-view" onClick={() => setViewOpen((v) => !v)} data-testid="live-view-open" aria-expanded={viewOpen}>
                     <span aria-hidden>{VIEW_CARDS.find((c) => c.id === viewMode)?.icon}</span>
@@ -1119,11 +1184,15 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
                 <button type="button" className={`lb-focus ${roomFocused ? "is-on" : ""}`} onClick={() => void toggleRoomFocus()} data-testid="live-room-focus" data-focus-keep title={roomFocused ? tr("Exit Focus (Esc)", "إنهاء التركيز (Esc)") : tr("Focus — open the classroom full screen, with controls and tools still visible", "تركيز — افتح الصف بملء الشاشة مع بقاء أدوات التحكم")}>
                   🎯 {roomFocused ? tr("Exit", "إنهاء") : tr("Focus", "تركيز")}
                 </button>
-                <button type="button" className="lb-head-btn lb-head-leave" onClick={leave} data-testid="live-leave">{tr("Leave", "خروج")}</button>
+                <button type="button" className="lb-side-toggle" onClick={() => setSideOpen(true)} data-testid="live-side-open" aria-label={tr("People and controls", "الحاضرون والأدوات")}>👥</button>
+                <button type="button" className="lb-head-btn lb-head-leave" onClick={leave} data-testid="live-leave">
+                  <LeaveIcon />
+                  <span className="lb-head-long">{tr("Leave", "خروج")}</span>
+                </button>
                 {isHost && (
                   <button type="button" className="lb-head-btn lb-head-end" onClick={endClass} data-testid="live-end">
+                    <PowerIcon />
                     <span className="lb-head-long">{tr("End class", "إنهاء الحصة")}</span>
-                    <span className="lb-head-short">{tr("End", "إنهاء")}</span>
                   </button>
                 )}
               </div>
@@ -1159,16 +1228,6 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
             )}
             {!isHost && askNote === "allowed" && (me?.camAllowed || me?.micAllowed) && (
               <p className="lb-wait" data-testid="live-ask-granted">{tr("Your teacher allowed your camera or mic. Tap Camera or Mic to turn it on.", "سمح معلمك بكاميرتك أو ميكروفونك. اضغط الكاميرا أو الميكروفون لتشغيله.")}</p>
-            )}
-            {isHost && (canCamAllow || canShareAllow || isHost) && room.members.some((m) => m.id !== room.teacherId) && (
-              <div className="lb-allow-bar" data-testid="live-host-allow-bar">
-                {room.members.filter((m) => m.id !== room.teacherId).map((m) => (
-                  <div key={m.id} className="lb-allow-bar-item">
-                    <span className="max-w-[9rem] truncate" dir="auto">{liveWho(m, selfId, room.teacherId, tr)}</span>
-                    <AllowBtns roomId={room.id} member={m} teacherId={room.teacherId} asAdmin={asAdmin} canCam={canCamAllow} canShare={canShareAllow} canFloor={isHost} onErr={fail} labels={allowLabels} />
-                  </div>
-                ))}
-              </div>
             )}
             {(() => {
               const presenting = livePresentingContent(room.present);
@@ -1221,35 +1280,64 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
                   <RoomStage mode={viewMode} presenting={presenting} presentSlot={presentSlot} screen={screen} teacher={teacher} teacherHero={teacherHero} students={studentTiles} thumbs={thumbs} gallery={gallery} featured={featured} others={others} />
                 </div>
               );
+              const shortWho = (m: LiveMember) => m.id === selfId
+                ? (m.id === room.teacherId || m.role === "teacher" ? tr("You (teacher)", "أنت (المعلم)") : tr("You", "أنت"))
+                : m.name;
+              const selfMediaOf = (m: LiveMember) => (m.id === selfId && iAmPresenter) ? {
+                camOn, micOn,
+                onCam: () => { void toggleCam().catch((e) => fail(e, "Camera", "الكاميرا")); },
+                onMic: () => { void toggleMic().catch((e) => fail(e, "Mic", "الميكروفون")); },
+                camDisabled: !isHost && !me?.camAllowed && !camOn,
+                micDisabled: !isHost && !me?.micAllowed && !micOn,
+              } : undefined;
+              const sideBody = (
+                <>
+                  {teacherMem && (
+                    <SideTile
+                      hero
+                      label={shortWho(teacherMem)}
+                      stream={streamOf(teacherMem)}
+                      hand={teacherMem.hand}
+                      online={teacherMem.present}
+                      selfMedia={selfMediaOf(teacherMem)}
+                    />
+                  )}
+                  <div className="lb-side-controls" data-testid="live-side-controls">
+                    <DockBtn testid="live-cam" icon={camOn ? "📷" : "🚫"} label={tr("Camera", "الكاميرا")} on={camOn} disabled={!isHost && !me?.camAllowed && !camOn} onClick={() => toggleCam().catch((e) => fail(e, "Camera", "الكاميرا"))} />
+                    <DockBtn testid="live-mic" icon={micOn ? "🎤" : "🔇"} label={tr("Mic", "الميكروفون")} on={micOn} disabled={!isHost && !me?.micAllowed && !micOn} onClick={() => toggleMic().catch((e) => fail(e, "Mic", "الميكروفون"))} />
+                    {(isHost || iAmPresenter || me?.shareAllowed) && <DockBtn testid="live-share" icon="🖥️" label={tr("Share", "مشاركة")} on={shareOn} onClick={() => toggleShare().catch((e) => fail(e, "Share screen", "مشاركة الشاشة"))} />}
+                    <DockBtn testid="live-hand" icon="✋" label={tr("Hand", "يد")} on={hand} onClick={() => toggleHand().catch(() => undefined)} />
+                    {!isHost && me && (!me.camAllowed || !me.micAllowed) && (
+                      <DockBtn testid="live-ask" icon="🙋" label={askNote === "sent" ? tr("Asked…", "تم الطلب…") : tr("Ask to speak", "طلب التحدث")} on={askNote === "sent"} onClick={() => askToSpeak().catch(() => undefined)} />
+                    )}
+                    <DockBtn testid="live-people-dock" icon="👥" label={tr("People", "الحاضرون")} on={showPeople} onClick={() => setShowPeople(true)} />
+                    <DockBtn testid="live-chat-btn" icon="💬" label={tr("Chat", "دردشة")} on={showChat} onClick={() => setShowChat(true)} badge={chatUnread} />
+                    {isHost && (asAdmin || livePerms.record) && (
+                      <DockBtn testid="live-record" icon="⏺️" label={tr("Record", "تسجيل")} disabled={!livePerms.recs} onClick={() => undefined} />
+                    )}
+                  </div>
+                  <div className="lb-side-people" data-testid="live-student-strip">
+                    {students.map((m) => (
+                      <SideTile
+                        key={m.id}
+                        label={shortWho(m)}
+                        stream={streamOf(m)}
+                        hand={m.hand}
+                        off={!streamOf(m) && m.id !== selfId}
+                        online={m.present}
+                        selfMedia={selfMediaOf(m)}
+                        allow={<AllowBtns roomId={room.id} member={m} teacherId={room.teacherId} asAdmin={asAdmin} canCam={canCamAllow} canShare={canShareAllow} canFloor={isHost} onErr={fail} labels={allowLabels} />}
+                      />
+                    ))}
+                    {!students.length && <p className="lb-side-empty">{tr("No attendees yet", "لا يوجد مشاركون بعد")}</p>}
+                  </div>
+                </>
+              );
               return (
+                <>
                 <div className="lb-workspace">
-                  <div id="lb-tray-root" className="lb-tray-root" ref={setTrayRoot} />
                   <div className="lb-stage">
                     {stageInner}
-                    {teacherMem && bubblesStage && (
-                      <PipTile
-                        label={teacherMem.id === selfId ? tr("You (teacher)", "أنت (المعلم)") : teacherMem.name}
-                        stream={streamOf(teacherMem)}
-                        min={pipMin}
-                        onToggle={() => setPipMin((v) => !v)}
-                        online={teacherMem.present}
-                      />
-                    )}
-                    {bubblesStage && students.length > 0 && (
-                      <div className="lb-students" data-testid="live-student-strip">
-                        {students.slice(0, 8).map((m, i) => (
-                          <StuTile
-                            key={m.id}
-                            label={who(m)}
-                            stream={streamOf(m)}
-                            hand={m.hand}
-                            off={!streamOf(m) && m.id !== selfId}
-                            color={STU_COLORS[i % STU_COLORS.length]}
-                            online={m.present} allow={<AllowBtns roomId={room.id} member={m} teacherId={room.teacherId} asAdmin={asAdmin} canCam={canCamAllow} canShare={canShareAllow} canFloor={isHost} onErr={fail} labels={allowLabels} />}
-                          />
-                        ))}
-                      </div>
-                    )}
                     <ClassAudio remotes={remotes} unlocked={hearOn} onBlocked={() => setNeedHear(true)} />
                     {needHear && !hearOn && (
                       <button type="button" className="lb-hear" onClick={unlockAudio} data-testid="live-hear">
@@ -1272,29 +1360,32 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
                       </button>
                     )}
                   </div>
+                  {!narrow && <aside className="lb-side" data-testid="live-side">{sideBody}</aside>}
                 </div>
+                {narrow && sideOpen && (
+                  <div className="lb-sheet" onClick={() => setSideOpen(false)} role="presentation">
+                    <aside className="lb-sheet-card lb-side is-sheet" onClick={(e) => e.stopPropagation()} data-testid="live-side-sheet">
+                      <div className="lb-sheet-head">
+                        <h3 className="text-sm font-black">{tr("People and controls", "الحاضرون والأدوات")}</h3>
+                        <button type="button" onClick={() => setSideOpen(false)} aria-label={tr("Close", "إغلاق")}>✕</button>
+                      </div>
+                      {sideBody}
+                    </aside>
+                  </div>
+                )}
+                </>
               );
             })()}
-            <div id="lb-teach-tray" className="lb-teach-tray" ref={setTeachRoot} />
-
+            <div className="lb-bottom-strip" data-testid="live-bottom-strip" data-focus-keep>
+              <div id="lb-tray-root" className="lb-tray-root" ref={setTrayRoot} />
+              <div id="lb-teach-tray" className="lb-teach-tray" ref={setTeachRoot} />
+              <div className="lb-bottom-timer">
+                <LiveCountdown endsAt={room.endsAt || room.created + 40 * 60_000} isHost={isHost} onAdd={addLessonMin} onSet={setLessonMin} />
+              </div>
+            </div>
             {isHost && asAdmin && !livePerms.recs && (
               <p className="lb-hint" data-testid="live-rec-note">{tr("Turn on R2 storage to enable recording", "فعّل تخزين R2 لتفعيل التسجيل")}</p>
             )}
-            <div className="lb-dock" data-focus-keep>
-              <DockBtn testid="live-cam" icon={camOn ? "📷" : "🚫"} label={tr("Camera", "الكاميرا")} on={camOn} disabled={!isHost && !me?.camAllowed && !camOn} onClick={() => toggleCam().catch((e) => fail(e, "Camera", "الكاميرا"))} />
-              <DockBtn testid="live-mic" icon={micOn ? "🎤" : "🔇"} label={tr("Mic", "الميكروفون")} on={micOn} disabled={!isHost && !me?.micAllowed && !micOn} onClick={() => toggleMic().catch((e) => fail(e, "Mic", "الميكروفون"))} />
-              {(isHost || me?.shareAllowed) && <DockBtn testid="live-share" icon="🖥️" label={tr("Share", "مشاركة")} on={shareOn} onClick={() => toggleShare().catch((e) => fail(e, "Share screen", "مشاركة الشاشة"))} />}
-              <DockBtn testid="live-hand" icon="✋" label={tr("Hand", "يد")} on={hand} onClick={() => toggleHand().catch(() => undefined)} />
-              {!isHost && me && (!me.camAllowed || !me.micAllowed) && (
-                <DockBtn testid="live-ask" icon="🙋" label={askNote === "sent" ? tr("Asked…", "تم الطلب…") : tr("Ask to speak", "طلب التحدث")} on={askNote === "sent"} onClick={() => askToSpeak().catch(() => undefined)} />
-              )}
-              <DockBtn testid="live-tools-fab" icon="🧰" label={tr("+ Tools", "+ أدوات")} on={toolsOpen} onClick={() => setToolsOpen((v) => !v)} extraClass="lb-tools-fab" />
-              <DockBtn testid="live-people-dock" icon="👥" label={tr("People", "الحاضرون")} on={showPeople} onClick={() => setShowPeople(true)} />
-              <DockBtn testid="live-chat-btn" icon="💬" label={tr("Chat", "دردشة")} on={showChat} onClick={() => setShowChat(true)} badge={chatUnread} />
-              {isHost && (asAdmin || livePerms.record) && (
-                <DockBtn testid="live-record" icon="⏺️" label={tr("Record", "تسجيل")} disabled={!livePerms.recs} onClick={() => undefined} />
-              )}
-            </div>
             {!isHost && me && !me.camAllowed && !me.micAllowed && (
               <p className="lb-hint">{tr("Your camera and mic stay off until your teacher allows them. You can still see and hear the teacher.", "تبقى كاميرتك وميكروفونك مغلقين حتى يسمح بهما معلمك. ما زال بإمكانك رؤية المعلم وسماعه.")}</p>
             )}

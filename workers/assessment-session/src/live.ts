@@ -38,6 +38,8 @@ export type LiveWait = { id: string; name: string; at: number };
 export type LiveAsk = { userId: string; name: string; cam: boolean; mic: boolean; at: number };
 export type LiveChat = { id: string; from: string; name: string; text: string; at: number };
 export type LiveStroke = { c: string; w: number; d: number[]; by: string };
+export type LiveShapeKind = "rect" | "circle" | "line" | "arrow" | "triangle";
+export type LiveShape = { id: string; kind: LiveShapeKind; x: number; y: number; w: number; h: number; c: string; by: string };
 export type LiveAnswer = { userId: string; name: string; slide: number; text: string; at: number };
 export const LIVE_VIEW_MODES = ["teach", "lecture", "gallery", "speaker", "board", "discuss"] as const;
 export type LiveViewMode = (typeof LIVE_VIEW_MODES)[number];
@@ -66,6 +68,7 @@ export type LivePresent = {
   items?: LivePresentItem[];
   activeId?: string;
   src?: string;
+  shapes?: LiveShape[];
 };
 export type LiveSnap = {
   id: string;
@@ -380,6 +383,12 @@ export class LiveRoom extends DurableObject<LiveEnv> {
         return { ok: false, error: "forbidden" };
       }
       m.floor = floor;
+      if (floor === "presenter") {
+        m.camAllowed = true;
+        m.micAllowed = true;
+        m.shareAllowed = true;
+        if (this.state.present) this.state.present.penId = userId;
+      }
       if (floor === "attendee" && this.state.present?.penId === userId) this.state.present.penId = this.state.teacherId;
     }
     if (m.camAllowed || m.micAllowed) {
@@ -543,6 +552,7 @@ export class LiveRoom extends DurableObject<LiveEnv> {
         items: [{ id: "board", kind: "board", title: "Whiteboard", packId: "", slide: 0, strokes: [], src: "" }],
         activeId: "board",
         src: "",
+        shapes: [],
       };
     }
     const p = this.state.present;
@@ -570,6 +580,19 @@ export class LiveRoom extends DurableObject<LiveEnv> {
         c: str(x.c, 20) || "#1b3a57",
         w: Math.max(1, Math.min(16, Number(x.w) || 3)),
         d: (Array.isArray(x.d) ? x.d : []).slice(0, 400).map((n) => Number(n) || 0),
+        by: str(x.by, 40),
+      }));
+    }
+    if (Array.isArray(patch?.shapes)) {
+      const kinds = new Set(["rect", "circle", "line", "arrow", "triangle"]);
+      p.shapes = patch!.shapes.slice(-80).map((x) => ({
+        id: str(x.id, 40) || newId(),
+        kind: kinds.has(String(x.kind)) ? x.kind : "rect",
+        x: Math.max(0, Math.min(100, Number(x.x) || 0)),
+        y: Math.max(0, Math.min(100, Number(x.y) || 0)),
+        w: Math.max(0, Math.min(100, Number(x.w) || 0)),
+        h: Math.max(0, Math.min(100, Number(x.h) || 0)),
+        c: str(x.c, 20) || "#1b3a57",
         by: str(x.by, 40),
       }));
     }
@@ -1247,6 +1270,7 @@ export async function handleLive(request: Request, env: LiveEnv, action: string)
     if (typeof body.winnerName === "string") patch.winnerName = body.winnerName;
     if (typeof body.randText === "string") patch.randText = body.randText;
     if (Array.isArray(body.strokes)) patch.strokes = body.strokes;
+    if (Array.isArray(body.shapes)) patch.shapes = body.shapes;
     const r = await stub.setPresent(host, patch as never);
     return reply(origin, r, r.ok ? 200 : 403);
   }
