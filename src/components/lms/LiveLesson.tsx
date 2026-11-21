@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AssessmentShell, primaryBtn } from "@/components/assessment/AssessmentShell";
 import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
 import { NeedLogin } from "@/components/lms/LmsDashboard";
@@ -11,7 +11,8 @@ import { requestElFullscreen } from "@/components/FocusMode";
 import { registerSlideFocus, setPageFocus } from "@/components/FullscreenToggle";
 import { LiveSchedulePanel, GuestJoin } from "@/components/lms/LiveSchedule";
 import { LivePresent } from "@/components/lms/LivePresent";
-import { lmsApi, lmsErrorText, lmsSession, liveGuest, liveWsUrl, type LiveChat, type LivePerms, type LiveRoomInfo, type LiveSnap } from "@/lib/lms";
+import { LiveViewPicker, RoomStage, useActiveSpeaker, presentLayout, VIEW_CARDS } from "@/components/lms/LiveViews";
+import { lmsApi, lmsErrorText, lmsSession, liveGuest, liveWsUrl, type LiveChat, type LivePerms, type LiveRoomInfo, type LiveSnap, type LiveView, type LiveViewMode } from "@/lib/lms";
 
 type Phase = "lobby" | "waiting" | "in" | "ended";
 
@@ -20,7 +21,7 @@ function isPermErr(e: unknown) {
   return n === "NotAllowedError" || n === "PermissionDeniedError" || n === "NotFoundError" || n === "NotReadableError" || n === "SecurityError";
 }
 
-function Tile({ label, stream, hand, big, off, compact }: { label: string; stream?: MediaStream | null; hand?: boolean; big?: boolean; off?: boolean; compact?: boolean }) {
+function Tile({ label, stream, hand, big, off, compact, size, featured }: { label: string; stream?: MediaStream | null; hand?: boolean; big?: boolean; off?: boolean; compact?: boolean; size?: "hero" | "main" | "card" | "thumb"; featured?: boolean }) {
   const ref = useRef<HTMLVideoElement>(null);
   useEffect(() => {
     const el = ref.current;
@@ -30,8 +31,10 @@ function Tile({ label, stream, hand, big, off, compact }: { label: string; strea
     el.play().catch(() => undefined);
   }, [stream]);
   const hasVideo = !!stream?.getVideoTracks().some((t) => t.readyState !== "ended");
+  const sz = size || (compact ? "thumb" : big ? "main" : "card");
+  const box = sz === "hero" ? "min-h-[240px] flex-1 sm:min-h-[340px]" : sz === "main" ? "min-h-[200px] flex-1 sm:min-h-[280px]" : sz === "thumb" ? "min-h-[72px] w-[112px] shrink-0 sm:min-h-[96px] sm:w-[148px]" : "min-h-[140px] sm:min-h-[180px]";
   return (
-    <div className={`relative overflow-hidden rounded-3xl bg-gradient-to-br from-sky-200 to-indigo-300 shadow-md ring-2 ring-white/60 dark:from-slate-700 dark:to-indigo-900 dark:ring-white/10 ${compact ? "min-h-[88px] w-[140px] sm:min-h-[110px] sm:w-[180px]" : big ? "min-h-[220px] sm:min-h-[320px]" : "min-h-[140px] sm:min-h-[180px]"}`}>
+    <div className={`relative overflow-hidden rounded-3xl bg-gradient-to-br from-sky-200 to-indigo-300 shadow-md transition-all duration-300 dark:from-slate-700 dark:to-indigo-900 ${featured ? "ring-4 ring-[#f5c542]" : "ring-2 ring-white/60 dark:ring-white/10"} ${box}`}>
       <video ref={ref} autoPlay playsInline muted className={`absolute inset-0 h-full w-full object-cover ${hasVideo ? "" : "hidden"}`} />
       {!hasVideo && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-[#1b3a57] dark:text-white">
@@ -94,39 +97,6 @@ function LiveCountdown({ endsAt, isHost, onAdd, onSet }: { endsAt: number; isHos
           </select>
         </span>
       )}
-    </div>
-  );
-}
-
-function VideoDock({ children }: { children: ReactNode }) {
-  const { tr } = useTr();
-  const [min, setMin] = useState(false);
-  const [pos, setPos] = useState({ x: 16, y: 16 });
-  const drag = useRef<{ x: number; y: number; px: number; py: number } | null>(null);
-  const onDown = (e: PointerEvent<HTMLDivElement>) => {
-    const t = e.target as HTMLElement;
-    if (t.closest("button, video, select, a")) return;
-    drag.current = { x: pos.x, y: pos.y, px: e.clientX, py: e.clientY };
-    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
-  };
-  const onMove = (e: PointerEvent<HTMLDivElement>) => {
-    if (!drag.current) return;
-    setPos({ x: Math.max(8, drag.current.x + (e.clientX - drag.current.px)), y: Math.max(8, drag.current.y + (e.clientY - drag.current.py)) });
-  };
-  return (
-    <div
-      className="fixed z-[70] max-w-[min(100vw-16px,420px)] rounded-3xl bg-white/95 p-2 shadow-2xl ring-2 ring-indigo-200 dark:bg-slate-900/95 dark:ring-indigo-700"
-      style={{ left: pos.x, top: pos.y }}
-      onPointerDown={onDown}
-      onPointerMove={onMove}
-      onPointerUp={() => { drag.current = null; }}
-      data-testid="live-video-dock" data-focus-keep
-    >
-      <div className="mb-1 flex cursor-grab items-center justify-between gap-2 active:cursor-grabbing">
-        <p className="text-xs font-black text-[#1b3a57] dark:text-white">{tr("Class video", "فيديو الصف")}</p>
-        <button type="button" className="rounded-full bg-black/10 px-2 py-0.5 text-xs font-bold dark:bg-white/10" onClick={() => setMin((v) => !v)} data-testid="live-video-dock-toggle">{min ? tr("Show", "إظهار") : tr("Minimise", "تصغير")}</button>
-      </div>
-      {!min && <div className="flex flex-wrap gap-2">{children}</div>}
     </div>
   );
 }
@@ -205,6 +175,8 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
   const [hearOn, setHearOn] = useState(false);
   const [needHear, setNeedHear] = useState(false);
   const [roomFocused, setRoomFocused] = useState(false);
+  const [localView, setLocalView] = useState<LiveViewMode | null>(null);
+  const [viewOpen, setViewOpen] = useState(false);
   const roomRef = useRef<HTMLDivElement>(null);
   const sfuRef = useRef<LiveSfu | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -278,6 +250,25 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
     return () => { document.removeEventListener("fullscreenchange", onFs); window.removeEventListener("keydown", onKey); };
   }, [roomFocused]);
   useEffect(() => { chatSoundRef.current = chatSound; }, [chatSound]);
+  const hostViewMode: LiveViewMode = room?.view?.mode || (room?.present?.packId ? "teach" : "gallery");
+  const viewFollow = room?.view?.follow !== false;
+  const viewMode: LiveViewMode = isHost || viewFollow ? hostViewMode : (localView || hostViewMode);
+  const canPickView = isHost || !viewFollow;
+  const speakerId = useActiveSpeaker(room?.members || [], remotes, localStream, selfId);
+  useEffect(() => { if (viewFollow) setLocalView(null); }, [viewFollow]);
+  useEffect(() => { if (viewMode === "discuss") setShowChat(true); }, [viewMode]);
+  const applyView = async (body: { mode?: LiveViewMode; follow?: boolean }) => {
+    if (!isHost || !room) return;
+    try {
+      const r = await lmsApi.liveView(room.id, { mode: body.mode || hostViewMode, follow: body.follow ?? viewFollow }, asAdmin);
+      if (r.view) setRoom((prev) => prev ? { ...prev, view: r.view } : prev);
+    } catch (e) { setErr(lmsErrorText(e, tr)); }
+  };
+  const pickView = (mode: LiveViewMode) => {
+    if (isHost) void applyView({ mode });
+    else setLocalView(mode);
+    setViewOpen(false);
+  };
 
   const cleanupMedia = useCallback(() => {
     sfuRef.current?.close();
@@ -316,10 +307,11 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
     const ws = new WebSocket(liveWsUrl(tok, roomId));
     wsRef.current = ws;
     ws.onmessage = (ev) => {
-      let msg: { t?: string; room?: LiveSnap; msg?: LiveChat; userId?: string; camAllowed?: boolean; micAllowed?: boolean; present?: LiveSnap["present"]; stroke?: { c: string; w: number; d: number[]; by: string } } = {};
+      let msg: { t?: string; room?: LiveSnap; msg?: LiveChat; userId?: string; camAllowed?: boolean; micAllowed?: boolean; present?: LiveSnap["present"]; view?: LiveView; stroke?: { c: string; w: number; d: number[]; by: string } } = {};
       try { msg = JSON.parse(String(ev.data)) as typeof msg; } catch { return; }
       if (msg.t === "room" && msg.room) applyRoom(msg.room);
       if (msg.t === "present") setRoom((r) => r ? { ...r, present: msg.present || null } : r);
+      if (msg.t === "view" && msg.view) setRoom((r) => r ? { ...r, view: msg.view } : r);
       if (msg.t === "stroke" && msg.stroke) setRoom((r) => r?.present ? { ...r, present: { ...r.present, strokes: [...(r.present.strokes || []), msg.stroke!].slice(-200) } } : r);
       if (msg.t === "chat" && msg.msg) {
         setChat((c) => [...c, msg.msg!].slice(-80));
@@ -670,7 +662,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
         )}
 
         {phase === "in" && room && (
-          <div ref={roomRef} className="flex flex-1 flex-col gap-3" data-testid="live-room" data-focus-keep>
+          <div ref={roomRef} className={`flex flex-1 flex-col gap-3 ${room.present?.packId ? "pe-16 sm:pe-20" : ""}`} data-testid="live-room" data-focus-keep>
             <header className="flex flex-wrap items-center justify-between gap-2 rounded-3xl bg-gradient-to-r from-indigo-500 to-fuchsia-500 px-4 py-3 text-white" data-focus-keep>
               <div>
                 <h1 className="text-xl font-black sm:text-2xl">{room.title}</h1>
@@ -683,6 +675,16 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
                   💬 {tr("Chat", "الدردشة")}
                   {chatUnread > 0 && <span className="absolute -right-1 -top-1 inline-flex min-w-5 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-black" data-testid="live-chat-unread">{chatUnread}</span>}
                 </button>
+                {canPickView && (
+                  <span className="relative" data-focus-keep>
+                    <button type="button" className={`rounded-full px-3 py-1 text-sm font-bold ${viewOpen ? "bg-[#f5c542] text-[#1b3a57]" : "bg-white/20"}`} onClick={() => setViewOpen((v) => !v)} data-testid="live-view-open" title={tr("Classroom view", "عرض الصف")}>
+                      {(VIEW_CARDS.find((c) => c.id === viewMode)?.icon || "🖼️")} {tr("View", "عرض")}
+                    </button>
+                    {viewOpen && (
+                      <LiveViewPicker mode={viewMode} follow={viewFollow} canPush={isHost} onMode={pickView} onFollow={(on) => void applyView({ follow: on })} onClose={() => setViewOpen(false)} />
+                    )}
+                  </span>
+                )}
                 <button type="button" className={`rounded-full px-3 py-1 text-sm font-bold ${roomFocused ? "bg-[#f5c542] text-[#1b3a57]" : "bg-white/20"}`} onClick={() => void toggleRoomFocus()} data-testid="live-room-focus" data-focus-keep title={roomFocused ? tr("Exit Focus (Esc)", "إنهاء التركيز (Esc)") : tr("Focus — hide menus and fill the screen with this classroom", "تركيز — أخفِ القوائم واملأ الشاشة بهذا الصف")}>
                   {roomFocused ? "✕" : "🎯"} {roomFocused ? tr("Exit Focus", "إنهاء التركيز") : tr("Focus", "تركيز")}
                 </button>
@@ -707,23 +709,45 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
               </div>
             )}
 
-            <LivePresent roomId={room.id} present={room.present} isHost={isHost} canPresent={asAdmin || livePerms.present} asAdmin={asAdmin} selfId={selfId} members={room.members} onPresent={(present) => setRoom((r) => r ? { ...r, present } : r)} onRoomFocus={() => void toggleRoomFocus()} roomFocused={roomFocused} />
-
             {(() => {
               const presenting = !!room.present?.packId;
-              const tiles = (
-                <>
-                  {mainScreen && <Tile label={tr("Shared screen", "الشاشة المشاركة")} stream={mainScreen} big={!presenting} compact={presenting} />}
-                  {room.members.filter((m) => m.role === "teacher").map((m) => (
-                    <Tile key={m.id} label={m.id === selfId ? tr("You (teacher)", "أنت (المعلم)") : m.name} stream={m.id === selfId ? localStream : remotes[`${m.id}:camera`]} hand={m.hand} big={!presenting && !mainScreen} compact={presenting} />
-                  ))}
-                  {room.members.filter((m) => m.role !== "teacher").map((m) => (
-                    <Tile key={m.id} label={m.id === selfId ? tr("You", "أنت") : m.name} stream={m.id === selfId ? localStream : remotes[`${m.id}:camera`]} hand={m.hand} off={!remotes[`${m.id}:camera`] && m.id !== selfId} compact={presenting} />
-                  ))}
-                </>
+              const layout = presentLayout(viewMode, presenting);
+              const streamOf = (m: { id: string }) => m.id === selfId ? localStream : remotes[`${m.id}:camera`];
+              const teachers = room.members.filter((m) => m.role === "teacher");
+              const students = room.members.filter((m) => m.role !== "teacher");
+              const showPresent = presenting || isHost || asAdmin || livePerms.present;
+              const presentSlot = showPresent ? (
+                <LivePresent roomId={room.id} present={room.present} isHost={isHost} canPresent={asAdmin || livePerms.present} asAdmin={asAdmin} selfId={selfId} members={room.members} onPresent={(present) => setRoom((r) => r ? { ...r, present } : r)} onRoomFocus={() => void toggleRoomFocus()} roomFocused={roomFocused} layout={layout} />
+              ) : null;
+              const screen = mainScreen ? <Tile label={tr("Shared screen", "الشاشة المشاركة")} stream={mainScreen} size={viewMode === "lecture" || viewMode === "teach" ? "main" : "thumb"} /> : null;
+              const teacher = teachers.map((m) => <Tile key={m.id} label={m.id === selfId ? tr("You (teacher)", "أنت (المعلم)") : m.name} stream={streamOf(m)} hand={m.hand} size="thumb" featured={m.id === speakerId} />);
+              const teacherHero = teachers.map((m) => <Tile key={m.id} label={m.id === selfId ? tr("You (teacher)", "أنت (المعلم)") : m.name} stream={streamOf(m)} hand={m.hand} size="hero" featured={m.id === speakerId} />);
+              const studentTiles = students.map((m) => <Tile key={m.id} label={m.id === selfId ? tr("You", "أنت") : m.name} stream={streamOf(m)} hand={m.hand} off={!streamOf(m) && m.id !== selfId} size="thumb" featured={m.id === speakerId} />);
+              const thumbs = studentTiles;
+              const gallery = [...teachers, ...students].map((m) => <Tile key={m.id} label={m.id === selfId ? (m.role === "teacher" ? tr("You (teacher)", "أنت (المعلم)") : tr("You", "أنت")) : m.name} stream={streamOf(m)} hand={m.hand} off={!streamOf(m) && m.id !== selfId} size="card" featured={m.id === speakerId} />);
+              const featuredMem = room.members.find((m) => m.id === speakerId) || teachers[0];
+              const featured = featuredMem ? <Tile key={featuredMem.id} label={featuredMem.id === selfId ? (featuredMem.role === "teacher" ? tr("You (teacher)", "أنت (المعلم)") : tr("You", "أنت")) : featuredMem.name} stream={streamOf(featuredMem)} hand={featuredMem.hand} off={!streamOf(featuredMem) && featuredMem.id !== selfId} size="hero" featured /> : null;
+              const others = room.members.filter((m) => m.id !== featuredMem?.id).map((m) => <Tile key={m.id} label={m.id === selfId ? (m.role === "teacher" ? tr("You (teacher)", "أنت (المعلم)") : tr("You", "أنت")) : m.name} stream={streamOf(m)} hand={m.hand} off={!streamOf(m) && m.id !== selfId} size="thumb" />);
+              const stage = (
+                <RoomStage mode={viewMode} presenting={presenting} presentSlot={presentSlot} screen={screen} teacher={teacher} teacherHero={teacherHero} students={studentTiles} thumbs={thumbs} gallery={gallery} featured={featured} others={others} />
               );
-              return presenting ? <VideoDock>{tiles}</VideoDock> : (
-                <div className={`grid flex-1 gap-3 ${mainScreen ? "lg:grid-cols-3" : "sm:grid-cols-2 lg:grid-cols-3"}`}>{tiles}</div>
+              if (viewMode !== "discuss") return stage;
+              return (
+                <div className="flex min-h-0 flex-1 flex-col gap-3 lg:flex-row" data-testid="live-discuss-wrap">
+                  <div className="flex min-h-0 min-w-0 flex-1 flex-col">{stage}</div>
+                  <aside className="flex h-[38vh] shrink-0 flex-col rounded-3xl bg-white p-3 shadow-sm ring-1 ring-black/5 dark:bg-slate-900 lg:h-auto lg:w-[22rem]" data-testid="live-chat-dock" data-focus-keep>
+                    <div className="mb-2 flex items-center justify-between"><h3 className="text-sm font-black">{tr("Chat", "الدردشة")}</h3></div>
+                    <div ref={chatBox} className="flex-1 space-y-2 overflow-auto rounded-2xl bg-black/5 p-3 dark:bg-white/10">
+                      {chat.map((c) => (
+                        <p key={c.id} className="text-sm"><span className="font-black">{c.name}: </span>{c.text}</p>
+                      ))}
+                    </div>
+                    <form className="mt-2 flex gap-2" onSubmit={(e) => { e.preventDefault(); sendChat(); }}>
+                      <input className="flex-1 rounded-2xl border border-black/10 px-3 py-2 dark:bg-slate-800" value={draft} onChange={(e) => setDraft(e.target.value)} maxLength={400} placeholder={tr("Say hello…", "قل مرحبا…")} />
+                      <button type="submit" className={primaryBtn}>{tr("Send", "إرسال")}</button>
+                    </form>
+                  </aside>
+                </div>
               );
             })()}
 
@@ -750,7 +774,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
             {!isHost && me && !me.camAllowed && !me.micAllowed && (
               <p className="text-center text-xs font-semibold opacity-70">{tr("Your camera and mic stay off until your teacher allows them. You can still see and hear the teacher.", "تبقى كاميرتك وميكروفونك مغلقين حتى يسمح بهما معلمك. ما زال بإمكانك رؤية المعلم وسماعه.")}</p>
             )}
-            {chatToast && !showChat && (
+            {chatToast && !showChat && viewMode !== "discuss" && (
               <button type="button" className="fixed bottom-24 left-1/2 z-[75] w-[min(90vw,24rem)] -translate-x-1/2 rounded-2xl bg-[#1b3a57] px-4 py-3 text-left text-sm font-bold text-white shadow-xl dark:bg-indigo-800" onClick={() => setShowChat(true)} data-testid="live-chat-toast" data-focus-keep>
                 <span className="opacity-80">{chatToast.name}</span>
                 <span className="mt-0.5 block truncate">{chatToast.text}</span>
@@ -781,7 +805,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
           </div>
         )}
 
-        {showChat && room && (
+        {showChat && room && viewMode !== "discuss" && (
           <div className="fixed inset-0 z-[80] flex justify-end bg-black/40" onClick={() => setShowChat(false)} role="presentation">
             <aside className="flex h-full w-full max-w-sm flex-col bg-white p-4 shadow-xl dark:bg-slate-900" onClick={(e) => e.stopPropagation()} data-testid="live-chat-panel">
               <div className="mb-3 flex items-center justify-between"><h3 className="text-lg font-black">{tr("Chat", "الدردشة")}</h3><button type="button" onClick={() => setShowChat(false)}>✕</button></div>

@@ -12,10 +12,10 @@ function presentStudents(members: LiveMember[]) {
   return members.filter((m) => m.role !== "teacher" && m.present);
 }
 
-export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, selfId, members, onPresent, onRoomFocus, roomFocused }: {
+export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, selfId, members, onPresent, onRoomFocus, roomFocused, layout = "full" }: {
   roomId: string; present?: Present | null; isHost: boolean; canPresent: boolean; asAdmin: boolean;
   selfId: string; members: LiveMember[]; onPresent: (p: Present | null) => void;
-  onRoomFocus?: () => void; roomFocused?: boolean;
+  onRoomFocus?: () => void; roomFocused?: boolean; layout?: "full" | "side" | "compact" | "board";
 }) {
   const { tr } = useTr();
   const [packs, setPacks] = useState<Pack[]>([]);
@@ -158,7 +158,7 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
   const wheelNames = people.length ? people : [];
 
   return (
-    <section className="rounded-3xl bg-white p-3 shadow-sm ring-1 ring-black/5 dark:bg-slate-800" data-testid="live-present">
+    <section className={`bg-white shadow-sm ring-1 ring-black/5 transition-all duration-300 dark:bg-slate-800 ${layout === "board" ? "flex min-h-[50vh] flex-1 flex-col rounded-3xl p-2 sm:p-3 lg:min-h-0" : layout === "side" ? "flex min-h-[220px] flex-1 flex-col rounded-3xl p-2 sm:p-3" : layout === "compact" ? "rounded-2xl p-2" : "rounded-3xl p-3"}`} data-testid="live-present" data-layout={layout}>
       {err && <p className="mb-2 rounded-2xl bg-rose-100 px-3 py-2 text-sm font-bold text-rose-800 dark:bg-rose-900/60 dark:text-rose-100" role="alert">{err}</p>}
 
       {!present && canPresent && (
@@ -199,7 +199,7 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
           </div>
 
           {cur ? (
-            <div className="relative overflow-hidden rounded-2xl ring-1 ring-black/10" style={{ containerType: "inline-size" }}>
+            <div className={`relative overflow-hidden rounded-2xl ring-1 ring-black/10 ${layout === "board" || layout === "side" ? "min-h-[40vh] flex-1" : ""}`} style={{ containerType: "inline-size" }}>
               <SlideView slide={cur} asAdmin={asAdmin} live testId="live-present-slide" />
               <svg ref={svgRef} viewBox="0 0 100 56.25" className="absolute inset-0 h-full w-full touch-none" onPointerDown={pointer} onPointerMove={pointer} onPointerUp={(e) => pointer(e, true)} onPointerCancel={(e) => pointer(e, true)} data-testid="live-board">
                 {(present.strokes || []).map((st, i) => (
