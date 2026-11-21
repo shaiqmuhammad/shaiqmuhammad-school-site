@@ -461,13 +461,6 @@ function packMatches(p: Pack, kind: ContentKind): boolean {
   return packHasPart(p, "quran");
 }
 
-function contentEyebrow(part: string | undefined, tr: (en: string, ar: string) => string) {
-  if (part === "activity") return tr("Task", "مهمة");
-  if (part === "homework") return tr("Homework", "واجب");
-  if (part === "quran") return tr("Quran Homework", "واجب القرآن");
-  if (part === "lesson") return tr("Lesson", "درس");
-  return tr("Live lesson", "حصة مباشرة");
-}
 
 function ContentPicker({ packs, kind, onKind, busy, onOpen, onClose }: {
   packs: Pack[]; kind: ContentKind; onKind: (k: ContentKind) => void; busy: boolean;
