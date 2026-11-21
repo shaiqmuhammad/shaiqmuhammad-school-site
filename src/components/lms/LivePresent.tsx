@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useTr } from "@/components/lms/useLms";
-import { firstSlideOf, lp, packHasPart, type Pack, type Part } from "@/lib/packs";
+import { firstSlideOf, lp, packHasPart, type Pack, type Part, type Slide } from "@/lib/packs";
 import { SlideView } from "@/components/lms/packs/SlideView";
 import { lmsApi, lmsErrorText, livePresentingContent, normalizePtrKind, youtubeVideoId, type LiveMember, type LivePresent as Present, type LivePresentItem, type LivePresentItemKind, type LivePtr, type LiveView, type PointCat, type PtrKind } from "@/lib/lms";
 import { primaryBtn } from "@/components/assessment/AssessmentShell";
@@ -11,6 +11,9 @@ import { LiveToolsTray, TeachToolsTray, type LiveShapeKindId, type ShapeGrid } f
 import { ShapeMark } from "@/components/lms/LiveShapeMark";
 import type { LiveShape } from "@/lib/lms";
 import { YtPlayer } from "@/components/YtPlayer";
+import { importPptx } from "@/components/lms/packs/pptx";
+import { importPdf } from "@/components/lms/packs/pdf";
+import { uploadFileKind, MAX_UPLOAD_SLIDES } from "@/lib/liveUpload";
 
 function presentStudents(members: LiveMember[]) {
   return members.filter((m) => m.role !== "teacher" && m.present);
@@ -54,6 +57,14 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
     lp.list(asAdmin).then((r) => setPacks(r.items || [])).catch(() => undefined);
   }, [asAdmin, canPresent, present?.packId]);
   useEffect(() => {
+    const uploadSlides = (present?.activeId && (present.items || []).find((i) => i.id === present.activeId)?.slides) || present?.slides;
+    if ((present?.items || []).find((i) => i.id === present?.activeId)?.kind === "upload" || (!present?.packId && uploadSlides?.length)) {
+      if (uploadSlides?.length) {
+        setPack({ id: present?.packId || present?.activeId || "upload", title: present?.packTitle || "Upload", type: "material", slides: uploadSlides as Slide[] } as Pack);
+        setErr("");
+      } else setPack(null);
+      return;
+    }
     if (!present?.packId) { setPack(null); return; }
     const cached = packCache.current[present.packId];
     if (cached) setPack(cached);
@@ -71,7 +82,7 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
         }
       })
       .catch((e) => setErr(lmsErrorText(e, tr, ["Couldn't open that lesson pack.", "تعذر فتح حزمة الدرس."], tr("Open pack", "فتح الحزمة"))));
-  }, [present?.packId, asAdmin, tr, roomId, isHost, onPresent]);
+  }, [present?.packId, present?.activeId, present?.slides, present?.items, present?.packTitle, asAdmin, tr, roomId, isHost, onPresent]);
   useEffect(() => {
     if (!isHost) return;
     lmsApi.pcatList(asAdmin).then((r) => setCats(r.items || [])).catch(() => undefined);
@@ -160,6 +171,30 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
     const p = packs.find((x) => x.id === pick);
     if (!p) return;
     await startPack(p, contentKind);
+  }
+  async function startUpload(file: File) {
+    const kind = uploadFileKind(file.name, file.type);
+    if (kind === "ppt") { setErr(tr("Save the file as .pptx and upload that.", "احفظ الملف بصيغة ‎.pptx ثم ارفعه.")); return; }
+    if (kind !== "pptx" && kind !== "pdf") { setErr(tr("Choose a PDF or a PowerPoint (.pptx) file.", "اختر ملف PDF أو PowerPoint ‎(.pptx).")); return; }
+    if (file.size > 12 * 1024 * 1024) { setErr(tr("Please use a file smaller than 12 MB.", "استخدم ملفًا أصغر من 12 ميغابايت.")); return; }
+    setBusy(true); setErr("");
+    try {
+      const got = (kind === "pdf" ? await importPdf(file, asAdmin) : await importPptx(file, asAdmin)).slice(0, MAX_UPLOAD_SLIDES);
+      if (!got.length) throw new Error("empty");
+      const title = file.name.replace(/\.(pptx|pdf)$/i, "").slice(0, 80) || (kind === "pdf" ? "PDF" : "PowerPoint");
+      await call({ op: "start", kind: "upload", packTitle: title, follow: true, slides: got });
+      if (isHost) {
+        try {
+          const view = await lmsApi.liveView(roomId, { mode: "teach", follow: true }, asAdmin);
+          if (view.view) onView?.(view.view);
+        } catch {
+          onView?.({ mode: "teach", follow: true });
+        }
+      }
+      setContentOpen(false);
+    } catch (e) {
+      setErr(lmsErrorText(e, tr, ["Couldn't open that PowerPoint or PDF.", "تعذر فتح ملف PowerPoint أو PDF."], tr("Upload", "رفع")));
+    } finally { setBusy(false); }
   }
   async function go(n: number) {
     const next = Math.max(0, Math.min(slides.length - 1, n));
@@ -413,6 +448,7 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
           busy={busy}
           onOpen={(p, kind) => void startPack(p, kind)}
           onYoutube={(url) => void startYoutube(url)}
+          onUpload={(file) => void startUpload(file)}
           onClose={present ? () => setContentOpen(false) : undefined}
         />
       )}
@@ -558,7 +594,7 @@ function PointerGlyph({ kind, color }: { kind: PtrKind; color: string }) {
 }
 
 
-const PACK_ITEM_KINDS = new Set<LivePresentItemKind>(["lesson", "task", "activity", "homework", "quran"]);
+const PACK_ITEM_KINDS = new Set<LivePresentItemKind>(["lesson", "task", "activity", "homework", "quran", "upload"]);
 
 function presentTabs(present?: Present | null): LivePresentItem[] {
   if (!present) return [];
@@ -611,9 +647,9 @@ function packMatches(p: Pack, kind: ContentKind): boolean {
 }
 
 
-function ContentPicker({ packs, kind, onKind, busy, onOpen, onYoutube, onClose }: {
+function ContentPicker({ packs, kind, onKind, busy, onOpen, onYoutube, onUpload, onClose }: {
   packs: Pack[]; kind: ContentKind; onKind: (k: ContentKind) => void; busy: boolean;
-  onOpen: (p: Pack, kind: ContentKind) => void; onYoutube?: (url: string) => void; onClose?: () => void;
+  onOpen: (p: Pack, kind: ContentKind) => void; onYoutube?: (url: string) => void; onUpload?: (file: File) => void; onClose?: () => void;
 }) {
   const { tr } = useTr();
   const [ytUrl, setYtUrl] = useState("");
@@ -651,9 +687,13 @@ function ContentPicker({ packs, kind, onKind, busy, onOpen, onYoutube, onClose }
           </div>
         </form>
       ) : kind === "upload" ? (
-        <p className="rounded-2xl bg-[#eef2f6] px-4 py-6 text-center text-sm font-semibold text-[#1b3a57] dark:bg-[#1b3a57] dark:text-[#fff8ec]" data-testid="live-content-upload">
-          {tr("PDF and PowerPoint uploads will be added next. You can already open lesson packs and YouTube links as tabs.", "ستُضاف ملفات PDF وPowerPoint لاحقًا. يمكنك الآن فتح حزم الدروس وروابط يوتيوب كعلامات.")}
-        </p>
+        <div className="rounded-2xl bg-[#eef2f6] px-4 py-6 text-center text-sm font-semibold text-[#1b3a57] dark:bg-[#1b3a57] dark:text-[#fff8ec]" data-testid="live-content-upload">
+          <p className="mb-3">{tr("Open a PDF or PowerPoint (.pptx) for the class. Each page becomes a slide you can present and draw on.", "افتح ملف PDF أو PowerPoint ‎(.pptx) للصف. كل صفحة تصبح شريحة يمكنك عرضها والرسم عليها.")}</p>
+          <label className="inline-flex cursor-pointer items-center justify-center rounded-full bg-[#1b3a57] px-4 py-2 text-sm font-extrabold text-[#fff8ec] dark:bg-[#f5c542] dark:text-[#0b1b2b]">
+            {busy ? tr("Opening…", "جارٍ الفتح…") : tr("Choose file", "اختر ملفًا")}
+            <input type="file" accept=".pptx,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.presentationml.presentation" className="hidden" disabled={busy} data-testid="live-upload-input" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) onUpload?.(f); }} />
+          </label>
+        </div>
       ) : !items.length ? (
         <p className="rounded-2xl bg-[#eef2f6] px-4 py-6 text-center text-sm font-semibold text-[#1b3a57] dark:bg-[#1b3a57] dark:text-[#fff8ec]" data-testid="live-content-empty">
           {tr(`No ${tab?.en || "items"} here yet. Add them in Lesson Builder, then open them for the class.`, `لا يوجد ${tab?.ar || "محتوى"} هنا بعد. أضفه في منشئ الدروس ثم افتحه للصف.`)}
