@@ -101,7 +101,7 @@ const TOKEN_DAYS = 3650; // effectively "until you log out" (sliding renewal on 
 const MAX_USERS = 3000;
 const MAX_HW = 2000;
 const FAIL_WINDOW = 15 * 60_000;
-const PERMS = ["assign", "review", "manageUsers", "viewAll", "staff", "shareCorrect", "viewAsStudent", "pptDownload", "hwMarkView", "hwMarkCorrect", "hwShare", "liveLesson", "liveSchedule", "liveSchedStudent", "liveSchedClass", "liveShareLink", "liveCamMic", "liveScreenShare", "livePresent"] as const;
+const PERMS = ["assign", "review", "manageUsers", "viewAll", "staff", "shareCorrect", "viewAsStudent", "pptDownload", "hwMarkView", "hwMarkCorrect", "hwShare", "liveLesson", "liveSchedule", "liveSchedStudent", "liveSchedClass", "liveShareLink", "liveCamMic", "liveScreenShare", "livePresent", "liveInstant"] as const;
 const STU_OPS = ["view", "add", "edit", "block", "delete"] as const;
 const STU_PERM = /^stu:(view|add|edit|block|delete|none)$/;
 /** Cartoon avatar code: stored reroll, else derived from id + gender (gender itself never leaves the server for non-admins). */
@@ -342,7 +342,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     this.sql.exec(`CREATE TABLE IF NOT EXISTS msgs (id TEXT PRIMARY KEY, thread TEXT, sender TEXT, recipient TEXT, body TEXT, created INTEGER, read INTEGER DEFAULT 0)`);
     this.sql.exec(`CREATE INDEX IF NOT EXISTS msgs_thread ON msgs (thread, created)`);
     if (!cols("users").has("gender")) this.sql.exec(`ALTER TABLE users ADD COLUMN gender TEXT DEFAULT ''`);
-    for (const c of ["subject", "phase", "first_name", "last_name", "dob", "phone", "semail", "nationality", "pref_lang", "sen", "eal", "gt", "target", "scaled", "isams_id", "isams_surname", "name_ar"]) if (!cols("users").has(c)) this.sql.exec(`ALTER TABLE users ADD COLUMN ${c} TEXT DEFAULT ''`);
+    for (const c of ["subject", "phase", "first_name", "last_name", "dob", "phone", "semail", "nationality", "pref_lang", "tz", "sen", "eal", "gt", "target", "scaled", "isams_id", "isams_surname", "name_ar"]) if (!cols("users").has(c)) this.sql.exec(`ALTER TABLE users ADD COLUMN ${c} TEXT DEFAULT ''`);
     // Split existing display names into first / last once.
     for (const r of this.sql.exec(`SELECT id, name FROM users WHERE role='student' AND (first_name IS NULL OR first_name='')`).toArray()) {
       const parts = String(r.name || "").trim().split(/\s+/);
@@ -427,7 +427,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     return this.sql.exec(`SELECT * FROM users WHERE ${where}`, arg).toArray()[0];
   }
   private publicUser(r: Record<string, unknown>) {
-    return { id: String(r.id), username: String(r.username), name: String(r.name), nameAr: String(r.name_ar || ""), role: String(r.role) as Role, cls: String(r.cls || ""), section: String(r.section || ""), subjects: JSON.parse(String(r.subjects || "[]")) as string[], scope: JSON.parse(String(r.scope || "[]")) as string[], perms: JSON.parse(String(r.perms || "[]")) as string[], disabled: Boolean(r.disabled), hasPin: Boolean(r.pin_enc), firstName: String(r.first_name || ""), lastName: String(r.last_name || ""), avatar: avatarOf(r), badge: badgeOf(r.badge), parentEmail: Boolean(r.email), parentName: String(r.parent_name || ""), lastSeen: Number(r.last_seen || 0), created: Number(r.created), lastLogin: r.last_login ? Number(r.last_login) : null };
+    return { id: String(r.id), username: String(r.username), name: String(r.name), nameAr: String(r.name_ar || ""), role: String(r.role) as Role, cls: String(r.cls || ""), section: String(r.section || ""), subjects: JSON.parse(String(r.subjects || "[]")) as string[], scope: JSON.parse(String(r.scope || "[]")) as string[], perms: JSON.parse(String(r.perms || "[]")) as string[], disabled: Boolean(r.disabled), hasPin: Boolean(r.pin_enc), firstName: String(r.first_name || ""), lastName: String(r.last_name || ""), avatar: avatarOf(r), badge: badgeOf(r.badge), parentEmail: Boolean(r.email), parentName: String(r.parent_name || ""), lastSeen: Number(r.last_seen || 0), created: Number(r.created), lastLogin: r.last_login ? Number(r.last_login) : null, tz: String(r.tz || "") };
   }
   /** Admin-only view: every stored field (teachers never receive these). */
   private adminUser(r: Record<string, unknown>) {
@@ -1266,9 +1266,24 @@ export class LmsStore extends DurableObject<LmsEnv> {
       }
       case "me": {
         // t288: students carry their enrolled subjects and whether their assessments/area open in Arabic (Islamic A; both subjects = Arabic).
-        if (a.role === "student") { const r = this.userRow("id=?", a.id); const subject = subjList(r?.subject); return { status: 200, body: { user: { ...a, subject: subject.join(", "), arabic: subject.includes("Islamic A") } } }; }
+        if (a.role === "student") { const r = this.userRow("id=?", a.id); const subject = subjList(r?.subject); return { status: 200, body: { user: { ...a, subject: subject.join(", "), arabic: subject.includes("Islamic A"), tz: String(r?.tz || "") } } }; }
         // t292: staff get their effective module permissions so menus and buttons match the server.
-        return { status: 200, body: { user: a.role === "admin" || a.role === "teacher" ? { ...a, mods: mpAll(this.sql as never, a) } : a } };
+        return { status: 200, body: { user: a.role === "admin" || a.role === "teacher" ? { ...a, mods: mpAll(this.sql as never, a), tz: a.role === "admin" ? this.setting("tz:admin", "") : String(this.userRow("id=?", a.id)?.tz || "") } : a } };
+      }
+      case "tz-set": {
+        const raw = str(input.pref, 80);
+        const pref = !raw || raw === "auto" ? "auto" : raw;
+        if (pref !== "auto") {
+          try { new Intl.DateTimeFormat("en", { timeZone: pref }).format(0); } catch { return { status: 400, body: { error: "bad_tz" } }; }
+        }
+        if (input.__method === "POST" && "pref" in input) {
+          if (a.viewAs) return { status: 403, body: { error: "read_only" } };
+          if (a.guest) return { status: 403, body: { error: "forbidden" } };
+          if (a.role === "admin") await this.putSetting("tz:admin", pref);
+          else this.sql.exec(`UPDATE users SET tz=? WHERE id=?`, pref, a.id);
+        }
+        const saved = a.role === "admin" ? this.setting("tz:admin", "auto") : String(this.userRow("id=?", a.id)?.tz || "auto");
+        return { status: 200, body: { pref: saved || "auto" } };
       }
 
       case "name-mode": {
@@ -1586,9 +1601,9 @@ export class LmsStore extends DurableObject<LmsEnv> {
         for (const r of this.sql.exec(`SELECT student, status, COUNT(*) AS n FROM att GROUP BY student, status`).toArray()) {
           const o = attN.get(String(r.student)) || { p: 0, n: 0 }; const n = Number(r.n); o.n += n; if (String(r.status) === "P") o.p += n; attN.set(String(r.student), o);
         }
-        const students = this.sql.exec(`SELECT id, name, first_name, last_name, cls, section, gender, avatar, badge, email, last_seen FROM users WHERE role='student' AND disabled=0 ORDER BY cls, section, name`).toArray()
+        const students = this.sql.exec(`SELECT id, name, first_name, last_name, cls, section, gender, avatar, badge, email, last_seen, tz FROM users WHERE role='student' AND disabled=0 ORDER BY cls, section, name`).toArray()
           .filter((r) => this.inScope(a, String(r.cls || ""), String(r.section || ""), String(r.id)))
-          .map((r) => { const a0 = attN.get(String(r.id)); return { id: String(r.id), name: String(r.name), cls: String(r.cls || ""), section: String(r.section || ""), gender: r.gender === "b" || r.gender === "g" ? String(r.gender) : "", avatar: avatarOf(r), badge: badgeOf(r.badge), parentEmail: Boolean(r.email), seen: Number(r.last_seen || 0), points: tot.get(String(r.id)) || 0, cards: cards.get(String(r.id)) || 0, attPct: a0 && a0.n ? Math.round((100 * a0.p) / a0.n) : null }; });
+          .map((r) => { const a0 = attN.get(String(r.id)); const tz = String(r.tz || ""); return { id: String(r.id), name: String(r.name), cls: String(r.cls || ""), section: String(r.section || ""), gender: r.gender === "b" || r.gender === "g" ? String(r.gender) : "", avatar: avatarOf(r), badge: badgeOf(r.badge), parentEmail: Boolean(r.email), seen: Number(r.last_seen || 0), points: tot.get(String(r.id)) || 0, cards: cards.get(String(r.id)) || 0, attPct: a0 && a0.n ? Math.round((100 * a0.p) / a0.n) : null, tz: tz && tz !== "auto" ? tz : "" }; });
         return { status: 200, body: { students, assigned: a.role === "teacher" ? [...new Set((a.scope || []).filter((x) => x && x !== "\u0000"))] : [], canManage: stuCan(a, "view"), stuPerms: { view: stuCan(a, "view"), add: stuCan(a, "add"), edit: stuCan(a, "edit"), block: stuCan(a, "block"), delete: stuCan(a, "delete") }, now: Date.now() } };
       }
       case "act-publish": {
@@ -3527,6 +3542,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     }
     this.sql.exec(`CREATE TABLE IF NOT EXISTS live_sched (id TEXT PRIMARY KEY, teacher TEXT NOT NULL, title TEXT NOT NULL, starts INTEGER NOT NULL, duration INTEGER NOT NULL, cls TEXT NOT NULL DEFAULT '', section TEXT NOT NULL DEFAULT '', group_id TEXT NOT NULL DEFAULT '', student_id TEXT NOT NULL DEFAULT '', pack_id TEXT NOT NULL DEFAULT '', pack_title TEXT NOT NULL DEFAULT '', room_id TEXT NOT NULL DEFAULT '', status TEXT NOT NULL, link_token TEXT NOT NULL DEFAULT '', link_on INTEGER NOT NULL DEFAULT 0, created INTEGER NOT NULL)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS live_guests (token TEXT PRIMARY KEY, guest_id TEXT NOT NULL, name TEXT NOT NULL, sched_id TEXT NOT NULL, exp INTEGER NOT NULL)`);
+    try { this.sql.exec(`ALTER TABLE live_sched ADD COLUMN kind TEXT NOT NULL DEFAULT ''`); } catch { /* already added */ }
   }
   livePut(row: { id: string; teacher: string; title: string; cls: string; section: string; groupId: string; status: string; created: number; studentId?: string; schedId?: string }) {
     this.liveEnsure();
@@ -3665,6 +3681,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
       teacherName: this.liveTeacherName(String(row.teacher)),
       hasLink: Number(row.link_on) === 1 && !!String(row.link_token || ""),
       mine: !!(a && (a.role === "admin" || a.id === String(row.teacher))),
+      kind: String(row.kind || "") === "meeting" ? "meeting" : "",
     };
     if (studentId && a && (a.role === "admin" || a.role === "teacher")) {
       const u = this.userRow("id=?", studentId);
@@ -3806,6 +3823,36 @@ export class LmsStore extends DurableObject<LmsEnv> {
     this.sql.exec(`UPDATE live_sched SET link_on=1, link_token=? WHERE id=?`, token, id);
     return { ok: true, token };
   }
+  liveMeet(a: Actor, input: { title?: string; duration?: number; now?: boolean; starts?: number }): { ok: true; schedId: string; roomId?: string; token: string; title: string; starts: number; ends: number; existing?: boolean } | { ok: false; error: string } {
+    this.liveSchedEnsure();
+    const can = a.role === "admin" || (a.role === "teacher" && a.perms.includes("liveInstant"));
+    if (!can || a.viewAs) return { ok: false, error: "no_instant" };
+    const duration = Math.min(180, Math.max(10, Math.trunc(Number(input.duration) || 30)));
+    const now = Date.now();
+    const starts = input.now ? now : Math.trunc(Number(input.starts) || 0);
+    if (!starts || starts < now - 5 * 60_000) return { ok: false, error: "bad_time" };
+    if (starts > now + 60 * 24 * 3600_000) return { ok: false, error: "bad_time" };
+    const title = (input.title || "").trim().slice(0, 80) || "Quick meeting";
+    const open = this.liveListOpen().find((r) => String(r.teacher) === a.id);
+    if (input.now && open) {
+      const schId = String(open.sched_id || "");
+      const sch = schId ? this.liveSchedRow(schId) : null;
+      let token = sch ? String(sch.link_token || "") : "";
+      if (sch && !token) {
+        const made = this.liveSchedSetLink({ ...a, perms: a.role === "admin" ? a.perms : [...a.perms, "liveShareLink"] }, String(sch.id), true);
+        if (made.ok) token = made.token || "";
+      }
+      return { ok: true, schedId: schId, roomId: String(open.id), token, title: String(open.title || title), starts: now, ends: now + duration * 60_000, existing: true };
+    }
+    const n = this.sql.exec(`SELECT COUNT(*) AS n FROM live_sched WHERE teacher=? AND status='scheduled' AND starts>=?`, a.id, now - 3600_000).toArray()[0];
+    if (Number(n?.n || 0) >= 80) return { ok: false, error: "too_many" };
+    const id = "ls_" + [...crypto.getRandomValues(new Uint8Array(6))].map((x) => x.toString(16).padStart(2, "0")).join("");
+    const token = "lk_" + [...crypto.getRandomValues(new Uint8Array(16))].map((x) => x.toString(16).padStart(2, "0")).join("");
+    const status = input.now ? "scheduled" : "scheduled";
+    this.sql.exec(`INSERT INTO live_sched (id, teacher, title, starts, duration, cls, section, group_id, student_id, pack_id, pack_title, room_id, status, link_token, link_on, created, kind) VALUES (?, ?, ?, ?, ?, '', '', '', '', '', '', '', ?, ?, 1, ?, 'meeting')`, id, a.id, title, starts, duration, status, token, now);
+    return { ok: true, schedId: id, token, title, starts, ends: starts + duration * 60_000 };
+  }
+
   liveSchedPacks(a: Actor): { id: string; title: string }[] {
     this.liveSchedEnsure();
     try {

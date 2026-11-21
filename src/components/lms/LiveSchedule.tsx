@@ -4,22 +4,15 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { primaryBtn } from "@/components/assessment/AssessmentShell";
 import { useTr } from "@/components/lms/useLms";
 import { lmsApi, lmsErrorText, liveGuest, setLiveGuest, type LivePerms, type LiveSched, type RosterStudent } from "@/lib/lms";
+import { SITE_TZ, fmtWhen, isValidZone, zoneCity, zoneLabel, zoneMs, zoneParts } from "@/lib/timeZone";
+import { FormatWhen, SchedulePreview, Time12Field, TimeZonePicker, ZoneChip, useViewerZone } from "@/components/lms/TimeZonePicker";
 
 const DURS = [15, 30, 40, 45, 60, 75, 90, 120];
-const TZ = "Asia/Dubai";
 
-export function dubaiParts(ms = Date.now()) {
-  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(new Date(ms));
-  const g = (t: string) => parts.find((p) => p.type === t)?.value || "";
-  return { date: `${g("year")}-${g("month")}-${g("day")}`, time: `${g("hour")}:${g("minute")}` };
-}
-export function dubaiMs(date: string, time: string) {
-  if (!date || !time) return 0;
-  return new Date(`${date}T${time}:00+04:00`).getTime();
-}
-export function fmtDubai(ms: number, lang: string) {
-  return new Intl.DateTimeFormat(lang === "ar" ? "ar-AE" : "en-GB", { timeZone: TZ, weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(ms));
-}
+/** @deprecated prefer zoneParts — kept for timetable deep-links that assumed Dubai wall clock. */
+export function dubaiParts(ms = Date.now()) { return zoneParts(ms, SITE_TZ); }
+export function dubaiMs(date: string, time: string) { return zoneMs(date, time, SITE_TZ); }
+export function fmtDubai(ms: number, lang: string) { return fmtWhen(ms, lang, SITE_TZ); }
 
 export function liveJoinHref(s: LiveSched) {
   if (s.roomId) return s.roomId;
@@ -27,6 +20,7 @@ export function liveJoinHref(s: LiveSched) {
 }
 
 function audienceLabel(s: LiveSched, tr: (en: string, ar: string) => string) {
+  if (s.kind === "meeting") return tr("Meeting (share link)", "اجتماع (رابط مشاركة)");
   if (s.studentName || s.studentId) return s.studentName || tr("One student", "طالب واحد");
   if (s.groupId) return tr("Group", "مجموعة");
   return [s.cls, s.section].filter(Boolean).join(" · ") || tr("Class", "صف");
@@ -34,6 +28,7 @@ function audienceLabel(s: LiveSched, tr: (en: string, ar: string) => string) {
 
 export function LiveUpcomingBanner() {
   const { tr, lang } = useTr();
+  const { zone } = useViewerZone();
   const [items, setItems] = useState<LiveSched[]>([]);
   useEffect(() => {
     const load = () => { if (!document.hidden) lmsApi.liveSchedList().then((r) => setItems((r.items || []).filter((x) => x.status === "scheduled" || x.status === "live"))).catch(() => undefined); };
@@ -53,7 +48,7 @@ export function LiveUpcomingBanner() {
             <span className="text-3xl" aria-hidden>🎥</span>
             <span className="min-w-0 flex-1">
               <b className="block truncate" dir="auto">{s.title}</b>
-              <span className="text-sm opacity-80">{fmtDubai(s.starts, lang)} {tr("(Dubai)", "(دبي)")} · {s.teacherName}</span>
+              <span className="text-sm opacity-80">{fmtWhen(s.starts, lang, zone)} · <ZoneChip tz={zone} ms={s.starts} /> · {s.teacherName}</span>
             </span>
             <span className={`rounded-full px-4 py-2 font-extrabold ${join ? "bg-[#0b1b2b] text-sun" : "bg-white/80 dark:bg-slate-800"}`}>{join ? tr("Join", "انضم") : tr("Upcoming", "قادمة")}</span>
           </a>
@@ -65,6 +60,8 @@ export function LiveUpcomingBanner() {
 
 export function LiveSchedulePanel({ asAdmin, perms, onStart, busy }: { asAdmin: boolean; perms: LivePerms; onStart: (roomId: string) => void; busy?: boolean }) {
   const { tr, lang } = useTr();
+  const { zone: viewerZone } = useViewerZone(asAdmin);
+  const [formTz, setFormTz] = useState(viewerZone || SITE_TZ);
   const [items, setItems] = useState<LiveSched[]>([]);
   const [packs, setPacks] = useState<{ id: string; title: string }[]>([]);
   const [options, setOptions] = useState<{ cls: string; section: string }[]>([]);
@@ -73,7 +70,7 @@ export function LiveSchedulePanel({ asAdmin, perms, onStart, busy }: { asAdmin: 
   const [err, setErr] = useState("");
   const [open, setOpen] = useState(false);
   const [edId, setEdId] = useState("");
-  const nowParts = dubaiParts(Date.now() + 60 * 60_000);
+  const nowParts = zoneParts(Date.now() + 60 * 60_000, formTz);
   const [title, setTitle] = useState("");
   const [date, setDate] = useState(nowParts.date);
   const [time, setTime] = useState(nowParts.time);
@@ -100,6 +97,7 @@ export function LiveSchedulePanel({ asAdmin, perms, onStart, busy }: { asAdmin: 
     if (!perms.schedStudent && !asAdmin) return;
     lmsApi.classRoster(asAdmin).then((r) => setStudents(r.students || [])).catch(() => undefined);
   }, [asAdmin, perms.schedStudent]);
+  useEffect(() => { if (viewerZone) setFormTz(viewerZone); }, [viewerZone]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -107,8 +105,11 @@ export function LiveSchedulePanel({ asAdmin, perms, onStart, busy }: { asAdmin: 
     if (q.get("schedule") !== "1") return;
     setOpen(true);
     if (q.get("title")) setTitle(q.get("title") || "");
-    if (q.get("date")) setDate(q.get("date") || date);
-    if (q.get("s")) setTime(q.get("s") || time);
+    if (q.get("date") || q.get("s")) {
+      const ms = zoneMs(q.get("date") || nowParts.date, q.get("s") || nowParts.time, SITE_TZ);
+      const shown = zoneParts(ms || Date.now(), formTz);
+      if (q.get("date") || q.get("s")) { setDate(shown.date); setTime(shown.time); }
+    }
     if (q.get("s") && q.get("e")) {
       const [sh, sm] = (q.get("s") || "0:0").split(":").map(Number);
       const [eh, em] = (q.get("e") || "0:0").split(":").map(Number);
@@ -122,11 +123,11 @@ export function LiveSchedulePanel({ asAdmin, perms, onStart, busy }: { asAdmin: 
   }, []);
 
   const reset = () => {
-    const p = dubaiParts(Date.now() + 60 * 60_000);
+    const p = zoneParts(Date.now() + 60 * 60_000, formTz);
     setEdId(""); setTitle(""); setDate(p.date); setTime(p.time); setDuration(45); setGroupId(""); setStudentId(""); setPackId(""); setWho("class"); setOpen(true);
   };
   const edit = (s: LiveSched) => {
-    const p = dubaiParts(s.starts);
+    const p = zoneParts(s.starts, formTz);
     setEdId(s.id); setTitle(s.title); setDate(p.date); setTime(p.time); setDuration(s.duration);
     setGroupId(s.groupId); setStudentId(s.studentId); setPackId(s.packId);
     setWho(s.studentId ? "student" : s.groupId ? "group" : "class");
@@ -137,7 +138,8 @@ export function LiveSchedulePanel({ asAdmin, perms, onStart, busy }: { asAdmin: 
   async function save() {
     setSaving(true); setErr("");
     try {
-      const starts = dubaiMs(date, time);
+      const starts = zoneMs(date, time, formTz);
+      if (!starts) throw new Error("bad_time");
       const [cls, section] = who === "class" ? (pick.includes("|") ? pick.split("|") : [pick, ""]) : ["", ""];
       await lmsApi.liveSchedSave({
         id: edId || undefined,
@@ -196,12 +198,16 @@ export function LiveSchedulePanel({ asAdmin, perms, onStart, busy }: { asAdmin: 
             <label className="text-sm font-bold sm:col-span-2">{tr("Title", "العنوان")}
               <input className="mt-1 w-full rounded-2xl border border-black/10 bg-white px-3 py-2 font-semibold dark:bg-slate-900" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={tr("Live Lesson", "الحصة المباشرة")} />
             </label>
-            <label className="text-sm font-bold">{tr("Date (Dubai)", "التاريخ (دبي)")}
+            <label className="text-sm font-bold">{tr("Date", "التاريخ")}
               <input type="date" className="mt-1 w-full rounded-2xl border border-black/10 bg-white px-3 py-2 font-semibold dark:bg-slate-900" value={date} onChange={(e) => setDate(e.target.value)} />
             </label>
-            <label className="text-sm font-bold">{tr("Start time (Dubai)", "وقت البداية (دبي)")}
-              <input type="time" className="mt-1 w-full rounded-2xl border border-black/10 bg-white px-3 py-2 font-semibold dark:bg-slate-900" value={time} onChange={(e) => setTime(e.target.value)} />
+            <label className="text-sm font-bold">{tr("Start time", "وقت البداية")}
+              <div className="mt-1"><Time12Field value={time} onChange={setTime} testId="live-sched-time" /></div>
             </label>
+            <label className="text-sm font-bold sm:col-span-2">{tr("Time zone", "المنطقة الزمنية")}
+              <div className="mt-1"><TimeZonePicker value={formTz} onChange={setFormTz} id="live-sched-tz" /></div>
+            </label>
+            <div className="sm:col-span-2"><SchedulePreview date={date} time={time} tz={formTz} lang={lang} /></div>
             <label className="text-sm font-bold">{tr("Duration", "المدة")}
               <select className="mt-1 w-full rounded-2xl border border-black/10 bg-white px-3 py-2 font-semibold dark:bg-slate-900" value={duration} onChange={(e) => setDuration(Number(e.target.value))}>
                 {!DURS.includes(duration) && <option value={duration}>{duration} {tr("min", "د")}</option>}
@@ -238,6 +244,16 @@ export function LiveSchedulePanel({ asAdmin, perms, onStart, busy }: { asAdmin: 
                   {students.map((st) => <option key={st.id} value={st.id}>{st.name}{st.cls ? ` · ${st.cls}${st.section ? ` ${st.section}` : ""}` : ""}</option>)}
                 </select>
               )}
+              {who === "student" && (() => {
+                const st = students.find((x) => x.id === studentId);
+                const tz = st?.tz && isValidZone(st.tz) ? st.tz : "";
+                if (!tz || tz === formTz) return null;
+                return (
+                  <button type="button" className="mt-2 rounded-2xl bg-amber-100 px-3 py-2 text-start text-sm font-bold text-[#1b3a57] dark:bg-amber-900/40 dark:text-amber-100" onClick={() => setFormTz(tz)} data-testid="live-sched-suggest-tz">
+                    {tr(`This student usually uses ${zoneCity(tz)} (${zoneLabel(tz)}). Use their time zone?`, `هذا الطالب يستخدم عادة ${zoneCity(tz)} (${zoneLabel(tz)}). هل تستخدم منطقته الزمنية؟`)}
+                  </button>
+                );
+              })()}
               {!perms.schedClass && !perms.schedStudent && !groups.length && (
                 <p className="mt-2 text-sm font-semibold opacity-70">{tr("Your admin can also switch on scheduling with a class, section or student.", "يمكن للمسؤول أيضًا تفعيل الجدولة مع صف أو شعبة أو طالب.")}</p>
               )}
@@ -258,7 +274,7 @@ export function LiveSchedulePanel({ asAdmin, perms, onStart, busy }: { asAdmin: 
             return (
               <li key={s.id} className="rounded-3xl bg-gradient-to-br from-sky-100 to-violet-200 p-4 dark:from-sky-900/50 dark:to-slate-800" data-testid="live-sched-card">
                 <p className="text-lg font-black" dir="auto">{s.title}</p>
-                <p className="text-sm font-semibold opacity-80">{fmtDubai(s.starts, lang)} {tr("(Dubai)", "(دبي)")} · {s.duration} {tr("min", "د")}</p>
+                <p className="text-sm font-semibold opacity-80">{fmtWhen(s.starts, lang, viewerZone)} · <ZoneChip tz={viewerZone} ms={s.starts} /> · {s.duration} {tr("min", "د")}</p>
                 <p className="text-sm font-semibold opacity-80">{audienceLabel(s, tr)}{s.packTitle ? ` · 📑 ${s.packTitle}` : ""}</p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {join && <button type="button" className={primaryBtn} disabled={busy} onClick={() => onStart(s.roomId)}>{tr("Join", "انضم")}</button>}
@@ -325,7 +341,7 @@ export function GuestJoin({ token }: { token: string }) {
       <p className="text-6xl" aria-hidden>🎥</p>
       <h1 className="text-3xl font-black text-[#1b3a57] dark:text-white" dir="auto">{info.title}</h1>
       <p className="font-semibold opacity-80">{tr("With", "مع")} {info.teacherName}</p>
-      <p className="text-sm font-bold opacity-70">{fmtDubai(info.starts, lang)} {tr("(Dubai)", "(دبي)")}</p>
+      <p className="text-sm font-bold opacity-70"><FormatWhen ms={info.starts} /></p>
       {err && <p className="rounded-2xl bg-rose-100 px-4 py-2 text-sm font-bold text-rose-800" role="alert">{err}</p>}
       <label className="w-full text-start text-sm font-bold">{tr("Your name", "اسمك")}
         <input className="mt-1 w-full rounded-2xl border border-black/10 bg-white px-3 py-3 text-lg font-semibold dark:bg-slate-900" value={name} onChange={(e) => setName(e.target.value)} placeholder={tr("Type your name", "اكتب اسمك")} maxLength={80} />
