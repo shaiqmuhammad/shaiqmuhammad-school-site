@@ -43,7 +43,7 @@ export const LIVE_TOOLS = [
 export type LiveToolId = (typeof LIVE_TOOLS)[number]["id"];
 
 export function LiveToolsTray({
-  isHost, tool, onTool, onTimer, onTasks, taskOn,
+  isHost, tool, onTool, onTimer, onTasks, taskOn, docked,
 }: {
   isHost: boolean;
   tool: string;
@@ -51,28 +51,34 @@ export function LiveToolsTray({
   onTimer: (seconds: number | null) => void;
   onTasks?: () => void;
   taskOn?: boolean;
+  docked?: boolean;
 }) {
   const { tr } = useTr();
   const [open, setOpen] = useState(true);
   const [timerOpen, setTimerOpen] = useState(false);
+  const show = docked || open;
   return (
     <aside
-      className="fixed end-2 top-1/2 z-[85] flex max-h-[80dvh] -translate-y-1/2 flex-col items-center gap-1 overflow-y-auto rounded-3xl border border-white/30 bg-[#1b3a57]/90 p-1.5 shadow-2xl backdrop-blur-xl dark:border-white/15 dark:bg-slate-900/95"
+      className={docked
+        ? "flex w-full flex-col items-center gap-1 overflow-y-auto"
+        : "fixed end-2 top-1/2 z-[85] flex max-h-[80dvh] -translate-y-1/2 flex-col items-center gap-1 overflow-y-auto rounded-3xl border border-white/30 bg-[#1b3a57]/90 p-1.5 shadow-2xl backdrop-blur-xl dark:border-white/15 dark:bg-slate-900/95"}
       data-testid="live-tools-tray"
       data-focus-keep
       aria-label={tr("Classroom tools", "أدوات الصف")}
     >
-      <button
-        type="button"
-        className="grid h-8 w-8 place-items-center rounded-full bg-white/15 text-sm font-black text-white hover:bg-white/25"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        title={open ? tr("Hide tools", "إخفاء الأدوات") : tr("Show tools", "إظهار الأدوات")}
-        data-testid="live-tools-toggle"
-      >
-        {open ? "»" : "🧰"}
-      </button>
-      {open && LIVE_TOOLS.map((x) => {
+      {!docked && (
+        <button
+          type="button"
+          className="grid h-8 w-8 place-items-center rounded-full bg-white/15 text-sm font-black text-white hover:bg-white/25"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          title={open ? tr("Hide tools", "إخفاء الأدوات") : tr("Show tools", "إظهار الأدوات")}
+          data-testid="live-tools-toggle"
+        >
+          {open ? "»" : "🧰"}
+        </button>
+      )}
+      {show && LIVE_TOOLS.map((x) => {
         if (x.id === "timer") {
           return (
             <div key={x.id} className="relative">

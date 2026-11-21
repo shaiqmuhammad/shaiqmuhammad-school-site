@@ -51,6 +51,65 @@ function Tile({ label, stream, hand, big, off, compact, size, featured }: { labe
   );
 }
 
+const STU_COLORS = ["#c9a227", "#5b7cbf", "#d08080", "#7a6bb0", "#3d8a7a", "#4aa3c2"];
+
+function PipTile({ label, stream, min, onToggle }: { label: string; stream?: MediaStream | null; min: boolean; onToggle: () => void }) {
+  const ref = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.srcObject = stream || null;
+    el.muted = true;
+    el.play().catch(() => undefined);
+  }, [stream]);
+  const hasVideo = !!stream?.getVideoTracks().some((t) => t.readyState !== "ended");
+  return (
+    <div className={`lb-pip ${min ? "is-min" : ""}`} data-testid="live-teacher-pip">
+      <button type="button" className="lb-pip-min" onClick={onToggle} aria-label={min ? "Show teacher video" : "Minimise teacher video"} data-testid="live-pip-min">{min ? "+" : "–"}</button>
+      <div className="lb-pip-vid">
+        <video ref={ref} autoPlay playsInline muted className={hasVideo && !min ? "" : "hidden"} />
+        {(!hasVideo || min) && <span className="lb-pip-avatar" aria-hidden>👨‍🏫</span>}
+      </div>
+      <div className="lb-pip-meta">
+        <span className="truncate">{label}</span>
+        <span className="lb-live-dot" aria-hidden />
+      </div>
+    </div>
+  );
+}
+
+function StuTile({ label, stream, hand, off, color }: { label: string; stream?: MediaStream | null; hand?: boolean; off?: boolean; color: string }) {
+  const ref = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.srcObject = stream || null;
+    el.muted = true;
+    el.play().catch(() => undefined);
+  }, [stream]);
+  const hasVideo = !!stream?.getVideoTracks().some((t) => t.readyState !== "ended");
+  return (
+    <div className={`lb-stu ${off ? "is-off" : ""} ${hand ? "has-hand" : ""}`} style={{ ["--c" as string]: color }} title={label}>
+      <video ref={ref} autoPlay playsInline muted className={hasVideo ? "" : "hidden"} />
+      {!hasVideo && <div className="lb-stu-face" aria-hidden>{off ? "😴" : "🙂"}</div>}
+      <div className="lb-stu-meta">
+        <span className="truncate">{label}</span>
+        {hand ? <span aria-label="hand raised">✋</span> : null}
+      </div>
+    </div>
+  );
+}
+
+function DockBtn({ onClick, label, icon, on, end, leave, disabled, testid, badge }: { onClick: () => void; label: string; icon: string; on?: boolean; end?: boolean; leave?: boolean; disabled?: boolean; testid?: string; badge?: number }) {
+  return (
+    <button type="button" data-testid={testid} disabled={disabled} onClick={onClick} className={`lb-ctl ${on ? "on" : ""} ${end ? "end" : ""} ${leave ? "leave" : ""}`}>
+      <span className="lb-ico" aria-hidden>{icon}</span>
+      <span className="lb-lab">{label}</span>
+      {badge && badge > 0 ? <span className="lb-badge" data-testid="live-chat-unread-btn">{badge}</span> : null}
+    </button>
+  );
+}
+
 /** Remote video stays muted so it can autoplay without any student permission; audio plays here after a tap. */
 function ClassAudio({ remotes, unlocked, onBlocked }: { remotes: Record<string, MediaStream>; unlocked: boolean; onBlocked: () => void }) {
   const audioTracks = useMemo(() => {
@@ -119,15 +178,6 @@ function playChatBeep() {
 }
 
 
-function Btn({ onClick, label, icon, on, danger, disabled, testid }: { onClick: () => void; label: string; icon: string; on?: boolean; danger?: boolean; disabled?: boolean; testid?: string }) {
-  return (
-    <button type="button" data-testid={testid} disabled={disabled} onClick={onClick} className={`flex min-h-14 min-w-14 flex-col items-center justify-center rounded-2xl px-3 py-2 text-[11px] font-extrabold shadow-sm ring-1 ring-black/10 transition disabled:opacity-40 sm:min-w-16 sm:text-xs ${danger ? "bg-rose-500 text-white" : on ? "bg-emerald-400 text-[#10331c]" : "bg-white text-[#1b3a57] dark:bg-slate-800 dark:text-white"}`}>
-      <span className="text-2xl sm:text-3xl" aria-hidden>{icon}</span>
-      {label}
-    </button>
-  );
-}
-
 export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, guestLink = false }: { embedded?: boolean; asAdmin?: boolean; guestLink?: boolean } = {}) {
   const { tr, lang } = useTr();
   const lms = useLmsActor();
@@ -178,6 +228,8 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
   const [roomFocused, setRoomFocused] = useState(false);
   const [localView, setLocalView] = useState<LiveViewMode | null>(null);
   const [viewOpen, setViewOpen] = useState(false);
+  const [pipMin, setPipMin] = useState(false);
+  const [trayRoot, setTrayRoot] = useState<HTMLDivElement | null>(null);
   const roomRef = useRef<HTMLDivElement>(null);
   const sfuRef = useRef<LiveSfu | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -237,6 +289,11 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
     return registerSlideFocus({ enter: () => focusApi.current.enter(), exit: () => focusApi.current.exit() });
   }, [phase]);
   useEffect(() => { if (phase !== "in" && roomFocused) void leaveRoomFocus(); }, [phase, roomFocused]);
+  useEffect(() => {
+    const on = phase === "in";
+    document.documentElement.classList.toggle("lb-session", on);
+    return () => document.documentElement.classList.remove("lb-session");
+  }, [phase]);
   useEffect(() => {
     const onFs = () => {
       if (!document.fullscreenElement && roomFocused) {
@@ -666,42 +723,50 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
         )}
 
         {phase === "in" && room && (
-          <div ref={roomRef} className={`flex flex-1 flex-col gap-3 ${room.present?.packId ? "pe-16 sm:pe-20" : ""}`} data-testid="live-room" data-focus-keep>
-            <header className="flex flex-wrap items-center justify-between gap-2 rounded-3xl bg-gradient-to-r from-indigo-500 to-fuchsia-500 px-4 py-3 text-white" data-focus-keep>
-              <div>
-                <h1 className="text-xl font-black sm:text-2xl">{room.title}</h1>
-                <p className="text-sm font-semibold opacity-90">{[room.cls, room.section].filter(Boolean).join(" · ")} · {room.members.filter((m) => m.present).length} {tr("here", "هنا")}</p>
+          <div ref={roomRef} className="lb-room" data-testid="live-room" data-focus-keep>
+            {err && <p className="lb-wait" style={{ background: "#fecdd3" }} role="alert">{err}</p>}
+            {permHelp && (
+              <div className="lb-wait" role="status" data-testid="live-perm-help">
+                <p>🎥 {tr("Allow camera/mic in your browser", "اسمح للكاميرا والميكروفون في المتصفح")}</p>
               </div>
-              <div className="flex flex-wrap items-center gap-2">
+            )}
+            <header className="lb-top">
+              <div className="lb-brand">
+                <div className="lb-title" dir="auto">{room.title}</div>
+                <button type="button" className="lb-sub" onClick={() => setShowPeople(true)} data-testid="live-people">
+                  {[room.cls, room.section].filter(Boolean).join(" · ") || tr("Meeting", "اجتماع")}
+                  {" · "}
+                  {tr(`${room.members.filter((m) => m.present).length} here`, `${room.members.filter((m) => m.present).length} حاضر`)}
+                </button>
+              </div>
+              <div className="lb-countdown">
                 <LiveCountdown endsAt={room.endsAt || room.created + 40 * 60_000} isHost={isHost} onAdd={addLessonMin} onSet={setLessonMin} />
-                <button type="button" className="rounded-full bg-white/20 px-3 py-1 text-sm font-bold" onClick={() => setShowPeople(true)} data-testid="live-people">👥 {tr("People", "الحاضرون")}{room.waiting.length ? ` · ${room.waiting.length}` : ""}</button>
-                <button type="button" className="relative rounded-full bg-white/20 px-3 py-1 text-sm font-bold" onClick={() => setShowChat(true)} data-testid="live-chat-open">
-                  💬 {tr("Chat", "الدردشة")}
-                  {chatUnread > 0 && <span className="absolute -right-1 -top-1 inline-flex min-w-5 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-black" data-testid="live-chat-unread">{chatUnread}</span>}
-                </button>
-                {canPickView && (
-                  <span className="relative" data-focus-keep>
-                    <button type="button" className={`rounded-full px-3 py-1 text-sm font-bold ${viewOpen ? "bg-[#f5c542] text-[#1b3a57]" : "bg-white/20"}`} onClick={() => setViewOpen((v) => !v)} data-testid="live-view-open" title={tr("Classroom view", "عرض الصف")}>
-                      {(VIEW_CARDS.find((c) => c.id === viewMode)?.icon || "🖼️")} {tr("View", "عرض")}
-                    </button>
-                    {viewOpen && (
-                      <LiveViewPicker mode={viewMode} follow={viewFollow} canPush={isHost} onMode={pickView} onFollow={(on) => void applyView({ follow: on })} onClose={() => setViewOpen(false)} />
-                    )}
-                  </span>
-                )}
-                <button type="button" className={`rounded-full px-3 py-1 text-sm font-bold ${roomFocused ? "bg-[#f5c542] text-[#1b3a57]" : "bg-white/20"}`} onClick={() => void toggleRoomFocus()} data-testid="live-room-focus" data-focus-keep title={roomFocused ? tr("Exit Focus (Esc)", "إنهاء التركيز (Esc)") : tr("Focus — hide menus and fill the screen with this classroom", "تركيز — أخفِ القوائم واملأ الشاشة بهذا الصف")}>
-                  {roomFocused ? "✕" : "🎯"} {roomFocused ? tr("Exit Focus", "إنهاء التركيز") : tr("Focus", "تركيز")}
-                </button>
               </div>
+              <i className="lb-top-break" aria-hidden />
+              <div className="relative">
+                <button type="button" className="lb-view" onClick={() => setViewOpen((v) => !v)} data-testid="live-view-open" aria-expanded={viewOpen}>
+                  {VIEW_CARDS.find((c) => c.id === viewMode)?.icon} {tr(VIEW_CARDS.find((c) => c.id === viewMode)?.en || "View", VIEW_CARDS.find((c) => c.id === viewMode)?.ar || "عرض")}
+                </button>
+                {viewOpen && (
+                  <LiveViewPicker
+                    mode={viewMode}
+                    follow={!!room.view?.follow}
+                    canPush={isHost}
+                    onMode={pickView}
+                    onFollow={isHost ? (on) => void applyView({ follow: on }) : undefined}
+                    onClose={() => setViewOpen(false)}
+                  />
+                )}
+              </div>
+              <button type="button" className={`lb-focus ${roomFocused ? "is-on" : ""}`} onClick={() => void toggleRoomFocus()} data-testid="live-room-focus" data-focus-keep title={roomFocused ? tr("Exit Focus (Esc)", "إنهاء التركيز (Esc)") : tr("Focus — open the classroom full screen, with controls and tools still visible", "تركيز — افتح الصف بملء الشاشة مع بقاء أدوات التحكم")}>
+                🎯 {roomFocused ? tr("Exit", "إنهاء") : tr("Focus", "تركيز")}
+              </button>
             </header>
 
             {isHost && !!room.waiting.length && (
-              <div className="rounded-3xl bg-amber-100 p-3 dark:bg-amber-900/40" data-testid="live-waiting-host">
-                <div className="mb-2 flex items-center justify-between">
-                  <p className="font-black">{tr("Waiting room", "غرفة الانتظار")} ({room.waiting.length})</p>
-                  <button type="button" className="rounded-full bg-emerald-500 px-3 py-1 text-sm font-bold text-white" onClick={() => lmsApi.liveAdmit(room.id, "all", asAdmin)}>{tr("Admit all", "قبول الجميع")}</button>
-                </div>
-                <ul className="flex flex-wrap gap-2">
+              <div className="lb-wait" data-testid="live-waiting-host">
+                <span className="font-black">{tr("Waiting room", "غرفة الانتظار")} ({room.waiting.length})</span>
+                <ul className="mt-1 flex flex-wrap gap-2">
                   {room.waiting.map((w) => (
                     <li key={w.id} className="flex items-center gap-2 rounded-full bg-white px-3 py-1 text-sm font-bold dark:bg-slate-800">
                       {w.name}
@@ -721,7 +786,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
               const students = room.members.filter((m) => m.role !== "teacher");
               const showPresent = presenting || isHost || asAdmin || livePerms.present;
               const presentSlot = showPresent ? (
-                <LivePresent roomId={room.id} present={room.present} isHost={isHost} canPresent={asAdmin || livePerms.present} asAdmin={asAdmin} selfId={selfId} members={room.members} onPresent={(present) => setRoom((r) => r ? { ...r, present } : r)} onRoomFocus={() => void toggleRoomFocus()} roomFocused={roomFocused} layout={layout} />
+                <LivePresent roomId={room.id} present={room.present} isHost={isHost} canPresent={asAdmin || livePerms.present} asAdmin={asAdmin} selfId={selfId} members={room.members} onPresent={(present) => setRoom((r) => r ? { ...r, present } : r)} onRoomFocus={() => void toggleRoomFocus()} roomFocused={roomFocused} layout={layout} trayRoot={trayRoot} />
               ) : null;
               const screen = mainScreen ? <Tile label={tr("Shared screen", "الشاشة المشاركة")} stream={mainScreen} size={viewMode === "lecture" || viewMode === "teach" ? "main" : "thumb"} /> : null;
               const teacher = teachers.map((m) => <Tile key={m.id} label={m.id === selfId ? tr("You (teacher)", "أنت (المعلم)") : m.name} stream={streamOf(m)} hand={m.hand} size="thumb" featured={m.id === speakerId} />);
@@ -732,16 +797,20 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
               const featuredMem = room.members.find((m) => m.id === speakerId) || teachers[0];
               const featured = featuredMem ? <Tile key={featuredMem.id} label={featuredMem.id === selfId ? (featuredMem.role === "teacher" ? tr("You (teacher)", "أنت (المعلم)") : tr("You", "أنت")) : featuredMem.name} stream={streamOf(featuredMem)} hand={featuredMem.hand} off={!streamOf(featuredMem) && featuredMem.id !== selfId} size="hero" featured /> : null;
               const others = room.members.filter((m) => m.id !== featuredMem?.id).map((m) => <Tile key={m.id} label={m.id === selfId ? (m.role === "teacher" ? tr("You (teacher)", "أنت (المعلم)") : tr("You", "أنت")) : m.name} stream={streamOf(m)} hand={m.hand} off={!streamOf(m) && m.id !== selfId} size="thumb" />);
-              const stage = (
-                <RoomStage mode={viewMode} presenting={presenting} presentSlot={presentSlot} screen={screen} teacher={teacher} teacherHero={teacherHero} students={studentTiles} thumbs={thumbs} gallery={gallery} featured={featured} others={others} />
-              );
-              if (viewMode !== "discuss") return stage;
-              return (
-                <div className="flex min-h-0 flex-1 flex-col gap-3 lg:flex-row" data-testid="live-discuss-wrap">
-                  <div className="flex min-h-0 min-w-0 flex-1 flex-col">{stage}</div>
-                  <aside className="flex h-[38vh] shrink-0 flex-col rounded-3xl bg-white p-3 shadow-sm ring-1 ring-black/5 dark:bg-slate-900 lg:h-auto lg:w-[22rem]" data-testid="live-chat-dock" data-focus-keep>
+              const bubblesStage = viewMode === "teach" || viewMode === "board";
+              const teacherMem = teachers[0];
+              const stageInner = bubblesStage ? (
+                <div className="lb-stage-fill" data-testid={`live-stage-${viewMode}`} data-view={viewMode}>
+                  {presentSlot || screen || (teacherHero.length ? <div className="flex min-h-0 flex-1 p-3">{teacherHero}</div> : <div className="flex flex-1 items-center justify-center font-bold opacity-60">{tr("Waiting for the teacher…", "بانتظار المعلم…")}</div>)}
+                </div>
+              ) : viewMode === "discuss" ? (
+                <div className="flex min-h-0 flex-1" data-testid="live-discuss-wrap">
+                  <div className="lb-stage-fill min-w-0 flex-1">
+                    <RoomStage mode={viewMode} presenting={presenting} presentSlot={presentSlot} screen={screen} teacher={teacher} teacherHero={teacherHero} students={studentTiles} thumbs={thumbs} gallery={gallery} featured={featured} others={others} />
+                  </div>
+                  <aside className="flex w-[min(22rem,40%)] shrink-0 flex-col border-s border-black/10 bg-black/5 p-3 dark:bg-white/5" data-testid="live-chat-dock" data-focus-keep>
                     <div className="mb-2 flex items-center justify-between"><h3 className="text-sm font-black">{tr("Chat", "الدردشة")}</h3></div>
-                    <div ref={chatBox} className="flex-1 space-y-2 overflow-auto rounded-2xl bg-black/5 p-3 dark:bg-white/10">
+                    <div ref={chatBox} className="flex-1 space-y-2 overflow-auto rounded-2xl bg-white/80 p-3 dark:bg-slate-900/80">
                       {chat.map((c) => (
                         <p key={c.id} className="text-sm"><span className="font-black">{c.name}: </span>{c.text}</p>
                       ))}
@@ -752,37 +821,67 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
                     </form>
                   </aside>
                 </div>
+              ) : (
+                <div className="lb-stage-fill">
+                  <RoomStage mode={viewMode} presenting={presenting} presentSlot={presentSlot} screen={screen} teacher={teacher} teacherHero={teacherHero} students={studentTiles} thumbs={thumbs} gallery={gallery} featured={featured} others={others} />
+                </div>
+              );
+              return (
+                <div className="lb-workspace">
+                  <div className="lb-stage">
+                    {stageInner}
+                    {teacherMem && bubblesStage && (
+                      <PipTile
+                        label={teacherMem.id === selfId ? tr("You (teacher)", "أنت (المعلم)") : teacherMem.name}
+                        stream={streamOf(teacherMem)}
+                        min={pipMin}
+                        onToggle={() => setPipMin((v) => !v)}
+                      />
+                    )}
+                    {bubblesStage && students.length > 0 && (
+                      <div className="lb-students" data-testid="live-student-strip">
+                        {students.slice(0, 8).map((m, i) => (
+                          <StuTile
+                            key={m.id}
+                            label={m.id === selfId ? tr("You", "أنت") : m.name}
+                            stream={streamOf(m)}
+                            hand={m.hand}
+                            off={!streamOf(m) && m.id !== selfId}
+                            color={STU_COLORS[i % STU_COLORS.length]}
+                          />
+                        ))}
+                      </div>
+                    )}
+                    <ClassAudio remotes={remotes} unlocked={hearOn} onBlocked={() => setNeedHear(true)} />
+                    {needHear && !hearOn && (
+                      <button type="button" className="lb-hear" onClick={unlockAudio} data-testid="live-hear">
+                        🔊 {tr("Tap to hear class", "اضغط لسماع الصف")}
+                      </button>
+                    )}
+                    {chatToast && !showChat && viewMode !== "discuss" && (
+                      <button type="button" className="lb-toast" onClick={() => setShowChat(true)} data-testid="live-chat-toast" data-focus-keep>
+                        <span className="opacity-80">{chatToast.name}</span>
+                        <span className="mt-0.5 block truncate">{chatToast.text}</span>
+                      </button>
+                    )}
+                  </div>
+                  <div id="lb-tray-root" className="lb-tray-root" ref={setTrayRoot} />
+                </div>
               );
             })()}
 
-            <ClassAudio remotes={remotes} unlocked={hearOn} onBlocked={() => setNeedHear(true)} />
-            {needHear && !hearOn && (
-              <button type="button" className="mx-auto block rounded-full bg-indigo-500 px-4 py-2 text-sm font-black text-white shadow-lg" onClick={unlockAudio} data-testid="live-hear">
-                🔊 {tr("Tap to hear class", "اضغط لسماع الصف")}
-              </button>
-            )}
-
-            <div className="sticky bottom-2 z-20 flex flex-wrap justify-center gap-2 rounded-3xl bg-white/90 p-2 shadow-lg ring-1 ring-black/10 backdrop-blur dark:bg-slate-900/90" data-focus-keep>
-              <Btn testid="live-cam" icon={camOn ? "📷" : "🚫"} label={tr("Camera", "الكاميرا")} on={camOn} disabled={!isHost && !me?.camAllowed && !camOn} onClick={() => toggleCam().catch((e) => setErr(lmsErrorText(e, tr)))} />
-              <Btn testid="live-mic" icon={micOn ? "🎤" : "🔇"} label={tr("Mic", "الميكروفون")} on={micOn} disabled={!isHost && !me?.micAllowed && !micOn} onClick={() => toggleMic().catch((e) => setErr(lmsErrorText(e, tr)))} />
-              {(isHost || me?.shareAllowed) && <Btn testid="live-share" icon="🖥️" label={tr("Share", "مشاركة")} on={shareOn} onClick={() => toggleShare().catch((e) => setErr(lmsErrorText(e, tr)))} />}
-              <Btn testid="live-hand" icon="✋" label={tr("Hand", "يد")} on={hand} onClick={() => toggleHand().catch(() => undefined)} />
-              <span className="relative">
-                <Btn testid="live-chat-btn" icon="💬" label={tr("Chat", "دردشة")} on={showChat} onClick={() => setShowChat(true)} />
-                {chatUnread > 0 && <span className="absolute -right-1 -top-1 inline-flex min-w-5 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-black text-white" data-testid="live-chat-unread-btn">{chatUnread}</span>}
-              </span>
-              <Btn testid="live-sound" icon={chatSound ? "🔔" : "🔕"} label={tr("Chat sound", "صوت الدردشة")} on={chatSound} onClick={() => setChatSound((v) => !v)} />
-              <Btn testid="live-leave" icon="🚪" label={tr("Leave", "خروج")} danger onClick={leave} />
-              {isHost && <Btn testid="live-end" icon="🛑" label={tr("End class", "إنهاء الحصة")} danger onClick={endClass} />}
+            <div className="lb-dock" data-focus-keep>
+              <DockBtn testid="live-cam" icon={camOn ? "📷" : "🚫"} label={tr("Camera", "الكاميرا")} on={camOn} disabled={!isHost && !me?.camAllowed && !camOn} onClick={() => toggleCam().catch((e) => setErr(lmsErrorText(e, tr)))} />
+              <DockBtn testid="live-mic" icon={micOn ? "🎤" : "🔇"} label={tr("Mic", "الميكروفون")} on={micOn} disabled={!isHost && !me?.micAllowed && !micOn} onClick={() => toggleMic().catch((e) => setErr(lmsErrorText(e, tr)))} />
+              {(isHost || me?.shareAllowed) && <DockBtn testid="live-share" icon="🖥️" label={tr("Share", "مشاركة")} on={shareOn} onClick={() => toggleShare().catch((e) => setErr(lmsErrorText(e, tr)))} />}
+              <DockBtn testid="live-hand" icon="✋" label={tr("Hand", "يد")} on={hand} onClick={() => toggleHand().catch(() => undefined)} />
+              <DockBtn testid="live-chat-btn" icon="💬" label={tr("Chat", "دردشة")} on={showChat} onClick={() => setShowChat(true)} badge={chatUnread} />
+              <span className="lb-dock-gap" aria-hidden />
+              <DockBtn testid="live-leave" icon="🚪" label={tr("Leave", "خروج")} leave onClick={leave} />
+              {isHost && <DockBtn testid="live-end" icon="🛑" label={tr("End class", "إنهاء الحصة")} end onClick={endClass} />}
             </div>
             {!isHost && me && !me.camAllowed && !me.micAllowed && (
-              <p className="text-center text-xs font-semibold opacity-70">{tr("Your camera and mic stay off until your teacher allows them. You can still see and hear the teacher.", "تبقى كاميرتك وميكروفونك مغلقين حتى يسمح بهما معلمك. ما زال بإمكانك رؤية المعلم وسماعه.")}</p>
-            )}
-            {chatToast && !showChat && viewMode !== "discuss" && (
-              <button type="button" className="fixed bottom-24 left-1/2 z-[75] w-[min(90vw,24rem)] -translate-x-1/2 rounded-2xl bg-[#1b3a57] px-4 py-3 text-left text-sm font-bold text-white shadow-xl dark:bg-indigo-800" onClick={() => setShowChat(true)} data-testid="live-chat-toast" data-focus-keep>
-                <span className="opacity-80">{chatToast.name}</span>
-                <span className="mt-0.5 block truncate">{chatToast.text}</span>
-              </button>
+              <p className="lb-hint">{tr("Your camera and mic stay off until your teacher allows them. You can still see and hear the teacher.", "تبقى كاميرتك وميكروفونك مغلقين حتى يسمح بهما معلمك. ما زال بإمكانك رؤية المعلم وسماعه.")}</p>
             )}
           </div>
         )}
@@ -812,7 +911,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
         {showChat && room && viewMode !== "discuss" && (
           <div className="fixed inset-0 z-[80] flex justify-end bg-black/40" onClick={() => setShowChat(false)} role="presentation">
             <aside className="flex h-full w-full max-w-sm flex-col bg-white p-4 shadow-xl dark:bg-slate-900" onClick={(e) => e.stopPropagation()} data-testid="live-chat-panel">
-              <div className="mb-3 flex items-center justify-between"><h3 className="text-lg font-black">{tr("Chat", "الدردشة")}</h3><button type="button" onClick={() => setShowChat(false)}>✕</button></div>
+              <div className="mb-3 flex items-center justify-between gap-2"><h3 className="text-lg font-black">{tr("Chat", "الدردشة")}</h3><span className="flex items-center gap-2"><button type="button" className="rounded-full px-2 py-1 text-sm font-bold" onClick={() => setChatSound((v) => !v)} data-testid="live-sound" aria-pressed={chatSound}>{chatSound ? "🔔" : "🔕"}</button><button type="button" onClick={() => setShowChat(false)}>✕</button></span></div>
               <div ref={chatBox} className="flex-1 space-y-2 overflow-auto rounded-2xl bg-black/5 p-3 dark:bg-white/10">
                 {chat.map((c) => (
                   <p key={c.id} className="text-sm"><span className="font-black">{c.name}: </span>{c.text}</p>
