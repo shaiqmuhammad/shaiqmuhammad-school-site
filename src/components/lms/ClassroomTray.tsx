@@ -67,7 +67,7 @@ export function LiveToolsTray({
       className={horizontal
         ? "lb-tools-bar"
         : docked
-        ? "flex w-full flex-col items-center gap-1 overflow-y-auto"
+        ? "flex h-full w-full flex-col items-center justify-evenly overflow-visible"
         : "fixed end-2 top-1/2 z-[85] flex max-h-[80dvh] -translate-y-1/2 flex-col items-center gap-1 overflow-y-auto rounded-3xl border border-white/30 bg-[#1b3a57]/90 p-1.5 shadow-2xl backdrop-blur-xl dark:border-white/15 dark:bg-slate-900/95"}
       data-testid="live-tools-tray"
       data-focus-keep
@@ -84,6 +84,9 @@ export function LiveToolsTray({
         >
           {open ? "»" : "🧰"}
         </button>
+      )}
+      {show && onOpen && (
+        <LibraryBtn on={!!openOn} onClick={onOpen} disabled={!canPresent} />
       )}
       {show && LIVE_TOOLS.map((x) => {
         if (x.id === "timer") {
