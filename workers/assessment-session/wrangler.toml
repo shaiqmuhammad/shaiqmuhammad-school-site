@@ -35,6 +35,11 @@ class_name = "LmsStore"
 name = "SITE"
 class_name = "SiteKV"
 
+# Part 1 live classroom (one Durable Object per room).
+[[durable_objects.bindings]]
+name = "LIVE"
+class_name = "LiveRoom"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["AssessmentSession"]
@@ -75,6 +80,16 @@ new_sqlite_classes = ["LmsStore"]
 [[migrations]]
 tag = "v7"
 new_sqlite_classes = ["SiteKV"]
+
+# Live Lesson rooms (signalling + membership). App Secret is a worker secret, never committed:
+#   REALTIME_SFU_APP_ID        (plain-text binding)
+#   REALTIME_SFU_APP_SECRET    (wrangler secret / API)
+# Optional TURN (same billing pool as SFU; needed on strict school networks):
+#   REALTIME_TURN_TOKEN_ID
+#   REALTIME_TURN_API_TOKEN
+[[migrations]]
+tag = "v8"
+new_sqlite_classes = ["LiveRoom"]
 
 # Free Workers AI — drafts assessment questions from the curriculum.
 [ai]

@@ -101,7 +101,7 @@ const TOKEN_DAYS = 3650; // effectively "until you log out" (sliding renewal on 
 const MAX_USERS = 3000;
 const MAX_HW = 2000;
 const FAIL_WINDOW = 15 * 60_000;
-const PERMS = ["assign", "review", "manageUsers", "viewAll", "staff", "shareCorrect", "viewAsStudent", "pptDownload", "hwMarkView", "hwMarkCorrect", "hwShare"] as const;
+const PERMS = ["assign", "review", "manageUsers", "viewAll", "staff", "shareCorrect", "viewAsStudent", "pptDownload", "hwMarkView", "hwMarkCorrect", "hwShare", "liveLesson"] as const;
 const STU_OPS = ["view", "add", "edit", "block", "delete"] as const;
 const STU_PERM = /^stu:(view|add|edit|block|delete|none)$/;
 /** Cartoon avatar code: stored reroll, else derived from id + gender (gender itself never leaves the server for non-admins). */
@@ -368,6 +368,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     for (const c of ["subject", "topic"]) if (!cols("actsave").has(c)) this.sql.exec(`ALTER TABLE actsave ADD COLUMN ${c} TEXT DEFAULT ''`);
     if (!cols("alive").has("locked")) this.sql.exec(`ALTER TABLE alive ADD COLUMN locked INTEGER DEFAULT 0`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS grp (id TEXT PRIMARY KEY, owner TEXT, name TEXT, students TEXT, updated INTEGER)`);
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS live_rooms (id TEXT PRIMARY KEY, teacher TEXT NOT NULL, title TEXT NOT NULL, cls TEXT NOT NULL, section TEXT NOT NULL DEFAULT '', group_id TEXT NOT NULL DEFAULT '', status TEXT NOT NULL, created INTEGER NOT NULL, ended INTEGER)`);
     for (const [c, d] of [["classes", "TEXT DEFAULT '[]'"], ["teachers", "TEXT DEFAULT '[]'"], ["admin", "INTEGER DEFAULT 0"], ["subject", "TEXT DEFAULT ''"]]) if (!cols("grp").has(c)) this.sql.exec(`ALTER TABLE grp ADD COLUMN ${c} ${d}`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS rtok (token TEXT PRIMARY KEY, student TEXT, kind TEXT, by TEXT, created INTEGER)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS rlog (id TEXT PRIMARY KEY, student TEXT, kind TEXT, to_addr TEXT, by TEXT, at INTEGER, ok INTEGER)`);
@@ -3513,6 +3514,92 @@ export class LmsStore extends DurableObject<LmsEnv> {
     return r.status === 200 ? { status: 200, body: { ...(r.body as Json), subject, body, today: modToday() } } : r;
   }
 
+
+  /** Part 1 live classroom index (light rows only; media signalling lives in the LiveRoom DO). */
+  liveEnsure() {
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS live_rooms (id TEXT PRIMARY KEY, teacher TEXT NOT NULL, title TEXT NOT NULL, cls TEXT NOT NULL, section TEXT NOT NULL DEFAULT '', group_id TEXT NOT NULL DEFAULT '', status TEXT NOT NULL, created INTEGER NOT NULL, ended INTEGER)`);
+  }
+  livePut(row: { id: string; teacher: string; title: string; cls: string; section: string; groupId: string; status: string; created: number }) {
+    this.liveEnsure();
+    this.sql.exec(`INSERT OR REPLACE INTO live_rooms (id, teacher, title, cls, section, group_id, status, created, ended) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)`, row.id, row.teacher, row.title, row.cls, row.section, row.groupId, row.status, row.created);
+  }
+  liveListOpen() {
+    this.liveEnsure();
+    return this.sql.exec(`SELECT id, teacher, title, cls, section, group_id, status, created FROM live_rooms WHERE status='live' ORDER BY created DESC LIMIT 40`).toArray();
+  }
+  liveRow(id: string) {
+    this.liveEnsure();
+    return this.sql.exec(`SELECT id, teacher, title, cls, section, group_id, status, created, ended FROM live_rooms WHERE id=?`, id).toArray()[0] || null;
+  }
+  liveMarkEnded(id: string) {
+    this.liveEnsure();
+    this.sql.exec(`UPDATE live_rooms SET status='ended', ended=? WHERE id=?`, Date.now(), id);
+  }
+  liveGroupStudents(groupId: string): string[] {
+    if (!groupId) return [];
+    const g = this.sql.exec(`SELECT students FROM grp WHERE id=?`, groupId).toArray()[0];
+    if (!g) return [];
+    try { return (JSON.parse(String(g.students || "[]")) as unknown[]).map(String).filter(Boolean); } catch { return []; }
+  }
+  liveStudentFits(a: Actor, cls: string, section: string, groupId: string): boolean {
+    if (a.role !== "student") return false;
+    const u = this.userRow("id=?", a.id);
+    if (!u) return false;
+    if (groupId) return this.liveGroupStudents(groupId).includes(a.id);
+    const sc = String(u.cls || "");
+    const ss = String(u.section || "");
+    if (cls && sc !== cls) return false;
+    if (section && ss !== section) return false;
+    return !!cls;
+  }
+  liveVisible(a: Actor, row: { teacher: string; cls: string; section: string; group_id?: string; groupId?: string }): boolean {
+    if (a.role === "admin") return true;
+    const groupId = String(row.group_id || row.groupId || "");
+    if (a.role === "teacher") return row.teacher === a.id || this.inScope(a, String(row.cls || ""), String(row.section || ""));
+    return this.liveStudentFits(a, String(row.cls || ""), String(row.section || ""), groupId);
+  }
+  liveCanStart(a: Actor, cls: string, section: string, groupId: string): { ok: true } | { ok: false; error: string } {
+    if (a.role === "admin") {
+      if (groupId && this.liveGroupStudents(groupId).length === 0 && !cls) return { ok: false, error: "no_students" };
+      if (!cls && !groupId) return { ok: false, error: "pick_class" };
+      return { ok: true };
+    }
+    if (a.role !== "teacher") return { ok: false, error: "forbidden" };
+    if (groupId) {
+      const ids = this.liveGroupStudents(groupId);
+      if (!ids.length) return { ok: false, error: "no_students" };
+      if (!ids.every((sid) => this.inScope(a, ...this.placeOf(sid), sid))) return { ok: false, error: "not_your_class" };
+      return { ok: true };
+    }
+    if (!cls) return { ok: false, error: "pick_class" };
+    if (!this.inScope(a, cls, section)) return { ok: false, error: "not_your_class" };
+    return { ok: true };
+  }
+  liveTeacherName(id: string): string {
+    if (id === "admin") return "Admin";
+    const u = this.userRow("id=?", id);
+    return u ? String(u.name || "") : "";
+  }
+  liveScopeOptions(a: Actor): { cls: string; section: string }[] {
+    if (a.role === "admin") {
+      const classes = this.sql.exec(`SELECT name FROM catalog WHERE kind='class' ORDER BY ord, name`).toArray().map((r) => String(r.name));
+      const sections = this.sql.exec(`SELECT name, parent FROM catalog WHERE kind='section' ORDER BY ord, name`).toArray();
+      const classId = new Map(this.sql.exec(`SELECT id, name FROM catalog WHERE kind='class'`).toArray().map((r) => [String(r.id), String(r.name)]));
+      const out: { cls: string; section: string }[] = [];
+      for (const c of classes) {
+        out.push({ cls: c, section: "" });
+        for (const s of sections) if (classId.get(String(s.parent)) === c) out.push({ cls: c, section: String(s.name) });
+      }
+      return out.slice(0, 400);
+    }
+    const out: { cls: string; section: string }[] = [];
+    for (const x of a.scope || []) {
+      const [c, s] = String(x).split("|");
+      if (c) out.push({ cls: c, section: s || "" });
+    }
+    return out;
+  }
+
   private inScope(a: Actor, cls: string, section: string, sid?: string): boolean {
     if (a.role === "admin") return true;
     if (a.role !== "teacher") return false;
@@ -3913,7 +4000,7 @@ export async function teacherWithPerm(request: Request, env: LmsEnv, perm: strin
   return u.perms.includes(perm) || u.perms.includes(perm.split(":")[0] + ":*");
 }
 
-async function lmsActor(request: Request, env: LmsEnv, store: DurableObjectStub<LmsStore>): Promise<Actor | null> {
+export async function lmsActor(request: Request, env: LmsEnv, store: DurableObjectStub<LmsStore>): Promise<Actor | null> {
   const auth = request.headers.get("Authorization");
   if (await verifyToken(env, auth)) {
     // Admin "view as": read-only impersonation using ONLY the admin session (logged).

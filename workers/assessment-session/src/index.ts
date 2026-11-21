@@ -37,6 +37,7 @@ import { handleForum } from "./forum";
 import { handleResults, resultsStore, type ResultRecord, type ResultsEnv } from "./results";
 import { handleActivity, type ActivityEnv } from "./activity";
 import { handleLms, rosterGate, studentIdOf, studentAvatar, type LmsEnv } from "./lms";
+import { handleLive, type LiveEnv } from "./live";
 import { handleYt, SiteKV, type YtEnv } from "./youtube";
 import { handleCert } from "./cert";
 import { handleContact, handleMail } from "./mail/routes";
@@ -49,8 +50,9 @@ export { ResultsStore } from "./results";
 export { ClassActivity } from "./activity";
 export { SiteKV };
 export { LmsStore } from "./lms";
+export { LiveRoom } from "./live";
 
-export interface Env extends AdminEnv, ResultsEnv, ActivityEnv, LmsEnv {
+export interface Env extends AdminEnv, ResultsEnv, ActivityEnv, LmsEnv, LiveEnv {
   SESSIONS: DurableObjectNamespace<AssessmentSession>;
   HOST_SECRET?: string;
 }
@@ -644,6 +646,7 @@ export default {
     if (parts[0] === "api" && parts[1] === "activity") return handleActivity(request, env, parts);
     if (parts[0] === "api" && parts[1] === "cert") return handleCert(request, env as unknown as YtEnv, parts.slice(2));
     if (parts[0] === "api" && parts[1] === "yt") return handleYt(request, env as unknown as YtEnv, parts.slice(2));
+    if (parts[0] === "api" && parts[1] === "lms" && (parts[2] === "live-ws" || String(parts[2] || "").startsWith("live-"))) return handleLive(request, env, parts[2] || "");
     if (parts[0] === "api" && parts[1] === "lms") return handleLms(request, env, parts[2] || "");
     if (parts[0] === "api" && parts[1] === "mail") return handleMail(request, env, parts[2] || "", ctx);
     if (parts[0] === "api" && parts[1] === "contact") return handleContact(request, env, ctx);

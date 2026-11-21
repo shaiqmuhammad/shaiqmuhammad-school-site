@@ -107,7 +107,7 @@ export type MapRow = { id: string; name: string; cls: string; section: string; c
 
 /** Student-account switches. Legacy "Manage students" with none of the stu:* flags set means all four. */
 export const stuUi = (perms: string[], op: "view" | "add" | "edit" | "block" | "delete") => { if (!perms.includes("manageUsers")) return false; const has = perms.filter((p) => p.startsWith("stu:")); return has.length ? has.includes(`stu:${op}`) : true; };
-export const PERMS = ["assign", "review", "manageUsers", "viewAll", "shareCorrect", "viewAsStudent", "pptDownload", "hwMarkView", "hwMarkCorrect", "hwShare"] as const;
+export const PERMS = ["assign", "review", "manageUsers", "viewAll", "shareCorrect", "viewAsStudent", "pptDownload", "hwMarkView", "hwMarkCorrect", "hwShare", "liveLesson"] as const;
 
 export class LmsError extends Error {
   data?: Record<string, unknown>;
@@ -266,6 +266,21 @@ export const setWallAdmin = (v: boolean) => { wallAdmin = v; };
 
 /** t402: homework reminder bell — confirm=false returns the count only. */
 export const hwRemind = (hw: string, confirm: boolean, asAdmin = false) => call<{ count?: number; assigned?: number; wait?: number; sent?: number }>("hw-remind", { hw, confirm }, { asAdmin });
+
+
+export type LiveRoomInfo = { id: string; title: string; cls: string; section: string; teacherId: string; teacherName: string; created: number; mine: boolean };
+export type LiveMember = { id: string; name: string; role: "teacher" | "student"; camAllowed: boolean; micAllowed: boolean; hand: boolean; present: boolean };
+export type LiveWait = { id: string; name: string; at: number };
+export type LiveChat = { id: string; from: string; name: string; text: string; at: number };
+export type LivePub = { userId: string; sessionId: string; tracks: string[] };
+export type LiveSnap = { id: string; title: string; cls: string; section: string; groupId: string; teacherId: string; status: "live" | "ended"; created: number; waiting: LiveWait[]; members: LiveMember[]; chat: LiveChat[]; pubs: LivePub[]; sfu: boolean };
+export function liveWsUrl(token: string, room: string) {
+  const u = new URL(`${ASSESSMENT_API_BASE}/api/lms/live-ws`);
+  u.protocol = u.protocol === "https:" ? "wss:" : "ws:";
+  u.searchParams.set("room", room);
+  u.searchParams.set("t", token);
+  return u.toString();
+}
 
 export const lmsApi = {
   hwLocks: (hw: string, opts: { student?: string; unlock?: boolean } = {}, asAdmin = false) => (opts.student ? call<{ locks: { student: string; name: string; section: string; lockedBy: Homework["lockedBy"]; unlocked: boolean }[] }>("hw-unlock", { hw, ...opts }, { asAdmin }) : call<{ locks: { student: string; name: string; section: string; lockedBy: Homework["lockedBy"]; unlocked: boolean }[] }>("hw-unlock", undefined, { asAdmin, query: { hw } })),
@@ -447,6 +462,22 @@ export const lmsApi = {
     const blob = await res.blob();
     return { url: URL.createObjectURL(blob), type: blob.type };
   },
+
+  liveList: (asAdmin = false) => call<{ rooms: LiveRoomInfo[]; canStart: boolean; sfu: boolean; options: { cls: string; section: string }[]; groups: { id: string; name: string }[] }>("live-list", undefined, { asAdmin }),
+  liveStart: (b: { title?: string; cls?: string; section?: string; groupId?: string }, asAdmin = false) => call<{ id: string; existing?: boolean }>("live-start", b, { asAdmin }),
+  liveGet: (id: string, asAdmin = false) => call<{ room: LiveSnap }>("live-get", { id }, { asAdmin }),
+  liveJoin: (id: string, asAdmin = false) => call<{ status: "in" | "waiting" | "ended" | "full"; room?: LiveSnap }>("live-join", { id }, { asAdmin }),
+  liveAdmit: (id: string, userId: string, asAdmin = false) => call<{ ok: boolean }>("live-admit", { id, userId }, { asAdmin }),
+  liveDeny: (id: string, userId: string, asAdmin = false) => call<{ ok: boolean }>("live-deny", { id, userId }, { asAdmin }),
+  liveLeave: (id: string, asAdmin = false) => call<{ ok: true }>("live-leave", { id }, { asAdmin }),
+  liveEnd: (id: string, asAdmin = false) => call<{ ok: boolean }>("live-end", { id }, { asAdmin }),
+  livePerm: (id: string, userId: string, cam?: boolean, mic?: boolean, asAdmin = false) => call<{ ok: boolean }>("live-perm", { id, userId, cam, mic }, { asAdmin }),
+  liveRaise: (id: string, on: boolean, asAdmin = false) => call<{ ok: boolean }>("live-raise", { id, on }, { asAdmin }),
+  liveChat: (id: string, text: string, asAdmin = false) => call<{ ok: boolean }>("live-chat", { id, text }, { asAdmin }),
+  livePub: (id: string, sessionId: string, tracks: string[], asAdmin = false) => call<{ ok: boolean }>("live-pub", { id, sessionId, tracks }, { asAdmin }),
+  liveUnpub: (id: string, tracks: string[], asAdmin = false) => call<{ ok: true }>("live-unpub", { id, tracks }, { asAdmin }),
+  liveSfu: (id: string, body: Record<string, unknown>, asAdmin = false) => call<Record<string, unknown>>("live-sfu", { id, ...body }, { asAdmin }),
+  liveIce: (id: string, asAdmin = false) => call<{ iceServers: RTCIceServer[] }>("live-ice", { id }, { asAdmin }),
   exportAll: (asAdmin = false) => call<{ exportedAt: number; homework: Homework[]; subs: (Submission & { hw: string; student: string })[]; users: { id: string; username: string; name: string; role: string; cls: string }[]; tracker: (TrackerRow & { student: string; hw: string })[] }>("export", undefined, { asAdmin }),
 };
 
@@ -470,6 +501,11 @@ export function lmsErrorText(e: unknown, tr: (en: string, ar: string) => string)
     bad_media: ["That picture or recording is too large.", "الصورة أو التسجيل كبير جدًا."],
     empty: ["Write something first.", "اكتب شيئًا أولًا."],
     not_your_class: ["That student is not in your classes.", "هذا الطالب ليس في صفوفك."],
+    no_permission: ["Your admin hasn't switched on “Run live lessons” for you yet.", "لم يفعّل المسؤول صلاحية «تشغيل الدروس المباشرة» لك بعد."],
+    sfu_not_configured: ["Live video isn't set up yet. You can still use chat and the waiting room.", "فيديو الحصة غير مُعد بعد. يمكنك استخدام الدردشة وغرفة الانتظار."],
+    pick_class: ["Choose a class to start the live lesson.", "اختر صفًا لبدء الحصة المباشرة."],
+    sfu_session: ["Could not start the video connection. Try again.", "تعذر بدء اتصال الفيديو. حاول مرة أخرى."],
+    sfu_publish: ["Could not share your camera or mic. Check permissions and try again.", "تعذر مشاركة الكاميرا أو الميكروفون. تحقق من الأذونات وحاول مرة أخرى."],
     bad_login: ["Wrong username or password.", "اسم المستخدم أو كلمة المرور غير صحيحة."],
     locked: ["Finish the earlier verses first — this unlocks when your teacher passes them.", "أكمل الآيات السابقة أولًا — تُفتح عندما يجتازها معلمك."],
     leaderboard_off: ["The leaderboard is turned off.", "لوحة المتصدرين متوقفة."],
