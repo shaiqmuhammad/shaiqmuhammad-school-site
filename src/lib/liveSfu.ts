@@ -4,7 +4,10 @@
 import { lmsApi, type LivePub } from "@/lib/lms";
 import { isMaxBundleError, sdpDesc } from "@/lib/liveSdp";
 
-export async function waitIce(pc: RTCPeerConnection, ms = 2500) {
+/** Cap ICE gather so media can start without waiting for a slow TURN complete. */
+export const ICE_WAIT_MS = 500;
+
+export async function waitIce(pc: RTCPeerConnection, ms = ICE_WAIT_MS) {
   if (pc.iceGatheringState === "complete") return;
   await new Promise<void>((res) => {
     const t = setTimeout(res, ms);
@@ -26,6 +29,7 @@ function sfuField<T = unknown>(r: Record<string, unknown>, key: string): T | und
 }
 
 type RemoteFn = (key: string, stream: MediaStream | null) => void;
+type TrackRow = { mid?: string; sessionId?: string; trackName?: string; errorCode?: string };
 
 export class LiveSfu {
   private roomId: string;
@@ -43,7 +47,9 @@ export class LiveSfu {
   private subbed = new Set<string>();
   private subUi = new Map<string, string>();
   private pendingOntrack = new Map<string, RTCTrackEvent>();
-  private q: Promise<void> = Promise.resolve();
+  private pubQ: Promise<void> = Promise.resolve();
+  private recvQ: Promise<void> = Promise.resolve();
+  private warm?: Promise<void>;
   constructor(roomId: string, selfId: string, ice: RTCIceServer[], onRemote: RemoteFn, asAdmin = false) {
     this.roomId = roomId;
     this.selfId = selfId;
@@ -52,9 +58,14 @@ export class LiveSfu {
     this.asAdmin = asAdmin;
   }
 
-  private enqueue(fn: () => Promise<void>) {
-    this.q = this.q.then(fn, fn);
-    return this.q;
+  private enqueuePub(fn: () => Promise<void>) {
+    this.pubQ = this.pubQ.then(fn, fn);
+    return this.pubQ;
+  }
+
+  private enqueueRecv(fn: () => Promise<void>) {
+    this.recvQ = this.recvQ.then(fn, fn);
+    return this.recvQ;
   }
 
   setSelfId(id: string) { if (id) this.selfId = id; }
@@ -64,7 +75,7 @@ export class LiveSfu {
   }
 
   private newPc() {
-    const pc = new RTCPeerConnection({ iceServers: this.ice, bundlePolicy: "max-bundle" });
+    const pc = new RTCPeerConnection({ iceServers: this.ice, bundlePolicy: "max-bundle", iceCandidatePoolSize: 2 });
     pc.onconnectionstatechange = () => {
       if (pc.connectionState === "failed") pc.restartIce();
     };
@@ -78,7 +89,7 @@ export class LiveSfu {
   }
 
   private sfuFailed(r: Record<string, unknown>, name?: string) {
-    const tracks = (Array.isArray(r.tracks) ? r.tracks : []) as { errorCode?: string; trackName?: string }[];
+    const tracks = (Array.isArray(sfuField(r, "tracks")) ? sfuField(r, "tracks") : Array.isArray(r.tracks) ? r.tracks : []) as TrackRow[];
     if (r.errorErrors || r.errorCode) return true;
     if (name) return tracks.some((x) => x.trackName === name && x.errorCode);
     return tracks.some((x) => x.errorCode);
@@ -92,10 +103,8 @@ export class LiveSfu {
     if (!this.pubId) throw new Error("sfu_session");
   }
 
-  private async ensureRecv() {
-    if (this.recv) return;
-    this.recv = this.newPc();
-    this.recv.ontrack = (ev) => {
+  private attachRecv(pc: RTCPeerConnection) {
+    pc.ontrack = (ev) => {
       const mid = ev.transceiver?.mid || ev.receiver?.track?.id || "";
       const key = this.midKey.get(mid) || this.midKey.get(String(ev.transceiver?.mid || "")) || "";
       const stream = ev.streams[0] || new MediaStream([ev.track]);
@@ -109,9 +118,26 @@ export class LiveSfu {
       }
       this.onRemote(key, stream);
     };
+  }
+
+  private async ensureRecv() {
+    if (this.recv) return;
+    this.recv = this.newPc();
+    this.attachRecv(this.recv);
     const r = await this.call({ op: "session-new" });
     this.recvId = String(r.sessionId || "");
     if (!this.recvId) throw new Error("sfu_session");
+  }
+
+  /** Create publish and receive sessions in parallel as soon as the student or teacher joins. */
+  async warmup() {
+    if (!this.warm) {
+      this.warm = Promise.all([this.ensurePub(), this.ensureRecv()]).then(() => undefined, (e) => {
+        this.warm = undefined;
+        throw e;
+      });
+    }
+    await this.warm;
   }
 
   private dropPubPc() {
@@ -120,6 +146,7 @@ export class LiveSfu {
     this.pubId = "";
     this.published.clear();
     this.slots.clear();
+    this.warm = undefined;
   }
 
   /** Recreate the publish session and push every active track in one tracks/new (Cloudflare batch). */
@@ -161,7 +188,7 @@ export class LiveSfu {
   }
 
   async publish(name: string, track: MediaStreamTrack) {
-    await this.enqueue(async () => {
+    await this.enqueuePub(async () => {
       await this.ensurePub();
       const existing = this.slots.get(name) || this.published.get(name);
       if (existing) {
@@ -197,7 +224,7 @@ export class LiveSfu {
   }
 
   async unpublish(name: string) {
-    await this.enqueue(async () => {
+    await this.enqueuePub(async () => {
       const trans = this.published.get(name);
       if (!trans || !this.pub) return;
       try { await trans.sender.replaceTrack(null); } catch { /* */ }
@@ -211,10 +238,21 @@ export class LiveSfu {
     else await lmsApi.liveUnpub(this.roomId, [name], this.asAdmin);
   }
 
+  private bindMid(mid: string, key: string) {
+    this.midKey.set(mid, key);
+    const pending = this.pendingOntrack.get(mid);
+    if (!pending) return;
+    this.pendingOntrack.delete(mid);
+    const stream = pending.streams[0] || new MediaStream([pending.track]);
+    pending.track.onended = () => this.onRemote(key, null);
+    this.onRemote(key, stream);
+  }
+
   async syncSubs(pubs: LivePub[]) {
-    await this.enqueue(async () => {
+    await this.enqueueRecv(async () => {
       await this.ensureRecv();
       const wanted = new Set<string>();
+      const fresh: { sessionId: string; name: string; subId: string; key: string }[] = [];
       for (const p of pubs) {
         if (p.userId === this.selfId) continue;
         for (const name of p.tracks) {
@@ -222,27 +260,32 @@ export class LiveSfu {
           const key = `${p.userId}:${name}`;
           wanted.add(subId);
           this.subUi.set(subId, key);
-          if (this.subbed.has(subId)) continue;
-          const r = await this.call({
-            op: "tracks-new",
-            sessionId: this.recvId,
-            tracks: [{ location: "remote", sessionId: p.sessionId, trackName: name }],
-          }) as Record<string, unknown>;
-          const tracks = (Array.isArray(sfuField(r, "tracks")) ? sfuField(r, "tracks") : []) as { mid?: string; sessionId?: string; trackName?: string; errorCode?: string }[];
-          if (this.sfuFailed(r, name)) continue;
-          const mine = tracks.find((t) => (t.trackName === name || !t.trackName) && !t.errorCode && t.mid != null && t.mid !== "");
+          if (!this.subbed.has(subId)) fresh.push({ sessionId: p.sessionId, name, subId, key });
+        }
+      }
+      if (fresh.length) {
+        const r = await this.call({
+          op: "tracks-new",
+          sessionId: this.recvId,
+          tracks: fresh.map((t) => ({ location: "remote", sessionId: t.sessionId, trackName: t.name })),
+        }) as Record<string, unknown>;
+        const tracks = (Array.isArray(sfuField(r, "tracks")) ? sfuField(r, "tracks") : []) as TrackRow[];
+        const used = new Set<string>();
+        for (const item of fresh) {
+          if (this.sfuFailed(r, item.name)) continue;
+          const mine = tracks.find((t) => {
+            const mid = t.mid != null ? String(t.mid) : "";
+            if (!mid || t.errorCode || used.has(mid)) return false;
+            return t.trackName === item.name || ((!t.trackName || t.trackName === item.name) && (!t.sessionId || t.sessionId === item.sessionId));
+          });
           const mid = mine?.mid != null ? String(mine.mid) : "";
           if (!mid) continue;
-          this.midKey.set(mid, key);
-          const pending = this.pendingOntrack.get(mid);
-          if (pending) {
-            this.pendingOntrack.delete(mid);
-            const stream = pending.streams[0] || new MediaStream([pending.track]);
-            pending.track.onended = () => this.onRemote(key, null);
-            this.onRemote(key, stream);
-          }
-          const offer = sfuField(r, "sessionDescription") ?? sfuField(r, "session_description");
-          if (offer) {
+          used.add(mid);
+          this.bindMid(mid, item.key);
+          this.subbed.add(item.subId);
+        }
+        const offer = sfuField(r, "sessionDescription") ?? sfuField(r, "session_description");
+        if (offer) {
           await this.applyRemote(this.recv!, offer, "offer");
           const answer = await this.recv!.createAnswer();
           await this.recv!.setLocalDescription(answer);
@@ -253,8 +296,6 @@ export class LiveSfu {
             sessionId: this.recvId,
             sessionDescription: local ? { type: "answer", sdp: sdpDesc(local, "answer")?.sdp || local.sdp } : { type: "answer", sdp: answer.sdp },
           });
-          }
-          this.subbed.add(subId);
         }
       }
       for (const subId of [...this.subbed]) {
@@ -270,6 +311,7 @@ export class LiveSfu {
   }
 
   close() {
+    this.warm = undefined;
     for (const tr of this.published.values()) {
       try { tr.sender.track?.stop(); } catch { /* */ }
       try { tr.stop(); } catch { /* */ }

@@ -1286,3 +1286,143 @@ html.lb-classroom .pub-main { display: flex; flex-direction: column; min-height:
   position: absolute; inset: 12px; overflow: auto; max-height: calc(100% - 24px); z-index: 30;
 }
 .dark .lb-content-picker { background: #0f1f30; color: #fff8ec; }
+
+/* Classroom join: premium connecting overlay */
+.lb-connect {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    radial-gradient(circle at 20% 15%, rgba(243, 201, 105, .35), transparent 42%),
+    radial-gradient(circle at 85% 90%, rgba(126, 224, 212, .28), transparent 40%),
+    #fff8ec;
+  font-family: var(--font-sans), Nunito, system-ui, sans-serif;
+  color: #1b3a57;
+  opacity: 1;
+  transition: opacity .28s ease;
+}
+.lb-connect.is-out { opacity: 0; pointer-events: none; }
+.dark .lb-connect {
+  background:
+    radial-gradient(circle at 20% 15%, rgba(243, 201, 105, .18), transparent 42%),
+    radial-gradient(circle at 85% 90%, rgba(126, 224, 212, .14), transparent 40%),
+    #0f1f30;
+  color: #fff8ec;
+}
+.lb-connect-card {
+  width: min(28rem, 100%);
+  text-align: center;
+}
+.lb-connect-mark {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 7.5rem;
+  padding: 1.5rem 1.25rem;
+}
+.lb-connect-orbit,
+.lb-connect-orbit-2 {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  border: 2px solid rgba(243, 201, 105, .55);
+  animation: lb-connect-spin 4.5s linear infinite;
+}
+.lb-connect-orbit-2 {
+  inset: 10px;
+  border-color: rgba(126, 224, 212, .55);
+  animation-duration: 6.5s;
+  animation-direction: reverse;
+}
+.dark .lb-connect-orbit { border-color: rgba(243, 201, 105, .7); }
+.dark .lb-connect-orbit-2 { border-color: rgba(126, 224, 212, .65); }
+@keyframes lb-connect-spin {
+  from { transform: rotate(0deg) scale(1); }
+  50% { transform: rotate(180deg) scale(1.04); }
+  to { transform: rotate(360deg) scale(1); }
+}
+.lb-connect .lb-site { justify-content: center; gap: 12px; position: relative; z-index: 1; }
+.lb-connect .lb-logo {
+  height: 64px; width: 64px;
+  border-width: 3px;
+  box-shadow: 0 8px 24px rgba(27, 58, 87, .16);
+  animation: lb-connect-logo 2.2s ease-in-out infinite;
+}
+.dark .lb-connect .lb-logo { box-shadow: 0 8px 24px rgba(0, 0, 0, .35); }
+@keyframes lb-connect-logo {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+.lb-connect .lb-site-name {
+  color: #1b3a57;
+  font-size: 1.35rem;
+  font-weight: 900;
+  white-space: normal;
+}
+.dark .lb-connect .lb-site-name { color: #fff8ec; }
+.lb-connect-kicker {
+  margin: 8px 0 18px;
+  font-weight: 800;
+  font-size: 0.95rem;
+  color: #1b3a57;
+}
+.dark .lb-connect-kicker { color: #fff8ec; }
+.lb-connect-steps {
+  list-style: none;
+  margin: 0 auto;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+  width: min(20rem, 100%);
+  text-align: start;
+}
+.lb-connect-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 2.5rem;
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-weight: 800;
+  font-size: 0.95rem;
+  color: #1b3a57;
+  background: rgba(27, 58, 87, .06);
+}
+.dark .lb-connect-step { color: #fff8ec; background: rgba(255, 248, 236, .08); }
+.lb-connect-step.is-now {
+  background: #1b3a57;
+  color: #fff8ec;
+  box-shadow: 0 6px 16px rgba(27, 58, 87, .18);
+}
+.dark .lb-connect-step.is-now {
+  background: #f3c969;
+  color: #1b3a57;
+}
+.lb-connect-step.is-done { opacity: 1; }
+.lb-connect-step.is-wait { opacity: .7; }
+.lb-connect-dot {
+  flex-shrink: 0;
+  width: 1.55rem;
+  height: 1.55rem;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-size: 0.75rem;
+  font-weight: 900;
+  background: #f3c969;
+  color: #1b3a57;
+}
+.lb-connect-step.is-now .lb-connect-dot {
+  background: #7ee0d4;
+  color: #1b3a57;
+  animation: lb-connect-dot 1s ease-in-out infinite;
+}
+.dark .lb-connect-step.is-now .lb-connect-dot { background: #1b3a57; color: #fff8ec; }
+@keyframes lb-connect-dot {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+}
