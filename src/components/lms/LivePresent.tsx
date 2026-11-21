@@ -309,7 +309,7 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
   ) : null;
 
   return (
-    <section className="lb-present flex min-h-0 flex-1 flex-col" data-testid="live-present" data-layout={layout}>
+    <section className={`lb-present flex min-h-0 flex-1 flex-col${hasPack ? " is-pack" : ""}`} data-testid="live-present" data-layout={layout} data-pack={hasPack ? "1" : "0"}>
       {trayRoot ? createPortal(tray, trayRoot) : null}
       {teachRoot && teach ? createPortal(teach, teachRoot) : teach}
       {err && <p className="m-2 rounded-2xl bg-rose-100 px-3 py-2 text-sm font-bold text-rose-800 dark:bg-rose-900/60 dark:text-rose-100" role="alert">{err}</p>}
@@ -333,29 +333,30 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
 
       {present && (
         <>
-          <div className="lb-slide-bar">
-            <div className="flex flex-wrap items-start justify-between gap-2">
+          {!hasPack && (
+            <div className="lb-slide-bar">
               <div className="min-w-0">
-                <div className="lb-eyebrow">{boardOn && !hasPack ? tr("Whiteboard", "السبورة") : contentEyebrow(cur?.part || pack?.type, tr)}</div>
-                <h3 dir="auto">{hasPack ? present.packTitle : tr("Whiteboard", "السبورة")}</h3>
-                {hasPack && <div className="lb-slide-sub">{`${slide + 1} / ${slides.length || 1}`}</div>}
-              </div>
-              <div className="flex flex-wrap items-center justify-end gap-2">
-                {left !== null && (
-                  <span className={`rounded-full px-3 py-1 font-mono text-base font-extrabold tabular-nums ${left === 0 ? "bg-rose-600 text-white" : left <= 30 ? "animate-pulse bg-amber-400 text-[#1b2f44]" : "bg-[#f5c542] text-[#1b3a57]"}`} data-testid="live-present-timer">⏱ {left === 0 ? tr("Time's up!", "انتهى الوقت!") : `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`}</span>
-                )}
-                {isHost && canPresent && (
-                  <>
-                    <button type="button" className={`rounded-full px-3 py-1 text-xs font-bold ${present.follow ? "bg-emerald-300 text-[#10331c]" : "bg-white/15 text-white"}`} onClick={() => call({ op: "nav", follow: !present.follow })} data-testid="live-follow">{present.follow ? tr("Follow me: on", "تابعني: تشغيل") : tr("Follow me: off", "تابعني: إيقاف")}</button>
-                    <button type="button" className="rounded-full bg-rose-100 px-3 py-1 text-xs font-bold text-rose-800" onClick={() => call({ op: "stop" })}>{tr("Stop presenting", "إيقاف العرض")}</button>
-                  </>
-                )}
-                {!isHost && (
-                  <span className="rounded-full bg-white/15 px-3 py-1 text-xs font-extrabold text-white">{follow ? tr("Following your teacher", "تتابع معلمك") : tr("You can move freely", "يمكنك التنقل بحرية")}</span>
-                )}
+                <div className="lb-eyebrow">{tr("Whiteboard", "السبورة")}</div>
+                <h3>{tr("Whiteboard", "السبورة")}</h3>
               </div>
             </div>
-          </div>
+          )}
+          {hasPack && (left !== null || (isHost && canPresent) || !isHost) && (
+            <div className="lb-pack-tools" data-testid="live-pack-tools">
+              {left !== null && (
+                <span className={`rounded-full px-3 py-1 font-mono text-sm font-extrabold tabular-nums ${left === 0 ? "bg-rose-600 text-white" : left <= 30 ? "animate-pulse bg-amber-400 text-[#1b2f44]" : "bg-[#f5c542] text-[#1b3a57]"}`} data-testid="live-present-timer">⏱ {left === 0 ? tr("Time's up!", "انتهى الوقت!") : `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`}</span>
+              )}
+              {isHost && canPresent && (
+                <>
+                  <button type="button" className={`rounded-full px-3 py-1 text-xs font-bold ${present.follow ? "bg-emerald-300 text-[#10331c]" : "bg-[#1b3a57] text-[#fff8ec]"}`} onClick={() => call({ op: "nav", follow: !present.follow })} data-testid="live-follow">{present.follow ? tr("Follow me: on", "تابعني: تشغيل") : tr("Follow me: off", "تابعني: إيقاف")}</button>
+                  <button type="button" className="rounded-full bg-rose-100 px-3 py-1 text-xs font-bold text-rose-800" onClick={() => call({ op: "stop" })} data-testid="live-stop">{tr("Stop presenting", "إيقاف العرض")}</button>
+                </>
+              )}
+              {!isHost && (
+                <span className="rounded-full bg-[#1b3a57] px-3 py-1 text-xs font-extrabold text-[#fff8ec]">{follow ? tr("Following your teacher", "تتابع معلمك") : tr("You can move freely", "يمكنك التنقل بحرية")}</span>
+              )}
+            </div>
+          )}
 
           <div className={`lb-slide-body${boardOn ? " lb-board-on" : ""}`}>
             <div className="lb-slide-wrap" style={{ containerType: "inline-size" }}>
@@ -373,10 +374,10 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
             </div>
 
             {hasPack && (
-              <div className="lb-nav">
-                <button type="button" className="rounded-full bg-black/10 px-4 py-2 font-bold dark:bg-white/10" disabled={(isHost || !follow) ? slide <= 0 : follow} onClick={() => go(slide - 1)}>◀</button>
-                <span className="font-extrabold">{slide + 1} / {slides.length || 1}</span>
-                <button type="button" className="rounded-full bg-black/10 px-4 py-2 font-bold dark:bg-white/10" disabled={(isHost || !follow) ? slide >= slides.length - 1 : follow} onClick={() => go(slide + 1)}>▶</button>
+              <div className="lb-nav" data-testid="live-present-nav">
+                <button type="button" className="rounded-full bg-white/15 px-3 py-1 font-bold text-[#fff8ec]" disabled={(isHost || !follow) ? slide <= 0 : follow} onClick={() => go(slide - 1)} aria-label={tr("Previous slide", "الشريحة السابقة")}>◀</button>
+                <span className="font-extrabold tabular-nums">{slide + 1} / {slides.length || 1}</span>
+                <button type="button" className="rounded-full bg-white/15 px-3 py-1 font-bold text-[#fff8ec]" disabled={(isHost || !follow) ? slide >= slides.length - 1 : follow} onClick={() => go(slide + 1)} aria-label={tr("Next slide", "الشريحة التالية")}>▶</button>
               </div>
             )}
 
