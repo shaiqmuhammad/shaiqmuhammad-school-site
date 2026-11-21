@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import { useTr } from "@/components/lms/useLms";
 import { firstSlideOf, lp, packHasPart, type Pack, type Part } from "@/lib/packs";
 import { SlideView } from "@/components/lms/packs/SlideView";
-import { lmsApi, lmsErrorText, normalizePtrKind, type LiveMember, type LivePresent as Present, type LivePtr, type LiveView, type PointCat, type PtrKind } from "@/lib/lms";
+import { lmsApi, lmsErrorText, livePresentingContent, normalizePtrKind, youtubeVideoId, type LiveMember, type LivePresent as Present, type LivePresentItem, type LivePresentItemKind, type LivePtr, type LiveView, type PointCat, type PtrKind } from "@/lib/lms";
 import { primaryBtn } from "@/components/assessment/AssessmentShell";
 import { createPortal } from "react-dom";
 import { LiveToolsTray, TeachToolsTray } from "@/components/lms/ClassroomTray";
@@ -34,6 +34,7 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
   const [contentOpen, setContentOpen] = useState(false);
   const [contentKind, setContentKind] = useState<ContentKind>("lesson");
   const pendingKind = useRef<Part | "">("");
+  const packCache = useRef<Record<string, Pack>>({});
   const draw = useRef<{ pts: number[]; drawing: boolean }>({ pts: [], drawing: false });
   const svgRef = useRef<SVGSVGElement>(null);
   const [ptrKind, setPtrKind] = useState<PtrKind>("pen");
@@ -47,9 +48,12 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
   }, [asAdmin, canPresent, present?.packId]);
   useEffect(() => {
     if (!present?.packId) { setPack(null); return; }
+    const cached = packCache.current[present.packId];
+    if (cached) setPack(cached);
     lmsApi.livePack(roomId, present.packId, asAdmin)
       .then((r) => {
         const next = r.pack as Pack;
+        packCache.current[next.id] = next;
         setPack(next);
         setErr("");
         const kind = pendingKind.current;
@@ -88,12 +92,13 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
     return r;
   }, [roomId, asAdmin, onPresent]);
 
-  async function startPack(p: Pack, kind: Part) {
+  async function startPack(p: Pack, kind: ContentKind) {
     setBusy(true); setErr("");
-    pendingKind.current = kind;
+    const part = partForKind(kind);
+    pendingKind.current = part;
     try {
-      const slide = firstSlideOf(p.slides, kind, p.type);
-      await call({ op: "start", packId: p.id, packTitle: p.title, slide, follow: true });
+      const slide = firstSlideOf(p.slides, part, p.type);
+      await call({ op: "start", packId: p.id, packTitle: p.title, slide, follow: true, kind });
       if (isHost) {
         try {
           const view = await lmsApi.liveView(roomId, { mode: "teach", follow: true }, asAdmin);
@@ -108,10 +113,29 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
       setErr(lmsErrorText(e, tr, ["Couldn't start presenting that lesson pack.", "تعذر بدء عرض حزمة الدرس."], tr("Present pack", "عرض الحزمة")));
     } finally { setBusy(false); }
   }
+  async function startYoutube(url: string) {
+    const id = youtubeVideoId(url);
+    if (!id) { setErr(tr("Paste a valid YouTube link.", "الصق رابط يوتيوب صالحًا.")); return; }
+    setBusy(true); setErr("");
+    try {
+      await call({ op: "start", kind: "youtube", src: id, packTitle: "YouTube", follow: true });
+      if (isHost) {
+        try {
+          const view = await lmsApi.liveView(roomId, { mode: "teach", follow: true }, asAdmin);
+          if (view.view) onView?.(view.view);
+        } catch {
+          onView?.({ mode: "teach", follow: true });
+        }
+      }
+      setContentOpen(false);
+    } catch (e) {
+      setErr(lmsErrorText(e, tr, ["Couldn't open that YouTube video.", "تعذر فتح فيديو يوتيوب."], tr("YouTube", "يوتيوب")));
+    } finally { setBusy(false); }
+  }
   async function start() {
     const p = packs.find((x) => x.id === pick);
     if (!p) return;
-    await startPack(p, partForKind(contentKind));
+    await startPack(p, contentKind);
   }
   async function go(n: number) {
     const next = Math.max(0, Math.min(slides.length - 1, n));
@@ -119,8 +143,13 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
     else setLocalSlide(next);
   }
 
-  const hasPack = !!(present?.packId);
-  const boardOn = !!(present && !hasPack && (present.tool === "board" || layout === "board"));
+  const tabs = presentTabs(present);
+  const activeTab = tabs.find((i) => i.id === present?.activeId) || tabs.find((i) => i.id !== "board") || tabs[0];
+  const activeKind: LivePresentItemKind = activeTab?.kind || (present?.src ? "youtube" : present?.packId ? "lesson" : "board");
+  const hasPack = PACK_ITEM_KINDS.has(activeKind);
+  const isYoutube = activeKind === "youtube";
+  const boardOn = !!(present && !hasPack && !isYoutube);
+  const ytId = (present?.src || activeTab?.src || "");
   const canLaser = !!(present && (isHost || present.penId === selfId));
   function inkStroke() {
     if (drawTool === "highlighter") return { c: "rgba(245,197,66,0.45)", w: 18 };
@@ -309,7 +338,7 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
   ) : null;
 
   return (
-    <section className={`lb-present flex min-h-0 flex-1 flex-col${hasPack ? " is-pack" : ""}`} data-testid="live-present" data-layout={layout} data-pack={hasPack ? "1" : "0"}>
+    <section className={`lb-present is-stage flex min-h-0 flex-1 flex-col${hasPack ? " is-pack" : ""}`} data-testid="live-present" data-layout={layout} data-pack={hasPack ? "1" : "0"} data-kind={activeKind}>
       {trayRoot ? createPortal(tray, trayRoot) : null}
       {teachRoot && teach ? createPortal(teach, teachRoot) : teach}
       {err && <p className="m-2 rounded-2xl bg-rose-100 px-3 py-2 text-sm font-bold text-rose-800 dark:bg-rose-900/60 dark:text-rose-100" role="alert">{err}</p>}
@@ -327,30 +356,52 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
           onKind={setContentKind}
           busy={busy}
           onOpen={(p, kind) => void startPack(p, kind)}
+          onYoutube={(url) => void startYoutube(url)}
           onClose={present ? () => setContentOpen(false) : undefined}
         />
       )}
 
       {present && (
         <>
-          {!hasPack && (
-            <div className="lb-slide-bar">
-              <div className="min-w-0">
-                <div className="lb-eyebrow">{tr("Whiteboard", "السبورة")}</div>
-                <h3>{tr("Whiteboard", "السبورة")}</h3>
-              </div>
+          {tabs.length > 0 && (
+            <div className="lb-stage-tabs" data-testid="live-stage-tabs" role="tablist" aria-label={tr("Open classroom items", "العناصر المفتوحة في الصف")}>
+              {tabs.map((item) => {
+                const on = item.id === (present.activeId || activeTab?.id);
+                const canSwitch = isHost && canPresent;
+                return (
+                  <div key={item.id} className={`lb-stage-tab${on ? " is-on" : ""}`} data-kind={item.kind} data-active={on ? "1" : "0"}>
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={on}
+                      className="lb-stage-tab-btn"
+                      disabled={!canSwitch}
+                      onClick={() => { if (canSwitch && !on) void call({ op: "activate", itemId: item.id }); }}
+                      data-testid={`live-stage-tab-${item.kind}`}
+                    >
+                      <span className="lb-stage-tab-kind">{tabKindLabel(item.kind, tr)}</span>
+                      {item.kind !== "board" && <span className="lb-stage-tab-title" dir="auto">{item.title}</span>}
+                    </button>
+                    {canSwitch && item.kind !== "board" && (
+                      <button type="button" className="lb-stage-tab-close" aria-label={tr("Close", "إغلاق")} onClick={() => void call({ op: "close", itemId: item.id })} data-testid="live-stage-tab-close">×</button>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
-          {hasPack && (left !== null || (isHost && canPresent) || !isHost) && (
+          {(left !== null || (isHost && canPresent) || !isHost) && (
             <div className="lb-pack-tools" data-testid="live-pack-tools">
               {left !== null && (
                 <span className={`rounded-full px-3 py-1 font-mono text-sm font-extrabold tabular-nums ${left === 0 ? "bg-rose-600 text-white" : left <= 30 ? "animate-pulse bg-amber-400 text-[#1b2f44]" : "bg-[#f5c542] text-[#1b3a57]"}`} data-testid="live-present-timer">⏱ {left === 0 ? tr("Time's up!", "انتهى الوقت!") : `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`}</span>
               )}
               {isHost && canPresent && (
-                <>
+                <div className="lb-follow-chip" data-testid="live-follow-chip">
                   <button type="button" className={`rounded-full px-3 py-1 text-xs font-bold ${present.follow ? "bg-emerald-300 text-[#10331c]" : "bg-[#1b3a57] text-[#fff8ec]"}`} onClick={() => call({ op: "nav", follow: !present.follow })} data-testid="live-follow">{present.follow ? tr("Follow me: on", "تابعني: تشغيل") : tr("Follow me: off", "تابعني: إيقاف")}</button>
-                  <button type="button" className="rounded-full bg-rose-100 px-3 py-1 text-xs font-bold text-rose-800" onClick={() => call({ op: "stop" })} data-testid="live-stop">{tr("Stop presenting", "إيقاف العرض")}</button>
-                </>
+                  {livePresentingContent(present) && (
+                    <button type="button" className="rounded-full bg-rose-100 px-3 py-1 text-xs font-bold text-rose-800" onClick={() => call({ op: "stop" })} data-testid="live-stop">{tr("Stop presenting", "إيقاف العرض")}</button>
+                  )}
+                </div>
               )}
               {!isHost && (
                 <span className="rounded-full bg-[#1b3a57] px-3 py-1 text-xs font-extrabold text-[#fff8ec]">{follow ? tr("Following your teacher", "تتابع معلمك") : tr("You can move freely", "يمكنك التنقل بحرية")}</span>
@@ -361,9 +412,19 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
           <div className={`lb-slide-body${boardOn ? " lb-board-on" : ""}`}>
             <div className="lb-slide-wrap" style={{ containerType: "inline-size" }}>
               {boardOn && <div className="lb-board-surface" aria-hidden />}
-              {cur && <div className={hasPack ? "lb-zoom" : "lb-slide-bg"}><SlideView slide={cur} asAdmin={asAdmin} live testId="live-present-slide" /></div>}
+              {isYoutube && ytId && (
+                <iframe
+                  title={present.packTitle || "YouTube"}
+                  src={`https://www.youtube-nocookie.com/embed/${ytId}?rel=0&modestbranding=1`}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+                  allowFullScreen
+                  className="h-full w-full border-0"
+                  data-testid="live-present-youtube"
+                />
+              )}
+              {cur && hasPack && <div className="lb-zoom"><SlideView slide={cur} asAdmin={asAdmin} live testId="live-present-slide" /></div>}
               {!cur && hasPack && <p className="relative z-[1] flex-1 py-8 text-center font-semibold opacity-70" data-testid="live-present-loading">{tr("Loading slides…", "جارٍ تحميل الشرائح…")}</p>}
-              <svg ref={svgRef} viewBox="0 0 100 56.25" preserveAspectRatio={boardOn ? "none" : "xMidYMid meet"} className={boardOn || canLaser ? "lb-board-svg touch-none" : "pointer-events-none absolute inset-0 h-full w-full"} onPointerDown={pointer} onPointerMove={pointer} onPointerUp={(e) => pointer(e, true)} onPointerCancel={(e) => pointer(e, true)} onPointerLeave={(e) => pointer(e, true)} data-testid="live-board">
+              <svg ref={svgRef} viewBox="0 0 100 56.25" preserveAspectRatio={boardOn ? "none" : "xMidYMid meet"} className={boardOn || (canLaser && !isYoutube) ? "lb-board-svg touch-none" : "pointer-events-none absolute inset-0 h-full w-full"} onPointerDown={pointer} onPointerMove={pointer} onPointerUp={(e) => pointer(e, true)} onPointerCancel={(e) => pointer(e, true)} onPointerLeave={(e) => pointer(e, true)} data-testid="live-board">
                 {(present.strokes || []).map((st, i) => (
                   <polyline key={i} fill="none" stroke={st.c === "erase" ? "#000" : (st.c || "#1b3a57")} strokeWidth={((st.w || 3) / 1600) * 100} strokeLinecap="round" strokeLinejoin="round" style={st.c === "erase" ? ({ mixBlendMode: "destination-out" } as unknown as CSSProperties) : undefined} points={Array.from({ length: Math.floor((st.d || []).length / 2) }, (_, k) => `${st.d[k * 2]},${(st.d[k * 2 + 1] * 56.25) / 100}`).join(" ")} />
                 ))}
@@ -436,7 +497,32 @@ function PointerGlyph({ kind, color }: { kind: PtrKind; color: string }) {
 }
 
 
-type ContentKind = "lesson" | "task" | "activity" | "homework" | "quran";
+const PACK_ITEM_KINDS = new Set<LivePresentItemKind>(["lesson", "task", "activity", "homework", "quran"]);
+
+function presentTabs(present?: Present | null): LivePresentItem[] {
+  if (!present) return [];
+  if (present.items?.length) return present.items;
+  const tabs: LivePresentItem[] = [{ id: "board", kind: "board", title: "Whiteboard", packId: "", slide: 0, strokes: present.strokes || [] }];
+  if (present.src) {
+    tabs.push({ id: `youtube:${present.src}`, kind: "youtube", title: present.packTitle || "YouTube", packId: "", slide: 0, strokes: [], src: present.src });
+  } else if (present.packId) {
+    tabs.push({ id: `lesson:${present.packId}`, kind: "lesson", title: present.packTitle || "Lesson", packId: present.packId, slide: present.slide || 0, strokes: present.strokes || [] });
+  }
+  return tabs;
+}
+
+function tabKindLabel(kind: LivePresentItemKind, tr: (en: string, ar: string) => string) {
+  if (kind === "task") return tr("Task", "مهمة");
+  if (kind === "activity") return tr("Activity", "نشاط");
+  if (kind === "homework") return tr("Homework", "واجب");
+  if (kind === "quran") return tr("Quran", "قرآن");
+  if (kind === "youtube") return tr("YouTube", "يوتيوب");
+  if (kind === "upload") return tr("Upload", "رفع");
+  if (kind === "board") return tr("Board", "سبورة");
+  return tr("Lesson", "درس");
+}
+
+type ContentKind = "lesson" | "task" | "activity" | "homework" | "quran" | "youtube" | "upload";
 
 const CONTENT_TABS: { id: ContentKind; icon: string; en: string; ar: string }[] = [
   { id: "lesson", icon: "🎤", en: "Lesson", ar: "درس" },
@@ -444,6 +530,8 @@ const CONTENT_TABS: { id: ContentKind; icon: string; en: string; ar: string }[] 
   { id: "activity", icon: "🎯", en: "Activity", ar: "نشاط" },
   { id: "homework", icon: "📝", en: "Homework", ar: "واجب" },
   { id: "quran", icon: "📖", en: "Quran Homework", ar: "واجب القرآن" },
+  { id: "youtube", icon: "▶️", en: "YouTube", ar: "يوتيوب" },
+  { id: "upload", icon: "⬆️", en: "Uploads", ar: "رفع" },
 ];
 
 function partForKind(kind: ContentKind): Part {
@@ -462,19 +550,20 @@ function packMatches(p: Pack, kind: ContentKind): boolean {
 }
 
 
-function ContentPicker({ packs, kind, onKind, busy, onOpen, onClose }: {
+function ContentPicker({ packs, kind, onKind, busy, onOpen, onYoutube, onClose }: {
   packs: Pack[]; kind: ContentKind; onKind: (k: ContentKind) => void; busy: boolean;
-  onOpen: (p: Pack, kind: Part) => void; onClose?: () => void;
+  onOpen: (p: Pack, kind: ContentKind) => void; onYoutube?: (url: string) => void; onClose?: () => void;
 }) {
   const { tr } = useTr();
-  const items = packs.filter((p) => packMatches(p, kind));
+  const [ytUrl, setYtUrl] = useState("");
+  const items = kind === "youtube" || kind === "upload" ? [] : packs.filter((p) => packMatches(p, kind));
   const tab = CONTENT_TABS.find((x) => x.id === kind);
   return (
     <div className="lb-content-picker" data-testid="live-content-picker">
       <div className="mb-3 flex items-start justify-between gap-2">
         <div>
           <p className="text-sm font-extrabold text-[#1b3a57] dark:text-[#fff8ec]">{tr("Library", "المكتبة")}</p>
-          <p className="text-xs font-semibold text-[#334155] dark:text-[#cbd5e1]">{tr("Students follow you. Turn Follow me off if they should move freely.", "يتابعك الطلاب. أوقف «تابعني» إن أردت أن يتنقلوا بأنفسهم.")}</p>
+          <p className="text-xs font-semibold text-[#334155] dark:text-[#cbd5e1]">{tr("Open more than one item. They appear as small tabs on the stage, and students see the tab you have open.", "افتح أكثر من عنصر. تظهر كعلامات صغيرة على المنصة، ويرى الطلاب العلامة المفتوحة لديك.")}</p>
         </div>
         {onClose && <button type="button" className="rounded-full bg-black/10 px-3 py-1 text-sm font-bold text-[#1b3a57] dark:bg-white/15 dark:text-[#fff8ec]" onClick={onClose} data-testid="live-content-close">{tr("Close", "إغلاق")}</button>}
       </div>
@@ -491,7 +580,20 @@ function ContentPicker({ packs, kind, onKind, busy, onOpen, onClose }: {
           >{x.icon} {tr(x.en, x.ar)}</button>
         ))}
       </div>
-      {!items.length ? (
+      {kind === "youtube" ? (
+        <form className="rounded-2xl bg-[#eef2f6] px-4 py-5 dark:bg-[#1b3a57]" data-testid="live-content-youtube" onSubmit={(e) => { e.preventDefault(); onYoutube?.(ytUrl); }}>
+          <label className="block text-sm font-extrabold text-[#1b3a57] dark:text-[#fff8ec]" htmlFor="live-yt-url">{tr("YouTube link", "رابط يوتيوب")}</label>
+          <p className="mb-3 mt-1 text-xs font-semibold text-[#334155] dark:text-[#cbd5e1]">{tr("Paste a link to play it full screen on the stage. Students see the same video you open.", "الصق رابطًا لتشغيله بملء المنصة. يرى الطلاب الفيديو نفسه الذي تفتحه.")}</p>
+          <div className="flex flex-wrap gap-2">
+            <input id="live-yt-url" type="url" value={ytUrl} onChange={(e) => setYtUrl(e.target.value)} placeholder="https://www.youtube.com/watch?v=" className="min-w-[16rem] flex-1 rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#1b3a57] ring-1 ring-black/10 dark:bg-[#10263b] dark:text-[#fff8ec] dark:ring-white/15" data-testid="live-yt-url" />
+            <button type="submit" disabled={busy} className="rounded-full bg-[#1b3a57] px-4 py-2 text-sm font-extrabold text-[#fff8ec] disabled:opacity-60 dark:bg-[#f3c969] dark:text-[#1b3a57]" data-testid="live-yt-open">{tr("Open in class", "افتح في الصف")}</button>
+          </div>
+        </form>
+      ) : kind === "upload" ? (
+        <p className="rounded-2xl bg-[#eef2f6] px-4 py-6 text-center text-sm font-semibold text-[#1b3a57] dark:bg-[#1b3a57] dark:text-[#fff8ec]" data-testid="live-content-upload">
+          {tr("PDF and PowerPoint uploads will be added next. You can already open lesson packs and YouTube links as tabs.", "ستُضاف ملفات PDF وPowerPoint لاحقًا. يمكنك الآن فتح حزم الدروس وروابط يوتيوب كعلامات.")}
+        </p>
+      ) : !items.length ? (
         <p className="rounded-2xl bg-[#eef2f6] px-4 py-6 text-center text-sm font-semibold text-[#1b3a57] dark:bg-[#1b3a57] dark:text-[#fff8ec]" data-testid="live-content-empty">
           {tr(`No ${tab?.en || "items"} here yet. Add them in Lesson Builder, then open them for the class.`, `لا يوجد ${tab?.ar || "محتوى"} هنا بعد. أضفه في منشئ الدروس ثم افتحه للصف.`)}
         </p>
@@ -503,7 +605,7 @@ function ContentPicker({ packs, kind, onKind, busy, onOpen, onClose }: {
                 type="button"
                 disabled={busy}
                 className="flex w-full items-center gap-3 rounded-2xl bg-white px-3 py-3 text-start text-[#1b3a57] shadow-sm ring-1 ring-black/10 hover:bg-[#fff8ec] disabled:opacity-60 dark:bg-[#10263b] dark:text-[#fff8ec] dark:ring-white/15 dark:hover:bg-[#1b3a57]"
-                onClick={() => onOpen(p, partForKind(kind))}
+                onClick={() => onOpen(p, kind)}
                 data-testid="live-content-item"
               >
                 <span className="text-2xl" aria-hidden>{tab?.icon || "📑"}</span>
