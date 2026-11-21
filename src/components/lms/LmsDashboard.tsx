@@ -24,6 +24,7 @@ import { exportAllHomeworkZip } from "@/components/lms/lmsFiles";
 import { STATUS_STYLE, card, smallBtn, statusLabel, useLmsActor, useTr, GRADE_STYLE, gradeLabel } from "@/components/lms/useLms";
 import { lmsApi, lmsErrorText, lmsSignOut, mpShown, quranChapters, type Chapter, type QuranData } from "@/lib/lms";
 import { hwParts, partText } from "@/lib/packs";
+import { StartMeetingPanel, useCanStartMeeting } from "@/components/lms/StartMeeting";
 
 type Dash = Awaited<ReturnType<typeof lmsApi.dashboard>>;
 
@@ -146,6 +147,7 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
     >
       <div className="mx-auto w-full max-w-6xl flex-1 space-y-5 px-3 py-5 sm:px-6" data-testid="lms-dashboard">
         {actor && !hwOnly && actor.role !== "parent" && <TodayLessons />}
+        {actor && !hwOnly && actor.role !== "parent" && <DashStartMeeting />}
         {actor && !hwOnly && (
           // t303: big friendly shortcuts for students and teachers.
           <>
@@ -333,4 +335,10 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
       </div>
     </AssessmentShell>
   );
+}
+
+function DashStartMeeting() {
+  const can = useCanStartMeeting();
+  if (!can) return null;
+  return <StartMeetingPanel onEnter={(id) => { window.location.href = `/lms/live?room=${encodeURIComponent(id)}`; }} />;
 }

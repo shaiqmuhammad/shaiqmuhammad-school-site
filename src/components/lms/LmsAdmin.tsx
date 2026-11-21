@@ -38,6 +38,7 @@ const PERM_LABEL: Record<string, [string, string]> = {
   liveCamMic: ["Allow or mute student camera and mic", "السماح بكاميرا وميكروفون الطلاب أو كتمهما"],
   liveScreenShare: ["Allow student screen share", "السماح بمشاركة شاشة الطلاب"],
   livePresent: ["Present lesson packs live", "عرض حزم الدروس مباشرة"],
+  liveInstant: ["Start instant meetings", "بدء الاجتماعات الفورية"],
 };
 
 const EMPTY: Catalog = { subjects: [], classes: [], sections: [] };

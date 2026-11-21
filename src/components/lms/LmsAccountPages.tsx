@@ -11,6 +11,7 @@ import { ANIMALS, AVATAR_MOODS, FLOWERS, HEROES, Avatar, type AvatarAnim } from 
 import { PushSettings } from "@/components/lms/PushSettings";
 import { StudentAwards } from "@/components/lms/Rewards";
 import { modCall } from "@/lib/lmsMods";
+import { TimeZoneCard } from "@/components/lms/TimeZonePicker";
 
 /** t303: students (and teachers) choose their own cartoon character. */
 function CharacterPicker() {
@@ -140,7 +141,7 @@ export function AccountPage() {
     <AssessmentShell title={tr("My account", "حسابي")} exitHref="/lms" toolbar={<LmsStaffToolbar />}>
       <div className="mx-auto w-full max-w-xl flex-1 px-4 py-8">
         {!ready ? null : !can ? <p className="rounded-2xl bg-amber-100 px-4 py-3 text-amber-900">{tr("Please sign in.", "سجّل الدخول.")} <a className="font-bold underline" href="/lms/login/">{tr("Sign in", "دخول")}</a></p> : (
-          <>{(actor?.role === "student" || actor?.role === "teacher") && <CharacterPicker />}{actor?.role === "student" && <StudentAwards />}{actor?.role !== "parent" && <PushSettings />}{actor?.role === "student" && !actor.viewAs && <DevicePanel />}<form onSubmit={submit} className="space-y-3 rounded-3xl bg-white/80 p-5 shadow-sm dark:bg-white/5" data-testid="pin-form">
+          <>{(actor?.role === "student" || actor?.role === "teacher") && <CharacterPicker />}{actor?.role !== "parent" && <TimeZoneCard />}{actor?.role === "student" && <StudentAwards />}{actor?.role !== "parent" && <PushSettings />}{actor?.role === "student" && !actor.viewAs && <DevicePanel />}<form onSubmit={submit} className="space-y-3 rounded-3xl bg-white/80 p-5 shadow-sm dark:bg-white/5" data-testid="pin-form">
             <h2 className="text-xl font-extrabold">🔑 {tr("Change my password", "تغيير كلمة المرور")}</h2>
             <p className="text-sm opacity-70">{actor?.name}</p>
             <input className={inp} type="password" autoComplete="new-password" autoCapitalize="none" maxLength={64} placeholder={tr("New password (6–64 characters)", "كلمة المرور الجديدة (6–64 حرفًا)")} value={n1} onChange={(e) => setN1(e.target.value)} data-testid="pin-new" />

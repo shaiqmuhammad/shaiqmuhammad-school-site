@@ -10,6 +10,7 @@ import { LiveSfu } from "@/lib/liveSfu";
 import { requestElFullscreen } from "@/components/FocusMode";
 import { registerSlideFocus, setPageFocus } from "@/components/FullscreenToggle";
 import { LiveSchedulePanel, GuestJoin } from "@/components/lms/LiveSchedule";
+import { StartMeetingPanel } from "@/components/lms/StartMeeting";
 import { LivePresent } from "@/components/lms/LivePresent";
 import { LiveViewPicker, RoomStage, useActiveSpeaker, presentLayout, VIEW_CARDS } from "@/components/lms/LiveViews";
 import { lmsApi, lmsErrorText, lmsSession, liveGuest, liveWsUrl, type LiveChat, type LivePerms, type LiveRoomInfo, type LiveSnap, type LiveView, type LiveViewMode } from "@/lib/lms";
@@ -146,7 +147,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
   const [phase, setPhase] = useState<Phase>("lobby");
   const [rooms, setRooms] = useState<LiveRoomInfo[]>([]);
   const [canStart, setCanStart] = useState(false);
-  const [livePerms, setLivePerms] = useState<LivePerms>({ run: false, schedule: false, schedStudent: false, schedClass: false, shareLink: false, camMic: false, screenShare: false, present: false });
+  const [livePerms, setLivePerms] = useState<LivePerms>({ run: false, schedule: false, schedStudent: false, schedClass: false, shareLink: false, camMic: false, screenShare: false, present: false, instant: false });
   const [sfuOn, setSfuOn] = useState(true);
   const [options, setOptions] = useState<{ cls: string; section: string }[]>([]);
   const [groups, setGroups] = useState<{ id: string; name: string }[]>([]);
@@ -195,7 +196,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
     setCanStart(r.canStart);
     setSfuOn(r.sfu);
     if (r.perms) setLivePerms(r.perms);
-    else if (asAdmin) setLivePerms({ run: true, schedule: true, schedStudent: true, schedClass: true, shareLink: true, camMic: true, screenShare: true, present: true });
+    else if (asAdmin) setLivePerms({ run: true, schedule: true, schedStudent: true, schedClass: true, shareLink: true, camMic: true, screenShare: true, present: true, instant: true });
     setOptions(r.options || []);
     setGroups(r.groups || []);
     if (!pick && r.options?.[0]) setPick(r.options[0].section ? `${r.options[0].cls}|${r.options[0].section}` : r.options[0].cls);
@@ -626,7 +627,8 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
             {!canStart && actor?.role === "teacher" && (
               <p className="rounded-3xl bg-amber-100 px-4 py-3 font-bold text-amber-900 dark:bg-amber-900/40 dark:text-amber-100" data-testid="live-no-perm">{tr("Your admin hasn't switched on “Run live lessons” for you yet.", "لم يفعّل المسؤول صلاحية «تشغيل الدروس المباشرة» لك بعد.")}</p>
             )}
-            <LiveSchedulePanel asAdmin={asAdmin} perms={asAdmin ? { run: true, schedule: true, schedStudent: true, schedClass: true, shareLink: true, camMic: true, screenShare: true, present: true } : livePerms} onStart={(id) => enter(id)} busy={busy} />
+            {(asAdmin || livePerms.instant) && <StartMeetingPanel asAdmin={asAdmin} onEnter={(id) => enter(id)} />}
+            <LiveSchedulePanel asAdmin={asAdmin} perms={asAdmin ? { run: true, schedule: true, schedStudent: true, schedClass: true, shareLink: true, camMic: true, screenShare: true, present: true, instant: true } : livePerms} onStart={(id) => enter(id)} busy={busy} />
             <section>
               <h2 className="mb-3 text-lg font-black">{tr("Live now", "مباشر الآن")}</h2>
               {!rooms.length ? <p className="rounded-3xl bg-black/5 px-4 py-6 text-center font-semibold opacity-70 dark:bg-white/10">{tr("No live lessons for your class right now.", "لا توجد حصص مباشرة لصفك الآن.")}</p> : (
