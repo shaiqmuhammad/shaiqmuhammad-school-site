@@ -11,6 +11,7 @@ import { requestElFullscreen } from "@/components/FocusMode";
 import { registerSlideFocus, setPageFocus } from "@/components/FullscreenToggle";
 import { LiveSchedulePanel, GuestJoin } from "@/components/lms/LiveSchedule";
 import { StartMeetingPanel } from "@/components/lms/StartMeeting";
+import { LiveHistory } from "@/components/lms/LiveHistory";
 import { LivePresent } from "@/components/lms/LivePresent";
 import { LiveViewPicker, RoomStage, useActiveSpeaker, presentLayout, VIEW_CARDS } from "@/components/lms/LiveViews";
 import { lmsApi, lmsErrorText, lmsSession, liveGuest, liveWsUrl, type LiveChat, type LivePerms, type LiveRoomInfo, type LiveSnap, type LiveView, type LiveViewMode } from "@/lib/lms";
@@ -102,7 +103,7 @@ function StuTile({ label, stream, hand, off, color }: { label: string; stream?: 
 
 function DockBtn({ onClick, label, icon, on, end, leave, disabled, testid, badge }: { onClick: () => void; label: string; icon: string; on?: boolean; end?: boolean; leave?: boolean; disabled?: boolean; testid?: string; badge?: number }) {
   return (
-    <button type="button" data-testid={testid} disabled={disabled} onClick={onClick} className={`lb-ctl ${on ? "on" : ""} ${end ? "end" : ""} ${leave ? "leave" : ""}`}>
+    <button type="button" data-testid={testid} disabled={disabled} onClick={onClick} className={`lb-ctl ${on ? "on" : ""} ${end ? "end" : ""} ${leave ? "leave" : ""} ${disabled ? "opacity-40" : ""}`}>
       <span className="lb-ico" aria-hidden>{icon}</span>
       <span className="lb-lab">{label}</span>
       {badge && badge > 0 ? <span className="lb-badge" data-testid="live-chat-unread-btn">{badge}</span> : null}
@@ -197,7 +198,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
   const [phase, setPhase] = useState<Phase>("lobby");
   const [rooms, setRooms] = useState<LiveRoomInfo[]>([]);
   const [canStart, setCanStart] = useState(false);
-  const [livePerms, setLivePerms] = useState<LivePerms>({ run: false, schedule: false, schedStudent: false, schedClass: false, shareLink: false, camMic: false, screenShare: false, present: false, instant: false });
+  const [livePerms, setLivePerms] = useState<LivePerms>({ run: false, schedule: false, schedStudent: false, schedClass: false, shareLink: false, camMic: false, screenShare: false, present: false, instant: false, record: false, recs: false });
   const [sfuOn, setSfuOn] = useState(true);
   const [options, setOptions] = useState<{ cls: string; section: string }[]>([]);
   const [groups, setGroups] = useState<{ id: string; name: string }[]>([]);
@@ -248,7 +249,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
     setCanStart(r.canStart);
     setSfuOn(r.sfu);
     if (r.perms) setLivePerms(r.perms);
-    else if (asAdmin) setLivePerms({ run: true, schedule: true, schedStudent: true, schedClass: true, shareLink: true, camMic: true, screenShare: true, present: true, instant: true });
+    else if (asAdmin) setLivePerms({ run: true, schedule: true, schedStudent: true, schedClass: true, shareLink: true, camMic: true, screenShare: true, present: true, instant: true, record: true, recs: false });
     setOptions(r.options || []);
     setGroups(r.groups || []);
     if (!pick && r.options?.[0]) setPick(r.options[0].section ? `${r.options[0].cls}|${r.options[0].section}` : r.options[0].cls);
@@ -685,7 +686,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
               <p className="rounded-3xl bg-amber-100 px-4 py-3 font-bold text-amber-900 dark:bg-amber-900/40 dark:text-amber-100" data-testid="live-no-perm">{tr("Your admin hasn't switched on “Run live lessons” for you yet.", "لم يفعّل المسؤول صلاحية «تشغيل الدروس المباشرة» لك بعد.")}</p>
             )}
             {(asAdmin || livePerms.instant) && <StartMeetingPanel asAdmin={asAdmin} onEnter={(id) => enter(id)} />}
-            <LiveSchedulePanel asAdmin={asAdmin} perms={asAdmin ? { run: true, schedule: true, schedStudent: true, schedClass: true, shareLink: true, camMic: true, screenShare: true, present: true, instant: true } : livePerms} onStart={(id) => enter(id)} busy={busy} />
+            <LiveSchedulePanel asAdmin={asAdmin} perms={asAdmin ? { run: true, schedule: true, schedStudent: true, schedClass: true, shareLink: true, camMic: true, screenShare: true, present: true, instant: true, record: true, recs: livePerms.recs } : livePerms} onStart={(id) => enter(id)} busy={busy} />
             <section>
               <h2 className="mb-3 text-lg font-black">{tr("Live now", "مباشر الآن")}</h2>
               {!rooms.length ? <p className="rounded-3xl bg-black/5 px-4 py-6 text-center font-semibold opacity-70 dark:bg-white/10">{tr("No live lessons for your class right now.", "لا توجد حصص مباشرة لصفك الآن.")}</p> : (
@@ -702,6 +703,13 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
                 </ul>
               )}
             </section>
+            {(asAdmin || canStart || actor?.role === "teacher") && (
+              <section className="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-black/5 dark:bg-slate-800" data-testid="live-history-wrap">
+                <h2 className="mb-3 text-lg font-black">{tr("Live lesson history", "سجل الحصص المباشرة")}</h2>
+                <p className="mb-3 text-sm font-semibold opacity-70">{tr("Enrolled students who join a class lesson are marked present automatically. Guests are not added, and existing marks are left as they are.", "يُسجَّل حضور الطلاب المسجّلين تلقائيًا عند انضمامهم إلى حصة الصف. لا يُضاف الضيوف، ولا تُستبدل العلامات الموجودة.")}</p>
+                <LiveHistory asAdmin={asAdmin} />
+              </section>
+            )}
           </div>
         )}
 
@@ -870,12 +878,18 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
               );
             })()}
 
+            {isHost && asAdmin && !livePerms.recs && (
+              <p className="lb-hint" data-testid="live-rec-note">{tr("Turn on R2 storage to enable recording", "فعّل تخزين R2 لتفعيل التسجيل")}</p>
+            )}
             <div className="lb-dock" data-focus-keep>
               <DockBtn testid="live-cam" icon={camOn ? "📷" : "🚫"} label={tr("Camera", "الكاميرا")} on={camOn} disabled={!isHost && !me?.camAllowed && !camOn} onClick={() => toggleCam().catch((e) => setErr(lmsErrorText(e, tr)))} />
               <DockBtn testid="live-mic" icon={micOn ? "🎤" : "🔇"} label={tr("Mic", "الميكروفون")} on={micOn} disabled={!isHost && !me?.micAllowed && !micOn} onClick={() => toggleMic().catch((e) => setErr(lmsErrorText(e, tr)))} />
               {(isHost || me?.shareAllowed) && <DockBtn testid="live-share" icon="🖥️" label={tr("Share", "مشاركة")} on={shareOn} onClick={() => toggleShare().catch((e) => setErr(lmsErrorText(e, tr)))} />}
               <DockBtn testid="live-hand" icon="✋" label={tr("Hand", "يد")} on={hand} onClick={() => toggleHand().catch(() => undefined)} />
               <DockBtn testid="live-chat-btn" icon="💬" label={tr("Chat", "دردشة")} on={showChat} onClick={() => setShowChat(true)} badge={chatUnread} />
+              {isHost && (asAdmin || livePerms.record) && (
+                <DockBtn testid="live-record" icon="⏺️" label={tr("Record", "تسجيل")} disabled={!livePerms.recs} onClick={() => undefined} />
+              )}
               <span className="lb-dock-gap" aria-hidden />
               <DockBtn testid="live-leave" icon="🚪" label={tr("Leave", "خروج")} leave onClick={leave} />
               {isHost && <DockBtn testid="live-end" icon="🛑" label={tr("End class", "إنهاء الحصة")} end onClick={endClass} />}

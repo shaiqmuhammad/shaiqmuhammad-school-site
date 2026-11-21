@@ -39,6 +39,7 @@ const PERM_LABEL: Record<string, [string, string]> = {
   liveScreenShare: ["Allow student screen share", "السماح بمشاركة شاشة الطلاب"],
   livePresent: ["Present lesson packs live", "عرض حزم الدروس مباشرة"],
   liveInstant: ["Start instant meetings", "بدء الاجتماعات الفورية"],
+  liveRecord: ["Record live lessons", "تسجيل الدروس المباشرة"],
 };
 
 const EMPTY: Catalog = { subjects: [], classes: [], sections: [] };
