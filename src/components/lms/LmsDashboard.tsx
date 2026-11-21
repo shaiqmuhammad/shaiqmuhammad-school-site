@@ -15,6 +15,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { DashCarousel, useUnreadMsgs, type Widget } from "@/components/lms/DashWidgets";
 import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
+import { openClassroomTab } from "@/lib/classroom";
 import { AssessmentShell, primaryBtn } from "@/components/assessment/AssessmentShell";
 import { HomeworkEditor } from "@/components/lms/HomeworkEditor";
 import { Certificates, Leaderboard, LeaderboardSetting, ProgressCard, RevisionList } from "@/components/lms/Progress";
@@ -340,5 +341,5 @@ export function LmsDashboard({ only }: { only?: "homework" } = {}) {
 function DashStartMeeting() {
   const can = useCanStartMeeting();
   if (!can) return null;
-  return <StartMeetingPanel onEnter={(id) => { window.location.href = `/lms/live?room=${encodeURIComponent(id)}`; }} />;
+  return <StartMeetingPanel onEnter={(id) => openClassroomTab({ room: id })} />;
 }

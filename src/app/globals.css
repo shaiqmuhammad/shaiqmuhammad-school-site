@@ -583,6 +583,23 @@ html.lb-session:not(.page-focus) .lb-room {
   flex: 0 0 auto; min-height: 64px;
 }
 .lb-brand { flex: 1; min-width: 0; }
+.lb-site { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.lb-site-room { margin-bottom: 2px; }
+.lb-logo {
+  height: 28px; width: 28px; border-radius: 999px; object-fit: cover;
+  border: 2px solid #f3c969; background: #fff; flex-shrink: 0;
+}
+.lb-site-name {
+  font-weight: 800; font-size: 12px; line-height: 1.2;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: #fff;
+}
+.lb-classroom-bar {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 16px; padding-top: max(10px, env(safe-area-inset-top));
+  background: #1b3a57; color: #fff;
+}
+html.lb-classroom .pub-main { display: flex; flex-direction: column; min-height: 100dvh; }
 .lb-title { font-weight: 900; font-size: 20px; letter-spacing: -.02em; line-height: 1.1; }
 .lb-sub { font-size: 12px; font-weight: 700; opacity: .8; margin-top: 2px; cursor: pointer; }
 .lb-countdown { display: flex; align-items: center; gap: 6px; }

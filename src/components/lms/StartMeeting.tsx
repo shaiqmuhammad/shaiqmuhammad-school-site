@@ -9,6 +9,7 @@ import { getServerSession } from "@/lib/adminServer";
 import { SITE_TZ, fmtWhen, zoneLabel, zoneMs, zoneParts } from "@/lib/timeZone";
 import { SchedulePreview, Time12Field, TimeZonePicker, useViewerZone } from "@/components/lms/TimeZonePicker";
 import { qrImageUrl } from "@/lib/groupSession";
+import { classroomJoinUrl } from "@/lib/classroom";
 
 const DURS = [15, 30, 40, 45, 60, 75, 90, 120];
 
@@ -28,8 +29,7 @@ export function useCanStartMeeting() {
 }
 
 function joinUrl(token: string) {
-  const origin = typeof window !== "undefined" ? window.location.origin : "https://www.shaiqmuhammad.com";
-  return `${origin}/lms/live/join?t=${encodeURIComponent(token)}`;
+  return classroomJoinUrl(token);
 }
 
 function inviteText(title: string, starts: number, lang: string, zone: string, url: string) {

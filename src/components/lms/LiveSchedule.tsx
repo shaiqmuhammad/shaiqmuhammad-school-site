@@ -6,6 +6,7 @@ import { useTr } from "@/components/lms/useLms";
 import { lmsApi, lmsErrorText, liveGuest, setLiveGuest, type LivePerms, type LiveSched, type RosterStudent } from "@/lib/lms";
 import { SITE_TZ, fmtWhen, isValidZone, zoneCity, zoneLabel, zoneMs, zoneParts } from "@/lib/timeZone";
 import { FormatWhen, SchedulePreview, Time12Field, TimeZonePicker, ZoneChip, useViewerZone } from "@/components/lms/TimeZonePicker";
+import { classroomHref, classroomJoinUrl } from "@/lib/classroom";
 
 const DURS = [15, 30, 40, 45, 60, 75, 90, 120];
 
@@ -44,7 +45,7 @@ export function LiveUpcomingBanner() {
       {soon.map((s) => {
         const join = s.roomId && s.status === "live" && now >= s.starts - 10 * 60_000;
         return (
-          <a key={s.id} href={join ? `/lms/live?room=${encodeURIComponent(s.roomId)}` : "/lms/live"} className="flex items-center gap-3 rounded-3xl bg-gradient-to-r from-fuchsia-200 to-orange-200 px-5 py-4 text-[#1b3a57] shadow-lg transition hover:scale-[1.01] dark:from-fuchsia-900/80 dark:to-amber-900/70 dark:text-white" data-testid="live-upcoming-item">
+          <a key={s.id} href={join ? classroomHref({ room: s.roomId }) : "/lms/live"} target={join ? "_blank" : undefined} rel={join ? "noopener noreferrer" : undefined} className="flex items-center gap-3 rounded-3xl bg-gradient-to-r from-fuchsia-200 to-orange-200 px-5 py-4 text-[#1b3a57] shadow-lg transition hover:scale-[1.01] dark:from-fuchsia-900/80 dark:to-amber-900/70 dark:text-white" data-testid="live-upcoming-item">
             <span className="text-3xl" aria-hidden>🎥</span>
             <span className="min-w-0 flex-1">
               <b className="block truncate" dir="auto">{s.title}</b>
@@ -167,8 +168,7 @@ export function LiveSchedulePanel({ asAdmin, perms, onStart, busy }: { asAdmin: 
   async function makeLink(s: LiveSched) {
     try {
       const r = await lmsApi.liveSchedLink(s.id, false, asAdmin);
-      const origin = typeof window !== "undefined" ? window.location.origin : "https://www.shaiqmuhammad.com";
-      const url = `${origin}/lms/live/join?t=${encodeURIComponent(r.token || s.linkToken || "")}`;
+      const url = classroomJoinUrl(r.token || s.linkToken || "");
       setLinkFor({ id: s.id, url });
       await load();
     } catch (e) { setErr(lmsErrorText(e, tr)); }
@@ -321,7 +321,7 @@ export function GuestJoin({ token }: { token: string }) {
   useEffect(() => { load(); const t = setInterval(load, 10_000); return () => clearInterval(t); }, [load]);
   useEffect(() => {
     if (!ready || !info?.canJoin || !info.roomId || !liveGuest()?.token) return;
-    window.location.href = `/lms/live?room=${encodeURIComponent(info.roomId)}&guest=1`;
+    window.location.href = classroomHref({ room: info.roomId, guest: true });
   }, [ready, info]);
 
   if (!token) return <p className="p-8 text-center font-bold opacity-70">{tr("This join link is missing.", "رابط الانضمام ناقص.")}</p>;
@@ -358,7 +358,7 @@ export function GuestJoin({ token }: { token: string }) {
             const r = await lmsApi.liveLinkJoin(token, name.trim());
             setLiveGuest({ token: r.token, id: r.guestId, name: r.name });
             if (r.roomId && r.canJoin) {
-              window.location.href = `/lms/live?room=${encodeURIComponent(r.roomId)}&guest=1`;
+              window.location.href = classroomHref({ room: r.roomId, guest: true });
             } else {
               setReady(true);
             }

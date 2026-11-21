@@ -16,6 +16,8 @@ import { LiveHistory } from "@/components/lms/LiveHistory";
 import { LivePresent } from "@/components/lms/LivePresent";
 import { LiveViewPicker, RoomStage, useActiveSpeaker, presentLayout, VIEW_CARDS } from "@/components/lms/LiveViews";
 import { canShowHostAllow, lmsApi, lmsErrorText, lmsSession, liveGuest, liveWsUrl, memberFloor, normalizePtrKind, type LiveAsk, type LiveFloor, type LiveMember, type LivePtr, type LiveChat, type LivePerms, type LiveRoomInfo, type LiveSnap, type LiveView, type LiveViewMode, type PtrKind } from "@/lib/lms";
+import { classroomHref, isClassroomPath, openClassroomTab } from "@/lib/classroom";
+import { ClassroomBrand } from "@/components/lms/ClassroomBrand";
 
 type Phase = "lobby" | "waiting" | "in" | "ended";
 
@@ -283,7 +285,7 @@ function playChatBeep() {
 }
 
 
-export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, guestLink = false }: { embedded?: boolean; asAdmin?: boolean; guestLink?: boolean } = {}) {
+export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, guestLink = false, standalone = false }: { embedded?: boolean; asAdmin?: boolean; guestLink?: boolean; standalone?: boolean } = {}) {
   const { tr, lang } = useTr();
   const lms = useLmsActor();
   const [adminSess, setAdminSess] = useState(false);
@@ -291,15 +293,28 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
   const [guest, setGuest] = useState<ReturnType<typeof liveGuest>>(null);
   const [hydrated, setHydrated] = useState(false);
   useEffect(() => { setGuest(liveGuest()); setHydrated(true); }, []);
-  const guestCtx = hydrated && typeof window !== "undefined" && (new URLSearchParams(window.location.search).get("guest") === "1" || window.location.pathname.includes("/lms/live/join"));
+  const search = hydrated && typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+  const path = hydrated && typeof window !== "undefined" ? window.location.pathname : "";
+  const shellLess = standalone || guestLink || isClassroomPath(path);
+  const guestCtx = !!(search && (search.get("guest") === "1" || /\/(lms\/live|classroom)\/join\b/.test(path)));
   const guestActor = guest?.token ? { id: guest.id, role: "student" as const, name: guest.name, cls: "", perms: [] as string[], guest: true } : null;
-  const asAdmin = (forceAdmin || (!lms.actor && adminSess)) && !guestCtx;
+  const wantAdmin = search?.get("as") === "admin";
+  const asAdmin = (forceAdmin || wantAdmin || (!lms.actor && adminSess)) && !guestCtx;
   const actor = asAdmin ? ADMIN_ACTOR : (guestCtx && guestActor ? guestActor : (lms.actor || guestActor));
   const ready = lms.ready || adminSess || forceAdmin || !!guest?.token;
   const adminElsewhere = lms.adminElsewhere && !asAdmin && !guest?.token;
   const liveHref = (id?: string) => {
+    if (shellLess) return id ? classroomHref({ room: id, asAdmin, guest: guestCtx }) : (guestLink ? "/classroom/join" : "/classroom");
     if (embedded) return id ? `/admin?room=${encodeURIComponent(id)}#live` : "/admin#live";
     return id ? `/lms/live?room=${encodeURIComponent(id)}` : "/lms/live";
+  };
+  const areaHref = asAdmin ? "/admin#live" : "/lms/live";
+  const goToRoom = (id: string) => {
+    if (shellLess) {
+      void enter(id);
+      return;
+    }
+    openClassroomTab({ room: id, asAdmin, guest: guestCtx });
   };
   const [phase, setPhase] = useState<Phase>("lobby");
   const [rooms, setRooms] = useState<LiveRoomInfo[]>([]);
@@ -419,7 +434,8 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
   useEffect(() => {
     const on = phase === "in";
     document.documentElement.classList.toggle("lb-session", on);
-    return () => document.documentElement.classList.remove("lb-session");
+    document.documentElement.classList.toggle("lb-classroom", shellLess);
+    return () => { document.documentElement.classList.remove("lb-session"); document.documentElement.classList.remove("lb-classroom"); };
   }, [phase]);
   useEffect(() => {
     const onFs = () => {
@@ -603,7 +619,14 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
   useEffect(() => {
     if (typeof window === "undefined" || !actor) return;
     const q = new URLSearchParams(window.location.search).get("room") || "";
-    if (q && phase === "lobby") enter(q).catch(() => undefined);
+    if (!q || phase !== "lobby") return;
+    if (shellLess) {
+      enter(q).catch(() => undefined);
+      return;
+    }
+    if (!embedded) {
+      window.location.replace(classroomHref({ room: q, asAdmin, guest: guestCtx }));
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [actor]);
 
@@ -629,7 +652,8 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
     try {
       const [cls, section] = pick.includes("|") ? pick.split("|") : [pick, ""];
       const r = await lmsApi.liveStart({ title: title.trim() || undefined, cls, section, groupId: groupId || undefined, minutes }, asAdmin);
-      await enter(r.id);
+      if (shellLess) await enter(r.id);
+      else goToRoom(r.id);
     } catch (e) {
       fail(e, "Start lesson", "بدء الحصة");
     } finally { setBusy(false); }
@@ -795,16 +819,30 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
   const screenRemote = screenKey ? remotes[screenKey] : undefined;
   const mainScreen = shareStream || screenRemote;
 
+  const classroomFrame = (inner: ReactNode, showBar = true) => (
+    <div className="lb-classroom flex min-h-dvh flex-col bg-gradient-to-br from-cream via-white to-white text-[#1b2f44] dark:from-[#0d1b2a] dark:via-[#0d1b2a] dark:to-[#10263b] dark:text-[#e6eef6]" data-testid="classroom-shell">
+      {showBar && (
+        <div className="lb-classroom-bar" data-testid="classroom-bar">
+          <ClassroomBrand variant="room" />
+        </div>
+      )}
+      {inner}
+    </div>
+  );
+
   if (guestLink) {
     const tok = hydrated && typeof window !== "undefined" ? (new URLSearchParams(window.location.search).get("t") || "") : "";
-    if (!hydrated) return <p className="p-8 text-center font-bold opacity-70">…</p>;
-    return <GuestJoin token={tok} />;
+    const join = !hydrated ? <p className="p-8 text-center font-bold opacity-70">…</p> : <GuestJoin token={tok} />;
+    return classroomFrame(join);
   }
 
-  if (hydrated && ready && !actor) return <NeedLogin adminElsewhere={adminElsewhere} />;
+  if (hydrated && ready && !actor) {
+    const login = <NeedLogin adminElsewhere={adminElsewhere} />;
+    return shellLess ? classroomFrame(login) : login;
+  }
 
   const body = (
-      <div className={embedded ? "flex w-full flex-1 flex-col gap-4" : "mx-auto flex w-full max-w-6xl flex-1 flex-col gap-4 px-3 py-4 sm:px-6"} data-testid="live-lesson" dir={lang === "ar" ? "rtl" : "ltr"}>
+      <div className={embedded ? "flex w-full flex-1 flex-col gap-4" : shellLess && phase === "in" ? "flex min-h-dvh w-full flex-1 flex-col" : "mx-auto flex w-full max-w-6xl flex-1 flex-col gap-4 px-3 py-4 sm:px-6"} data-testid="live-lesson" data-standalone={shellLess ? "1" : undefined} dir={lang === "ar" ? "rtl" : "ltr"}>
         {err && <p className="rounded-2xl bg-rose-100 px-4 py-2 text-sm font-bold text-rose-800 dark:bg-rose-900/60 dark:text-rose-100" role="alert">{err}</p>}
         {permHelp && (
           <div className="rounded-2xl bg-amber-100 px-4 py-3 text-sm font-bold text-amber-950 dark:bg-amber-900/50 dark:text-amber-50" role="status" data-testid="live-perm-help">
@@ -820,6 +858,11 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
               <h1 className="mt-1 text-3xl font-black text-[#1b3a57] dark:text-white">{tr("Live Lesson", "الحصة المباشرة")}</h1>
               <p className="mt-1 max-w-xl text-sm font-semibold opacity-80">{tr("Join your class on camera, or start a live room right now.", "انضم إلى صفك بالكاميرا، أو ابدأ حصة مباشرة الآن.")}</p>
               {asAdmin && <p className="mt-1 max-w-xl text-sm font-semibold opacity-80">{tr("As admin you can start a room for any class and see every live lesson.", "بصفتك مسؤولاً يمكنك بدء حصة لأي صف ورؤية كل الحصص المباشرة.")}</p>}
+              {embedded && search?.get("room") && (
+                <p className="mt-3">
+                  <a className={primaryBtn} href={classroomHref({ room: search.get("room") || "", asAdmin: true })} target="_blank" rel="noopener noreferrer" data-testid="live-open-classroom">{tr("Open classroom in a new tab", "افتح الصف في علامة تبويب جديدة")}</a>
+                </p>
+              )}
               {!sfuOn && <p className="mt-3 rounded-xl bg-white/80 px-3 py-2 text-sm font-bold text-amber-800 dark:bg-slate-900/80 dark:text-amber-200">{tr("Video isn't fully set up yet. Chat, hand-raise and the waiting room still work.", "الفيديو غير مُعد بالكامل بعد. الدردشة ورفع اليد وغرفة الانتظار تعمل.")}</p>}
             </header>
             {canStart && (
@@ -857,8 +900,8 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
             {!canStart && actor?.role === "teacher" && (
               <p className="rounded-3xl bg-amber-100 px-4 py-3 font-bold text-amber-900 dark:bg-amber-900/40 dark:text-amber-100" data-testid="live-no-perm">{tr("Your admin hasn't switched on “Run live lessons” for you yet.", "لم يفعّل المسؤول صلاحية «تشغيل الدروس المباشرة» لك بعد.")}</p>
             )}
-            {(asAdmin || livePerms.instant) && <StartMeetingPanel asAdmin={asAdmin} onEnter={(id) => enter(id)} />}
-            <LiveSchedulePanel asAdmin={asAdmin} perms={asAdmin ? { run: true, schedule: true, schedStudent: true, schedClass: true, shareLink: true, camMic: true, screenShare: true, present: true, instant: true, record: true, recs: livePerms.recs } : livePerms} onStart={(id) => enter(id)} busy={busy} />
+            {(asAdmin || livePerms.instant) && <StartMeetingPanel asAdmin={asAdmin} onEnter={(id) => goToRoom(id)} />}
+            <LiveSchedulePanel asAdmin={asAdmin} perms={asAdmin ? { run: true, schedule: true, schedStudent: true, schedClass: true, shareLink: true, camMic: true, screenShare: true, present: true, instant: true, record: true, recs: livePerms.recs } : livePerms} onStart={(id) => goToRoom(id)} busy={busy} />
             <section>
               <h2 className="mb-3 text-lg font-black">{tr("Live now", "مباشر الآن")}</h2>
               {!rooms.length ? <p className="rounded-3xl bg-black/5 px-4 py-6 text-center font-semibold opacity-70 dark:bg-white/10">{tr("No live lessons for your class right now.", "لا توجد حصص مباشرة لصفك الآن.")}</p> : (
@@ -869,7 +912,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
                         <p className="text-lg font-black">{r.title}</p>
                         <p className="text-sm font-semibold opacity-80">{[r.cls, r.section].filter(Boolean).join(" · ")}</p>
                       </div>
-                      <button type="button" className={primaryBtn} disabled={busy} onClick={() => enter(r.id)} data-testid="live-join-btn">{r.mine ? tr("Rejoin", "إعادة الدخول") : tr("Join", "انضم")}</button>
+                      <button type="button" className={primaryBtn} disabled={busy} onClick={() => goToRoom(r.id)} data-testid="live-join-btn">{r.mine ? tr("Rejoin", "إعادة الدخول") : tr("Join", "انضم")}</button>
                     </li>
                   ))}
                 </ul>
@@ -898,7 +941,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
           <div className="flex flex-1 flex-col items-center justify-center gap-4 rounded-[2rem] bg-gradient-to-br from-amber-100 to-rose-100 p-8 text-center dark:from-slate-800 dark:to-rose-950" data-testid="live-ended">
             <p className="text-6xl" aria-hidden>👋</p>
             <h2 className="text-2xl font-black">{tr("Class has ended", "انتهت الحصة")}</h2>
-            <button type="button" className={primaryBtn} onClick={() => { setErr(""); setPhase("lobby"); setRoom(null); history.replaceState(null, "", liveHref()); loadList().catch(() => undefined); }}>{tr("Back to Live Lesson", "العودة إلى الحصة المباشرة")}</button>
+            <button type="button" className={primaryBtn} onClick={() => { if (shellLess && !guestCtx) { window.location.href = areaHref; return; } setErr(""); setPhase("lobby"); setRoom(null); history.replaceState(null, "", liveHref()); loadList().catch(() => undefined); }}>{shellLess && !guestCtx ? tr("Back to dashboard", "العودة إلى اللوحة") : tr("Back to Live Lesson", "العودة إلى الحصة المباشرة")}</button>
           </div>
         )}
 
@@ -913,6 +956,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
             )}
             <header className="lb-top">
               <div className="lb-brand">
+                <ClassroomBrand variant="room" />
                 <div className="lb-title" dir="auto">{room.title}</div>
                 <button type="button" className="lb-sub" onClick={() => setShowPeople(true)} data-testid="live-people">
                   {[room.cls, room.section].filter(Boolean).join(" · ") || tr("Meeting", "اجتماع")}
@@ -1145,6 +1189,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
       </div>
   );
   if (embedded) return body;
+  if (shellLess) return classroomFrame(body, phase !== "in");
   return (
     <AssessmentShell title={tr("Live Lesson", "الحصة المباشرة")} exitHref="/lms" wide toolbar={<LmsStaffToolbar />}>
       {body}
