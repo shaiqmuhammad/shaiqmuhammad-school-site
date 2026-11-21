@@ -412,7 +412,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
   return (
     <div className="admin-calm min-h-screen lg:flex">
       {/* Sidebar (lg+): full width or a 64px icon rail */}
-      <aside data-frame
+      <aside data-frame data-focus-hide
         className={`hidden bg-header text-white transition-[width] duration-200 lg:sticky lg:top-0 lg:flex lg:h-screen lg:shrink-0 lg:flex-col lg:pb-6 lg:pt-3 ${collapsed ? "lg:w-16 lg:px-2" : "lg:w-64 lg:px-4"}`}
         data-testid="admin-sidebar"
         data-collapsed={collapsed ? "true" : "false"}
@@ -469,7 +469,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
         {<div className="border-t border-black/5 px-3 pb-2 pt-1.5 dark:border-white/10">{quickStrip(true)}</div>}
       </header>
       {drawer && (
-        <div className="fixed inset-0 z-50 lg:hidden" data-testid="admin-drawer-wrap">
+        <div className="fixed inset-0 z-50 lg:hidden" data-testid="admin-drawer-wrap" data-focus-hide>
           <button type="button" className="absolute inset-0 bg-black/45" aria-label={tr("Close menu", "إغلاق القائمة")} onClick={() => setDrawer(false)} tabIndex={-1} />
           <div
             id="admin-drawer"

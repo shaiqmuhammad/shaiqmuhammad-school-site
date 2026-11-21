@@ -300,13 +300,16 @@ export type LiveChat = { id: string; from: string; name: string; text: string; a
 export type LivePub = { userId: string; sessionId: string; tracks: string[] };
 export type LiveStroke = { c: string; w: number; d: number[]; by: string };
 export type LiveAnswer = { userId: string; name: string; slide: number; text: string; at: number };
+export const LIVE_VIEW_MODES = ["teach", "lecture", "gallery", "speaker", "board", "discuss"] as const;
+export type LiveViewMode = (typeof LIVE_VIEW_MODES)[number];
+export type LiveView = { mode: LiveViewMode; follow: boolean };
 export type LivePresent = {
   packId: string; packTitle: string; slide: number; follow: boolean; timerEnd: number | null;
   penId: string; strokes: LiveStroke[]; tool: "" | "wheel" | "rand" | "award" | "board";
   wheelAngle: number; wheelSpinTo: number; wheelAt: number; winnerId: string; winnerName: string;
   randText: string; answers: LiveAnswer[];
 };
-export type LiveSnap = { id: string; title: string; cls: string; section: string; groupId: string; teacherId: string; status: "live" | "ended"; created: number; waiting: LiveWait[]; members: LiveMember[]; chat: LiveChat[]; pubs: LivePub[]; sfu: boolean; present?: LivePresent | null; endsAt?: number };
+export type LiveSnap = { id: string; title: string; cls: string; section: string; groupId: string; teacherId: string; status: "live" | "ended"; created: number; waiting: LiveWait[]; members: LiveMember[]; chat: LiveChat[]; pubs: LivePub[]; sfu: boolean; present?: LivePresent | null; endsAt?: number; view?: LiveView };
 export function liveWsUrl(token: string, room: string) {
   const u = new URL(`${ASSESSMENT_API_BASE}/api/lms/live-ws`);
   u.protocol = u.protocol === "https:" ? "wss:" : "ws:";
@@ -521,6 +524,7 @@ export const lmsApi = {
   livePresent: (id: string, body: Record<string, unknown>, asAdmin = false) => call<{ ok: boolean; present?: LivePresent | null }>("live-present", { id, ...body }, { asAdmin }),
   livePack: (id: string, packId: string, asAdmin = false) => call<{ pack: { id: string; title: string; type: string; slides: unknown[] } }>("live-pack", { id, packId }, { asAdmin }),
   liveDuration: (id: string, body: { endsAt?: number; addMin?: number }, asAdmin = false) => call<{ ok: boolean; endsAt?: number }>("live-duration", { id, ...body }, { asAdmin }),
+  liveView: (id: string, body: { mode?: LiveViewMode; follow?: boolean }, asAdmin = false) => call<{ ok: boolean; view?: LiveView }>("live-view", { id, ...body }, { asAdmin }),
   exportAll: (asAdmin = false) => call<{ exportedAt: number; homework: Homework[]; subs: (Submission & { hw: string; student: string })[]; users: { id: string; username: string; name: string; role: string; cls: string }[]; tracker: (TrackerRow & { student: string; hw: string })[] }>("export", undefined, { asAdmin }),
 };
 
@@ -562,6 +566,7 @@ export function lmsErrorText(e: unknown, tr: (en: string, ar: string) => string)
     no_present: ["Your admin hasn't switched on “Present lesson packs live” for you yet.", "لم يفعّل المسؤول صلاحية «عرض حزم الدروس مباشرة» لك بعد."],
     no_pen: ["The teacher hasn't given you the pen yet.", "لم يعطك المعلم القلم بعد."],
     not_presenting: ["The teacher isn't presenting a pack right now.", "المعلم لا يعرض حزمة الآن."],
+    bad_view: ["That classroom view is not available.", "طريقة العرض هذه غير متاحة."],
     too_many: ["You already have many upcoming live lessons. Cancel one first.", "لديك العديد من الحصص المباشرة القادمة. ألغِ واحدة أولًا."],
     sfu_not_configured: ["Live video isn't set up yet. You can still use chat and the waiting room.", "فيديو الحصة غير مُعد بعد. يمكنك استخدام الدردشة وغرفة الانتظار."],
     pick_class: ["Choose a class to start the live lesson.", "اختر صفًا لبدء الحصة المباشرة."],

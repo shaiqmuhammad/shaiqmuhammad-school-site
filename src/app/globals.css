@@ -444,6 +444,27 @@ html.page-focus [data-testid="lp-player-tools"],
 html.page-focus [data-testid="lp-toolbar"],
 html.page-focus [data-testid="lp-full"],
 body.lb-work [data-testid="lp-toolbar"] { display: flex !important; visibility: visible !important; }
+html.page-focus [data-testid="lms-rail-open"] { display: none !important; }
+html.page-focus [data-testid="live-tools-tray"],
+html.page-focus [data-testid="live-video-dock"],
+html.page-focus [data-testid="live-ends-clock"],
+html.page-focus [data-testid="live-chat-toast"] { visibility: visible !important; }
+/* Live classroom Focus: the whole room fills the screen (CSS fallback when the browser refuses fullscreen). */
+[data-testid="live-room"].live-room-fs {
+  position: fixed;
+  inset: 0;
+  z-index: 4000;
+  max-width: none !important;
+  width: 100%;
+  height: 100dvh;
+  overflow: auto;
+  margin: 0;
+  border-radius: 0;
+  padding: 0.75rem;
+  padding-inline-end: 5.75rem;
+  background: #f4f0e6;
+}
+html.dark [data-testid="live-room"].live-room-fs { background: #0d1b2a; }
 .lb-fit { width: 100%; max-width: calc((100dvh - 11rem) * 16 / 9); margin-inline: auto; }
 body.lb-work .lb-fit { max-width: calc((100dvh - 8rem) * 16 / 9); }
 /* t429: printable slides with QR */
@@ -481,3 +502,6 @@ html.wb-board-fill [data-testid=class-timer] { z-index: 2600 !important; }
   color: #ffffff;
 }
 .qmap-fill { position: fixed; inset: 0; z-index: 2400; overflow: auto; background: var(--background); color: var(--foreground); padding: 1rem 1.25rem 2rem; }
+
+/* Live classroom view-mode transitions */
+.live-stage, .live-stage > * { transition: layout 0.35s ease, flex-basis 0.35s ease, width 0.35s ease, height 0.35s ease, opacity 0.3s ease, transform 0.3s ease; }
