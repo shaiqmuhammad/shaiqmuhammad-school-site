@@ -243,7 +243,7 @@ function isLiveGuestContext() {
   if (typeof window === "undefined") return false;
   try {
     const q = new URLSearchParams(window.location.search);
-    return q.get("guest") === "1" || window.location.pathname.includes("/lms/live/join");
+    return q.get("guest") === "1" || /\/(lms\/live|classroom)\/join\b/.test(window.location.pathname);
   } catch { return false; }
 }
 function bearer(asAdmin = false): string | null {

@@ -13,6 +13,7 @@ import { useI18n } from "@/lib/i18n";
 import { SiteNameText } from "@/components/SiteIdentity";
 import { StartMeetingButton } from "@/components/lms/StartMeeting";
 import { TimeZoneCard } from "@/components/lms/TimeZonePicker";
+import { openClassroomTab } from "@/lib/classroom";
 
 type Tab = "timetable" | "logins" | "groups" | "downloads" | "parents" | "attendance" | "behaviour" | "curriculum" | "youtube" | "sitepages" | "home" | "pages" | "quizzes" | "certificate" | "banners" | "announcements" | "teacher" | "forum" | "results" | "activities" | "settings" | "students" | "teachers" | "setup" | "lmshw" | "classes" | "mail" | "homepage" | "staff" | "messages" | "notices" | "vcomments" | "reports" | "wall" | "tracker" | "asys" | "qa" | "rewards" | "live" | "backup" | "security" | "branding";
 
@@ -468,7 +469,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
           <FocusPill />
           <FullscreenToggle />
           </div>
-          <StartMeetingButton asAdmin compact onEnter={(id) => { window.location.href = `/admin?room=${encodeURIComponent(id)}#live`; }} />
+          <StartMeetingButton asAdmin compact onEnter={(id) => openClassroomTab({ room: id, asAdmin: true })} />
           <SettingsGear tab={tab} onTab={onTab} labelFor={label} />
         </div>
         <div className="flex items-center justify-between gap-2 border-t border-black/5 px-3 py-1.5 dark:border-white/10" data-testid="admin-date-row"><GregPill tone="light" compact /><HijriPill tone="light" compact /></div>
@@ -512,7 +513,7 @@ export function AdminChrome({ busy, tab, onTab, onHome, refreshing = false, onPu
             <AdminToolbar variant="glass" onLogout={onLogout} msg={<MsgIcon variant="glass" asAdmin onClick={() => onTab("messages")} />} bell={<LmsBell asAdmin testId="admin-bell" variant={"glass"} extra={onBell ? { count: pendingCount, label: tr(`${pendingCount} forum post${pendingCount === 1 ? "" : "s"} waiting for approval`, `${pendingCount} مشاركة في المنتدى بانتظار الموافقة`), onClick: onBell } : undefined} />} />
           <FocusPill />
           <FullscreenToggle />
-          <StartMeetingButton asAdmin compact onEnter={(id) => { window.location.href = `/admin?room=${encodeURIComponent(id)}#live`; }} />
+          <StartMeetingButton asAdmin compact onEnter={(id) => openClassroomTab({ room: id, asAdmin: true })} />
           <SettingsGear tab={tab} onTab={onTab} labelFor={label} />
         </div>
         <div className={`mx-auto px-4 sm:px-8 ${tab === "mail" ? "py-3 lg:py-3" : "py-6 lg:py-8"} ${tab === "mail" || WIDE.includes(tab) ? "max-w-none" : collapsed ? "max-w-5xl" : "max-w-4xl"}`}>
