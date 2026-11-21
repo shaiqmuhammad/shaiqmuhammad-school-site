@@ -2,7 +2,7 @@
 
 import { downloadBlob, safeFileName } from "@/lib/exportUtils";
 import { qrSvg } from "@/lib/qrLocal";
-import { pageOf, type HwAnnot, type HwPage, type HwPhoto } from "@/lib/hwMark";
+import { inkOn, pageOf, type HwAnnot, type HwPage, type HwPhoto } from "@/lib/hwMark";
 
 export type HwPdfMeta = {
   title: string;
@@ -73,7 +73,7 @@ export async function paintHwPage(img: HTMLImageElement | ImageBitmap, photo: Hw
     ctx.arcTo(x - tw / 2, y - th / 2, x + tw / 2, y - th / 2, r);
     ctx.closePath();
     ctx.fill();
-    ctx.fillStyle = "#fff";
+    ctx.fillStyle = inkOn(s.color || "#0284c7");
     ctx.fillText(label, x, y);
   }
   return c;

@@ -391,7 +391,7 @@ function Review({ s, asAdmin, reload, quran, qdata, regrade = false, onGraded, p
               {s.status === "approved" && <button type="button" className={smallBtn} onClick={() => { if (confirm(tr("Reopen this homework? The student will be asked to practise and submit again.", "إعادة فتح هذا الواجب؟ سيُطلب من الطالب التدرّب والتسليم مجددًا."))) act({ status: "returned" }); }} data-testid="hw-reopen">↺ {tr("Reopen for student", "إعادة فتح للطالب")}</button>}
             </span>
           ) : null
-        ) : s.status !== "approved" && <button type="button" className="rounded-full bg-emerald-600 px-3 py-1.5 text-sm font-bold text-white" onClick={() => act({ status: "approved" })} data-testid="hw-approve">✓ {tr("Approve", "قبول")}</button>}
+        ) : s.status !== "approved" && <button type="button" className="rounded-full bg-emerald-700 px-3 py-1.5 text-sm font-bold text-white" onClick={() => act({ status: "approved" })} data-testid="hw-approve">✓ {tr("Approve", "قبول")}</button>}
         {!quran && s.status !== "returned" && <button type="button" className={smallBtn} onClick={() => act({ status: "returned" })} data-testid="hw-return">↺ {tr("Ask to try again", "اطلب المحاولة مجددًا")}</button>}
       </div>
       {pack && slidesOpen && <PackPlayer id={pack} asAdmin={asAdmin} review={{ student: s.student }} />}

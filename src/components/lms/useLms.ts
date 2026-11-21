@@ -93,7 +93,7 @@ export function statusLabel(s: string, tr: (en: string, ar: string) => string) {
 
 /** Quran traffic light: green = memorised perfectly, yellow = good with minor fixes (both passed), red = needs practice. */
 export const GRADE_STYLE: Record<string, string> = {
-  green: "bg-emerald-500 text-white",
+  green: "bg-emerald-700 text-white",
   yellow: "bg-amber-400 text-amber-950",
   red: "bg-rose-600 text-white",
 };
