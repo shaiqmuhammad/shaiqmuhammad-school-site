@@ -557,6 +557,7 @@ export const lmsApi = {
   liveJoin: (id: string, asAdmin = false) => call<{ status: "in" | "waiting" | "ended" | "full"; room?: LiveSnap; selfId?: string }>("live-join", { id }, { asAdmin }),
   liveAdmit: (id: string, userId: string, asAdmin = false) => call<{ ok: boolean }>("live-admit", { id, userId }, { asAdmin }),
   liveDeny: (id: string, userId: string, asAdmin = false) => call<{ ok: boolean }>("live-deny", { id, userId }, { asAdmin }),
+  liveRemove: (id: string, userId: string, asAdmin = false) => call<{ ok: boolean }>("live-remove", { id, userId }, { asAdmin }),
   liveLeave: (id: string, asAdmin = false) => call<{ ok: true }>("live-leave", { id }, { asAdmin }),
   liveEnd: (id: string, asAdmin = false) => call<{ ok: boolean }>("live-end", { id }, { asAdmin }),
   livePerm: (id: string, userId: string, cam?: boolean, mic?: boolean, asAdmin = false, share?: boolean) => call<{ ok: boolean }>("live-perm", { id, userId, cam, mic, share }, { asAdmin }),

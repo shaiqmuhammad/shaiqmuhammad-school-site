@@ -12,6 +12,7 @@ import { lmsActor, type Actor, type LmsEnv } from "./lms";
 import { recObjectKey } from "./liveAtt";
 import { allowedPubTracks, canControlStudentMedia, canPresentInRoom, canSetMemberFloor, memberFloor, normalizePtrKind, type LiveFloor } from "./liveMedia";
 import { SWEEP_MS, shouldDropMember, nextAlarmAt } from "./livePresence";
+import { liveRemoveCheck } from "./liveRemove";
 import { activatePresentItem, applyActivePresentItem, closeLibraryPresentItems, closePresentItem, openPresentItem, stashActivePresentItem, youtubeVideoId, type LivePresentItem } from "./livePresentItems";
 import { keepDebugLogs, sanitizeLiveDebug, type LiveDebugBlob } from "./liveDebug";
 import { normalizeLiveShapes, type LiveShape, type LiveShapeKind } from "./liveShapes";
@@ -349,6 +350,29 @@ export class LiveRoom extends DurableObject<LiveEnv> {
     await this.save();
     this.broadcast({ t: "denied", userId });
     this.roomMsg();
+    return { ok: true };
+  }
+
+  async remove(hostId: string, userId: string): Promise<{ ok: boolean; error?: string }> {
+    await this.load();
+    const check = liveRemoveCheck({
+      live: !!(this.state && this.state.status === "live"),
+      teacherId: this.state?.teacherId || "",
+      hostId,
+      userId,
+      memberIds: (this.state?.members || []).map((m) => m.id),
+    });
+    if (!check.ok) return check;
+    if (this.state) this.state.asks = (this.state.asks || []).filter((a) => a.userId !== userId);
+    const m = this.dropMember(userId);
+    if (!m) return { ok: false, error: "not_found" };
+    await this.save();
+    this.broadcast({ t: "removed", userId });
+    this.presence("leave", m);
+    this.roomMsg();
+    for (const ws of this.ctx.getWebSockets(userId)) {
+      try { ws.close(4001, "removed"); } catch { /* */ }
+    }
     return { ok: true };
   }
 
@@ -1051,6 +1075,18 @@ export async function handleLive(request: Request, env: LiveEnv, action: string)
       if (ids.length) await store.liveAttSync(id, ids);
     }
     return reply(origin, r, r.ok ? 200 : 403);
+  }
+
+  if (action === "live-remove") {
+    if (a.id !== String(row.teacher) && a.role !== "admin") return reply(origin, { error: "forbidden" }, 403);
+    const userId = str(body.userId, 40);
+    if (!userId) return reply(origin, { error: "bad_request" }, 400);
+    const r = await stub.remove(a.role === "admin" ? "admin" : String(row.teacher), userId);
+    if (r.ok) {
+      const snap = await stub.snapshot();
+      if (snap) await store.liveAttSync(id, snap.members.filter((m) => m.role === "student").map((m) => m.id));
+    }
+    return reply(origin, r, r.ok ? 200 : r.error === "not_found" ? 404 : 403);
   }
 
   if (action === "live-leave") {
