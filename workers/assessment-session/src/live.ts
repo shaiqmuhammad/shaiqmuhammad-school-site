@@ -27,7 +27,7 @@ const ROOM_MS = 4 * 60 * 60 * 1000;
 
 type Role = "teacher" | "student";
 export type LivePub = { userId: string; sessionId: string; tracks: string[] };
-export type LiveMember = { id: string; name: string; role: Role; camAllowed: boolean; micAllowed: boolean; hand: boolean; present: boolean };
+export type LiveMember = { id: string; name: string; role: Role; camAllowed: boolean; micAllowed: boolean; shareAllowed?: boolean; hand: boolean; present: boolean };
 export type LiveWait = { id: string; name: string; at: number };
 export type LiveChat = { id: string; from: string; name: string; text: string; at: number };
 export type LiveSnap = {
@@ -58,6 +58,32 @@ function newId(): string {
 
 function canRun(a: Actor) {
   return a.role === "admin" || (a.role === "teacher" && a.perms.includes("liveLesson"));
+}
+function canLive(a: Actor, perm: string) {
+  return a.role === "admin" || (a.role === "teacher" && a.perms.includes(perm));
+}
+function liveFlags(a: Actor) {
+  return {
+    run: canRun(a),
+    schedule: canLive(a, "liveSchedule"),
+    schedStudent: canLive(a, "liveSchedStudent"),
+    schedClass: canLive(a, "liveSchedClass"),
+    shareLink: canLive(a, "liveShareLink"),
+    camMic: canLive(a, "liveCamMic"),
+    screenShare: canLive(a, "liveScreenShare"),
+  };
+}
+function tokenOf(request: Request, fallback = "") {
+  const auth = request.headers.get("Authorization") || "";
+  if (auth.startsWith("Bearer ")) return auth.slice(7).trim();
+  return fallback;
+}
+async function liveActor(request: Request, env: LiveEnv, store: ReturnType<LiveEnv["LMS"]["get"]>, raw = ""): Promise<Actor | null> {
+  const a = await lmsActor(request, env, store);
+  if (a) return a;
+  const tok = raw || tokenOf(request);
+  if (!tok.startsWith("lg_")) return null;
+  return store.liveGuestActor(tok);
 }
 
 function publicSnap(s: State, sfu: boolean): LiveSnap {
@@ -156,7 +182,7 @@ export class LiveRoom extends DurableObject<LiveEnv> {
       if (!w) continue;
       if (this.state.members.length >= MAX_MEMBERS) break;
       this.state.waiting = this.state.waiting.filter((x) => x.id !== id);
-      this.state.members.push({ id: w.id, name: w.name, role: "student", camAllowed: false, micAllowed: false, hand: false, present: true });
+      this.state.members.push({ id: w.id, name: w.name, role: "student", camAllowed: false, micAllowed: false, shareAllowed: false, hand: false, present: true });
     }
     await this.save();
     this.roomMsg();
@@ -206,24 +232,24 @@ export class LiveRoom extends DurableObject<LiveEnv> {
     return { ok: true };
   }
 
-  async setPerm(hostId: string, userId: string, cam?: boolean, mic?: boolean): Promise<{ ok: boolean; error?: string }> {
+  async setPerm(hostId: string, userId: string, cam?: boolean, mic?: boolean, share?: boolean): Promise<{ ok: boolean; error?: string }> {
     await this.load();
     if (!this.state || this.state.status !== "live") return { ok: false, error: "ended" };
-    if (hostId !== this.state.teacherId) return { ok: false, error: "forbidden" };
+    if (hostId !== this.state.teacherId && hostId !== "admin") return { ok: false, error: "forbidden" };
     const m = this.member(userId);
     if (!m || m.role === "teacher") return { ok: false, error: "not_found" };
     if (typeof cam === "boolean") m.camAllowed = cam;
     if (typeof mic === "boolean") m.micAllowed = mic;
-    if (!m.camAllowed || !m.micAllowed) {
-      const pub = this.state.pubs.find((p) => p.userId === userId);
-      if (pub) {
-        if (!m.camAllowed) pub.tracks = pub.tracks.filter((t) => t !== "camera");
-        if (!m.micAllowed) pub.tracks = pub.tracks.filter((t) => t !== "mic");
-        if (!pub.tracks.length) this.state.pubs = this.state.pubs.filter((p) => p.userId !== userId);
-      }
+    if (typeof share === "boolean") m.shareAllowed = share;
+    const pub = this.state.pubs.find((p) => p.userId === userId);
+    if (pub) {
+      if (!m.camAllowed) pub.tracks = pub.tracks.filter((t) => t !== "camera");
+      if (!m.micAllowed) pub.tracks = pub.tracks.filter((t) => t !== "mic");
+      if (!m.shareAllowed) pub.tracks = pub.tracks.filter((t) => t !== "screen");
+      if (!pub.tracks.length) this.state.pubs = this.state.pubs.filter((p) => p.userId !== userId);
     }
     await this.save();
-    this.broadcast({ t: "perm", userId, camAllowed: m.camAllowed, micAllowed: m.micAllowed });
+    this.broadcast({ t: "perm", userId, camAllowed: m.camAllowed, micAllowed: m.micAllowed, shareAllowed: !!m.shareAllowed });
     this.roomMsg();
     return { ok: true };
   }
@@ -257,7 +283,7 @@ export class LiveRoom extends DurableObject<LiveEnv> {
     const allow = new Set<string>();
     if (m.camAllowed) allow.add("camera");
     if (m.micAllowed) allow.add("mic");
-    if (m.role === "teacher") allow.add("screen");
+    if (m.role === "teacher" || m.shareAllowed) allow.add("screen");
     const next = tracks.map((t) => str(t, 20)).filter((t) => allow.has(t));
     const sid = str(sessionId, 80);
     if (!sid) return { ok: false, error: "bad_session" };
@@ -393,18 +419,34 @@ export async function handleLive(request: Request, env: LiveEnv, action: string)
   if (action === "live-ws") return handleLiveWs(request, env);
 
   const store = env.LMS.get(env.LMS.idFromName("main"));
-  const a = await lmsActor(request, env, store);
-  if (!a) return reply(origin, { error: "unauthorized" }, 401);
-  if (a.viewAs) return reply(origin, { error: "read_only" }, 403);
-  if (a.role === "parent") return reply(origin, { error: "forbidden" }, 403);
-
   let body: Record<string, unknown> = {};
   if (request.method === "POST") {
     const text = await request.text();
     if (text.length > 60_000) return reply(origin, { error: "too_large" }, 413);
     try { body = JSON.parse(text || "{}") as Record<string, unknown>; } catch { return reply(origin, { error: "bad_json" }, 400); }
   }
-  const id = str(body.id || new URL(request.url).searchParams.get("id"), 40);
+  const url = new URL(request.url);
+  const linkTok = str(body.token || url.searchParams.get("t"), 80);
+
+  if (action === "live-link-info") {
+    const info = await store.liveLinkInfo(linkTok);
+    if (!info.ok) return reply(origin, { error: info.error }, info.error === "ended" ? 410 : 404);
+    return reply(origin, info, 200);
+  }
+  if (action === "live-link-join") {
+    const name = str(body.name, 80);
+    if (!name) return reply(origin, { error: "need_name" }, 400);
+    const r = await store.liveGuestJoin(linkTok, name);
+    if (!r.ok) return reply(origin, { error: r.error }, r.error === "ended" ? 410 : 404);
+    return reply(origin, r, 200);
+  }
+
+  const a = await liveActor(request, env, store);
+  if (!a) return reply(origin, { error: "unauthorized" }, 401);
+  if (a.viewAs) return reply(origin, { error: "read_only" }, 403);
+  if (a.role === "parent") return reply(origin, { error: "forbidden" }, 403);
+
+  const id = str(body.id || url.searchParams.get("id"), 40);
   const sfuOn = !!(env.REALTIME_SFU_APP_ID && env.REALTIME_SFU_APP_SECRET);
 
   if (action === "live-list") {
@@ -425,7 +467,70 @@ export async function handleLive(request: Request, env: LiveEnv, action: string)
     }
     const options = canRun(a) ? await store.liveScopeOptions(a) : [];
     const groups = canRun(a) && a.role !== "student" ? ((await store.handle("grp-list", a, {})) as { status: number; body: { items?: { id: string; name: string }[] } }).body?.items || [] : [];
-    return reply(origin, { rooms, canStart: canRun(a), sfu: sfuOn, options, groups }, 200);
+    return reply(origin, { rooms, canStart: canRun(a), sfu: sfuOn, options, groups, perms: liveFlags(a) }, 200);
+  }
+
+  if (action === "live-sched-list") {
+    if (a.guest) return reply(origin, { error: "forbidden" }, 403);
+    const items = await store.liveSchedList(a);
+    const packs = canLive(a, "liveSchedule") ? await store.liveSchedPacks(a) : [];
+    return reply(origin, { items, packs, perms: liveFlags(a), options: canLive(a, "liveSchedule") ? await store.liveScopeOptions(a) : [], groups: canLive(a, "liveSchedule") && a.role !== "student" ? ((await store.handle("grp-list", a, {})) as { status: number; body: { items?: { id: string; name: string }[] } }).body?.items || [] : [] }, 200);
+  }
+
+  if (action === "live-sched-save") {
+    if (a.guest) return reply(origin, { error: "forbidden" }, 403);
+    const r = await store.liveSchedSave(a, {
+      id: str(body.id, 40) || undefined,
+      title: str(body.title, 80),
+      starts: Number(body.starts) || 0,
+      duration: Number(body.duration) || 0,
+      cls: str(body.cls, 80),
+      section: str(body.section, 40),
+      groupId: str(body.groupId, 40),
+      studentId: str(body.studentId, 40),
+      packId: str(body.packId, 40),
+    });
+    if (!r.ok) return reply(origin, { error: r.error }, r.error === "forbidden" || r.error.startsWith("no_") || r.error === "not_your_class" ? 403 : 400);
+    return reply(origin, { id: r.id, item: store.liveSchedPublic((await store.liveSchedRow(r.id)) as Record<string, unknown>, a, true) }, 200);
+  }
+
+  if (action === "live-sched-cancel") {
+    if (a.guest) return reply(origin, { error: "forbidden" }, 403);
+    const r = await store.liveSchedCancel(a, str(body.id, 40));
+    if (!r.ok) return reply(origin, { error: r.error }, r.error === "forbidden" ? 403 : 400);
+    return reply(origin, { ok: true }, 200);
+  }
+
+  if (action === "live-sched-link") {
+    if (a.guest) return reply(origin, { error: "forbidden" }, 403);
+    const r = await store.liveSchedSetLink(a, str(body.id, 40), body.off !== true);
+    if (!r.ok) return reply(origin, { error: r.error }, r.error === "no_share_link" || r.error === "forbidden" ? 403 : 400);
+    return reply(origin, { ok: true, token: r.token || "" }, 200);
+  }
+
+  if (action === "live-sched-start") {
+    if (a.guest) return reply(origin, { error: "forbidden" }, 403);
+    if (!canRun(a)) return reply(origin, { error: "no_permission" }, 403);
+    const sch = await store.liveSchedRow(str(body.id, 40));
+    if (!sch) return reply(origin, { error: "not_found" }, 404);
+    if (a.role !== "admin" && String(sch.teacher) !== a.id) return reply(origin, { error: "forbidden" }, 403);
+    if (String(sch.room_id || "")) return reply(origin, { id: String(sch.room_id), existing: true }, 200);
+    if (!store.liveSchedCanStart(sch as Record<string, unknown>)) return reply(origin, { error: "not_yet" }, 400);
+    const open = ((await store.liveListOpen()) as { id: string; teacher: string }[]).find((r) => r.teacher === a.id);
+    if (open) return reply(origin, { id: String(open.id), existing: true }, 200);
+    const cls = String(sch.cls || "");
+    const section = String(sch.section || "");
+    const groupId = String(sch.group_id || "");
+    const studentId = String(sch.student_id || "");
+    const ok = studentId ? { ok: true as const } : await store.liveCanStart(a, cls, section, groupId);
+    if (!ok.ok) return reply(origin, { error: ok.error }, 403);
+    const roomId = newId();
+    const title = String(sch.title || "Live Lesson");
+    const stub = roomStub(env, roomId);
+    await stub.init({ id: roomId, title, cls, section, groupId, teacherId: a.id, teacherName: a.name });
+    await store.livePut({ id: roomId, teacher: a.id, title, cls, section, groupId, status: "live", created: Date.now(), studentId, schedId: String(sch.id) });
+    await store.liveSchedAttachRoom(String(sch.id), roomId);
+    return reply(origin, { id: roomId }, 200);
   }
 
   if (action === "live-start") {
@@ -448,7 +553,10 @@ export async function handleLive(request: Request, env: LiveEnv, action: string)
   if (!ROOM_RE.test(id)) return reply(origin, { error: "not_found" }, 404);
   const row = await store.liveRow(id);
   if (!row) return reply(origin, { error: "not_found" }, 404);
-  if (!(await store.liveVisible(a, row as never))) return reply(origin, { error: "forbidden" }, 403);
+  if (a.guest) {
+    const sch = a.liveSched ? await store.liveSchedRow(a.liveSched) : null;
+    if (!sch || String(sch.room_id || "") !== id) return reply(origin, { error: "forbidden" }, 403);
+  } else if (!(await store.liveVisible(a, row as never))) return reply(origin, { error: "forbidden" }, 403);
   const stub = roomStub(env, id);
 
   if (action === "live-get") {
@@ -483,7 +591,10 @@ export async function handleLive(request: Request, env: LiveEnv, action: string)
   }
 
   if (action === "live-perm") {
-    const r = await stub.setPerm(a.id, str(body.userId, 40), typeof body.cam === "boolean" ? body.cam : undefined, typeof body.mic === "boolean" ? body.mic : undefined);
+    if (a.id !== String(row.teacher) && a.role !== "admin") return reply(origin, { error: "forbidden" }, 403);
+    if (typeof body.share === "boolean" && !canLive(a, "liveScreenShare")) return reply(origin, { error: "no_screen_share" }, 403);
+    if ((typeof body.cam === "boolean" || typeof body.mic === "boolean") && !canLive(a, "liveCamMic")) return reply(origin, { error: "no_cam_mic" }, 403);
+    const r = await stub.setPerm(a.role === "admin" ? "admin" : String(row.teacher), str(body.userId, 40), typeof body.cam === "boolean" ? body.cam : undefined, typeof body.mic === "boolean" ? body.mic : undefined, typeof body.share === "boolean" ? body.share : undefined);
     return reply(origin, r, r.ok ? 200 : 403);
   }
 
@@ -571,11 +682,14 @@ async function handleLiveWs(request: Request, env: LiveEnv): Promise<Response> {
   const raw = url.searchParams.get("t") || "";
   if (!ROOM_RE.test(id) || !raw) return new Response("forbidden", { status: 403 });
   const store = env.LMS.get(env.LMS.idFromName("main"));
-  const a = await lmsActor(new Request(request.url, { headers: { Authorization: raw.startsWith("Bearer ") ? raw : `Bearer ${raw}` } }), env, store);
+  const a = await liveActor(new Request(request.url, { headers: { Authorization: raw.startsWith("Bearer ") ? raw : `Bearer ${raw}` } }), env, store, raw);
   if (!a || a.viewAs || a.role === "parent") return new Response("forbidden", { status: 403 });
   const row = await store.liveRow(id);
   if (!row || String(row.status) !== "live") return new Response("ended", { status: 410 });
-  if (!(await store.liveVisible(a, row as never))) return new Response("forbidden", { status: 403 });
+  if (a.guest) {
+    const sch = a.liveSched ? await store.liveSchedRow(a.liveSched) : null;
+    if (!sch || String(sch.room_id || "") !== id) return new Response("forbidden", { status: 403 });
+  } else if (!(await store.liveVisible(a, row as never))) return new Response("forbidden", { status: 403 });
   const stub = roomStub(env, id);
   const snap = await stub.snapshot();
   const allowed = snap && (snap.teacherId === a.id || snap.members.some((m) => m.id === a.id) || snap.waiting.some((w) => w.id === a.id));
