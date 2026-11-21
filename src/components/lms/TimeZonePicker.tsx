@@ -78,13 +78,13 @@ export function TimeZonePicker({
 
   return (
     <div className="relative" data-testid={id}>
-      <button type="button" className="flex w-full items-center justify-between gap-2 rounded-2xl border border-black/10 bg-white px-3 py-2 text-start font-semibold dark:bg-slate-900" onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-haspopup="listbox">
+      <button type="button" className="lms-field flex w-full items-center justify-between gap-2 rounded-2xl px-3 py-2.5 text-start font-semibold" onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-haspopup="listbox">
         <span className="truncate">{shown}</span>
         <span aria-hidden>▾</span>
       </button>
       {open && (
-        <div className="absolute z-[60] mt-1 max-h-[min(24rem,70vh)] w-full overflow-hidden rounded-2xl border border-black/10 bg-white shadow-xl dark:border-white/15 dark:bg-slate-900">
-          <input autoFocus className="w-full border-b border-black/10 bg-transparent px-3 py-2 text-sm font-semibold outline-none dark:border-white/10" placeholder={tr("Search country or city…", "ابحث عن دولة أو مدينة…")} value={q} onChange={(e) => setQ(e.target.value)} data-testid={`${id}-search`} />
+        <div className="lms-card absolute z-[60] mt-1 max-h-[min(24rem,70vh)] w-full overflow-hidden rounded-2xl border border-black/10 shadow-xl dark:border-white/15">
+          <input autoFocus className="lms-field w-full rounded-none border-0 border-b px-3 py-2 text-sm font-semibold outline-none" placeholder={tr("Search country or city…", "ابحث عن دولة أو مدينة…")} value={q} onChange={(e) => setQ(e.target.value)} data-testid={`${id}-search`} />
           <ul className="max-h-[min(20rem,60vh)] overflow-auto py-1" role="listbox">
             {allowAuto && (!query || "auto".includes(query) || tr("Auto", "تلقائي").includes(query) || zoneLabel(device, now).toLowerCase().includes(query)) && (
               <li>
@@ -127,16 +127,16 @@ export function Time12Field({ value, onChange, testId = "time-12" }: { value: st
   const set = (hour: number, minute: number, pm: boolean) => onChange(from12(hour, minute, pm));
   return (
     <div className="flex flex-wrap items-center gap-2" data-testid={testId}>
-      <select className="rounded-2xl border border-black/10 bg-white px-2 py-2 font-bold dark:bg-slate-900" value={cur.hour} onChange={(e) => set(Number(e.target.value), cur.minute, cur.pm)} aria-label={tr("Hour", "الساعة")} data-testid={`${testId}-hour`}>
+      <select className="lms-field rounded-2xl px-2 py-2 font-bold" value={cur.hour} onChange={(e) => set(Number(e.target.value), cur.minute, cur.pm)} aria-label={tr("Hour", "الساعة")} data-testid={`${testId}-hour`}>
         {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => <option key={h} value={h}>{h}</option>)}
       </select>
       <span className="font-black">:</span>
-      <select className="rounded-2xl border border-black/10 bg-white px-2 py-2 font-bold dark:bg-slate-900" value={cur.minute} onChange={(e) => set(cur.hour, Number(e.target.value), cur.pm)} aria-label={tr("Minute", "الدقيقة")} data-testid={`${testId}-min`}>
+      <select className="lms-field rounded-2xl px-2 py-2 font-bold" value={cur.minute} onChange={(e) => set(cur.hour, Number(e.target.value), cur.pm)} aria-label={tr("Minute", "الدقيقة")} data-testid={`${testId}-min`}>
         {Array.from({ length: 60 }, (_, i) => i).map((m) => <option key={m} value={m}>{String(m).padStart(2, "0")}</option>)}
       </select>
       <div className="flex rounded-2xl bg-black/5 p-0.5 dark:bg-white/10">
-        <button type="button" className={`rounded-2xl px-3 py-1.5 text-sm font-black ${!cur.pm ? "bg-[#f5c542] text-[#1b3a57]" : ""}`} onClick={() => set(cur.hour, cur.minute, false)} data-testid={`${testId}-am`}>AM</button>
-        <button type="button" className={`rounded-2xl px-3 py-1.5 text-sm font-black ${cur.pm ? "bg-[#f5c542] text-[#1b3a57]" : ""}`} onClick={() => set(cur.hour, cur.minute, true)} data-testid={`${testId}-pm`}>PM</button>
+        <button type="button" className={`rounded-2xl px-3 py-1.5 text-sm font-black ${!cur.pm ? "bg-[#f5c542] text-[#1b3a57]" : "lms-toggle-off"}`} onClick={() => set(cur.hour, cur.minute, false)} data-testid={`${testId}-am`}>AM</button>
+        <button type="button" className={`rounded-2xl px-3 py-1.5 text-sm font-black ${cur.pm ? "bg-[#f5c542] text-[#1b3a57]" : "lms-toggle-off"}`} onClick={() => set(cur.hour, cur.minute, true)} data-testid={`${testId}-pm`}>PM</button>
       </div>
     </div>
   );

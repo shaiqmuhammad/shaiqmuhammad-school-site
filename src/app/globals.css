@@ -450,6 +450,7 @@ html.page-focus [data-testid="live-video-dock"],
 html.page-focus [data-testid="live-ends-clock"],
 html.page-focus [data-testid="live-chat-toast"] { visibility: visible !important; }
 /* Live classroom Focus: the whole room fills the screen (CSS fallback when the browser refuses fullscreen). */
+/* Focus must keep every live-room control visible; .lb-room is already a full-viewport shell. */
 [data-testid="live-room"].live-room-fs {
   position: fixed;
   inset: 0;
@@ -457,14 +458,11 @@ html.page-focus [data-testid="live-chat-toast"] { visibility: visible !important
   max-width: none !important;
   width: 100%;
   height: 100dvh;
-  overflow: auto;
+  max-height: 100dvh;
+  overflow: hidden;
   margin: 0;
   border-radius: 0;
-  padding: 0.75rem;
-  padding-inline-end: 5.75rem;
-  background: #f4f0e6;
 }
-html.dark [data-testid="live-room"].live-room-fs { background: #0d1b2a; }
 .lb-fit { width: 100%; max-width: calc((100dvh - 11rem) * 16 / 9); margin-inline: auto; }
 body.lb-work .lb-fit { max-width: calc((100dvh - 8rem) * 16 / 9); }
 /* t429: printable slides with QR */
@@ -507,7 +505,7 @@ html.wb-board-fill [data-testid=class-timer] { z-index: 2600 !important; }
 .live-stage, .live-stage > * { transition: layout 0.35s ease, flex-basis 0.35s ease, width 0.35s ease, height 0.35s ease, opacity 0.3s ease, transform 0.3s ease; }
 
 /* Live classroom — design A “Playful Bubbles” */
-html.lb-session, html.lb-session body { overflow: hidden; height: 100%; }
+html.lb-session, html.lb-session body { overflow: hidden; height: 100%; height: 100dvh; }
 html.lb-session .lms-main, html.lb-session .admin-main { min-height: 0; }
 html.lb-session [data-testid="live-lesson"] {
   max-width: none !important;
@@ -523,7 +521,10 @@ html.lb-session [data-testid="live-lesson"] {
   --ink: #1b2f44;
   position: fixed; inset: 0; z-index: 50;
   display: flex; flex-direction: column;
-  padding: 14px 16px 12px; gap: 10px;
+  height: 100dvh; max-height: 100dvh;
+  padding: 14px max(16px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  padding-top: max(14px, env(safe-area-inset-top));
+  gap: 10px;
   background:
     radial-gradient(circle at 8% 18%, rgba(243,201,105,.45), transparent 28%),
     radial-gradient(circle at 92% 8%, rgba(167,139,250,.32), transparent 26%),
@@ -592,6 +593,8 @@ html.lb-session [data-testid="live-lesson"] {
   font-weight: 800; font-size: 13px;
 }
 .dark .lb-wait { background: #92400e; color: #fff8ec; }
+.lb-wait-err { background: #fecdd3; color: #9f1239; }
+.dark .lb-wait-err { background: #9f1239; color: #fff1f2; }
 .lb-workspace { flex: 1; min-height: 0; display: flex; gap: 10px; }
 .lb-stage {
   position: relative; flex: 1; min-width: 0; min-height: 0;
@@ -719,9 +722,14 @@ html.lb-session [data-testid="live-lesson"] {
 .lb-students {
   position: absolute; left: 12px; right: 12px; bottom: 10px; z-index: 10;
   display: flex; gap: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  flex-wrap: nowrap;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 2px;
 }
 .lb-stu {
-  flex: 1; height: 86px; border-radius: 20px; overflow: hidden;
+  flex: 0 0 86px; width: 86px; height: 86px; border-radius: 20px; overflow: hidden;
   background: linear-gradient(160deg, var(--c, #5b7cbf), color-mix(in srgb, var(--c, #5b7cbf) 40%, #1b3a57));
   position: relative; box-shadow: 0 6px 14px rgba(27,58,87,.18);
   border: 2px solid #fff;
@@ -801,7 +809,7 @@ html.lb-session [data-testid="live-lesson"] {
 .dark .lb-ctl.on { background: #18665d; }
 .lb-ctl.leave { color: #8a3a2e; }
 .dark .lb-ctl.leave { color: #fca5a5; }
-.lb-ctl.end { background: #f28c7b; color: #fff; padding-inline: 14px; }
+.lb-ctl.end { background: #be123c; color: #fff7f7; padding-inline: 14px; }
 .lb-badge {
   position: absolute; top: 2px; right: 10px;
   background: #e11d48; color: #fff;
@@ -890,3 +898,93 @@ html.lb-session [data-testid="live-lesson"] {
 .lb-hint { text-align: center; font-size: 11px; font-weight: 700; opacity: .7; flex: 0 0 auto; margin: 0; }
 .lb-stage-fill .live-stage { height: 100%; min-height: 0; overflow: hidden; gap: 8px; }
 @media (max-width: 640px) { .lb-hint:not([data-testid="live-rec-note"]) { display: none; } }
+
+.lb-tile-contain video { object-fit: contain !important; background: #0f1f30; }
+.lb-zoom { touch-action: pinch-zoom; overflow: auto; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+
+/* Live classroom forms: always readable in light and dark, even inside a navy header. */
+.lms-card {
+  color: #1b3a57;
+  background: #ffffff;
+}
+.dark .lms-card {
+  color: #fff8ec;
+  background: #0f1f30;
+}
+.lms-card h2, .lms-card h3, .lms-card label, .lms-card legend, .lms-card p, .lms-card span {
+  color: inherit;
+}
+.lms-card h2, .lms-card h3 { color: #1b3a57; }
+.dark .lms-card h2, .dark .lms-card h3 { color: #fff8ec; }
+.lms-field {
+  color: #1b3a57;
+  background: #ffffff;
+  border: 1px solid rgba(27, 58, 87, 0.22);
+}
+.lms-field::placeholder { color: rgba(27, 58, 87, 0.55); }
+.dark .lms-field {
+  color: #fff8ec;
+  background: #17344f;
+  border-color: rgba(255, 248, 236, 0.28);
+}
+.dark .lms-field::placeholder { color: rgba(255, 248, 236, 0.55); }
+.lms-toggle-on { background: #6ee7b7; color: #10331c; }
+.lms-toggle-off {
+  background: #fff8ec;
+  color: #1b3a57;
+  box-shadow: inset 0 0 0 1px rgba(27, 58, 87, 0.28);
+}
+.dark .lms-toggle-off {
+  background: #17344f;
+  color: #fff8ec;
+  box-shadow: inset 0 0 0 1px rgba(255, 248, 236, 0.35);
+}
+.lms-label { display: block; margin-bottom: 0.85rem; color: #1b3a57; font-weight: 800; font-size: 0.875rem; }
+.dark .lms-label { color: #fff8ec; }
+
+/* Phone / tablet live room */
+@media (max-width: 640px) {
+  .lb-room {
+    padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+  }
+  .lb-students { left: 6px; right: 6px; bottom: 6px; }
+  .lb-stu { flex-basis: 72px; width: 72px; }
+  .lb-tools-fab { display: flex !important; }
+  .lb-dock { padding-bottom: max(4px, env(safe-area-inset-bottom)); }
+}
+@media (max-width: 640px) and (orientation: portrait) {
+  .lb-workspace { flex-direction: column; }
+  .lb-tray-root {
+    display: none;
+    position: absolute;
+    left: 8px; right: 8px;
+    bottom: calc(72px + env(safe-area-inset-bottom));
+    z-index: 40;
+    flex-basis: auto;
+    max-height: min(46dvh, 20rem);
+    background: transparent;
+  }
+  .lb-room.tools-open .lb-tray-root { display: flex; }
+  .lb-tray-root [data-testid="live-tools-tray"] {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    width: 100%;
+    border-radius: 24px;
+    padding: 10px;
+  }
+  .lb-room.stage-first .lb-students { max-width: 100%; }
+}
+@media (max-width: 640px) and (orientation: landscape) {
+  .lb-workspace { flex-direction: row; }
+  .lb-stage { min-height: 0; flex: 1; }
+  .lb-tray-root { display: flex; flex-basis: 64px; flex-grow: 0; }
+  .lb-top { min-height: 0; }
+  .lb-students { height: auto; }
+}
+@media (min-width: 641px) {
+  .lb-tools-fab { display: none !important; }
+}
+.lb-tools-fab { display: none; }
+.lb-pip { touch-action: none; }
+.lb-pip.is-drag { cursor: grabbing; }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { primaryBtn } from "@/components/assessment/AssessmentShell";
 import { useTr, useLmsActor } from "@/components/lms/useLms";
 import { lmsApi, lmsErrorText, lmsSession } from "@/lib/lms";
@@ -75,7 +76,7 @@ export function ShareMeeting({
     <div className="space-y-3" data-testid="meet-share">
       <p className="text-sm font-bold opacity-80">{fmtWhen(starts, lang, zone)} · {zoneLabel(zone, starts)}</p>
       <label className="block text-sm font-bold">{tr("Join link", "رابط الانضمام")}
-        <input readOnly className="mt-1 w-full rounded-2xl border border-black/10 bg-white px-3 py-2 font-mono text-sm dark:bg-slate-900" value={url} data-testid="meet-link" onFocus={(e) => e.currentTarget.select()} />
+        <input readOnly className="lms-field mt-1 w-full rounded-2xl px-3 py-2 font-mono text-sm" value={url} data-testid="meet-link" onFocus={(e) => e.currentTarget.select()} />
       </label>
       <div className="flex flex-wrap gap-2">
         <button type="button" className="rounded-full bg-[#1b3a57] px-4 py-2 text-sm font-bold text-[#f5c542]" onClick={() => void copy(url, "link")} data-testid="meet-copy-link">📋 {copied === "link" ? tr("Copied!", "تم النسخ!") : tr("Copy link", "نسخ الرابط")}</button>
@@ -86,7 +87,7 @@ export function ShareMeeting({
         {roomId && onEnter && <button type="button" className={primaryBtn} onClick={() => onEnter(roomId)} data-testid="meet-go">🎥 {tr("Go to meeting", "دخول الاجتماع")}</button>}
       </div>
       {showQr && (
-        <div className="flex flex-col items-center gap-3 rounded-3xl bg-white p-6 ring-1 ring-black/5 dark:bg-slate-900" data-testid="meet-qr-panel">
+        <div className="lms-card flex flex-col items-center gap-3 rounded-3xl p-6 ring-1 ring-black/10 dark:ring-white/10" data-testid="meet-qr-panel">
           <p className="text-center text-sm font-bold">{tr("Project this QR so people can join with their camera.", "اعرض هذا الرمز على الشاشة لينضم الآخرون بكاميراتهم.")}</p>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={qrSrc} alt={tr("Join QR code", "رمز QR للانضمام")} width={320} height={320} className="h-auto w-full max-w-xs rounded-2xl bg-white p-2" data-testid="meet-qr-img" />
@@ -127,7 +128,7 @@ export function StartMeetingPanel({ asAdmin = false, onEnter, variant = "card" }
 
   if (done) {
     return (
-      <div className="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-black/5 dark:bg-slate-800" data-testid="meet-done">
+      <div className="lms-card rounded-3xl p-5 shadow-sm ring-1 ring-black/10 dark:ring-white/10" data-testid="meet-done">
         <h3 className="mb-2 text-lg font-black">✅ {done.title}</h3>
         <ShareMeeting title={done.title} starts={done.starts} token={done.token} roomId={done.roomId} onEnter={onEnter} />
         <button type="button" className="mt-3 text-sm font-bold underline" onClick={() => { setDone(null); setTitle(""); setMode("now"); }}>{tr("Start another", "ابدأ اجتماعاً آخر")}</button>
@@ -148,23 +149,23 @@ export function StartMeetingPanel({ asAdmin = false, onEnter, variant = "card" }
   }
 
   return (
-    <div className="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-black/5 dark:bg-slate-800" data-testid="meet-panel">
+    <div className="lms-card rounded-3xl p-5 shadow-sm ring-1 ring-black/10 dark:ring-white/10" data-testid="meet-panel">
       <div className="mb-3 flex items-center justify-between gap-2">
-        <h3 className="text-lg font-black">🚀 {tr("Start meeting", "بدء اجتماع")}</h3>
-        {variant === "card" && <button type="button" className="text-sm font-bold opacity-70" onClick={() => setOpen(false)}>{tr("Close", "إغلاق")}</button>}
+        <h3 className="text-lg font-black text-[#1b3a57] dark:text-[#fff8ec]">🚀 {tr("Start meeting", "بدء اجتماع")}</h3>
+        {variant === "card" && <button type="button" className="text-sm font-bold text-[#1b3a57]/70 dark:text-[#fff8ec]/70" onClick={() => setOpen(false)}>{tr("Close", "إغلاق")}</button>}
       </div>
       {err && <p className="mb-2 rounded-2xl bg-rose-100 px-3 py-2 text-sm font-bold text-rose-800 dark:bg-rose-900/60 dark:text-rose-100" role="alert">{err}</p>}
-      <label className="mb-3 block text-sm font-bold">{tr("Title (optional)", "العنوان (اختياري)")}
-        <input className="mt-1 w-full rounded-2xl border border-black/10 bg-white px-3 py-2 font-semibold dark:bg-slate-900" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={tr("Quick meeting", "اجتماع سريع")} data-testid="meet-title" />
+      <label className="lms-label">{tr("Meeting title", "عنوان الاجتماع")}
+        <input className="lms-field mt-1 w-full rounded-2xl px-3 py-2.5 font-semibold" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={tr("Meeting title", "عنوان الاجتماع")} data-testid="meet-title" />
       </label>
-      <div className="mb-3 flex flex-wrap gap-2">
-        <button type="button" className={`rounded-full px-3 py-1 text-sm font-bold ${mode === "now" ? "bg-emerald-300 text-[#10331c]" : "bg-black/5 dark:bg-white/10"}`} onClick={() => setMode("now")} data-testid="meet-mode-now">{tr("Start now", "ابدأ الآن")}</button>
-        <button type="button" className={`rounded-full px-3 py-1 text-sm font-bold ${mode === "sched" ? "bg-emerald-300 text-[#10331c]" : "bg-black/5 dark:bg-white/10"}`} onClick={() => setMode("sched")} data-testid="meet-mode-sched">{tr("Schedule", "جدولة")}</button>
+      <div className="mb-4 flex flex-wrap gap-2">
+        <button type="button" className={`rounded-full px-4 py-1.5 text-sm font-bold ${mode === "now" ? "lms-toggle-on" : "lms-toggle-off"}`} onClick={() => setMode("now")} data-testid="meet-mode-now">{tr("Start now", "ابدأ الآن")}</button>
+        <button type="button" className={`rounded-full px-4 py-1.5 text-sm font-bold ${mode === "sched" ? "lms-toggle-on" : "lms-toggle-off"}`} onClick={() => setMode("sched")} data-testid="meet-mode-sched">{tr("Schedule", "جدولة")}</button>
       </div>
       {mode === "sched" && (
         <div className="mb-3 grid gap-3 sm:grid-cols-2">
           <label className="text-sm font-bold">{tr("Date", "التاريخ")}
-            <input type="date" className="mt-1 w-full rounded-2xl border border-black/10 bg-white px-3 py-2 font-semibold dark:bg-slate-900" value={date} onChange={(e) => setDate(e.target.value)} />
+            <input type="date" className="lms-field mt-1 w-full rounded-2xl px-3 py-2.5 font-semibold" value={date} onChange={(e) => setDate(e.target.value)} />
           </label>
           <label className="text-sm font-bold">{tr("Start time", "وقت البداية")}
             <div className="mt-1"><Time12Field value={time} onChange={setTime} testId="meet-time" /></div>
@@ -175,8 +176,8 @@ export function StartMeetingPanel({ asAdmin = false, onEnter, variant = "card" }
           <div className="sm:col-span-2"><SchedulePreview date={date} time={time} tz={formTz} lang={lang} /></div>
         </div>
       )}
-      <label className="mb-3 block text-sm font-bold">{tr("Duration", "المدة")}
-        <select className="mt-1 w-full max-w-xs rounded-2xl border border-black/10 bg-white px-3 py-2 font-semibold dark:bg-slate-900" value={duration} onChange={(e) => setDuration(Number(e.target.value))} data-testid="meet-mins">
+      <label className="lms-label">{tr("Duration (minutes)", "المدة (بالدقائق)")}
+        <select className="lms-field mt-1 w-full max-w-xs rounded-2xl px-3 py-2.5 font-semibold" value={duration} onChange={(e) => setDuration(Number(e.target.value))} data-testid="meet-mins" aria-label={tr("Duration (minutes)", "المدة (بالدقائق)")}>
           {DURS.map((d) => <option key={d} value={d}>{d} {tr("minutes", "دقيقة")}</option>)}
         </select>
       </label>
@@ -205,12 +206,13 @@ export function StartMeetingButton({ asAdmin = false, onEnter, compact = false }
       >
         🚀 {tr("Start meeting", "بدء اجتماع")}
       </button>
-      {open && (
-        <div className="fixed inset-0 z-[90] flex items-end justify-center bg-black/40 p-3 sm:items-center" onClick={() => setOpen(false)} role="presentation">
+      {open && createPortal(
+        <div className="fixed inset-0 z-[90] flex items-end justify-center bg-black/40 p-3 text-[#1b3a57] sm:items-center" onClick={() => setOpen(false)} role="presentation">
           <div className="w-full max-w-lg" onClick={(e) => e.stopPropagation()}>
             <StartMeetingPanel asAdmin={asAdmin} onEnter={(id) => { setOpen(false); onEnter?.(id); }} variant="inline" />
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );

@@ -57,7 +57,7 @@ export function LiveHistory({ asAdmin }: { asAdmin: boolean }) {
   }
 
   if (busy) return <p className="text-sm font-semibold opacity-70">…</p>;
-  if (err) return <p className="rounded-2xl bg-rose-100 px-3 py-2 text-sm font-bold text-rose-800" role="alert">{err}</p>;
+  if (err) return <p className="rounded-2xl bg-rose-100 px-3 py-2 text-sm font-bold text-rose-800 dark:bg-rose-900/60 dark:text-rose-100" role="alert">{err}</p>;
   if (!items.length) return <p className="text-sm font-semibold opacity-70">{tr("No live lessons yet.", "لا توجد حصص مباشرة بعد.")}</p>;
 
   return (
@@ -65,7 +65,7 @@ export function LiveHistory({ asAdmin }: { asAdmin: boolean }) {
       {items.map((it) => {
         const shown = open === it.id;
         return (
-          <li key={it.id} className="rounded-2xl bg-black/5 p-3 dark:bg-white/10" data-testid="live-history-row">
+          <li key={it.id} className="lms-card rounded-2xl p-3 ring-1 ring-black/5 dark:ring-white/10" data-testid="live-history-row">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <button type="button" className="min-w-0 flex-1 text-start" onClick={() => setOpen(shown ? "" : it.id)}>
                 <p className="font-black" dir="auto">{it.title}</p>

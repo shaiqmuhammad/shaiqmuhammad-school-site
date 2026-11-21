@@ -192,54 +192,54 @@ export function LiveSchedulePanel({ asAdmin, perms, onStart, busy }: { asAdmin: 
       {err && <p className="rounded-2xl bg-rose-100 px-4 py-2 text-sm font-bold text-rose-800 dark:bg-rose-900/60 dark:text-rose-100" role="alert">{err}</p>}
 
       {open && canForm && (
-        <div className="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-black/5 dark:bg-slate-800" data-testid="live-sched-form">
-          <h3 className="mb-3 text-base font-black">{edId ? tr("Edit scheduled lesson", "تعديل الحصة المجدولة") : tr("New scheduled lesson", "حصة مجدولة جديدة")}</h3>
+        <div className="lms-card rounded-3xl p-5 shadow-sm ring-1 ring-black/10 dark:ring-white/10" data-testid="live-sched-form">
+          <h3 className="mb-3 text-base font-black text-[#1b3a57] dark:text-[#fff8ec]">{edId ? tr("Edit scheduled lesson", "تعديل الحصة المجدولة") : tr("New scheduled lesson", "حصة مجدولة جديدة")}</h3>
           <div className="grid gap-3 sm:grid-cols-2">
-            <label className="text-sm font-bold sm:col-span-2">{tr("Title", "العنوان")}
-              <input className="mt-1 w-full rounded-2xl border border-black/10 bg-white px-3 py-2 font-semibold dark:bg-slate-900" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={tr("Live Lesson", "الحصة المباشرة")} />
+            <label className="lms-label sm:col-span-2">{tr("Title", "العنوان")}
+              <input className="lms-field mt-1 w-full rounded-2xl px-3 py-2.5 font-semibold" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={tr("Live Lesson", "الحصة المباشرة")} />
             </label>
-            <label className="text-sm font-bold">{tr("Date", "التاريخ")}
-              <input type="date" className="mt-1 w-full rounded-2xl border border-black/10 bg-white px-3 py-2 font-semibold dark:bg-slate-900" value={date} onChange={(e) => setDate(e.target.value)} />
+            <label className="lms-label">{tr("Date", "التاريخ")}
+              <input type="date" className="lms-field mt-1 w-full rounded-2xl px-3 py-2.5 font-semibold" value={date} onChange={(e) => setDate(e.target.value)} />
             </label>
-            <label className="text-sm font-bold">{tr("Start time", "وقت البداية")}
+            <label className="lms-label">{tr("Start time", "وقت البداية")}
               <div className="mt-1"><Time12Field value={time} onChange={setTime} testId="live-sched-time" /></div>
             </label>
-            <label className="text-sm font-bold sm:col-span-2">{tr("Time zone", "المنطقة الزمنية")}
+            <label className="lms-label sm:col-span-2">{tr("Time zone", "المنطقة الزمنية")}
               <div className="mt-1"><TimeZonePicker value={formTz} onChange={setFormTz} id="live-sched-tz" /></div>
             </label>
             <div className="sm:col-span-2"><SchedulePreview date={date} time={time} tz={formTz} lang={lang} /></div>
-            <label className="text-sm font-bold">{tr("Duration", "المدة")}
-              <select className="mt-1 w-full rounded-2xl border border-black/10 bg-white px-3 py-2 font-semibold dark:bg-slate-900" value={duration} onChange={(e) => setDuration(Number(e.target.value))}>
+            <label className="lms-label">{tr("Duration", "المدة")}
+              <select className="lms-field mt-1 w-full rounded-2xl px-3 py-2.5 font-semibold" value={duration} onChange={(e) => setDuration(Number(e.target.value))}>
                 {!DURS.includes(duration) && <option value={duration}>{duration} {tr("min", "د")}</option>}
                 {DURS.map((d) => <option key={d} value={d}>{d} {tr("minutes", "دقيقة")}</option>)}
               </select>
             </label>
-            <label className="text-sm font-bold">{tr("Lesson pack (optional)", "حزمة الدرس (اختياري)")}
-              <select className="mt-1 w-full rounded-2xl border border-black/10 bg-white px-3 py-2 font-semibold dark:bg-slate-900" value={packId} onChange={(e) => setPackId(e.target.value)}>
+            <label className="lms-label">{tr("Lesson pack (optional)", "حزمة الدرس (اختياري)")}
+              <select className="lms-field mt-1 w-full rounded-2xl px-3 py-2.5 font-semibold" value={packId} onChange={(e) => setPackId(e.target.value)}>
                 <option value="">{tr("None", "بدون")}</option>
                 {packs.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
               </select>
             </label>
             <fieldset className="sm:col-span-2">
-              <legend className="text-sm font-bold">{tr("With", "مع")}</legend>
+              <legend className="lms-label">{tr("With", "مع")}</legend>
               <div className="mt-1 flex flex-wrap gap-2">
-                {perms.schedClass && <button type="button" className={`rounded-full px-3 py-1 text-sm font-bold ${who === "class" ? "bg-emerald-300 text-[#10331c]" : "bg-black/5 dark:bg-white/10"}`} onClick={() => setWho("class")}>{tr("Class or section", "صف أو شعبة")}</button>}
-                {!!groups.length && <button type="button" className={`rounded-full px-3 py-1 text-sm font-bold ${who === "group" ? "bg-emerald-300 text-[#10331c]" : "bg-black/5 dark:bg-white/10"}`} onClick={() => setWho("group")}>{tr("Group", "مجموعة")}</button>}
-                {perms.schedStudent && <button type="button" className={`rounded-full px-3 py-1 text-sm font-bold ${who === "student" ? "bg-emerald-300 text-[#10331c]" : "bg-black/5 dark:bg-white/10"}`} onClick={() => setWho("student")}>{tr("One student", "طالب واحد")}</button>}
+                {perms.schedClass && <button type="button" className={`rounded-full px-3 py-1 text-sm font-bold ${who === "class" ? "lms-toggle-on" : "lms-toggle-off"}`} onClick={() => setWho("class")}>{tr("Class or section", "صف أو شعبة")}</button>}
+                {!!groups.length && <button type="button" className={`rounded-full px-3 py-1 text-sm font-bold ${who === "group" ? "lms-toggle-on" : "lms-toggle-off"}`} onClick={() => setWho("group")}>{tr("Group", "مجموعة")}</button>}
+                {perms.schedStudent && <button type="button" className={`rounded-full px-3 py-1 text-sm font-bold ${who === "student" ? "lms-toggle-on" : "lms-toggle-off"}`} onClick={() => setWho("student")}>{tr("One student", "طالب واحد")}</button>}
               </div>
               {who === "class" && (
-                <select className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-3 py-2 font-semibold dark:bg-slate-900" value={pick} onChange={(e) => setPick(e.target.value)}>
+                <select className="lms-field mt-2 w-full rounded-2xl px-3 py-2.5 font-semibold" value={pick} onChange={(e) => setPick(e.target.value)}>
                   {options.map((o) => { const v = o.section ? `${o.cls}|${o.section}` : o.cls; return <option key={v + o.section} value={v}>{o.section ? `${o.cls} · ${o.section}` : o.cls}</option>; })}
                 </select>
               )}
               {who === "group" && (
-                <select className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-3 py-2 font-semibold dark:bg-slate-900" value={groupId} onChange={(e) => setGroupId(e.target.value)}>
+                <select className="lms-field mt-2 w-full rounded-2xl px-3 py-2.5 font-semibold" value={groupId} onChange={(e) => setGroupId(e.target.value)}>
                   <option value="">{tr("Choose a group…", "اختر مجموعة…")}</option>
                   {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
                 </select>
               )}
               {who === "student" && (
-                <select className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-3 py-2 font-semibold dark:bg-slate-900" value={studentId} onChange={(e) => setStudentId(e.target.value)}>
+                <select className="lms-field mt-2 w-full rounded-2xl px-3 py-2.5 font-semibold" value={studentId} onChange={(e) => setStudentId(e.target.value)}>
                   <option value="">{tr("Choose a student…", "اختر طالبًا…")}</option>
                   {students.map((st) => <option key={st.id} value={st.id}>{st.name}{st.cls ? ` · ${st.cls}${st.section ? ` ${st.section}` : ""}` : ""}</option>)}
                 </select>
@@ -344,7 +344,7 @@ export function GuestJoin({ token }: { token: string }) {
       <p className="text-sm font-bold opacity-70"><FormatWhen ms={info.starts} /></p>
       {err && <p className="rounded-2xl bg-rose-100 px-4 py-2 text-sm font-bold text-rose-800" role="alert">{err}</p>}
       <label className="w-full text-start text-sm font-bold">{tr("Your name", "اسمك")}
-        <input className="mt-1 w-full rounded-2xl border border-black/10 bg-white px-3 py-3 text-lg font-semibold dark:bg-slate-900" value={name} onChange={(e) => setName(e.target.value)} placeholder={tr("Type your name", "اكتب اسمك")} maxLength={80} />
+        <input className="lms-field mt-1 w-full rounded-2xl px-3 py-3 text-lg font-semibold" value={name} onChange={(e) => setName(e.target.value)} placeholder={tr("Type your name", "اكتب اسمك")} maxLength={80} />
       </label>
       {!info.canJoin && <p className="font-semibold opacity-80">{info.roomId ? tr("Waiting for the teacher to start…", "بانتظار أن يبدأ المعلم…") : tr("The join button will appear when the lesson is ready.", "سيظهر زر الانضمام عندما تكون الحصة جاهزة.")}</p>}
       <button
