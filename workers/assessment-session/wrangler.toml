@@ -100,3 +100,12 @@ binding = "AI"
 # daily / weekly (Sunday) / monthly (1st) schedule saved.
 [triggers]
 crons = ["15 22 * * *"]
+
+
+# Live lesson recordings (staff-only). Do not uncomment until R2 is enabled on this
+# school account and bucket shaiqmuhammad-live-recordings exists:
+#   Dashboard → Storage & databases → R2 → Overview → complete the R2 subscription checkout,
+#   then create the bucket and uncomment:
+# [[r2_buckets]]
+# binding = "LIVE_RECS"
+# bucket_name = "shaiqmuhammad-live-recordings"

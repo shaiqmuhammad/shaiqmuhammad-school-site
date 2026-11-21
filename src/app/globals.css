@@ -812,4 +812,4 @@ html.lb-session [data-testid="live-lesson"] {
 
 .lb-hint { text-align: center; font-size: 11px; font-weight: 700; opacity: .7; flex: 0 0 auto; margin: 0; }
 .lb-stage-fill .live-stage { height: 100%; min-height: 0; overflow: hidden; gap: 8px; }
-@media (max-width: 640px) { .lb-hint { display: none; } }
+@media (max-width: 640px) { .lb-hint:not([data-testid="live-rec-note"]) { display: none; } }
