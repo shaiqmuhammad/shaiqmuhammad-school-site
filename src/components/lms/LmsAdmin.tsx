@@ -37,6 +37,7 @@ const PERM_LABEL: Record<string, [string, string]> = {
   liveShareLink: ["Create a shareable join link", "إنشاء رابط انضمام قابل للمشاركة"],
   liveCamMic: ["Allow or mute student camera and mic", "السماح بكاميرا وميكروفون الطلاب أو كتمهما"],
   liveScreenShare: ["Allow student screen share", "السماح بمشاركة شاشة الطلاب"],
+  livePresent: ["Present lesson packs live", "عرض حزم الدروس مباشرة"],
 };
 
 const EMPTY: Catalog = { subjects: [], classes: [], sections: [] };

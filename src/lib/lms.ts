@@ -107,8 +107,8 @@ export type MapRow = { id: string; name: string; cls: string; section: string; c
 
 /** Student-account switches. Legacy "Manage students" with none of the stu:* flags set means all four. */
 export const stuUi = (perms: string[], op: "view" | "add" | "edit" | "block" | "delete") => { if (!perms.includes("manageUsers")) return false; const has = perms.filter((p) => p.startsWith("stu:")); return has.length ? has.includes(`stu:${op}`) : true; };
-export const PERMS = ["assign", "review", "manageUsers", "viewAll", "shareCorrect", "viewAsStudent", "pptDownload", "hwMarkView", "hwMarkCorrect", "hwShare", "liveLesson", "liveSchedule", "liveSchedStudent", "liveSchedClass", "liveShareLink", "liveCamMic", "liveScreenShare"] as const;
-export const LIVE_PERMS = ["liveLesson", "liveSchedule", "liveSchedStudent", "liveSchedClass", "liveShareLink", "liveCamMic", "liveScreenShare"] as const;
+export const PERMS = ["assign", "review", "manageUsers", "viewAll", "shareCorrect", "viewAsStudent", "pptDownload", "hwMarkView", "hwMarkCorrect", "hwShare", "liveLesson", "liveSchedule", "liveSchedStudent", "liveSchedClass", "liveShareLink", "liveCamMic", "liveScreenShare", "livePresent"] as const;
+export const LIVE_PERMS = ["liveLesson", "liveSchedule", "liveSchedStudent", "liveSchedClass", "liveShareLink", "liveCamMic", "liveScreenShare", "livePresent"] as const;
 
 export class LmsError extends Error {
   data?: Record<string, unknown>;
@@ -292,13 +292,21 @@ export const hwRemind = (hw: string, confirm: boolean, asAdmin = false) => call<
 
 
 export type LiveRoomInfo = { id: string; title: string; cls: string; section: string; teacherId: string; teacherName: string; created: number; mine: boolean };
-export type LivePerms = { run: boolean; schedule: boolean; schedStudent: boolean; schedClass: boolean; shareLink: boolean; camMic: boolean; screenShare: boolean };
+export type LivePerms = { run: boolean; schedule: boolean; schedStudent: boolean; schedClass: boolean; shareLink: boolean; camMic: boolean; screenShare: boolean; present: boolean };
 export type LiveSched = { id: string; title: string; starts: number; duration: number; ends: number; cls: string; section: string; groupId: string; studentId: string; studentName?: string; packId: string; packTitle: string; roomId: string; status: string; teacherId: string; teacherName: string; hasLink: boolean; linkToken?: string; mine: boolean };
 export type LiveMember = { id: string; name: string; role: "teacher" | "student"; camAllowed: boolean; micAllowed: boolean; shareAllowed?: boolean; hand: boolean; present: boolean };
 export type LiveWait = { id: string; name: string; at: number };
 export type LiveChat = { id: string; from: string; name: string; text: string; at: number };
 export type LivePub = { userId: string; sessionId: string; tracks: string[] };
-export type LiveSnap = { id: string; title: string; cls: string; section: string; groupId: string; teacherId: string; status: "live" | "ended"; created: number; waiting: LiveWait[]; members: LiveMember[]; chat: LiveChat[]; pubs: LivePub[]; sfu: boolean };
+export type LiveStroke = { c: string; w: number; d: number[]; by: string };
+export type LiveAnswer = { userId: string; name: string; slide: number; text: string; at: number };
+export type LivePresent = {
+  packId: string; packTitle: string; slide: number; follow: boolean; timerEnd: number | null;
+  penId: string; strokes: LiveStroke[]; tool: "" | "wheel" | "rand" | "award" | "board";
+  wheelAngle: number; wheelSpinTo: number; wheelAt: number; winnerId: string; winnerName: string;
+  randText: string; answers: LiveAnswer[];
+};
+export type LiveSnap = { id: string; title: string; cls: string; section: string; groupId: string; teacherId: string; status: "live" | "ended"; created: number; waiting: LiveWait[]; members: LiveMember[]; chat: LiveChat[]; pubs: LivePub[]; sfu: boolean; present?: LivePresent | null };
 export function liveWsUrl(token: string, room: string) {
   const u = new URL(`${ASSESSMENT_API_BASE}/api/lms/live-ws`);
   u.protocol = u.protocol === "https:" ? "wss:" : "ws:";
@@ -510,6 +518,7 @@ export const lmsApi = {
   liveSchedLink: (id: string, off = false, asAdmin = false) => call<{ ok: true; token?: string }>("live-sched-link", { id, off }, { asAdmin }),
   liveLinkInfo: (t: string) => call<{ ok: true; title: string; teacherName: string; starts: number; ends: number; status: string; roomId: string; canJoin: boolean }>("live-link-info", undefined, { query: { t } }),
   liveLinkJoin: (t: string, name: string) => call<{ ok: true; token: string; guestId: string; name: string; schedId: string; roomId: string; canJoin: boolean; title: string }>("live-link-join", { token: t, name }),
+  livePresent: (id: string, body: Record<string, unknown>, asAdmin = false) => call<{ ok: boolean; present?: LivePresent | null }>("live-present", { id, ...body }, { asAdmin }),
   exportAll: (asAdmin = false) => call<{ exportedAt: number; homework: Homework[]; subs: (Submission & { hw: string; student: string })[]; users: { id: string; username: string; name: string; role: string; cls: string }[]; tracker: (TrackerRow & { student: string; hw: string })[] }>("export", undefined, { asAdmin }),
 };
 
@@ -548,6 +557,9 @@ export function lmsErrorText(e: unknown, tr: (en: string, ar: string) => string)
     revoked: ["This join link was switched off.", "تم إيقاف رابط الانضمام."],
     need_name: ["Please type your name to join.", "اكتب اسمك للانضمام."],
     pack_not_found: ["That lesson pack couldn't be found.", "تعذر العثور على حزمة الدرس."],
+    no_present: ["Your admin hasn't switched on “Present lesson packs live” for you yet.", "لم يفعّل المسؤول صلاحية «عرض حزم الدروس مباشرة» لك بعد."],
+    no_pen: ["The teacher hasn't given you the pen yet.", "لم يعطك المعلم القلم بعد."],
+    not_presenting: ["The teacher isn't presenting a pack right now.", "المعلم لا يعرض حزمة الآن."],
     too_many: ["You already have many upcoming live lessons. Cancel one first.", "لديك العديد من الحصص المباشرة القادمة. ألغِ واحدة أولًا."],
     sfu_not_configured: ["Live video isn't set up yet. You can still use chat and the waiting room.", "فيديو الحصة غير مُعد بعد. يمكنك استخدام الدردشة وغرفة الانتظار."],
     pick_class: ["Choose a class to start the live lesson.", "اختر صفًا لبدء الحصة المباشرة."],
