@@ -339,12 +339,15 @@ export type LivePresentItemKind = "lesson" | "task" | "activity" | "homework" | 
 export type LivePresentItem = {
   id: string; kind: LivePresentItemKind; title: string; packId: string; slide: number; strokes: LiveStroke[]; src?: string;
 };
+export type LiveShapeKind = "rect" | "circle" | "line" | "arrow" | "triangle";
+export type LiveShape = { id: string; kind: LiveShapeKind; x: number; y: number; w: number; h: number; c: string; by: string };
 export type LivePresent = {
   packId: string; packTitle: string; slide: number; follow: boolean; timerEnd: number | null;
   penId: string; strokes: LiveStroke[]; tool: "" | "wheel" | "rand" | "award" | "board";
   wheelAngle: number; wheelSpinTo: number; wheelAt: number; winnerId: string; winnerName: string;
   randText: string; answers: LiveAnswer[];
   items?: LivePresentItem[]; activeId?: string; src?: string;
+  shapes?: LiveShape[];
 };
 export function youtubeVideoId(raw: string): string {
   const s = String(raw || "").trim();

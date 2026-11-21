@@ -44,9 +44,9 @@ export const LIVE_TOOLS = [
 export type LiveToolId = (typeof LIVE_TOOLS)[number]["id"];
 
 export function LiveToolsTray({
-  isHost, tool, onTool, onTimer, onTasks, taskOn, docked, onOpen, openOn,
+  canPresent, tool, onTool, onTimer, onTasks, taskOn, docked, onOpen, openOn, horizontal,
 }: {
-  isHost: boolean;
+  canPresent: boolean;
   tool: string;
   onTool: (id: "" | "board" | "wheel" | "rand" | "award") => void;
   onTimer: (seconds: number | null) => void;
@@ -55,6 +55,7 @@ export function LiveToolsTray({
   docked?: boolean;
   onOpen?: () => void;
   openOn?: boolean;
+  horizontal?: boolean;
 }) {
   const { tr } = useTr();
   const [open, setOpen] = useState(true);
@@ -62,7 +63,9 @@ export function LiveToolsTray({
   const show = docked || open;
   return (
     <aside
-      className={docked
+      className={horizontal
+        ? "lb-tools-bar"
+        : docked
         ? "flex w-full flex-col items-center gap-1 overflow-y-auto"
         : "fixed end-2 top-1/2 z-[85] flex max-h-[80dvh] -translate-y-1/2 flex-col items-center gap-1 overflow-y-auto rounded-3xl border border-white/30 bg-[#1b3a57]/90 p-1.5 shadow-2xl backdrop-blur-xl dark:border-white/15 dark:bg-slate-900/95"}
       data-testid="live-tools-tray"
@@ -85,9 +88,9 @@ export function LiveToolsTray({
         if (x.id === "timer") {
           return (
             <div key={x.id} className="relative">
-              <TrayBtn id={x.id} icon={x.icon} en={x.en} ar={x.ar} color={x.color} on={timerOpen} onClick={() => { if (!isHost) return; setTimerOpen((v) => !v); }} title={isHost ? tr("Timer", "المؤقت") : tr("Only the teacher can set the timer", "المعلم فقط يضبط المؤقت")} />
-              {isHost && timerOpen && (
-                <div className="absolute start-full top-0 z-10 ms-2 w-28 rounded-2xl bg-[#1b3a57] p-2 text-white shadow-xl ring-1 ring-white/20" data-testid="live-timer-pop">
+              <TrayBtn id={x.id} icon={x.icon} en={x.en} ar={x.ar} color={x.color} on={timerOpen} onClick={() => { if (!canPresent) return; setTimerOpen((v) => !v); }} title={canPresent ? tr("Timer", "المؤقت") : tr("Only the teacher can set the timer", "المعلم فقط يضبط المؤقت")} />
+              {canPresent && timerOpen && (
+                <div className={`absolute z-10 w-28 rounded-2xl bg-[#1b3a57] p-2 text-white shadow-xl ring-1 ring-white/20 ${horizontal ? "bottom-full end-0 mb-2" : "start-full top-0 ms-2"}`} data-testid="live-timer-pop">
                   {[["30", "0:30"], ["60", "1:00"], ["120", "2:00"], ["300", "5:00"], ["600", "10:00"], ["0", tr("Clear", "مسح")]].map(([v, lab]) => (
                     <button key={v} type="button" className="block w-full rounded-xl px-2 py-1 text-left text-xs font-bold hover:bg-white/15" onClick={() => { onTimer(v === "0" ? null : Number(v)); setTimerOpen(false); }}>{lab}</button>
                   ))}
@@ -100,7 +103,7 @@ export function LiveToolsTray({
           return <TrayBtn key={x.id} id={x.id} icon={x.icon} en={x.en} ar={x.ar} color={x.color} on={!!taskOn} onClick={() => onTasks?.()} />;
         }
         if (x.id === "open") {
-          return <TrayBtn key={x.id} id={x.id} icon={x.icon} en={x.en} ar={x.ar} color={x.color} on={!!openOn} onClick={() => { if (!isHost) return; onOpen?.(); }} title={isHost ? tr("Open a lesson, task, activity, homework or Quran homework", "افتح درسًا أو مهمة أو نشاطًا أو واجبًا أو واجب القرآن") : tr("The teacher opens class work", "المعلم يفتح عمل الصف")} />;
+          return <TrayBtn key={x.id} id={x.id} icon={x.icon} en={x.en} ar={x.ar} color={x.color} on={!!openOn} onClick={() => { if (!canPresent) return; onOpen?.(); }} title={canPresent ? tr("Open a lesson, task, activity, homework or Quran homework", "افتح درسًا أو مهمة أو نشاطًا أو واجبًا أو واجب القرآن") : tr("The teacher opens class work", "المعلم يفتح عمل الصف")} />;
         }
         const tid = x.id as "board" | "wheel" | "rand" | "award";
         return (
@@ -112,8 +115,8 @@ export function LiveToolsTray({
             ar={x.ar}
             color={x.color}
             on={tool === tid}
-            onClick={() => { if (!isHost) return; onTool(tool === tid ? "" : tid); }}
-            title={isHost ? tr(x.en, x.ar) : tr("The teacher is using this tool", "المعلم يستخدم هذه الأداة")}
+            onClick={() => { if (!canPresent) return; onTool(tool === tid ? "" : tid); }}
+            title={canPresent ? tr(x.en, x.ar) : tr("The teacher is using this tool", "المعلم يستخدم هذه الأداة")}
           />
         );
       })}
@@ -139,8 +142,19 @@ export const DRAW_TOOLS = [
 
 const INK = ["#1b3a57", "#be123c", "#1d4ed8", "#047857", "#0f172a"] as const;
 
+export const SHAPE_TOOLS = [
+  { id: "rect", icon: "▭", en: "Rectangle", ar: "مستطيل" },
+  { id: "circle", icon: "◯", en: "Circle", ar: "دائرة" },
+  { id: "line", icon: "／", en: "Line", ar: "خط" },
+  { id: "arrow", icon: "➤", en: "Arrow", ar: "سهم" },
+  { id: "triangle", icon: "△", en: "Triangle", ar: "مثلث" },
+] as const;
+
+export type LiveShapeKindId = (typeof SHAPE_TOOLS)[number]["id"];
+
 export function TeachToolsTray({
   canPoint, canDraw, ptrKind, onPtrKind, drawTool, onDrawTool, ink, onInk, onUndo, onClear, penId, onPen, people,
+  shapeKind, onShapeKind,
 }: {
   canPoint: boolean;
   canDraw: boolean;
@@ -155,6 +169,8 @@ export function TeachToolsTray({
   penId?: string;
   onPen?: (id: string) => void;
   people?: { id: string; name: string }[];
+  shapeKind?: LiveShapeKindId | "";
+  onShapeKind?: (id: LiveShapeKindId | "") => void;
 }) {
   const { tr } = useTr();
   if (!canPoint && !canDraw) return null;
@@ -178,6 +194,7 @@ export function TeachToolsTray({
         {canDraw && DRAW_TOOLS.map((x) => (
           <TrayBtn key={x.id} id={x.id} icon={x.icon} en={x.en} ar={x.ar} color={x.color} on={drawTool === x.id} onClick={() => onDrawTool(x.id)} testId={`live-draw-${x.id}`} />
         ))}
+        {canDraw && onShapeKind && <ShapesBtn kind={shapeKind || ""} onKind={onShapeKind} />}
         {canDraw && INK.map((c) => (
           <button
             key={c}
@@ -208,5 +225,40 @@ export function TeachToolsTray({
         )}
       </div>
     </nav>
+  );
+}
+
+function ShapesBtn({ kind, onKind }: { kind: LiveShapeKindId | ""; onKind: (id: LiveShapeKindId | "") => void }) {
+  const { tr } = useTr();
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative">
+      <TrayBtn
+        id="shapes"
+        icon="⬡"
+        en="Shapes"
+        ar="أشكال"
+        color="#7ee0d4"
+        on={!!kind || open}
+        onClick={() => setOpen((v) => !v)}
+        testId="live-shapes"
+      />
+      {open && (
+        <div className="lb-shape-pop" data-testid="live-shapes-pop" role="menu">
+          {SHAPE_TOOLS.map((x) => (
+            <button
+              key={x.id}
+              type="button"
+              role="menuitem"
+              className={`lb-shape-opt ${kind === x.id ? "is-on" : ""}`}
+              onClick={() => { onKind(kind === x.id ? "" : x.id); setOpen(false); }}
+              data-testid={`live-shape-${x.id}`}
+            >
+              <span aria-hidden>{x.icon}</span> {tr(x.en, x.ar)}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
