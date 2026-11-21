@@ -10,7 +10,7 @@ import { DurableObject } from "cloudflare:workers";
 import { corsHeaders, reply } from "./admin";
 import { lmsActor, type Actor, type LmsEnv } from "./lms";
 import { recObjectKey } from "./liveAtt";
-import { canControlStudentMedia, canPresentInRoom, normalizePtrKind } from "./liveMedia";
+import { canControlStudentMedia, canPresentInRoom, canSetMemberFloor, memberFloor, normalizePtrKind, type LiveFloor } from "./liveMedia";
 
 export interface LiveEnv extends LmsEnv {
   LIVE: DurableObjectNamespace<LiveRoom>;
@@ -32,7 +32,7 @@ const ROOM_MS = 4 * 60 * 60 * 1000;
 
 type Role = "teacher" | "student";
 export type LivePub = { userId: string; sessionId: string; tracks: string[] };
-export type LiveMember = { id: string; name: string; role: Role; camAllowed: boolean; micAllowed: boolean; shareAllowed?: boolean; hand: boolean; present: boolean };
+export type LiveMember = { id: string; name: string; role: Role; camAllowed: boolean; micAllowed: boolean; shareAllowed?: boolean; hand: boolean; present: boolean; floor?: LiveFloor };
 export type LiveWait = { id: string; name: string; at: number };
 export type LiveAsk = { userId: string; name: string; cam: boolean; mic: boolean; at: number };
 export type LiveChat = { id: string; from: string; name: string; text: string; at: number };
@@ -126,7 +126,8 @@ async function liveActor(request: Request, env: LiveEnv, store: ReturnType<LiveE
 }
 
 function publicSnap(s: State, sfu: boolean): LiveSnap {
-  return { ...s, endsAt: s.endsAt || s.created + 40 * 60_000, waiting: s.waiting.map((w) => ({ id: w.id, name: w.name, at: w.at })), asks: s.asks || [], sfu };
+  const members = s.members.map((m) => ({ ...m, floor: memberFloor(m, s.teacherId) }));
+  return { ...s, members, endsAt: s.endsAt || s.created + 40 * 60_000, waiting: s.waiting.map((w) => ({ id: w.id, name: w.name, at: w.at })), asks: s.asks || [], sfu };
 }
 
 export class LiveRoom extends DurableObject<LiveEnv> {
@@ -179,7 +180,7 @@ export class LiveRoom extends DurableObject<LiveEnv> {
       created: now,
       endsAt: Math.max(now + 60_000, Math.min(now + 180 * 60_000, Number(meta.endsAt) || (now + 40 * 60_000))),
       waiting: [],
-      members: [{ id: meta.teacherId, name: meta.teacherName || "Teacher", role: "teacher", camAllowed: true, micAllowed: true, hand: false, present: true }],
+      members: [{ id: meta.teacherId, name: meta.teacherName || "Teacher", role: "teacher", camAllowed: true, micAllowed: true, hand: false, present: true, floor: "presenter" }],
       chat: [],
       pubs: [],
       asks: [],
@@ -223,7 +224,7 @@ export class LiveRoom extends DurableObject<LiveEnv> {
       if (!w) continue;
       if (this.state.members.length >= MAX_MEMBERS) break;
       this.state.waiting = this.state.waiting.filter((x) => x.id !== id);
-      this.state.members.push({ id: w.id, name: w.name, role: "student", camAllowed: false, micAllowed: false, shareAllowed: false, hand: false, present: true });
+      this.state.members.push({ id: w.id, name: w.name, role: "student", camAllowed: false, micAllowed: false, shareAllowed: false, hand: false, present: true, floor: "attendee" });
     }
     await this.save();
     this.roomMsg();
@@ -273,15 +274,22 @@ export class LiveRoom extends DurableObject<LiveEnv> {
     return { ok: true };
   }
 
-  async setPerm(hostId: string, userId: string, cam?: boolean, mic?: boolean, share?: boolean): Promise<{ ok: boolean; error?: string }> {
+  async setPerm(hostId: string, userId: string, cam?: boolean, mic?: boolean, share?: boolean, floor?: LiveFloor): Promise<{ ok: boolean; error?: string }> {
     await this.load();
     if (!this.state || this.state.status !== "live") return { ok: false, error: "ended" };
     if (hostId !== this.state.teacherId && hostId !== "admin") return { ok: false, error: "forbidden" };
     const m = this.member(userId);
-    if (!m || m.role === "teacher") return { ok: false, error: "not_found" };
+    if (!m || m.id === this.state.teacherId) return { ok: false, error: "not_found" };
     if (typeof cam === "boolean") m.camAllowed = cam;
     if (typeof mic === "boolean") m.micAllowed = mic;
     if (typeof share === "boolean") m.shareAllowed = share;
+    if (floor === "presenter" || floor === "attendee") {
+      if (!canSetMemberFloor(hostId === "admin" ? "admin" : hostId, hostId === "admin" ? "admin" : "teacher", this.state.teacherId, userId)) {
+        return { ok: false, error: "forbidden" };
+      }
+      m.floor = floor;
+      if (floor === "attendee" && this.state.present?.penId === userId) this.state.present.penId = this.state.teacherId;
+    }
     if (m.camAllowed || m.micAllowed) {
       this.state.asks = (this.state.asks || []).filter((x) => {
         if (x.userId !== userId) return true;
@@ -414,7 +422,8 @@ export class LiveRoom extends DurableObject<LiveEnv> {
   async setPresent(hostId: string, patch: Partial<LivePresent> | null, start?: { packId: string; packTitle: string }): Promise<{ ok: boolean; error?: string; present?: LivePresent | null }> {
     await this.load();
     if (!this.state || this.state.status !== "live") return { ok: false, error: "ended" };
-    if (hostId !== this.state.teacherId && hostId !== "admin") return { ok: false, error: "forbidden" };
+    const asPresenter = hostId !== this.state.teacherId && hostId !== "admin" && memberFloor(this.member(hostId), this.state.teacherId) === "presenter";
+    if (hostId !== this.state.teacherId && hostId !== "admin" && !asPresenter) return { ok: false, error: "forbidden" };
     if (patch === null && !start) {
       this.state.present = null;
       await this.save();
@@ -545,7 +554,7 @@ export class LiveRoom extends DurableObject<LiveEnv> {
     this.ctx.acceptWebSocket(pair[1], [uid]);
     if (member) member.present = true;
     else if (isHost) {
-      this.state.members.push({ id: uid, name: name || "Teacher", role: "teacher", camAllowed: true, micAllowed: true, hand: false, present: true });
+      this.state.members.push({ id: uid, name: name || "Teacher", role: "teacher", camAllowed: true, micAllowed: true, hand: false, present: true, floor: "presenter" });
     }
     await this.save();
     this.send(pair[1], { t: "room", room: publicSnap(this.state, this.sfuReady()) });
@@ -894,7 +903,9 @@ export async function handleLive(request: Request, env: LiveEnv, action: string)
     const teacherId = String(row.teacher);
     if (typeof body.share === "boolean" && !canControlStudentMedia(a, teacherId, "screenShare")) return reply(origin, { error: "no_screen_share" }, 403);
     if ((typeof body.cam === "boolean" || typeof body.mic === "boolean") && !canControlStudentMedia(a, teacherId, "camMic")) return reply(origin, { error: "no_cam_mic" }, 403);
-    const r = await stub.setPerm(a.role === "admin" ? "admin" : teacherId, str(body.userId, 40), typeof body.cam === "boolean" ? body.cam : undefined, typeof body.mic === "boolean" ? body.mic : undefined, typeof body.share === "boolean" ? body.share : undefined);
+    const floor = body.floor === "presenter" || body.floor === "attendee" ? body.floor : undefined;
+    if (floor && !canSetMemberFloor(a.id, a.role, teacherId, str(body.userId, 40))) return reply(origin, { error: "forbidden" }, 403);
+    const r = await stub.setPerm(a.role === "admin" ? "admin" : teacherId, str(body.userId, 40), typeof body.cam === "boolean" ? body.cam : undefined, typeof body.mic === "boolean" ? body.mic : undefined, typeof body.share === "boolean" ? body.share : undefined, floor);
     return reply(origin, r, r.ok ? 200 : 403);
   }
 
@@ -1028,7 +1039,11 @@ export async function handleLive(request: Request, env: LiveEnv, action: string)
 
   if (action === "live-present") {
     const op = str(body.op, 20);
-    const isHost = a.id === String(row.teacher) || a.role === "admin";
+    const teacherId = String(row.teacher);
+    const isHost = a.id === teacherId || a.role === "admin";
+    const snapForFloor = await stub.snapshot();
+    const floor = memberFloor(snapForFloor?.members.find((m) => m.id === a.id), teacherId);
+    const canPresent = canPresentInRoom(a, teacherId) || floor === "presenter";
     if (op === "answer") {
       const r = await stub.addAnswer(a.id, a.name, Number(body.slide) || 0, str(body.text, 1000));
       return reply(origin, r, r.ok ? 200 : 400);
@@ -1038,9 +1053,8 @@ export async function handleLive(request: Request, env: LiveEnv, action: string)
       const r = await stub.addStroke(a.id, { c: str(stroke.c, 20), w: Number(stroke.w) || 3, d: Array.isArray(stroke.d) ? stroke.d.map((n) => Number(n) || 0) : [], by: a.id });
       return reply(origin, r, r.ok ? 200 : 403);
     }
-    if (!isHost) return reply(origin, { error: "forbidden" }, 403);
-    if (!canPresentInRoom(a, String(row.teacher))) return reply(origin, { error: "no_present" }, 403);
-    const host = a.role === "admin" ? "admin" : String(row.teacher);
+    if (!canPresent) return reply(origin, { error: "no_present" }, 403);
+    const host = a.role === "admin" ? "admin" : (isHost || floor === "presenter" ? (isHost ? teacherId : a.id) : teacherId);
     if (op === "stop") {
       const r = await stub.setPresent(host, null);
       return reply(origin, r, r.ok ? 200 : 403);

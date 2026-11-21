@@ -26,3 +26,15 @@ export type PtrKind = (typeof PTR_KINDS)[number];
 export function normalizePtrKind(v: unknown): PtrKind {
   return typeof v === "string" && (PTR_KINDS as readonly string[]).includes(v) ? v as PtrKind : "pen";
 }
+
+
+export type LiveFloor = "presenter" | "attendee";
+/** The room host is always a presenter; everyone else defaults to attendee. */
+export function memberFloor(m: { id?: string; floor?: string } | undefined, teacherId: string): LiveFloor {
+  if (m?.id && teacherId && m.id === teacherId) return "presenter";
+  return m?.floor === "presenter" ? "presenter" : "attendee";
+}
+export function canSetMemberFloor(actorId: string, actorRole: string, teacherId: string, targetId: string): boolean {
+  if (!targetId || targetId === teacherId) return false;
+  return actorRole === "admin" || (!!actorId && !!teacherId && actorId === teacherId);
+}
