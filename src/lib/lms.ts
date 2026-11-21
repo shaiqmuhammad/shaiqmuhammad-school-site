@@ -107,8 +107,8 @@ export type MapRow = { id: string; name: string; cls: string; section: string; c
 
 /** Student-account switches. Legacy "Manage students" with none of the stu:* flags set means all four. */
 export const stuUi = (perms: string[], op: "view" | "add" | "edit" | "block" | "delete") => { if (!perms.includes("manageUsers")) return false; const has = perms.filter((p) => p.startsWith("stu:")); return has.length ? has.includes(`stu:${op}`) : true; };
-export const PERMS = ["assign", "review", "manageUsers", "viewAll", "shareCorrect", "viewAsStudent", "pptDownload", "hwMarkView", "hwMarkCorrect", "hwShare", "liveLesson", "liveSchedule", "liveSchedStudent", "liveSchedClass", "liveShareLink", "liveCamMic", "liveScreenShare", "livePresent", "liveInstant"] as const;
-export const LIVE_PERMS = ["liveLesson", "liveSchedule", "liveSchedStudent", "liveSchedClass", "liveShareLink", "liveCamMic", "liveScreenShare", "livePresent", "liveInstant"] as const;
+export const PERMS = ["assign", "review", "manageUsers", "viewAll", "shareCorrect", "viewAsStudent", "pptDownload", "hwMarkView", "hwMarkCorrect", "hwShare", "liveLesson", "liveSchedule", "liveSchedStudent", "liveSchedClass", "liveShareLink", "liveCamMic", "liveScreenShare", "livePresent", "liveInstant", "liveRecord"] as const;
+export const LIVE_PERMS = ["liveLesson", "liveSchedule", "liveSchedStudent", "liveSchedClass", "liveShareLink", "liveCamMic", "liveScreenShare", "livePresent", "liveInstant", "liveRecord"] as const;
 
 export class LmsError extends Error {
   data?: Record<string, unknown>;
@@ -292,7 +292,9 @@ export const hwRemind = (hw: string, confirm: boolean, asAdmin = false) => call<
 
 
 export type LiveRoomInfo = { id: string; title: string; cls: string; section: string; teacherId: string; teacherName: string; created: number; mine: boolean };
-export type LivePerms = { run: boolean; schedule: boolean; schedStudent: boolean; schedClass: boolean; shareLink: boolean; camMic: boolean; screenShare: boolean; present: boolean; instant: boolean };
+export type LivePerms = { run: boolean; schedule: boolean; schedStudent: boolean; schedClass: boolean; shareLink: boolean; camMic: boolean; screenShare: boolean; present: boolean; instant: boolean; record: boolean; recs: boolean };
+export type LiveHistoryMark = { id: string; name: string; section: string; status: string; at: number; note: string };
+export type LiveHistoryItem = { id: string; title: string; cls: string; section: string; teacherId: string; teacherName: string; started: number; ended: number | null; day: string; period: string; status: string; recKey: string; recBytes: number; present: number; marks: LiveHistoryMark[] };
 export type LiveSched = { id: string; title: string; starts: number; duration: number; ends: number; cls: string; section: string; groupId: string; studentId: string; studentName?: string; packId: string; packTitle: string; roomId: string; status: string; teacherId: string; teacherName: string; hasLink: boolean; linkToken?: string; mine: boolean; kind?: "meeting" | "" };
 export type LiveMember = { id: string; name: string; role: "teacher" | "student"; camAllowed: boolean; micAllowed: boolean; shareAllowed?: boolean; hand: boolean; present: boolean };
 export type LiveWait = { id: string; name: string; at: number };
@@ -525,6 +527,8 @@ export const lmsApi = {
   livePack: (id: string, packId: string, asAdmin = false) => call<{ pack: { id: string; title: string; type: string; slides: unknown[] } }>("live-pack", { id, packId }, { asAdmin }),
   liveDuration: (id: string, body: { endsAt?: number; addMin?: number }, asAdmin = false) => call<{ ok: boolean; endsAt?: number }>("live-duration", { id, ...body }, { asAdmin }),
   liveMeet: (b: { title?: string; duration?: number; now?: boolean; starts?: number }, asAdmin = false) => call<{ ok: boolean; schedId: string; roomId?: string; token: string; title: string; starts: number; ends: number; existing?: boolean }>("live-meet", b, { asAdmin }),
+  liveHistory: (asAdmin = false) => call<{ items: LiveHistoryItem[]; perms?: LivePerms }>("live-history", undefined, { asAdmin }),
+  liveRec: (b: { op: string; id?: string; key?: string; part?: number; data?: string }, asAdmin = false) => call<{ ok?: boolean; ready?: boolean; record?: boolean; key?: string; items?: LiveHistoryItem[]; perms?: LivePerms }>("live-rec", b, { asAdmin }),
   tzGet: (asAdmin = false) => call<{ pref: string }>("tz-set", undefined, { asAdmin }),
   tzSet: (pref: string, asAdmin = false) => call<{ pref: string }>("tz-set", { pref }, { asAdmin }),
 
@@ -562,6 +566,8 @@ export function lmsErrorText(e: unknown, tr: (en: string, ar: string) => string,
     pick_audience: ["Choose a class, section, group or student for this live lesson.", "اختر صفًا أو شعبة أو مجموعة أو طالبًا لهذه الحصة المباشرة."],
     bad_time: ["Pick a future date and time for the live lesson.", "اختر تاريخًا ووقتًا قادمين للحصة المباشرة."],
     no_instant: ["Your admin hasn't switched on “Start instant meetings” for you yet.", "لم يفعّل المسؤول صلاحية «بدء الاجتماعات الفورية» لك بعد."],
+    no_record: ["Your admin hasn't switched on “Record live lessons” for you yet.", "لم يفعّل المسؤول صلاحية «تسجيل الدروس المباشرة» لك بعد."],
+    rec_disabled: ["Turn on R2 storage to enable recording.", "فعّل تخزين R2 لتفعيل التسجيل."],
     bad_tz: ["That time zone isn't recognised. Search for a country or city.", "هذه المنطقة الزمنية غير معروفة. ابحث عن دولة أو مدينة."],
     already_started: ["This live lesson has already started.", "بدأت هذه الحصة المباشرة بالفعل."],
     not_yet: ["It's too early (or too late) to start this scheduled lesson.", "مبكر جدًا أو متأخر جدًا لبدء هذه الحصة المجدولة."],
