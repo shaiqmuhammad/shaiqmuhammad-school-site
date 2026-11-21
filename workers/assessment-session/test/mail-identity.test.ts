@@ -45,11 +45,26 @@ test("built-in From addresses and saved extras are allowed, with fallback", () =
 });
 
 test("senderForType uses defaults until a type is configured", () => {
+  assert.equal(MAIL_SENDER_DEFAULTS.notify, "info@shaiqmuhammad.com");
+  assert.equal(MAIL_SENDER_DEFAULTS.account, "admin@shaiqmuhammad.com");
+  assert.equal(MAIL_SENDER_DEFAULTS.billing, "billings@shaiqmuhammad.com");
+  assert.equal(MAIL_SENDER_DEFAULTS.reports, "info@shaiqmuhammad.com");
+  assert.equal(MAIL_SENDER_DEFAULTS.contact, "contact@shaiqmuhammad.com");
   assert.equal(senderForType("notify", {}, "info@shaiqmuhammad.com"), MAIL_SENDER_DEFAULTS.notify);
   assert.equal(senderForType("account", {}, "info@shaiqmuhammad.com"), MAIL_SENDER_DEFAULTS.account);
   assert.equal(senderForType("billing", { billing: "info@shaiqmuhammad.com" }, "x@y.com"), "info@shaiqmuhammad.com");
   assert.equal(senderForType("reports", {}, ""), MAIL_SENDER_DEFAULTS.reports);
   assert.equal(senderForType("contact", {}, ""), MAIL_SENDER_DEFAULTS.contact);
+});
+
+test("school quick picks include admin, billing and the iCloud label, not a redacted placeholder", () => {
+  assert.ok(BUILTIN_ALLOWED_FROM.includes("admin@shaiqmuhammad.com"));
+  assert.ok(BUILTIN_ALLOWED_FROM.includes("billings@shaiqmuhammad.com"));
+  assert.ok(BUILTIN_ALLOWED_FROM.includes("contact@shaiqmuhammad.com"));
+  assert.ok(BUILTIN_ALLOWED_FROM.includes("info@shaiqmuhammad.com"));
+  assert.ok(BUILTIN_ALLOWED_FROM.includes("shaiqmuhammad@icloud.com"));
+  assert.ok(!BUILTIN_ALLOWED_FROM.includes("[REDACTED]"));
+  assert.ok(!Object.values(MAIL_SENDER_DEFAULTS).some((v) => v.endsWith("@almudarris.com")));
 });
 
 test("normAllowedList validates and caps extras", () => {
