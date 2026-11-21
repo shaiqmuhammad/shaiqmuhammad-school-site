@@ -19,11 +19,12 @@ import { canShowHostAllow, isLiveEndedError, lmsApi, lmsErrorText, lmsSession, l
 import { classroomHref, isClassroomPath, openClassroomTab, prepareClassroomTab, type ClassroomTabHandle } from "@/lib/classroom";
 import { ClassroomBrand } from "@/components/lms/ClassroomBrand";
 import { ClassroomGoodbye } from "@/components/lms/ClassroomGoodbye";
+import { ClassroomRemoved } from "@/components/lms/ClassroomRemoved";
 import { ClassroomConnecting, type ConnectStep } from "@/components/lms/ClassroomConnecting";
 import LiveMediaDebug from "@/components/lms/LiveMediaDebug";
 import { liveMediaLog } from "@/lib/liveMediaLog";
 
-type Phase = "lobby" | "waiting" | "in" | "goodbye" | "expired";
+type Phase = "lobby" | "waiting" | "in" | "goodbye" | "expired" | "removed";
 
 function isPermErr(e: unknown) {
   const n = e && typeof e === "object" && "name" in e ? String((e as { name: string }).name) : "";
@@ -67,10 +68,11 @@ function PowerIcon() {
   );
 }
 
-function SideTile({ label, stream, hand, off, online = true, allow, selfMedia, hero }: {
+function SideTile({ label, stream, hand, off, online = true, allow, selfMedia, hero, remove }: {
   label: string; stream?: MediaStream | null; hand?: boolean; off?: boolean; online?: boolean; allow?: ReactNode;
   selfMedia?: { camOn: boolean; micOn: boolean; onCam: () => void; onMic: () => void; camDisabled?: boolean; micDisabled?: boolean };
   hero?: boolean;
+  remove?: { id: string; label: string; onClick: () => void };
 }) {
   const ref = useRef<HTMLVideoElement>(null);
   useEffect(() => {
@@ -87,6 +89,9 @@ function SideTile({ label, stream, hand, off, online = true, allow, selfMedia, h
         <video ref={ref} autoPlay playsInline muted className={hasVideo ? "" : "hidden"} />
         {!hasVideo && <span className="lb-side-avatar" aria-hidden>{hero ? "👨‍🏫" : off ? "😴" : "🙂"}</span>}
         {allow}
+        {remove && (
+          <button type="button" className="lb-remove-btn" aria-label={remove.label} title={remove.label} data-testid={`live-remove-${remove.id}`} onClick={remove.onClick}>✕</button>
+        )}
       </div>
       <div className="lb-side-meta">
         <span className={`lb-live-dot ${online ? "" : "is-off"}`} title={online ? "Online" : "Offline"} aria-label={online ? "Online" : "Offline"} />
@@ -629,7 +634,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
     }
     if (self) setPhase("in");
     else if (snap.waiting.some((w) => w.id === selfId)) setPhase("waiting");
-    else if (snap.status === "live" && phase === "in") setPhase("goodbye");
+    else if (snap.status === "live" && (phase === "in" || phase === "waiting")) setPhase("removed");
   }, [selfId, phase]);
 
   const connectWs = useCallback((roomId: string) => {
@@ -662,6 +667,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
           if (chatSoundRef.current) playChatBeep();
         }
       }
+      if (msg.t === "removed" && msg.userId === selfId) { setErr(""); cleanupMedia(); closeWs(); void leaveRoomFocus(); setPhase("removed"); }
       if (msg.t === "ended") { setErr(""); cleanupMedia(); closeWs(); void leaveRoomFocus(); setPhase("goodbye"); }
       if (msg.t === "denied" && msg.userId === selfId) { setPhase("lobby"); setErr(tr("The teacher didn't let you in this time.", "لم يسمح لك المعلم بالدخول هذه المرة.")); closeWs(); }
       if (msg.t === "perm" && msg.userId) {
@@ -698,9 +704,16 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
     };
     ws.onopen = () => { liveMediaLog.mark("ws_open"); ping(); };
     const beat = setInterval(ping, 15_000);
-    ws.onclose = () => {
+    ws.onclose = (ev) => {
       liveMediaLog.mark("ws_close");
       clearInterval(beat);
+      if (ev.code === 4001 || ev.reason === "removed") {
+        setErr("");
+        cleanupMedia();
+        void leaveRoomFocus();
+        setPhase("removed");
+        return;
+      }
       if (wsRef.current === ws && (phase === "in" || phase === "waiting")) {
         setTimeout(() => { if (wsRef.current === ws) connectWs(roomId); }, 1500);
       }
@@ -1009,6 +1022,13 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
     await lmsApi.liveChat(room.id, text, asAdmin).catch((e) => fail(e, "Chat", "الدردشة"));
   }
 
+  function removeAttendee(member: LiveMember) {
+    if (!room || member.id === room.teacherId || member.id === selfId) return;
+    const name = member.name || "Student";
+    if (!confirm(tr(`Remove ${name} from the class?`, `إزالة ${name} من الحصة؟`))) return;
+    lmsApi.liveRemove(room.id, member.id, asAdmin).catch((e) => fail(e, "Remove attendee", "إزالة المشارك"));
+  }
+
   async function leave() {
     if (room) await lmsApi.liveLeave(room.id, asAdmin).catch(() => undefined);
     cleanupMedia();
@@ -1085,6 +1105,12 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
 
   if (phase === "goodbye" || phase === "expired") {
     const screen = <ClassroomGoodbye kind={phase === "goodbye" ? "goodbye" : "expired"} />;
+    return shellLess ? classroomFrame(screen, false) : screen;
+  }
+
+  if (phase === "removed") {
+    const id = room?.id || (typeof window !== "undefined" ? (new URLSearchParams(window.location.search).get("room") || "") : "");
+    const screen = <ClassroomRemoved busy={busy} onRejoin={() => { if (id) enter(id); }} />;
     return shellLess ? classroomFrame(screen, false) : screen;
   }
 
@@ -1390,6 +1416,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
                         online={m.present}
                         selfMedia={selfMediaOf(m)}
                         allow={<AllowBtns roomId={room.id} member={m} teacherId={room.teacherId} asAdmin={asAdmin} canCam={canCamAllow} canShare={canShareAllow} canFloor={isHost} onErr={fail} labels={allowLabels} />}
+                        remove={isHost && m.id !== room.teacherId && m.id !== selfId ? { id: m.id, label: tr("Remove from class", "إزالة من الحصة"), onClick: () => removeAttendee(m) } : undefined}
                       />
                     ))}
                     {!students.length && <p className="lb-side-empty">{tr("No attendees yet", "لا يوجد مشاركون بعد")}</p>}
@@ -1464,7 +1491,12 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
                       <span className="truncate">{liveWho(m, selfId, room.teacherId, tr)} {m.hand ? "✋" : ""}</span>
                       <span className={`text-xs font-extrabold ${m.present ? "text-[#065f46] dark:text-[#a7f3d0]" : "text-[#475569] dark:text-[#cbd5e1]"}`}>{m.present ? tr("Online", "متصل") : tr("Offline", "غير متصل")}</span>
                     </span>
-                    <AllowBtns roomId={room.id} member={m} teacherId={room.teacherId} asAdmin={asAdmin} canCam={canCamAllow} canShare={canShareAllow} canFloor={isHost} onErr={fail} labels={allowLabels} />
+                    <span className="flex shrink-0 items-center gap-1">
+                      <AllowBtns roomId={room.id} member={m} teacherId={room.teacherId} asAdmin={asAdmin} canCam={canCamAllow} canShare={canShareAllow} canFloor={isHost} onErr={fail} labels={allowLabels} />
+                      {isHost && m.id !== room.teacherId && m.id !== selfId && (
+                        <button type="button" className="lb-remove-btn is-row" aria-label={tr("Remove from class", "إزالة من الحصة")} title={tr("Remove from class", "إزالة من الحصة")} data-testid={`live-remove-${m.id}`} onClick={() => removeAttendee(m)}>✕</button>
+                      )}
+                    </span>
                   </li>
                 ))}
               </ul>
