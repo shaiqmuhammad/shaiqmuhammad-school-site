@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { AssessmentShell, primaryBtn } from "@/components/assessment/AssessmentShell";
 import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
 import { NeedLogin } from "@/components/lms/LmsDashboard";
@@ -14,7 +15,7 @@ import { StartMeetingPanel } from "@/components/lms/StartMeeting";
 import { LiveHistory } from "@/components/lms/LiveHistory";
 import { LivePresent } from "@/components/lms/LivePresent";
 import { LiveViewPicker, RoomStage, useActiveSpeaker, presentLayout, VIEW_CARDS } from "@/components/lms/LiveViews";
-import { lmsApi, lmsErrorText, lmsSession, liveGuest, liveWsUrl, type LiveAsk, type LivePtr, type LiveChat, type LivePerms, type LiveRoomInfo, type LiveSnap, type LiveView, type LiveViewMode } from "@/lib/lms";
+import { canShowHostAllow, lmsApi, lmsErrorText, lmsSession, liveGuest, liveWsUrl, normalizePtrKind, type LiveAsk, type LiveMember, type LivePtr, type LiveChat, type LivePerms, type LiveRoomInfo, type LiveSnap, type LiveView, type LiveViewMode, type PtrKind } from "@/lib/lms";
 
 type Phase = "lobby" | "waiting" | "in" | "ended";
 
@@ -23,7 +24,23 @@ function isPermErr(e: unknown) {
   return n === "NotAllowedError" || n === "PermissionDeniedError" || n === "NotFoundError" || n === "NotReadableError" || n === "SecurityError";
 }
 
-function Tile({ label, stream, hand, big, off, compact, size, featured }: { label: string; stream?: MediaStream | null; hand?: boolean; big?: boolean; off?: boolean; compact?: boolean; size?: "hero" | "main" | "card" | "thumb"; featured?: boolean }) {
+
+function AllowBtns({ roomId, member, asAdmin, canCam, canShare, onErr }: {
+  roomId: string; member: LiveMember; asAdmin: boolean; canCam: boolean; canShare: boolean;
+  onErr: (e: unknown, en: string, ar: string) => void;
+}) {
+  if (member.role === "teacher") return null;
+  if (!canCam && !canShare) return null;
+  return (
+    <span className="lb-allow" data-testid="live-host-allow">
+      {canCam && <button type="button" className={`lb-allow-btn ${member.camAllowed ? "is-on" : ""}`} onClick={() => lmsApi.livePerm(roomId, member.id, !member.camAllowed, undefined, asAdmin).catch((e) => onErr(e, "Allow camera", "السماح بالكاميرا"))} data-testid="live-allow-cam">{member.camAllowed ? "Cam ✓" : "Cam"}</button>}
+      {canCam && <button type="button" className={`lb-allow-btn ${member.micAllowed ? "is-on" : ""}`} onClick={() => lmsApi.livePerm(roomId, member.id, undefined, !member.micAllowed, asAdmin).catch((e) => onErr(e, "Allow mic", "السماح بالميكروفون"))} data-testid="live-allow-mic">{member.micAllowed ? "Mic ✓" : "Mic"}</button>}
+      {canShare && <button type="button" className={`lb-allow-btn ${member.shareAllowed ? "is-on" : ""}`} onClick={() => lmsApi.livePerm(roomId, member.id, undefined, undefined, asAdmin, !member.shareAllowed).catch((e) => onErr(e, "Allow share", "السماح بالمشاركة"))} data-testid="live-allow-share">{member.shareAllowed ? "Share ✓" : "Share"}</button>}
+    </span>
+  );
+}
+
+function Tile({ label, stream, hand, big, off, compact, size, featured, allow }: { label: string; stream?: MediaStream | null; hand?: boolean; big?: boolean; off?: boolean; compact?: boolean; size?: "hero" | "main" | "card" | "thumb"; featured?: boolean; allow?: ReactNode }) {
   const ref = useRef<HTMLVideoElement>(null);
   useEffect(() => {
     const el = ref.current;
@@ -44,6 +61,7 @@ function Tile({ label, stream, hand, big, off, compact, size, featured }: { labe
           <span className="px-1 text-center text-xs font-bold opacity-80 sm:text-sm">{off ? "" : label}</span>
         </div>
       )}
+      {allow}
       <div className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-gradient-to-t from-black/70 to-transparent px-2 py-1 text-xs font-extrabold text-white sm:px-3 sm:py-2 sm:text-sm">
         <span className="truncate">{label}</span>
         {hand ? <span className="animate-bounce text-xl sm:text-2xl" aria-label="hand raised">✋</span> : null}
@@ -103,7 +121,7 @@ function PipTile({ label, stream, min, onToggle }: { label: string; stream?: Med
   );
 }
 
-function StuTile({ label, stream, hand, off, color }: { label: string; stream?: MediaStream | null; hand?: boolean; off?: boolean; color: string }) {
+function StuTile({ label, stream, hand, off, color, allow }: { label: string; stream?: MediaStream | null; hand?: boolean; off?: boolean; color: string; allow?: ReactNode }) {
   const ref = useRef<HTMLVideoElement>(null);
   useEffect(() => {
     const el = ref.current;
@@ -117,6 +135,7 @@ function StuTile({ label, stream, hand, off, color }: { label: string; stream?: 
     <div className={`lb-stu ${off ? "is-off" : ""} ${hand ? "has-hand" : ""}`} style={{ ["--c" as string]: color }} title={label}>
       <video ref={ref} autoPlay playsInline muted className={hasVideo ? "" : "hidden"} />
       {!hasVideo && <div className="lb-stu-face" aria-hidden>{off ? "😴" : "🙂"}</div>}
+      {allow}
       <div className="lb-stu-meta">
         <span className="truncate">{label}</span>
         {hand ? <span aria-label="hand raised">✋</span> : null}
@@ -255,6 +274,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
   const [viewOpen, setViewOpen] = useState(false);
   const [pipMin, setPipMin] = useState(false);
   const [trayRoot, setTrayRoot] = useState<HTMLDivElement | null>(null);
+  const [teachRoot, setTeachRoot] = useState<HTMLDivElement | null>(null);
   const [toolsOpen, setToolsOpen] = useState(false);
   const [askNote, setAskNote] = useState<"" | "sent" | "allowed">("");
   const [ptrs, setPtrs] = useState<LivePtr[]>([]);
@@ -269,7 +289,13 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
   const chatSoundRef = useRef(true);
   const chatBox = useRef<HTMLDivElement>(null);
   const selfId = actor?.id || "";
-  const isHost = !!(room && actor && (room.teacherId === actor.id || actor.role === "admin"));
+  const isHost = !!(room && actor && (
+    actor.role === "admin"
+    || (actor.role === "teacher" && room.teacherId === actor.id)
+    || (actor.role === "teacher" && !room.teacherId && room.members.some((m) => m.id === actor.id && m.role === "teacher"))
+  ));
+  const canCamAllow = canShowHostAllow(isHost, livePerms, "camMic");
+  const canShareAllow = canShowHostAllow(isHost, livePerms, "screenShare");
   const me = room?.members.find((m) => m.id === selfId);
 
   const loadList = useCallback(async () => {
@@ -446,13 +472,16 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
     };
   }, [applyRoom, asAdmin, cleanupMedia, phase, selfId, tr]);
 
-  const sendPtr = useCallback((x: number | null, y: number | null) => {
+  const ptrKindRef = useRef<PtrKind>("pen");
+  const sendPtr = useCallback((x: number | null, y: number | null, kind?: PtrKind) => {
     const ws = wsRef.current;
     if (!ws || ws.readyState !== 1) return;
+    if (kind) ptrKindRef.current = normalizePtrKind(kind);
     const now = Date.now();
     if (x != null && now - lastPtrAt.current < 40) return;
     lastPtrAt.current = now;
-    ws.send(JSON.stringify(x == null || y == null ? { t: "ptr" } : { t: "ptr", x, y }));
+    const k = ptrKindRef.current;
+    ws.send(JSON.stringify(x == null || y == null ? { t: "ptr" } : { t: "ptr", x, y, kind: k }));
   }, []);
 
   useEffect(() => () => { closeWs(); cleanupMedia(); }, [cleanupMedia]);
@@ -803,7 +832,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
         )}
 
         {phase === "in" && room && (
-          <div ref={roomRef} className={`lb-room${roomFocused ? " is-focus" : ""}${toolsOpen ? " tools-open" : ""}${(!!room.present?.packId || shareOn || viewMode === "board") ? " stage-first" : ""}`} data-testid="live-room" data-focus-keep data-stage-first={!!room.present?.packId || shareOn || viewMode === "board" ? "1" : "0"}>
+          <div ref={roomRef} className={`lb-room${roomFocused ? " is-focus" : ""}${toolsOpen ? " tools-open" : ""}${(!!room.present?.packId || shareOn || viewMode === "board" || room.present?.tool === "board") ? " stage-first" : ""}${(viewMode === "board" || room.present?.tool === "board") ? " board-on" : ""}`} data-testid="live-room" data-focus-keep data-stage-first={!!room.present?.packId || shareOn || viewMode === "board" || room.present?.tool === "board" ? "1" : "0"}>
             {err && <p className="lb-wait lb-wait-err" role="alert">{err}</p>}
             {permHelp && (
               <div className="lb-wait" role="status" data-testid="live-perm-help">
@@ -859,14 +888,14 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
               </div>
             )}
 
-                        {isHost && (room.asks || []).length > 0 && (
-              <div className="lb-wait" data-testid="live-ask-banner">
+            {isHost && (room.asks || []).length > 0 && (
+              <div className="lb-ask-banner" data-testid="live-ask-banner">
                 {(room.asks || []).map((a) => (
                   <div key={a.userId} className="flex flex-wrap items-center justify-between gap-2 py-1">
                     <span className="font-black" dir="auto">{a.name} {tr("wants to turn on the camera or mic", "يريد تشغيل الكاميرا أو الميكروفون")}</span>
                     <span className="flex gap-2">
-                      <button type="button" className="rounded-full bg-emerald-600 px-3 py-1 text-sm font-black text-white" onClick={() => allowAsk(a.userId, a.cam, a.mic)} data-testid="live-ask-allow">{tr("Allow", "سماح")}</button>
-                      <button type="button" className="rounded-full bg-white px-3 py-1 text-sm font-bold dark:bg-slate-800" onClick={() => lmsApi.liveAsk(room.id, { userId: a.userId, cam: a.cam, mic: a.mic, on: false }, asAdmin).catch(() => undefined)}>{tr("Not now", "ليس الآن")}</button>
+                      <button type="button" className="rounded-full bg-[#047857] px-3 py-1 text-sm font-black text-white" onClick={() => allowAsk(a.userId, a.cam, a.mic)} data-testid="live-ask-allow">{tr("Allow", "سماح")}</button>
+                      <button type="button" className="rounded-full bg-[#fff8ec] px-3 py-1 text-sm font-bold text-[#1b3a57]" onClick={() => lmsApi.liveAsk(room.id, { userId: a.userId, cam: a.cam, mic: a.mic, on: false }, asAdmin).catch(() => undefined)}>{tr("Not now", "ليس الآن")}</button>
                     </span>
                   </div>
                 ))}
@@ -875,6 +904,16 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
             {!isHost && askNote === "allowed" && (me?.camAllowed || me?.micAllowed) && (
               <p className="lb-wait" data-testid="live-ask-granted">{tr("Your teacher allowed your camera or mic. Tap Camera or Mic to turn it on.", "سمح معلمك بكاميرتك أو ميكروفونك. اضغط الكاميرا أو الميكروفون لتشغيله.")}</p>
             )}
+            {isHost && (canCamAllow || canShareAllow) && room.members.some((m) => m.role !== "teacher") && (
+              <div className="lb-allow-bar" data-testid="live-host-allow-bar">
+                {room.members.filter((m) => m.role !== "teacher").map((m) => (
+                  <div key={m.id} className="lb-allow-bar-item">
+                    <span className="max-w-[8rem] truncate" dir="auto">{m.id === selfId ? tr("You", "أنت") : m.name}</span>
+                    <AllowBtns roomId={room.id} member={m} asAdmin={asAdmin} canCam={canCamAllow} canShare={canShareAllow} onErr={fail} />
+                  </div>
+                ))}
+              </div>
+            )}
             {(() => {
               const presenting = !!room.present?.packId;
 
@@ -882,19 +921,20 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
               const streamOf = (m: { id: string }) => m.id === selfId ? localStream : remotes[`${m.id}:camera`];
               const teachers = room.members.filter((m) => m.role === "teacher");
               const students = room.members.filter((m) => m.role !== "teacher");
-              const showPresent = presenting || isHost || asAdmin || livePerms.present;
+              const boardFs = viewMode === "board" || room.present?.tool === "board";
+              const showPresent = presenting || isHost || asAdmin || livePerms.present || boardFs;
               const presentSlot = showPresent ? (
-                <LivePresent roomId={room.id} present={room.present} isHost={isHost} canPresent={isHost || asAdmin || livePerms.present} asAdmin={asAdmin} selfId={selfId} members={room.members} onPresent={(present) => setRoom((r) => r ? { ...r, present } : r)} onRoomFocus={() => void toggleRoomFocus()} roomFocused={roomFocused} layout={layout} trayRoot={trayRoot} ptrs={ptrs} onPtr={sendPtr} />
+                <LivePresent roomId={room.id} present={room.present} isHost={isHost} canPresent={isHost || asAdmin || livePerms.present} asAdmin={asAdmin} selfId={selfId} members={room.members} onPresent={(present) => setRoom((r) => r ? { ...r, present } : r)} onRoomFocus={() => void toggleRoomFocus()} roomFocused={roomFocused} layout={boardFs ? "board" : layout} trayRoot={trayRoot} teachRoot={teachRoot} ptrs={ptrs} onPtr={sendPtr} />
               ) : null;
               const screen = mainScreen ? <Tile label={tr("Shared screen", "الشاشة المشاركة")} stream={mainScreen} size={viewMode === "lecture" || viewMode === "teach" ? "main" : "thumb"} /> : null;
               const teacher = teachers.map((m) => <Tile key={m.id} label={m.id === selfId ? tr("You (teacher)", "أنت (المعلم)") : m.name} stream={streamOf(m)} hand={m.hand} size="thumb" featured={m.id === speakerId} />);
               const teacherHero = teachers.map((m) => <Tile key={m.id} label={m.id === selfId ? tr("You (teacher)", "أنت (المعلم)") : m.name} stream={streamOf(m)} hand={m.hand} size="hero" featured={m.id === speakerId} />);
-              const studentTiles = students.map((m) => <Tile key={m.id} label={m.id === selfId ? tr("You", "أنت") : m.name} stream={streamOf(m)} hand={m.hand} off={!streamOf(m) && m.id !== selfId} size="thumb" featured={m.id === speakerId} />);
+              const studentTiles = students.map((m) => <Tile key={m.id} label={m.id === selfId ? tr("You", "أنت") : m.name} stream={streamOf(m)} hand={m.hand} off={!streamOf(m) && m.id !== selfId} size="thumb" featured={m.id === speakerId} allow={<AllowBtns roomId={room.id} member={m} asAdmin={asAdmin} canCam={canCamAllow} canShare={canShareAllow} onErr={fail} />} />);
               const thumbs = studentTiles;
-              const gallery = [...teachers, ...students].map((m) => <Tile key={m.id} label={m.id === selfId ? (m.role === "teacher" ? tr("You (teacher)", "أنت (المعلم)") : tr("You", "أنت")) : m.name} stream={streamOf(m)} hand={m.hand} off={!streamOf(m) && m.id !== selfId} size="card" featured={m.id === speakerId} />);
+              const gallery = [...teachers, ...students].map((m) => <Tile key={m.id} label={m.id === selfId ? (m.role === "teacher" ? tr("You (teacher)", "أنت (المعلم)") : tr("You", "أنت")) : m.name} stream={streamOf(m)} hand={m.hand} off={!streamOf(m) && m.id !== selfId} size="card" featured={m.id === speakerId} allow={m.role !== "teacher" ? <AllowBtns roomId={room.id} member={m} asAdmin={asAdmin} canCam={canCamAllow} canShare={canShareAllow} onErr={fail} /> : null} />);
               const featuredMem = room.members.find((m) => m.id === speakerId) || teachers[0];
-              const featured = featuredMem ? <Tile key={featuredMem.id} label={featuredMem.id === selfId ? (featuredMem.role === "teacher" ? tr("You (teacher)", "أنت (المعلم)") : tr("You", "أنت")) : featuredMem.name} stream={streamOf(featuredMem)} hand={featuredMem.hand} off={!streamOf(featuredMem) && featuredMem.id !== selfId} size="hero" featured /> : null;
-              const others = room.members.filter((m) => m.id !== featuredMem?.id).map((m) => <Tile key={m.id} label={m.id === selfId ? (m.role === "teacher" ? tr("You (teacher)", "أنت (المعلم)") : tr("You", "أنت")) : m.name} stream={streamOf(m)} hand={m.hand} off={!streamOf(m) && m.id !== selfId} size="thumb" />);
+              const featured = featuredMem ? <Tile key={featuredMem.id} label={featuredMem.id === selfId ? (featuredMem.role === "teacher" ? tr("You (teacher)", "أنت (المعلم)") : tr("You", "أنت")) : featuredMem.name} stream={streamOf(featuredMem)} hand={featuredMem.hand} off={!streamOf(featuredMem) && featuredMem.id !== selfId} size="hero" featured allow={featuredMem.role !== "teacher" ? <AllowBtns roomId={room.id} member={featuredMem} asAdmin={asAdmin} canCam={canCamAllow} canShare={canShareAllow} onErr={fail} /> : null} /> : null;
+              const others = room.members.filter((m) => m.id !== featuredMem?.id).map((m) => <Tile key={m.id} label={m.id === selfId ? (m.role === "teacher" ? tr("You (teacher)", "أنت (المعلم)") : tr("You", "أنت")) : m.name} stream={streamOf(m)} hand={m.hand} off={!streamOf(m) && m.id !== selfId} size="thumb" allow={m.role !== "teacher" ? <AllowBtns roomId={room.id} member={m} asAdmin={asAdmin} canCam={canCamAllow} canShare={canShareAllow} onErr={fail} /> : null} />);
               const bubblesStage = viewMode === "teach" || viewMode === "board";
               const teacherMem = teachers[0];
               const stageInner = bubblesStage ? (
@@ -926,6 +966,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
               );
               return (
                 <div className="lb-workspace">
+                  <div id="lb-tray-root" className="lb-tray-root" ref={setTrayRoot} />
                   <div className="lb-stage">
                     {stageInner}
                     {teacherMem && bubblesStage && (
@@ -946,6 +987,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
                             hand={m.hand}
                             off={!streamOf(m) && m.id !== selfId}
                             color={STU_COLORS[i % STU_COLORS.length]}
+                            allow={<AllowBtns roomId={room.id} member={m} asAdmin={asAdmin} canCam={canCamAllow} canShare={canShareAllow} onErr={fail} />}
                           />
                         ))}
                       </div>
@@ -963,10 +1005,10 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
                       </button>
                     )}
                   </div>
-                  <div id="lb-tray-root" className="lb-tray-root" ref={setTrayRoot} />
                 </div>
               );
             })()}
+            <div id="lb-teach-tray" className="lb-teach-tray" ref={setTeachRoot} />
 
             {isHost && asAdmin && !livePerms.recs && (
               <p className="lb-hint" data-testid="live-rec-note">{tr("Turn on R2 storage to enable recording", "فعّل تخزين R2 لتفعيل التسجيل")}</p>
@@ -980,6 +1022,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
                 <DockBtn testid="live-ask" icon="🙋" label={askNote === "sent" ? tr("Asked…", "تم الطلب…") : tr("Ask to speak", "طلب التحدث")} on={askNote === "sent"} onClick={() => askToSpeak().catch(() => undefined)} />
               )}
               <DockBtn testid="live-tools-fab" icon="🧰" label={tr("+ Tools", "+ أدوات")} on={toolsOpen} onClick={() => setToolsOpen((v) => !v)} extraClass="lb-tools-fab" />
+              <DockBtn testid="live-people-dock" icon="👥" label={tr("People", "الحاضرون")} on={showPeople} onClick={() => setShowPeople(true)} />
               <DockBtn testid="live-chat-btn" icon="💬" label={tr("Chat", "دردشة")} on={showChat} onClick={() => setShowChat(true)} badge={chatUnread} />
               {isHost && (asAdmin || livePerms.record) && (
                 <DockBtn testid="live-record" icon="⏺️" label={tr("Record", "تسجيل")} disabled={!livePerms.recs} onClick={() => undefined} />
@@ -994,30 +1037,25 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
           </div>
         )}
 
-        {showPeople && room && (
-          <div className="fixed inset-0 z-[80] flex justify-end bg-black/40" onClick={() => setShowPeople(false)} role="presentation">
-            <aside className="lms-card flex h-full w-full max-w-sm flex-col p-4 shadow-xl" onClick={(e) => e.stopPropagation()} data-testid="live-people-panel">
+        {showPeople && room && createPortal(
+          <div className="fixed inset-0 z-[4500] flex justify-end bg-black/40" onClick={() => setShowPeople(false)} role="presentation">
+            <aside className="lms-card flex h-full w-full max-w-sm flex-col p-4 shadow-xl text-[#1b3a57] dark:text-[#fff8ec]" onClick={(e) => e.stopPropagation()} data-testid="live-people-panel">
               <div className="mb-3 flex items-center justify-between"><h3 className="text-lg font-black">{tr("People", "الحاضرون")}</h3><button type="button" onClick={() => setShowPeople(false)}>✕</button></div>
               <ul className="flex-1 space-y-2 overflow-auto">
                 {room.members.map((m) => (
                   <li key={m.id} className="flex items-center justify-between gap-2 rounded-2xl bg-black/5 px-3 py-2 dark:bg-white/10">
                     <span className="font-bold">{m.name}{m.role === "teacher" ? ` · ${tr("Teacher", "المعلم")}` : ""} {m.hand ? "✋" : ""} {!m.present ? tr("(away)", "(غادر)") : ""}</span>
-                    {(isHost || livePerms.camMic || livePerms.screenShare) && m.role !== "teacher" && (
-                      <span className="flex gap-1 text-xs">
-                        {(isHost || livePerms.camMic) && <button type="button" className={`rounded-full px-2 py-1 font-bold ${m.camAllowed ? "bg-emerald-200" : "bg-white dark:bg-slate-800"}`} onClick={() => lmsApi.livePerm(room.id, m.id, !m.camAllowed, undefined, asAdmin).catch((e) => fail(e, "Allow camera", "السماح بالكاميرا"))} data-testid="live-allow-cam">{tr("Cam", "كاميرا")}</button>}
-                        {(isHost || livePerms.camMic) && <button type="button" className={`rounded-full px-2 py-1 font-bold ${m.micAllowed ? "bg-emerald-200" : "bg-white dark:bg-slate-800"}`} onClick={() => lmsApi.livePerm(room.id, m.id, undefined, !m.micAllowed, asAdmin).catch((e) => fail(e, "Allow mic", "السماح بالميكروفون"))} data-testid="live-allow-mic">{tr("Mic", "ميكروفون")}</button>}
-                        {(isHost || livePerms.screenShare) && <button type="button" className={`rounded-full px-2 py-1 font-bold ${m.shareAllowed ? "bg-emerald-200" : "bg-white dark:bg-slate-800"}`} onClick={() => lmsApi.livePerm(room.id, m.id, undefined, undefined, asAdmin, !m.shareAllowed).catch((e) => fail(e, "Allow share", "السماح بالمشاركة"))} data-testid="live-allow-share">{tr("Share", "مشاركة")}</button>}
-                      </span>
-                    )}
+                    <AllowBtns roomId={room.id} member={m} asAdmin={asAdmin} canCam={canCamAllow} canShare={canShareAllow} onErr={fail} />
                   </li>
                 ))}
               </ul>
             </aside>
-          </div>
+          </div>,
+          document.body,
         )}
 
-        {showChat && room && viewMode !== "discuss" && (
-          <div className="fixed inset-0 z-[80] flex justify-end bg-black/40" onClick={() => setShowChat(false)} role="presentation">
+        {showChat && room && viewMode !== "discuss" && createPortal(
+          <div className="fixed inset-0 z-[4500] flex justify-end bg-black/40" onClick={() => setShowChat(false)} role="presentation">
             <aside className="flex h-full w-full max-w-sm flex-col bg-white p-4 shadow-xl dark:bg-slate-900" onClick={(e) => e.stopPropagation()} data-testid="live-chat-panel">
               <div className="mb-3 flex items-center justify-between gap-2"><h3 className="text-lg font-black">{tr("Chat", "الدردشة")}</h3><span className="flex items-center gap-2"><button type="button" className="rounded-full px-2 py-1 text-sm font-bold" onClick={() => setChatSound((v) => !v)} data-testid="live-sound" aria-pressed={chatSound}>{chatSound ? "🔔" : "🔕"}</button><button type="button" onClick={() => setShowChat(false)}>✕</button></span></div>
               <div ref={chatBox} className="flex-1 space-y-2 overflow-auto rounded-2xl bg-black/5 p-3 dark:bg-white/10">
@@ -1031,7 +1069,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
               </form>
             </aside>
           </div>
-        )}
+        , document.body)}
       </div>
   );
   if (embedded) return body;

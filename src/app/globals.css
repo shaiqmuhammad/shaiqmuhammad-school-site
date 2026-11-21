@@ -451,17 +451,20 @@ html.page-focus [data-testid="live-ends-clock"],
 html.page-focus [data-testid="live-chat-toast"] { visibility: visible !important; }
 /* Live classroom Focus: the whole room fills the screen (CSS fallback when the browser refuses fullscreen). */
 /* Focus must keep every live-room control visible; .lb-room is already a full-viewport shell. */
-[data-testid="live-room"].live-room-fs {
-  position: fixed;
-  inset: 0;
+[data-testid="live-room"].live-room-fs,
+[data-testid="live-room"].is-focus,
+html.page-focus [data-testid="live-room"] {
+  position: fixed !important;
+  inset: 0 !important;
   z-index: 4000;
   max-width: none !important;
   width: 100%;
-  height: 100dvh;
-  max-height: 100dvh;
+  height: 100dvh !important;
+  max-height: 100dvh !important;
   overflow: hidden;
   margin: 0;
   border-radius: 0;
+  padding-top: max(10px, env(safe-area-inset-top));
 }
 .lb-fit { width: 100%; max-width: calc((100dvh - 11rem) * 16 / 9); margin-inline: auto; }
 body.lb-work .lb-fit { max-width: calc((100dvh - 8rem) * 16 / 9); }
@@ -506,7 +509,19 @@ html.wb-board-fill [data-testid=class-timer] { z-index: 2600 !important; }
 
 /* Live classroom — design A “Playful Bubbles” */
 html.lb-session, html.lb-session body { overflow: hidden; height: 100%; height: 100dvh; }
-html.lb-session .lms-main, html.lb-session .admin-main { min-height: 0; }
+html.lb-session body { display: flex; flex-direction: column; }
+/* Keep the room below the LMS/admin header (those headers sit in a higher stacking context than main). */
+html.lb-session:not(.page-focus) .pub-main {
+  display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden;
+}
+html.lb-session:not(.page-focus) .lms-main,
+html.lb-session:not(.page-focus) .admin-main {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  padding-top: 0 !important;
+  overflow: hidden;
+}
 html.lb-session [data-testid="live-lesson"] {
   max-width: none !important;
   padding: 0 !important;
@@ -514,14 +529,26 @@ html.lb-session [data-testid="live-lesson"] {
   flex: 1;
   min-height: 0;
   height: 100%;
+  position: relative;
+}
+/* Non-Focus: fill the main column so the room top bar sits fully under the site/LMS header. */
+html.lb-session:not(.page-focus) .lb-room {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  height: auto;
+  max-height: none;
+  padding-top: max(10px, env(safe-area-inset-top));
 }
 .lb-room {
   --navy: #1b3a57;
   --cream: #fff8ec;
   --ink: #1b2f44;
-  position: fixed; inset: 0; z-index: 50;
+  position: relative;
+  inset: auto;
+  z-index: 5;
   display: flex; flex-direction: column;
-  height: 100dvh; max-height: 100dvh;
+  height: 100%; max-height: 100%;
   padding: 14px max(16px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
   padding-top: max(14px, env(safe-area-inset-top));
   gap: 10px;
@@ -595,7 +622,9 @@ html.lb-session [data-testid="live-lesson"] {
 .dark .lb-wait { background: #92400e; color: #fff8ec; }
 .lb-wait-err { background: #fecdd3; color: #9f1239; }
 .dark .lb-wait-err { background: #9f1239; color: #fff1f2; }
-.lb-workspace { flex: 1; min-height: 0; display: flex; gap: 10px; }
+.lb-workspace { flex: 1; min-height: 0; display: flex; flex-direction: row; gap: 10px; }
+.lb-workspace .lb-tray-root { order: 0; }
+.lb-workspace .lb-stage { order: 1; }
 .lb-stage {
   position: relative; flex: 1; min-width: 0; min-height: 0;
   background: #fff;
@@ -615,6 +644,7 @@ html.lb-session [data-testid="live-lesson"] {
   flex: 0 0 auto;
 }
 .lb-eyebrow { color: #7ee0d4; font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+.lb-slide-bar, .lb-slide-bar h3, .lb-slide-bar .lb-eyebrow, .lb-slide-bar .lb-slide-sub { color: #fff; }
 .lb-slide-bar h3 { font-size: 28px; font-weight: 900; letter-spacing: -.03em; margin: 0; }
 .lb-slide-sub { color: #f3c969; font-weight: 700; font-size: 13px; margin-top: 2px; }
 .lb-slide-body { flex: 1; min-height: 0; position: relative; display: flex; flex-direction: column; padding: 8px 16px 96px; }
@@ -671,22 +701,58 @@ html.lb-session [data-testid="live-lesson"] {
   box-shadow: 0 8px 24px rgba(27,58,87,.18);
 }
 .lb-board-svg { position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%; touch-action: none; }
-.lb-laser {
+.lb-room.board-on .lb-slide-bar {
+  position: absolute;
+  top: 8px;
+  inset-inline: 8px;
+  z-index: 8;
+  padding: 8px 14px;
+  padding-inline-end: 14px;
+  border-radius: 18px;
+  background: rgba(27,58,87,.9);
+  width: auto;
+  pointer-events: auto;
+}
+.lb-room.board-on .lb-slide-bar h3 { font-size: 18px; }
+.lb-room.board-on .lb-slide-body { padding: 0; flex: 1; min-height: 0; }
+.lb-room.board-on .lb-slide-wrap,
+.lb-room.board-on .lb-board-surface,
+.lb-room.board-on .lb-board-svg { border-radius: 0; inset: 0; }
+.lb-room.board-on .lb-stage { border-radius: 24px; }
+.lb-room.board-on .lb-present,
+.lb-room.board-on .lb-stage-fill { height: 100%; flex: 1; min-height: 0; }
+.lb-laser, .lb-ptr {
   position: absolute;
   z-index: 3;
   pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform: translate(-20%, -90%);
+  filter: drop-shadow(0 2px 4px rgba(11,27,43,.35));
+}
+.lb-ptr[data-kind="laser"] {
   transform: translate(-50%, -50%);
   filter: drop-shadow(0 0 8px currentColor);
 }
-.lb-laser-dot {
+.lb-ptr[data-kind="arrow"] { transform: translate(-10%, -10%); }
+.lb-ptr[data-kind="stick"] { transform: translate(-12%, -88%); }
+.lb-laser-dot, .lb-ptr-laser {
   width: 16px;
   height: 16px;
   border-radius: 50%;
   background: currentColor;
   box-shadow: 0 0 0 6px color-mix(in srgb, currentColor 30%, transparent);
 }
-.lb-laser-name {
-  margin-top: 4px;
+.lb-ptr-icon {
+  font-size: 28px;
+  line-height: 1;
+  filter: drop-shadow(0 2px 3px rgba(0,0,0,.35));
+}
+.lb-ptr-svg { width: 40px; height: 40px; overflow: visible; }
+.lb-ptr[data-kind="stick"] .lb-ptr-svg { width: 72px; height: 72px; }
+.lb-laser-name, .lb-ptr-name {
+  margin-top: 2px;
   padding: 2px 8px;
   border-radius: 999px;
   background: #1b3a57;
@@ -696,7 +762,7 @@ html.lb-session [data-testid="live-lesson"] {
   white-space: nowrap;
   box-shadow: 0 4px 10px rgba(27,58,87,.25);
 }
-.dark .lb-laser-name { background: #fff8ec; color: #1b3a57; }
+.dark .lb-laser-name, .dark .lb-ptr-name { background: #fff8ec; color: #1b3a57; }
 .lb-pip {
   position: absolute; top: 16px; inset-inline-end: 16px; z-index: 10;
   width: 200px; border-radius: 24px; overflow: hidden;
@@ -744,6 +810,54 @@ html.lb-session [data-testid="live-lesson"] {
   color: #fff; font-size: 11px; font-weight: 800;
   padding: 10px 8px 5px; display: flex; justify-content: space-between; align-items: center;
 }
+.lb-allow {
+  display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end;
+}
+.lb-allow-btn {
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.4;
+  background: #fff8ec;
+  color: #1b3a57;
+  box-shadow: inset 0 0 0 1px rgba(27,58,87,.28);
+}
+.lb-allow-btn.is-on {
+  background: #047857;
+  color: #ffffff;
+  box-shadow: none;
+}
+.dark .lb-allow-btn { background: #fff8ec; color: #1b3a57; }
+.dark .lb-allow-btn.is-on { background: #34d399; color: #10331c; }
+.lb-stu .lb-allow, .lb-tile .lb-allow {
+  position: absolute; top: 6px; inset-inline-end: 6px; z-index: 3;
+}
+.lb-allow-bar {
+  display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none;
+  flex: 0 0 auto;
+  padding: 6px 8px;
+  border-radius: 20px;
+  background: rgba(27,58,87,.9);
+  color: #fff8ec;
+}
+.lb-allow-bar-item {
+  display: flex; align-items: center; gap: 8px;
+  flex: 0 0 auto;
+  background: rgba(255,255,255,.12);
+  border-radius: 999px;
+  padding: 4px 8px 4px 12px;
+  font-size: 12px; font-weight: 800;
+}
+.lb-ask-banner {
+  background: #fde68a;
+  color: #1b3a57;
+  border-radius: 20px;
+  padding: 8px 12px;
+  font-weight: 800;
+}
+.dark .lb-ask-banner { background: #92400e; color: #fff8ec; }
+
 .lb-overlay {
   position: absolute; inset: 0 0 96px 0; z-index: 8;
   background: rgba(27,58,87,.16);
@@ -773,14 +887,20 @@ html.lb-session [data-testid="live-lesson"] {
   padding: 8px 28px; border-radius: 999px; font-size: 15px;
   box-shadow: 0 6px 14px rgba(233,185,73,.5);
 }
-.lb-tray-root { flex: 0 0 92px; min-height: 0; display: flex; }
+.lb-tray-root {
+  flex: 0 0 104px;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  padding-inline-start: env(safe-area-inset-left);
+}
 .lb-tray-root:empty { display: none; }
 .lb-tray, .lb-tray-root [data-testid="live-tools-tray"] {
   position: static !important;
   top: auto !important; transform: none !important; inset: auto !important;
   flex: 1;
   display: flex; flex-direction: column; align-items: center; gap: 7px;
-  background: rgba(27,58,87,.92);
+  background: linear-gradient(180deg, rgba(27,58,87,.94), rgba(27,58,87,.88));
   border-radius: 32px; padding: 10px 8px;
   box-shadow: 0 16px 32px rgba(27,58,87,.28);
   backdrop-filter: blur(12px);
@@ -788,6 +908,43 @@ html.lb-session [data-testid="live-lesson"] {
   max-height: none;
   border: 0;
 }
+.lb-teach-tray {
+  flex: 0 0 auto;
+  min-height: 0;
+  width: 100%;
+}
+.lb-teach-tray:empty { display: none; }
+.lb-teach-bar {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  border-radius: 24px;
+  border: 1px solid rgba(255,255,255,.22);
+  background: linear-gradient(90deg, rgba(27,58,87,.92) 0%, rgba(36,80,122,.9) 55%, rgba(27,58,87,.92) 100%);
+  box-shadow: 0 -8px 24px rgba(11,27,43,.28);
+  backdrop-filter: blur(14px);
+  padding: 6px 8px;
+  padding-bottom: 6px;
+  color: #fff8ec;
+}
+.lb-teach-row {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.lb-teach-row::-webkit-scrollbar { display: none; }
+.lb-teach-bar .group span.line-clamp-2 { color: #fff8ec; }
+.lb-teach-split {
+  width: 1px;
+  align-self: stretch;
+  background: rgba(255,248,236,.28);
+  margin: 4px 2px;
+  flex: 0 0 1px;
+}
+
 .lb-dock {
   display: flex; align-items: center; justify-content: center; gap: 8px;
   background: #fff;
@@ -946,39 +1103,45 @@ html.lb-session [data-testid="live-lesson"] {
 @media (max-width: 640px) {
   .lb-room {
     padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+    gap: 6px;
   }
   .lb-students { left: 6px; right: 6px; bottom: 6px; }
   .lb-stu { flex-basis: 72px; width: 72px; }
-  .lb-tools-fab { display: flex !important; }
   .lb-dock { padding-bottom: max(4px, env(safe-area-inset-bottom)); }
+  .lb-tray-root { flex-basis: 56px; flex-grow: 0; }
+  .lb-tray-root [data-testid="live-tools-tray"] { padding: 6px 4px; border-radius: 22px; gap: 4px; }
+  .lb-tray-root [data-testid="live-tools-tray"] button[class*="group"] { width: 3.1rem; padding: 4px 2px; }
+  .lb-tray-root [data-testid="live-tools-tray"] button[class*="group"] span.line-clamp-2 { display: none; }
+  .lb-teach-bar { border-radius: 18px; padding: 4px 6px; }
+  .lb-teach-row button[class*="group"] { width: 3.25rem; }
+  .lb-teach-row button[class*="group"] span.line-clamp-2 { font-size: 9px; }
+  .lb-tools-fab { display: none !important; }
 }
 @media (max-width: 640px) and (orientation: portrait) {
-  .lb-workspace { flex-direction: column; }
+  .lb-workspace { flex-direction: row; }
   .lb-tray-root {
-    display: none;
-    position: absolute;
-    left: 8px; right: 8px;
-    bottom: calc(72px + env(safe-area-inset-bottom));
-    z-index: 40;
-    flex-basis: auto;
-    max-height: min(46dvh, 20rem);
+    display: flex;
+    position: relative;
+    left: auto; right: auto; bottom: auto;
+    z-index: auto;
+    flex-basis: 56px;
+    max-height: none;
     background: transparent;
   }
-  .lb-room.tools-open .lb-tray-root { display: flex; }
   .lb-tray-root [data-testid="live-tools-tray"] {
-    flex-direction: row;
-    flex-wrap: wrap;
-    justify-content: center;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
     width: 100%;
-    border-radius: 24px;
-    padding: 10px;
+    border-radius: 22px;
+    padding: 6px 4px;
   }
   .lb-room.stage-first .lb-students { max-width: 100%; }
 }
 @media (max-width: 640px) and (orientation: landscape) {
   .lb-workspace { flex-direction: row; }
   .lb-stage { min-height: 0; flex: 1; }
-  .lb-tray-root { display: flex; flex-basis: 64px; flex-grow: 0; }
+  .lb-tray-root { display: flex; flex-basis: 56px; flex-grow: 0; }
   .lb-top { min-height: 0; }
   .lb-students { height: auto; }
 }

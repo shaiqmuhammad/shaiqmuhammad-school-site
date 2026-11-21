@@ -19,3 +19,10 @@ export function canPresentInRoom(
   if (a.role === "teacher" && a.id && teacherId && a.id === teacherId) return true;
   return a.role === "teacher" && (a.perms || []).includes("livePresent");
 }
+
+
+export const PTR_KINDS = ["pen", "hand", "finger", "stick", "arrow", "laser"] as const;
+export type PtrKind = (typeof PTR_KINDS)[number];
+export function normalizePtrKind(v: unknown): PtrKind {
+  return typeof v === "string" && (PTR_KINDS as readonly string[]).includes(v) ? v as PtrKind : "pen";
+}

@@ -10,7 +10,7 @@ import { DurableObject } from "cloudflare:workers";
 import { corsHeaders, reply } from "./admin";
 import { lmsActor, type Actor, type LmsEnv } from "./lms";
 import { recObjectKey } from "./liveAtt";
-import { canControlStudentMedia, canPresentInRoom } from "./liveMedia";
+import { canControlStudentMedia, canPresentInRoom, normalizePtrKind } from "./liveMedia";
 
 export interface LiveEnv extends LmsEnv {
   LIVE: DurableObjectNamespace<LiveRoom>;
@@ -466,9 +466,9 @@ export class LiveRoom extends DurableObject<LiveEnv> {
     return { ok: true, present: p };
   }
 
-  private ptrs = new Map<string, { userId: string; name: string; x: number; y: number; color: string; on: boolean }>();
+  private ptrs = new Map<string, { userId: string; name: string; x: number; y: number; color: string; on: boolean; kind: string }>();
 
-  setPointer(userId: string, x?: number, y?: number) {
+  setPointer(userId: string, x?: number, y?: number, kind?: string) {
     if (!this.state || this.state.status !== "live") return;
     if (x == null || y == null || !Number.isFinite(x) || !Number.isFinite(y)) {
       this.ptrs.delete(userId);
@@ -481,7 +481,8 @@ export class LiveRoom extends DurableObject<LiveEnv> {
     const m = this.member(userId);
     const name = (m?.name || (userId === this.state.teacherId ? "Teacher" : "Pen")).slice(0, 80);
     const color = userId === this.state.teacherId ? "#ef4444" : "#16a34a";
-    const ptr = { userId, name, x: Math.max(0, Math.min(100, x)), y: Math.max(0, Math.min(100, y)), color, on: true };
+    const prev = this.ptrs.get(userId);
+    const ptr = { userId, name, x: Math.max(0, Math.min(100, x)), y: Math.max(0, Math.min(100, y)), color, on: true, kind: normalizePtrKind(kind || prev?.kind) };
     this.ptrs.set(userId, ptr);
     this.broadcast({ t: "ptr", ptr });
   }
@@ -493,8 +494,8 @@ export class LiveRoom extends DurableObject<LiveEnv> {
     const allowed = userId === this.state.teacherId || userId === p.penId;
     if (!allowed) return { ok: false, error: "no_pen" };
     const next: LiveStroke = {
-      c: str(stroke.c, 20) || "#1b3a57",
-      w: Math.max(1, Math.min(16, Number(stroke.w) || 3)),
+      c: str(stroke.c, 32) || "#1b3a57",
+      w: Math.max(1, Math.min(24, Number(stroke.w) || 3)),
       d: (Array.isArray(stroke.d) ? stroke.d : []).slice(0, 400).map((n) => Number(n) || 0),
       by: userId,
     };
@@ -555,11 +556,11 @@ export class LiveRoom extends DurableObject<LiveEnv> {
   async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer) {
     await this.load();
     if (!this.state || this.state.status !== "live") return;
-    let data: { t?: string; text?: string; on?: boolean; x?: number; y?: number } = {};
+    let data: { t?: string; text?: string; on?: boolean; x?: number; y?: number; kind?: string } = {};
     try { data = JSON.parse(typeof message === "string" ? message : new TextDecoder().decode(message)) as typeof data; } catch { return; }
     const uid = this.ctx.getTags(ws)[0] || "";
     if (data.t === "ping") { this.send(ws, { t: "pong" }); return; }
-    if (data.t === "ptr") { this.setPointer(uid, data.x, data.y); return; }
+    if (data.t === "ptr") { this.setPointer(uid, data.x, data.y, data.kind); return; }
     if (data.t === "chat") await this.addChat(uid, String(data.text || ""));
     if (data.t === "raise") await this.setHand(uid, !!data.on);
   }

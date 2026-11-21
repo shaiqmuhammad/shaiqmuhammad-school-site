@@ -84,7 +84,7 @@ export function LiveToolsTray({
             <div key={x.id} className="relative">
               <TrayBtn id={x.id} icon={x.icon} en={x.en} ar={x.ar} color={x.color} on={timerOpen} onClick={() => { if (!isHost) return; setTimerOpen((v) => !v); }} title={isHost ? tr("Timer", "المؤقت") : tr("Only the teacher can set the timer", "المعلم فقط يضبط المؤقت")} />
               {isHost && timerOpen && (
-                <div className="absolute end-full top-0 z-10 me-2 w-28 rounded-2xl bg-[#1b3a57] p-2 text-white shadow-xl ring-1 ring-white/20" data-testid="live-timer-pop">
+                <div className="absolute start-full top-0 z-10 ms-2 w-28 rounded-2xl bg-[#1b3a57] p-2 text-white shadow-xl ring-1 ring-white/20" data-testid="live-timer-pop">
                   {[["30", "0:30"], ["60", "1:00"], ["120", "2:00"], ["300", "5:00"], ["600", "10:00"], ["0", tr("Clear", "مسح")]].map(([v, lab]) => (
                     <button key={v} type="button" className="block w-full rounded-xl px-2 py-1 text-left text-xs font-bold hover:bg-white/15" onClick={() => { onTimer(v === "0" ? null : Number(v)); setTimerOpen(false); }}>{lab}</button>
                   ))}
@@ -112,5 +112,95 @@ export function LiveToolsTray({
         );
       })}
     </aside>
+  );
+}
+
+
+export const PTR_KIND_TOOLS = [
+  { id: "pen", icon: "🖊️", en: "Pen", ar: "قلم" },
+  { id: "hand", icon: "✋", en: "Hand", ar: "يد" },
+  { id: "finger", icon: "👆", en: "Finger", ar: "إصبع" },
+  { id: "stick", icon: "☝️", en: "Stick", ar: "عصا" },
+  { id: "arrow", icon: "➤", en: "Arrow", ar: "سهم" },
+  { id: "laser", icon: "🔆", en: "Laser", ar: "ليزر" },
+] as const;
+
+export const DRAW_TOOLS = [
+  { id: "draw", icon: "✏️", en: "Draw", ar: "رسم", color: "#93c5fd" },
+  { id: "highlighter", icon: "🟨", en: "Highlighter", ar: "تظليل", color: "#f5c542" },
+  { id: "eraser", icon: "🧽", en: "Eraser", ar: "ممحاة", color: "#fb7185" },
+] as const;
+
+const INK = ["#1b3a57", "#be123c", "#1d4ed8", "#047857", "#0f172a"] as const;
+
+export function TeachToolsTray({
+  canPoint, canDraw, ptrKind, onPtrKind, drawTool, onDrawTool, ink, onInk, onUndo, onClear, penId, onPen, people,
+}: {
+  canPoint: boolean;
+  canDraw: boolean;
+  ptrKind: string;
+  onPtrKind: (id: "pen" | "hand" | "finger" | "stick" | "arrow" | "laser") => void;
+  drawTool: "draw" | "highlighter" | "eraser";
+  onDrawTool: (id: "draw" | "highlighter" | "eraser") => void;
+  ink: string;
+  onInk: (c: string) => void;
+  onUndo?: () => void;
+  onClear?: () => void;
+  penId?: string;
+  onPen?: (id: string) => void;
+  people?: { id: string; name: string }[];
+}) {
+  const { tr } = useTr();
+  if (!canPoint && !canDraw) return null;
+  return (
+    <nav className="lb-teach-bar" data-testid="live-teach-tray" data-focus-keep aria-label={tr("Teaching tools", "أدوات التدريس")}>
+      <div className="lb-teach-row">
+        {canPoint && PTR_KIND_TOOLS.map((x) => (
+          <TrayBtn
+            key={x.id}
+            id={`ptr-${x.id}`}
+            icon={x.icon}
+            en={x.en}
+            ar={x.ar}
+            color="#f3c969"
+            on={ptrKind === x.id}
+            onClick={() => onPtrKind(x.id)}
+            testId={`live-ptr-${x.id}`}
+          />
+        ))}
+        {canDraw && <span className="lb-teach-split" aria-hidden />}
+        {canDraw && DRAW_TOOLS.map((x) => (
+          <TrayBtn key={x.id} id={x.id} icon={x.icon} en={x.en} ar={x.ar} color={x.color} on={drawTool === x.id} onClick={() => onDrawTool(x.id)} testId={`live-draw-${x.id}`} />
+        ))}
+        {canDraw && INK.map((c) => (
+          <button
+            key={c}
+            type="button"
+            aria-label={tr("Ink colour", "لون الحبر")}
+            aria-pressed={ink === c}
+            onClick={() => onInk(c)}
+            className="mt-1 grid h-9 w-9 shrink-0 place-items-center rounded-xl border-2 shadow-inner"
+            style={{ background: c, borderColor: ink === c ? "#f3c969" : "rgba(255,248,236,.45)" }}
+            data-testid={`live-ink-${c.replace("#", "")}`}
+          />
+        ))}
+        {canDraw && onUndo && <TrayBtn id="undo" icon="↩️" en="Undo" ar="تراجع" color="#94a3b8" onClick={onUndo} testId="live-undo-stroke" />}
+        {canDraw && onClear && <TrayBtn id="clear" icon="🧹" en="Clear" ar="مسح" color="#fb7185" onClick={onClear} testId="live-clear-board" />}
+        {canDraw && onPen && (
+          <label className="ms-1 flex min-w-[8.5rem] flex-col justify-center text-[10px] font-extrabold text-[#fff8ec]">
+            {tr("Give pen", "إعطاء القلم")}
+            <select
+              className="mt-0.5 rounded-full border border-white/30 bg-[#1b3a57] px-2 py-1 text-[11px] font-bold text-[#fff8ec]"
+              value={penId || ""}
+              onChange={(e) => onPen(e.target.value)}
+              data-testid="live-pen"
+            >
+              <option value="">{tr("Teacher has the pen", "القلم مع المعلم")}</option>
+              {(people || []).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+            </select>
+          </label>
+        )}
+      </div>
+    </nav>
   );
 }

@@ -298,7 +298,20 @@ export type LiveHistoryItem = { id: string; title: string; cls: string; section:
 export type LiveSched = { id: string; title: string; starts: number; duration: number; ends: number; cls: string; section: string; groupId: string; studentId: string; studentName?: string; packId: string; packTitle: string; roomId: string; status: string; teacherId: string; teacherName: string; hasLink: boolean; linkToken?: string; mine: boolean; kind?: "meeting" | "" };
 export type LiveMember = { id: string; name: string; role: "teacher" | "student"; camAllowed: boolean; micAllowed: boolean; shareAllowed?: boolean; hand: boolean; present: boolean };
 export type LiveAsk = { userId: string; name: string; cam: boolean; mic: boolean; at: number };
-export type LivePtr = { userId: string; name: string; x: number; y: number; color: string; on?: boolean };
+export const PTR_KINDS = ["pen", "hand", "finger", "stick", "arrow", "laser"] as const;
+export type PtrKind = (typeof PTR_KINDS)[number];
+export function isPtrKind(v: unknown): v is PtrKind {
+  return typeof v === "string" && (PTR_KINDS as readonly string[]).includes(v);
+}
+export function normalizePtrKind(v: unknown): PtrKind {
+  return isPtrKind(v) ? v : "pen";
+}
+export type LivePtr = { userId: string; name: string; x: number; y: number; color: string; on?: boolean; kind?: PtrKind };
+/** Host teacher (or admin) always sees Cam/Mic/Share allow controls, even if liveCamMic is off. */
+export function canShowHostAllow(isHost: boolean, livePerms?: { camMic?: boolean; screenShare?: boolean }, kind: "camMic" | "screenShare" = "camMic"): boolean {
+  if (isHost) return true;
+  return kind === "screenShare" ? !!livePerms?.screenShare : !!livePerms?.camMic;
+}
 export type LiveWait = { id: string; name: string; at: number };
 export type LiveChat = { id: string; from: string; name: string; text: string; at: number };
 export type LivePub = { userId: string; sessionId: string; tracks: string[] };
