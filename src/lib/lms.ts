@@ -566,6 +566,8 @@ export const lmsApi = {
   liveUnpub: (id: string, tracks: string[], asAdmin = false) => call<{ ok: true }>("live-unpub", { id, tracks }, { asAdmin }),
   liveSfu: (id: string, body: Record<string, unknown>, asAdmin = false) => call<Record<string, unknown>>("live-sfu", { id, ...body }, { asAdmin }),
   liveIce: (id: string, asAdmin = false) => call<{ iceServers: RTCIceServer[] }>("live-ice", { id }, { asAdmin }),
+  liveDebugPut: (id: string, body: { clientId?: string; t0?: number; events: { t: number; ev: string; detail?: string }[] }, asAdmin = false) => call<{ ok: boolean }>("live-debug", { id, ...body }, { asAdmin }),
+  liveDebugGet: (id: string, asAdmin = false) => call<{ logs: { clientId: string; at: number; t0: number; events: { t: number; ev: string; detail?: string }[] }[] }>("live-debug", { id, op: "get" }, { asAdmin }),
   liveSchedList: (asAdmin = false) => call<{ items: LiveSched[]; packs: { id: string; title: string }[]; perms: LivePerms; options: { cls: string; section: string }[]; groups: { id: string; name: string }[] }>("live-sched-list", undefined, { asAdmin }),
   liveSchedSave: (b: { id?: string; title?: string; starts: number; duration: number; cls?: string; section?: string; groupId?: string; studentId?: string; packId?: string }, asAdmin = false) => call<{ id: string; item: LiveSched }>("live-sched-save", b, { asAdmin }),
   liveSchedCancel: (id: string, asAdmin = false) => call<{ ok: true }>("live-sched-cancel", { id }, { asAdmin }),

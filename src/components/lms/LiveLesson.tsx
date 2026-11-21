@@ -19,6 +19,8 @@ import { canShowHostAllow, lmsApi, lmsErrorText, lmsSession, liveGuest, livePres
 import { classroomHref, isClassroomPath, openClassroomTab } from "@/lib/classroom";
 import { ClassroomBrand } from "@/components/lms/ClassroomBrand";
 import { ClassroomConnecting, type ConnectStep } from "@/components/lms/ClassroomConnecting";
+import LiveMediaDebug from "@/components/lms/LiveMediaDebug";
+import { liveMediaLog } from "@/lib/liveMediaLog";
 
 type Phase = "lobby" | "waiting" | "in" | "ended";
 
@@ -628,6 +630,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
       try { msg = JSON.parse(String(ev.data)) as typeof msg; } catch { return; }
       if (msg.selfId) setServerSelfId(msg.selfId);
       if (msg.t === "pubs" && Array.isArray(msg.pubs)) {
+        liveMediaLog.mark("pub_announce", `${msg.pubs.length}:${msg.pubs.reduce((n, p) => n + p.tracks.length, 0)}`);
         setRoom((r) => r ? { ...r, pubs: msg.pubs! } : r);
         sfuRef.current?.syncSubs(msg.pubs).catch(() => undefined);
       }
@@ -680,9 +683,10 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
     const ping = () => {
       if (ws.readyState === 1) ws.send(JSON.stringify({ t: "ping" }));
     };
-    ws.onopen = () => ping();
+    ws.onopen = () => { liveMediaLog.mark("ws_open"); ping(); };
     const beat = setInterval(ping, 15_000);
     ws.onclose = () => {
+      liveMediaLog.mark("ws_close");
       clearInterval(beat);
       if (wsRef.current === ws && (phase === "in" || phase === "waiting")) {
         setTimeout(() => { if (wsRef.current === ws) connectWs(roomId); }, 1500);
@@ -707,6 +711,9 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
   const pubKey = (room?.pubs || []).map((p) => `${p.userId}:${p.sessionId}:${p.tracks.join(",")}`).join("|");
   const attachRemote = useCallback((key: string, stream: MediaStream | null) => {
     if (stream && joinStartedAt.current) {
+      const kind = key.includes(":") ? key.slice(key.lastIndexOf(":") + 1) : "media";
+      liveMediaLog.mark("first_remote_track", kind);
+      liveMediaLog.watchFirstFrame(stream);
       const w = window as Window & { __liveFirstRemoteMs?: number };
       if (w.__liveFirstRemoteMs == null) {
         w.__liveFirstRemoteMs = Date.now() - joinStartedAt.current;
@@ -755,13 +762,18 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
     (async () => {
       try {
         const iceP = sfuOn ? lmsApi.liveIce(roomId, asAdmin) : null;
-        if (typeof navigator !== "undefined" && navigator.mediaDevices?.getUserMedia) {
+        const gumP = (async () => {
+          if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) return;
+          liveMediaLog.mark("gum_start");
           try {
             const preview = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
             preview.getTracks().forEach((tr) => tr.stop());
-          } catch { /* they can allow camera later */ }
-        }
-        if (cancelled) return;
+            liveMediaLog.mark("gum_ok");
+          } catch (err) {
+            const name = err && typeof err === "object" && "name" in err ? String((err as { name: string }).name) : "gum";
+            liveMediaLog.mark("gum_fail", name);
+          }
+        })();
         setConnectStep("joining");
         if (iceP) {
           const ice = (await iceP).iceServers;
@@ -772,14 +784,18 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
           if (cancelled) return;
           await sfuRef.current.syncSubs(room.pubs || []);
         }
+        await gumP.catch(() => undefined);
         if (cancelled) return;
         mediaReadyRef.current = true;
         if (joinStartedAt.current) {
-          (window as Window & { __liveReadyMs?: number }).__liveReadyMs = Date.now() - joinStartedAt.current;
+          const ready = Date.now() - joinStartedAt.current;
+          (window as Window & { __liveReadyMs?: number }).__liveReadyMs = ready;
+          liveMediaLog.mark("ready", `${ready}ms`);
         }
         hideConnecting();
       } catch (e) {
         if (!cancelled) {
+          liveMediaLog.mark("error", e instanceof Error ? e.message : "video");
           fail(e, "Video", "الفيديو");
           hideConnecting();
         }
@@ -823,9 +839,12 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
     setConnectStep("connecting");
     mediaReadyRef.current = false;
     joinStartedAt.current = Date.now();
+    liveMediaLog.start(id, asAdmin);
+    liveMediaLog.mark("join");
     if (typeof window !== "undefined") {
-      delete (window as Window & { __liveFirstRemoteMs?: number; __liveReadyMs?: number }).__liveFirstRemoteMs;
-      delete (window as Window & { __liveFirstRemoteMs?: number; __liveReadyMs?: number }).__liveReadyMs;
+      delete (window as Window & { __liveFirstRemoteMs?: number; __liveReadyMs?: number; __liveFirstRemoteFrameMs?: number }).__liveFirstRemoteMs;
+      delete (window as Window & { __liveFirstRemoteMs?: number; __liveReadyMs?: number; __liveFirstRemoteFrameMs?: number }).__liveReadyMs;
+      delete (window as Window & { __liveFirstRemoteMs?: number; __liveReadyMs?: number; __liveFirstRemoteFrameMs?: number }).__liveFirstRemoteFrameMs;
     }
     try {
       const r = await lmsApi.liveJoin(id, asAdmin);
@@ -1429,6 +1448,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
             </aside>
           </div>
         , document.body)}
+        <LiveMediaDebug roomId={room?.id} isHost={isHost} asAdmin={asAdmin} />
       </div>
   );
   if (embedded) return body;

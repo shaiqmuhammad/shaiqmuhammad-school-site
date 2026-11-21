@@ -13,6 +13,7 @@ import { recObjectKey } from "./liveAtt";
 import { allowedPubTracks, canControlStudentMedia, canPresentInRoom, canSetMemberFloor, memberFloor, normalizePtrKind, type LiveFloor } from "./liveMedia";
 import { SWEEP_MS, shouldDropMember, nextAlarmAt } from "./livePresence";
 import { activatePresentItem, applyActivePresentItem, closeLibraryPresentItems, closePresentItem, openPresentItem, stashActivePresentItem, youtubeVideoId, type LivePresentItem } from "./livePresentItems";
+import { keepDebugLogs, sanitizeLiveDebug, type LiveDebugBlob } from "./liveDebug";
 
 export interface LiveEnv extends LmsEnv {
   LIVE: DurableObjectNamespace<LiveRoom>;
@@ -184,6 +185,17 @@ export class LiveRoom extends DurableObject<LiveEnv> {
   }
   private member(id: string) {
     return this.state?.members.find((m) => m.id === id);
+  }
+  async putDebug(blob: LiveDebugBlob): Promise<{ ok: boolean }> {
+    const list = (await this.ctx.storage.get<LiveDebugBlob[]>("dbg")) || [];
+    await this.ctx.storage.put("dbg", keepDebugLogs(list, blob));
+    return { ok: true };
+  }
+  async getDebug(requesterId: string, isHost: boolean): Promise<LiveDebugBlob[]> {
+    const list = (await this.ctx.storage.get<LiveDebugBlob[]>("dbg")) || [];
+    const now = Date.now();
+    const live = list.filter((x) => now - x.at < 6 * 3600 * 1000);
+    return isHost ? live : live.filter((x) => x.clientId === requesterId);
   }
   private roomEndsAt() {
     return this.state?.endsAt || (this.state ? this.state.created + 40 * 60_000 : Date.now() + SWEEP_MS);
@@ -776,10 +788,18 @@ async function iceServers(env: LiveEnv): Promise<IceServer[]> {
     });
     const j = (await r.json().catch(() => ({}))) as { iceServers?: IceServer[] };
     if (r.ok && Array.isArray(j.iceServers) && j.iceServers.length) {
-      return j.iceServers.filter((s) => {
+      const filtered = j.iceServers.filter((s) => {
         const urls = Array.isArray(s.urls) ? s.urls : [s.urls];
         return !urls.some((u) => /:53(\?|$)/.test(String(u)));
       });
+      if (filtered.length) {
+        const stun = iceStun();
+        const haveStun = filtered.some((s) => {
+          const urls = Array.isArray(s.urls) ? s.urls : [s.urls];
+          return urls.some((u) => /^stuns?:/i.test(String(u)));
+        });
+        return haveStun ? filtered : [...stun, ...filtered];
+      }
     }
   } catch { /* STUN fallback */ }
   return iceStun();
@@ -1140,6 +1160,19 @@ export async function handleLive(request: Request, env: LiveEnv, action: string)
     const room = await inLiveRoom();
     if (!room) return reply(origin, { error: "forbidden" }, 403);
     return reply(origin, { iceServers: await iceServers(env) }, 200);
+  }
+
+  if (action === "live-debug") {
+    const room = await inLiveRoom();
+    if (!room) return reply(origin, { error: "forbidden" }, 403);
+    const isHost = a.role === "admin" || a.id === room.teacherId;
+    if (str(body.op, 8) === "get") {
+      return reply(origin, { logs: await stub.getDebug(a.id, isHost) }, 200);
+    }
+    const blob = sanitizeLiveDebug(body, a.id);
+    if (!blob) return reply(origin, { error: "bad_request" }, 400);
+    await stub.putDebug(blob);
+    return reply(origin, { ok: true }, 200);
   }
 
   if (action === "live-sfu") {
