@@ -6,16 +6,18 @@ import { lp, type Pack } from "@/lib/packs";
 import { SlideView } from "@/components/lms/packs/SlideView";
 import { lmsApi, lmsErrorText, type LiveMember, type LivePresent as Present, type PointCat } from "@/lib/lms";
 import { primaryBtn } from "@/components/assessment/AssessmentShell";
+import { createPortal } from "react-dom";
 import { LiveToolsTray } from "@/components/lms/ClassroomTray";
 
 function presentStudents(members: LiveMember[]) {
   return members.filter((m) => m.role !== "teacher" && m.present);
 }
 
-export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, selfId, members, onPresent, onRoomFocus, roomFocused, layout = "full" }: {
+export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, selfId, members, onPresent, onRoomFocus: _onRoomFocus, roomFocused: _roomFocused, layout = "full", trayRoot }: {
   roomId: string; present?: Present | null; isHost: boolean; canPresent: boolean; asAdmin: boolean;
   selfId: string; members: LiveMember[]; onPresent: (p: Present | null) => void;
   onRoomFocus?: () => void; roomFocused?: boolean; layout?: "full" | "side" | "compact" | "board";
+  trayRoot?: HTMLElement | null;
 }) {
   const { tr } = useTr();
   const [packs, setPacks] = useState<Pack[]>([]);
@@ -27,6 +29,7 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
   const [answer, setAnswer] = useState("");
   const [cats, setCats] = useState<PointCat[]>([]);
   const [now, setNow] = useState(Date.now());
+  const [tasksOpen, setTasksOpen] = useState(false);
   const draw = useRef<{ pts: number[]; drawing: boolean }>({ pts: [], drawing: false });
   const svgRef = useRef<SVGSVGElement>(null);
 
@@ -58,6 +61,7 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
   const slide = (isHost || follow) ? teacherSlide : localSlide;
   const cur = slides[slide];
   const isTask = cur?.part === "activity";
+  useEffect(() => { setTasksOpen(!!isTask); }, [isTask, slide]);
   const canDraw = !!(present && (isHost || present.penId === selfId));
   const left = present?.timerEnd ? Math.max(0, Math.ceil((present.timerEnd - now) / 1000)) : null;
 
@@ -160,13 +164,88 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
   const people = presentStudents(members);
   const wheelNames = people.length ? people : [];
 
+  const tray = (
+    <LiveToolsTray
+      docked
+      isHost={isHost && canPresent}
+      tool={present?.tool || ""}
+      onTool={(id) => { if (present) void call({ op: "nav", tool: id }); }}
+      onTimer={(s) => { if (present) void call({ op: "nav", timerEnd: s == null ? null : Date.now() + s * 1000 }); }}
+      onTasks={() => setTasksOpen((v) => !v)}
+      taskOn={!!isTask && tasksOpen}
+    />
+  );
+
+  const toolOverlay = present && (present.tool === "wheel" || present.tool === "rand" || present.tool === "award" || (isTask && tasksOpen)) ? (
+    <div className="lb-overlay" data-testid="live-tool-overlay">
+      {present.tool === "wheel" && (
+        <div className="lb-wheel-card" data-testid="live-wheel">
+          <div className="relative mx-auto h-48 w-48">
+            <div className="absolute start-1/2 top-0 z-10 -translate-x-1/2 text-2xl">▼</div>
+            <div className="h-full w-full rounded-full shadow-inner ring-4 ring-[#1b3a57]" style={{ background: wheelNames.length ? `conic-gradient(${wheelNames.map((_, i) => `${["#fde68a", "#a5f3fc", "#bbf7d0", "#fecdd3", "#ddd6fe", "#fed7aa"][i % 6]} ${i * (360 / wheelNames.length)}deg ${(i + 1) * (360 / wheelNames.length)}deg`).join(", ")})` : "#e5e7eb", transform: `rotate(${present.wheelSpinTo || present.wheelAngle || 0}deg)`, transition: present.wheelAt ? "transform 3.2s cubic-bezier(0.12, 0.7, 0.08, 1)" : "none" }} />
+          </div>
+          {isHost && <button type="button" className="lb-spin mt-3" onClick={spin} disabled={wheelNames.length < 1}>🎡 {tr("Spin", "أدر")}</button>}
+          {present.winnerName && <p className="mt-2 text-xl font-black" dir="auto">⭐ {present.winnerName}</p>}
+        </div>
+      )}
+      {present.tool === "rand" && (
+        <div className="lb-tool-card" data-testid="live-rand">
+          {isHost && <div className="mb-2 flex flex-wrap justify-center gap-2">
+            <button type="button" className={primaryBtn} onClick={() => randomise("one")}>{tr("Pick a student", "اختر طالبًا")}</button>
+            <button type="button" className="rounded-full bg-black/10 px-4 py-2 font-bold dark:bg-white/10" onClick={() => randomise("groups")}>{tr("Make groups", "كوّن مجموعات")}</button>
+            <button type="button" className="rounded-full bg-black/10 px-4 py-2 font-bold dark:bg-white/10" onClick={() => randomise("number")}>{tr("Random number", "رقم عشوائي")}</button>
+          </div>}
+          {present.randText && <p className="text-lg font-black" dir="auto">{present.randText}</p>}
+        </div>
+      )}
+      {present.tool === "award" && isHost && (
+        <div className="lb-tool-card" data-testid="live-award">
+          <p className="mb-2 text-sm font-bold">{tr("Award Reward Cards to students who are in the room.", "امنح بطاقات المكافآت للطلاب الموجودين في الحصة.")}</p>
+          {!cats.length ? <p className="text-sm font-semibold opacity-70">{tr("Add Reward Card types in Reward Cards first.", "أضف أنواع بطاقات المكافآت من بطاقات المكافآت أولًا.")}</p> : (
+            <div className="flex flex-wrap gap-2">
+              {cats.map((c) => (
+                <span key={c.id} className="flex flex-wrap items-center gap-1 rounded-full bg-white px-2 py-1 text-sm font-bold dark:bg-slate-800">
+                  {c.icon || "🃏"} {c.label}
+                  <button type="button" className="rounded-full bg-emerald-200 px-2" onClick={() => award(c.id, "all")}>{tr("All here", "كل الحاضرين")}</button>
+                  {present.winnerId && <button type="button" className="rounded-full bg-amber-200 px-2" onClick={() => award(c.id, "winner")}>{tr("Winner", "الفائز")}</button>}
+                </span>
+              ))}
+            </div>
+          )}
+          {present.randText && <p className="mt-2 font-bold">{present.randText}</p>}
+        </div>
+      )}
+      {isTask && tasksOpen && !isHost && (
+        <form className="lb-tool-card flex flex-col gap-2" onSubmit={(e) => { e.preventDefault(); sendAnswer(); }} id="live-task-panel" data-testid="live-task">
+          <label className="text-sm font-bold">{tr("Your answer", "إجابتك")}
+            <textarea className="mt-1 w-full rounded-2xl border border-black/10 bg-white px-3 py-2 dark:bg-slate-900" rows={3} value={answer} onChange={(e) => setAnswer(e.target.value)} maxLength={1000} />
+          </label>
+          <button type="submit" className={primaryBtn} disabled={busy || !answer.trim()}>{tr("Send to teacher", "أرسل إلى المعلم")}</button>
+        </form>
+      )}
+      {isHost && isTask && tasksOpen && (
+        <div className="lb-tool-card" id="live-task-panel" data-testid="live-task-host">
+          <p className="mb-2 font-black">{tr("Live answers", "الإجابات المباشرة")} ({(present.answers || []).filter((a) => a.slide === slide).length})</p>
+          <ul className="space-y-1 text-sm">
+            {(present.answers || []).filter((a) => a.slide === slide).map((a) => (
+              <li key={a.userId} className="rounded-xl bg-white px-3 py-2 dark:bg-slate-800"><b dir="auto">{a.name}:</b> <span dir="auto">{a.text}</span></li>
+            ))}
+            {!(present.answers || []).some((a) => a.slide === slide) && <li className="opacity-70">{tr("No answers yet.", "لا توجد إجابات بعد.")}</li>}
+          </ul>
+          <p className="mt-2 text-xs font-semibold opacity-70">{tr("Student answers are saved to their Tasks work when this pack is assigned to them.", "تُحفظ إجابات الطلاب في عمل المهام عندما تكون هذه الحزمة مسندة إليهم.")}</p>
+        </div>
+      )}
+    </div>
+  ) : null;
+
   return (
-    <section className={`bg-white shadow-sm ring-1 ring-black/5 transition-all duration-300 dark:bg-slate-800 ${layout === "board" ? "flex min-h-[50vh] flex-1 flex-col rounded-3xl p-2 sm:p-3 lg:min-h-0" : layout === "side" ? "flex min-h-[220px] flex-1 flex-col rounded-3xl p-2 sm:p-3" : layout === "compact" ? "rounded-2xl p-2" : "rounded-3xl p-3"}`} data-testid="live-present" data-layout={layout}>
-      {err && <p className="mb-2 rounded-2xl bg-rose-100 px-3 py-2 text-sm font-bold text-rose-800 dark:bg-rose-900/60 dark:text-rose-100" role="alert">{err}</p>}
+    <section className="lb-present flex min-h-0 flex-1 flex-col" data-testid="live-present" data-layout={layout}>
+      {trayRoot ? createPortal(tray, trayRoot) : null}
+      {err && <p className="m-2 rounded-2xl bg-rose-100 px-3 py-2 text-sm font-bold text-rose-800 dark:bg-rose-900/60 dark:text-rose-100" role="alert">{err}</p>}
 
       {!present && canPresent && (
-        <div className="flex flex-wrap items-end gap-2">
-          <label className="min-w-[12rem] flex-1 text-sm font-bold">{tr("Present a lesson pack", "عرض حزمة درس")}
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-6">
+          <label className="w-full max-w-md text-sm font-bold">{tr("Present a lesson pack", "عرض حزمة درس")}
             <select className="mt-1 w-full rounded-2xl border border-black/10 bg-white px-3 py-2 font-semibold dark:bg-slate-900" value={pick} onChange={(e) => setPick(e.target.value)} data-testid="live-present-pick">
               <option value="">{tr("Choose a pack…", "اختر حزمة…")}</option>
               {packs.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
@@ -177,129 +256,63 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
       )}
 
       {present && (
-        <div className="space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-lg font-black" dir="auto">📑 {present.packTitle}</h3>
-            <div className="flex flex-wrap gap-2">
-              {left !== null && (
-                <span className={`rounded-full px-3 py-1 font-mono text-base font-extrabold tabular-nums ${left === 0 ? "bg-rose-600 text-white" : left <= 30 ? "animate-pulse bg-amber-400 text-[#1b2f44]" : "bg-[#1b3a57] text-[#f5c542]"}`} data-testid="live-present-timer">⏱ {left === 0 ? tr("Time's up!", "انتهى الوقت!") : `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`}</span>
-              )}
-              {isHost && canPresent && (
-                <>
-                  <button type="button" className={`rounded-full px-3 py-1 text-sm font-bold ${present.follow ? "bg-emerald-300 text-[#10331c]" : "bg-black/10 dark:bg-white/10"}`} onClick={() => call({ op: "nav", follow: !present.follow })} data-testid="live-follow">{present.follow ? tr("Follow me: on", "تابعني: تشغيل") : tr("Follow me: off", "تابعني: إيقاف")}</button>
-                  <button type="button" className="rounded-full bg-rose-100 px-3 py-1 text-sm font-bold text-rose-800" onClick={() => call({ op: "stop" })}>{tr("Stop presenting", "إيقاف العرض")}</button>
-                </>
-              )}
-              {!isHost && (
-                <span className="rounded-full bg-violet-100 px-3 py-1 text-xs font-extrabold text-violet-900 dark:bg-violet-900/40 dark:text-violet-100">{follow ? tr("Following your teacher", "تتابع معلمك") : tr("You can move freely", "يمكنك التنقل بحرية")}</span>
-              )}
-              {onRoomFocus && (
-                <button type="button" className={`rounded-full px-3 py-1 text-sm font-bold ${roomFocused ? "bg-[#f5c542] text-[#1b3a57]" : "bg-black/10 dark:bg-white/10"}`} onClick={onRoomFocus} data-testid="lp-full" data-focus-keep title={roomFocused ? tr("Exit Focus (Esc)", "إنهاء التركيز (Esc)") : tr("Focus — open the classroom full screen, with controls and tools still visible", "تركيز — افتح الصف بملء الشاشة مع بقاء أدوات التحكم")}>
-                  {roomFocused ? "✕" : "🎯"} {roomFocused ? tr("Exit Focus", "إنهاء التركيز") : tr("Focus", "تركيز")}
-                </button>
-              )}
-            </div>
-          </div>
-
-          {cur ? (
-            <div className={`relative overflow-hidden rounded-2xl ring-1 ring-black/10 ${layout === "board" || layout === "side" ? "min-h-[40vh] flex-1" : ""}`} style={{ containerType: "inline-size" }}>
-              <SlideView slide={cur} asAdmin={asAdmin} live testId="live-present-slide" />
-              <svg ref={svgRef} viewBox="0 0 100 56.25" className="absolute inset-0 h-full w-full touch-none" onPointerDown={pointer} onPointerMove={pointer} onPointerUp={(e) => pointer(e, true)} onPointerCancel={(e) => pointer(e, true)} data-testid="live-board">
-                {(present.strokes || []).map((st, i) => (
-                  <polyline key={i} fill="none" stroke={st.c || "#1b3a57"} strokeWidth={((st.w || 3) / 1600) * 100} strokeLinecap="round" strokeLinejoin="round" points={Array.from({ length: Math.floor((st.d || []).length / 2) }, (_, k) => `${st.d[k * 2]},${(st.d[k * 2 + 1] * 56.25) / 100}`).join(" ")} />
-                ))}
-              </svg>
-            </div>
-          ) : <p className="py-8 text-center font-semibold opacity-70">{tr("Loading slides…", "جارٍ تحميل الشرائح…")}</p>}
-
-          <div className="flex flex-wrap items-center justify-center gap-2">
-            <button type="button" className="rounded-full bg-black/10 px-4 py-2 font-bold dark:bg-white/10" disabled={(isHost || !follow) ? slide <= 0 : follow} onClick={() => go(slide - 1)}>◀</button>
-            <span className="font-extrabold">{slide + 1} / {slides.length || 1}</span>
-            <button type="button" className="rounded-full bg-black/10 px-4 py-2 font-bold dark:bg-white/10" disabled={(isHost || !follow) ? slide >= slides.length - 1 : follow} onClick={() => go(slide + 1)}>▶</button>
-          </div>
-
-          <LiveToolsTray
-            isHost={isHost && canPresent}
-            tool={present.tool || ""}
-            onTool={(id) => call({ op: "nav", tool: id })}
-            onTimer={(s) => call({ op: "nav", timerEnd: s == null ? null : Date.now() + s * 1000 })}
-            onTasks={() => document.getElementById("live-task-panel")?.scrollIntoView({ behavior: "smooth", block: "center" })}
-            taskOn={isTask}
-          />
-          {isHost && canPresent && present.tool === "board" && (
-            <div className="flex flex-wrap justify-center gap-2" data-testid="live-present-tools">
-              <select className="rounded-full border border-black/10 bg-white px-2 py-1 text-sm font-bold dark:bg-slate-900" value={present.penId} onChange={(e) => call({ op: "nav", penId: e.target.value })} data-testid="live-pen">
-                <option value={members.find((m) => m.role === "teacher")?.id || ""}>{tr("Teacher has the pen", "القلم مع المعلم")}</option>
-                {people.map((m) => <option key={m.id} value={m.id}>{tr("Pen:", "القلم:")} {m.name}</option>)}
-              </select>
-              <button type="button" className="rounded-full bg-black/10 px-3 py-1 text-sm font-bold dark:bg-white/10" onClick={() => call({ op: "nav", strokes: [] })}>{tr("Clear board", "مسح السبورة")}</button>
-            </div>
-          )}
-
-          {present.tool === "wheel" && (
-            <div className="flex flex-col items-center gap-2 rounded-2xl bg-amber-50 p-3 dark:bg-amber-950/30" data-testid="live-wheel">
-              <div className="relative h-48 w-48">
-                <div className="absolute start-1/2 top-0 z-10 -translate-x-1/2 text-2xl">▼</div>
-                <div className="h-full w-full rounded-full shadow-inner ring-4 ring-[#1b3a57]" style={{ background: wheelNames.length ? `conic-gradient(${wheelNames.map((_, i) => `${["#fde68a", "#a5f3fc", "#bbf7d0", "#fecdd3", "#ddd6fe", "#fed7aa"][i % 6]} ${i * (360 / wheelNames.length)}deg ${(i + 1) * (360 / wheelNames.length)}deg`).join(", ")})` : "#e5e7eb", transform: `rotate(${present.wheelSpinTo || present.wheelAngle || 0}deg)`, transition: present.wheelAt ? "transform 3.2s cubic-bezier(0.12, 0.7, 0.08, 1)" : "none" }} />
+        <>
+          <div className="lb-slide-bar">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="lb-eyebrow">{isTask ? tr("Task", "مهمة") : tr("Live lesson", "حصة مباشرة")}</div>
+                <h3 dir="auto">{present.packTitle}</h3>
+                <div className="lb-slide-sub">{cur?.title ? cur.title : `${slide + 1} / ${slides.length || 1}`}</div>
               </div>
-              {isHost && <button type="button" className={primaryBtn} onClick={spin} disabled={wheelNames.length < 1}>🎡 {tr("Spin", "أدر")}</button>}
-              {present.winnerName && <p className="text-xl font-black" dir="auto">⭐ {present.winnerName}</p>}
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                {left !== null && (
+                  <span className={`rounded-full px-3 py-1 font-mono text-base font-extrabold tabular-nums ${left === 0 ? "bg-rose-600 text-white" : left <= 30 ? "animate-pulse bg-amber-400 text-[#1b2f44]" : "bg-[#f5c542] text-[#1b3a57]"}`} data-testid="live-present-timer">⏱ {left === 0 ? tr("Time's up!", "انتهى الوقت!") : `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`}</span>
+                )}
+                {isHost && canPresent && (
+                  <>
+                    <button type="button" className={`rounded-full px-3 py-1 text-xs font-bold ${present.follow ? "bg-emerald-300 text-[#10331c]" : "bg-white/15 text-white"}`} onClick={() => call({ op: "nav", follow: !present.follow })} data-testid="live-follow">{present.follow ? tr("Follow me: on", "تابعني: تشغيل") : tr("Follow me: off", "تابعني: إيقاف")}</button>
+                    <button type="button" className="rounded-full bg-rose-100 px-3 py-1 text-xs font-bold text-rose-800" onClick={() => call({ op: "stop" })}>{tr("Stop presenting", "إيقاف العرض")}</button>
+                  </>
+                )}
+                {!isHost && (
+                  <span className="rounded-full bg-white/15 px-3 py-1 text-xs font-extrabold text-white">{follow ? tr("Following your teacher", "تتابع معلمك") : tr("You can move freely", "يمكنك التنقل بحرية")}</span>
+                )}
+              </div>
             </div>
-          )}
+          </div>
 
-          {present.tool === "rand" && (
-            <div className="rounded-2xl bg-sky-50 p-3 text-center dark:bg-sky-950/30" data-testid="live-rand">
-              {isHost && <div className="mb-2 flex flex-wrap justify-center gap-2">
-                <button type="button" className={primaryBtn} onClick={() => randomise("one")}>{tr("Pick a student", "اختر طالبًا")}</button>
-                <button type="button" className="rounded-full bg-black/10 px-4 py-2 font-bold dark:bg-white/10" onClick={() => randomise("groups")}>{tr("Make groups", "كوّن مجموعات")}</button>
-                <button type="button" className="rounded-full bg-black/10 px-4 py-2 font-bold dark:bg-white/10" onClick={() => randomise("number")}>{tr("Random number", "رقم عشوائي")}</button>
-              </div>}
-              {present.randText && <p className="text-lg font-black" dir="auto">{present.randText}</p>}
-            </div>
-          )}
-
-          {present.tool === "award" && isHost && (
-            <div className="rounded-2xl bg-yellow-50 p-3 dark:bg-yellow-950/30" data-testid="live-award">
-              <p className="mb-2 text-sm font-bold">{tr("Award Reward Cards to students who are in the room.", "امنح بطاقات المكافآت للطلاب الموجودين في الحصة.")}</p>
-              {!cats.length ? <p className="text-sm font-semibold opacity-70">{tr("Add Reward Card types in Reward Cards first.", "أضف أنواع بطاقات المكافآت من بطاقات المكافآت أولًا.")}</p> : (
-                <div className="flex flex-wrap gap-2">
-                  {cats.map((c) => (
-                    <span key={c.id} className="flex flex-wrap items-center gap-1 rounded-full bg-white px-2 py-1 text-sm font-bold dark:bg-slate-800">
-                      {c.icon || "🃏"} {c.label}
-                      <button type="button" className="rounded-full bg-emerald-200 px-2" onClick={() => award(c.id, "all")}>{tr("All here", "كل الحاضرين")}</button>
-                      {present.winnerId && <button type="button" className="rounded-full bg-amber-200 px-2" onClick={() => award(c.id, "winner")}>{tr("Winner", "الفائز")}</button>}
-                    </span>
+          <div className="lb-slide-body">
+            {cur ? (
+              <div className="relative min-h-0 flex-1 overflow-hidden rounded-2xl" style={{ containerType: "inline-size" }}>
+                <SlideView slide={cur} asAdmin={asAdmin} live testId="live-present-slide" />
+                <svg ref={svgRef} viewBox="0 0 100 56.25" className="absolute inset-0 h-full w-full touch-none" onPointerDown={pointer} onPointerMove={pointer} onPointerUp={(e) => pointer(e, true)} onPointerCancel={(e) => pointer(e, true)} data-testid="live-board">
+                  {(present.strokes || []).map((st, i) => (
+                    <polyline key={i} fill="none" stroke={st.c || "#1b3a57"} strokeWidth={((st.w || 3) / 1600) * 100} strokeLinecap="round" strokeLinejoin="round" points={Array.from({ length: Math.floor((st.d || []).length / 2) }, (_, k) => `${st.d[k * 2]},${(st.d[k * 2 + 1] * 56.25) / 100}`).join(" ")} />
                   ))}
-                </div>
-              )}
-              {present.randText && present.tool === "award" && <p className="mt-2 font-bold">{present.randText}</p>}
+                </svg>
+              </div>
+            ) : <p className="flex-1 py-8 text-center font-semibold opacity-70">{tr("Loading slides…", "جارٍ تحميل الشرائح…")}</p>}
+
+            <div className="lb-nav">
+              <button type="button" className="rounded-full bg-black/10 px-4 py-2 font-bold dark:bg-white/10" disabled={(isHost || !follow) ? slide <= 0 : follow} onClick={() => go(slide - 1)}>◀</button>
+              <span className="font-extrabold">{slide + 1} / {slides.length || 1}</span>
+              <button type="button" className="rounded-full bg-black/10 px-4 py-2 font-bold dark:bg-white/10" disabled={(isHost || !follow) ? slide >= slides.length - 1 : follow} onClick={() => go(slide + 1)}>▶</button>
             </div>
-          )}
 
-          {isTask && !isHost && (
-            <form className="flex flex-col gap-2 rounded-2xl bg-violet-50 p-3 dark:bg-violet-950/30" onSubmit={(e) => { e.preventDefault(); sendAnswer(); }} id="live-task-panel" data-testid="live-task">
-              <label className="text-sm font-bold">{tr("Your answer", "إجابتك")}
-                <textarea className="mt-1 w-full rounded-2xl border border-black/10 bg-white px-3 py-2 dark:bg-slate-900" rows={3} value={answer} onChange={(e) => setAnswer(e.target.value)} maxLength={1000} />
-              </label>
-              <button type="submit" className={primaryBtn} disabled={busy || !answer.trim()}>{tr("Send to teacher", "أرسل إلى المعلم")}</button>
-            </form>
-          )}
+            {isHost && canPresent && present.tool === "board" && (
+              <div className="absolute start-3 top-3 z-[9] flex flex-wrap gap-2 rounded-2xl bg-white/95 p-2 shadow-md dark:bg-slate-900/95" data-testid="live-present-tools">
+                <select className="rounded-full border border-black/10 bg-white px-2 py-1 text-sm font-bold dark:bg-slate-900" value={present.penId} onChange={(e) => call({ op: "nav", penId: e.target.value })} data-testid="live-pen">
+                  <option value={members.find((m) => m.role === "teacher")?.id || ""}>{tr("Teacher has the pen", "القلم مع المعلم")}</option>
+                  {people.map((m) => <option key={m.id} value={m.id}>{tr("Pen:", "القلم:")} {m.name}</option>)}
+                </select>
+                <button type="button" className="rounded-full bg-black/10 px-3 py-1 text-sm font-bold dark:bg-white/10" onClick={() => call({ op: "nav", strokes: [] })}>{tr("Clear board", "مسح السبورة")}</button>
+              </div>
+            )}
 
-          {isHost && isTask && (
-            <div className="rounded-2xl bg-violet-50 p-3 dark:bg-violet-950/30" id="live-task-panel" data-testid="live-task-host">
-              <p className="mb-2 font-black">{tr("Live answers", "الإجابات المباشرة")} ({(present.answers || []).filter((a) => a.slide === slide).length})</p>
-              <ul className="space-y-1 text-sm">
-                {(present.answers || []).filter((a) => a.slide === slide).map((a) => (
-                  <li key={a.userId} className="rounded-xl bg-white px-3 py-2 dark:bg-slate-800"><b dir="auto">{a.name}:</b> <span dir="auto">{a.text}</span></li>
-                ))}
-                {!(present.answers || []).some((a) => a.slide === slide) && <li className="opacity-70">{tr("No answers yet.", "لا توجد إجابات بعد.")}</li>}
-              </ul>
-              <p className="mt-2 text-xs font-semibold opacity-70">{tr("Student answers are saved to their Tasks work when this pack is assigned to them.", "تُحفظ إجابات الطلاب في عمل المهام عندما تكون هذه الحزمة مسندة إليهم.")}</p>
-            </div>
-          )}
-
-          {!isHost && present.penId === selfId && <p className="text-center text-sm font-bold text-emerald-800 dark:text-emerald-200">{tr("You have the pen — draw on the board.", "القلم معك — ارسم على السبورة.")}</p>}
-        </div>
+            {toolOverlay}
+            {!isHost && present.penId === selfId && <p className="absolute bottom-24 start-0 end-0 z-[9] text-center text-sm font-bold text-emerald-800 dark:text-emerald-200">{tr("You have the pen — draw on the board.", "القلم معك — ارسم على السبورة.")}</p>}
+          </div>
+        </>
       )}
     </section>
   );
