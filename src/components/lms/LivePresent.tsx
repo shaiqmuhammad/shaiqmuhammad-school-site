@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import { useTr } from "@/components/lms/useLms";
 import { firstSlideOf, lp, packHasPart, type Pack, type Part } from "@/lib/packs";
 import { SlideView } from "@/components/lms/packs/SlideView";
-import { lmsApi, lmsErrorText, normalizePtrKind, type LiveMember, type LivePresent as Present, type LivePtr, type PointCat, type PtrKind } from "@/lib/lms";
+import { lmsApi, lmsErrorText, normalizePtrKind, type LiveMember, type LivePresent as Present, type LivePtr, type LiveView, type PointCat, type PtrKind } from "@/lib/lms";
 import { primaryBtn } from "@/components/assessment/AssessmentShell";
 import { createPortal } from "react-dom";
 import { LiveToolsTray, TeachToolsTray } from "@/components/lms/ClassroomTray";
@@ -13,9 +13,9 @@ function presentStudents(members: LiveMember[]) {
   return members.filter((m) => m.role !== "teacher" && m.present);
 }
 
-export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, selfId, members, onPresent, onRoomFocus: _onRoomFocus, roomFocused: _roomFocused, layout = "full", trayRoot, teachRoot, ptrs = [], onPtr }: {
+export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, selfId, members, onPresent, onView, onRoomFocus: _onRoomFocus, roomFocused: _roomFocused, layout = "full", trayRoot, teachRoot, ptrs = [], onPtr }: {
   roomId: string; present?: Present | null; isHost: boolean; canPresent: boolean; asAdmin: boolean;
-  selfId: string; members: LiveMember[]; onPresent: (p: Present | null) => void;
+  selfId: string; members: LiveMember[]; onPresent: (p: Present | null) => void; onView?: (v: LiveView) => void;
   onRoomFocus?: () => void; roomFocused?: boolean; layout?: "full" | "side" | "compact" | "board";
   trayRoot?: HTMLElement | null; teachRoot?: HTMLElement | null;
   ptrs?: LivePtr[]; onPtr?: (x: number | null, y: number | null, kind?: PtrKind) => void;
@@ -94,6 +94,14 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
     try {
       const slide = firstSlideOf(p.slides, kind, p.type);
       await call({ op: "start", packId: p.id, packTitle: p.title, slide, follow: true });
+      if (isHost) {
+        try {
+          const view = await lmsApi.liveView(roomId, { mode: "teach", follow: true }, asAdmin);
+          if (view.view) onView?.(view.view);
+        } catch {
+          onView?.({ mode: "teach", follow: true });
+        }
+      }
       setContentOpen(false);
     } catch (e) {
       pendingKind.current = "";
@@ -111,9 +119,9 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
     else setLocalSlide(next);
   }
 
-  const boardOn = !!(present && (present.tool === "board" || layout === "board"));
-  const canLaser = !!(present && (isHost || present.penId === selfId));
   const hasPack = !!(present?.packId);
+  const boardOn = !!(present && !hasPack && (present.tool === "board" || layout === "board"));
+  const canLaser = !!(present && (isHost || present.penId === selfId));
   function inkStroke() {
     if (drawTool === "highlighter") return { c: "rgba(245,197,66,0.45)", w: 18 };
     if (drawTool === "eraser") return { c: "erase", w: 18 };
@@ -352,9 +360,8 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
           <div className={`lb-slide-body${boardOn ? " lb-board-on" : ""}`}>
             <div className="lb-slide-wrap" style={{ containerType: "inline-size" }}>
               {boardOn && <div className="lb-board-surface" aria-hidden />}
-              {cur && !boardOn && <div className="lb-zoom"><SlideView slide={cur} asAdmin={asAdmin} live testId="live-present-slide" /></div>}
-              {cur && boardOn && <div className="lb-slide-bg"><SlideView slide={cur} asAdmin={asAdmin} live testId="live-present-slide" /></div>}
-              {!cur && hasPack && !boardOn && <p className="flex-1 py-8 text-center font-semibold opacity-70">{tr("Loading slides…", "جارٍ تحميل الشرائح…")}</p>}
+              {cur && <div className={hasPack ? "lb-zoom" : "lb-slide-bg"}><SlideView slide={cur} asAdmin={asAdmin} live testId="live-present-slide" /></div>}
+              {!cur && hasPack && <p className="relative z-[1] flex-1 py-8 text-center font-semibold opacity-70" data-testid="live-present-loading">{tr("Loading slides…", "جارٍ تحميل الشرائح…")}</p>}
               <svg ref={svgRef} viewBox="0 0 100 56.25" preserveAspectRatio={boardOn ? "none" : "xMidYMid meet"} className={boardOn || canLaser ? "lb-board-svg touch-none" : "pointer-events-none absolute inset-0 h-full w-full"} onPointerDown={pointer} onPointerMove={pointer} onPointerUp={(e) => pointer(e, true)} onPointerCancel={(e) => pointer(e, true)} onPointerLeave={(e) => pointer(e, true)} data-testid="live-board">
                 {(present.strokes || []).map((st, i) => (
                   <polyline key={i} fill="none" stroke={st.c === "erase" ? "#000" : (st.c || "#1b3a57")} strokeWidth={((st.w || 3) / 1600) * 100} strokeLinecap="round" strokeLinejoin="round" style={st.c === "erase" ? ({ mixBlendMode: "destination-out" } as unknown as CSSProperties) : undefined} points={Array.from({ length: Math.floor((st.d || []).length / 2) }, (_, k) => `${st.d[k * 2]},${(st.d[k * 2 + 1] * 56.25) / 100}`).join(" ")} />
@@ -365,7 +372,7 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
               ))}
             </div>
 
-            {hasPack && !boardOn && (
+            {hasPack && (
               <div className="lb-nav">
                 <button type="button" className="rounded-full bg-black/10 px-4 py-2 font-bold dark:bg-white/10" disabled={(isHost || !follow) ? slide <= 0 : follow} onClick={() => go(slide - 1)}>◀</button>
                 <span className="font-extrabold">{slide + 1} / {slides.length || 1}</span>

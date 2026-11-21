@@ -13,11 +13,19 @@ export const VIEW_CARDS: { id: LiveViewMode; icon: string; en: string; ar: strin
   { id: "discuss", icon: "💬", en: "Discussion", ar: "نقاش", hint: "Video grid with chat open", hintAr: "شبكة الفيديو مع الدردشة مفتوحة", color: "#22d3ee" },
 ];
 
-export function presentLayout(mode: LiveViewMode, _presenting: boolean): "full" | "side" | "compact" | "board" {
+export function presentLayout(mode: LiveViewMode, presenting: boolean): "full" | "side" | "compact" | "board" {
+  // A Library pack must take the teaching stage even if the room is still on the default whiteboard view.
+  if (presenting) return mode === "lecture" ? "side" : "full";
   if (mode === "board") return "board";
   if (mode === "teach") return "full";
   if (mode === "lecture") return "side";
   return "compact";
+}
+
+/** Whiteboard fills the stage only when no lesson pack is on screen. */
+export function boardFillsStage(mode: LiveViewMode, present?: { packId?: string; tool?: string } | null): boolean {
+  if (present?.packId) return false;
+  return mode === "board" || present?.tool === "board";
 }
 
 export function useActiveSpeaker(

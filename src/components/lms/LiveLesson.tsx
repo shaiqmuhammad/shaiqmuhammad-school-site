@@ -14,7 +14,7 @@ import { LiveSchedulePanel, GuestJoin } from "@/components/lms/LiveSchedule";
 import { StartMeetingPanel } from "@/components/lms/StartMeeting";
 import { LiveHistory } from "@/components/lms/LiveHistory";
 import { LivePresent } from "@/components/lms/LivePresent";
-import { LiveViewPicker, RoomStage, useActiveSpeaker, presentLayout, VIEW_CARDS } from "@/components/lms/LiveViews";
+import { LiveViewPicker, RoomStage, useActiveSpeaker, presentLayout, boardFillsStage, VIEW_CARDS } from "@/components/lms/LiveViews";
 import { canShowHostAllow, lmsApi, lmsErrorText, lmsSession, liveGuest, liveWsUrl, memberFloor, normalizePtrKind, type LiveAsk, type LiveFloor, type LiveMember, type LivePtr, type LiveChat, type LivePerms, type LiveRoomInfo, type LiveSnap, type LiveView, type LiveViewMode, type PtrKind } from "@/lib/lms";
 import { classroomHref, isClassroomPath, openClassroomTab } from "@/lib/classroom";
 import { ClassroomBrand } from "@/components/lms/ClassroomBrand";
@@ -623,6 +623,21 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
   useEffect(() => () => { closeWs(); cleanupMedia(); }, [cleanupMedia]);
 
   const pubKey = (room?.pubs || []).map((p) => `${p.userId}:${p.sessionId}:${p.tracks.join(",")}`).join("|");
+  const remoteSig = Object.keys(remotes).sort().map((k) => `${k}:${remotes[k].getTracks().map((t) => t.id + t.readyState).join(",")}`).join("|");
+  const mixedRemotes = useMemo(() => {
+    const out: Record<string, MediaStream> = { ...remotes };
+    const ids = new Set(Object.keys(remotes).map((k) => k.slice(0, k.lastIndexOf(":"))).filter(Boolean));
+    for (const id of ids) {
+      const cam = remotes[`${id}:camera`];
+      const mic = remotes[`${id}:mic`];
+      if (cam && mic) {
+        const aud = mic.getAudioTracks().filter((tr) => !cam.getAudioTracks().some((a) => a.id === tr.id));
+        if (aud.length) out[`${id}:camera`] = new MediaStream([...cam.getTracks(), ...aud]);
+      } else if (!cam && mic) out[`${id}:camera`] = mic;
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [remoteSig]);
   useEffect(() => {
     if (phase !== "in" || !room?.id || !actor) return;
     if (!room.sfu) return;
@@ -633,22 +648,22 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
       try {
         if (sfuRef.current) {
           sfuRef.current.setSelfId(who);
-          return;
+        } else {
+          const ice = (await lmsApi.liveIce(roomId, asAdmin)).iceServers;
+          if (cancelled || sfuRef.current) return;
+          const sfu = new LiveSfu(roomId, who, ice, (key, stream) => {
+            setRemotes((prev) => {
+              const next = { ...prev };
+              if (!stream) delete next[key];
+              else next[key] = stream;
+              return next;
+            });
+          }, asAdmin);
+          sfuRef.current = sfu;
         }
-        const ice = (await lmsApi.liveIce(roomId, asAdmin)).iceServers;
-        if (cancelled || sfuRef.current) return;
-        const sfu = new LiveSfu(roomId, who, ice, (key, stream) => {
-          setRemotes((prev) => {
-            const next = { ...prev };
-            if (!stream) delete next[key];
-            else next[key] = stream;
-            return next;
-          });
-        }, asAdmin);
-        sfuRef.current = sfu;
-        // Students receive any published tracks here. The presenter/host starts with
-        // camera and mic off and turns them on from the dock when ready.
-        await sfu.syncSubs(room.pubs || []);
+        // Always pull the latest pubs after the receive session exists. The first
+        // pubKey effect can run before LiveSfu is constructed (liveIce is async).
+        await sfuRef.current.syncSubs(room.pubs || []);
       } catch (e) {
         if (!cancelled) fail(e, "Video", "الفيديو");
       }
@@ -657,7 +672,14 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
   }, [phase, room?.id, actor?.id, selfId, asAdmin]);
 
   useEffect(() => {
-    if (phase === "in") sfuRef.current?.syncSubs(room?.pubs || []).catch(() => undefined);
+    if (phase !== "in") return;
+    const pubs = room?.pubs || [];
+    if (sfuRef.current) {
+      sfuRef.current.syncSubs(pubs).catch(() => undefined);
+      return;
+    }
+    const t = window.setTimeout(() => { sfuRef.current?.syncSubs(pubs).catch(() => undefined); }, 400);
+    return () => clearTimeout(t);
   }, [phase, pubKey, room?.pubs]);
   useEffect(() => {
     const hasAudio = Object.values(remotes).some((s) => s.getAudioTracks().some((t) => t.readyState !== "ended"));
@@ -998,7 +1020,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
         )}
 
         {shellLess && phase === "in" && room && (
-          <div ref={roomRef} className={`lb-room${roomFocused ? " is-focus" : ""}${toolsOpen ? " tools-open" : ""}${(!!room.present?.packId || shareOn || viewMode === "board" || room.present?.tool === "board") ? " stage-first" : ""}${(viewMode === "board" || room.present?.tool === "board") ? " board-on" : ""}`} data-testid="live-room" data-focus-keep data-stage-first={!!room.present?.packId || shareOn || viewMode === "board" || room.present?.tool === "board" ? "1" : "0"}>
+          <div ref={roomRef} className={`lb-room${roomFocused ? " is-focus" : ""}${toolsOpen ? " tools-open" : ""}${(!!room.present?.packId || shareOn || viewMode === "board" || room.present?.tool === "board") ? " stage-first" : ""}${boardFillsStage(viewMode, room.present) ? " board-on" : ""}`} data-testid="live-room" data-focus-keep data-stage-first={!!room.present?.packId || shareOn || viewMode === "board" || room.present?.tool === "board" ? "1" : "0"}>
             {err && <p className="lb-wait lb-wait-err" role="alert">{err}</p>}
             {permHelp && (
               <div className="lb-wait" role="status" data-testid="live-perm-help">
@@ -1096,14 +1118,14 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
               const presenting = !!room.present?.packId;
 
               const layout = presentLayout(viewMode, presenting);
-              const streamOf = (m: { id: string }) => m.id === selfId ? localStream : remotes[`${m.id}:camera`];
+              const streamOf = (m: { id: string }) => m.id === selfId ? localStream : mixedRemotes[`${m.id}:camera`] || mixedRemotes[`${m.id}:mic`];
               const teachers = room.members.filter((m) => m.role === "teacher");
               const students = room.members.filter((m) => m.role !== "teacher");
               const who = (m: LiveMember) => liveWho(m, selfId, room.teacherId, tr);
-              const boardFs = viewMode === "board" || room.present?.tool === "board";
+              const boardFs = boardFillsStage(viewMode, room.present);
               const showPresent = presenting || isHost || asAdmin || livePerms.present || boardFs;
               const presentSlot = showPresent ? (
-                <LivePresent roomId={room.id} present={room.present} isHost={isHost} canPresent={isHost || asAdmin || livePerms.present || memberFloor(me, room.teacherId) === "presenter"} asAdmin={asAdmin} selfId={selfId} members={room.members} onPresent={(present) => setRoom((r) => r ? { ...r, present } : r)} onRoomFocus={() => void toggleRoomFocus()} roomFocused={roomFocused} layout={boardFs ? "board" : layout} trayRoot={trayRoot} teachRoot={teachRoot} ptrs={ptrs} onPtr={sendPtr} />
+                <LivePresent roomId={room.id} present={room.present} isHost={isHost} canPresent={isHost || asAdmin || livePerms.present || memberFloor(me, room.teacherId) === "presenter"} asAdmin={asAdmin} selfId={selfId} members={room.members} onPresent={(present) => setRoom((r) => r ? { ...r, present } : r)} onView={(view) => setRoom((r) => r ? { ...r, view } : r)} onRoomFocus={() => void toggleRoomFocus()} roomFocused={roomFocused} layout={layout} trayRoot={trayRoot} teachRoot={teachRoot} ptrs={ptrs} onPtr={sendPtr} />
               ) : null;
               const screen = mainScreen ? <Tile label={tr("Shared screen", "الشاشة المشاركة")} stream={mainScreen} size={viewMode === "lecture" || viewMode === "teach" ? "main" : "thumb"} /> : null;
               const teacher = teachers.map((m) => <Tile key={m.id} label={who(m)} stream={streamOf(m)} hand={m.hand} size="thumb" featured={m.id === speakerId} online={m.present} />);

@@ -19,6 +19,12 @@ export async function waitIce(pc: RTCPeerConnection, ms = 2500) {
   });
 }
 
+function sfuField<T = unknown>(r: Record<string, unknown>, key: string): T | undefined {
+  if (r[key] !== undefined) return r[key] as T;
+  const nest = r.result && typeof r.result === "object" ? r.result as Record<string, unknown> : null;
+  return nest && nest[key] !== undefined ? nest[key] as T : undefined;
+}
+
 type RemoteFn = (key: string, stream: MediaStream | null) => void;
 
 export class LiveSfu {
@@ -221,30 +227,32 @@ export class LiveSfu {
             op: "tracks-new",
             sessionId: this.recvId,
             tracks: [{ location: "remote", sessionId: p.sessionId, trackName: name }],
-          });
-          const tracks = (Array.isArray(r.tracks) ? r.tracks : []) as { mid?: string; sessionId?: string; trackName?: string; errorCode?: string }[];
+          }) as Record<string, unknown>;
+          const tracks = (Array.isArray(sfuField(r, "tracks")) ? sfuField(r, "tracks") : []) as { mid?: string; sessionId?: string; trackName?: string; errorCode?: string }[];
           if (this.sfuFailed(r, name)) continue;
-          const mine = tracks.find((t) => t.trackName === name && !t.errorCode);
-          if (!mine?.mid) continue;
-          this.midKey.set(String(mine.mid), key);
-          const pending = this.pendingOntrack.get(String(mine.mid));
+          const mine = tracks.find((t) => (t.trackName === name || !t.trackName) && !t.errorCode && t.mid != null && t.mid !== "");
+          const mid = mine?.mid != null ? String(mine.mid) : "";
+          if (!mid) continue;
+          this.midKey.set(mid, key);
+          const pending = this.pendingOntrack.get(mid);
           if (pending) {
-            this.pendingOntrack.delete(String(mine.mid));
+            this.pendingOntrack.delete(mid);
             const stream = pending.streams[0] || new MediaStream([pending.track]);
             pending.track.onended = () => this.onRemote(key, null);
             this.onRemote(key, stream);
           }
-          if (r.sessionDescription) {
-            await this.applyRemote(this.recv!, r.sessionDescription, "offer");
-            const answer = await this.recv!.createAnswer();
-            await this.recv!.setLocalDescription(answer);
-            await waitIce(this.recv!);
-            const local = this.recv!.localDescription;
-            await this.call({
-              op: "renegotiate",
-              sessionId: this.recvId,
-              sessionDescription: local ? { type: "answer", sdp: sdpDesc(local, "answer")?.sdp || local.sdp } : { type: "answer", sdp: answer.sdp },
-            });
+          const offer = sfuField(r, "sessionDescription") ?? sfuField(r, "session_description");
+          if (offer) {
+          await this.applyRemote(this.recv!, offer, "offer");
+          const answer = await this.recv!.createAnswer();
+          await this.recv!.setLocalDescription(answer);
+          await waitIce(this.recv!);
+          const local = this.recv!.localDescription;
+          await this.call({
+            op: "renegotiate",
+            sessionId: this.recvId,
+            sessionDescription: local ? { type: "answer", sdp: sdpDesc(local, "answer")?.sdp || local.sdp } : { type: "answer", sdp: answer.sdp },
+          });
           }
           this.subbed.add(subId);
         }
