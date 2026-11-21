@@ -7,7 +7,7 @@ import { SlideView } from "@/components/lms/packs/SlideView";
 import { lmsApi, lmsErrorText, livePresentingContent, normalizePtrKind, youtubeVideoId, type LiveMember, type LivePresent as Present, type LivePresentItem, type LivePresentItemKind, type LivePtr, type LiveView, type PointCat, type PtrKind } from "@/lib/lms";
 import { primaryBtn } from "@/components/assessment/AssessmentShell";
 import { createPortal } from "react-dom";
-import { LibraryBtn, LiveToolsTray, TeachToolsTray, type LiveShapeKindId, type ShapeGrid } from "@/components/lms/ClassroomTray";
+import { LiveToolsTray, TeachToolsTray, type LiveShapeKindId, type ShapeGrid } from "@/components/lms/ClassroomTray";
 import { ShapeMark } from "@/components/lms/LiveShapeMark";
 import type { LiveShape } from "@/lib/lms";
 
@@ -283,6 +283,8 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
       onTimer={(s) => { if (present) void call({ op: "nav", timerEnd: s == null ? null : Date.now() + s * 1000 }); }}
       onTasks={() => setTasksOpen((v) => !v)}
       taskOn={!!isTask && tasksOpen}
+      onOpen={canPresent ? () => setContentOpen((v) => !v) : undefined}
+      openOn={contentOpen}
     />
   );
 
@@ -376,7 +378,7 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
   return (
     <section className={`lb-present is-stage flex min-h-0 flex-1 flex-col${hasPack ? " is-pack" : ""}`} data-testid="live-present" data-layout={layout} data-pack={hasPack ? "1" : "0"} data-kind={activeKind}>
       {trayRoot ? createPortal(tray, trayRoot) : null}
-      {teachRoot ? createPortal(<>{canPresent && <LibraryBtn on={contentOpen} onClick={() => setContentOpen((v) => !v)} />}{teach}</>, teachRoot) : <>{canPresent && <LibraryBtn on={contentOpen} onClick={() => setContentOpen((v) => !v)} />}{teach}</>}
+      {teachRoot ? createPortal(teach, teachRoot) : teach}
       {err && <p className="m-2 rounded-2xl bg-rose-100 px-3 py-2 text-sm font-bold text-rose-800 dark:bg-rose-900/60 dark:text-rose-100" role="alert">{err}</p>}
 
       {!present && canPresent && layout === "board" && (

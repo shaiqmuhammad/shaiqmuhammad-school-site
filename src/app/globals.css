@@ -1116,15 +1116,19 @@ html.lb-classroom .pub-main { display: flex; flex-direction: column; min-height:
   position: static !important;
   top: auto !important; transform: none !important; inset: auto !important;
   flex: 1;
-  display: flex; flex-direction: column; align-items: center; gap: 7px;
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: space-evenly;
+  gap: 0;
   background: linear-gradient(180deg, rgba(27,58,87,.94), rgba(27,58,87,.88));
-  border-radius: 32px; padding: 10px 8px;
+  border-radius: 32px; padding: 8px 6px;
   box-shadow: 0 16px 32px rgba(27,58,87,.28);
   backdrop-filter: blur(12px);
-  overflow: hidden auto;
+  overflow: visible;
   max-height: none;
+  height: 100%;
   border: 0;
 }
+.lb-tray-root [data-testid="live-tools-tray"] > * { flex: 0 0 auto; }
 .lb-teach-tray {
   flex: 0 0 auto;
   min-height: 0;
@@ -1170,9 +1174,9 @@ html.lb-classroom .pub-main { display: flex; flex-direction: column; min-height:
   justify-content: center;
   gap: 4px;
   background: #fff;
-  border-radius: 18px;
-  padding: 4px 8px;
-  box-shadow: 0 -2px 0 #f3c969 inset, 0 8px 20px rgba(27,58,87,.16);
+  border-radius: 12px;
+  padding: 2px 6px;
+  box-shadow: 0 -2px 0 #f3c969 inset, 0 6px 14px rgba(27,58,87,.14);
   flex: 0 0 auto !important;
   width: 100%;
   overflow-x: auto;
@@ -1278,7 +1282,7 @@ html.lb-classroom .pub-main { display: flex; flex-direction: column; min-height:
   .lb-stu-meta { font-size: 9px; padding: 8px 4px 3px; }
   .lb-tray-root { flex-basis: 56px; flex-grow: 0; }
   .lb-tray-root [data-testid="live-tools-tray"] {
-    border-radius: 20px; padding: 6px 4px; gap: 5px; width: 100%;
+    border-radius: 20px; padding: 4px 3px; gap: 0; justify-content: space-evenly; width: 100%;
   }
   .lb-tray-root [data-testid="live-tools-tray"] button[class*="group"] {
     width: 48px !important; padding: 4px 2px 3px; border-radius: 14px; font-size: 0 !important;
@@ -1351,7 +1355,7 @@ html.lb-classroom .pub-main { display: flex; flex-direction: column; min-height:
   .lb-stu { flex-basis: 72px; width: 72px; }
   .lb-dock { padding-bottom: max(4px, env(safe-area-inset-bottom)); }
   .lb-tray-root { flex-basis: 56px; flex-grow: 0; }
-  .lb-tray-root [data-testid="live-tools-tray"] { padding: 6px 4px; border-radius: 22px; gap: 4px; }
+  .lb-tray-root [data-testid="live-tools-tray"] { padding: 4px 3px; border-radius: 22px; gap: 0; justify-content: space-evenly; }
   .lb-tray-root [data-testid="live-tools-tray"] button[class*="group"] { width: 3.1rem; padding: 4px 2px; }
   .lb-tray-root [data-testid="live-tools-tray"] button[class*="group"] span.line-clamp-2 { display: none; }
   .lb-teach-bar { border-radius: 18px; padding: 4px 6px; }
@@ -1373,10 +1377,11 @@ html.lb-classroom .pub-main { display: flex; flex-direction: column; min-height:
   .lb-tray-root [data-testid="live-tools-tray"] {
     flex-direction: column;
     flex-wrap: nowrap;
-    justify-content: flex-start;
+    justify-content: space-evenly;
     width: 100%;
     border-radius: 22px;
-    padding: 6px 4px;
+    padding: 4px 3px;
+    gap: 0;
   }
   .lb-room.stage-first .lb-students { max-width: 100%; }
 }
@@ -1644,15 +1649,16 @@ html.lb-classroom .pub-main { display: flex; flex-direction: column; min-height:
 .lb-bottom-strip {
   flex: 0 0 auto;
   display: flex;
-  align-items: stretch;
-  gap: 8px;
+  align-items: center;
+  gap: 4px;
   width: 100%;
   min-height: 0;
-  border-radius: 18px;
-  padding: 4px 8px;
+  height: auto;
+  border-radius: 12px;
+  padding: 2px 6px;
   background: #fff;
   color: #1b3a57;
-  box-shadow: 0 -2px 0 #f3c969 inset, 0 8px 20px rgba(27,58,87,.16);
+  box-shadow: 0 -2px 0 #f3c969 inset, 0 6px 14px rgba(27,58,87,.14);
   overflow: visible;
 }
 .dark .lb-bottom-strip {
@@ -1683,10 +1689,11 @@ html.lb-classroom .pub-main { display: flex; flex-direction: column; min-height:
   width: 100%;
   color: inherit;
 }
-.lb-bottom-strip .lb-teach-row { flex-wrap: wrap; overflow: visible; }
-.lb-bottom-strip .lb-teach-bar .group span.line-clamp-2 { color: #1b3a57; font-size: 9px; }
+.lb-bottom-strip .lb-teach-row { flex-wrap: nowrap; align-items: center; overflow-x: auto; overflow-y: visible; gap: 4px; }
+.lb-bottom-strip .lb-teach-bar .group span.line-clamp-2 { color: #1b3a57; font-size: 8px; line-height: 1.1; max-height: 1.1em; }
 .dark .lb-bottom-strip .lb-teach-bar .group span.line-clamp-2 { color: #fff8ec; }
-.lb-bottom-strip .group { width: auto !important; min-width: 52px; padding: 4px 6px; }
+.lb-bottom-strip .group { width: auto !important; min-width: 36px; padding: 1px 4px; gap: 0; }
+.lb-bottom-strip .group > span:first-child { width: 1.75rem; height: 1.75rem; font-size: 1.05rem; border-radius: 8px; }
 .lb-head-timer { flex: 0 0 auto; max-width: 100%; }
 .lb-head-timer-actions select,
 .lb-head-timer-actions button { color: #fff8ec; }
@@ -1760,9 +1767,10 @@ html.lb-classroom .pub-main { display: flex; flex-direction: column; min-height:
   .lb-side-toggle { display: inline-flex; }
   .lb-side { display: none; }
   .lb-side.is-sheet { display: flex; }
-  .lb-bottom-strip { border-radius: 14px; padding: 4px 6px; gap: 4px; }
-  .lb-bottom-strip .group { min-width: 44px; padding: 3px 4px; }
+  .lb-bottom-strip { border-radius: 10px; padding: 1px 4px; gap: 2px; }
+  .lb-bottom-strip .group { min-width: 34px; padding: 1px 3px; }
   .lb-bottom-strip .group span.line-clamp-2 { display: none; }
+  .lb-bottom-strip .group > span:first-child { width: 1.6rem; height: 1.6rem; font-size: 1rem; }
   .lb-tools-rail { flex-basis: 56px; }
   .lb-head-long { display: none; }
   /* class countdown lives in the header now and stays visible */
