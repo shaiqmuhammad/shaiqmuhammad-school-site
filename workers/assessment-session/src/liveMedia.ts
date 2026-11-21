@@ -9,3 +9,13 @@ export function canControlStudentMedia(
   const perm = kind === "screenShare" ? "liveScreenShare" : "liveCamMic";
   return a.role === "teacher" && (a.perms || []).includes(perm);
 }
+
+/** Who may present packs and open the whiteboard in a live room. */
+export function canPresentInRoom(
+  a: { id: string; role: string; perms: string[] },
+  teacherId: string,
+): boolean {
+  if (a.role === "admin") return true;
+  if (a.role === "teacher" && a.id && teacherId && a.id === teacherId) return true;
+  return a.role === "teacher" && (a.perms || []).includes("livePresent");
+}
