@@ -30,6 +30,25 @@ export type LivePub = { userId: string; sessionId: string; tracks: string[] };
 export type LiveMember = { id: string; name: string; role: Role; camAllowed: boolean; micAllowed: boolean; shareAllowed?: boolean; hand: boolean; present: boolean };
 export type LiveWait = { id: string; name: string; at: number };
 export type LiveChat = { id: string; from: string; name: string; text: string; at: number };
+export type LiveStroke = { c: string; w: number; d: number[]; by: string };
+export type LiveAnswer = { userId: string; name: string; slide: number; text: string; at: number };
+export type LivePresent = {
+  packId: string;
+  packTitle: string;
+  slide: number;
+  follow: boolean;
+  timerEnd: number | null;
+  penId: string;
+  strokes: LiveStroke[];
+  tool: "" | "wheel" | "rand" | "award" | "board";
+  wheelAngle: number;
+  wheelSpinTo: number;
+  wheelAt: number;
+  winnerId: string;
+  winnerName: string;
+  randText: string;
+  answers: LiveAnswer[];
+};
 export type LiveSnap = {
   id: string;
   title: string;
@@ -44,6 +63,7 @@ export type LiveSnap = {
   chat: LiveChat[];
   pubs: LivePub[];
   sfu: boolean;
+  present?: LivePresent | null;
 };
 
 type State = Omit<LiveSnap, "sfu">;
@@ -71,6 +91,7 @@ function liveFlags(a: Actor) {
     shareLink: canLive(a, "liveShareLink"),
     camMic: canLive(a, "liveCamMic"),
     screenShare: canLive(a, "liveScreenShare"),
+    present: canLive(a, "livePresent"),
   };
 }
 function tokenOf(request: Request, fallback = "") {
@@ -306,6 +327,101 @@ export class LiveRoom extends DurableObject<LiveEnv> {
     }
     await this.save();
     this.roomMsg();
+    return { ok: true };
+  }
+
+
+  private presentMsg() {
+    if (!this.state) return;
+    this.broadcast({ t: "present", present: this.state.present || null });
+    this.roomMsg();
+  }
+
+  async setPresent(hostId: string, patch: Partial<LivePresent> | null, start?: { packId: string; packTitle: string }): Promise<{ ok: boolean; error?: string; present?: LivePresent | null }> {
+    await this.load();
+    if (!this.state || this.state.status !== "live") return { ok: false, error: "ended" };
+    if (hostId !== this.state.teacherId && hostId !== "admin") return { ok: false, error: "forbidden" };
+    if (patch === null && !start) {
+      this.state.present = null;
+      await this.save();
+      this.presentMsg();
+      return { ok: true, present: null };
+    }
+    if (start) {
+      this.state.present = {
+        packId: str(start.packId, 40),
+        packTitle: str(start.packTitle, 80) || "Lesson",
+        slide: 0,
+        follow: true,
+        timerEnd: null,
+        penId: this.state.teacherId,
+        strokes: [],
+        tool: "",
+        wheelAngle: 0,
+        wheelSpinTo: 0,
+        wheelAt: 0,
+        winnerId: "",
+        winnerName: "",
+        randText: "",
+        answers: [],
+      };
+    }
+    if (!this.state.present) return { ok: false, error: "not_presenting" };
+    const p = this.state.present;
+    if (typeof patch?.slide === "number") p.slide = Math.max(0, Math.min(59, Math.trunc(patch.slide)));
+    if (typeof patch?.follow === "boolean") p.follow = patch.follow;
+    if (patch && "timerEnd" in patch) p.timerEnd = patch.timerEnd == null ? null : Math.trunc(Number(patch.timerEnd) || 0);
+    if (typeof patch?.penId === "string") p.penId = str(patch.penId, 40) || this.state.teacherId;
+    if (patch?.tool === "" || patch?.tool === "wheel" || patch?.tool === "rand" || patch?.tool === "award" || patch?.tool === "board") p.tool = patch.tool;
+    if (typeof patch?.wheelAngle === "number") p.wheelAngle = patch.wheelAngle;
+    if (typeof patch?.wheelSpinTo === "number") p.wheelSpinTo = patch.wheelSpinTo;
+    if (typeof patch?.wheelAt === "number") p.wheelAt = patch.wheelAt;
+    if (typeof patch?.winnerId === "string") p.winnerId = str(patch.winnerId, 40);
+    if (typeof patch?.winnerName === "string") p.winnerName = str(patch.winnerName, 80);
+    if (typeof patch?.randText === "string") p.randText = str(patch.randText, 200);
+    if (Array.isArray(patch?.strokes)) {
+      p.strokes = patch!.strokes.slice(-200).map((x) => ({
+        c: str(x.c, 20) || "#1b3a57",
+        w: Math.max(1, Math.min(16, Number(x.w) || 3)),
+        d: (Array.isArray(x.d) ? x.d : []).slice(0, 400).map((n) => Number(n) || 0),
+        by: str(x.by, 40),
+      }));
+    }
+    await this.save();
+    this.presentMsg();
+    return { ok: true, present: p };
+  }
+
+  async addStroke(userId: string, stroke: LiveStroke): Promise<{ ok: boolean; error?: string }> {
+    await this.load();
+    const p = this.state?.present;
+    if (!this.state || !p || this.state.status !== "live") return { ok: false, error: "not_presenting" };
+    const allowed = userId === this.state.teacherId || userId === p.penId;
+    if (!allowed) return { ok: false, error: "no_pen" };
+    const next: LiveStroke = {
+      c: str(stroke.c, 20) || "#1b3a57",
+      w: Math.max(1, Math.min(16, Number(stroke.w) || 3)),
+      d: (Array.isArray(stroke.d) ? stroke.d : []).slice(0, 400).map((n) => Number(n) || 0),
+      by: userId,
+    };
+    if (next.d.length < 4) return { ok: false, error: "bad_stroke" };
+    p.strokes = [...p.strokes, next].slice(-200);
+    await this.save();
+    this.broadcast({ t: "stroke", stroke: next });
+    return { ok: true };
+  }
+
+  async addAnswer(userId: string, name: string, slide: number, text: string): Promise<{ ok: boolean; error?: string }> {
+    await this.load();
+    const p = this.state?.present;
+    if (!this.state || !p || this.state.status !== "live") return { ok: false, error: "not_presenting" };
+    const body = str(text, 1000);
+    if (!body) return { ok: false, error: "empty" };
+    const sl = Math.max(0, Math.min(59, Math.trunc(slide)));
+    p.answers = p.answers.filter((x) => !(x.userId === userId && x.slide === sl));
+    p.answers = [...p.answers, { userId, name: str(name, 80) || "Student", slide: sl, text: body, at: Date.now() }].slice(-80);
+    await this.save();
+    this.presentMsg();
     return { ok: true };
   }
 
@@ -670,6 +786,49 @@ export async function handleLive(request: Request, env: LiveEnv, action: string)
       return reply(origin, r.json, r.status);
     }
     return reply(origin, { error: "bad_op" }, 400);
+  }
+
+  if (action === "live-present") {
+    const op = str(body.op, 20);
+    const isHost = a.id === String(row.teacher) || a.role === "admin";
+    if (op === "answer") {
+      const r = await stub.addAnswer(a.id, a.name, Number(body.slide) || 0, str(body.text, 1000));
+      return reply(origin, r, r.ok ? 200 : 400);
+    }
+    if (op === "stroke") {
+      const stroke = (body.stroke || {}) as { c?: string; w?: number; d?: number[]; by?: string };
+      const r = await stub.addStroke(a.id, { c: str(stroke.c, 20), w: Number(stroke.w) || 3, d: Array.isArray(stroke.d) ? stroke.d.map((n) => Number(n) || 0) : [], by: a.id });
+      return reply(origin, r, r.ok ? 200 : 403);
+    }
+    if (!isHost) return reply(origin, { error: "forbidden" }, 403);
+    if (!canLive(a, "livePresent")) return reply(origin, { error: "no_present" }, 403);
+    const host = a.role === "admin" ? "admin" : String(row.teacher);
+    if (op === "stop") {
+      const r = await stub.setPresent(host, null);
+      return reply(origin, r, r.ok ? 200 : 403);
+    }
+    if (op === "start") {
+      const packId = str(body.packId, 40);
+      if (!packId) return reply(origin, { error: "pack_not_found" }, 400);
+      const packTitle = str(body.packTitle, 80);
+      const r = await stub.setPresent(host, {}, { packId, packTitle });
+      return reply(origin, r, r.ok ? 200 : 403);
+    }
+    const patch: Record<string, unknown> = {};
+    if (typeof body.slide === "number") patch.slide = body.slide;
+    if (typeof body.follow === "boolean") patch.follow = body.follow;
+    if ("timerEnd" in body) patch.timerEnd = body.timerEnd == null ? null : Number(body.timerEnd);
+    if (typeof body.penId === "string") patch.penId = body.penId;
+    if (typeof body.tool === "string") patch.tool = body.tool;
+    if (typeof body.wheelAngle === "number") patch.wheelAngle = body.wheelAngle;
+    if (typeof body.wheelSpinTo === "number") patch.wheelSpinTo = body.wheelSpinTo;
+    if (typeof body.wheelAt === "number") patch.wheelAt = body.wheelAt;
+    if (typeof body.winnerId === "string") patch.winnerId = body.winnerId;
+    if (typeof body.winnerName === "string") patch.winnerName = body.winnerName;
+    if (typeof body.randText === "string") patch.randText = body.randText;
+    if (Array.isArray(body.strokes)) patch.strokes = body.strokes;
+    const r = await stub.setPresent(host, patch as never);
+    return reply(origin, r, r.ok ? 200 : 403);
   }
 
   return reply(origin, { error: "not_found" }, 404);
