@@ -7,7 +7,7 @@ import { lmsApi } from "@/lib/lms";
 import { mailApi } from "@/lib/mail";
 import { AdminTtWidget } from "@/components/lms/Timetable";
 
-export type AdminHomeTab = "pages" | "quizzes" | "certificate" | "banners" | "announcements" | "teacher" | "forum" | "settings" | "students" | "teachers" | "lmshw" | "mail" | "activities" | "classes" | "timetable" | "rewards";
+export type AdminHomeTab = "pages" | "quizzes" | "certificate" | "banners" | "announcements" | "teacher" | "forum" | "settings" | "students" | "teachers" | "lmshw" | "mail" | "activities" | "classes" | "timetable" | "rewards" | "live";
 
 type Stat = { label: string; value: string; tab: AdminHomeTab };
 
@@ -71,6 +71,7 @@ export function AdminHome({ counts, refreshedAt, refreshing, hasToken, onTab }: 
     { tab: "mail", icon: "✉️", title: tr("Mail", "البريد"), sub: "contact@shaiqmuhammad.com" },
     { tab: "activities", icon: "🎲", title: tr("Activities", "الأنشطة"), sub: tr("Wall, wheel, polls, votes", "الجدار، العجلة، الاستطلاعات") },
     { tab: "classes", icon: "🏫", title: tr("Classes", "الصفوف"), sub: tr("Class view & Quran Tracker", "عرض الصف ومتتبع القرآن") },
+    { tab: "live", icon: "🎥", title: tr("Live Lesson", "الحصة المباشرة"), sub: tr("Start, join and monitor live classrooms", "ابدأ الحصص المباشرة وانضم إليها وراقبها") },
     { tab: "rewards", icon: "🃏", title: tr("Reward Cards", "بطاقات المكافآت"), sub: tr("Awards, plan and Reward Shop", "المنح والخطة ومتجر المكافآت") },
   ];
   // t283 shared admin filter: the counts follow the chosen Subject / Teacher / Year / Section.

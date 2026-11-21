@@ -41,6 +41,7 @@ import { StudentLogins } from "@/components/lms/StudentLogins";
 import { LmsSetup } from "@/components/lms/LmsSetup";
 import { AdminLmsHomework } from "@/components/lms/AdminLmsHomework";
 import { AdminRewards } from "@/components/lms/Rewards";
+import { LiveLessonPage } from "@/components/lms/LiveLesson";
 import { AdminMail } from "@/components/AdminMail";
 import { AdminClasses } from "@/components/lms/AdminClasses";
 import AdminQuizzes from "@/components/AdminQuizzes";
@@ -70,8 +71,8 @@ import AdminSecurity from "@/components/AdminSecurity";
 import AdminBranding from "@/components/AdminBranding";
 import { useI18n } from "@/lib/i18n";
 
-type Tab = "timetable" | "logins" | "groups" | "downloads" | "parents" | "attendance" | "behaviour" | "curriculum" | "youtube" | "sitepages" | "home" | "pages" | "quizzes" | "certificate" | "banners" | "announcements" | "teacher" | "forum" | "results" | "activities" | "settings" | "students" | "teachers" | "setup" | "lmshw" | "classes" | "mail" | "homepage" | "staff" | "messages" | "notices" | "vcomments" | "reports" | "wall" | "tracker" | "asys" | "qa" | "rewards" | "backup" | "security" | "branding";
-const HASH_TABS: Tab[] = ["timetable", "logins", "groups", "downloads", "parents", "attendance", "behaviour", "curriculum", "youtube", "sitepages", "pages", "quizzes", "certificate", "banners", "announcements", "teacher", "forum", "results", "activities", "settings", "students", "teachers", "setup", "classes", "lmshw", "mail", "homepage", "staff", "messages", "notices", "vcomments", "reports", "wall", "tracker", "asys", "qa", "rewards", "backup", "security", "branding"];
+type Tab = "timetable" | "logins" | "groups" | "downloads" | "parents" | "attendance" | "behaviour" | "curriculum" | "youtube" | "sitepages" | "home" | "pages" | "quizzes" | "certificate" | "banners" | "announcements" | "teacher" | "forum" | "results" | "activities" | "settings" | "students" | "teachers" | "setup" | "lmshw" | "classes" | "mail" | "homepage" | "staff" | "messages" | "notices" | "vcomments" | "reports" | "wall" | "tracker" | "asys" | "qa" | "rewards" | "live" | "backup" | "security" | "branding";
+const HASH_TABS: Tab[] = ["timetable", "logins", "groups", "downloads", "parents", "attendance", "behaviour", "curriculum", "youtube", "sitepages", "pages", "quizzes", "certificate", "banners", "announcements", "teacher", "forum", "results", "activities", "settings", "students", "teachers", "setup", "classes", "lmshw", "mail", "homepage", "staff", "messages", "notices", "vcomments", "reports", "wall", "tracker", "asys", "qa", "rewards", "live", "backup", "security", "branding"];
 const emptyPage = (): ContentPage => ({ id: newId("page"), slug: "", title: "", excerpt: "", body: "", published: true, updatedAt: new Date().toISOString() });
 
 export default function AdminCms() {
@@ -350,6 +351,7 @@ export default function AdminCms() {
           />
         )}
         {tab==="pages" && <LessonPagesManager asAdmin />}
+        {tab==="live" && <LiveLessonPage embedded asAdmin />}
         {tab==="quizzes" && <AdminQuizzes setStatus={setStatus} onNeedToken={()=>setTab("settings")} data={quizzesData} setData={setQuizzesData} results={quizResults} setResults={setQuizResults} />}
         {tab==="quizzes" && <div className="mt-6"><LmsAssessAdmin quizzes={quizzesData.quizzes} /></div>}
         {tab==="certificate" && <AdminCertificate setStatus={setStatus} onNeedToken={()=>setTab("settings")} tpl={certificate} setTpl={setCertificate} />}
