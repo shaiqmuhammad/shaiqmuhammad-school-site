@@ -37,7 +37,7 @@ function Tile({ label, stream, hand, big, off, compact, size, featured }: { labe
   const box = sz === "hero" ? "min-h-[240px] flex-1 sm:min-h-[340px]" : sz === "main" ? "min-h-[200px] flex-1 sm:min-h-[280px]" : sz === "thumb" ? "min-h-[72px] w-[112px] shrink-0 sm:min-h-[96px] sm:w-[148px]" : "min-h-[140px] sm:min-h-[180px]";
   return (
     <div className={`relative overflow-hidden rounded-3xl bg-gradient-to-br from-sky-200 to-indigo-300 shadow-md transition-all duration-300 dark:from-slate-700 dark:to-indigo-900 ${featured ? "ring-4 ring-[#f5c542]" : "ring-2 ring-white/60 dark:ring-white/10"} ${box}`}>
-      <video ref={ref} autoPlay playsInline muted className={`absolute inset-0 h-full w-full object-cover ${hasVideo ? "" : "hidden"}`} />
+      <video ref={ref} autoPlay playsInline muted className={`absolute inset-0 h-full w-full ${sz === "main" || sz === "hero" ? "object-contain bg-[#0f1f30]" : "object-cover"} ${hasVideo ? "" : "hidden"}`} />
       {!hasVideo && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-[#1b3a57] dark:text-white">
           <span className={`${compact ? "text-3xl" : "text-5xl sm:text-6xl"}`} aria-hidden>{off ? "😴" : "🧑‍🎓"}</span>
@@ -56,6 +56,9 @@ const STU_COLORS = ["#c9a227", "#5b7cbf", "#d08080", "#7a6bb0", "#3d8a7a", "#4aa
 
 function PipTile({ label, stream, min, onToggle }: { label: string; stream?: MediaStream | null; min: boolean; onToggle: () => void }) {
   const ref = useRef<HTMLVideoElement>(null);
+  const box = useRef<HTMLDivElement>(null);
+  const drag = useRef<{ sx: number; sy: number; x: number; y: number } | null>(null);
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -64,8 +67,29 @@ function PipTile({ label, stream, min, onToggle }: { label: string; stream?: Med
     el.play().catch(() => undefined);
   }, [stream]);
   const hasVideo = !!stream?.getVideoTracks().some((t) => t.readyState !== "ended");
+  const onDown = (e: React.PointerEvent) => {
+    if ((e.target as HTMLElement).closest("[data-testid=live-pip-min]")) return;
+    const r = box.current?.getBoundingClientRect();
+    if (!r) return;
+    drag.current = { sx: e.clientX, sy: e.clientY, x: pos?.x || 0, y: pos?.y || 0 };
+    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+  };
+  const onMove = (e: React.PointerEvent) => {
+    const d = drag.current; if (!d) return;
+    setPos({ x: d.x + (e.clientX - d.sx), y: d.y + (e.clientY - d.sy) });
+  };
+  const onUp = () => { drag.current = null; };
   return (
-    <div className={`lb-pip ${min ? "is-min" : ""}`} data-testid="live-teacher-pip">
+    <div
+      ref={box}
+      className={`lb-pip ${min ? "is-min" : ""} ${pos ? "is-drag" : ""}`}
+      data-testid="live-teacher-pip"
+      style={pos ? { top: 16 + pos.y, insetInlineEnd: 16 - pos.x, left: "auto" } : undefined}
+      onPointerDown={onDown}
+      onPointerMove={onMove}
+      onPointerUp={onUp}
+      onPointerCancel={onUp}
+    >
       <button type="button" className="lb-pip-min" onClick={onToggle} aria-label={min ? "Show teacher video" : "Minimise teacher video"} data-testid="live-pip-min">{min ? "+" : "–"}</button>
       <div className="lb-pip-vid">
         <video ref={ref} autoPlay playsInline muted className={hasVideo && !min ? "" : "hidden"} />
@@ -101,9 +125,9 @@ function StuTile({ label, stream, hand, off, color }: { label: string; stream?: 
   );
 }
 
-function DockBtn({ onClick, label, icon, on, end, leave, disabled, testid, badge }: { onClick: () => void; label: string; icon: string; on?: boolean; end?: boolean; leave?: boolean; disabled?: boolean; testid?: string; badge?: number }) {
+function DockBtn({ onClick, label, icon, on, end, leave, disabled, testid, badge, extraClass = "" }: { onClick: () => void; label: string; icon: string; on?: boolean; end?: boolean; leave?: boolean; disabled?: boolean; testid?: string; badge?: number; extraClass?: string }) {
   return (
-    <button type="button" data-testid={testid} disabled={disabled} onClick={onClick} className={`lb-ctl ${on ? "on" : ""} ${end ? "end" : ""} ${leave ? "leave" : ""} ${disabled ? "opacity-40" : ""}`}>
+    <button type="button" data-testid={testid} disabled={disabled} onClick={onClick} className={`lb-ctl ${on ? "on" : ""} ${end ? "end" : ""} ${leave ? "leave" : ""} ${disabled ? "opacity-40" : ""} ${extraClass}`}>
       <span className="lb-ico" aria-hidden>{icon}</span>
       <span className="lb-lab">{label}</span>
       {badge && badge > 0 ? <span className="lb-badge" data-testid="live-chat-unread-btn">{badge}</span> : null}
@@ -231,6 +255,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
   const [viewOpen, setViewOpen] = useState(false);
   const [pipMin, setPipMin] = useState(false);
   const [trayRoot, setTrayRoot] = useState<HTMLDivElement | null>(null);
+  const [toolsOpen, setToolsOpen] = useState(false);
   const [askNote, setAskNote] = useState<"" | "sent" | "allowed">("");
   const [ptrs, setPtrs] = useState<LivePtr[]>([]);
   const lastPtrAt = useRef(0);
@@ -778,8 +803,8 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
         )}
 
         {phase === "in" && room && (
-          <div ref={roomRef} className="lb-room" data-testid="live-room" data-focus-keep>
-            {err && <p className="lb-wait" style={{ background: "#fecdd3" }} role="alert">{err}</p>}
+          <div ref={roomRef} className={`lb-room${roomFocused ? " is-focus" : ""}${toolsOpen ? " tools-open" : ""}${(!!room.present?.packId || shareOn || viewMode === "board") ? " stage-first" : ""}`} data-testid="live-room" data-focus-keep data-stage-first={!!room.present?.packId || shareOn || viewMode === "board" ? "1" : "0"}>
+            {err && <p className="lb-wait lb-wait-err" role="alert">{err}</p>}
             {permHelp && (
               <div className="lb-wait" role="status" data-testid="live-perm-help">
                 <p>🎥 {tr("Allow camera/mic in your browser", "اسمح للكاميرا والميكروفون في المتصفح")}</p>
@@ -954,6 +979,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
               {!isHost && me && (!me.camAllowed || !me.micAllowed) && (
                 <DockBtn testid="live-ask" icon="🙋" label={askNote === "sent" ? tr("Asked…", "تم الطلب…") : tr("Ask to speak", "طلب التحدث")} on={askNote === "sent"} onClick={() => askToSpeak().catch(() => undefined)} />
               )}
+              <DockBtn testid="live-tools-fab" icon="🧰" label={tr("+ Tools", "+ أدوات")} on={toolsOpen} onClick={() => setToolsOpen((v) => !v)} extraClass="lb-tools-fab" />
               <DockBtn testid="live-chat-btn" icon="💬" label={tr("Chat", "دردشة")} on={showChat} onClick={() => setShowChat(true)} badge={chatUnread} />
               {isHost && (asAdmin || livePerms.record) && (
                 <DockBtn testid="live-record" icon="⏺️" label={tr("Record", "تسجيل")} disabled={!livePerms.recs} onClick={() => undefined} />
@@ -970,7 +996,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
 
         {showPeople && room && (
           <div className="fixed inset-0 z-[80] flex justify-end bg-black/40" onClick={() => setShowPeople(false)} role="presentation">
-            <aside className="flex h-full w-full max-w-sm flex-col bg-white p-4 shadow-xl dark:bg-slate-900" onClick={(e) => e.stopPropagation()} data-testid="live-people-panel">
+            <aside className="lms-card flex h-full w-full max-w-sm flex-col p-4 shadow-xl" onClick={(e) => e.stopPropagation()} data-testid="live-people-panel">
               <div className="mb-3 flex items-center justify-between"><h3 className="text-lg font-black">{tr("People", "الحاضرون")}</h3><button type="button" onClick={() => setShowPeople(false)}>✕</button></div>
               <ul className="flex-1 space-y-2 overflow-auto">
                 {room.members.map((m) => (

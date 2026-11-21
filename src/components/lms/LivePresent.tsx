@@ -300,7 +300,7 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
           <div className={`lb-slide-body${boardOn ? " lb-board-on" : ""}`}>
             <div className="lb-slide-wrap" style={{ containerType: "inline-size" }}>
               {boardOn && <div className="lb-board-surface" aria-hidden />}
-              {cur && !boardOn && <SlideView slide={cur} asAdmin={asAdmin} live testId="live-present-slide" />}
+              {cur && !boardOn && <div className="lb-zoom"><SlideView slide={cur} asAdmin={asAdmin} live testId="live-present-slide" /></div>}
               {cur && boardOn && <div className="lb-slide-bg"><SlideView slide={cur} asAdmin={asAdmin} live testId="live-present-slide" /></div>}
               {!cur && hasPack && !boardOn && <p className="flex-1 py-8 text-center font-semibold opacity-70">{tr("Loading slides…", "جارٍ تحميل الشرائح…")}</p>}
               <svg ref={svgRef} viewBox="0 0 100 56.25" preserveAspectRatio={boardOn ? "none" : "xMidYMid meet"} className={boardOn ? "lb-board-svg touch-none" : "pointer-events-none absolute inset-0 h-full w-full"} onPointerDown={pointer} onPointerMove={pointer} onPointerUp={(e) => pointer(e, true)} onPointerCancel={(e) => pointer(e, true)} onPointerLeave={(e) => pointer(e, true)} data-testid="live-board">
