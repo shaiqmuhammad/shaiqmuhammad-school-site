@@ -438,7 +438,10 @@ html.page-focus .lb-hide-work { display: none !important; }
 body.lb-work .lb-hide-work { display: none !important; }
 body.lb-work [data-testid=lms-tabs], body.lb-work [data-testid=lms-tabs-top] { display: none !important; }
 body.lb-work .lp-editor-full { position: fixed; inset: 0; z-index: 2147483000; min-height: 100dvh; overflow: auto; border-radius: 0; margin: 0; }
-html.page-focus [data-focus-keep], body.lb-work [data-focus-keep] { display: revert !important; }
+/* Revert only restores chrome that Focus hid. Do not apply it inside the live
+   room: display:revert turns .lb-room/.lb-dock into block boxes, which shrinks
+   the whiteboard and stacks call controls in a left-hand column. */
+html.page-focus [data-focus-keep]:not(:is(.lb-room, .lb-room *)), body.lb-work [data-focus-keep]:not(:is(.lb-room, .lb-room *)) { display: revert !important; }
 /* Focus must keep the slide tools on screen (text, picture, camera, draw) instead of hiding them with the chrome. */
 html.page-focus [data-testid="lp-player-tools"],
 html.page-focus [data-testid="lp-toolbar"],
@@ -701,6 +704,22 @@ html.lb-session:not(.page-focus) .lb-room {
   box-shadow: 0 8px 24px rgba(27,58,87,.18);
 }
 .lb-board-svg { position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%; touch-action: none; }
+.lb-room.board-on .lb-workspace {
+  display: flex;
+  flex-direction: row;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.lb-room.board-on .lb-stage,
+.lb-room.board-on .lb-stage-fill,
+.lb-room.board-on .lb-present,
+.lb-room.board-on .lb-slide-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+}
 .lb-room.board-on .lb-slide-bar {
   position: absolute;
   top: 8px;
@@ -710,17 +729,35 @@ html.lb-session:not(.page-focus) .lb-room {
   padding-inline-end: 14px;
   border-radius: 18px;
   background: rgba(27,58,87,.9);
+  color: #fff;
   width: auto;
   pointer-events: auto;
 }
-.lb-room.board-on .lb-slide-bar h3 { font-size: 18px; }
-.lb-room.board-on .lb-slide-body { padding: 0; flex: 1; min-height: 0; }
-.lb-room.board-on .lb-slide-wrap,
+.lb-room.board-on .lb-slide-bar h3 { font-size: 18px; color: #fff; }
+.lb-room.board-on .lb-slide-body { padding: 0; position: relative; }
+.lb-room.board-on .lb-slide-wrap {
+  position: absolute !important;
+  inset: 0 !important;
+  flex: none;
+  height: auto !important;
+  min-height: 0;
+  border-radius: 0;
+  align-items: stretch;
+  justify-content: stretch;
+}
 .lb-room.board-on .lb-board-surface,
-.lb-room.board-on .lb-board-svg { border-radius: 0; inset: 0; }
+.lb-room.board-on .lb-board-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+}
 .lb-room.board-on .lb-stage { border-radius: 24px; }
-.lb-room.board-on .lb-present,
-.lb-room.board-on .lb-stage-fill { height: 100%; flex: 1; min-height: 0; }
+.lb-room.board-on .lb-pip {
+  top: 4.75rem;
+  z-index: 11;
+}
 .lb-laser, .lb-ptr {
   position: absolute;
   z-index: 3;
@@ -956,13 +993,22 @@ html.lb-session:not(.page-focus) .lb-room {
 }
 
 .lb-dock {
-  display: flex; align-items: center; justify-content: center; gap: 8px;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   background: #fff;
   border-radius: 28px;
   padding: 8px 12px;
   box-shadow: 0 -2px 0 #f3c969 inset, 0 12px 28px rgba(27,58,87,.16);
-  flex: 0 0 auto;
+  flex: 0 0 auto !important;
+  width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
+.lb-dock::-webkit-scrollbar { display: none; }
 .dark .lb-dock { background: #1b3a57; box-shadow: 0 -2px 0 #f3c969 inset, 0 12px 28px rgba(0,0,0,.35); }
 .lb-ctl {
   display: flex; flex-direction: column; align-items: center; gap: 2px;
