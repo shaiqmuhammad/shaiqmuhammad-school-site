@@ -623,6 +623,21 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
   useEffect(() => () => { closeWs(); cleanupMedia(); }, [cleanupMedia]);
 
   const pubKey = (room?.pubs || []).map((p) => `${p.userId}:${p.sessionId}:${p.tracks.join(",")}`).join("|");
+  const remoteSig = Object.keys(remotes).sort().map((k) => `${k}:${remotes[k].getTracks().map((t) => t.id + t.readyState).join(",")}`).join("|");
+  const mixedRemotes = useMemo(() => {
+    const out: Record<string, MediaStream> = { ...remotes };
+    const ids = new Set(Object.keys(remotes).map((k) => k.slice(0, k.lastIndexOf(":"))).filter(Boolean));
+    for (const id of ids) {
+      const cam = remotes[`${id}:camera`];
+      const mic = remotes[`${id}:mic`];
+      if (cam && mic) {
+        const aud = mic.getAudioTracks().filter((tr) => !cam.getAudioTracks().some((a) => a.id === tr.id));
+        if (aud.length) out[`${id}:camera`] = new MediaStream([...cam.getTracks(), ...aud]);
+      } else if (!cam && mic) out[`${id}:camera`] = mic;
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [remoteSig]);
   useEffect(() => {
     if (phase !== "in" || !room?.id || !actor) return;
     if (!room.sfu) return;
@@ -633,22 +648,22 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
       try {
         if (sfuRef.current) {
           sfuRef.current.setSelfId(who);
-          return;
+        } else {
+          const ice = (await lmsApi.liveIce(roomId, asAdmin)).iceServers;
+          if (cancelled || sfuRef.current) return;
+          const sfu = new LiveSfu(roomId, who, ice, (key, stream) => {
+            setRemotes((prev) => {
+              const next = { ...prev };
+              if (!stream) delete next[key];
+              else next[key] = stream;
+              return next;
+            });
+          }, asAdmin);
+          sfuRef.current = sfu;
         }
-        const ice = (await lmsApi.liveIce(roomId, asAdmin)).iceServers;
-        if (cancelled || sfuRef.current) return;
-        const sfu = new LiveSfu(roomId, who, ice, (key, stream) => {
-          setRemotes((prev) => {
-            const next = { ...prev };
-            if (!stream) delete next[key];
-            else next[key] = stream;
-            return next;
-          });
-        }, asAdmin);
-        sfuRef.current = sfu;
-        // Students receive any published tracks here. The presenter/host starts with
-        // camera and mic off and turns them on from the dock when ready.
-        await sfu.syncSubs(room.pubs || []);
+        // Always pull the latest pubs after the receive session exists. The first
+        // pubKey effect can run before LiveSfu is constructed (liveIce is async).
+        await sfuRef.current.syncSubs(room.pubs || []);
       } catch (e) {
         if (!cancelled) fail(e, "Video", "الفيديو");
       }
@@ -657,7 +672,14 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
   }, [phase, room?.id, actor?.id, selfId, asAdmin]);
 
   useEffect(() => {
-    if (phase === "in") sfuRef.current?.syncSubs(room?.pubs || []).catch(() => undefined);
+    if (phase !== "in") return;
+    const pubs = room?.pubs || [];
+    if (sfuRef.current) {
+      sfuRef.current.syncSubs(pubs).catch(() => undefined);
+      return;
+    }
+    const t = window.setTimeout(() => { sfuRef.current?.syncSubs(pubs).catch(() => undefined); }, 400);
+    return () => clearTimeout(t);
   }, [phase, pubKey, room?.pubs]);
   useEffect(() => {
     const hasAudio = Object.values(remotes).some((s) => s.getAudioTracks().some((t) => t.readyState !== "ended"));
@@ -1096,7 +1118,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
               const presenting = !!room.present?.packId;
 
               const layout = presentLayout(viewMode, presenting);
-              const streamOf = (m: { id: string }) => m.id === selfId ? localStream : remotes[`${m.id}:camera`];
+              const streamOf = (m: { id: string }) => m.id === selfId ? localStream : mixedRemotes[`${m.id}:camera`] || mixedRemotes[`${m.id}:mic`];
               const teachers = room.members.filter((m) => m.role === "teacher");
               const students = room.members.filter((m) => m.role !== "teacher");
               const who = (m: LiveMember) => liveWho(m, selfId, room.teacherId, tr);
