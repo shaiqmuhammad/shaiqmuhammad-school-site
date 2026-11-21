@@ -16,7 +16,7 @@ import { LiveHistory } from "@/components/lms/LiveHistory";
 import { LivePresent } from "@/components/lms/LivePresent";
 import { LiveViewPicker, RoomStage, useActiveSpeaker, presentLayout, boardFillsStage, VIEW_CARDS } from "@/components/lms/LiveViews";
 import { canShowHostAllow, lmsApi, lmsErrorText, lmsSession, liveGuest, livePresentingContent, liveWsUrl, memberFloor, normalizePtrKind, type LiveAsk, type LiveFloor, type LiveMember, type LivePtr, type LivePub, type LiveChat, type LivePerms, type LiveRoomInfo, type LiveSnap, type LiveView, type LiveViewMode, type PtrKind } from "@/lib/lms";
-import { classroomHref, isClassroomPath, openClassroomTab } from "@/lib/classroom";
+import { classroomHref, isClassroomPath, openClassroomTab, prepareClassroomTab, type ClassroomTabHandle } from "@/lib/classroom";
 import { ClassroomBrand } from "@/components/lms/ClassroomBrand";
 import { ClassroomConnecting, type ConnectStep } from "@/components/lms/ClassroomConnecting";
 import LiveMediaDebug from "@/components/lms/LiveMediaDebug";
@@ -375,9 +375,14 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
     if (shellLess) return id ? classroomHref({ room: id, asAdmin, guest: guestCtx }) : (guestLink ? "/classroom/join" : "/classroom");
     return areaHref;
   };
-  const goToRoom = (id: string) => {
-    if (shellLess) {
+  const goToRoom = (id: string, tab?: ClassroomTabHandle) => {
+    if (shellLess || (typeof window !== "undefined" && isClassroomPath(window.location.pathname))) {
+      tab?.cancel();
       void enter(id);
+      return;
+    }
+    if (tab) {
+      tab.go({ room: id, asAdmin, guest: guestCtx });
       return;
     }
     openClassroomTab({ room: id, asAdmin, guest: guestCtx });
@@ -820,19 +825,17 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
     if (typeof window === "undefined" || !actor) return;
     const q = new URLSearchParams(window.location.search).get("room") || "";
     if (!q || phase !== "lobby") return;
-    if (shellLess) {
+    // Only auto-join when this tab already is the classroom. Area pages must not
+    // window.open from an effect (Safari was opening / reloading in a loop).
+    if (shellLess || isClassroomPath(window.location.pathname)) {
       enter(q).catch(() => undefined);
-      return;
     }
-    // Never join in the LMS/admin tab. Try a new tab; if the popup is blocked, the lobby
-    // still shows “Open classroom in a new tab” because ?room= stays in the address.
-    openClassroomTab({ room: q, asAdmin, guest: guestCtx }, "none");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [actor]);
 
   async function enter(id: string) {
-    if (!shellLess) {
-      openClassroomTab({ room: id, asAdmin, guest: guestCtx });
+    if (!shellLess && !(typeof window !== "undefined" && isClassroomPath(window.location.pathname))) {
+      // Clicks open a tab via goToRoom. Effects must never window.open or navigate this page.
       return;
     }
     setBusy(true); setErr("");
@@ -866,13 +869,15 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
   }
 
   async function startNow() {
+    const tab = (shellLess || (typeof window !== "undefined" && isClassroomPath(window.location.pathname))) ? undefined : prepareClassroomTab();
     setBusy(true); setErr("");
     try {
       const [cls, section] = pick.includes("|") ? pick.split("|") : [pick, ""];
       const r = await lmsApi.liveStart({ title: title.trim() || undefined, cls, section, groupId: groupId || undefined, minutes }, asAdmin);
-      if (shellLess) await enter(r.id);
-      else goToRoom(r.id);
+      if (shellLess || (typeof window !== "undefined" && isClassroomPath(window.location.pathname))) await enter(r.id);
+      else goToRoom(r.id, tab);
     } catch (e) {
+      tab?.cancel();
       fail(e, "Start lesson", "بدء الحصة");
     } finally { setBusy(false); }
   }
@@ -1120,7 +1125,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
               <p className="rounded-3xl bg-amber-100 px-4 py-3 font-bold text-amber-900 dark:bg-amber-900/40 dark:text-amber-100" data-testid="live-no-perm">{tr("Your admin hasn't switched on “Run live lessons” for you yet.", "لم يفعّل المسؤول صلاحية «تشغيل الدروس المباشرة» لك بعد.")}</p>
             )}
             {(asAdmin || livePerms.instant) && <StartMeetingPanel asAdmin={asAdmin} onEnter={(id) => goToRoom(id)} />}
-            <LiveSchedulePanel asAdmin={asAdmin} perms={asAdmin ? { run: true, schedule: true, schedStudent: true, schedClass: true, shareLink: true, camMic: true, screenShare: true, present: true, instant: true, record: true, recs: livePerms.recs } : livePerms} onStart={(id) => goToRoom(id)} busy={busy} />
+            <LiveSchedulePanel asAdmin={asAdmin} perms={asAdmin ? { run: true, schedule: true, schedStudent: true, schedClass: true, shareLink: true, camMic: true, screenShare: true, present: true, instant: true, record: true, recs: livePerms.recs } : livePerms} onStart={(id, tab) => goToRoom(id, tab)} busy={busy} />
             <section>
               <h2 className="mb-3 text-lg font-black">{tr("Live now", "مباشر الآن")}</h2>
               {!rooms.length ? <p className="rounded-3xl bg-black/5 px-4 py-6 text-center font-semibold opacity-70 dark:bg-white/10">{tr("No live lessons for your class right now.", "لا توجد حصص مباشرة لصفك الآن.")}</p> : (

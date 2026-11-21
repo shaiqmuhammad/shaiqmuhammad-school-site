@@ -6,7 +6,7 @@ import { useTr } from "@/components/lms/useLms";
 import { lmsApi, lmsErrorText, liveGuest, setLiveGuest, type LivePerms, type LiveSched, type RosterStudent } from "@/lib/lms";
 import { SITE_TZ, fmtWhen, isValidZone, zoneCity, zoneLabel, zoneMs, zoneParts } from "@/lib/timeZone";
 import { FormatWhen, SchedulePreview, Time12Field, TimeZonePicker, ZoneChip, useViewerZone } from "@/components/lms/TimeZonePicker";
-import { classroomHref, classroomJoinUrl } from "@/lib/classroom";
+import { classroomHref, classroomJoinUrl, prepareClassroomTab, type ClassroomTabHandle } from "@/lib/classroom";
 
 const DURS = [15, 30, 40, 45, 60, 75, 90, 120];
 
@@ -59,7 +59,7 @@ export function LiveUpcomingBanner() {
   );
 }
 
-export function LiveSchedulePanel({ asAdmin, perms, onStart, busy }: { asAdmin: boolean; perms: LivePerms; onStart: (roomId: string) => void; busy?: boolean }) {
+export function LiveSchedulePanel({ asAdmin, perms, onStart, busy }: { asAdmin: boolean; perms: LivePerms; onStart: (roomId: string, tab?: ClassroomTabHandle) => void; busy?: boolean }) {
   const { tr, lang } = useTr();
   const { zone: viewerZone } = useViewerZone(asAdmin);
   const [formTz, setFormTz] = useState(viewerZone || SITE_TZ);
@@ -278,7 +278,7 @@ export function LiveSchedulePanel({ asAdmin, perms, onStart, busy }: { asAdmin: 
                 <p className="text-sm font-semibold opacity-80">{audienceLabel(s, tr)}{s.packTitle ? ` · 📑 ${s.packTitle}` : ""}</p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {join && <button type="button" className={primaryBtn} disabled={busy} onClick={() => onStart(s.roomId)}>{tr("Join", "انضم")}</button>}
-                  {startOk && s.status === "scheduled" && !s.roomId && <button type="button" className={primaryBtn} disabled={busy} onClick={() => lmsApi.liveSchedStart(s.id, asAdmin).then((r) => onStart(r.id)).catch((e) => setErr(lmsErrorText(e, tr)))} data-testid="live-sched-start">{tr("Start", "ابدأ")}</button>}
+                  {startOk && s.status === "scheduled" && !s.roomId && <button type="button" className={primaryBtn} disabled={busy} onClick={() => { const tab = prepareClassroomTab(); lmsApi.liveSchedStart(s.id, asAdmin).then((r) => onStart(r.id, tab)).catch((e) => { tab.cancel(); setErr(lmsErrorText(e, tr)); }); }} data-testid="live-sched-start">{tr("Start", "ابدأ")}</button>}
                   {s.mine && s.status === "live" && s.roomId && <button type="button" className={primaryBtn} disabled={busy} onClick={() => onStart(s.roomId)}>{tr("Rejoin", "إعادة الدخول")}</button>}
                   {s.mine && s.status === "scheduled" && <button type="button" className="rounded-full bg-white/80 px-3 py-1 text-sm font-bold dark:bg-slate-700" onClick={() => edit(s)}>{tr("Edit", "تعديل")}</button>}
                   {s.mine && s.status === "scheduled" && <button type="button" className="rounded-full bg-white/80 px-3 py-1 text-sm font-bold text-rose-700 dark:bg-slate-700" onClick={() => cancel(s.id)}>{tr("Cancel", "إلغاء")}</button>}
