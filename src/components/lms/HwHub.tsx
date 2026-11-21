@@ -328,8 +328,7 @@ export function HwKidWidget({
       ) : href ? (
         <a
           href={href}
-          role="tab"
-          aria-selected={selected}
+          aria-current={selected ? "page" : undefined}
           className={kidTabCls(theme, selected)}
           onClick={(e) => {
             if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
@@ -341,7 +340,7 @@ export function HwKidWidget({
           {face}
         </a>
       ) : (
-        <button type="button" role="tab" aria-selected={selected} className={kidTabCls(theme, selected)} onClick={() => pick()} data-testid={testId}>
+        <button type="button" aria-current={selected ? "true" : undefined} className={kidTabCls(theme, selected)} onClick={() => pick()} data-testid={testId}>
           {face}
         </button>
       )}
@@ -360,7 +359,7 @@ export function HwHubTabs({ tab, onTab, className = "", counts, menus, activeSub
 }) {
   const { tr } = useTr();
   return (
-    <div className={`flex flex-wrap gap-3 ${className}`} role="tablist" data-testid="hw-hub-tabs">
+    <div className={`flex flex-wrap gap-3 ${className}`} aria-label={tr("Homework", "الواجبات")} data-testid="hw-hub-tabs">
       {TAB_ITEMS.filter(({ id }) => id !== "review" || tab === "review").map(({ id, ic, en, ar }) => (
         <HwKidWidget
           key={id}
