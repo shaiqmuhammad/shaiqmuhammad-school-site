@@ -665,9 +665,9 @@ html.lb-classroom .pub-main { display: flex; flex-direction: column; min-height:
 .dark .lb-wait { background: #92400e; color: #fff8ec; }
 .lb-wait-err { background: #fecdd3; color: #9f1239; }
 .dark .lb-wait-err { background: #9f1239; color: #fff1f2; }
-.lb-workspace { flex: 1; min-height: 0; display: flex; flex-direction: row; gap: 6px; }
-.lb-workspace .lb-tray-root { order: 0; }
-.lb-workspace .lb-stage { order: 1; }
+.lb-workspace { flex: 1; min-height: 0; display: flex; flex-direction: row; gap: 6px; position: relative; }
+.lb-workspace .lb-stage { order: 0; }
+.lb-workspace .lb-side { order: 1; }
 .lb-stage {
   position: relative; flex: 1; min-width: 0; min-height: 0;
   background: #fff;
@@ -1715,9 +1715,14 @@ html.lb-classroom .pub-main { display: flex; flex-direction: column; min-height:
 .lb-shape-opt:hover, .lb-shape-opt.is-on { background: rgba(255,248,236,.14); }
 .lb-shape-opt.is-on { background: #f3c969; color: #1b3a57; }
 .lb-sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.lb-sheet-head h3 { margin: 0; font-size: 13px; font-weight: 900; }
+.lb-sheet-head button { border: 0; background: transparent; color: inherit; font-size: 18px; line-height: 1; cursor: pointer; padding: 2px 6px; }
 .lb-side.is-sheet {
-  width: 100%; max-width: none; height: 100%;
-  border-radius: 0; background: #fff8ec;
+  width: min(24rem, 100%);
+  max-width: min(24rem, 100%);
+  height: 100%;
+  border-radius: 0;
+  background: #fff8ec;
 }
 .dark .lb-side.is-sheet { background: #0f1f30; }
 .lb-hear, .lb-toast { bottom: 16px; }

@@ -1361,18 +1361,18 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
                     )}
                   </div>
                   {!narrow && <aside className="lb-side" data-testid="live-side">{sideBody}</aside>}
+                  {narrow && sideOpen && (
+                    <div className="lb-sheet" onClick={() => setSideOpen(false)} role="presentation">
+                      <aside className="lb-sheet-card lb-side is-sheet" onClick={(e) => e.stopPropagation()} data-testid="live-side-sheet">
+                        <div className="lb-sheet-head">
+                          <h3 className="text-sm font-black">{tr("People and controls", "الحاضرون والأدوات")}</h3>
+                          <button type="button" onClick={() => setSideOpen(false)} aria-label={tr("Close", "إغلاق")}>✕</button>
+                        </div>
+                        {sideBody}
+                      </aside>
+                    </div>
+                  )}
                 </div>
-                {narrow && sideOpen && (
-                  <div className="lb-sheet" onClick={() => setSideOpen(false)} role="presentation">
-                    <aside className="lb-sheet-card lb-side is-sheet" onClick={(e) => e.stopPropagation()} data-testid="live-side-sheet">
-                      <div className="lb-sheet-head">
-                        <h3 className="text-sm font-black">{tr("People and controls", "الحاضرون والأدوات")}</h3>
-                        <button type="button" onClick={() => setSideOpen(false)} aria-label={tr("Close", "إغلاق")}>✕</button>
-                      </div>
-                      {sideBody}
-                    </aside>
-                  </div>
-                )}
                 </>
               );
             })()}
