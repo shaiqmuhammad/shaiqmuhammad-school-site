@@ -396,10 +396,10 @@ export const lmsApi = {
   notesRead: (ids?: string[], asAdmin = false) => call<{ ok: true }>("notes-read", { ids }, { asAdmin }),
   adminPrefs: (p?: { quick: { tab: string; label: string; icon?: string }[]; dashIcon?: string }) => call<{ quick: { tab: string; label: string; icon?: string }[] | null; dashIcon: string }>("admin-prefs", p, { asAdmin: true }),
   classRoster: (asAdmin = false) => call<{ students: RosterStudent[]; canManage: boolean; now?: number }>("class-roster", undefined, { asAdmin }),
-  pcatList: () => call<{ items: PointCat[] }>("pcat-list"),
+  pcatList: (asAdmin = false) => call<{ items: PointCat[] }>("pcat-list", undefined, { asAdmin }),
   pcatSave: (c: Partial<PointCat>) => call<{ ok: true }>("pcat-save", c),
   pcatDelete: (id: string) => call<{ ok: true }>("pcat-delete", { id }),
-  ptsAward: (cat: string, students: string[]) => call<{ ok: true; batch: string; count: number }>("pts-award", { cat, students }),
+  ptsAward: (cat: string, students: string[], asAdmin = false) => call<{ ok: true; batch: string; count: number }>("pts-award", { cat, students }, { asAdmin }),
   ptsUndo: (batch?: string) => call<{ ok: true; removed: number }>("pts-undo", { batch }),
   ptsList: (q: { students?: string[]; cls?: string; section?: string; from?: number; to?: number }, asAdmin = false) => call<{ items: PointRow[] }>("pts-list", q, { asAdmin }),
   grpList: (asAdmin = false) => call<{ items: StudentGroup[] }>("grp-list", undefined, { asAdmin }),
@@ -528,7 +528,7 @@ export const lmsApi = {
   exportAll: (asAdmin = false) => call<{ exportedAt: number; homework: Homework[]; subs: (Submission & { hw: string; student: string })[]; users: { id: string; username: string; name: string; role: string; cls: string }[]; tracker: (TrackerRow & { student: string; hw: string })[] }>("export", undefined, { asAdmin }),
 };
 
-export function lmsErrorText(e: unknown, tr: (en: string, ar: string) => string): string {
+export function lmsErrorText(e: unknown, tr: (en: string, ar: string) => string, fallback?: [string, string]): string {
   const c = e instanceof LmsError ? e.code : (e instanceof Error && /^[a-z_]+$/.test(e.message) ? e.message : "");
   if (c === "topic_taken") { const ex = (e as LmsError).data?.existing as { title?: string; slug?: string } | undefined; const t = ex?.title || ex?.slug || ""; return tr(`This curriculum topic already has an assessment: “${t}”. Only one assessment per topic.`, `هذا الموضوع له تقييم بالفعل: «${t}». لكل موضوع تقييم واحد فقط.`); }
   const m: Record<string, [string, string]> = {
@@ -566,6 +566,14 @@ export function lmsErrorText(e: unknown, tr: (en: string, ar: string) => string)
     no_present: ["Your admin hasn't switched on “Present lesson packs live” for you yet.", "لم يفعّل المسؤول صلاحية «عرض حزم الدروس مباشرة» لك بعد."],
     no_pen: ["The teacher hasn't given you the pen yet.", "لم يعطك المعلم القلم بعد."],
     not_presenting: ["The teacher isn't presenting a pack right now.", "المعلم لا يعرض حزمة الآن."],
+    ended: ["This class has ended.", "انتهت هذه الحصة."],
+    read_only: ["You're only viewing as someone else, so you can't make that change.", "أنت تعرض حساب شخص آخر فقط، لذلك لا يمكنك إجراء هذا التغيير."],
+    too_large: ["That was too large to send. Try a shorter update.", "كان ذلك كبيرًا جدًا للإرسال. جرّب تحديثًا أقصر."],
+    bad_json: ["The request couldn't be read. Please try again.", "تعذر قراءة الطلب. حاول مرة أخرى."],
+    bad_request: ["That request wasn't valid. Please try again.", "هذا الطلب غير صالح. حاول مرة أخرى."],
+    present_failed: ["Couldn't start presenting that lesson pack.", "تعذر بدء عرض حزمة الدرس."],
+    pack_load_failed: ["Couldn't open that lesson pack.", "تعذر فتح حزمة الدرس."],
+    no_students: ["No matching students could be updated. Check they're in your classes.", "تعذر تحديث طلاب مطابقين. تحقق من أنهم في صفوفك."],
     bad_view: ["That classroom view is not available.", "طريقة العرض هذه غير متاحة."],
     too_many: ["You already have many upcoming live lessons. Cancel one first.", "لديك العديد من الحصص المباشرة القادمة. ألغِ واحدة أولًا."],
     sfu_not_configured: ["Live video isn't set up yet. You can still use chat and the waiting room.", "فيديو الحصة غير مُعد بعد. يمكنك استخدام الدردشة وغرفة الانتظار."],
@@ -616,7 +624,10 @@ export function lmsErrorText(e: unknown, tr: (en: string, ar: string) => string)
     already_submitted: ["You have already submitted this. You can send it again only if your teacher sends it back.", "لقد سلّمت هذا مسبقًا. يمكنك الإرسال مجددًا فقط إذا أعاده معلمك."],
     attempts_used: ["You have used every attempt for this work.", "لقد استخدمت كل المحاولات لهذا العمل."],
   };
-  return m[c] ? tr(m[c][0], m[c][1]) : tr("Something went wrong.", "حدث خطأ ما.");
+  if (m[c]) return tr(m[c][0], m[c][1]);
+  if (fallback) return tr(fallback[0], fallback[1]);
+  if (c) return tr(`Something went wrong (${c}).`, `حدث خطأ ما (${c}).`);
+  return tr("Something went wrong.", "حدث خطأ ما.");
 }
 
 /* ---------- Quran (api.quran.com text, everyayah.com audio) ---------- */

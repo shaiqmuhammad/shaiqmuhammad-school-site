@@ -796,15 +796,19 @@ export async function handleLive(request: Request, env: LiveEnv, action: string)
   }
 
   if (action === "live-pack") {
-    const room = await stub.snapshot();
-    if (!room || room.status !== "live") return reply(origin, { error: "ended" }, 410);
-    const inRoom = a.role === "admin" || room.teacherId === a.id || room.members.some((m) => m.id === a.id);
-    if (!inRoom) return reply(origin, { error: "forbidden" }, 403);
-    const packId = str(body.packId || room.present?.packId, 40);
-    if (!room.present?.packId || packId !== room.present.packId) return reply(origin, { error: "not_presenting" }, 404);
-    const pack = await store.livePresentedPack(packId);
-    if (!pack) return reply(origin, { error: "pack_not_found" }, 404);
-    return reply(origin, { pack }, 200);
+    try {
+      const room = await stub.snapshot();
+      if (!room || room.status !== "live") return reply(origin, { error: "ended" }, 410);
+      const inRoom = a.role === "admin" || room.teacherId === a.id || room.members.some((m) => m.id === a.id);
+      if (!inRoom) return reply(origin, { error: "forbidden" }, 403);
+      const packId = str(body.packId || room.present?.packId, 40);
+      if (!room.present?.packId || packId !== room.present.packId) return reply(origin, { error: "not_presenting" }, 404);
+      const pack = await store.livePresentedPack(packId);
+      if (!pack) return reply(origin, { error: "pack_not_found" }, 404);
+      return reply(origin, { pack }, 200);
+    } catch {
+      return reply(origin, { error: "pack_load_failed" }, 500);
+    }
   }
 
   const inLiveRoom = async () => {
@@ -889,8 +893,14 @@ export async function handleLive(request: Request, env: LiveEnv, action: string)
       const packId = str(body.packId, 40);
       if (!packId) return reply(origin, { error: "pack_not_found" }, 400);
       const packTitle = str(body.packTitle, 80);
-      const r = await stub.setPresent(host, {}, { packId, packTitle });
-      return reply(origin, r, r.ok ? 200 : 403);
+      try {
+        const pack = await store.livePresentedPack(packId);
+        if (!pack) return reply(origin, { error: "pack_not_found" }, 404);
+        const r = await stub.setPresent(host, {}, { packId, packTitle: packTitle || pack.title });
+        return reply(origin, r, r.ok ? 200 : r.error === "ended" ? 410 : 403);
+      } catch {
+        return reply(origin, { error: "present_failed" }, 500);
+      }
     }
     const patch: Record<string, unknown> = {};
     if (typeof body.slide === "number") patch.slide = body.slide;

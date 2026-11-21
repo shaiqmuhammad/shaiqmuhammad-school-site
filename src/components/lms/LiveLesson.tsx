@@ -297,11 +297,11 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
     if (self) setHand(self.hand);
     if (self) setPhase("in");
     else if (snap.waiting.some((w) => w.id === selfId)) setPhase("waiting");
-    if (snap.status === "ended") setPhase("ended");
+    if (snap.status === "ended") { setPhase("ended"); setErr(""); }
   }, [selfId]);
 
   const connectWs = useCallback((roomId: string) => {
-    const tok = lmsSession()?.token || getServerSession()?.token || liveGuest()?.token;
+    const tok = asAdmin ? getServerSession()?.token : (lmsSession()?.token || liveGuest()?.token);
     if (!tok) return;
     closeWs();
     const ws = new WebSocket(liveWsUrl(tok, roomId));
@@ -321,7 +321,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
           if (chatSoundRef.current) playChatBeep();
         }
       }
-      if (msg.t === "ended") { setPhase("ended"); cleanupMedia(); closeWs(); }
+      if (msg.t === "ended") { setPhase("ended"); setErr(""); cleanupMedia(); closeWs(); }
       if (msg.t === "denied" && msg.userId === selfId) { setPhase("lobby"); setErr(tr("The teacher didn't let you in this time.", "لم يسمح لك المعلم بالدخول هذه المرة.")); closeWs(); }
       if (msg.t === "perm" && msg.userId === selfId) {
         if (msg.camAllowed === false && localRef.current) {
@@ -341,7 +341,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
         setTimeout(() => { if (wsRef.current === ws) connectWs(roomId); }, 1500);
       }
     };
-  }, [applyRoom, cleanupMedia, phase, selfId, tr]);
+  }, [applyRoom, asAdmin, cleanupMedia, phase, selfId, tr]);
 
   useEffect(() => () => { closeWs(); cleanupMedia(); }, [cleanupMedia]);
 
@@ -386,7 +386,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
       }
     })();
     return () => { cancelled = true; };
-  }, [phase, room?.id, actor, isHost, tr, asAdmin]);
+  }, [phase, room?.id, actor?.id, isHost, tr, asAdmin]);
 
   useEffect(() => {
     if (phase === "in") sfuRef.current?.syncSubs(room?.pubs || []).catch(() => undefined);
@@ -521,6 +521,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
     cleanupMedia();
     closeWs();
     void leaveRoomFocus();
+    setErr("");
     setPhase("lobby");
     setRoom(null);
     history.replaceState(null, "", liveHref());
@@ -529,6 +530,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
 
   async function endClass() {
     if (!room) return;
+    setErr("");
     await lmsApi.liveEnd(room.id, asAdmin).catch((e) => setErr(lmsErrorText(e, tr)));
     cleanupMedia();
     closeWs();
@@ -657,7 +659,7 @@ export function LiveLessonPage({ embedded = false, asAdmin: forceAdmin = false, 
           <div className="flex flex-1 flex-col items-center justify-center gap-4 rounded-[2rem] bg-gradient-to-br from-amber-100 to-rose-100 p-8 text-center dark:from-slate-800 dark:to-rose-950" data-testid="live-ended">
             <p className="text-6xl" aria-hidden>👋</p>
             <h2 className="text-2xl font-black">{tr("Class has ended", "انتهت الحصة")}</h2>
-            <button type="button" className={primaryBtn} onClick={() => { setPhase("lobby"); setRoom(null); history.replaceState(null, "", liveHref()); loadList().catch(() => undefined); }}>{tr("Back to Live Lesson", "العودة إلى الحصة المباشرة")}</button>
+            <button type="button" className={primaryBtn} onClick={() => { setErr(""); setPhase("lobby"); setRoom(null); history.replaceState(null, "", liveHref()); loadList().catch(() => undefined); }}>{tr("Back to Live Lesson", "العودة إلى الحصة المباشرة")}</button>
           </div>
         )}
 

@@ -31,17 +31,20 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
   const svgRef = useRef<SVGSVGElement>(null);
 
   useEffect(() => {
+    if (!present?.packId) setErr("");
     if (!canPresent && !present?.packId) return;
     lp.list(asAdmin).then((r) => setPacks(r.items || [])).catch(() => undefined);
   }, [asAdmin, canPresent, present?.packId]);
   useEffect(() => {
     if (!present?.packId) { setPack(null); return; }
-    lmsApi.livePack(roomId, present.packId, asAdmin).then((r) => setPack(r.pack as Pack)).catch(() => setErr(tr("Couldn't open that lesson pack.", "تعذر فتح حزمة الدرس.")));
+    lmsApi.livePack(roomId, present.packId, asAdmin)
+      .then((r) => { setPack(r.pack as Pack); setErr(""); })
+      .catch((e) => setErr(lmsErrorText(e, tr, ["Couldn't open that lesson pack.", "تعذر فتح حزمة الدرس."])));
   }, [present?.packId, asAdmin, tr, roomId]);
   useEffect(() => {
     if (!isHost) return;
-    lmsApi.pcatList().then((r) => setCats(r.items || [])).catch(() => undefined);
-  }, [isHost]);
+    lmsApi.pcatList(asAdmin).then((r) => setCats(r.items || [])).catch(() => undefined);
+  }, [isHost, asAdmin]);
   useEffect(() => {
     if (!present?.timerEnd) return;
     const t = setInterval(() => setNow(Date.now()), 250);
@@ -69,7 +72,7 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
     if (!p) return;
     setBusy(true); setErr("");
     try { await call({ op: "start", packId: p.id, packTitle: p.title }); }
-    catch (e) { setErr(lmsErrorText(e, tr)); }
+    catch (e) { setErr(lmsErrorText(e, tr, ["Couldn't start presenting that lesson pack.", "تعذر بدء عرض حزمة الدرس."])); }
     finally { setBusy(false); }
   }
   async function go(n: number) {
@@ -131,7 +134,7 @@ export function LivePresent({ roomId, present, isHost, canPresent, asAdmin, self
     const ids = who === "all" ? people.map((p) => p.id) : who === "winner" ? (present?.winnerId ? [present.winnerId] : []) : [who];
     if (!ids.length) { setErr(tr("Pick a student who is in the room.", "اختر طالبًا موجودًا في الحصة.")); return; }
     try {
-      const r = await lmsApi.ptsAward(cat, ids);
+      const r = await lmsApi.ptsAward(cat, ids, asAdmin);
       setErr("");
       await call({ op: "nav", tool: "award", randText: tr(`Awarded ${r.count} student(s).`, `تم منح ${r.count} من الطلاب.`) });
     } catch (e) { setErr(lmsErrorText(e, tr)); }
