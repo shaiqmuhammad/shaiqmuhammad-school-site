@@ -2,7 +2,7 @@
 import { classifyParts, decodeTextPart, decodeTransfer, flattenStructure, parseEnvelope, withImap, type ImapAccount, type Tok } from "./imap";
 import { latin1ToBytes } from "./socket";
 import { buildMime, sendMail, type OutMail } from "./smtp";
-import { CONTACT, FROM_NAME, INFO, MAIL_EXTRA_ALLOWED, MAIL_SENDERS, renderEmail, renderText, type Branded, type MailSenderType } from "./template";
+import { CONTACT, FROM_NAME, INFO, MAIL_EXTRA_ALLOWED, MAIL_SENDERS, enquiryMail, renderEmail, renderPersonalEmail, renderText, type Branded, type MailSenderType } from "./template";
 import { publicAllowedFrom, resolveFrom, senderForType, uniqueEmails } from "./identity";
 import { DEPLOY } from "../deployment";
 
@@ -166,7 +166,7 @@ export async function deleteMsgs(env: MailEnv, folder: string, uids: number[]) {
 
 /** Personal mail from contact@ (compose/reply); a copy is saved to Sent. */
 export async function sendPersonal(env: MailEnv, m: { to: string[]; cc?: string[]; subject: string; text: string; inReplyTo?: string; attachments?: OutMail["attachments"]; sig?: { html: string; text: string } }) {
-  const html = `<div style="font-family:Segoe UI,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6"><div style="white-space:pre-wrap">${m.text.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]!)}</div>${m.sig?.html || ""}</div>`;
+  const html = renderPersonalEmail({ subject: m.subject, text: m.text, sigHtml: m.sig?.html });
   const { raw } = await sendMail(smtpAcct(env), { from: personalFrom(env).from, fromName: FROM_NAME, to: m.to, cc: m.cc, subject: m.subject, text: m.text + (m.sig ? "\n" + m.sig.text : ""), html, attachments: m.attachments, headers: m.inReplyTo ? { "In-Reply-To": m.inReplyTo, References: m.inReplyTo } : undefined });
   await withImap(imapAcct(env), async (s) => {
     const sent = (await s.list()).find((f) => f.flags.includes("\\sent") || /^sent( messages)?$/i.test(f.name));
@@ -189,8 +189,8 @@ export async function sendToContact(env: MailEnv, m: { name: string; email: stri
   const raw = buildMime({
     from: autoFrom(env).from, fromName: `${m.name.replace(/[",:;<>@]/g, " ").slice(0, 60)} (website)`, to: [CONTACT], replyTo: m.email,
     subject: `[Contact] ${m.subject || "New message"}`.slice(0, 200),
-    text: `From: ${m.name} <${m.email}>\n\n${m.message}`,
-    html: renderEmail({ heading: m.subject || "New contact message", paragraphs: [`From: ${m.name} <${m.email}>`, m.message], note: "Reply to this email to answer the sender directly." }),
+    text: renderText(enquiryMail(m)),
+    html: renderEmail(enquiryMail(m)),
   });
   await withImap(imapAcct(env), (s) => s.append("INBOX", raw, []));
 }
