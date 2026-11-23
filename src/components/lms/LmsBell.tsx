@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { mailApi } from "@/lib/mail";
-import { lmsApi, type Note } from "@/lib/lms";
+import { lmsApi, lmsSession, type Note } from "@/lib/lms";
+import { emitToasts, takeCountIncrease, takeFreshNotes, type AlertToast } from "@/lib/notifyAlerts";
+import type { AlertRole } from "@/lib/notifyRules";
+import { NotifyControls, NotifyToastHost } from "@/components/lms/NotifyToastHost";
 import { useI18n } from "@/lib/i18n";
 
 const ICON: Record<Note["kind"], string> = {
@@ -31,14 +34,36 @@ export function LmsBell({ asAdmin = false, variant = "navy", extra, testId = "lm
   const [now, setNow] = useState(0);
   const box = useRef<HTMLDivElement>(null);
   const panel = useRef<HTMLDivElement>(null);
+  const fmt = useRef<((n: Note) => AlertToast) | null>(null);
+  const forumGo = useRef<(() => void) | undefined>(undefined);
+  const role: AlertRole = asAdmin ? "admin" : lmsSession()?.user?.role === "teacher" ? "teacher" : "student";
   const [pos, setPos] = useState<{ top: number; left: number; right: number; mobile: boolean } | null>(null);
 
   const load = useCallback(() => {
     if (typeof document !== "undefined" && document.hidden) return;
-    lmsApi.notes(asAdmin).then((r) => { setItems(r.items); setUnread(r.unread); setNow(Date.now()); }).catch(() => undefined);
+    lmsApi.notes(asAdmin).then((r) => {
+      setItems(r.items); setUnread(r.unread); setNow(Date.now());
+      // Pop-up + sound for notes that arrived since the last poll / visit (nothing extra is fetched).
+      const { fresh, more } = takeFreshNotes(r.items, role);
+      const f = fmt.current;
+      if (f && fresh.length) {
+        const ts = fresh.map(f);
+        if (more > 0) ts[ts.length - 1] = { ...ts[ts.length - 1], detail: [ts[ts.length - 1].detail, `+${more}`].filter(Boolean).join(" · ") };
+        emitToasts(ts);
+      }
+    }).catch(() => undefined);
     // Admin: unread contact-form messages + unread emails in contact@ inbox.
-    if (asAdmin) Promise.all([mailApi.contacts().then((r) => r.unread).catch(() => 0), mailApi.status().then((r) => r.unread || 0).catch(() => 0)]).then(([a, b]) => setMail(a + b));
-  }, [asAdmin]);
+    if (asAdmin) Promise.all([mailApi.contacts().then((r) => r.unread).catch(() => null), mailApi.status().then((r) => r.unread || 0).catch(() => null)]).then(([a, b]) => {
+      setMail((a || 0) + (b || 0));
+      const tr2 = (en: string, ar2: string) => (document.documentElement.lang === "ar" ? ar2 : en);
+      const ts: AlertToast[] = [];
+      const enq = a === null ? 0 : takeCountIncrease("admin", "enquiries", a);
+      const eml = b === null ? 0 : takeCountIncrease("admin", "inbox", b);
+      if (enq) ts.push({ id: "enq", icon: "✉️", heading: enq === 1 ? tr2("New enquiry", "استفسار جديد") : tr2(`${enq} new enquiries`, `${enq} استفسارات جديدة`), detail: tr2("From the website contact form", "من نموذج التواصل في الموقع"), href: "/admin#mail" });
+      if (eml) ts.push({ id: "eml", icon: "📧", heading: eml === 1 ? tr2("New email", "رسالة بريد جديدة") : tr2(`${eml} new emails`, `${eml} رسائل بريد جديدة`), detail: tr2("In the contact@ inbox", "في صندوق contact@"), href: "/admin#mail" });
+      emitToasts(ts);
+    });
+  }, [asAdmin, role]);
   useEffect(() => {
     load();
     const t = setInterval(load, 60_000);
@@ -196,6 +221,27 @@ export function LmsBell({ asAdmin = false, variant = "navy", extra, testId = "lm
     return h < 24 ? tr(`${h} h ago`, `قبل ${h} س`) : new Date(ts).toLocaleDateString(ar ? "ar" : "en-GB", { day: "numeric", month: "short" });
   };
   const href = (n: Note) => ((n.kind === "act_mindmap" || n.kind === "act_compare" || n.kind === "act_whiteboard") && n.data.code ? `/join?code=${n.data.code}` : n.kind === "message" ? (asAdmin ? "/admin#messages" : "/lms/messages") : n.kind === "announcement" && !asAdmin ? "/lms" : asAdmin ? "/admin#lmshw" : n.kind === "revise" ? "/lms#revision" : n.data.hw ? `/lms/homework?id=${encodeURIComponent(n.data.hw)}` : "/lms");
+  useEffect(() => { // keep the latest formatter / forum handler for the polling callback (refs are only written outside render)
+    fmt.current = (n: Note): AlertToast => {
+      const L = lines(n);
+      const body = (n.data.body || "").trim();
+      return { id: n.id, icon: ICON[n.kind] || "🔔", heading: L.heading, detail: [L.detail, body && body !== L.detail && body !== L.heading ? body : ""].filter(Boolean).join("\n") || undefined, href: href(n) };
+    };
+    forumGo.current = extra?.onClick;
+  });
+  const forumCount = extra?.count;
+  // Admin: a forum post waiting for approval pops up too. A first 0 may just mean "not loaded yet", so it is only trusted after a few seconds.
+  useEffect(() => {
+    if (!asAdmin || forumCount === undefined) return;
+    const commit = () => {
+      const inc = takeCountIncrease("admin", "forum", forumCount);
+      const en = document.documentElement.lang !== "ar";
+      if (inc) emitToasts([{ id: "forum", icon: "🗨️", heading: en ? (inc === 1 ? "Forum post waiting for approval" : `${inc} forum posts waiting for approval`) : (inc === 1 ? "مشاركة في المنتدى بانتظار الموافقة" : `${inc} مشاركات في المنتدى بانتظار الموافقة`), href: "/admin", onClick: () => forumGo.current?.() }]);
+    };
+    if (forumCount > 0) { commit(); return; }
+    const tm = window.setTimeout(commit, 6000);
+    return () => window.clearTimeout(tm);
+  }, [asAdmin, forumCount]);
   const label = total ? tr(`${total} new notifications`, `${total} إشعارات جديدة`) : tr("Notifications", "الإشعارات");
   const btn = `relative inline-flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/30 ${variant === "navy" ? "pill-on-navy !p-0" : "glass text-heading hover:ring-2 hover:ring-[var(--yellow-border)]"}`;
 
@@ -228,10 +274,14 @@ export function LmsBell({ asAdmin = false, variant = "navy", extra, testId = "lm
           </span>
         )}
       </button>
+      <NotifyToastHost rtl={ar} closeLabel={tr("Close", "إغلاق")} />
       {open && pos && createPortal(
         // Portal on <body> with a top-layer z-index so page headers, drawers and sliders never cover it; full-width sheet on phones.
         <div ref={panel} dir={ar ? "rtl" : "ltr"} style={pos.mobile ? { top: pos.top } : ar ? { top: pos.top, left: Math.max(8, pos.left) } : { top: pos.top, right: Math.max(8, pos.right) }} className={`fixed z-[2147483000] overflow-hidden ${pos.mobile ? "inset-x-2 rounded-2xl" : "w-96 max-w-[calc(100vw-1rem)] rounded-2xl"} border border-black/10 bg-white text-start text-sm text-heading shadow-2xl dark:border-white/15 dark:bg-[#13202e] dark:text-white`} role="dialog" aria-label={tr("Notifications", "الإشعارات")} data-testid={`${testId}-panel`}>
-          <p className="border-b border-black/5 px-4 py-2.5 font-bold dark:border-white/10">{tr("Notifications", "الإشعارات")}</p>
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-black/5 px-4 py-2.5 dark:border-white/10">
+            <p className="font-bold">{tr("Notifications", "الإشعارات")}</p>
+            <NotifyControls tr={tr} />
+          </div>
           <ul className="max-h-[min(24rem,70vh)] overflow-y-auto">
             {extra && extra.count > 0 && (
               <li>
