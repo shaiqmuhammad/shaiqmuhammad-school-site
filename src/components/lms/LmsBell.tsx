@@ -315,7 +315,7 @@ export function LmsBell({ asAdmin = false, variant = "navy", extra, testId = "lm
                         <span className="block">{L.heading}</span>
                         {L.detail ? <span className="mt-0.5 block text-xs font-normal opacity-80 whitespace-pre-wrap break-words">{L.detail}</span> : null}
                       </span>
-                      <span className="shrink-0 text-xs opacity-60">{ago(n.created)}</span>
+                      <span className="shrink-0 text-xs opacity-80">{ago(n.created)}</span>
                     </a>
                   </li>
                 );
@@ -324,11 +324,11 @@ export function LmsBell({ asAdmin = false, variant = "navy", extra, testId = "lm
               const other = items.filter((n) => !remindKinds.has(n.kind));
               return (
                 <>
-                  {reminders.length > 0 && <li className="px-4 py-1.5 text-[11px] font-extrabold uppercase tracking-wide opacity-60" data-testid={`${testId}-reminders-label`}>{tr("Reminders", "التذكيرات")}</li>}
+                  {reminders.length > 0 && <li className="px-4 py-1.5 text-[11px] font-extrabold uppercase tracking-wide opacity-80" data-testid={`${testId}-reminders-label`}>{tr("Reminders", "التذكيرات")}</li>}
                   {reminders.map(row)}
-                  {other.length > 0 && reminders.length > 0 && <li className="px-4 py-1.5 text-[11px] font-extrabold uppercase tracking-wide opacity-60">{tr("Notifications", "الإشعارات")}</li>}
+                  {other.length > 0 && reminders.length > 0 && <li className="px-4 py-1.5 text-[11px] font-extrabold uppercase tracking-wide opacity-80">{tr("Notifications", "الإشعارات")}</li>}
                   {other.map(row)}
-                  {!items.length && !mail && !(extra && extra.count > 0) && <li className="px-4 py-6 text-center opacity-60">{tr("Nothing new.", "لا جديد.")}</li>}
+                  {!items.length && !mail && !(extra && extra.count > 0) && <li className="px-4 py-6 text-center opacity-80">{tr("Nothing new.", "لا جديد.")}</li>}
                 </>
               );
             })()}
