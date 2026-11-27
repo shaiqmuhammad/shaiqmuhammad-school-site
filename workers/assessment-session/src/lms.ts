@@ -39,6 +39,7 @@ import { loadCat, catPhases, rulePhase, ruleDept } from "./catx";
  */
 import { makeVapid, sendPush, type Vapid } from "./push";
 import { textReplaceAll } from "./textfix";
+import { applyT413Sc } from "./curScFix";
 import { scoreFromPct, systems, trackerHandle, trkInit } from "./tracker";
 import { qaHandle } from "./qa";
 import { badgeOf, balanceOf, rcEarnAt, rcHandle, rcInit, rcSync, type RcCtx } from "./rewards";
@@ -396,6 +397,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     this.migrateGroupsToAssignment();
     this.migrateViewAllTeachers();
     this.migrateCatalogTree();
+    applyT413Sc(this.sql as never); // t413: tracker SC for two units that had none (once, only if still empty)
   }
 
   private catalog() {
