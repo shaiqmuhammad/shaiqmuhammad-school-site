@@ -1726,7 +1726,8 @@
             "أنس رضي الله عنه",
             "أبو هريرة رضي الله عنه"
           ],
-          "explanationAr": "أمر النبي ﷺ بلالًا أن ينادي بالصلاة (صحيح البخاري ٦٠٤)."
+          "explanationAr": "أمر النبي ﷺ بلالًا أن ينادي بالصلاة (صحيح البخاري ٦٠٤).",
+          "sc": "cu_mvdiwondbb9d3c41#0"
         },
         {
           "id": "y4a-q2",
@@ -1750,7 +1751,8 @@
             "أنس رضي الله عنه",
             "عائشة رضي الله عنها"
           ],
-          "explanationAr": "اقترح بعضهم ناقوسًا وبعضهم بوقًا، واقترح عمر أن ينادي رجل."
+          "explanationAr": "اقترح بعضهم ناقوسًا وبعضهم بوقًا، واقترح عمر أن ينادي رجل.",
+          "sc": "cu_mvdiwondbb9d3c41#0"
         },
         {
           "id": "y4a-q3",
@@ -1775,7 +1777,8 @@
             "طبل",
             "راية"
           ],
-          "explanationAr": "اقترح بعضهم ناقوسًا وبعضهم بوقًا."
+          "explanationAr": "اقترح بعضهم ناقوسًا وبعضهم بوقًا.",
+          "sc": "cu_mvdiwondbb9d3c41#0"
         },
         {
           "id": "y4a-q4",
@@ -1799,7 +1802,8 @@
             "ثلاث مرات",
             "أربع مرات"
           ],
-          "explanationAr": "أُمر بلال أن يشفع الأذان (صحيح البخاري ٦٠٥)."
+          "explanationAr": "أُمر بلال أن يشفع الأذان (صحيح البخاري ٦٠٥).",
+          "sc": "cu_mvdiwondbb9d3c41#2"
         },
         {
           "id": "y4a-q5",
@@ -1823,7 +1827,8 @@
             "أشهد أن لا إله إلا الله",
             "حي على الفلاح"
           ],
-          "explanationAr": "تُقال الإقامة وترًا إلا «قد قامت الصلاة»."
+          "explanationAr": "تُقال الإقامة وترًا إلا «قد قامت الصلاة».",
+          "sc": "cu_mvdiwondbb9d3c41#2"
         },
         {
           "id": "y4a-q6",
@@ -1870,7 +1875,8 @@
               "left": "الوسيلة",
               "right": "منزلة عالية في الجنة"
             }
-          ]
+          ],
+          "sc": "cu_mvdiwondbb9d3c41#0"
         },
         {
           "id": "y4a-q7",
@@ -1890,7 +1896,8 @@
             "صح",
             "خطأ"
           ],
-          "explanationAr": "صح."
+          "explanationAr": "صح.",
+          "sc": "cu_mvdiwondbb9d3c41#1"
         },
         {
           "id": "y4a-q8",
@@ -1910,7 +1917,8 @@
             "صح",
             "خطأ"
           ],
-          "explanationAr": "خطأ. الأذان شفع والإقامة وتر إلا «قد قامت الصلاة»."
+          "explanationAr": "خطأ. الأذان شفع والإقامة وتر إلا «قد قامت الصلاة».",
+          "sc": "cu_mvdiwondbb9d3c41#2"
         },
         {
           "id": "y4a-q9",
@@ -1934,7 +1942,8 @@
             "نرفع صوت الموسيقى",
             "نخرج من الغرفة"
           ],
-          "explanationAr": "«إذا سمعتم المؤذن فقولوا مثل ما يقول» (صحيح مسلم ٣٨٤)."
+          "explanationAr": "«إذا سمعتم المؤذن فقولوا مثل ما يقول» (صحيح مسلم ٣٨٤).",
+          "sc": "cu_mvdiwondbb9d3c41#4"
         },
         {
           "id": "y4a-q10",
@@ -1954,7 +1963,8 @@
             "نصلي على النبي ﷺ",
             "نسأل الله الوسيلة للنبي ﷺ"
           ],
-          "explanationAr": "الترديد ← الصلاة على النبي ← سؤال الوسيلة."
+          "explanationAr": "الترديد ← الصلاة على النبي ← سؤال الوسيلة.",
+          "sc": "cu_mvdiwondbb9d3c41#4"
         },
         {
           "id": "y4a-q11",
@@ -1978,7 +1988,8 @@
             "لا شيء",
             "لا يحتاج إلى الصلاة"
           ],
-          "explanationAr": "من سأل للنبي ﷺ الوسيلة حلّت له الشفاعة."
+          "explanationAr": "من سأل للنبي ﷺ الوسيلة حلّت له الشفاعة.",
+          "sc": "cu_mvdiwondbb9d3c41#4"
         },
         {
           "id": "y4a-q12",
@@ -2002,7 +2013,8 @@
             "أصرخ فوق صوت الأذان",
             "أتجاهله"
           ],
-          "explanationAr": "القرار الجيد هو إجابة النداء إلى الصلاة."
+          "explanationAr": "القرار الجيد هو إجابة النداء إلى الصلاة.",
+          "sc": "cu_mvdiwondbb9d3c41#3"
         }
       ],
       "titleAr": "السنة ٤ – الأذان والإقامة",
@@ -2056,7 +2068,8 @@
             "حفظ السر",
             "كتابة قصة"
           ],
-          "explanationAr": "التبيّن هو التحقق من الخبر قبل تصديقه أو نشره."
+          "explanationAr": "التبيّن هو التحقق من الخبر قبل تصديقه أو نشره.",
+          "sc": "cu_mvdiwond737c11ef#0"
         },
         {
           "id": "y5n-q2",
@@ -2080,7 +2093,8 @@
             "العصر ٢",
             "الإخلاص ١"
           ],
-          "explanationAr": "﴿يَا أَيُّهَا الَّذِينَ آمَنُوا إِن جَاءَكُمْ فَاسِقٌ بِنَبَإٍ فَتَبَيَّنُوا﴾ (الحجرات ٦)."
+          "explanationAr": "﴿يَا أَيُّهَا الَّذِينَ آمَنُوا إِن جَاءَكُمْ فَاسِقٌ بِنَبَإٍ فَتَبَيَّنُوا﴾ (الحجرات ٦).",
+          "sc": "cu_mvdiwond737c11ef#0"
         },
         {
           "id": "y5n-q3",
@@ -2105,7 +2119,8 @@
             "سنكون دائمًا على حق",
             "لن يحدث شيء"
           ],
-          "explanationAr": "﴿أَن تُصِيبُوا قَوْمًا بِجَهَالَةٍ فَتُصْبِحُوا عَلَىٰ مَا فَعَلْتُمْ نَادِمِينَ﴾"
+          "explanationAr": "﴿أَن تُصِيبُوا قَوْمًا بِجَهَالَةٍ فَتُصْبِحُوا عَلَىٰ مَا فَعَلْتُمْ نَادِمِينَ﴾",
+          "sc": "cu_mvdiwond737c11ef#1"
         },
         {
           "id": "y5n-q4",
@@ -2152,7 +2167,8 @@
               "left": "الندم",
               "right": "الشعور بالأسف بعد الخطأ"
             }
-          ]
+          ],
+          "sc": "cu_mvdiwond737c11ef#0"
         },
         {
           "id": "y5n-q5",
@@ -2181,7 +2197,8 @@
               "كذبًا",
               "كذبا"
             ]
-          ]
+          ],
+          "sc": "cu_mvdiwond737c11ef#2"
         },
         {
           "id": "y5n-q6",
@@ -2205,7 +2222,8 @@
             "عمر رضي الله عنه",
             "عثمان رضي الله عنه"
           ],
-          "explanationAr": "رواه أبو هريرة رضي الله عنه."
+          "explanationAr": "رواه أبو هريرة رضي الله عنه.",
+          "sc": "cu_mvdiwond737c11ef#2"
         },
         {
           "id": "y5n-q7",
@@ -2229,7 +2247,8 @@
             "لأن الأخبار دائمًا كاذبة",
             "لأنه يجب ألا نتكلم أبدًا"
           ],
-          "explanationAr": "نقل كل ما نسمعه دون تحقق نوع من الكذب."
+          "explanationAr": "نقل كل ما نسمعه دون تحقق نوع من الكذب.",
+          "sc": "cu_mvdiwond737c11ef#2"
         },
         {
           "id": "y5n-q8",
@@ -2251,7 +2270,8 @@
             "ابحث عن الدليل",
             "قرر: هل هو صحيح ولطيف ومفيد؟"
           ],
-          "explanationAr": "توقف ← المصدر ← الدليل ← القرار."
+          "explanationAr": "توقف ← المصدر ← الدليل ← القرار.",
+          "sc": "cu_mvdiwond737c11ef#2"
         },
         {
           "id": "y5n-q9",
@@ -2271,7 +2291,8 @@
             "صح",
             "خطأ"
           ],
-          "explanationAr": "صح."
+          "explanationAr": "صح.",
+          "sc": "cu_mvdiwond737c11ef#1"
         },
         {
           "id": "y5n-q10",
@@ -2291,7 +2312,8 @@
             "صح",
             "خطأ"
           ],
-          "explanationAr": "خطأ. نتحقق من المصدر والدليل قبل التصديق أو النشر."
+          "explanationAr": "خطأ. نتحقق من المصدر والدليل قبل التصديق أو النشر.",
+          "sc": "cu_mvdiwond737c11ef#2"
         },
         {
           "id": "y5n-q11",
@@ -2315,7 +2337,8 @@
             "أضيف تفاصيل وأنشرها",
             "أنشرها في مجموعة الصف"
           ],
-          "explanationAr": "طبّق خطوات التبيّن: توقف، تحقق من المصدر، ابحث عن الدليل، ثم قرر."
+          "explanationAr": "طبّق خطوات التبيّن: توقف، تحقق من المصدر، ابحث عن الدليل، ثم قرر.",
+          "sc": "cu_mvdiwond737c11ef#2"
         },
         {
           "id": "y5n-q12",
@@ -2339,7 +2362,8 @@
             "إشاعات",
             "حسابات مجهولة"
           ],
-          "explanationAr": "الأخبار الرسمية تأتي من مصادر موثوقة مثل وام."
+          "explanationAr": "الأخبار الرسمية تأتي من مصادر موثوقة مثل وام.",
+          "sc": "cu_mvdiwond737c11ef#2"
         }
       ],
       "titleAr": "السنة ٥ – التثبت من الأخبار",
@@ -4071,7 +4095,8 @@
             "الأصنام",
             "ملك"
           ],
-          "explanationAr": "﴿إِنَّآ أَرْسَلْنَا نُوحًا إِلَىٰ قَوْمِهِۦٓ﴾ (نوح ١). الله هو الذي يرسل الرسل."
+          "explanationAr": "﴿إِنَّآ أَرْسَلْنَا نُوحًا إِلَىٰ قَوْمِهِۦٓ﴾ (نوح ١). الله هو الذي يرسل الرسل.",
+          "sc": "cu_mvdiwond24ea3805#0"
         },
         {
           "id": "nuh-q2",
@@ -4095,7 +4120,8 @@
             "أن يعبدوا الأصنام",
             "أن يتركوا أهلهم"
           ],
-          "explanationAr": "﴿أَنِ ٱعْبُدُوا۟ ٱللَّهَ وَٱتَّقُوهُ وَأَطِيعُونِ﴾ (نوح ٣): دعاهم إلى عبادة الله وحده وترك الأصنام."
+          "explanationAr": "﴿أَنِ ٱعْبُدُوا۟ ٱللَّهَ وَٱتَّقُوهُ وَأَطِيعُونِ﴾ (نوح ٣): دعاهم إلى عبادة الله وحده وترك الأصنام.",
+          "sc": "cu_mvdiwond24ea3805#0"
         },
         {
           "id": "nuh-q3",
@@ -4121,7 +4147,8 @@
             "بلطف، ولم يستسلم أبدًا",
             "بالوقاحة والصراخ"
           ],
-          "explanationAr": "دعا نوح قومه ليلًا ونهارًا، سرًّا وجهرًا، وكان لطيفًا ولم يستسلم."
+          "explanationAr": "دعا نوح قومه ليلًا ونهارًا، سرًّا وجهرًا، وكان لطيفًا ولم يستسلم.",
+          "sc": "cu_mvdiwond24ea3805#0"
         },
         {
           "id": "nuh-q4",
@@ -4152,7 +4179,8 @@
               "950",
               "تسعمئة وخمسين"
             ]
-          ]
+          ],
+          "sc": "cu_mvdiwond24ea3805#1"
         },
         {
           "id": "nuh-q5",
@@ -4176,7 +4204,8 @@
             "ساعدوه كلهم في البناء",
             "انتقلوا إلى أرض أخرى"
           ],
-          "explanationAr": "سخر أكثرهم منه ورفضوا، ولم يؤمن معه إلا قليل (هود ٤٠)."
+          "explanationAr": "سخر أكثرهم منه ورفضوا، ولم يؤمن معه إلا قليل (هود ٤٠).",
+          "sc": "cu_mvdiwond24ea3805#0"
         },
         {
           "id": "nuh-q6",
@@ -4196,7 +4225,8 @@
             "صح",
             "خطأ"
           ],
-          "explanationAr": "صح. ﴿لَا نُفَرِّقُ بَيْنَ أَحَدٍ مِّن رُّسُلِهِۦ﴾ (البقرة ٢٨٥)."
+          "explanationAr": "صح. ﴿لَا نُفَرِّقُ بَيْنَ أَحَدٍ مِّن رُّسُلِهِۦ﴾ (البقرة ٢٨٥).",
+          "sc": "cu_mvdiwond24ea3805#0"
         },
         {
           "id": "nuh-q7",
@@ -4220,7 +4250,8 @@
             "بيتًا كبيرًا",
             "سورًا قويًا"
           ],
-          "explanationAr": "﴿وَٱصْنَعِ ٱلْفُلْكَ بِأَعْيُنِنَا وَوَحْيِنَا﴾ (هود ٣٧)."
+          "explanationAr": "﴿وَٱصْنَعِ ٱلْفُلْكَ بِأَعْيُنِنَا وَوَحْيِنَا﴾ (هود ٣٧).",
+          "sc": "cu_mvdiwond24ea3805#1"
         },
         {
           "id": "nuh-q8",
@@ -4245,7 +4276,8 @@
             "الذين سخروا منه",
             "الأصنام"
           ],
-          "explanationAr": "﴿ٱحْمِلْ فِيهَا مِن كُلٍّ زَوْجَيْنِ ٱثْنَيْنِ … وَمَنْ ءَامَنَ﴾ (هود ٤٠)."
+          "explanationAr": "﴿ٱحْمِلْ فِيهَا مِن كُلٍّ زَوْجَيْنِ ٱثْنَيْنِ … وَمَنْ ءَامَنَ﴾ (هود ٤٠).",
+          "sc": "cu_mvdiwond24ea3805#1"
         },
         {
           "id": "nuh-q9",
@@ -4267,7 +4299,8 @@
             "حمل المؤمنين والحيوانات زوجين زوجين",
             "غطّى الطوفان الأرض ونجت السفينة"
           ],
-          "explanationAr": "الدعوة ← بناء السفينة ← حمل المؤمنين والحيوانات ← الطوفان، ونجت السفينة بإذن الله."
+          "explanationAr": "الدعوة ← بناء السفينة ← حمل المؤمنين والحيوانات ← الطوفان، ونجت السفينة بإذن الله.",
+          "sc": "cu_mvdiwond24ea3805#1"
         },
         {
           "id": "nuh-q10",
@@ -4291,7 +4324,8 @@
             "لأنهم أغنياء",
             "لأنهم سكنوا على جبل"
           ],
-          "explanationAr": "نجا المؤمنون لأنهم آمنوا بالله وتوكّلوا عليه."
+          "explanationAr": "نجا المؤمنون لأنهم آمنوا بالله وتوكّلوا عليه.",
+          "sc": "cu_mvdiwond24ea3805#1"
         },
         {
           "id": "nuh-q11",
@@ -4338,7 +4372,8 @@
               "left": "التوكل",
               "right": "الاعتماد على الله"
             }
-          ]
+          ],
+          "sc": "cu_mvdiwond24ea3805#1"
         },
         {
           "id": "nuh-q12",
@@ -4362,7 +4397,8 @@
             "أصرخ عليهم",
             "أضحك عليهم أيضًا"
           ],
-          "explanationAr": "مثل نوح عليه السلام: نستمر في فعل الصواب بلطف وصبر حتى لو لم يستمع الآخرون."
+          "explanationAr": "مثل نوح عليه السلام: نستمر في فعل الصواب بلطف وصبر حتى لو لم يستمع الآخرون.",
+          "sc": "cu_mvdiwond24ea3805#2"
         }
       ],
       "titleAr": "السنة ٣ – الإيمان بالرسل: نوح عليه السلام",
@@ -4758,7 +4794,8 @@
             "من طين",
             "من ماء"
           ],
-          "explanationAr": "«خُلِقَتِ الْمَلَائِكَةُ مِنْ نُورٍ» (صحيح مسلم ٢٩٩٦)."
+          "explanationAr": "«خُلِقَتِ الْمَلَائِكَةُ مِنْ نُورٍ» (صحيح مسلم ٢٩٩٦).",
+          "sc": "cu_mvdiwond87e612eb#1"
         },
         {
           "id": "ang-q2",
@@ -4805,7 +4842,8 @@
               "left": "الكرام الكاتبون",
               "right": "يكتبون أعمالنا الحسنة والسيئة"
             }
-          ]
+          ],
+          "sc": "cu_mvdiwond87e612eb#0"
         },
         {
           "id": "ang-q3",
@@ -4829,7 +4867,8 @@
             "إسرافيل",
             "الكرام الكاتبون"
           ],
-          "explanationAr": "جبريل نزل بالقرآن على قلب النبي ﷺ بإذن الله (البقرة ٩٧)."
+          "explanationAr": "جبريل نزل بالقرآن على قلب النبي ﷺ بإذن الله (البقرة ٩٧).",
+          "sc": "cu_mvdiwond87e612eb#0"
         },
         {
           "id": "ang-q4",
@@ -4853,7 +4892,8 @@
             "ميكائيل",
             "الكرام الكاتبون"
           ],
-          "explanationAr": "إسرافيل ينفخ في الصور عند قيام الساعة."
+          "explanationAr": "إسرافيل ينفخ في الصور عند قيام الساعة.",
+          "sc": "cu_mvdiwond87e612eb#0"
         },
         {
           "id": "ang-q5",
@@ -4873,7 +4913,8 @@
             "صح",
             "خطأ"
           ],
-          "explanationAr": "صح. ﴿لَّا يَعْصُونَ ٱللَّهَ مَآ أَمَرَهُمْ وَيَفْعَلُونَ مَا يُؤْمَرُونَ﴾ (التحريم ٦)."
+          "explanationAr": "صح. ﴿لَّا يَعْصُونَ ٱللَّهَ مَآ أَمَرَهُمْ وَيَفْعَلُونَ مَا يُؤْمَرُونَ﴾ (التحريم ٦).",
+          "sc": "cu_mvdiwond87e612eb#1"
         },
         {
           "id": "ang-q6",
@@ -4897,7 +4938,8 @@
             "أمر يؤمن به الكبار فقط",
             "إحدى الصلوات الخمس"
           ],
-          "explanationAr": "الإيمان بالملائكة ركن من أركان الإيمان."
+          "explanationAr": "الإيمان بالملائكة ركن من أركان الإيمان.",
+          "sc": "cu_mvdiwond87e612eb#1"
         },
         {
           "id": "ang-q7",
@@ -4921,7 +4963,8 @@
             "من فوق ومن تحت",
             "عن اليمين فقط"
           ],
-          "explanationAr": "﴿عَنِ ٱلْيَمِينِ وَعَنِ ٱلشِّمَالِ قَعِيدٌ﴾ (ق ١٧)."
+          "explanationAr": "﴿عَنِ ٱلْيَمِينِ وَعَنِ ٱلشِّمَالِ قَعِيدٌ﴾ (ق ١٧).",
+          "sc": "cu_mvdiwond87e612eb#2"
         },
         {
           "id": "ang-q8",
@@ -4951,7 +4994,8 @@
               "قَوْلٍ",
               "قول"
             ]
-          ]
+          ],
+          "sc": "cu_mvdiwond87e612eb#2"
         },
         {
           "id": "ang-q9",
@@ -4971,7 +5015,8 @@
             "صح",
             "خطأ"
           ],
-          "explanationAr": "صح. تُكتب حسنةً إذا تركها لله (صحيح البخاري ٧٥٠١)."
+          "explanationAr": "صح. تُكتب حسنةً إذا تركها لله (صحيح البخاري ٧٥٠١).",
+          "sc": "cu_mvdiwond87e612eb#2"
         },
         {
           "id": "ang-q10",
@@ -4996,7 +5041,8 @@
             "ضحكت على لهجة البنت الجديدة",
             "قالت كلامًا سيئًا لأن أحدًا لا يراها"
           ],
-          "explanationAr": "تذكّرت سارة أن كل كلمة تُكتب، فاختارت الكلام الطيب وتركت الكلام السيئ."
+          "explanationAr": "تذكّرت سارة أن كل كلمة تُكتب، فاختارت الكلام الطيب وتركت الكلام السيئ.",
+          "sc": "cu_mvdiwond87e612eb#2"
         },
         {
           "id": "ang-q11",
@@ -5020,7 +5066,8 @@
             "أنقل قليلًا فقط",
             "أطلب من صديقي أن ينقل عني"
           ],
-          "explanationAr": "الملائكة تطيع الله دائمًا، وأعمالنا تُكتب. نطيع الله حتى لو لم يرنا أحد."
+          "explanationAr": "الملائكة تطيع الله دائمًا، وأعمالنا تُكتب. نطيع الله حتى لو لم يرنا أحد.",
+          "sc": "cu_mvdiwond87e612eb#2"
         },
         {
           "id": "ang-q12",
@@ -5044,7 +5091,8 @@
             "الكتب",
             "الأعمال"
           ],
-          "explanationAr": "Mala’ikah تعني: الملائكة."
+          "explanationAr": "Mala’ikah تعني: الملائكة.",
+          "sc": "cu_mvdiwond87e612eb#1"
         }
       ],
       "titleAr": "السنة ٤ – الإيمان بالملائكة",
@@ -5098,7 +5146,8 @@
             "غار ثور",
             "المسجد النبوي في المدينة"
           ],
-          "explanationAr": "نزل الوحي أول مرة في غار حراء قرب مكة (صحيح البخاري ٣)."
+          "explanationAr": "نزل الوحي أول مرة في غار حراء قرب مكة (صحيح البخاري ٣).",
+          "sc": "cu_mvdiwondffeed625#1"
         },
         {
           "id": "y4r-q2",
@@ -5122,7 +5171,8 @@
             "إسرافيل",
             "جبريل"
           ],
-          "explanationAr": "جاء جبريل عليه السلام بالوحي."
+          "explanationAr": "جاء جبريل عليه السلام بالوحي.",
+          "sc": "cu_mvdiwondffeed625#2"
         },
         {
           "id": "y4r-q3",
@@ -5146,7 +5196,8 @@
             "«اقرأ» – أي تلاوة وقراءة",
             "«قل» – أي تكلّم"
           ],
-          "explanationAr": "قال جبريل: «اقرأ!» (سورة العلق ١)."
+          "explanationAr": "قال جبريل: «اقرأ!» (سورة العلق ١).",
+          "sc": "cu_mvdiwondffeed625#1"
         },
         {
           "id": "y4r-q4",
@@ -5172,7 +5223,8 @@
             "يعين الفقراء",
             "يبتعد عن أهله"
           ],
-          "explanationAr": "ذكرت أنه يصل الرحم ويعين المحتاج ويكرم الضيف (صحيح البخاري ٣). ولم يكن يبتعد عن أهله."
+          "explanationAr": "ذكرت أنه يصل الرحم ويعين المحتاج ويكرم الضيف (صحيح البخاري ٣). ولم يكن يبتعد عن أهله.",
+          "sc": "cu_mvdiwondffeed625#1"
         },
         {
           "id": "y4r-q5",
@@ -5194,7 +5246,8 @@
             "ضمّه جبريل ثلاث مرات ثم تلا: «اقرأ باسم ربك الذي خلق…»",
             "رجع النبي ﷺ إلى البيت وطمأنته خديجة"
           ],
-          "explanationAr": "صحيح البخاري ٣: التعبّد في حراء ← «اقرأ» ← الضمّ ثلاثًا والتلاوة ← العودة إلى خديجة."
+          "explanationAr": "صحيح البخاري ٣: التعبّد في حراء ← «اقرأ» ← الضمّ ثلاثًا والتلاوة ← العودة إلى خديجة.",
+          "sc": "cu_mvdiwondffeed625#1"
         },
         {
           "id": "y4r-q6",
@@ -5241,7 +5294,8 @@
               "left": "مدني",
               "right": "نزل بعد الهجرة"
             }
-          ]
+          ],
+          "sc": "cu_mvdiwondffeed625#3"
         },
         {
           "id": "y4r-q7",
@@ -5261,7 +5315,8 @@
             "صح",
             "خطأ"
           ],
-          "explanationAr": "صح. لم يكن قد تعلّم القراءة (صحيح البخاري ٣)."
+          "explanationAr": "صح. لم يكن قد تعلّم القراءة (صحيح البخاري ٣).",
+          "sc": "cu_mvdiwondffeed625#1"
         },
         {
           "id": "y4r-q8",
@@ -5281,7 +5336,8 @@
             "صح",
             "خطأ"
           ],
-          "explanationAr": "خطأ. نزل القرآن مفرّقًا في نحو ٢٣ سنة."
+          "explanationAr": "خطأ. نزل القرآن مفرّقًا في نحو ٢٣ سنة.",
+          "sc": "cu_mvdiwondffeed625#0"
         },
         {
           "id": "y4r-q9",
@@ -5301,7 +5357,8 @@
             "صح",
             "خطأ"
           ],
-          "explanationAr": "صح. هكذا نُظهر احترامنا القرآن ومحبتنا له."
+          "explanationAr": "صح. هكذا نُظهر احترامنا القرآن ومحبتنا له.",
+          "sc": "cu_mvdiwondffeed625#4"
         },
         {
           "id": "y4r-q10",
@@ -5325,7 +5382,8 @@
             "نحو ٤٠ سنة",
             "نحو ١٠ أيام"
           ],
-          "explanationAr": "نحو ٢٣ سنة: نحو ١٣ سنة في مكة و١٠ سنوات في المدينة. وكان جبريل يلقى النبي ﷺ كل ليلة في رمضان فيدارسه القرآن (صحيح البخاري ٦)."
+          "explanationAr": "نحو ٢٣ سنة: نحو ١٣ سنة في مكة و١٠ سنوات في المدينة. وكان جبريل يلقى النبي ﷺ كل ليلة في رمضان فيدارسه القرآن (صحيح البخاري ٦).",
+          "sc": "cu_mvdiwondffeed625#0"
         },
         {
           "id": "y4r-q11",
@@ -5349,7 +5407,8 @@
             "الفاتحة",
             "البقرة"
           ],
-          "explanationAr": "الآيات الأولى من سورة العلق (٩٦: ١–٥)."
+          "explanationAr": "الآيات الأولى من سورة العلق (٩٦: ١–٥).",
+          "sc": "cu_mvdiwondffeed625#1"
         },
         {
           "id": "y4r-q12",
@@ -5381,7 +5440,8 @@
               "لحافظون",
               "حافظون"
             ]
-          ]
+          ],
+          "sc": "cu_mvdiwondffeed625#4"
         }
       ],
       "titleAr": "السنة ٤ – بدء الوحي",
@@ -5435,7 +5495,8 @@
             "المؤمن الصامت",
             "المؤمن الغني"
           ],
-          "explanationAr": "في مفردات الدرس: المؤمن القوي = The Strong Believer."
+          "explanationAr": "في مفردات الدرس: المؤمن القوي = The Strong Believer.",
+          "sc": "cu_mvdiwond06d42b72#0"
         },
         {
           "id": "sb-q2",
@@ -5481,7 +5542,8 @@
               "left": "أحبّ",
               "right": "أكثر محبّة"
             }
-          ]
+          ],
+          "sc": "cu_mvdiwond06d42b72#0"
         },
         {
           "id": "sb-q3",
@@ -5501,7 +5563,8 @@
             "صح",
             "خطأ"
           ],
-          "explanationAr": "المؤمن القوي خيرٌ وأحبّ إلى الله من المؤمن الضعيف، وفي كلٍّ خير."
+          "explanationAr": "المؤمن القوي خيرٌ وأحبّ إلى الله من المؤمن الضعيف، وفي كلٍّ خير.",
+          "sc": "cu_mvdiwond06d42b72#0"
         },
         {
           "id": "sb-q4",
@@ -5525,7 +5588,8 @@
             "ملك يتكلم من نفسه",
             "معلم متأخر بلا صلة بالسنة"
           ],
-          "explanationAr": "هدف الدرس: شرح حديث النبي محمد ﷺ عن المؤمن القوي."
+          "explanationAr": "هدف الدرس: شرح حديث النبي محمد ﷺ عن المؤمن القوي.",
+          "sc": "cu_mvdiwond06d42b72#0"
         },
         {
           "id": "sb-q5",
@@ -5559,7 +5623,8 @@
             [
               "ينفعك"
             ]
-          ]
+          ],
+          "sc": "cu_mvdiwond06d42b72#1"
         },
         {
           "id": "sb-q6",
@@ -5583,7 +5648,8 @@
             "«لن أحاول مرة أخرى».",
             "«غيري ملوم على كل شيء»."
           ],
-          "explanationAr": "نقول: قدّر الله وما شاء فعل، ولا نفتح باب «لو»."
+          "explanationAr": "نقول: قدّر الله وما شاء فعل، ولا نفتح باب «لو».",
+          "sc": "cu_mvdiwond06d42b72#2"
         },
         {
           "id": "sb-q7",
@@ -5603,7 +5669,8 @@
             "صح",
             "خطأ"
           ],
-          "explanationAr": "النبي ﷺ نهى عن «لو» لأنها تفتح عمل الشيطان."
+          "explanationAr": "النبي ﷺ نهى عن «لو» لأنها تفتح عمل الشيطان.",
+          "sc": "cu_mvdiwond06d42b72#2"
         },
         {
           "id": "sb-q8",
@@ -5629,7 +5696,8 @@
             "يشعر بالعجز ويستسلم بلا محاولة",
             "يستمر في المحاولة ولا يعجز"
           ],
-          "explanationAr": "المؤمن القوي يأخذ الأسباب ويتوكّل على الله ولا يعجز."
+          "explanationAr": "المؤمن القوي يأخذ الأسباب ويتوكّل على الله ولا يعجز.",
+          "sc": "cu_mvdiwond06d42b72#1"
         },
         {
           "id": "sb-q9",
@@ -5651,7 +5719,8 @@
             "لا تعجز — استمر في المحاولة",
             "إذا وقع شيء فاقبل قضاء الله (ولا تقل «لو»)"
           ],
-          "explanationAr": "الحديث يبدأ بالحرص على النافع، ثم الاستعانة بالله، ثم ترك العجز، ثم قبول القدر."
+          "explanationAr": "الحديث يبدأ بالحرص على النافع، ثم الاستعانة بالله، ثم ترك العجز، ثم قبول القدر.",
+          "sc": "cu_mvdiwond06d42b72#1"
         },
         {
           "id": "sb-q10",
@@ -5675,7 +5744,8 @@
             "يلوم الحكّام فقط ويرفض التدرّب",
             "يتظاهر أن المحاولة لا تهم لأن النتائج عشوائية"
           ],
-          "explanationAr": "نأخذ الأسباب ونستعين بالله ونقبل القضاء دون «لو»."
+          "explanationAr": "نأخذ الأسباب ونستعين بالله ونقبل القضاء دون «لو».",
+          "sc": "cu_mvdiwond06d42b72#1"
         }
       ],
       "titleAr": "السنة ٥ – المؤمن القوي",
@@ -6724,7 +6794,8 @@
             "من لا يسافر أبدًا",
             "من ليس له بيت"
           ],
-          "explanationAr": "قال الصحابة: «المفلس فينا من لا درهم له ولا متاع»، ثم بيّن النبي ﷺ من هو المفلس الحقيقي (صحيح مسلم ٢٥٨١)."
+          "explanationAr": "قال الصحابة: «المفلس فينا من لا درهم له ولا متاع»، ثم بيّن النبي ﷺ من هو المفلس الحقيقي (صحيح مسلم ٢٥٨١).",
+          "sc": "cu_mvdiwond7fb60174#0"
         },
         {
           "id": "ban-q2",
@@ -6748,7 +6819,8 @@
             "من هو فقير في الدنيا",
             "من ليس له عمل"
           ],
-          "explanationAr": "المفلس من أمتي يأتي بصلاة وصيام وزكاة، ويأتي قد شتم هذا وقذف هذا… فيُعطى هذا من حسناته (صحيح مسلم ٢٥٨١)."
+          "explanationAr": "المفلس من أمتي يأتي بصلاة وصيام وزكاة، ويأتي قد شتم هذا وقذف هذا… فيُعطى هذا من حسناته (صحيح مسلم ٢٥٨١).",
+          "sc": "cu_mvdiwond7fb60174#0"
         },
         {
           "id": "ban-q3",
@@ -6772,7 +6844,8 @@
             "صحيح مسلم ٢٩٩٦",
             "صحيح البخاري ٦٣٢٤"
           ],
-          "explanationAr": "حديث المفلس في صحيح مسلم برقم ٢٥٨١."
+          "explanationAr": "حديث المفلس في صحيح مسلم برقم ٢٥٨١.",
+          "sc": "cu_mvdiwond7fb60174#0"
         },
         {
           "id": "ban-q4",
@@ -6801,7 +6874,8 @@
             "ضرب الآخرين",
             "الصلاة والصيام"
           ],
-          "explanationAr": "شتم وقذف وأكل مال الناس وسفك الدم وضرب، أما الصلاة والصيام فحسنات أُخذت منه لمن ظلمهم."
+          "explanationAr": "شتم وقذف وأكل مال الناس وسفك الدم وضرب، أما الصلاة والصيام فحسنات أُخذت منه لمن ظلمهم.",
+          "sc": "cu_mvdiwond7fb60174#1"
         },
         {
           "id": "ban-q5",
@@ -6823,7 +6897,8 @@
             "تؤخذ حسناته وتُعطى لمن ظلمهم",
             "إذا فنيت حسناته طُرحت عليه سيئاتهم"
           ],
-          "explanationAr": "صحيح مسلم ٢٥٨١: حسنات ← ظلم للناس ← تؤخذ حسناته لهم ← ثم تُطرح عليه سيئاتهم."
+          "explanationAr": "صحيح مسلم ٢٥٨١: حسنات ← ظلم للناس ← تؤخذ حسناته لهم ← ثم تُطرح عليه سيئاتهم.",
+          "sc": "cu_mvdiwond7fb60174#0"
         },
         {
           "id": "ban-q6",
@@ -6870,7 +6945,8 @@
               "left": "الحساب",
               "right": "سؤال الله لنا عن أعمالنا"
             }
-          ]
+          ],
+          "sc": "cu_mvdiwond7fb60174#0"
         },
         {
           "id": "ban-q7",
@@ -6890,7 +6966,8 @@
             "صح",
             "خطأ"
           ],
-          "explanationAr": "خطأ. الإفلاس الحقيقي ليس خسارة المال، بل خسارة الحسنات بسبب ظلم الناس."
+          "explanationAr": "خطأ. الإفلاس الحقيقي ليس خسارة المال، بل خسارة الحسنات بسبب ظلم الناس.",
+          "sc": "cu_mvdiwond7fb60174#0"
         },
         {
           "id": "ban-q8",
@@ -6910,7 +6987,8 @@
             "صح",
             "خطأ"
           ],
-          "explanationAr": "صح. ظلم الناس قد يُذهب حسناتنا يوم القيامة."
+          "explanationAr": "صح. ظلم الناس قد يُذهب حسناتنا يوم القيامة.",
+          "sc": "cu_mvdiwond7fb60174#1"
         },
         {
           "id": "ban-q9",
@@ -6930,7 +7008,8 @@
             "صح",
             "خطأ"
           ],
-          "explanationAr": "خطأ. الله يرى كيف نعامل الناس، وسنُسأل عن ذلك يوم الحساب."
+          "explanationAr": "خطأ. الله يرى كيف نعامل الناس، وسنُسأل عن ذلك يوم الحساب.",
+          "sc": "cu_mvdiwond7fb60174#1"
         },
         {
           "id": "ban-q10",
@@ -6954,7 +7033,8 @@
             "الفقر في الدنيا فقط",
             "عدم وجود عمل"
           ],
-          "explanationAr": "الإفلاس الحقيقي: خسارة الحسنات بسبب ظلم الناس وسوء معاملتهم."
+          "explanationAr": "الإفلاس الحقيقي: خسارة الحسنات بسبب ظلم الناس وسوء معاملتهم.",
+          "sc": "cu_mvdiwond7fb60174#0"
         },
         {
           "id": "ban-q11",
@@ -6978,7 +7058,8 @@
             "أؤذيه مرة أخرى لنتعادل",
             "أختبئ منه"
           ],
-          "explanationAr": "الاعتذار وإصلاح الخطأ والتوبة تحمي حسناتنا."
+          "explanationAr": "الاعتذار وإصلاح الخطأ والتوبة تحمي حسناتنا.",
+          "sc": "cu_mvdiwond7fb60174#2"
         },
         {
           "id": "ban-q12",
@@ -7007,7 +7088,8 @@
             [
               "ظلم"
             ]
-          ]
+          ],
+          "sc": "cu_mvdiwond7fb60174#2"
         }
       ],
       "titleAr": "السنة ٦ – المفلس الحقيقي",
@@ -7023,6 +7105,3374 @@
         "title": "The Real Bankrupt",
         "titleAr": "المفلس الحقيقي"
       }
+    },
+    {
+      "id": "sow-year-3-surah-al-asr",
+      "slug": "year-3-surah-al-asr",
+      "title": "Year 3 – Surah Al-Asr",
+      "description": "Week 2 check: reciting Surah Al-Asr in order, the four keys to success, and using time wisely.",
+      "timeLimitMinutes": 8,
+      "showAnswers": true,
+      "certificateIndividual": false,
+      "certificateGroup": false,
+      "visible": false,
+      "active": false,
+      "published": false,
+      "updatedAt": "2026-11-27T08:00:00.000Z",
+      "year": 3,
+      "topic": "cu_mvdiwondad7ed82b",
+      "subject": "Islamic B",
+      "topicInfo": {
+        "yr": "Year 3",
+        "term": "Term 1",
+        "wk": 2,
+        "title": "Surah Al-Asr"
+      },
+      "questions": [
+        {
+          "type": "ordering",
+          "prompt": "Put the ayahs of Surah Al-Asr in the correct order.",
+          "options": [
+            "وَٱلْعَصْرِ",
+            "إِنَّ ٱلْإِنسَـٰنَ لَفِى خُسْرٍ",
+            "إِلَّا ٱلَّذِينَ ءَامَنُوا۟ وَعَمِلُوا۟ ٱلصَّـٰلِحَـٰتِ وَتَوَاصَوْا۟ بِٱلْحَقِّ وَتَوَاصَوْا۟ بِٱلصَّبْرِ"
+          ],
+          "correct": [],
+          "explanation": "Surah Al-Asr (103:1–3): “By time, indeed, mankind is in loss, except for those who have believed and done righteous deeds and advised each other to truth and advised each other to patience.”",
+          "id": "y3asr-q1",
+          "points": 1,
+          "sc": "cu_mvdiwondad7ed82b#0"
+        },
+        {
+          "type": "fill_blank",
+          "prompt": "Complete the first ayah: “By ___” (وَٱلْعَصْرِ, 103:1)",
+          "options": [
+            "night",
+            "sun"
+          ],
+          "correct": [],
+          "blanks": [
+            [
+              "time",
+              "Time",
+              "the time",
+              "al-asr",
+              "Al-Asr"
+            ]
+          ],
+          "explanation": "Al-‘Asr means time. Allah swears by time in the first ayah (103:1).",
+          "id": "y3asr-q2",
+          "points": 1,
+          "sc": "cu_mvdiwondad7ed82b#0"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "How many ayahs are in Surah Al-Asr?",
+          "options": [
+            "3",
+            "5",
+            "7",
+            "10"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Surah Al-Asr has three ayahs.",
+          "id": "y3asr-q3",
+          "points": 1,
+          "sc": "cu_mvdiwondad7ed82b#0"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "Ayah 2 says: “Indeed, mankind is in loss,” Who is NOT in loss?",
+          "options": [
+            "Those who believe, do good deeds and advise each other to truth and patience",
+            "Those who have lots of toys",
+            "Those who sleep a lot",
+            "Those who play games all day"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Ayah 3: except those who believe, do righteous deeds and advise each other to truth and to patience (103:3).",
+          "id": "y3asr-q4",
+          "points": 1,
+          "sc": "cu_mvdiwondad7ed82b#1"
+        },
+        {
+          "type": "multi_select",
+          "prompt": "Which are the four keys to success in Surah Al-Asr? (select all that apply)",
+          "options": [
+            "Believing (Iman)",
+            "Doing good deeds",
+            "Advising each other to the truth",
+            "Advising each other to patience",
+            "Being the richest"
+          ],
+          "correct": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "explanation": "Surah Al-Asr 103:3 names belief, good deeds, advising to truth and advising to patience.",
+          "id": "y3asr-q5",
+          "points": 1,
+          "sc": "cu_mvdiwondad7ed82b#1"
+        },
+        {
+          "type": "true_false",
+          "prompt": "Time is a blessing from Allah, and a minute that is lost can never come back.",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Allah swears by time to show how precious it is; wasted time cannot be returned.",
+          "id": "y3asr-q6",
+          "points": 1,
+          "sc": "cu_mvdiwondad7ed82b#1"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "After school you have homework, Qur’an practice and time to play. What is the best plan?",
+          "options": [
+            "Do homework and Qur’an practice first, then play",
+            "Play until bedtime and forget homework",
+            "Watch videos all evening",
+            "Do nothing until tomorrow"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Using time wisely means doing important tasks first, then enjoying play.",
+          "id": "y3asr-q7",
+          "points": 1,
+          "sc": "cu_mvdiwondad7ed82b#2"
+        },
+        {
+          "type": "ordering",
+          "prompt": "Put this after-school plan in a sensible order.",
+          "options": [
+            "Pray Asr on time",
+            "Do your homework",
+            "Practise your Qur’an",
+            "Play and rest"
+          ],
+          "correct": [],
+          "explanation": "Start with what Allah asks of us (prayer on time), then duties, then rest and play.",
+          "id": "y3asr-q8",
+          "points": 1,
+          "sc": "cu_mvdiwondad7ed82b#2"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "Your friend wants to play video games while it is time for Maghrib. What should you do?",
+          "options": [
+            "Stop and pray Maghrib, then continue later",
+            "Keep playing and pray later when you remember",
+            "Tell your friend prayer is not important",
+            "Hide so no one asks you to pray"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Using time wisely means putting Salah first on time, then doing other things.",
+          "id": "y3asr-q9",
+          "points": 1,
+          "sc": "cu_mvdiwondad7ed82b#2"
+        }
+      ]
+    },
+    {
+      "id": "sow-year-3-laam-shamsiyah-laam-qamariyah",
+      "slug": "year-3-laam-shamsiyah-laam-qamariyah",
+      "title": "Year 3 – Laam Shamsiyah and Laam Qamariyah",
+      "description": "Week 3 check: Sun and Moon letters, when the Lam of “Al” is hidden or read, and applying the rule to words from Surah Al-Asr.",
+      "timeLimitMinutes": 8,
+      "showAnswers": true,
+      "certificateIndividual": false,
+      "certificateGroup": false,
+      "visible": false,
+      "active": false,
+      "published": false,
+      "updatedAt": "2026-11-27T08:00:00.000Z",
+      "year": 3,
+      "topic": "cu_mvdiwondc2f6f804",
+      "subject": "Islamic B",
+      "topicInfo": {
+        "yr": "Year 3",
+        "term": "Term 1",
+        "wk": 3,
+        "title": "Laam Shamsiyah and Laam Qamariyah"
+      },
+      "questions": [
+        {
+          "type": "multiple_choice",
+          "prompt": "How many Sun letters (Huruf Shamsiyah) are there in Arabic?",
+          "options": [
+            "14",
+            "10",
+            "28",
+            "7"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "There are 14 Sun letters and 14 Moon letters.",
+          "id": "y3lam-q1",
+          "points": 1,
+          "sc": "cu_mvdiwondc2f6f804#0"
+        },
+        {
+          "type": "multi_select",
+          "prompt": "Which of these are Sun letters? (select all that apply)",
+          "options": [
+            "ت",
+            "ش",
+            "ص",
+            "ب",
+            "ق"
+          ],
+          "correct": [
+            0,
+            1,
+            2
+          ],
+          "explanation": "ت ش ص are Sun letters. ب and ق are Moon letters.",
+          "id": "y3lam-q2",
+          "points": 1,
+          "sc": "cu_mvdiwondc2f6f804#0"
+        },
+        {
+          "type": "multi_select",
+          "prompt": "Which of these are Moon letters? (select all that apply)",
+          "options": [
+            "ب",
+            "ق",
+            "ح",
+            "ر",
+            "ن"
+          ],
+          "correct": [
+            0,
+            1,
+            2
+          ],
+          "explanation": "ب ق ح are Moon letters. ر and ن are Sun letters.",
+          "id": "y3lam-q3",
+          "points": 1,
+          "sc": "cu_mvdiwondc2f6f804#0"
+        },
+        {
+          "type": "true_false",
+          "prompt": "In Lam Shamsiyah the Lam of “Al” is hidden (not pronounced) and the next letter gets a shaddah.",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "With Sun letters the Lam is silent and the Sun letter is doubled, e.g. ٱلشَّمْس (ash-shams).",
+          "id": "y3lam-q4",
+          "points": 1,
+          "sc": "cu_mvdiwondc2f6f804#1"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "In Lam Qamariyah, what happens to the Lam of “Al”?",
+          "options": [
+            "It is pronounced clearly with a sukoon",
+            "It is hidden",
+            "It becomes a Noon",
+            "It is read twice"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "With Moon letters the Lam is read clearly, e.g. ٱلْقَمَر (al-qamar).",
+          "id": "y3lam-q5",
+          "points": 1,
+          "sc": "cu_mvdiwondc2f6f804#1"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "Why is the Lam silent in ٱلشَّمْس?",
+          "options": [
+            "Because ش is a Sun letter",
+            "Because ش is a Moon letter",
+            "Because the word is short",
+            "Because it is at the end of the ayah"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "The Lam is hidden before the 14 Sun letters.",
+          "id": "y3lam-q6",
+          "points": 1,
+          "sc": "cu_mvdiwondc2f6f804#1"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "In Surah Al-Asr we read “ٱلصَّـٰلِحَـٰتِ” (103:3). Is the Lam pronounced?",
+          "options": [
+            "No – ص is a Sun letter, so the Lam is silent",
+            "Yes – ص is a Moon letter",
+            "Yes – every Lam is always read",
+            "No – because it is a Moon letter"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "ٱلصَّـٰلِحَـٰتِ: the Lam is silent and ص has a shaddah (Lam Shamsiyah).",
+          "id": "y3lam-q7",
+          "points": 1,
+          "sc": "cu_mvdiwondc2f6f804#2"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "In “بِٱلْحَقِّ” (103:3), which rule do we use?",
+          "options": [
+            "Lam Qamariyah – the Lam is read because ح is a Moon letter",
+            "Lam Shamsiyah – the Lam is silent",
+            "Qalqalah",
+            "Idgham"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "بِٱلْحَقِّ: ح is a Moon letter, so we say “bil-haqq” with a clear Lam.",
+          "id": "y3lam-q8",
+          "points": 1,
+          "sc": "cu_mvdiwondc2f6f804#2"
+        },
+        {
+          "type": "matching",
+          "prompt": "Match each word to its rule.",
+          "options": [],
+          "correct": [],
+          "pairs": [
+            {
+              "left": "ٱلشَّمْس",
+              "right": "Lam Shamsiyah (Lam silent)"
+            },
+            {
+              "left": "ٱلْقَمَر",
+              "right": "Lam Qamariyah (Lam read)"
+            },
+            {
+              "left": "ٱلنَّاس",
+              "right": "Lam Shamsiyah (Lam silent)"
+            },
+            {
+              "left": "ٱلْكِتَاب",
+              "right": "Lam Qamariyah (Lam read)"
+            }
+          ],
+          "explanation": "ش and ن are Sun letters; ق and ك are Moon letters.",
+          "id": "y3lam-q9",
+          "points": 1,
+          "sc": "cu_mvdiwondc2f6f804#2"
+        }
+      ]
+    },
+    {
+      "id": "sow-year-3-i-love-good-for-my-brother",
+      "slug": "year-3-i-love-good-for-my-brother",
+      "title": "Year 3 – I Love Good for My Brother",
+      "description": "Week 4 check: the Hadith of loving for your brother what you love for yourself (Sahih al-Bukhari 13), being fair, and not being jealous.",
+      "timeLimitMinutes": 8,
+      "showAnswers": true,
+      "certificateIndividual": false,
+      "certificateGroup": false,
+      "visible": false,
+      "active": false,
+      "published": false,
+      "updatedAt": "2026-11-27T08:00:00.000Z",
+      "year": 3,
+      "topic": "cu_mvdiwonddf5897e3",
+      "subject": "Islamic B",
+      "topicInfo": {
+        "yr": "Year 3",
+        "term": "Term 1",
+        "wk": 4,
+        "title": "I Love Good for My Brother"
+      },
+      "questions": [
+        {
+          "type": "fill_blank",
+          "prompt": "The Prophet ﷺ said: “None of you will have faith till he wishes for his brother what he ___ for himself.” (Sahih al-Bukhari 13)",
+          "options": [
+            "hates",
+            "takes"
+          ],
+          "correct": [],
+          "blanks": [
+            [
+              "likes",
+              "loves",
+              "like",
+              "love"
+            ]
+          ],
+          "explanation": "Sahih al-Bukhari 13, narrated by Anas: “None of you will have faith till he wishes for his (Muslim) brother what he likes for himself.”",
+          "id": "y3love-q1",
+          "points": 1,
+          "sc": "cu_mvdiwonddf5897e3#0"
+        },
+        {
+          "type": "multi_select",
+          "prompt": "Which good things should you wish for your friends, just like you wish for yourself? (select all that apply)",
+          "options": [
+            "Good marks",
+            "Good health",
+            "Happiness",
+            "Being left out",
+            "Getting into trouble"
+          ],
+          "correct": [
+            0,
+            1,
+            2
+          ],
+          "explanation": "We love for others the good we love for ourselves.",
+          "id": "y3love-q2",
+          "points": 1,
+          "sc": "cu_mvdiwonddf5897e3#0"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "Your friend gets a gold star. What does the Hadith teach you to feel?",
+          "options": [
+            "Happy for them and wish them more good",
+            "Jealous",
+            "Angry",
+            "Sad that it was not you"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "A believer is happy when good comes to others.",
+          "id": "y3love-q3",
+          "points": 1,
+          "sc": "cu_mvdiwonddf5897e3#0"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "Which of these should we NEVER do to others, because we would not like it done to us?",
+          "options": [
+            "Laughing at them",
+            "Sharing with them",
+            "Helping them",
+            "Saying salam"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "We would not like to be laughed at, so we must not laugh at others.",
+          "id": "y3love-q4",
+          "points": 1,
+          "sc": "cu_mvdiwonddf5897e3#1"
+        },
+        {
+          "type": "true_false",
+          "prompt": "Being jealous when a classmate does well is the opposite of what the Hadith teaches.",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "The Hadith teaches us to wish good for others, not to be jealous of them.",
+          "id": "y3love-q5",
+          "points": 1,
+          "sc": "cu_mvdiwonddf5897e3#1"
+        },
+        {
+          "type": "multi_select",
+          "prompt": "Which actions go against the Hadith? (select all that apply)",
+          "options": [
+            "Pushing in the line",
+            "Hiding a friend’s pencil",
+            "Letting a friend play first",
+            "Saying unkind words"
+          ],
+          "correct": [
+            0,
+            1,
+            3
+          ],
+          "explanation": "We do not like others to push in, hide our things or say unkind words, so we must not do them to others.",
+          "id": "y3love-q6",
+          "points": 1,
+          "sc": "cu_mvdiwonddf5897e3#1"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "Who narrated this Hadith in Sahih al-Bukhari 13?",
+          "options": [
+            "Anas",
+            "Abu Bakr",
+            "‘Umar",
+            "Bilal"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Sahih al-Bukhari 13 was narrated by Anas (may Allah be pleased with him).",
+          "id": "y3love-q7",
+          "points": 1,
+          "sc": "cu_mvdiwonddf5897e3#2"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "What is the main guideline of the Hadith?",
+          "options": [
+            "Wish for others what you wish for yourself",
+            "Keep the best things only for yourself",
+            "Only help people who help you",
+            "Be kind only to your family"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "The guideline: love for your brother what you love for yourself.",
+          "id": "y3love-q8",
+          "points": 1,
+          "sc": "cu_mvdiwonddf5897e3#2"
+        },
+        {
+          "type": "true_false",
+          "prompt": "The Hadith links loving good for others to having complete faith (Iman).",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "“None of you will have faith…” shows this is part of true faith (Sahih al-Bukhari 13).",
+          "id": "y3love-q9",
+          "points": 1,
+          "sc": "cu_mvdiwonddf5897e3#2"
+        }
+      ]
+    },
+    {
+      "id": "sow-year-3-prophet-ibrahim",
+      "slug": "year-3-prophet-ibrahim",
+      "title": "Year 3 – Belief in the Messengers (Prophet Ibrahim A.S)",
+      "description": "Week 8 check: Ibrahim (A.S) calling to Tawhid, the fire (21:69), building the Ka‘bah (2:127) and Khalilullah (4:125).",
+      "timeLimitMinutes": 8,
+      "showAnswers": true,
+      "certificateIndividual": false,
+      "certificateGroup": false,
+      "visible": false,
+      "active": false,
+      "published": false,
+      "updatedAt": "2026-11-27T08:00:00.000Z",
+      "year": 3,
+      "topic": "cu_mvdiwond7b37680c",
+      "subject": "Islamic B",
+      "topicInfo": {
+        "yr": "Year 3",
+        "term": "Term 1",
+        "wk": 8,
+        "title": "Belief in the Messengers (Prophet Ibrahim A.S)"
+      },
+      "questions": [
+        {
+          "type": "multiple_choice",
+          "prompt": "What did Prophet Ibrahim (A.S) call his people to do?",
+          "options": [
+            "Worship Allah alone",
+            "Worship idols",
+            "Worship the sun",
+            "Worship the stars"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Like every Prophet, Ibrahim (A.S) called people to worship Allah alone (Tawhid).",
+          "id": "y3ibr-q1",
+          "points": 1,
+          "sc": "cu_mvdiwond7b37680c#0"
+        },
+        {
+          "type": "true_false",
+          "prompt": "Ibrahim (A.S) told his people that idols cannot hear, help or harm them.",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "He showed his people that idols have no power; only Allah deserves worship.",
+          "id": "y3ibr-q2",
+          "points": 1,
+          "sc": "cu_mvdiwond7b37680c#0"
+        },
+        {
+          "type": "fill_blank",
+          "prompt": "Allah said: “O fire, be ___ and safety upon Ibrahim.” (Al-Anbiya 21:69)",
+          "options": [
+            "hot",
+            "bright"
+          ],
+          "correct": [],
+          "blanks": [
+            [
+              "coolness",
+              "cool",
+              "cold",
+              "coldness"
+            ]
+          ],
+          "explanation": "Al-Anbiya 21:69: “We [i.e., Allāh] said, \"O fire, be coolness and safety upon Abraham.\"” قُلْنَا يَـٰنَارُ كُونِى بَرْدًا وَسَلَـٰمًا عَلَىٰٓ إِبْرَٰهِيمَ",
+          "id": "y3ibr-q3",
+          "points": 1,
+          "sc": "cu_mvdiwond7b37680c#1"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "What does the story of the fire teach us?",
+          "options": [
+            "Allah protects those who trust Him",
+            "Fire is not hot",
+            "We should play with fire",
+            "Ibrahim was scared and gave up"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Allah made the fire cool and safe for Ibrahim (A.S); we trust Allah in hard times.",
+          "id": "y3ibr-q4",
+          "points": 1,
+          "sc": "cu_mvdiwond7b37680c#1"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "Who helped Ibrahim (A.S) build the Ka‘bah?",
+          "options": [
+            "His son Isma‘il (A.S)",
+            "His son Ishaq (A.S)",
+            "Prophet Nuh (A.S)",
+            "Prophet Musa (A.S)"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Al-Baqarah 2:127: “And [mention] when Abraham was raising the foundations of the House and [with him] Ishmael…”",
+          "id": "y3ibr-q5",
+          "points": 1,
+          "sc": "cu_mvdiwond7b37680c#2"
+        },
+        {
+          "type": "fill_blank",
+          "prompt": "While building the Ka‘bah they prayed: “Our Lord, ___ [this] from us.” (Al-Baqarah 2:127)",
+          "options": [
+            "take",
+            "give"
+          ],
+          "correct": [],
+          "blanks": [
+            [
+              "accept"
+            ]
+          ],
+          "explanation": "Al-Baqarah 2:127: وَإِذْ يَرْفَعُ إِبْرَٰهِـۧمُ ٱلْقَوَاعِدَ مِنَ ٱلْبَيْتِ وَإِسْمَـٰعِيلُ رَبَّنَا تَقَبَّلْ مِنَّآ ۖ إِنَّكَ أَنتَ ٱلسَّمِيعُ ٱلْعَلِيمُ",
+          "id": "y3ibr-q6",
+          "points": 1,
+          "sc": "cu_mvdiwond7b37680c#2"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "What special title did Allah give Ibrahim (A.S)?",
+          "options": [
+            "Khalilullah – the close friend of Allah",
+            "Kalimullah",
+            "Ruhullah",
+            "Sayfullah"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "An-Nisa 4:125: “And Allah took Abraham as an intimate friend.” وَمَنْ أَحْسَنُ دِينًا مِّمَّنْ أَسْلَمَ وَجْهَهُۥ لِلَّهِ وَهُوَ مُحْسِنٌ وَٱتَّبَعَ مِلَّةَ إِبْرَٰهِيمَ حَنِيفًا ۗ وَٱتَّخَذَ ٱللَّهُ إِبْرَٰهِيمَ خَلِيلًا",
+          "id": "y3ibr-q7",
+          "points": 1,
+          "sc": "cu_mvdiwond7b37680c#3"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "How can we try to be close to Allah like Ibrahim (A.S)?",
+          "options": [
+            "Worship Allah alone, obey Him and trust Him",
+            "Only pray when we need something",
+            "Copy what everyone else does",
+            "Forget about Allah when we are busy"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Ibrahim (A.S) obeyed and trusted Allah completely; we follow his example.",
+          "id": "y3ibr-q8",
+          "points": 1,
+          "sc": "cu_mvdiwond7b37680c#3"
+        }
+      ]
+    },
+    {
+      "id": "sow-year-3-ali-bin-abi-talib",
+      "slug": "year-3-ali-bin-abi-talib",
+      "title": "Year 3 – Ali Bin Abi Talib",
+      "description": "Week 14 check: who ‘Ali (R.A) was, his close link to the Prophet ﷺ (Muslim 2404a), his bravery at Khaybar (Bukhari 4210) and lessons from his character.",
+      "timeLimitMinutes": 8,
+      "showAnswers": true,
+      "certificateIndividual": false,
+      "certificateGroup": false,
+      "visible": false,
+      "active": false,
+      "published": false,
+      "updatedAt": "2026-11-27T08:00:00.000Z",
+      "year": 3,
+      "topic": "cu_mvdiwondc3504f87",
+      "subject": "Islamic B",
+      "topicInfo": {
+        "yr": "Year 3",
+        "term": "Term 1",
+        "wk": 14,
+        "title": "Ali Bin Abi Talib"
+      },
+      "questions": [
+        {
+          "type": "multiple_choice",
+          "prompt": "How was ‘Ali bin Abi Talib (R.A) related to the Prophet ﷺ?",
+          "options": [
+            "He was his cousin",
+            "He was his uncle",
+            "He was his grandfather",
+            "He was not related"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "‘Ali was the son of Abu Talib, the Prophet’s uncle, so he was the Prophet’s cousin.",
+          "id": "y3ali-q1",
+          "points": 1,
+          "sc": "cu_mvdiwondc3504f87#0"
+        },
+        {
+          "type": "true_false",
+          "prompt": "‘Ali (R.A) was the fourth Rightly Guided Caliph.",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "After Abu Bakr, ‘Umar and ‘Uthman, ‘Ali (R.A) became the fourth Caliph.",
+          "id": "y3ali-q2",
+          "points": 1,
+          "sc": "cu_mvdiwondc3504f87#0"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "Which daughter of the Prophet ﷺ did ‘Ali (R.A) marry?",
+          "options": [
+            "Fatimah",
+            "Zaynab",
+            "Ruqayyah",
+            "Umm Kulthum"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "‘Ali married Fatimah (R.A), the Prophet’s daughter.",
+          "id": "y3ali-q3",
+          "points": 1,
+          "sc": "cu_mvdiwondc3504f87#1"
+        },
+        {
+          "type": "fill_blank",
+          "prompt": "The Prophet ﷺ said to ‘Ali: “You are to me like Harun was to ___, except there is no prophet after me.” (Sahih Muslim 2404a)",
+          "options": [
+            "Isa",
+            "Nuh"
+          ],
+          "correct": [],
+          "blanks": [
+            [
+              "Musa",
+              "Moses",
+              "Musa (A.S)"
+            ]
+          ],
+          "explanation": "Sahih Muslim 2404a: “You are in the same position with relation to me as Aaron (Harun) was in relation to Moses, but there is no prophet after me.”",
+          "id": "y3ali-q4",
+          "points": 1,
+          "sc": "cu_mvdiwondc3504f87#1"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "At Khaybar, the Prophet ﷺ gave the flag to ‘Ali (R.A). How did he describe this man?",
+          "options": [
+            "He loves Allah and His Messenger, and Allah and His Messenger love him",
+            "He is the tallest man",
+            "He is the richest man",
+            "He is the oldest man"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Sahih al-Bukhari 4210: “…a man… He loves Allah and His Apostle, and he is loved by Allah and His Apostle.”",
+          "id": "y3ali-q5",
+          "points": 1,
+          "sc": "cu_mvdiwondc3504f87#2"
+        },
+        {
+          "type": "true_false",
+          "prompt": "At Khaybar, the Prophet ﷺ told ‘Ali that guiding even one person to Islam is better than the finest red camels.",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Sahih al-Bukhari 4210: “…even if a single man is led on the right path by Allah through you, that will be better for you than the nice red camels.”",
+          "id": "y3ali-q6",
+          "points": 1,
+          "sc": "cu_mvdiwondc3504f87#2"
+        },
+        {
+          "type": "multi_select",
+          "prompt": "Which qualities can we learn from ‘Ali (R.A)? (select all that apply)",
+          "options": [
+            "Bravery",
+            "Love for Allah and His Messenger",
+            "Seeking knowledge",
+            "Being lazy"
+          ],
+          "correct": [
+            0,
+            1,
+            2
+          ],
+          "explanation": "‘Ali was brave, knowledgeable and loved Allah and His Messenger ﷺ.",
+          "id": "y3ali-q7",
+          "points": 1,
+          "sc": "cu_mvdiwondc3504f87#3"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "A new pupil is being teased. How can you be brave like ‘Ali (R.A)?",
+          "options": [
+            "Stand up kindly for them and tell a teacher",
+            "Join in the teasing",
+            "Walk away and ignore it",
+            "Laugh quietly"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Courage means standing up for what is right, in a kind and wise way.",
+          "id": "y3ali-q8",
+          "points": 1,
+          "sc": "cu_mvdiwondc3504f87#3"
+        }
+      ]
+    },
+    {
+      "id": "sow-year-4-surah-al-alaq",
+      "slug": "year-4-surah-al-alaq",
+      "title": "Year 4 – Surah Al-Alaq",
+      "description": "Week 2 check: the importance of knowledge in Surah Al-‘Alaq (96:1–5), valuing learning at school, and the story of the first revelation.",
+      "timeLimitMinutes": 8,
+      "showAnswers": true,
+      "certificateIndividual": false,
+      "certificateGroup": false,
+      "visible": false,
+      "active": false,
+      "published": false,
+      "updatedAt": "2026-11-27T08:00:00.000Z",
+      "year": 4,
+      "topic": "cu_mvdiwonde4cb1d0f",
+      "subject": "Islamic B",
+      "topicInfo": {
+        "yr": "Year 4",
+        "term": "Term 1",
+        "wk": 2,
+        "title": "Surah Al-Alaq"
+      },
+      "questions": [
+        {
+          "type": "fill_blank",
+          "prompt": "Allah “taught by the ___” (Al-‘Alaq 96:4).",
+          "options": [
+            "sword",
+            "book"
+          ],
+          "correct": [],
+          "blanks": [
+            [
+              "pen",
+              "the pen",
+              "qalam",
+              "al-qalam"
+            ]
+          ],
+          "explanation": "Al-‘Alaq 96:4: “Who taught by the pen” ٱلَّذِى عَلَّمَ بِٱلْقَلَمِ",
+          "id": "y4alaq-q1",
+          "points": 1,
+          "sc": "cu_mvdiwonde4cb1d0f#0"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "Ayah 5 says: “Taught man that which he knew not.” What does this teach us?",
+          "options": [
+            "All our knowledge comes from Allah",
+            "We already know everything",
+            "Knowledge is not important",
+            "Only adults can learn"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Allah taught people what they did not know (96:5), so we seek knowledge and thank Allah.",
+          "id": "y4alaq-q2",
+          "points": 1,
+          "sc": "cu_mvdiwonde4cb1d0f#0"
+        },
+        {
+          "type": "true_false",
+          "prompt": "The very first command revealed in the Qur’an was about reading and learning.",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "The first word revealed was “Iqra” – Read/Recite (96:1).",
+          "id": "y4alaq-q3",
+          "points": 1,
+          "sc": "cu_mvdiwonde4cb1d0f#0"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "How can you act on Surah Al-‘Alaq at school?",
+          "options": [
+            "Listen carefully, read and try your best to learn",
+            "Talk during lessons",
+            "Copy a friend’s work",
+            "Skip reading time"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "The command “Iqra” teaches us to value learning.",
+          "id": "y4alaq-q4",
+          "points": 1,
+          "sc": "cu_mvdiwonde4cb1d0f#1"
+        },
+        {
+          "type": "multi_select",
+          "prompt": "Which actions show you value learning? (select all that apply)",
+          "options": [
+            "Reading every day",
+            "Asking questions when you do not understand",
+            "Looking after your books",
+            "Throwing your homework away"
+          ],
+          "correct": [
+            0,
+            1,
+            2
+          ],
+          "explanation": "Valuing learning means reading, asking questions and caring for books.",
+          "id": "y4alaq-q5",
+          "points": 1,
+          "sc": "cu_mvdiwonde4cb1d0f#1"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "You find a hard maths question. What would Surah Al-‘Alaq encourage you to do?",
+          "options": [
+            "Keep trying, ask for help and learn",
+            "Give up straight away",
+            "Say learning is boring",
+            "Rip up the page"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Allah honours knowledge; we keep trying and asking to learn.",
+          "id": "y4alaq-q6",
+          "points": 1,
+          "sc": "cu_mvdiwonde4cb1d0f#1"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "Where were the first verses of Surah Al-‘Alaq revealed?",
+          "options": [
+            "In the Cave of Hira",
+            "In Madinah",
+            "In the Ka‘bah",
+            "In Ta’if"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "The first revelation came in the Cave of Hira near Makkah.",
+          "id": "y4alaq-q7",
+          "points": 1,
+          "sc": "cu_mvdiwonde4cb1d0f#2"
+        },
+        {
+          "type": "ordering",
+          "prompt": "Put the story of the first revelation in order.",
+          "options": [
+            "The Prophet ﷺ worships Allah in the Cave of Hira",
+            "Jibril comes and says “Iqra!”",
+            "The Prophet ﷺ says “I cannot read”",
+            "Jibril recites the first verses of Al-‘Alaq",
+            "The Prophet ﷺ returns home to Khadijah"
+          ],
+          "correct": [],
+          "explanation": "The first verses of Al-‘Alaq (96:1–5) were revealed in Hira, then the Prophet ﷺ returned to Khadijah.",
+          "id": "y4alaq-q8",
+          "points": 1,
+          "sc": "cu_mvdiwonde4cb1d0f#2"
+        },
+        {
+          "type": "fill_blank",
+          "prompt": "The first word revealed was “___”, which means “Read!” or “Recite!” (ٱقْرَأْ بِٱسْمِ رَبِّكَ ٱلَّذِى خَلَقَ, 96:1)",
+          "options": [
+            "Qul",
+            "Salam"
+          ],
+          "correct": [],
+          "blanks": [
+            [
+              "Iqra",
+              "Iqra'",
+              "Iqra’",
+              "Iqraa"
+            ]
+          ],
+          "explanation": "Al-‘Alaq 96:1: “Recite in the name of your Lord who created”",
+          "id": "y4alaq-q9",
+          "points": 1,
+          "sc": "cu_mvdiwonde4cb1d0f#2"
+        }
+      ]
+    },
+    {
+      "id": "sow-year-4-qalqalah-and-its-3-types",
+      "slug": "year-4-qalqalah-and-its-3-types",
+      "title": "Year 4 – Qalqalah and its 3 Types",
+      "description": "Week 3 check: the Qalqalah letters (قطب جد), Sughra, Wusta and Kubra, and applying them to words from Al-‘Alaq and Al-‘Asr.",
+      "timeLimitMinutes": 8,
+      "showAnswers": true,
+      "certificateIndividual": false,
+      "certificateGroup": false,
+      "visible": false,
+      "active": false,
+      "published": false,
+      "updatedAt": "2026-11-27T08:00:00.000Z",
+      "year": 4,
+      "topic": "cu_mvdiwonddc9b5fba",
+      "subject": "Islamic B",
+      "topicInfo": {
+        "yr": "Year 4",
+        "term": "Term 1",
+        "wk": 3,
+        "title": "Qalqalah and its 3 Types"
+      },
+      "questions": [
+        {
+          "type": "multi_select",
+          "prompt": "Which are the Qalqalah letters? (select all that apply)",
+          "options": [
+            "ق",
+            "ط",
+            "ب",
+            "ج",
+            "د",
+            "س"
+          ],
+          "correct": [
+            0,
+            1,
+            2,
+            3,
+            4
+          ],
+          "explanation": "The Qalqalah letters are ق ط ب ج د, remembered as “Qutbu Jad” (قطب جد).",
+          "id": "y4qal-q1",
+          "points": 1,
+          "sc": "cu_mvdiwonddc9b5fba#0"
+        },
+        {
+          "type": "fill_blank",
+          "prompt": "The Qalqalah letters are remembered with the words “Qutbu ___” (قطب جد).",
+          "options": [
+            "Sin",
+            "Lam"
+          ],
+          "correct": [],
+          "blanks": [
+            [
+              "Jad",
+              "jad",
+              "جد"
+            ]
+          ],
+          "explanation": "قطب جد = ق ط ب ج د.",
+          "id": "y4qal-q2",
+          "points": 1,
+          "sc": "cu_mvdiwonddc9b5fba#0"
+        },
+        {
+          "type": "true_false",
+          "prompt": "Qalqalah is an echoing or bouncing sound on a Qalqalah letter when it has a sukoon.",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Qalqalah means “shaking”: the sakin letter bounces slightly.",
+          "id": "y4qal-q3",
+          "points": 1,
+          "sc": "cu_mvdiwonddc9b5fba#0"
+        },
+        {
+          "type": "matching",
+          "prompt": "Match each type of Qalqalah to its description.",
+          "options": [],
+          "correct": [],
+          "pairs": [
+            {
+              "left": "Sughra (small)",
+              "right": "Qalqalah letter with sukoon in the middle of a word"
+            },
+            {
+              "left": "Wusta (medium)",
+              "right": "Stopping on a Qalqalah letter at the end of a word"
+            },
+            {
+              "left": "Kubra (big)",
+              "right": "Stopping on a Qalqalah letter that has a shaddah"
+            }
+          ],
+          "explanation": "Sughra is the lightest bounce, Wusta medium, Kubra the strongest.",
+          "id": "y4qal-q4",
+          "points": 1,
+          "sc": "cu_mvdiwonddc9b5fba#1"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "Which type of Qalqalah has the strongest bounce?",
+          "options": [
+            "Kubra",
+            "Sughra",
+            "Wusta",
+            "They are all the same"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Kubra (big) is the strongest, when stopping on a Qalqalah letter with shaddah.",
+          "id": "y4qal-q5",
+          "points": 1,
+          "sc": "cu_mvdiwonddc9b5fba#1"
+        },
+        {
+          "type": "true_false",
+          "prompt": "Qalqalah Sughra happens when the sakin Qalqalah letter is in the middle of a word.",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Example: ٱقْرَأْ – the ق has a sukoon in the middle of the word.",
+          "id": "y4qal-q6",
+          "points": 1,
+          "sc": "cu_mvdiwonddc9b5fba#1"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "In “ٱقْرَأْ” (96:1), which Qalqalah is on the ق?",
+          "options": [
+            "Sughra",
+            "Wusta",
+            "Kubra",
+            "No Qalqalah"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "ٱقْرَأْ: the sakin ق is in the middle of the word, so it is Qalqalah Sughra.",
+          "id": "y4qal-q7",
+          "points": 1,
+          "sc": "cu_mvdiwonddc9b5fba#2"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "When you stop on “عَلَقٍ” (96:2), which Qalqalah do you make?",
+          "options": [
+            "Wusta",
+            "Sughra",
+            "Kubra",
+            "No Qalqalah"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Stopping on عَلَقْ makes the ق sakin at the end of the word without shaddah: Wusta.",
+          "id": "y4qal-q8",
+          "points": 1,
+          "sc": "cu_mvdiwonddc9b5fba#2"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "When you stop on “بِٱلْحَقِّ” (103:3), which Qalqalah do you make?",
+          "options": [
+            "Kubra",
+            "Sughra",
+            "Wusta",
+            "No Qalqalah"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "بِٱلْحَقّ ends with ق that has a shaddah; stopping on it gives Qalqalah Kubra.",
+          "id": "y4qal-q9",
+          "points": 1,
+          "sc": "cu_mvdiwonddc9b5fba#2"
+        }
+      ]
+    },
+    {
+      "id": "sow-year-4-good-character",
+      "slug": "year-4-good-character",
+      "title": "Year 4 – Good Character",
+      "description": "Week 4 check: good manners with family and friends, examples of good character (68:4, Bukhari 6018), and ways to improve our own character.",
+      "timeLimitMinutes": 8,
+      "showAnswers": true,
+      "certificateIndividual": false,
+      "certificateGroup": false,
+      "visible": false,
+      "active": false,
+      "published": false,
+      "updatedAt": "2026-11-27T08:00:00.000Z",
+      "year": 4,
+      "topic": "cu_mvdiwond73939cc2",
+      "subject": "Islamic B",
+      "topicInfo": {
+        "yr": "Year 4",
+        "term": "Term 1",
+        "wk": 4,
+        "title": "Good Character"
+      },
+      "questions": [
+        {
+          "type": "multiple_choice",
+          "prompt": "Your little brother breaks your toy by accident. What shows good character?",
+          "options": [
+            "Stay calm and forgive him",
+            "Shout at him",
+            "Break his toy",
+            "Tell everyone he is bad"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Controlling anger and forgiving is good character.",
+          "id": "y4good-q1",
+          "points": 1,
+          "sc": "cu_mvdiwond73939cc2#0"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "A classmate drops their books. What should you do?",
+          "options": [
+            "Help them pick them up",
+            "Laugh",
+            "Walk past",
+            "Kick the books away"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Helping others is part of good manners.",
+          "id": "y4good-q2",
+          "points": 1,
+          "sc": "cu_mvdiwond73939cc2#0"
+        },
+        {
+          "type": "multi_select",
+          "prompt": "Which actions show good manners with your family? (select all that apply)",
+          "options": [
+            "Saying please and thank you",
+            "Helping set the table",
+            "Listening to your parents",
+            "Ignoring your parents"
+          ],
+          "correct": [
+            0,
+            1,
+            2
+          ],
+          "explanation": "Good manners at home include politeness, helping and listening.",
+          "id": "y4good-q3",
+          "points": 1,
+          "sc": "cu_mvdiwond73939cc2#0"
+        },
+        {
+          "type": "fill_blank",
+          "prompt": "Allah said to the Prophet ﷺ: “And indeed, you are of a great moral ___.” (Al-Qalam 68:4)",
+          "options": [
+            "strength",
+            "size"
+          ],
+          "correct": [],
+          "blanks": [
+            [
+              "character"
+            ]
+          ],
+          "explanation": "Al-Qalam 68:4: وَإِنَّكَ لَعَلَىٰ خُلُقٍ عَظِيمٍ – the Prophet ﷺ had the best character.",
+          "id": "y4good-q4",
+          "points": 1,
+          "sc": "cu_mvdiwond73939cc2#1"
+        },
+        {
+          "type": "multi_select",
+          "prompt": "Which of these are examples of good character (Akhlaq)? (select all that apply)",
+          "options": [
+            "Honesty",
+            "Patience",
+            "Kindness",
+            "Lying",
+            "Bullying"
+          ],
+          "correct": [
+            0,
+            1,
+            2
+          ],
+          "explanation": "Honesty, patience and kindness are good character; lying and bullying are not.",
+          "id": "y4good-q5",
+          "points": 1,
+          "sc": "cu_mvdiwond73939cc2#1"
+        },
+        {
+          "type": "fill_blank",
+          "prompt": "The Prophet ﷺ said: “Anybody who believes in Allah and the Last Day should talk what is ___ or keep quiet.” (Sahih al-Bukhari 6018)",
+          "options": [
+            "loud",
+            "funny"
+          ],
+          "correct": [],
+          "blanks": [
+            [
+              "good"
+            ]
+          ],
+          "explanation": "Sahih al-Bukhari 6018, narrated by Abu Huraira.",
+          "id": "y4good-q6",
+          "points": 1,
+          "sc": "cu_mvdiwond73939cc2#1"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "You notice you get angry quickly. What is a good way to improve?",
+          "options": [
+            "Stay quiet, take a breath and make du‘a to Allah",
+            "Shout louder",
+            "Blame others",
+            "Never try to change"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "We improve our character by controlling anger and asking Allah for help.",
+          "id": "y4good-q7",
+          "points": 1,
+          "sc": "cu_mvdiwond73939cc2#2"
+        },
+        {
+          "type": "multi_select",
+          "prompt": "Which are good ways to improve your own character? (select all that apply)",
+          "options": [
+            "Following the example of the Prophet ﷺ",
+            "Saying sorry when you are wrong",
+            "Making du‘a for good manners",
+            "Copying bad habits"
+          ],
+          "correct": [
+            0,
+            1,
+            2
+          ],
+          "explanation": "Following the Prophet ﷺ, apologising and du‘a help us improve.",
+          "id": "y4good-q8",
+          "points": 1,
+          "sc": "cu_mvdiwond73939cc2#2"
+        },
+        {
+          "type": "true_false",
+          "prompt": "Good character is something we can practise and improve every day.",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Akhlaq grows with practice, like any good habit.",
+          "id": "y4good-q9",
+          "points": 1,
+          "sc": "cu_mvdiwond73939cc2#2"
+        }
+      ]
+    },
+    {
+      "id": "sow-year-4-truthfulness",
+      "slug": "year-4-truthfulness",
+      "title": "Year 4 – Truthfulness",
+      "description": "Week 9 check: the meaning of Sidq, why Islam forbids lying (Bukhari 6094, Bukhari 33), and truthful behaviour at home and at school.",
+      "timeLimitMinutes": 8,
+      "showAnswers": true,
+      "certificateIndividual": false,
+      "certificateGroup": false,
+      "visible": false,
+      "active": false,
+      "published": false,
+      "updatedAt": "2026-11-27T08:00:00.000Z",
+      "year": 4,
+      "topic": "cu_mvdiwond3463a648",
+      "subject": "Islamic B",
+      "topicInfo": {
+        "yr": "Year 4",
+        "term": "Term 1",
+        "wk": 9,
+        "title": "Truthfulness"
+      },
+      "questions": [
+        {
+          "type": "multiple_choice",
+          "prompt": "What does “Sidq” mean?",
+          "options": [
+            "Truthfulness",
+            "Patience",
+            "Charity",
+            "Prayer"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Sidq means truthfulness – telling the truth in words and actions.",
+          "id": "y4sidq-q1",
+          "points": 1,
+          "sc": "cu_mvdiwond3463a648#0"
+        },
+        {
+          "type": "fill_blank",
+          "prompt": "The Prophet ﷺ said: “Truthfulness leads to righteousness, and righteousness leads to ___.” (Sahih al-Bukhari 6094)",
+          "options": [
+            "school",
+            "home"
+          ],
+          "correct": [],
+          "blanks": [
+            [
+              "Paradise",
+              "Jannah",
+              "paradise",
+              "jannah"
+            ]
+          ],
+          "explanation": "Sahih al-Bukhari 6094, narrated by ‘Abdullah: truthfulness leads to righteousness, and righteousness leads to Paradise.",
+          "id": "y4sidq-q2",
+          "points": 1,
+          "sc": "cu_mvdiwond3463a648#0"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "According to Sahih al-Bukhari 6094, where does lying lead?",
+          "options": [
+            "To wickedness, and wickedness leads to the Fire",
+            "To success",
+            "To more friends",
+            "Nowhere"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Sahih al-Bukhari 6094: falsehood leads to wickedness, and wickedness leads to the Fire.",
+          "id": "y4sidq-q3",
+          "points": 1,
+          "sc": "cu_mvdiwond3463a648#1"
+        },
+        {
+          "type": "true_false",
+          "prompt": "The Prophet ﷺ said one sign of a hypocrite is that whenever he speaks, he tells a lie.",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Sahih al-Bukhari 33: “The signs of a hypocrite are three: whenever he speaks, he tells a lie…”",
+          "id": "y4sidq-q4",
+          "points": 1,
+          "sc": "cu_mvdiwond3463a648#1"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "You break a glass at home by accident. What is the truthful thing to do?",
+          "options": [
+            "Tell your parents what happened",
+            "Hide the pieces",
+            "Blame your sister",
+            "Say the cat did it"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Telling the truth at home, even when it is hard, is Sidq.",
+          "id": "y4sidq-q5",
+          "points": 1,
+          "sc": "cu_mvdiwond3463a648#2"
+        },
+        {
+          "type": "true_false",
+          "prompt": "If my mum asks whether I prayed and I did not, I should still tell the truth.",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "A truthful person tells the truth even when it is hard.",
+          "id": "y4sidq-q6",
+          "points": 1,
+          "sc": "cu_mvdiwond3463a648#2"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "You forgot your homework. Your teacher asks why. What should you say?",
+          "options": [
+            "The truth: “I forgot it”",
+            "“My dog ate it”",
+            "“You never gave it”",
+            "Say nothing and look away"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Being truthful at school means not making excuses that are not true.",
+          "id": "y4sidq-q7",
+          "points": 1,
+          "sc": "cu_mvdiwond3463a648#3"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "During a quiz a friend whispers, “Copy my answers, nobody will know.” What is the truthful choice?",
+          "options": [
+            "Do your own work honestly",
+            "Copy quickly",
+            "Copy only half",
+            "Tell the teacher you finished first"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Honesty at school means doing our own work; Allah sees everything.",
+          "id": "y4sidq-q8",
+          "points": 1,
+          "sc": "cu_mvdiwond3463a648#3"
+        }
+      ]
+    },
+    {
+      "id": "sow-year-4-surah-at-tin",
+      "slug": "year-4-surah-at-tin",
+      "title": "Year 4 – Surah At-Tin",
+      "description": "Week 12 check: reciting At-Tin in order, the oaths by the fig and olive, man created in the best form (95:4) and the reward of the believers (95:6).",
+      "timeLimitMinutes": 8,
+      "showAnswers": true,
+      "certificateIndividual": false,
+      "certificateGroup": false,
+      "visible": false,
+      "active": false,
+      "published": false,
+      "updatedAt": "2026-11-27T08:00:00.000Z",
+      "year": 4,
+      "topic": "cu_mvdiwondc489a594",
+      "subject": "Islamic B",
+      "topicInfo": {
+        "yr": "Year 4",
+        "term": "Term 1",
+        "wk": 12,
+        "title": "Surah At-Tin"
+      },
+      "questions": [
+        {
+          "type": "ordering",
+          "prompt": "Put the first four ayahs of Surah At-Tin in order.",
+          "options": [
+            "وَٱلتِّينِ وَٱلزَّيْتُونِ",
+            "وَطُورِ سِينِينَ",
+            "وَهَـٰذَا ٱلْبَلَدِ ٱلْأَمِينِ",
+            "لَقَدْ خَلَقْنَا ٱلْإِنسَـٰنَ فِىٓ أَحْسَنِ تَقْوِيمٍ"
+          ],
+          "correct": [],
+          "explanation": "Surah At-Tin 95:1–4.",
+          "id": "y4tin-q1",
+          "points": 1,
+          "sc": "cu_mvdiwondc489a594#0"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "How many ayahs are in Surah At-Tin?",
+          "options": [
+            "8",
+            "5",
+            "11",
+            "3"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Surah At-Tin has eight ayahs.",
+          "id": "y4tin-q2",
+          "points": 1,
+          "sc": "cu_mvdiwondc489a594#0"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "In ayah 1 Allah swears by two fruits: “وَٱلتِّينِ وَٱلزَّيْتُونِ”. What are they?",
+          "options": [
+            "The fig and the olive",
+            "The date and the grape",
+            "The apple and the banana",
+            "The pomegranate and the melon"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "At-Tin 95:1: “By the fig and the olive”",
+          "id": "y4tin-q3",
+          "points": 1,
+          "sc": "cu_mvdiwondc489a594#1"
+        },
+        {
+          "type": "matching",
+          "prompt": "Match each oath in Surah At-Tin with its meaning.",
+          "options": [],
+          "correct": [],
+          "pairs": [
+            {
+              "left": "وَٱلتِّينِ وَٱلزَّيْتُونِ",
+              "right": "By the fig and the olive"
+            },
+            {
+              "left": "وَطُورِ سِينِينَ",
+              "right": "And by Mount Sinai"
+            },
+            {
+              "left": "وَهَـٰذَا ٱلْبَلَدِ ٱلْأَمِينِ",
+              "right": "And by this secure city (Makkah)"
+            }
+          ],
+          "explanation": "At-Tin 95:1–3 (meanings from Sahih International on quran.com).",
+          "id": "y4tin-q4",
+          "points": 1,
+          "sc": "cu_mvdiwondc489a594#1"
+        },
+        {
+          "type": "fill_blank",
+          "prompt": "Allah says: “We have certainly created man in the ___ of stature.” (At-Tin 95:4)",
+          "options": [
+            "worst",
+            "smallest"
+          ],
+          "correct": [],
+          "blanks": [
+            [
+              "best"
+            ]
+          ],
+          "explanation": "At-Tin 95:4: لَقَدْ خَلَقْنَا ٱلْإِنسَـٰنَ فِىٓ أَحْسَنِ تَقْوِيمٍ",
+          "id": "y4tin-q5",
+          "points": 1,
+          "sc": "cu_mvdiwondc489a594#2"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "Allah created us in the best form. How should we use our bodies?",
+          "options": [
+            "To obey Allah and do good",
+            "To hurt others",
+            "To be lazy all day",
+            "To show off"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Being created in the best form means thanking Allah by using our bodies in good ways.",
+          "id": "y4tin-q6",
+          "points": 1,
+          "sc": "cu_mvdiwondc489a594#2"
+        },
+        {
+          "type": "fill_blank",
+          "prompt": "Those who believe and do righteous deeds “will have a reward ___.” (At-Tin 95:6)",
+          "options": [
+            "small",
+            "short"
+          ],
+          "correct": [],
+          "blanks": [
+            [
+              "uninterrupted",
+              "unending",
+              "never-ending",
+              "endless"
+            ]
+          ],
+          "explanation": "At-Tin 95:6: “Except for those who believe and do righteous deeds, for they will have a reward uninterrupted.”",
+          "id": "y4tin-q7",
+          "points": 1,
+          "sc": "cu_mvdiwondc489a594#3"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "Ayah 8 asks: “Is not Allāh the most just of judges?” What is the answer?",
+          "options": [
+            "Yes, Allah is the most just of judges",
+            "No",
+            "We do not know",
+            "Only sometimes"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Allah is the most just of judges; He will reward the believers fairly.",
+          "id": "y4tin-q8",
+          "points": 1,
+          "sc": "cu_mvdiwondc489a594#3"
+        }
+      ]
+    },
+    {
+      "id": "sow-year-5-surah-al-burouj-1",
+      "slug": "year-5-surah-al-burouj-1",
+      "title": "Year 5 – Surah Al-Burouj (1)",
+      "description": "Week 2 check: reciting the opening of Al-Burouj (85:1–9), the story of the people of the trench, and showing patience in daily life.",
+      "timeLimitMinutes": 8,
+      "showAnswers": true,
+      "certificateIndividual": false,
+      "certificateGroup": false,
+      "visible": false,
+      "active": false,
+      "published": false,
+      "updatedAt": "2026-11-27T08:00:00.000Z",
+      "year": 5,
+      "topic": "cu_mvdiwond59ea96f5",
+      "subject": "Islamic B",
+      "topicInfo": {
+        "yr": "Year 5",
+        "term": "Term 1",
+        "wk": 2,
+        "title": "Surah Al-Burouj (1)"
+      },
+      "questions": [
+        {
+          "type": "ordering",
+          "prompt": "Put the first four ayahs of Surah Al-Burouj in order.",
+          "options": [
+            "وَٱلسَّمَآءِ ذَاتِ ٱلْبُرُوجِ",
+            "وَٱلْيَوْمِ ٱلْمَوْعُودِ",
+            "وَشَاهِدٍ وَمَشْهُودٍ",
+            "قُتِلَ أَصْحَـٰبُ ٱلْأُخْدُودِ"
+          ],
+          "correct": [],
+          "explanation": "Surah Al-Burouj 85:1–4.",
+          "id": "y5bur1-q1",
+          "points": 1,
+          "sc": "cu_mvdiwond59ea96f5#0"
+        },
+        {
+          "type": "fill_blank",
+          "prompt": "Ayah 1: “وَٱلسَّمَآءِ ذَاتِ ٱلْبُرُوجِ” means “By the sky containing great ___.” (85:1)",
+          "options": [
+            "clouds",
+            "birds"
+          ],
+          "correct": [],
+          "blanks": [
+            [
+              "stars",
+              "star",
+              "constellations"
+            ]
+          ],
+          "explanation": "Al-Burouj 85:1: “By the sky containing great stars”",
+          "id": "y5bur1-q2",
+          "points": 1,
+          "sc": "cu_mvdiwond59ea96f5#0"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "What does “Al-Burouj” mean?",
+          "options": [
+            "The great stars / constellations",
+            "The trench",
+            "The fire",
+            "The promised Day"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Al-Burouj refers to the great stars (constellations) in the sky.",
+          "id": "y5bur1-q3",
+          "points": 1,
+          "sc": "cu_mvdiwond59ea96f5#0"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "Who were the “companions of the trench” (Ashab al-Ukhdud) punishing?",
+          "options": [
+            "Believers, only because they believed in Allah",
+            "Thieves",
+            "Their enemies in war",
+            "People who broke the law"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Al-Burouj 85:8: “And they resented them not except because they believed in Allāh, the Exalted in Might, the Praiseworthy,”",
+          "id": "y5bur1-q4",
+          "points": 1,
+          "sc": "cu_mvdiwond59ea96f5#1"
+        },
+        {
+          "type": "true_false",
+          "prompt": "The believers in the story stayed patient and did not give up their faith, even when they were threatened with fire.",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "The people of the ditch were tested with fire, but they held on to belief in Allah (85:4–8).",
+          "id": "y5bur1-q5",
+          "points": 1,
+          "sc": "cu_mvdiwond59ea96f5#1"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "What is the main lesson from the story of the people of the trench?",
+          "options": [
+            "Stay patient and firm in faith, even when it is hard",
+            "Give up when things get difficult",
+            "Only believe when it is easy",
+            "Fight back with fire"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "The believers were patient and steadfast; Allah witnesses everything (85:9).",
+          "id": "y5bur1-q6",
+          "points": 1,
+          "sc": "cu_mvdiwond59ea96f5#1"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "Some classmates laugh at you for praying at break time. What does the story teach you?",
+          "options": [
+            "Stay patient and keep praying",
+            "Stop praying so they stop laughing",
+            "Laugh at them back",
+            "Pray only at home and hide it"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Like the believers in Al-Burouj, we stay patient and firm in faith.",
+          "id": "y5bur1-q7",
+          "points": 1,
+          "sc": "cu_mvdiwond59ea96f5#2"
+        },
+        {
+          "type": "multi_select",
+          "prompt": "Which are ways to show patience in daily life? (select all that apply)",
+          "options": [
+            "Waiting calmly for your turn",
+            "Keeping your fast even when hungry",
+            "Not giving up on hard homework",
+            "Shouting when you lose a game"
+          ],
+          "correct": [
+            0,
+            1,
+            2
+          ],
+          "explanation": "Patience (sabr) means staying calm, steady and trusting Allah.",
+          "id": "y5bur1-q8",
+          "points": 1,
+          "sc": "cu_mvdiwond59ea96f5#2"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "You practise your recitation for a week but still make mistakes. What shows patience?",
+          "options": [
+            "Keep practising and ask Allah for help",
+            "Give up",
+            "Say it is too hard for you",
+            "Blame your teacher"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Patience means continuing with effort and trusting Allah.",
+          "id": "y5bur1-q9",
+          "points": 1,
+          "sc": "cu_mvdiwond59ea96f5#2"
+        }
+      ]
+    },
+    {
+      "id": "sow-year-5-laam-tarqeeq-and-tafkheem",
+      "slug": "year-5-laam-tarqeeq-and-tafkheem",
+      "title": "Year 5 – Laam Tarqeeq and Tafkheem",
+      "description": "Week 3 check: heavy and light Lam, the rule for the Lam in the name of Allah, and applying it to words from Al-Burouj.",
+      "timeLimitMinutes": 8,
+      "showAnswers": true,
+      "certificateIndividual": false,
+      "certificateGroup": false,
+      "visible": false,
+      "active": false,
+      "published": false,
+      "updatedAt": "2026-11-27T08:00:00.000Z",
+      "year": 5,
+      "topic": "cu_mvdiwond8899960e",
+      "subject": "Islamic B",
+      "topicInfo": {
+        "yr": "Year 5",
+        "term": "Term 1",
+        "wk": 3,
+        "title": "Laam Tarqeeq and Tafkheem"
+      },
+      "questions": [
+        {
+          "type": "matching",
+          "prompt": "Match each term with its meaning.",
+          "options": [],
+          "correct": [],
+          "pairs": [
+            {
+              "left": "Tafkheem",
+              "right": "heavy / full-mouth sound"
+            },
+            {
+              "left": "Tarqeeq",
+              "right": "light / thin sound"
+            }
+          ],
+          "explanation": "Tafkheem means making a letter heavy; Tarqeeq means making it light.",
+          "id": "y5lam-q1",
+          "points": 1,
+          "sc": "cu_mvdiwond8899960e#0"
+        },
+        {
+          "type": "true_false",
+          "prompt": "Apart from the name of Allah, the letter Lam is usually read light (Tarqeeq).",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Lam is normally a light letter; it can be heavy only in the name of Allah.",
+          "id": "y5lam-q2",
+          "points": 1,
+          "sc": "cu_mvdiwond8899960e#0"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "Which word has a light (Tarqeeq) Lam in the name of Allah?",
+          "options": [
+            "بِسْمِ ٱللَّهِ",
+            "قَالَ ٱللَّهُ",
+            "عَبْدُ ٱللَّهِ",
+            "وَٱللَّهُ"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "In بِسْمِ ٱللَّهِ the letter before is kasra, so the Lam is light.",
+          "id": "y5lam-q3",
+          "points": 1,
+          "sc": "cu_mvdiwond8899960e#0"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "When is the Lam in the name of Allah read heavy (Tafkheem)?",
+          "options": [
+            "When the letter before it has a fatha or damma",
+            "When the letter before it has a kasra",
+            "Always",
+            "Never"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "After fatha or damma: heavy (e.g. قَالَ ٱللَّهُ, عَبْدُ ٱللَّهِ).",
+          "id": "y5lam-q4",
+          "points": 1,
+          "sc": "cu_mvdiwond8899960e#1"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "When is the Lam in the name of Allah read light (Tarqeeq)?",
+          "options": [
+            "When the letter before it has a kasra",
+            "When the letter before it has a fatha",
+            "When the letter before it has a damma",
+            "At the start of a Surah"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "After kasra: light (e.g. بِسْمِ ٱللَّهِ).",
+          "id": "y5lam-q5",
+          "points": 1,
+          "sc": "cu_mvdiwond8899960e#1"
+        },
+        {
+          "type": "true_false",
+          "prompt": "When we start reading with the word “Allah” (ٱللَّهُ) the Lam is heavy.",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Starting with ٱللَّهُ we begin with a fatha on the Hamzah, so the Lam is heavy.",
+          "id": "y5lam-q6",
+          "points": 1,
+          "sc": "cu_mvdiwond8899960e#1"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "In “بِٱللَّهِ” (Al-Burouj 85:8), is the Lam heavy or light?",
+          "options": [
+            "Light – the Ba before it has a kasra",
+            "Heavy – after a fatha",
+            "Heavy – after a damma",
+            "There is no Lam"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "بِٱللَّهِ: the letter before is ب with kasra, so the Lam is light (Tarqeeq).",
+          "id": "y5lam-q7",
+          "points": 1,
+          "sc": "cu_mvdiwond8899960e#2"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "In “وَٱللَّهُ” (Al-Burouj 85:20), is the Lam heavy or light?",
+          "options": [
+            "Heavy – the Waw before it has a fatha",
+            "Light – after a kasra",
+            "Light – after a sukoon",
+            "There is no Lam"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "وَٱللَّهُ: the Waw has a fatha, so the Lam is heavy (Tafkheem).",
+          "id": "y5lam-q8",
+          "points": 1,
+          "sc": "cu_mvdiwond8899960e#2"
+        },
+        {
+          "type": "matching",
+          "prompt": "Match each phrase with how the Lam of Allah is read.",
+          "options": [],
+          "correct": [],
+          "pairs": [
+            {
+              "left": "بِسْمِ ٱللَّهِ",
+              "right": "Light (Tarqeeq)"
+            },
+            {
+              "left": "قَالَ ٱللَّهُ",
+              "right": "Heavy (Tafkheem)"
+            },
+            {
+              "left": "عَبْدُ ٱللَّهِ",
+              "right": "Heavy (Tafkheem)"
+            },
+            {
+              "left": "لِلَّهِ",
+              "right": "Light (Tarqeeq)"
+            }
+          ],
+          "explanation": "After kasra the Lam is light; after fatha or damma it is heavy.",
+          "id": "y5lam-q9",
+          "points": 1,
+          "sc": "cu_mvdiwond8899960e#2"
+        }
+      ]
+    },
+    {
+      "id": "sow-year-5-surah-al-burouj-2",
+      "slug": "year-5-surah-al-burouj-2",
+      "title": "Year 5 – Surah Al-Burouj (2)",
+      "description": "Week 5 check: Allah the All-Mighty, Owner of the Throne, the warning to those who persecute believers, and the glorious Qur’an (85:10–22).",
+      "timeLimitMinutes": 8,
+      "showAnswers": true,
+      "certificateIndividual": false,
+      "certificateGroup": false,
+      "visible": false,
+      "active": false,
+      "published": false,
+      "updatedAt": "2026-11-27T08:00:00.000Z",
+      "year": 5,
+      "topic": "cu_mvdiwond40c60f7a",
+      "subject": "Islamic B",
+      "topicInfo": {
+        "yr": "Year 5",
+        "term": "Term 1",
+        "wk": 5,
+        "title": "Surah Al-Burouj (2)"
+      },
+      "questions": [
+        {
+          "type": "multiple_choice",
+          "prompt": "Ayah 12 says: “Indeed, the assault [i.e., vengeance] of your Lord is severe.” What does this teach about Allah?",
+          "options": [
+            "Allah is All-Mighty and His punishment is severe",
+            "Allah is weak",
+            "Allah does not see",
+            "Allah forgets"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Allah is Al-‘Aziz, the All-Mighty (85:8, 85:12).",
+          "id": "y5bur2-q1",
+          "points": 1,
+          "sc": "cu_mvdiwond40c60f7a#0"
+        },
+        {
+          "type": "fill_blank",
+          "prompt": "“Indeed, it is He who ___ [creation] and repeats.” (Al-Burouj 85:13)",
+          "options": [
+            "ends",
+            "forgets"
+          ],
+          "correct": [],
+          "blanks": [
+            [
+              "originates",
+              "starts",
+              "begins"
+            ]
+          ],
+          "explanation": "Al-Burouj 85:13: إِنَّهُۥ هُوَ يُبْدِئُ وَيُعِيدُ",
+          "id": "y5bur2-q2",
+          "points": 1,
+          "sc": "cu_mvdiwond40c60f7a#0"
+        },
+        {
+          "type": "fill_blank",
+          "prompt": "Allah is the “Honorable Owner of the ___.” (ذُو ٱلْعَرْشِ ٱلْمَجِيدُ, 85:15)",
+          "options": [
+            "House",
+            "Sky"
+          ],
+          "correct": [],
+          "blanks": [
+            [
+              "Throne",
+              "throne",
+              "Arsh",
+              "‘Arsh"
+            ]
+          ],
+          "explanation": "Al-Burouj 85:15: “Honorable Owner of the Throne,”",
+          "id": "y5bur2-q3",
+          "points": 1,
+          "sc": "cu_mvdiwond40c60f7a#1"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "Which two names of Allah are in ayah 14?",
+          "options": [
+            "Al-Ghafur (the Forgiving) and Al-Wadud (the Affectionate)",
+            "Al-Malik and Al-Quddus",
+            "Ar-Rahman and Ar-Rahim",
+            "As-Sami‘ and Al-Basir"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Al-Burouj 85:14: وَهُوَ ٱلْغَفُورُ ٱلْوَدُودُ – “And He is the Forgiving, the Affectionate,”",
+          "id": "y5bur2-q4",
+          "points": 1,
+          "sc": "cu_mvdiwond40c60f7a#1"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "What does Allah promise those who hurt believers and do not repent? (85:10)",
+          "options": [
+            "The punishment of Hell",
+            "A reward",
+            "Nothing at all",
+            "A long life"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Al-Burouj 85:10: “Indeed, those who have tortured the believing men and believing women and then have not repented will have the punishment of Hell, and they will have the punishment of the Burning Fire.”",
+          "id": "y5bur2-q5",
+          "points": 1,
+          "sc": "cu_mvdiwond40c60f7a#2"
+        },
+        {
+          "type": "true_false",
+          "prompt": "Ayah 10 shows that people who hurt believers can still be forgiven if they repent.",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "85:10 says “…and then have not repented”, so the door of repentance is open.",
+          "id": "y5bur2-q6",
+          "points": 1,
+          "sc": "cu_mvdiwond40c60f7a#2"
+        },
+        {
+          "type": "fill_blank",
+          "prompt": "“But this is an honored ___ [Inscribed] in a Preserved Slate.” (Al-Burouj 85:21–22)",
+          "options": [
+            "book",
+            "story"
+          ],
+          "correct": [],
+          "blanks": [
+            [
+              "Qur'an",
+              "Quran",
+              "Qur’an",
+              "Qur'aan"
+            ]
+          ],
+          "explanation": "Al-Burouj 85:21–22: بَلْ هُوَ قُرْءَانٌ مَّجِيدٌ فِى لَوْحٍ مَّحْفُوظٍۭ",
+          "id": "y5bur2-q7",
+          "points": 1,
+          "sc": "cu_mvdiwond40c60f7a#3"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "What does “Lawh Mahfuz” (85:22) mean?",
+          "options": [
+            "The Preserved Slate",
+            "The great stars",
+            "The trench",
+            "The Throne"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "The Qur’an is kept safe in the Preserved Slate (Al-Lawh Al-Mahfuz).",
+          "id": "y5bur2-q8",
+          "points": 1,
+          "sc": "cu_mvdiwond40c60f7a#3"
+        }
+      ]
+    },
+    {
+      "id": "sow-year-5-importance-and-etiquette-of-obligatory-prayers",
+      "slug": "year-5-importance-and-etiquette-of-obligatory-prayers",
+      "title": "Year 5 – The Importance and Etiquette of Obligatory Prayers",
+      "description": "Week 12 check: why the five prayers matter (4:103, Bukhari 527), manners before and during Salah, avoiding distractions (Bukhari 751) and khushu (23:1–2).",
+      "timeLimitMinutes": 8,
+      "showAnswers": true,
+      "certificateIndividual": false,
+      "certificateGroup": false,
+      "visible": false,
+      "active": false,
+      "published": false,
+      "updatedAt": "2026-11-27T08:00:00.000Z",
+      "year": 5,
+      "topic": "cu_mvdiwondfee0e34b",
+      "subject": "Islamic B",
+      "topicInfo": {
+        "yr": "Year 5",
+        "term": "Term 1",
+        "wk": 12,
+        "title": "The Importance and Etiquette of Obligatory Prayers"
+      },
+      "questions": [
+        {
+          "type": "fill_blank",
+          "prompt": "“Indeed, prayer has been decreed upon the believers a decree of specified ___.” (An-Nisa 4:103)",
+          "options": [
+            "places",
+            "days"
+          ],
+          "correct": [],
+          "blanks": [
+            [
+              "times",
+              "time"
+            ]
+          ],
+          "explanation": "An-Nisa 4:103 (part): إِنَّ ٱلصَّلَوٰةَ كَانَتْ عَلَى ٱلْمُؤْمِنِينَ كِتَـٰبًا مَّوْقُوتًا",
+          "id": "y5salah-q1",
+          "points": 1,
+          "sc": "cu_mvdiwondfee0e34b#0"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "‘Abdullah asked which deed is dearest to Allah. What did the Prophet ﷺ answer first? (Sahih al-Bukhari 527)",
+          "options": [
+            "Offering the prayers at their stated times",
+            "Giving charity",
+            "Fasting",
+            "Reading poetry"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Sahih al-Bukhari 527: “To offer the prayers at their early stated fixed times.”",
+          "id": "y5salah-q2",
+          "points": 1,
+          "sc": "cu_mvdiwondfee0e34b#0"
+        },
+        {
+          "type": "multi_select",
+          "prompt": "Which manners should we have before Salah? (select all that apply)",
+          "options": [
+            "Making wudu",
+            "Wearing clean clothes",
+            "Facing the Qiblah",
+            "Running and shouting"
+          ],
+          "correct": [
+            0,
+            1,
+            2
+          ],
+          "explanation": "We prepare for Salah with wudu, clean clothes and facing the Qiblah.",
+          "id": "y5salah-q3",
+          "points": 1,
+          "sc": "cu_mvdiwondfee0e34b#1"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "How should we walk to the prayer?",
+          "options": [
+            "Calmly and with respect",
+            "Running and pushing",
+            "Talking loudly",
+            "Playing on the way"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "We go to prayer calmly and respectfully.",
+          "id": "y5salah-q4",
+          "points": 1,
+          "sc": "cu_mvdiwondfee0e34b#1"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "The Prophet ﷺ was asked about looking around in prayer. What did he say? (Sahih al-Bukhari 751)",
+          "options": [
+            "It is a way of stealing by which Shaytan takes away part of the prayer",
+            "It is fine",
+            "It makes the prayer longer",
+            "It is a Sunnah"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Sahih al-Bukhari 751, narrated by ‘Aisha.",
+          "id": "y5salah-q5",
+          "points": 1,
+          "sc": "cu_mvdiwondfee0e34b#2"
+        },
+        {
+          "type": "multi_select",
+          "prompt": "Which actions help you avoid distractions in Salah? (select all that apply)",
+          "options": [
+            "Looking at the place of sujud",
+            "Putting away screens",
+            "Praying in a quiet place",
+            "Looking around the room"
+          ],
+          "correct": [
+            0,
+            1,
+            2
+          ],
+          "explanation": "Looking at the place of sujud and removing distractions helps us focus.",
+          "id": "y5salah-q6",
+          "points": 1,
+          "sc": "cu_mvdiwondfee0e34b#2"
+        },
+        {
+          "type": "fill_blank",
+          "prompt": "“Certainly will the believers have succeeded: they who are during their prayer humbly ___.” (Al-Mu’minun 23:1–2)",
+          "options": [
+            "loud",
+            "quick"
+          ],
+          "correct": [],
+          "blanks": [
+            [
+              "intent",
+              "submissive",
+              "focused"
+            ]
+          ],
+          "explanation": "Al-Mu’minun 23:1–2: قَدْ أَفْلَحَ ٱلْمُؤْمِنُونَ ٱلَّذِينَ هُمْ فِى صَلَاتِهِمْ خَـٰشِعُونَ",
+          "id": "y5salah-q7",
+          "points": 1,
+          "sc": "cu_mvdiwondfee0e34b#3"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "What does praying with khushu mean?",
+          "options": [
+            "Praying with a calm, focused heart, thinking about Allah",
+            "Praying as fast as possible",
+            "Praying while thinking about games",
+            "Praying only when others watch"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Khushu is calm focus and humility in prayer (23:2).",
+          "id": "y5salah-q8",
+          "points": 1,
+          "sc": "cu_mvdiwondfee0e34b#3"
+        }
+      ]
+    },
+    {
+      "id": "sow-year-5-those-among-you-with-the-best-manners",
+      "slug": "year-5-those-among-you-with-the-best-manners",
+      "title": "Year 5 – Those among You with the Best Manners",
+      "description": "Week 14 check: the Hadith “The best among you are the best in character” (Bukhari 6035), examples of excellent Akhlaq, and linking manners to faith (Muslim 2553a, Bukhari 6018).",
+      "timeLimitMinutes": 8,
+      "showAnswers": true,
+      "certificateIndividual": false,
+      "certificateGroup": false,
+      "visible": false,
+      "active": false,
+      "published": false,
+      "updatedAt": "2026-11-27T08:00:00.000Z",
+      "year": 5,
+      "topic": "cu_mvdiwondcd4e6a34",
+      "subject": "Islamic B",
+      "topicInfo": {
+        "yr": "Year 5",
+        "term": "Term 1",
+        "wk": 14,
+        "title": "Those among You with the Best Manners"
+      },
+      "questions": [
+        {
+          "type": "fill_blank",
+          "prompt": "The Prophet ﷺ used to say: “The best among you are the best in ___.” (Sahih al-Bukhari 6035)",
+          "options": [
+            "money",
+            "sport"
+          ],
+          "correct": [],
+          "blanks": [
+            [
+              "character",
+              "manners",
+              "akhlaq"
+            ]
+          ],
+          "explanation": "Sahih al-Bukhari 6035, narrated through ‘Abdullah bin ‘Amr: “The best among you are the best in character (having good manners).”",
+          "id": "y5best-q1",
+          "points": 1,
+          "sc": "cu_mvdiwondcd4e6a34#0"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "Who narrated the Hadith in Sahih al-Bukhari 6035?",
+          "options": [
+            "‘Abdullah bin ‘Amr",
+            "Abu Huraira",
+            "Anas",
+            "‘Aisha"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Masruq reported it from ‘Abdullah bin ‘Amr.",
+          "id": "y5best-q2",
+          "points": 1,
+          "sc": "cu_mvdiwondcd4e6a34#0"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "According to this Hadith, what makes someone among the best?",
+          "options": [
+            "Excellent manners",
+            "Being the strongest",
+            "Having the newest phone",
+            "Being popular online"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "The best people are those with the best character.",
+          "id": "y5best-q3",
+          "points": 1,
+          "sc": "cu_mvdiwondcd4e6a34#0"
+        },
+        {
+          "type": "multi_select",
+          "prompt": "Which are examples of excellent Akhlaq? (select all that apply)",
+          "options": [
+            "Speaking kindly",
+            "Keeping promises",
+            "Forgiving others",
+            "Making fun of people"
+          ],
+          "correct": [
+            0,
+            1,
+            2
+          ],
+          "explanation": "Kind speech, keeping promises and forgiving are excellent manners.",
+          "id": "y5best-q4",
+          "points": 1,
+          "sc": "cu_mvdiwondcd4e6a34#1"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "A new pupil sits alone at lunch. What shows excellent Akhlaq?",
+          "options": [
+            "Invite them to sit with you",
+            "Ignore them",
+            "Whisper about them",
+            "Take their seat"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Including others is excellent character.",
+          "id": "y5best-q5",
+          "points": 1,
+          "sc": "cu_mvdiwondcd4e6a34#1"
+        },
+        {
+          "type": "true_false",
+          "prompt": "The Prophet ﷺ was never rude or vulgar in his speech.",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Sahih al-Bukhari 6035: “Allah’s Messenger ﷺ was neither a Fahish nor a Mutafahhish.”",
+          "id": "y5best-q6",
+          "points": 1,
+          "sc": "cu_mvdiwondcd4e6a34#1"
+        },
+        {
+          "type": "fill_blank",
+          "prompt": "The Prophet ﷺ said: “Righteousness is good ___.” (Sahih Muslim 2553a)",
+          "options": [
+            "food",
+            "luck"
+          ],
+          "correct": [],
+          "blanks": [
+            [
+              "character",
+              "manners",
+              "disposition"
+            ]
+          ],
+          "explanation": "Sahih Muslim 2553a: “Virtue (al-birr) is a kind disposition (good character).”",
+          "id": "y5best-q7",
+          "points": 1,
+          "sc": "cu_mvdiwondcd4e6a34#2"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "“Anybody who believes in Allah and the Last Day should talk what is good or keep quiet.” What does this show? (Sahih al-Bukhari 6018)",
+          "options": [
+            "Good manners are part of true faith",
+            "Manners do not matter",
+            "Only actions matter, not words",
+            "Faith is only in the heart"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "The Prophet ﷺ linked good speech and manners to belief in Allah (Sahih al-Bukhari 6018).",
+          "id": "y5best-q8",
+          "points": 1,
+          "sc": "cu_mvdiwondcd4e6a34#2"
+        },
+        {
+          "type": "true_false",
+          "prompt": "A person can pray a lot but still need to work on their manners for their faith to be complete.",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Faith shows in both worship and character.",
+          "id": "y5best-q9",
+          "points": 1,
+          "sc": "cu_mvdiwondcd4e6a34#2"
+        }
+      ]
+    },
+    {
+      "id": "sow-year-6-surah-al-infitar-1",
+      "slug": "year-6-surah-al-infitar-1",
+      "title": "Year 6 – Surah Al-Infitar (1)",
+      "description": "Week 2 check: reciting the opening of Al-Infitar (82:1–9), its meanings about the Last Day, and preparing for accountability.",
+      "timeLimitMinutes": 8,
+      "showAnswers": true,
+      "certificateIndividual": false,
+      "certificateGroup": false,
+      "visible": false,
+      "active": false,
+      "published": false,
+      "updatedAt": "2026-11-27T08:00:00.000Z",
+      "year": 6,
+      "topic": "cu_mvdiwondf75fbc33",
+      "subject": "Islamic B",
+      "topicInfo": {
+        "yr": "Year 6",
+        "term": "Term 1",
+        "wk": 2,
+        "title": "Surah Al-Infitar (1)"
+      },
+      "questions": [
+        {
+          "type": "ordering",
+          "prompt": "Put the first five ayahs of Surah Al-Infitar in order.",
+          "options": [
+            "إِذَا ٱلسَّمَآءُ ٱنفَطَرَتْ",
+            "وَإِذَا ٱلْكَوَاكِبُ ٱنتَثَرَتْ",
+            "وَإِذَا ٱلْبِحَارُ فُجِّرَتْ",
+            "وَإِذَا ٱلْقُبُورُ بُعْثِرَتْ",
+            "عَلِمَتْ نَفْسٌ مَّا قَدَّمَتْ وَأَخَّرَتْ"
+          ],
+          "correct": [],
+          "explanation": "Surah Al-Infitar 82:1–5.",
+          "id": "y6inf1-q1",
+          "points": 1,
+          "sc": "cu_mvdiwondf75fbc33#0"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "What does “Al-Infitar” mean?",
+          "options": [
+            "The splitting / breaking apart (of the sky)",
+            "The great stars",
+            "The trench",
+            "The Overwhelming"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "82:1: إِذَا ٱلسَّمَآءُ ٱنفَطَرَتْ – “When the sky breaks apart”",
+          "id": "y6inf1-q2",
+          "points": 1,
+          "sc": "cu_mvdiwondf75fbc33#0"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "In “يَـٰٓأَيُّهَا ٱلْإِنسَـٰنُ مَا غَرَّكَ بِرَبِّكَ ٱلْكَرِيمِ” (82:6), which Tajweed rule is on ٱلْإِنسَـٰنُ?",
+          "options": [
+            "Lam Qamariyah – the Lam is read",
+            "Lam Shamsiyah – the Lam is silent",
+            "Qalqalah Kubra",
+            "Idgham"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Hamzah is a Moon letter, so the Lam is pronounced: al-insan.",
+          "id": "y6inf1-q3",
+          "points": 1,
+          "sc": "cu_mvdiwondf75fbc33#0"
+        },
+        {
+          "type": "matching",
+          "prompt": "Match each ayah with its meaning.",
+          "options": [],
+          "correct": [],
+          "pairs": [
+            {
+              "left": "إِذَا ٱلسَّمَآءُ ٱنفَطَرَتْ",
+              "right": "When the sky breaks apart"
+            },
+            {
+              "left": "وَإِذَا ٱلْكَوَاكِبُ ٱنتَثَرَتْ",
+              "right": "And when the stars fall, scattering"
+            },
+            {
+              "left": "وَإِذَا ٱلْبِحَارُ فُجِّرَتْ",
+              "right": "And when the seas are erupted"
+            },
+            {
+              "left": "وَإِذَا ٱلْقُبُورُ بُعْثِرَتْ",
+              "right": "And when the graves are scattered"
+            }
+          ],
+          "explanation": "Al-Infitar 82:1–4 (meanings from Sahih International on quran.com).",
+          "id": "y6inf1-q4",
+          "points": 1,
+          "sc": "cu_mvdiwondf75fbc33#1"
+        },
+        {
+          "type": "fill_blank",
+          "prompt": "“A soul will [then] know what it has put ___ and kept back.” (Al-Infitar 82:5)",
+          "options": [
+            "away",
+            "down"
+          ],
+          "correct": [],
+          "blanks": [
+            [
+              "forth",
+              "forward"
+            ]
+          ],
+          "explanation": "Al-Infitar 82:5: عَلِمَتْ نَفْسٌ مَّا قَدَّمَتْ وَأَخَّرَتْ",
+          "id": "y6inf1-q5",
+          "points": 1,
+          "sc": "cu_mvdiwondf75fbc33#1"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "Ayah 6 asks: “O mankind, what has deceived you concerning your Lord, the Generous,” What is the message?",
+          "options": [
+            "Do not be fooled; Allah is Generous, so obey Him",
+            "Allah does not care what we do",
+            "We will never be asked",
+            "Only rich people will be judged"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Allah, the Generous, created us; we should not be deceived into disobeying Him.",
+          "id": "y6inf1-q6",
+          "points": 1,
+          "sc": "cu_mvdiwondf75fbc33#1"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "How can you prepare for the Day when every soul knows what it did?",
+          "options": [
+            "Do good deeds and repent from mistakes now",
+            "Wait until you are older",
+            "Hide your mistakes",
+            "Do nothing"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "We prepare for accountability by doing good and repenting now.",
+          "id": "y6inf1-q7",
+          "points": 1,
+          "sc": "cu_mvdiwondf75fbc33#2"
+        },
+        {
+          "type": "multi_select",
+          "prompt": "Which actions help you prepare for accountability? (select all that apply)",
+          "options": [
+            "Praying on time",
+            "Saying sorry and fixing mistakes",
+            "Being honest",
+            "Delaying repentance"
+          ],
+          "correct": [
+            0,
+            1,
+            2
+          ],
+          "explanation": "Prayer, repentance and honesty prepare us for the Day of Judgement.",
+          "id": "y6inf1-q8",
+          "points": 1,
+          "sc": "cu_mvdiwondf75fbc33#2"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "You were unkind to a friend yesterday. What should you do today?",
+          "options": [
+            "Apologise and make it right",
+            "Pretend it never happened",
+            "Tell others it was their fault",
+            "Wait for them to forget"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Fixing wrongs now prepares us for the Day when every deed is known.",
+          "id": "y6inf1-q9",
+          "points": 1,
+          "sc": "cu_mvdiwondf75fbc33#2"
+        }
+      ]
+    },
+    {
+      "id": "sow-year-6-idgham",
+      "slug": "year-6-idgham",
+      "title": "Year 6 – Idgham",
+      "description": "Week 3 check: the letters of Idgham (يرملون), Idgham with and without Ghunnah, and applying the rule to examples from the Qur’an.",
+      "timeLimitMinutes": 8,
+      "showAnswers": true,
+      "certificateIndividual": false,
+      "certificateGroup": false,
+      "visible": false,
+      "active": false,
+      "published": false,
+      "updatedAt": "2026-11-27T08:00:00.000Z",
+      "year": 6,
+      "topic": "cu_mvdiwondaf57d846",
+      "subject": "Islamic B",
+      "topicInfo": {
+        "yr": "Year 6",
+        "term": "Term 1",
+        "wk": 3,
+        "title": "Idgham"
+      },
+      "questions": [
+        {
+          "type": "multi_select",
+          "prompt": "Which are the six letters of Idgham (يرملون)? (select all that apply)",
+          "options": [
+            "ي",
+            "ر",
+            "م",
+            "ل",
+            "و",
+            "ن",
+            "ب"
+          ],
+          "correct": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "explanation": "The Idgham letters are ي ر م ل و ن, remembered as “Yarmaloon” (يرملون).",
+          "id": "y6idg-q1",
+          "points": 1,
+          "sc": "cu_mvdiwondaf57d846#0"
+        },
+        {
+          "type": "true_false",
+          "prompt": "Idgham happens when Noon Sakinah or Tanween is followed by one of the letters of يرملون.",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Idgham means merging the Noon Sakinah/Tanween into the next letter.",
+          "id": "y6idg-q2",
+          "points": 1,
+          "sc": "cu_mvdiwondaf57d846#0"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "Which of these is Noon Sakinah?",
+          "options": [
+            "نْ",
+            "نَ",
+            "نِ",
+            "نُ"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Noon Sakinah has a sukoon: نْ.",
+          "id": "y6idg-q3",
+          "points": 1,
+          "sc": "cu_mvdiwondaf57d846#0"
+        },
+        {
+          "type": "matching",
+          "prompt": "Match each type of Idgham with its letters.",
+          "options": [],
+          "correct": [],
+          "pairs": [
+            {
+              "left": "Idgham with Ghunnah",
+              "right": "ي ن م و"
+            },
+            {
+              "left": "Idgham without Ghunnah",
+              "right": "ل ر"
+            }
+          ],
+          "explanation": "With Ghunnah: ينمو. Without Ghunnah: ل ر.",
+          "id": "y6idg-q4",
+          "points": 1,
+          "sc": "cu_mvdiwondaf57d846#1"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "How long is the Ghunnah held in Idgham with Ghunnah?",
+          "options": [
+            "About two counts",
+            "No time",
+            "Six counts",
+            "Ten counts"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "The Ghunnah (nasal sound) is held for about two counts.",
+          "id": "y6idg-q5",
+          "points": 1,
+          "sc": "cu_mvdiwondaf57d846#1"
+        },
+        {
+          "type": "true_false",
+          "prompt": "In Idgham without Ghunnah, the Noon is merged fully into ل or ر with no nasal sound.",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Before ل and ر the Noon disappears completely with no Ghunnah.",
+          "id": "y6idg-q6",
+          "points": 1,
+          "sc": "cu_mvdiwondaf57d846#1"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "In “فَمَن يَعْمَلْ” (Az-Zalzalah 99:7), which rule applies?",
+          "options": [
+            "Idgham with Ghunnah – Noon Sakinah before ي",
+            "Idgham without Ghunnah",
+            "Iqlab",
+            "Izhar"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "مَن يَعْمَلْ: Noon Sakinah followed by ي – merge with Ghunnah.",
+          "id": "y6idg-q7",
+          "points": 1,
+          "sc": "cu_mvdiwondaf57d846#2"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "In “مِّن رَّبِّهِمْ” (Al-Baqarah 2:5), which rule applies?",
+          "options": [
+            "Idgham without Ghunnah – Noon Sakinah before ر",
+            "Idgham with Ghunnah",
+            "Ikhfa",
+            "Qalqalah"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "مِّن رَّبِّهِمْ: Noon Sakinah followed by ر – full merge, no Ghunnah.",
+          "id": "y6idg-q8",
+          "points": 1,
+          "sc": "cu_mvdiwondaf57d846#2"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "In “غَفُورٌ رَّحِيمٌ” (Al-Baqarah 2:173), which rule applies?",
+          "options": [
+            "Idgham without Ghunnah – Tanween before ر",
+            "Idgham with Ghunnah",
+            "Iqlab",
+            "Izhar"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "غَفُورٌ رَّحِيمٌ: Tanween followed by ر – Idgham without Ghunnah.",
+          "id": "y6idg-q9",
+          "points": 1,
+          "sc": "cu_mvdiwondaf57d846#2"
+        }
+      ]
+    },
+    {
+      "id": "sow-year-6-surah-al-infitar-2",
+      "slug": "year-6-surah-al-infitar-2",
+      "title": "Year 6 – Surah Al-Infitar (2)",
+      "description": "Week 5 check: the noble recording angels (82:10–12), the righteous in bliss, the wicked in Hell, and that none can escape Allah’s command (82:19).",
+      "timeLimitMinutes": 8,
+      "showAnswers": true,
+      "certificateIndividual": false,
+      "certificateGroup": false,
+      "visible": false,
+      "active": false,
+      "published": false,
+      "updatedAt": "2026-11-27T08:00:00.000Z",
+      "year": 6,
+      "topic": "cu_mvdiwond4c46982c",
+      "subject": "Islamic B",
+      "topicInfo": {
+        "yr": "Year 6",
+        "term": "Term 1",
+        "wk": 5,
+        "title": "Surah Al-Infitar (2)"
+      },
+      "questions": [
+        {
+          "type": "fill_blank",
+          "prompt": "“كِرَامًا كَـٰتِبِينَ” – Allah describes the recording angels as “Noble and ___.” (82:11)",
+          "options": [
+            "sleeping",
+            "hiding"
+          ],
+          "correct": [],
+          "blanks": [
+            [
+              "recording",
+              "writing"
+            ]
+          ],
+          "explanation": "Al-Infitar 82:10–12: “And indeed, [appointed] over you are keepers, Noble and recording; They know whatever you do.”",
+          "id": "y6inf2-q1",
+          "points": 1,
+          "sc": "cu_mvdiwond4c46982c#0"
+        },
+        {
+          "type": "true_false",
+          "prompt": "The recording angels know whatever we do.",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Al-Infitar 82:12: “They know whatever you do.”",
+          "id": "y6inf2-q2",
+          "points": 1,
+          "sc": "cu_mvdiwond4c46982c#0"
+        },
+        {
+          "type": "fill_blank",
+          "prompt": "“Indeed, the righteous will be in ___.” (Al-Infitar 82:13)",
+          "options": [
+            "fire",
+            "sadness"
+          ],
+          "correct": [],
+          "blanks": [
+            [
+              "pleasure",
+              "bliss",
+              "delight"
+            ]
+          ],
+          "explanation": "Al-Infitar 82:13: إِنَّ ٱلْأَبْرَارَ لَفِى نَعِيمٍ",
+          "id": "y6inf2-q3",
+          "points": 1,
+          "sc": "cu_mvdiwond4c46982c#1"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "Who are “Al-Abrar” in ayah 13?",
+          "options": [
+            "The righteous, who obey Allah",
+            "The wicked",
+            "The angels",
+            "The animals"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Al-Abrar are the righteous believers who will be in bliss.",
+          "id": "y6inf2-q4",
+          "points": 1,
+          "sc": "cu_mvdiwond4c46982c#1"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "Ayah 14 says: “And indeed, the wicked will be in Hellfire.” Who are “Al-Fujjar”?",
+          "options": [
+            "The wicked, who disobey Allah",
+            "The righteous",
+            "The Prophets",
+            "The angels"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Al-Infitar 82:14: وَإِنَّ ٱلْفُجَّارَ لَفِى جَحِيمٍ",
+          "id": "y6inf2-q5",
+          "points": 1,
+          "sc": "cu_mvdiwond4c46982c#2"
+        },
+        {
+          "type": "true_false",
+          "prompt": "Ayah 16 says the wicked will never be absent from Hellfire.",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Al-Infitar 82:16: “And never therefrom will they be absent.”",
+          "id": "y6inf2-q6",
+          "points": 1,
+          "sc": "cu_mvdiwond4c46982c#2"
+        },
+        {
+          "type": "fill_blank",
+          "prompt": "“It is the Day when a soul will not possess for another soul [power to do] a thing; and the ___, that Day, is [entirely] with Allah.” (82:19)",
+          "options": [
+            "money",
+            "army"
+          ],
+          "correct": [],
+          "blanks": [
+            [
+              "command"
+            ]
+          ],
+          "explanation": "Al-Infitar 82:19: يَوْمَ لَا تَمْلِكُ نَفْسٌ لِّنَفْسٍ شَيْـًٔا ۖ وَٱلْأَمْرُ يَوْمَئِذٍ لِّلَّهِ",
+          "id": "y6inf2-q7",
+          "points": 1,
+          "sc": "cu_mvdiwond4c46982c#3"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "What does ayah 19 teach us?",
+          "options": [
+            "On that Day no one can help another except by Allah’s command",
+            "Friends can save us on that Day",
+            "Money can save us",
+            "We can hide from Allah"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "None can escape Allah’s command; only our deeds and Allah’s mercy will help us.",
+          "id": "y6inf2-q8",
+          "points": 1,
+          "sc": "cu_mvdiwond4c46982c#3"
+        }
+      ]
+    },
+    {
+      "id": "sow-year-6-the-night-journey-and-ascension",
+      "slug": "year-6-the-night-journey-and-ascension",
+      "title": "Year 6 – The Night Journey and Ascension to Heaven",
+      "description": "Week 12 check: the journey from Makkah to Al-Aqsa (17:1, Muslim 162a), the ascension through the heavens, the gift of the five prayers and Sidrat al-Muntaha (Bukhari 349, 53:14–15).",
+      "timeLimitMinutes": 8,
+      "showAnswers": true,
+      "certificateIndividual": false,
+      "certificateGroup": false,
+      "visible": false,
+      "active": false,
+      "published": false,
+      "updatedAt": "2026-11-27T08:00:00.000Z",
+      "year": 6,
+      "topic": "cu_mvdiwonde2033769",
+      "subject": "Islamic B",
+      "topicInfo": {
+        "yr": "Year 6",
+        "term": "Term 1",
+        "wk": 12,
+        "title": "The Night Journey and Ascension to Heaven"
+      },
+      "questions": [
+        {
+          "type": "multiple_choice",
+          "prompt": "Al-Isra’ was the night journey from Al-Masjid Al-Haram to which mosque? (Al-Isra 17:1)",
+          "options": [
+            "Al-Masjid Al-Aqsa",
+            "Masjid Quba",
+            "Al-Masjid An-Nabawi",
+            "Masjid Al-Qiblatayn"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Al-Isra 17:1: “Exalted is He who took His Servant by night from al-Masjid al-Haram to al-Masjid al-Aqsa…”",
+          "id": "y6isra-q1",
+          "points": 1,
+          "sc": "cu_mvdiwonde2033769#0"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "What was the name of the animal the Prophet ﷺ rode on the Night Journey? (Sahih Muslim 162a)",
+          "options": [
+            "Al-Buraq",
+            "Al-Qaswa",
+            "Duldul",
+            "Al-Adba"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Sahih Muslim 162a: “I was brought al-Buraq… I mounted it and came to the Temple (Bait al-Maqdis).”",
+          "id": "y6isra-q2",
+          "points": 1,
+          "sc": "cu_mvdiwonde2033769#0"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "Which angel went up with the Prophet ﷺ through the heavens?",
+          "options": [
+            "Jibril",
+            "Mika’il",
+            "Israfil",
+            "Malik"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Sahih al-Bukhari 349: Jibril took his hand and ascended with him to the nearest heaven.",
+          "id": "y6isra-q3",
+          "points": 1,
+          "sc": "cu_mvdiwonde2033769#1"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "Which Prophet did the Prophet ﷺ meet in the nearest (first) heaven? (Sahih al-Bukhari 349)",
+          "options": [
+            "Adam (A.S)",
+            "Ibrahim (A.S)",
+            "Musa (A.S)",
+            "Nuh (A.S)"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Sahih al-Bukhari 349: he met Adam in the nearest heaven and Ibrahim in the sixth heaven.",
+          "id": "y6isra-q4",
+          "points": 1,
+          "sc": "cu_mvdiwonde2033769#1"
+        },
+        {
+          "type": "fill_blank",
+          "prompt": "Allah first enjoined fifty prayers, then reduced them to ___ prayers, equal to fifty in reward. (Sahih al-Bukhari 349)",
+          "options": [
+            "ten",
+            "three"
+          ],
+          "correct": [],
+          "blanks": [
+            [
+              "five",
+              "5"
+            ]
+          ],
+          "explanation": "Sahih al-Bukhari 349: “These are five prayers and they are all (equal to) fifty (in reward), for My Word does not change.”",
+          "id": "y6isra-q5",
+          "points": 1,
+          "sc": "cu_mvdiwonde2033769#2"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "Which Prophet advised the Prophet ﷺ to go back and ask Allah to make the prayers fewer?",
+          "options": [
+            "Musa (A.S)",
+            "Ibrahim (A.S)",
+            "Isa (A.S)",
+            "Adam (A.S)"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "Sahih al-Bukhari 349: Musa (A.S) said, “Go back to your Lord, for your followers will not be able to bear it.”",
+          "id": "y6isra-q6",
+          "points": 1,
+          "sc": "cu_mvdiwonde2033769#2"
+        },
+        {
+          "type": "fill_blank",
+          "prompt": "“At the Lote Tree of the Utmost ___.” (عِندَ سِدْرَةِ ٱلْمُنتَهَىٰ, An-Najm 53:14)",
+          "options": [
+            "River",
+            "Mountain"
+          ],
+          "correct": [],
+          "blanks": [
+            [
+              "Boundary",
+              "boundary"
+            ]
+          ],
+          "explanation": "An-Najm 53:14: “At the Lote Tree of the Utmost Boundary -”",
+          "id": "y6isra-q7",
+          "points": 1,
+          "sc": "cu_mvdiwonde2033769#3"
+        },
+        {
+          "type": "multiple_choice",
+          "prompt": "What is near Sidrat al-Muntaha? (An-Najm 53:15)",
+          "options": [
+            "The Garden of Refuge (Paradise)",
+            "The Ka‘bah",
+            "Mount Sinai",
+            "The trench"
+          ],
+          "correct": [
+            0
+          ],
+          "explanation": "An-Najm 53:15: “Near it is the Garden of Refuge [i.e., Paradise] -”",
+          "id": "y6isra-q8",
+          "points": 1,
+          "sc": "cu_mvdiwonde2033769#3"
+        }
+      ]
     }
   ]
 }

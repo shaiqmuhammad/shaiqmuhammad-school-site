@@ -49,7 +49,7 @@ import { corsHeaders, reply, siteUrlFor, verifyToken, type AdminEnv } from "./ad
 import { fetchParentReplies, sendAuto, sendParentMail, type MailEnv } from "./mail/mailbox";
 import { classLabel, ttFor, ttRows, ttSE, ttSecMap, ttShared, ttTimes } from "./lmsmods";
 import { pageHandle, pagesInit } from "./lpages";
-import { initMods, modHandle, pubQuizzes, tquizTopics, today as modToday } from "./lmsmods";
+import { initMods, modHandle, pubQuizzes, pubScDefs, tquizScDefs, tquizTopics, today as modToday } from "./lmsmods";
 import { bankFromTquizzes, draftFromCurriculum, parseImportText, unitFromRow } from "./tquizDraft";
 import { reportHandle } from "./reports";
 import { packHandle, packInit, packSweep, liveViewSlides, type PackCtx } from "./packs";
@@ -1218,6 +1218,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
       const RES = (this.env as unknown as { RESULTS?: DurableObjectNamespace }).RESULTS;
       const memo = new Map<string, Promise<unknown>>();
       return trackerHandle({ sql: this.sql as never, inScope: (x, c2, s2, i) => this.inScope(x, c2, s2, i), homework: () => this.allHomework().map((h) => ({ id: h.id, kind: h.kind, cls: String(h.cls || "") })),
+        scDefs: async () => tquizScDefs(this.sql, { ...(await pubScDefs()) }),
         tagged: (ids, qids) => { const k = ids.join(",") + "/" + qids.join(","); if (!memo.has(k)) memo.set(k, RES ? (RES.get(RES.idFromName("main")) as unknown as { scTagged(i: string[], q: string[]): Promise<unknown> }).scTagged(ids, qids) : Promise.resolve([])); return memo.get(k) as never; } }, a, action, input);
     }
     if (/^qa-/.test(action)) {
