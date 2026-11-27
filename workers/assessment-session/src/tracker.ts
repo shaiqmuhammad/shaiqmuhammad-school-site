@@ -230,7 +230,7 @@ export async function grid(c: TrkCtx, a: Actor, cls: string, term: string, want 
       let auto: number | null = null, autoSrc = "";
       const qn = qv !== "" && qv !== undefined && Number.isFinite(Number(qv)) ? Number(qv) : null;
       if (qn != null && re.test(t)) { auto = qn; autoSrc = "quran"; }
-      else if (quizP) { auto = tagP ? Math.max(0, Math.min(3, Math.round((quizP.e / quizP.p) * 3))) : scoreFromPct((quizP.e / quizP.p) * 100, sys.cut); autoSrc = tagP ? "quiz" : "quiz-all"; }
+      else if (quizP) { auto = scoreFromPct((quizP.e / quizP.p) * 100, sys.cut); autoSrc = tagP ? "quiz" : "quiz-all"; } // tagged and untagged both use the system % cut-offs (default 40/60/85)
       else if (qn != null) { auto = qn; autoSrc = "quran"; }
       cells[key(s.id, u.id, i)] = { v: auto, src: autoSrc as Cell["src"], auto, autoSrc, note: autoSrc === "quiz" && tagP ? `${tagP.e}/${tagP.p} pts` : autoSrc.startsWith("quiz") && quizP ? `${Math.round((quizP.e / quizP.p) * 100)}%` : autoSrc === "quran" ? String(g) : undefined };
     });
