@@ -13,12 +13,12 @@
 import { T416_ROWS, T416_STUDENTS, T416_UNITS } from "./trkOvData";
 type Sql = { exec: (q: string, ...a: unknown[]) => { toArray: () => Record<string, unknown>[] } };
 export const T416_BY = "Excel tracker (27 Nov)";
-export type OvSet = { key: string; by: string; what: string; students: [string, string][]; units: [string, Record<string, string>][]; rows: [number, number, number, number][] };
+export type OvSet = { key: string; by: string; what: string; students: [string, string][]; units: [string, Record<string, string>][]; rows: [number, number, number, number][]; clears?: [number, number, number][] };
 export function applyT416Overrides(sql: Sql, now = Date.now()) {
   return applyOverrideSet(sql, { key: "t416", by: T416_BY, what: "SC · set from Excel tracker (27 Nov)", students: T416_STUDENTS, units: T416_UNITS, rows: T416_ROWS }, now);
 }
 /** Generic one-time override import (same guards/backup as t416); settings keys mig:<key>, mig:<key>:log, mig:<key>:result. */
-export function applyOverrideSet(sql: Sql, set: OvSet, now = Date.now()): { written: number; same: number; replaced: number; skipped: number } | null {
+export function applyOverrideSet(sql: Sql, set: OvSet, now = Date.now()): { written: number; same: number; replaced: number; skipped: number; cleared: number } | null {
   const K = `mig:${set.key}`;
   const done = sql.exec(`SELECT v FROM settings WHERE k=?`, K).toArray()[0];
   if (done && String(done.v) === "1") return null;
@@ -41,17 +41,29 @@ export function applyOverrideSet(sql: Sql, set: OvSet, now = Date.now()): { writ
     const [sid, sname] = set.students[si]; const [uid, texts] = set.units[ui];
     const sc = unitSc(uid);
     if (!studentOk(sid, sname) || !sc || sc[i] !== texts[String(i)]) { skipped++; if (skippedRows.length < 300) skippedRows.push([sid, uid, i, val]); continue; }
-    const prev = sql.exec(`SELECT val FROM trk_ov WHERE student=? AND unit=? AND i=?`, sid, uid, i).toArray()[0];
+    const prev = sql.exec(`SELECT val, by_name FROM trk_ov WHERE student=? AND unit=? AND i=?`, sid, uid, i).toArray()[0];
     if (prev && String(prev.val) === String(val)) { same++; continue; }
-    if (prev) { replaced++; replacedRows.push({ student: sid, unit: uid, i, was: String(prev.val), now: val }); }
+    if (prev) { replaced++; replacedRows.push({ student: sid, unit: uid, i, was: String(prev.val), by: String(prev.by_name || ""), now: val }); }
     sql.exec(`INSERT OR REPLACE INTO trk_ov (student, unit, i, val, by_name, at) VALUES (?, ?, ?, ?, ?, ?)`, sid, uid, i, String(val), set.by, now);
     written++; perStudent.set(sid, (perStudent.get(sid) || 0) + 1);
   }
+  let cleared = 0; const clearedRows: unknown[] = []; const skippedClears: unknown[] = [];
+  for (const [si, ui, i] of set.clears || []) {
+    const [sid, sname] = set.students[si]; const [uid, texts] = set.units[ui];
+    const sc = unitSc(uid);
+    if (!studentOk(sid, sname) || !sc || sc[i] !== texts[String(i)]) { skipped++; if (skippedRows.length < 300) skippedRows.push(["clear", sid, uid, i]); continue; }
+    const prev = sql.exec(`SELECT val, by_name FROM trk_ov WHERE student=? AND unit=? AND i=?`, sid, uid, i).toArray()[0];
+    if (!prev) continue;
+    if (!String(prev.by_name || "").startsWith("Excel tracker")) { skippedClears.push({ student: sid, unit: uid, i, by: String(prev.by_name || ""), val: String(prev.val) }); continue; }
+    sql.exec(`DELETE FROM trk_ov WHERE student=? AND unit=? AND i=?`, sid, uid, i);
+    cleared++; clearedRows.push({ student: sid, unit: uid, i, was: String(prev.val), by: String(prev.by_name || "") });
+    sql.exec(`INSERT OR IGNORE INTO trk_audit (id, at, by_id, by_name, student, what, prev, next) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, `ta_${set.key}_clr_${sid}_${uid}_${i}`, now, "system", set.by, sid, `SC override cleared (blanked in Excel) · ${uid} #${i + 1}`, String(prev.val), "auto");
+  }
   let n = 0;
   for (const [sid, c] of perStudent) sql.exec(`INSERT OR IGNORE INTO trk_audit (id, at, by_id, by_name, student, what, prev, next) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, `ta_${set.key}_${sid}`, now + n++, "system", set.by, sid, set.what, "auto", `${c} cells`);
-  sql.exec(`INSERT INTO settings (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v=excluded.v`, `${K}:result`, JSON.stringify({ at: now, written, same, replaced, skipped, replacedRows, skippedRows }));
+  sql.exec(`INSERT INTO settings (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v=excluded.v`, `${K}:result`, JSON.stringify({ at: now, written, same, replaced, skipped, cleared, replacedRows, skippedRows, clearedRows, skippedClears }));
   sql.exec(`INSERT INTO settings (k, v) VALUES (?, '1') ON CONFLICT(k) DO UPDATE SET v='1'`, K);
-  return { written, same, replaced, skipped };
+  return { written, same, replaced, skipped, cleared };
 }
 
 /**
