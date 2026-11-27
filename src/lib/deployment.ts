@@ -27,14 +27,28 @@ export const SITE_ADDRESSES = env(process.env.NEXT_PUBLIC_SITE_ADDRESSES, "www.s
 /** Hosts that are this site's own built-in family (links on them use the saved main address). */
 export const OWN_HOSTS = [DEFAULT_HOST, DEFAULT_HOST.replace(/^www\./, "")];
 
-/** Public-site Login buttons open this address in the same tab.
- *  Empty (or a non-school copy) keeps /lms/login. The old LMS at /lms is not redirected and stays a fallback.
- *  Revert by setting this to "". */
-export const SCHOOL_LOGIN_URL = IS_SCHOOL ? "https://school.shaiqmuhammad.com" : "";
+/** Public-site Login on the live school website. Empty (or a non-school copy) keeps /lms/login.
+ *  The old LMS at /lms is not redirected and stays a fallback. Revert by setting this to "". */
+export const SCHOOL_LOGIN_URL = IS_SCHOOL ? "https://school.shaiqmuhammad.com/lms/login" : "";
 
-/** Href for public Login / Student & Teacher Login entry points only — not in-LMS "please sign in" links. */
-export function publicLoginHref(): string {
-  return SCHOOL_LOGIN_URL || "/lms/login";
+const LOCAL_LOGIN = "/lms/login";
+
+/** Dev, localhost previews, and Cloudflare Pages previews keep Login on this origin. */
+export function isLocalLoginHost(hostname: string): boolean {
+  const host = hostname.trim().toLowerCase().replace(/^\[|\]$/g, "");
+  return host === "localhost" || host === "127.0.0.1" || host === "::1" || host.endsWith(".pages.dev");
+}
+
+/** First-paint href for the static export (prod school login when configured). Do not read window here. */
+export function publicLoginHrefDefault(): string {
+  return SCHOOL_LOGIN_URL || LOCAL_LOGIN;
+}
+
+/** Public Login href. Pass the runtime hostname after mount; omit it during SSG so HTML stays the prod URL. */
+export function publicLoginHref(hostname?: string): string {
+  if (!SCHOOL_LOGIN_URL) return LOCAL_LOGIN;
+  if (hostname !== undefined && isLocalLoginHost(hostname)) return LOCAL_LOGIN;
+  return SCHOOL_LOGIN_URL;
 }
 
 export const SITE_TEXT = {
