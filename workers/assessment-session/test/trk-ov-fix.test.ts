@@ -67,7 +67,7 @@ test("t419: writes the later Excel marks once, guarded by the SC text, with its 
   const sql = { exec: (q: string, ...a: unknown[]) => { const st = db.prepare(q); const rows = (/^\s*SELECT/i.test(q) ? st.all(...(a as never[])) : (st.run(...(a as never[])), [])) as Record<string, unknown>[]; return { toArray: () => rows }; } };
   db.exec(`CREATE TABLE trk_ov (student TEXT, unit TEXT, i INTEGER, val TEXT, by_name TEXT, at INTEGER, PRIMARY KEY (student, unit, i))`);
   db.prepare(`INSERT INTO trk_ov VALUES ('u_other','cu_x',0,'1','Teacher',1)`).run();
-  assert.deepEqual(applyT419Overrides(sql, 7), { written: 3, same: 0, replaced: 0, skipped: 0 });
+  assert.deepEqual(applyT419Overrides(sql, 7), { written: 3, same: 0, replaced: 0, skipped: 0, cleared: 0 });
   assert.deepEqual((db.prepare(`SELECT i, val FROM trk_ov WHERE student='u_mv1g3ia3c91a134d12' ORDER BY i`).all() as { i: number; val: string }[]).map((r) => [r.i, r.val]), [[0, "2"], [1, "1"], [2, "2"]]);
   assert.equal((db.prepare(`SELECT COUNT(*) c FROM trk_ov WHERE student='u_other'`).get() as { c: number }).c, 1);
   assert.ok((db.prepare(`SELECT v FROM settings WHERE k='mig:t419:log'`).get() as { v: string }).v.includes("u_other"));
