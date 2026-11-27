@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { retag, scDefsFrom } from "../src/scRetag";
+import { RIS_PRIMARY, scoreFromPct } from "../src/tracker";
 
 const quiz = { id: "sow-y3-nuh", slug: "year-3-nuh", questions: [
   { prompt: "Who sent Prophet Nuh (A.S) to his people?", sc: "cu_u1#0" },
@@ -9,11 +10,11 @@ const quiz = { id: "sow-y3-nuh", slug: "year-3-nuh", questions: [
   { prompt: "Untagged question" },
 ] };
 
-// Same per-SC rule as the tracker: earned/points on that SC's questions → 0–3.
+// Same per-SC rule as the tracker: earned/points on that SC's questions → % → 0–3 cut-offs.
 const perSc = (d: { sc?: string; earned: number; points: number }[]) => {
   const m = new Map<string, { e: number; p: number }>();
   for (const x of d) if (x.sc) { const v = m.get(x.sc) || { e: 0, p: 0 }; v.e += x.earned; v.p += x.points; m.set(x.sc, v); }
-  return Object.fromEntries([...m].map(([k, v]) => [k, Math.round((v.e / v.p) * 3)]));
+  return Object.fromEntries([...m].map(([k, v]) => [k, scoreFromPct((v.e / v.p) * 100, RIS_PRIMARY.cut)]));
 };
 
 test("old untagged answers get each question's own SC by prompt, so SC scores differ per student answer", () => {
