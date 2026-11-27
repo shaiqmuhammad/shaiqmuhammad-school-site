@@ -252,16 +252,16 @@
       "id": "sow-year-3-purification-and-nullifiers-of-wudu",
       "slug": "year-3-purification-and-nullifiers-of-wudu",
       "title": "Year 3 – Purification and Nullifiers of Wudu (Week 7)",
-      "description": "Week 7 check: what Taharah means, the things that break Wudu, and the steps of Wudu.",
+      "description": "Week 7 check: what Taharah means, the things that break Wudu (Sahih al-Bukhari 6954), and the steps of Wudu in Al-Ma’idah 5:6.",
       "cardImage": "/covers/y3-making-wudu-well.svg",
-      "timeLimitMinutes": 5,
+      "timeLimitMinutes": 8,
       "showAnswers": true,
       "certificateIndividual": false,
       "certificateGroup": false,
       "visible": false,
       "active": false,
       "published": false,
-      "updatedAt": "2026-10-23T13:00:00.000Z",
+      "updatedAt": "2026-11-27T09:30:00.000Z",
       "questions": [
         {
           "id": "q1",
@@ -312,7 +312,7 @@
         {
           "id": "q3",
           "type": "fill_blank",
-          "prompt": "We must have ___ before we pray Salah.",
+          "prompt": "The Prophet ﷺ said: “Allah does not accept the prayer of any of you if he does hadath (passes wind) until he performs ___.” (Sahih al-Bukhari 6954)",
           "options": [
             "Sawm",
             "Zakat"
@@ -325,18 +325,21 @@
               "wudu",
               "wudhu",
               "wuduu",
-              "ablution"
+              "ablution",
+              "the ablution",
+              "ablution anew"
             ]
           ],
-          "explanation": "Allah does not accept the prayer of someone who has broken Wudu until they make Wudu again (Sahih al-Bukhari 6954).",
-          "promptAr": "يجب أن يكون معنا ___ قبل أن نصلّي.",
+          "explanation": "Sahih al-Bukhari 6954, narrated by Abu Huraira: “Allah does not accept prayer of anyone of you if he does Hadath (passes wind) till he performs the ablution (anew).”",
+          "promptAr": "قال النبي ﷺ: «لا يقبل الله صلاة أحدكم إذا أحدث حتى ___.» (صحيح البخاري ٦٩٥٤)",
           "optionsAr": [
             "الصوم",
             "الزكاة"
           ],
-          "explanationAr": "لا يقبل الله صلاة من أحدث حتى يتوضأ (صحيح البخاري ٦٩٥٤).",
+          "explanationAr": "صحيح البخاري ٦٩٥٤، عن أبي هريرة: «لا يقبل الله صلاة أحدكم إذا أحدث حتى يتوضأ».",
           "blanksAr": [
             [
+              "يتوضأ",
               "الوضوء",
               "وضوء"
             ]
@@ -515,10 +518,43 @@
           ],
           "explanationAr": "قضاء الحاجة ينقض الوضوء، فيجدّده قبل الصلاة.",
           "sc": "cu_mvdiwondc7126982#2"
+        },
+        {
+          "id": "q10",
+          "type": "fill_blank",
+          "prompt": "Allah says: “when you rise to [perform] prayer, wash your faces and your forearms to the ___ and wipe over your heads and wash your feet to the ankles.” (Al-Ma’idah 5:6)",
+          "options": [
+            "shoulders",
+            "knees"
+          ],
+          "correct": [],
+          "points": 1,
+          "blanks": [
+            [
+              "elbows",
+              "the elbows",
+              "your elbows"
+            ]
+          ],
+          "explanation": "Al-Ma’idah 5:6 (quran.com, Sahih International): wash the face, the arms to the elbows, wipe the head, and wash the feet to the ankles.",
+          "promptAr": "قال الله تعالى: «يَـٰٓأَيُّهَا ٱلَّذِينَ ءَامَنُوٓا۟ إِذَا قُمْتُمْ إِلَى ٱلصَّلَوٰةِ فَٱغْسِلُوا۟ وُجُوهَكُمْ وَأَيْدِيَكُمْ إِلَى ٱلْمَرَافِقِ وَٱمْسَحُوا۟ بِرُءُوسِكُمْ وَأَرْجُلَكُمْ إِلَى ٱلْكَعْبَيْنِ» (المائدة ٥:٦). نغسل اليدين إلى الـ___.",
+          "optionsAr": [
+            "المنكبين",
+            "الركبتين"
+          ],
+          "blanksAr": [
+            [
+              "مرافق",
+              "المرافق",
+              "المرفقين"
+            ]
+          ],
+          "explanationAr": "سورة المائدة ٥:٦: نغسل الوجه واليدين إلى المرفقين، ونمسح الرأس، ونغسل الرجلين إلى الكعبين.",
+          "sc": "cu_mvdiwondc7126982#2"
         }
       ],
       "titleAr": "السنة ٣ – الطهارة ونواقض الوضوء (الأسبوع ٧)",
-      "descriptionAr": "تقييم الأسبوع ٧: معنى الطهارة، ونواقض الوضوء، وخطوات الوضوء.",
+      "descriptionAr": "تقييم الأسبوع ٧: معنى الطهارة، ونواقض الوضوء (صحيح البخاري ٦٩٥٤)، وخطوات الوضوء في سورة المائدة ٥:٦.",
       "year": 3,
       "topic": "cu_mvdiwondc7126982",
       "subject": "Islamic B",
