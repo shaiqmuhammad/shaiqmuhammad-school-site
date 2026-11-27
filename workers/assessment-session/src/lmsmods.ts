@@ -1,4 +1,5 @@
 import { ASSETS, DEPLOY } from "./deployment";
+import { scDefsFrom, type ScDefs } from "./scRetag";
 import { catPhases, loadCat } from "./catx";
 /**
  * LMS modules: Attendance Register, Behaviour Management, Curriculum Management.
@@ -74,6 +75,22 @@ export async function pubQuizzes(force = false): Promise<PubQuiz[]> {
     pubCache = { at: Date.now(), items };
   } catch { if (!pubCache) pubCache = { at: Date.now() - 100e3, items: [] }; }
   return pubCache.items;
+}
+/** t411: SC tags (by prompt) of the published assessments' questions, for scoring results saved before tagging. */
+let defCache: { at: number; defs: ScDefs } | null = null;
+export async function pubScDefs(): Promise<ScDefs> {
+  if (defCache && Date.now() - defCache.at < 120e3) return defCache.defs;
+  try {
+    const r = ASSETS ? await ASSETS.fetch(new Request("https://assets.local/content/quizzes.json")) : await fetch(`${DEPLOY.siteUrl}/content/quizzes.json?t=${Date.now()}`, { headers: { "User-Agent": "Mozilla/5.0 (assessment-session)" } });
+    const j = (await r.json()) as { quizzes?: Record<string, unknown>[] };
+    defCache = { at: Date.now(), defs: scDefsFrom(j.quizzes || []) };
+  } catch { if (!defCache) defCache = { at: Date.now() - 100e3, defs: {} }; }
+  return defCache.defs;
+}
+/** t411: SC tags of teacher quizzes (tq_*), from their saved data. */
+export function tquizScDefs(sql: SqlStorage, into: ScDefs = {}): ScDefs {
+  const qs = sql.exec(`SELECT id, data FROM tquiz`).toArray().map((r) => { let d: Json = {}; try { d = JSON.parse(String(r.data || "{}")) as Json; } catch { /* ignore */ } return { id: String(r.id), slug: String(d.slug || ""), questions: d.questions }; });
+  return scDefsFrom(qs, into);
 }
 let pubNow: PubQuiz[] = [];
 export function setPubNow(p: PubQuiz[]) { pubNow = p; }

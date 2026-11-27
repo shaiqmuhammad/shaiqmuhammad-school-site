@@ -13,6 +13,7 @@
 import { mpOf, type MpAcc } from "./modperm";
 import type { Actor } from "./lms";
 import { khdaCfg } from "./qa";
+import { retag, type ScDefs } from "./scRetag";
 
 type Json = Record<string, unknown>;
 /** t284: a subject that shares (links to, never copies) another subject's curriculum, topics, SCs and tracker structure. */
@@ -26,7 +27,9 @@ export type TrkCtx = {
   sql: Sql;
   inScope: (a: Actor, cls: string, section: string, sid?: string) => boolean;
   homework: () => Hw[];
-  tagged: (ids: string[], quizIds: string[]) => Promise<{ studentId: string; quizId: string; slug?: string; at: number; details: { sc?: string; earned: number; points: number }[] }[]>;
+  tagged: (ids: string[], quizIds: string[]) => Promise<{ studentId: string; quizId: string; slug?: string; at: number; details: { sc?: string; prompt?: string; earned: number; points: number }[] }[]>;
+  /** t411: current SC tags of each assessment's questions (by prompt), for results saved before tagging. */
+  scDefs?: () => Promise<ScDefs>;
 };
 type Reply = { status: number; body: unknown };
 
@@ -205,7 +208,9 @@ export async function grid(c: TrkCtx, a: Actor, cls: string, term: string, want 
   const whole = new Map<string, { at: number; e: number; p: number }>(); // `${student}|${unit}` from untagged linked assessments
   const byQuiz = new Map<string, string[]>(); for (const u of units) for (const q of u.quizzes) byQuiz.set(q, [...(byQuiz.get(q) || []), u.id]);
   const linked = linkRule(c.sql);
-  if (ids.length) for (const r of await c.tagged(ids, [...byQuiz.keys()])) {
+  const defs = ids.length && c.scDefs ? await c.scDefs().catch(() => null) : null;
+  if (ids.length) for (const r0 of await c.tagged(ids, [...byQuiz.keys()])) {
+    const r = { ...r0, details: retag(r0.details, defs, [r0.quizId, r0.slug]) }; // t411: each answer scores its own SC
     if (!linked(r.quizId, r.at) && !(r.slug && r.slug !== r.quizId && linked(r.slug, r.at))) continue; // practice assessment: saved as usual, never in the tracker
     const per = new Map<string, { e: number; p: number }>(); let te = 0, tp = 0;
     for (const d of r.details) { te += Number(d.earned) || 0; tp += Number(d.points) || 0; if (d.sc) { const x = per.get(d.sc) || { e: 0, p: 0 }; x.e += Number(d.earned) || 0; x.p += Number(d.points) || 0; per.set(d.sc, x); } }
