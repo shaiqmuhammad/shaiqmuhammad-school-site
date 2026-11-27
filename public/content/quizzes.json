@@ -2429,7 +2429,7 @@
       "visible": false,
       "active": false,
       "published": false,
-      "updatedAt": "2026-10-31T16:45:00.000Z",
+      "updatedAt": "2026-11-27T10:30:00.000Z",
       "questions": [
         {
           "id": "y6i-q1",
@@ -2453,7 +2453,8 @@
             "الإدغام",
             "الإظهار"
           ],
-          "explanationAr": "الإقلاب لغةً: التحويل والتغيير."
+          "explanationAr": "الإقلاب لغةً: التحويل والتغيير.",
+          "sc": "cu_mvdiwond1e7ffbef#1"
         },
         {
           "id": "y6i-q2",
@@ -2477,7 +2478,8 @@
             "النون (ن)",
             "اللام (ل)"
           ],
-          "explanationAr": "يقع الإقلاب إذا جاءت النون الساكنة أو التنوين قبل الباء."
+          "explanationAr": "يقع الإقلاب إذا جاءت النون الساكنة أو التنوين قبل الباء.",
+          "sc": "cu_mvdiwond1e7ffbef#0"
         },
         {
           "id": "y6i-q3",
@@ -2501,7 +2503,8 @@
             "اللام",
             "الراء"
           ],
-          "explanationAr": "تُقلب النون ميمًا."
+          "explanationAr": "تُقلب النون ميمًا.",
+          "sc": "cu_mvdiwond1e7ffbef#1"
         },
         {
           "id": "y6i-q4",
@@ -2525,7 +2528,8 @@
             "٤",
             "٦"
           ],
-          "explanationAr": "الغنة بمقدار حركتين."
+          "explanationAr": "الغنة بمقدار حركتين.",
+          "sc": "cu_mvdiwond1e7ffbef#1"
         },
         {
           "id": "y6i-q5",
@@ -2549,7 +2553,8 @@
             "سكون",
             "شدة"
           ],
-          "explanationAr": "تُكتب ميم صغيرة فوق النون."
+          "explanationAr": "تُكتب ميم صغيرة فوق النون.",
+          "sc": "cu_mvdiwond1e7ffbef#2"
         },
         {
           "id": "y6i-q6",
@@ -2575,7 +2580,8 @@
             "لَيُنبَذَنَّ",
             "الْعَصْرِ"
           ],
-          "explanationAr": "فيها نون ساكنة أو تنوين بعدها باء."
+          "explanationAr": "فيها نون ساكنة أو تنوين بعدها باء.",
+          "sc": "cu_mvdiwond1e7ffbef#0"
         },
         {
           "id": "y6i-q7",
@@ -2597,7 +2603,8 @@
             "أظهر الغنة",
             "بمقدار حركتين"
           ],
-          "explanationAr": "قلب ← إطباق الشفتين برفق ← الغنة ← حركتان."
+          "explanationAr": "قلب ← إطباق الشفتين برفق ← الغنة ← حركتان.",
+          "sc": "cu_mvdiwond1e7ffbef#2"
         },
         {
           "id": "y6i-q8",
@@ -2644,7 +2651,8 @@
               "left": "الترتيل",
               "right": "القراءة المتأنية الواضحة"
             }
-          ]
+          ],
+          "sc": "cu_mvdiwond1e7ffbef#1"
         },
         {
           "id": "y6i-q9",
@@ -2668,7 +2676,8 @@
             "الصاد في «الناصية»",
             "لا يوجد إقلاب"
           ],
-          "explanationAr": "التنوين في «لنسفعًا» بعده باء فيُقلب ميمًا."
+          "explanationAr": "التنوين في «لنسفعًا» بعده باء فيُقلب ميمًا.",
+          "sc": "cu_mvdiwond1e7ffbef#0"
         },
         {
           "id": "y6i-q10",
@@ -2692,7 +2701,8 @@
             "من لا يخطئ أبدًا",
             "الأكبر سنًا"
           ],
-          "explanationAr": "«خيركم من تعلّم القرآن وعلّمه» رواه عثمان رضي الله عنه."
+          "explanationAr": "«خيركم من تعلّم القرآن وعلّمه» رواه عثمان رضي الله عنه.",
+          "sc": "cu_mvdiwond1e7ffbef#2"
         },
         {
           "id": "y6i-q11",
@@ -2722,7 +2732,8 @@
               "ترتيلا",
               "ترتيلًا"
             ]
-          ]
+          ],
+          "sc": "cu_mvdiwond1e7ffbef#2"
         },
         {
           "id": "y6i-q12",
@@ -2746,7 +2757,53 @@
             "أترك الإقلاب",
             "أتوقف عن القراءة"
           ],
-          "explanationAr": "القرار الجيد هو قراءة القرآن بتأنٍّ."
+          "explanationAr": "القرار الجيد هو قراءة القرآن بتأنٍّ.",
+          "sc": "cu_mvdiwond1e7ffbef#1"
+        },
+        {
+          "id": "iq-sort",
+          "type": "matching",
+          "prompt": "Sort each example into Iqlab or Idgham. The letter after the Noon sakinah or Tanween is the reason.",
+          "options": [],
+          "correct": [],
+          "points": 1,
+          "pairs": [
+            {
+              "left": "كِرَامٍۭ بَرَرَةٍ (80:16)",
+              "right": "Iqlab – Tanween before ب"
+            },
+            {
+              "left": "لَيُنۢبَذَنَّ (104:4)",
+              "right": "Iqlab – Noon sakinah before ب"
+            },
+            {
+              "left": "فَمَن يَعْمَلْ (99:7)",
+              "right": "Idgham – Noon sakinah before ي"
+            },
+            {
+              "left": "مِّن رَّبِّهِمْ (2:5)",
+              "right": "Idgham – Noon sakinah before ر"
+            }
+          ],
+          "explanation": "Before ب we change the Noon to a Meem sound (Iqlab). Before a letter of يرملون we merge (Idgham). Examples from quran.com: 80:16, 104:4, 99:7, 2:5.",
+          "sc": "cu_mvdiwond1e7ffbef#0"
+        },
+        {
+          "id": "iq-fix",
+          "type": "multiple_choice",
+          "prompt": "Sara reads لَيُنۢبَذَنَّ (104:4) and merges the Noon fully into the ب with no Meem sound, as in Idgham. What is the correction?",
+          "options": [
+            "Change the Noon to a Meem sound, close the lips gently and hold the ghunnah for 2 counts",
+            "Read the Noon clearly with no ghunnah",
+            "Skip the Noon",
+            "Make the ب heavy"
+          ],
+          "correct": [
+            0
+          ],
+          "points": 1,
+          "explanation": "Noon sakinah before ب is Iqlab, not Idgham: the Noon becomes a hidden Meem with ghunnah for two counts. The small Meem in the Mushaf (لَيُنۢبَذَنَّ) shows this.",
+          "sc": "cu_mvdiwond1e7ffbef#1"
         }
       ],
       "titleAr": "السنة ٦ – الإقلاب (حكم تجويدي)",
@@ -4488,7 +4545,8 @@
             "عثمان بن عفان",
             "عبد الله بن عمرو"
           ],
-          "explanationAr": "رواه عثمان بن عفان رضي الله عنه (صحيح مسلم ٢٤٥)."
+          "explanationAr": "رواه عثمان بن عفان رضي الله عنه (صحيح مسلم ٢٤٥).",
+          "sc": "cu_mvdiwondaaf6251b#1"
         },
         {
           "id": "y3w-q2",
@@ -4512,7 +4570,8 @@
             "لا يتعب أبدًا",
             "لا يحتاج أن يصلي مرة أخرى"
           ],
-          "explanationAr": "«من توضأ فأحسن الوضوء خرجت خطاياه من جسده حتى تخرج من تحت أظفاره» (صحيح مسلم ٢٤٥)."
+          "explanationAr": "«من توضأ فأحسن الوضوء خرجت خطاياه من جسده حتى تخرج من تحت أظفاره» (صحيح مسلم ٢٤٥).",
+          "sc": "cu_mvdiwondaaf6251b#1"
         },
         {
           "id": "y3w-q3",
@@ -4536,7 +4595,8 @@
             "الغسل بعناية وبشكل كامل",
             "غسل الوجه فقط"
           ],
-          "explanationAr": "الإحسان هنا: أن نتوضأ بعناية وبشكل كامل فلا يُترك موضع."
+          "explanationAr": "الإحسان هنا: أن نتوضأ بعناية وبشكل كامل فلا يُترك موضع.",
+          "sc": "cu_mvdiwondaaf6251b#2"
         },
         {
           "id": "y3w-q4",
@@ -4565,7 +4625,8 @@
             "غسل القدمين إلى الكعبين",
             "مسح الرأس"
           ],
-          "explanationAr": "بيّن عثمان: اليدان، المضمضة، الاستنشاق، الوجه، اليدان إلى المرفقين، مسح الرأس، ثم القدمان إلى الكعبين. أما صلاة الركعتين فبعد الوضوء وليست من خطواته."
+          "explanationAr": "بيّن عثمان: اليدان، المضمضة، الاستنشاق، الوجه، اليدان إلى المرفقين، مسح الرأس، ثم القدمان إلى الكعبين. أما صلاة الركعتين فبعد الوضوء وليست من خطواته.",
+          "sc": "cu_mvdiwondaaf6251b#0"
         },
         {
           "id": "y3w-q5",
@@ -4591,7 +4652,8 @@
             "مسح الرأس",
             "غسل القدمين إلى الكعبين"
           ],
-          "explanationAr": "الترتيب (صحيح البخاري ١٥٩): اليدان ← المضمضة والاستنشاق ← الوجه ← اليدان إلى المرفقين ← مسح الرأس ← القدمان."
+          "explanationAr": "الترتيب (صحيح البخاري ١٥٩): اليدان ← المضمضة والاستنشاق ← الوجه ← اليدان إلى المرفقين ← مسح الرأس ← القدمان.",
+          "sc": "cu_mvdiwondaaf6251b#0"
         },
         {
           "id": "y3w-q6",
@@ -4638,7 +4700,8 @@
               "left": "الأظفار",
               "right": "أطراف الأصابع"
             }
-          ]
+          ],
+          "sc": "cu_mvdiwondaaf6251b#1"
         },
         {
           "id": "y3w-q7",
@@ -4658,7 +4721,8 @@
             "صح",
             "خطأ"
           ],
-          "explanationAr": "خطأ. قال النبي ﷺ: «ويل للأعقاب من النار، أسبغوا الوضوء» (صحيح مسلم ٢٤١أ)."
+          "explanationAr": "خطأ. قال النبي ﷺ: «ويل للأعقاب من النار، أسبغوا الوضوء» (صحيح مسلم ٢٤١أ).",
+          "sc": "cu_mvdiwondaaf6251b#2"
         },
         {
           "id": "y3w-q8",
@@ -4678,7 +4742,8 @@
             "صح",
             "خطأ"
           ],
-          "explanationAr": "صح. في وصف عثمان (صحيح البخاري ١٥٩) تُغسل هذه الأعضاء ثلاث مرات."
+          "explanationAr": "صح. في وصف عثمان (صحيح البخاري ١٥٩) تُغسل هذه الأعضاء ثلاث مرات.",
+          "sc": "cu_mvdiwondaaf6251b#0"
         },
         {
           "id": "y3w-q9",
@@ -4698,7 +4763,8 @@
             "صح",
             "خطأ"
           ],
-          "explanationAr": "صح. الوضوء شرط للصلاة، فنستعد لها بعناية."
+          "explanationAr": "صح. الوضوء شرط للصلاة، فنستعد لها بعناية.",
+          "sc": "cu_mvdiwondaaf6251b#0"
         },
         {
           "id": "y3w-q10",
@@ -4722,7 +4788,8 @@
             "«اغسلوا أيديكم فقط»",
             "«لا يلزم الوضوء في السفر»"
           ],
-          "explanationAr": "صحيح مسلم ٢٤١أ (عبد الله بن عمرو): حذّرهم ﷺ وأمرهم بإسباغ الوضوء حتى تُغسل الأعقاب."
+          "explanationAr": "صحيح مسلم ٢٤١أ (عبد الله بن عمرو): حذّرهم ﷺ وأمرهم بإسباغ الوضوء حتى تُغسل الأعقاب.",
+          "sc": "cu_mvdiwondaaf6251b#2"
         },
         {
           "id": "y3w-q11",
@@ -4746,7 +4813,8 @@
             "يُعطى مالًا",
             "يُغفر له ما تقدّم من ذنبه"
           ],
-          "explanationAr": "«غُفر له ما تقدّم من ذنبه» (صحيح البخاري ١٥٩). ويفسّر العلماء ذلك بالصغائر."
+          "explanationAr": "«غُفر له ما تقدّم من ذنبه» (صحيح البخاري ١٥٩). ويفسّر العلماء ذلك بالصغائر.",
+          "sc": "cu_mvdiwondaaf6251b#1"
         },
         {
           "id": "y3w-q12",
@@ -4776,7 +4844,8 @@
               "خَطَايَاهُ",
               "خطاياه"
             ]
-          ]
+          ],
+          "sc": "cu_mvdiwondaaf6251b#1"
         }
       ],
       "titleAr": "السنة ٣ – إحسان الوضوء",
