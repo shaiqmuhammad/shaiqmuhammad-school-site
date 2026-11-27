@@ -5,7 +5,7 @@ import { BodyPortal } from "@/components/BodyPortal";
 import { ModulePermsTeacher , QaPermsTeacher } from "@/components/lms/ModulePerms";
 import { PresenceDot } from "@/components/lms/Presence";
 import { mailApi } from "@/lib/mail";
-import { listPublishedQuizzes, loadQuizzesData, type Quiz } from "@/lib/quiz";
+import { loadQuizzesData, type Quiz } from "@/lib/quiz";
 import { StudentProgress } from "@/components/lms/Progress";
 import { ParentLog } from "@/components/lms/ParentMail";
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
@@ -814,7 +814,7 @@ const REP_PERM_KEYS: [string, string, string][] = [["kpi", "KPI overview", "ال
 function ClassroomAccess({ perms, toggle, chip }: { perms: string[]; toggle: (v: string) => void; chip: (on: boolean) => string }) {
   const { tr } = useTr();
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
-  useEffect(() => { loadQuizzesData().then((d) => setQuizzes(listPublishedQuizzes(d))).catch(() => undefined); }, []);
+  useEffect(() => { loadQuizzesData().then((d) => setQuizzes(d.quizzes)).catch(() => undefined); }, []);
   const allA = perms.includes("act:*");
   const allH = perms.includes("host:*");
   return (
@@ -836,7 +836,7 @@ function ClassroomAccess({ perms, toggle, chip }: { perms: string[]; toggle: (v:
       </div>
       <div className="flex flex-wrap gap-1.5">
         <button type="button" aria-pressed={allH} className={chip(allH)} onClick={() => toggle("host:*")} data-testid="lms-host-all">{tr("Host all assessments", "استضافة كل التقييمات")}</button>
-        {quizzes.map((q) => <button key={q.slug} type="button" disabled={allH} aria-pressed={allH || perms.includes(`host:${q.slug}`)} className={chip(allH || perms.includes(`host:${q.slug}`)) + " max-w-[16rem] truncate disabled:opacity-60"} onClick={() => toggle(`host:${q.slug}`)} title={q.title}>{q.title}</button>)}
+        {quizzes.map((q) => <button key={q.slug} type="button" disabled={allH} aria-pressed={allH || perms.includes(`host:${q.slug}`)} className={chip(allH || perms.includes(`host:${q.slug}`)) + " max-w-[16rem] truncate disabled:opacity-60"} onClick={() => toggle(`host:${q.slug}`)} title={q.visible ? q.title : `${q.title} (${tr("Hidden from website", "مخفي عن الموقع")})`} data-hidden={q.visible ? "0" : "1"}>{q.title}{!q.visible ? <span className="ms-1 text-[10px] font-bold opacity-80">· {tr("Hidden", "مخفي")}</span> : null}</button>)}
       </div>
     </div>
   );

@@ -9,7 +9,7 @@ import { useEffect, useState } from "react";
 import { AssessmentShell } from "@/components/assessment/AssessmentShell";
 import { LmsStaffToolbar } from "@/components/lms/LmsEntry";
 import { lmsApi, lmsSession } from "@/lib/lms";
-import { listPublishedQuizzes, loadQuizzesData, type Quiz } from "@/lib/quiz";
+import { loadQuizzesData, type Quiz } from "@/lib/quiz";
 import { useI18n } from "@/lib/i18n";
 import { AssignForm, AssignedList, loadAnyQuiz } from "@/components/lms/LmsQuiz";
 import { PaperDownloads } from "@/components/assessment/PaperDownloads";
@@ -18,6 +18,16 @@ import type { Assignment } from "@/lib/lms";
 import type { ResultRecord } from "@/lib/resultsRecord";
 import { Podium } from "@/components/assessment/ResultsVisuals";
 import { modCall, type CurUnit } from "@/lib/lmsMods";
+
+/** School catalog visible on /lms/assessments: staff see hidden quizzes (host filter still applies); students see only visible + active. */
+export function schoolAssessmentsFor(me: { role: string; perms: string[] } | null, quizzes: Quiz[]): Quiz[] {
+  if (!me) return [];
+  const staff = me.role === "teacher" || me.role === "admin";
+  if (!staff) return quizzes.filter((q) => q.visible && q.active);
+  const hosts = (me.perms || []).filter((p) => p.startsWith("host:")).map((p) => p.slice(5));
+  if (me.role === "admin" || hosts.includes("*")) return quizzes;
+  return quizzes.filter((q) => hosts.includes(q.slug));
+}
 
 /** /lms/assessments: assessments inside the LMS layout. Students: start on their own + join a live code. Teachers: host the ones the admin allowed. */
 export function LmsAssessmentsPage() {
@@ -30,18 +40,17 @@ export function LmsAssessmentsPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!lmsSession()) { setMe(null); return; }
     lmsApi.me().then((r) => setMe({ role: String(r.user.role), perms: r.user.perms || [] })).catch(() => setMe(null));
-    loadQuizzesData().then((d) => setQuizzes(listPublishedQuizzes(d))).catch(() => setQuizzes([]));
+    loadQuizzesData().then((d) => setQuizzes(d.quizzes)).catch(() => setQuizzes([]));
   }, []);
-  const teacher = me?.role === "teacher";
-  const hosts = (me?.perms || []).filter((p) => p.startsWith("host:")).map((p) => p.slice(5));
-  const list = (quizzes || []).filter((q) => (teacher ? hosts.includes("*") || hosts.includes(q.slug) : q.active));
+  const staff = me?.role === "teacher" || me?.role === "admin";
+  const list = schoolAssessmentsFor(me ?? null, quizzes || []);
   return (
     <AssessmentShell title={tr("Assessments", "التقييمات")} exitHref="/lms" wide toolbar={<LmsStaffToolbar />}>
       <div className="mx-auto w-full max-w-6xl flex-1 space-y-6 px-3 py-6 sm:px-6" data-testid="lms-assessments">
         {me === undefined ? <p className="p-10 text-center opacity-70">{tr("Loading…", "جارٍ التحميل…")}</p>
           : me === null ? <p className="rounded-2xl bg-amber-100 px-4 py-3 text-amber-900">{tr("Please sign in first.", "سجّل الدخول أولًا.")} <a className="font-bold underline" href="/lms/login">{tr("Student / Teacher login", "دخول الطالب / المعلم")}</a></p>
           : <>
-            {!teacher && (
+            {!staff && (
               <form className="relative overflow-hidden rounded-3xl bg-header px-6 py-6 text-white" onSubmit={(e) => { e.preventDefault(); const c = code.trim().toUpperCase(); if (c) window.location.href = `/assessments/join?code=${encodeURIComponent(c)}`; }} data-testid="lms-join-form">
                 <p className="text-xl font-extrabold !text-white">🔑 {tr("Join a live class assessment", "انضم إلى تقييم صفي مباشر")}</p>
                 <p className="mt-1 text-sm text-white/75">{tr("Type the code your teacher shows on the board.", "اكتب الرمز الذي يعرضه معلمك على السبورة.")}</p>
@@ -51,7 +60,7 @@ export function LmsAssessmentsPage() {
                 </div>
               </form>
             )}
-            {teacher ? <TeacherAssess quizzes={list} tr={tr} /> : <StudentAssigned quizzes={quizzes || []} tr={tr} lang={lang} />}
+            {staff ? <TeacherAssess quizzes={list} tr={tr} /> : <StudentAssigned quizzes={list} tr={tr} lang={lang} />}
           </>}
       </div>
     </AssessmentShell>
@@ -171,10 +180,13 @@ function TeacherAssess({ quizzes, tr }: { quizzes: Quiz[]; tr: Tr }) {
   const facets = useFacets([...mine.map((m) => m.id), ...quizzes.map((q) => q.slug)], quizzes, false);
   const flt = useAssessFilter(facets, tr);
   const mineF = mine.filter((m) => flt.pass(m.id)), quizzesF = quizzes.filter((q) => flt.pass(q.slug));
-  const card = (id: string, title: string, own: boolean, subject?: string) => (
-    <li key={id} className="glass relative z-0 flex flex-col gap-3 rounded-3xl p-5 [&:has(details[open])]:z-50" data-testid={own ? "tquiz-card" : "lms-assess-card"}>
+  const card = (id: string, title: string, own: boolean, subject?: string, hidden = false) => (
+    <li key={id} className="glass relative z-0 flex flex-col gap-3 rounded-3xl p-5 [&:has(details[open])]:z-50" data-testid={own ? "tquiz-card" : "lms-assess-card"} data-hidden={hidden ? "1" : "0"}>
       <p className="truncate text-lg font-bold" dir="auto">{own ? "✏️ " : ""}{title || tr("Untitled", "بدون عنوان")}</p>
-      <div className="flex flex-wrap items-center gap-1.5"><CurChip type="quiz" id={id} /><TrkLink id={id} /></div>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <CurChip type="quiz" id={id} /><TrkLink id={id} />
+        {!own && hidden && <span className="inline-flex items-center gap-1 rounded-full bg-slate-200 px-2 py-0.5 text-[11px] font-bold text-slate-800 dark:bg-white/10 dark:text-white" data-testid="lms-assess-hidden">{tr("Hidden from website", "مخفي عن الموقع")}</span>}
+      </div>
       <div className="mt-auto flex flex-wrap gap-2">
         <button type="button" className="rounded-full bg-header px-3 py-1.5 text-xs font-bold text-white" onClick={() => setAssignFor(assignFor === id ? null : id)} data-testid="lms-assess-assign">📌 {tr("Assign", "إسناد")}</button>
         <button type="button" className="rounded-full bg-sun px-3 py-1.5 text-xs font-bold text-[#0b1b2b]" onClick={() => host(id, title)} data-testid="lms-assess-host">▶ {tr("Start group session", "بدء جلسة جماعية")}</button>
@@ -200,7 +212,7 @@ function TeacherAssess({ quizzes, tr }: { quizzes: Quiz[]; tr: Tr }) {
       <section>
         <H2>{tr("School assessments you can use", "تقييمات المدرسة المتاحة لك")}</H2>
         {!quizzesF.length ? <p className="rounded-2xl bg-black/5 px-4 py-3 text-sm dark:bg-white/10" data-testid="lms-assess-none">{flt.active ? tr("No assessments match these filters.", "لا توجد تقييمات تطابق هذه المرشحات.") : tr("Your admin hasn't allowed you to host any school assessments yet.", "لم يسمح لك المسؤول باستخدام تقييمات المدرسة بعد.")}</p>
-          : <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" data-testid="lms-assess-list">{quizzesF.map((q) => card(q.slug, q.title, false, q.subject))}</ul>}
+          : <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" data-testid="lms-assess-list">{quizzesF.map((q) => card(q.slug, q.title, false, q.subject, !q.visible))}</ul>}
       </section>
       <section><H2>{tr("Assigned", "المُسندة")}</H2><AssignedList refresh={refresh} /></section>
     </>
