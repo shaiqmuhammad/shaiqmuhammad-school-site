@@ -40,7 +40,7 @@ import { loadCat, catPhases, rulePhase, ruleDept } from "./catx";
 import { makeVapid, sendPush, type Vapid } from "./push";
 import { textReplaceAll } from "./textfix";
 import { applyT413Sc } from "./curScFix";
-import { applyT416Overrides } from "./trkOvFix";
+import { applyT416Overrides, applyT419Overrides } from "./trkOvFix";
 import { scoreFromPct, systems, trackerHandle, trkInit } from "./tracker";
 import { qaHandle } from "./qa";
 import { badgeOf, balanceOf, rcEarnAt, rcHandle, rcInit, rcSync, type RcCtx } from "./rewards";
@@ -400,6 +400,7 @@ export class LmsStore extends DurableObject<LmsEnv> {
     this.migrateCatalogTree();
     applyT413Sc(this.sql as never); // t413: tracker SC for two units that had none (once, only if still empty)
     try { applyT416Overrides(this.sql as never); } catch (e) { console.error("t416 tracker overrides failed", e); } // t416: online tracker = Excel SC marks (once; backup in settings)
+    try { applyT419Overrides(this.sql as never); } catch (e) { console.error("t419 tracker overrides failed", e); } // t419: later Excel edits (Y6 Iqlab, once; backup in settings)
   }
 
   private catalog() {

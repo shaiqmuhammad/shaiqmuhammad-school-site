@@ -54,3 +54,29 @@ test("skips a cell when the student's name or the unit's SC text no longer match
   const { db: db2, sql: sql2 } = mk(); db2.prepare(`UPDATE cur SET sc='["changed"]' WHERE id=?`).run(T416_UNITS[1][0]);
   assert.equal((applyT416Overrides(sql2, 5)!).skipped, T416_ROWS.filter((x) => x[1] === 1).length);
 });
+
+test("t419: writes the later Excel marks once, guarded by the SC text, with its own backup keys", async () => {
+  const { applyT419Overrides, T419_SET } = await import("../src/trkOvFix");
+  const { T413_SC } = await import("../src/curScFix");
+  const iq = T413_SC.find((u) => u.id === "cu_mvdiwond1e7ffbef")!;
+  T419_SET.units[0][1] && iq.sc.forEach((t, i) => assert.equal(T419_SET.units[0][1][String(i)], t)); // same text as the t413 SC
+  const db = new DatabaseSync(":memory:");
+  db.exec(`CREATE TABLE settings (k TEXT PRIMARY KEY, v TEXT); CREATE TABLE cur (id TEXT PRIMARY KEY, sc TEXT); CREATE TABLE users (id TEXT PRIMARY KEY, name TEXT, role TEXT)`);
+  db.prepare(`INSERT INTO cur VALUES (?,?)`).run("cu_mvdiwond1e7ffbef", JSON.stringify(iq.sc));
+  db.prepare(`INSERT INTO users VALUES (?,?,?)`).run("u_mv1g3ia3c91a134d12", "Sophia Abdalla", "student");
+  const sql = { exec: (q: string, ...a: unknown[]) => { const st = db.prepare(q); const rows = (/^\s*SELECT/i.test(q) ? st.all(...(a as never[])) : (st.run(...(a as never[])), [])) as Record<string, unknown>[]; return { toArray: () => rows }; } };
+  db.exec(`CREATE TABLE trk_ov (student TEXT, unit TEXT, i INTEGER, val TEXT, by_name TEXT, at INTEGER, PRIMARY KEY (student, unit, i))`);
+  db.prepare(`INSERT INTO trk_ov VALUES ('u_other','cu_x',0,'1','Teacher',1)`).run();
+  assert.deepEqual(applyT419Overrides(sql, 7), { written: 3, same: 0, replaced: 0, skipped: 0 });
+  assert.deepEqual((db.prepare(`SELECT i, val FROM trk_ov WHERE student='u_mv1g3ia3c91a134d12' ORDER BY i`).all() as { i: number; val: string }[]).map((r) => [r.i, r.val]), [[0, "2"], [1, "1"], [2, "2"]]);
+  assert.equal((db.prepare(`SELECT COUNT(*) c FROM trk_ov WHERE student='u_other'`).get() as { c: number }).c, 1);
+  assert.ok((db.prepare(`SELECT v FROM settings WHERE k='mig:t419:log'`).get() as { v: string }).v.includes("u_other"));
+  assert.equal(applyT419Overrides(sql, 8), null);
+  // SC text changed online -> skipped, nothing written
+  const db2 = new DatabaseSync(":memory:");
+  db2.exec(`CREATE TABLE settings (k TEXT PRIMARY KEY, v TEXT); CREATE TABLE cur (id TEXT PRIMARY KEY, sc TEXT); CREATE TABLE users (id TEXT PRIMARY KEY, name TEXT, role TEXT)`);
+  db2.prepare(`INSERT INTO cur VALUES (?,?)`).run("cu_mvdiwond1e7ffbef", '["Other"]');
+  db2.prepare(`INSERT INTO users VALUES (?,?,?)`).run("u_mv1g3ia3c91a134d12", "Sophia Abdalla", "student");
+  const sql2 = { exec: (q: string, ...a: unknown[]) => { const st = db2.prepare(q); const rows = (/^\s*SELECT/i.test(q) ? st.all(...(a as never[])) : (st.run(...(a as never[])), [])) as Record<string, unknown>[]; return { toArray: () => rows }; } };
+  assert.equal(applyT419Overrides(sql2, 9)!.skipped, 3);
+});
