@@ -30,14 +30,17 @@ export function scDefsFrom(quizzes: QuizLike[], into: ScDefs = {}): ScDefs {
 }
 
 /** Fill the missing `sc` of each answer from the assessment's current tags (answers that already carry a tag keep it). */
-export function retag<T extends Detail>(details: T[], defs: ScDefs | null | undefined, keys: (string | undefined)[]): T[] {
+/** t420: `stale` = units whose SC were replaced; an answer saved with a tag on such a unit takes today's tag for its prompt (or none). */
+export function retag<T extends Detail>(details: T[], defs: ScDefs | null | undefined, keys: (string | undefined)[], stale?: Set<string>): T[] {
   if (!defs) return details;
   const maps = keys.map((k) => (k ? defs[k] : undefined)).filter(Boolean) as Record<string, string>[];
   if (!maps.length) return details;
   return details.map((d) => {
-    if (d.sc) return d;
-    const p = normPrompt(d.prompt); if (!p) return d;
-    for (const m of maps) if (m[p]) return { ...d, sc: m[p] };
+    const old = !!d.sc && !!stale && stale.has(String(d.sc).split("#")[0]);
+    if (d.sc && !old) return d;
+    const p = normPrompt(d.prompt);
+    if (p) for (const m of maps) if (m[p]) return { ...d, sc: m[p] };
+    if (old) { const { sc: _s, ...rest } = d; return rest as T; }
     return d;
   });
 }

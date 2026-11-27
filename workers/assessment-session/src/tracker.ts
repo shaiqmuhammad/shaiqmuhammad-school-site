@@ -14,6 +14,7 @@ import { mpOf, type MpAcc } from "./modperm";
 import type { Actor } from "./lms";
 import { khdaCfg } from "./qa";
 import { retag, type ScDefs } from "./scRetag";
+import { T420_RELINKED } from "./t420Fix";
 
 type Json = Record<string, unknown>;
 /** t284: a subject that shares (links to, never copies) another subject's curriculum, topics, SCs and tracker structure. */
@@ -210,7 +211,7 @@ export async function grid(c: TrkCtx, a: Actor, cls: string, term: string, want 
   const linked = linkRule(c.sql);
   const defs = ids.length && c.scDefs ? await c.scDefs().catch(() => null) : null;
   if (ids.length) for (const r0 of await c.tagged(ids, [...byQuiz.keys()])) {
-    const r = { ...r0, details: retag(r0.details, defs, [r0.quizId, r0.slug]) }; // t411: each answer scores its own SC
+    const r = { ...r0, details: retag(r0.details, defs, [r0.quizId, r0.slug], T420_RELINKED) }; // t411: each answer scores its own SC
     if (!linked(r.quizId, r.at) && !(r.slug && r.slug !== r.quizId && linked(r.slug, r.at))) continue; // practice assessment: saved as usual, never in the tracker
     const per = new Map<string, { e: number; p: number }>(); let te = 0, tp = 0;
     for (const d of r.details) { te += Number(d.earned) || 0; tp += Number(d.points) || 0; if (d.sc) { const x = per.get(d.sc) || { e: 0, p: 0 }; x.e += Number(d.earned) || 0; x.p += Number(d.points) || 0; per.set(d.sc, x); } }
