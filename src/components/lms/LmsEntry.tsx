@@ -12,7 +12,7 @@ import { MsgIcon } from "@/components/lms/Messages";
 import { viewAs, lmsSession, lmsSignOut } from "@/lib/lms";
 import { openClassroomTab } from "@/lib/classroom";
 import { useI18n } from "@/lib/i18n";
-import { publicLoginHref } from "@/lib/deployment";
+import { publicLoginHref, publicLoginHrefDefault } from "@/lib/deployment";
 import { StartMeetingButton } from "@/components/lms/StartMeeting";
 
 /** True once a student/teacher session exists on this device (read after hydration). */
@@ -25,9 +25,16 @@ export function useLmsSignedIn() {
   return on;
 }
 
-/** Same-tab public Login (or /lms when already signed in). External school login uses <a>; in-app paths use Link. */
+/** Same-tab public Login (or /lms when already signed in). External school login uses <a>; in-app paths use Link.
+ *  First paint matches the static HTML (prod school login). After mount, localhost / 127.0.0.1 / *.pages.dev swap to /lms/login. */
 function AreaOrLoginLink({ signedIn, href, ...props }: { signedIn: boolean; href?: string } & ComponentProps<"a">) {
-  const dest = href ?? (signedIn ? "/lms" : publicLoginHref());
+  const first = href ?? (signedIn ? "/lms" : publicLoginHrefDefault());
+  const [dest, setDest] = useState(first);
+  useEffect(() => {
+    if (href) { setDest(href); return; }
+    if (signedIn) { setDest("/lms"); return; }
+    setDest(publicLoginHref(window.location.hostname));
+  }, [href, signedIn]);
   if (dest.startsWith("http")) return <a href={dest} {...props} />;
   return <Link href={dest} {...props} />;
 }
