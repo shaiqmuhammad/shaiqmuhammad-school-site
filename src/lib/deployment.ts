@@ -27,6 +27,16 @@ export const SITE_ADDRESSES = env(process.env.NEXT_PUBLIC_SITE_ADDRESSES, "www.s
 /** Hosts that are this site's own built-in family (links on them use the saved main address). */
 export const OWN_HOSTS = [DEFAULT_HOST, DEFAULT_HOST.replace(/^www\./, "")];
 
+/** Public-site Login buttons open this address in the same tab.
+ *  Empty (or a non-school copy) keeps /lms/login. The old LMS at /lms is not redirected and stays a fallback.
+ *  Revert by setting this to "". */
+export const SCHOOL_LOGIN_URL = IS_SCHOOL ? "https://school.shaiqmuhammad.com" : "";
+
+/** Href for public Login / Student & Teacher Login entry points only — not in-LMS "please sign in" links. */
+export function publicLoginHref(): string {
+  return SCHOOL_LOGIN_URL || "/lms/login";
+}
+
 export const SITE_TEXT = {
   name: env(process.env.NEXT_PUBLIC_SITE_NAME, "Shaiq Muhammad"),
   nameAr: env(process.env.NEXT_PUBLIC_SITE_NAME_AR, ""),
